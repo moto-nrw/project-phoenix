@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -56,24 +55,4 @@ func (c HolidayClosureChange) Span() (calendar.Date, calendar.Date) {
 func (c HolidayClosureChange) Touches(day calendar.Date) bool {
 	_, to := c.Span()
 	return !to.IsZero() && !to.Before(day)
-}
-
-// HolidayClosureStatusOf names what both places show of a proposal and the
-// state of its command (ADR 0196 section 5).
-func HolidayClosureStatusOf(proposalState, eventState string) schoolcalendar.HolidayClosureStatus {
-	if proposalState == "open" || eventState == "" {
-		return schoolcalendar.HolidayClosureSuggested
-	}
-	switch eventState {
-	case schoolcalendar.HolidayClosureEventCompleted:
-		return schoolcalendar.HolidayClosureSent
-	case schoolcalendar.HolidayClosureEventNoMail, schoolcalendar.HolidayClosureEventNeedsConfirmation:
-		return schoolcalendar.HolidayClosureNoMail
-	case schoolcalendar.HolidayClosureEventFailed, schoolcalendar.HolidayClosureEventBlocked:
-		return schoolcalendar.HolidayClosureFailed
-	case schoolcalendar.HolidayClosureEventUnknown:
-		return schoolcalendar.HolidayClosureUnknown
-	default:
-		return schoolcalendar.HolidayClosureSending
-	}
 }

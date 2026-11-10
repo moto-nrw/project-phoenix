@@ -444,15 +444,17 @@ ALTER TABLE enrollment.holiday_closure_notices DROP COLUMN IF EXISTS state, DROP
 `
 
 func holidayClosureEventsUp(ctx context.Context, db *bun.DB) error {
-	for _, step := range []struct{ name, sql string }{
-		{"create the holiday closure proposals and events", holidayClosureCalendarUpSQL},
-		{"create the read channel of the holiday closure worker", holidayClosureReaderUpSQL},
-		{"version the holiday closure notices", holidayClosureNoticeStatesUpSQL},
-		{"carry the open holiday closure cases over as proposals", holidayClosureCarryOverSQL},
-	} {
-		if _, err := db.ExecContext(ctx, step.sql); err != nil {
-			return fmt.Errorf("%s: %w", step.name, err)
-		}
+	if _, err := db.ExecContext(ctx, holidayClosureCalendarUpSQL); err != nil {
+		return fmt.Errorf("create the holiday closure proposals and events: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, holidayClosureReaderUpSQL); err != nil {
+		return fmt.Errorf("create the read channel of the holiday closure worker: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, holidayClosureNoticeStatesUpSQL); err != nil {
+		return fmt.Errorf("version the holiday closure notices: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, holidayClosureCarryOverSQL); err != nil {
+		return fmt.Errorf("carry the open holiday closure cases over as proposals: %w", err)
 	}
 	return nil
 }

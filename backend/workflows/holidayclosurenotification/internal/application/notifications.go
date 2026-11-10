@@ -21,12 +21,12 @@ import (
 
 // Dependencies are the owners' ports and the units.
 type Dependencies struct {
-	Proposals  ports.Proposals
-	Queue      ports.Queue
-	Closures   ports.Closures
-	NoCareDays ports.NoCareDays
-	Units      ports.Units
-	Logger     *slog.Logger
+	Proposals ports.Proposals
+	Queue     ports.Queue
+	Closures  ports.Closures
+	Schools   ports.Schools
+	Units     ports.Units
+	Logger    *slog.Logger
 }
 
 // Service serves notification.Notifications.
@@ -39,7 +39,7 @@ var _ notification.Notifications = (*Service)(nil)
 // New builds the workflow.
 func New(dependencies Dependencies) *Service {
 	if dependencies.Proposals == nil || dependencies.Queue == nil || dependencies.Closures == nil ||
-		dependencies.NoCareDays == nil || dependencies.Units == nil {
+		dependencies.Schools == nil || dependencies.Units == nil {
 		panic("holiday closure notification: every dependency is required")
 	}
 	if dependencies.Logger == nil {
@@ -48,27 +48,19 @@ func New(dependencies Dependencies) *Service {
 	return &Service{Dependencies: dependencies}
 }
 
-// operation is the Enrollment operation of a proposal or command of school
-// at organizationID: the calendar it reads is the worker's read channel in
-// the caller's Träger transaction, the same for count, preview and notice.
-func (s *Service) operation(organizationID, schoolID int64, operationID string, from, to calendar.Date) enrollment.HolidayClosureOperation {
-	return enrollment.HolidayClosureOperation{
-		OperationID: operationID, SchoolID: schoolID, From: from, To: to,
-		NoCareDays: func(ctx context.Context, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
-			school, err := s.Queue.HolidayClosureCalendar(ctx, organizationID, schoolID, from, to)
-			if err != nil {
-				return nil, err
-			}
-			return s.NoCareDays(ctx, school, from, to)
-		},
-	}
+// operation is the Enrollment operation of a proposal or command of school;
+// Enrollment reads the school's calendar through the worker's read channel
+// in the caller's Träger transaction, the same for count, preview and
+// notice.
+func operation(schoolID int64, operationID string, from, to calendar.Date) enrollment.HolidayClosureOperation {
+	return enrollment.HolidayClosureOperation{OperationID: operationID, SchoolID: schoolID, From: from, To: to}
 }
 
 // plan previews a notice that waits for a click in the caller's Träger
 // transaction of its Träger. A school that left the Träger has none.
 func (s *Service) plan(ctx context.Context, notice schoolcalendar.HolidayClosureNotice) (enrollment.HolidayClosureImpact, error) {
 	impact, err := s.Closures.PlanHolidayClosureOperation(ctx, notice.OrganizationID,
-		s.operation(notice.OrganizationID, notice.SchoolID, notice.OperationID, notice.SpanFrom, notice.SpanTo))
+		operation(notice.SchoolID, notice.OperationID, notice.SpanFrom, notice.SpanTo))
 	if errors.Is(err, schoolcalendar.ErrHolidayClosureNoticeNotFound) {
 		return enrollment.HolidayClosureImpact{Weeks: []enrollment.HolidayClosureWeek{}}, nil
 	}
@@ -169,7 +161,7 @@ func (s *Service) NotifyFromTraeger(ctx context.Context, organizationID, account
 func (s *Service) traegerNotice(ctx context.Context, organizationID, noticeID int64) (schoolcalendar.HolidayClosureNotice, error) {
 	var found *schoolcalendar.HolidayClosureNotice
 	if err := s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
-		notices, err := s.Proposals.TraegerHolidayClosureNotices(ctx, organizationID)
+		notices, err := s.traegerNotices(ctx, organizationID)
 		if err != nil {
 			return err
 		}
@@ -186,6 +178,37 @@ func (s *Service) traegerNotice(ctx context.Context, organizationID, noticeID in
 		return schoolcalendar.HolidayClosureNotice{}, notification.ErrNoticeNotFound
 	}
 	return *found, nil
+}
+
+// traegerNotices lists the Träger's notices of its current schools only:
+// row security limits them already, Organisation & Tenancy decides the
+// membership once more, below it. The school names come along.
+func (s *Service) traegerNotices(ctx context.Context, organizationID int64) ([]schoolcalendar.HolidayClosureNotice, error) {
+	notices, err := s.Proposals.TraegerHolidayClosureNotices(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	schools, err := s.currentSchools(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(notices, func(notice schoolcalendar.HolidayClosureNotice) bool {
+		_, current := schools[notice.SchoolID]
+		return !current || notice.OrganizationID != organizationID
+	}), nil
+}
+
+// currentSchools names the Träger's undeleted schools by ID.
+func (s *Service) currentSchools(ctx context.Context, organizationID int64) (map[int64]string, error) {
+	schools, err := s.Schools.TraegerSchools(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[int64]string, len(schools))
+	for _, school := range schools {
+		names[school.ID] = school.Name
+	}
+	return names, nil
 }
 
 func (s *Service) confirm(ctx context.Context, schoolID, noticeID, revision int64, actor schoolcalendar.HolidayClosureActor) (notification.Notice, error) {
@@ -256,7 +279,11 @@ func (s *Service) PendingHolidayClosures(ctx context.Context, organizationID int
 		Notices:              []notification.TraegerNotice{},
 	}
 	err := s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
-		notices, err := s.Proposals.TraegerHolidayClosureNotices(ctx, organizationID)
+		notices, err := s.traegerNotices(ctx, organizationID)
+		if err != nil {
+			return err
+		}
+		schools, err := s.currentSchools(ctx, organizationID)
 		if err != nil {
 			return err
 		}
@@ -264,6 +291,7 @@ func (s *Service) PendingHolidayClosures(ctx context.Context, organizationID int
 		families := map[int64]int{}
 		for _, notice := range notices {
 			item := notification.TraegerNotice{Notice: view(notice), Weeks: []enrollment.HolidayClosureWeek{}}
+			item.SchoolName = schools[notice.SchoolID]
 			if notice.Status == schoolcalendar.HolidayClosureSuggested {
 				impact, err := s.plan(ctx, notice)
 				if err != nil {

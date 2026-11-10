@@ -22,5 +22,5 @@ type HolidayClosureEvents interface {
 // NewHolidayClosureEvents composes the proposals and commands over the
 // caller's school or Träger transaction.
 func NewHolidayClosureEvents() HolidayClosureEvents {
-	return application.NewHolidayClosureEvents(postgres.NewHolidayClosureEventStore(postgres.NewCompositionDatabase()), nil)
+	return postgres.NewHolidayClosureEventStore(postgres.NewCompositionDatabase(), nil)
 }

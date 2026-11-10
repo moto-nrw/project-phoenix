@@ -293,14 +293,22 @@ func (s *Service) TraegerEmailStatusesByKey(ctx context.Context, organizationID 
 // RetryFailedTraegerEmails makes the Träger's dead letters of keys with a
 // known failure due again; it keeps their idempotency keys, so each stays
 // the same mail.
-func (s *Service) RetryFailedTraegerEmails(ctx context.Context, organizationID int64, keys []string) (int64, error) {
+func (s *Service) RetryFailedTraegerEmails(ctx context.Context, organizationID int64, keys []string) (retried int64, err error) {
 	if organizationID <= 0 {
 		return 0, errors.New("delivery: Träger is required")
 	}
 	if len(keys) == 0 {
 		return 0, nil
 	}
-	return s.store.RetryFailedTraegerEmails(ctx, organizationID, keys)
+	started := time.Now()
+	defer func() {
+		s.observe(domain.Observation{Operation: "traeger_retry", Transport: string(domain.TransportEmail), Duration: time.Since(started), Count: int(retried), Err: err})
+	}()
+	retried, err = s.store.RetryFailedTraegerEmails(ctx, organizationID, keys)
+	if err != nil {
+		return 0, fmt.Errorf("delivery: retry failed Träger mails: %w", err)
+	}
+	return retried, nil
 }
 
 // intentStatuses reports stored intents in the public status shape.

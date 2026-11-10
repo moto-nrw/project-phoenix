@@ -57,9 +57,9 @@ func (c *capturedMails) outcome(key string) string {
 	return enrollment.TraegerMailQueued
 }
 
-// RetryTraegerMails counts the failed mails of keys as retried.
-func (c *capturedMails) RetryTraegerMails(_ context.Context, _ int64, keys []string) (int, error) {
-	retried := 0
+// RetryFailedTraegerEmails counts the failed mails of keys as retried.
+func (c *capturedMails) RetryFailedTraegerEmails(_ context.Context, _ int64, keys []string) (int64, error) {
+	var retried int64
 	for _, key := range keys {
 		if c.outcomes[key] == enrollment.TraegerMailFailed {
 			c.outcomes[key] = enrollment.TraegerMailQueued
@@ -91,24 +91,48 @@ func (closureTraeger) HolidayTraeger(context.Context, int64) (enrollment.Holiday
 	return enrollment.HolidayTraeger{Name: "Träger Ferien"}, nil
 }
 
-// closureOperation is a school operation over the week of newPlacesWeek
-// that reads days as the school's calendar.
-func closureOperation(school int64, days closureCalendar) enrollment.HolidayClosureOperation {
+// closureKeyBytes and closureKeyed stand in for Security Runtime's random
+// source and keyed fingerprint: deterministic, and still keyed.
+func closureKeyBytes(b []byte) error {
+	for i := range b {
+		b[i] = byte(i + 1)
+	}
+	return nil
+}
+
+func closureKeyed(key, content []byte) string {
+	return fmt.Sprintf("%064x", fnvOf(append(slices.Clone(key), content...)))
+}
+
+func fnvOf(b []byte) uint64 {
+	var h uint64 = 14695981039346656037
+	for _, c := range b {
+		h ^= uint64(c)
+		h *= 1099511628211
+	}
+	return h
+}
+
+// closureOperation is a school operation over the week of newPlacesWeek.
+func closureOperation(school int64) enrollment.HolidayClosureOperation {
 	return enrollment.HolidayClosureOperation{
 		OperationID: "8c1b0c2e-6a59-4c3f-9a65-3c5f0d0a2b11", SchoolID: school,
 		From: calendar.NewDate(2027, 7, 5), To: calendar.NewDate(2027, 7, 9),
-		NoCareDays: func(ctx context.Context, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
-			byDay, err := days.HolidayNoCareDays(ctx, []int64{school}, from, to)
-			return byDay[school], err
-		},
 	}
+}
+
+// HolidayClosureNoCareDays answers the operation's read channel with the
+// same days.
+func (c closureCalendar) HolidayClosureNoCareDays(ctx context.Context, _ int64, school int64, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
+	byDay, err := c.HolidayNoCareDays(ctx, []int64{school}, from, to)
+	return byDay[school], err
 }
 
 func newClosures(mail *capturedMails, days closureCalendar) enrollment.HolidayClosures {
 	if mail.outcomes == nil {
 		mail.outcomes = map[string]string{}
 	}
-	return compose.NewHolidayClosures(days, closureTraeger{}, mail, func() calendar.Date { return closureToday })
+	return compose.NewHolidayClosures(days, days, closureTraeger{}, mail, closureKeyBytes, closureKeyed, func() calendar.Date { return closureToday })
 }
 
 func hostSchoolOf(t *testing.T, db *bun.DB, week int64) int64 {
@@ -279,11 +303,11 @@ func TestHolidayClosureOperationTellsTheSchoolsOwnClosingDays(t *testing.T) {
 	w := newPlacesWeek(t, db, "Träger Schließtag C")
 	addSibling(t, db, w, "zweite@example.org", "placed")
 	mail := &capturedMails{}
-	closures := newClosures(mail, nil)
-	operation := closureOperation(hostSchoolOf(t, db, w.week), closureCalendar{
+	closures := newClosures(mail, closureCalendar{
 		{Date: calendar.NewDate(2027, 7, 7), Kind: enrollment.HolidayNoCareClosingDay, Name: "Pädagogischer Tag"},
 		{Date: calendar.NewDate(2027, 7, 8), Kind: enrollment.HolidayNoCareHoliday, Name: "Feiertag"},
 	})
+	operation := closureOperation(hostSchoolOf(t, db, w.week))
 	withinTraeger(t, db, w.organization, func(ctx context.Context) {
 		plan, err := closures.PlanHolidayClosureOperation(ctx, w.organization, operation)
 		require.NoError(t, err)
@@ -388,7 +412,7 @@ func (m *heldClosureMail) TraegerMailStates(context.Context, int64, []string) ([
 	return nil, nil
 }
 
-func (m *heldClosureMail) RetryTraegerMails(context.Context, int64, []string) (int, error) {
+func (m *heldClosureMail) RetryFailedTraegerEmails(context.Context, int64, []string) (int64, error) {
 	return 0, nil
 }
 
@@ -407,7 +431,7 @@ func TestHolidayClosureSerializesOverlappingNotices(t *testing.T) {
 		{Date: calendar.NewDate(2027, 7, 7), Kind: enrollment.HolidayNoCareClosingDay},
 		{Date: calendar.NewDate(2027, 7, 8), Kind: enrollment.HolidayNoCareClosingDay},
 	}
-	closures := compose.NewHolidayClosures(days, closureTraeger{}, mail, func() calendar.Date { return closureToday })
+	closures := compose.NewHolidayClosures(days, days, closureTraeger{}, mail, closureKeyBytes, closureKeyed, func() calendar.Date { return closureToday })
 	closure := enrollment.HolidayClosure{SchoolIDs: []int64{hostSchoolOf(t, db, w.week)}, StartsOn: calendar.NewDate(2027, 7, 6), EndsOn: calendar.NewDate(2027, 7, 7)}
 	ctx, cancel := context.WithTimeout(testpkg.ContextWithTenantRuntime(t.Context(), testpkg.TenantRuntime(t, db)), 10*time.Second)
 	defer cancel()
@@ -417,7 +441,7 @@ func TestHolidayClosureSerializesOverlappingNotices(t *testing.T) {
 		token = impact.Token
 		return err
 	}))
-	operation := closureOperation(hostSchoolOf(t, db, w.week), days)
+	operation := closureOperation(hostSchoolOf(t, db, w.week))
 	firstDone := make(chan error, 1)
 	go func() {
 		firstDone <- testpkg.WithinTraeger(ctx, w.organization, func(ctx context.Context) error {

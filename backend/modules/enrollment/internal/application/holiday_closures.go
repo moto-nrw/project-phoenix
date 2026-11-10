@@ -2,9 +2,6 @@ package application
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +29,9 @@ type HolidayClosureStore interface {
 	HolidayClosureBookings(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date) ([]enrollment.HolidayClosureBookingRecord, error)
 	HolidayClosureNotices(ctx context.Context, organizationID int64, registrationIDs []int64) ([]enrollment.HolidayClosureNoticeRecord, error)
 	SetHolidayClosureNotices(ctx context.Context, organizationID int64, operationID string, notices []enrollment.HolidayClosureNoticeRecord) error
-	HolidayClosureFamilyKey(ctx context.Context, organizationID int64) ([]byte, error)
+	// HolidayClosureFamilyKey returns the Träger's stored key, storing
+	// candidate first when it has none.
+	HolidayClosureFamilyKey(ctx context.Context, organizationID int64, candidate []byte) ([]byte, error)
 	RecordHolidayClosureSends(ctx context.Context, organizationID int64, sends []enrollment.HolidayClosureSendRecord) error
 	HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationID string) ([]string, error)
 }
@@ -42,28 +41,34 @@ var errHolidayClosureMailRequired = errors.New("enrollment: telling the parents 
 
 // HolidayClosures serves enrollment.HolidayClosures.
 type HolidayClosures struct {
-	store    HolidayClosureStore
-	calendar enrollment.HolidaySchoolCalendar
-	traeger  enrollment.HolidayTraegerDirectory
-	mail     enrollment.TraegerMailDelivery
-	today    func() calendar.Date
+	store     HolidayClosureStore
+	calendar  enrollment.HolidaySchoolCalendar
+	operation enrollment.HolidayClosureCalendar
+	traeger   enrollment.HolidayTraegerDirectory
+	mail      enrollment.TraegerMailDelivery
+	random    func([]byte) error
+	keyed     func(key, content []byte) string
+	today     func() calendar.Date
 }
 
 var _ enrollment.HolidayClosures = (*HolidayClosures)(nil)
 
 // NewHolidayClosures builds the notices over store. calendar names the
 // holidays and closing days of the host schools, traeger the Träger and its
-// schools in the mail, mail the outbox; today defaults to the Berlin day.
-func NewHolidayClosures(store HolidayClosureStore, schoolCalendar enrollment.HolidaySchoolCalendar, traeger enrollment.HolidayTraegerDirectory,
-	mail enrollment.TraegerMailDelivery, today func() calendar.Date,
+// schools in the mail, mail the outbox; random draws a Träger's family key
+// and keyed derives a family fingerprint with it; today defaults to the
+// Berlin day.
+func NewHolidayClosures(store HolidayClosureStore, schoolCalendar enrollment.HolidaySchoolCalendar, operationCalendar enrollment.HolidayClosureCalendar,
+	traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailDelivery, random func([]byte) error, keyed func(key, content []byte) string,
+	today func() calendar.Date,
 ) *HolidayClosures {
-	if store == nil || schoolCalendar == nil || traeger == nil || mail == nil {
-		panic("enrollment: the holiday closure store, the host schools' calendar, the Träger directory and the mail outbox are required")
+	if store == nil || schoolCalendar == nil || operationCalendar == nil || traeger == nil || mail == nil || random == nil || keyed == nil {
+		panic("enrollment: the holiday closure store, the host schools' calendar, the Träger directory, the mail outbox and the key functions are required")
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayClosures{store: store, calendar: schoolCalendar, traeger: traeger, mail: mail, today: today}
+	return &HolidayClosures{store: store, calendar: schoolCalendar, operation: operationCalendar, traeger: traeger, mail: mail, random: random, keyed: keyed, today: today}
 }
 
 // changedBooking is a booking with the days its parents learn about now:
@@ -146,7 +151,7 @@ func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, org
 	}
 	result.Mails = len(keys)
 	if len(keys) > 0 {
-		if result.Retried, err = h.mail.RetryTraegerMails(ctx, organizationID, keys); err != nil {
+		if result.Retried, err = h.mail.RetryFailedTraegerEmails(ctx, organizationID, keys); err != nil {
 			return enrollment.HolidayClosureOperationResult{}, fmt.Errorf("enrollment: take the failed closure mails up again: %w", err)
 		}
 	}
@@ -254,10 +259,7 @@ func (h *HolidayClosures) operationChanges(ctx context.Context, organizationID i
 	if to.IsZero() || to.Before(from) {
 		return nil, nil
 	}
-	if operation.NoCareDays == nil {
-		return nil, errors.New("enrollment: the calendar of the closure operation is required")
-	}
-	noCare, err := operation.NoCareDays(ctx, from, to)
+	noCare, err := h.operation.HolidayClosureNoCareDays(ctx, organizationID, operation.SchoolID, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -455,7 +457,11 @@ func (h *HolidayClosures) notify(ctx context.Context, organizationID int64, oper
 	if err != nil {
 		return enrollment.HolidayClosureNotice{}, fmt.Errorf("enrollment: read the Träger of a closure notice: %w", err)
 	}
-	secret, err := h.store.HolidayClosureFamilyKey(ctx, organizationID)
+	candidate := make([]byte, 32)
+	if err := h.random(candidate); err != nil {
+		return enrollment.HolidayClosureNotice{}, fmt.Errorf("enrollment: draw the family key: %w", err)
+	}
+	secret, err := h.store.HolidayClosureFamilyKey(ctx, organizationID, candidate)
 	if err != nil {
 		return enrollment.HolidayClosureNotice{}, err
 	}
@@ -481,7 +487,7 @@ func (h *HolidayClosures) notify(ctx context.Context, organizationID int64, oper
 	}
 	var sends []enrollment.HolidayClosureSendRecord
 	for _, family := range order {
-		familyKey := familyFingerprint(secret, organizationID, family)
+		familyKey := h.keyed(secret, []byte(strconv.FormatInt(organizationID, 10)+":"+family))
 		key := "holiday-closure-op:" + operationID + ":" + familyKey
 		if err := h.enqueue(ctx, organizationID, traeger, key, byFamily[family]); err != nil {
 			return enrollment.HolidayClosureNotice{}, err
@@ -498,14 +504,6 @@ func (h *HolidayClosures) notify(ctx context.Context, organizationID int64, oper
 		return enrollment.HolidayClosureNotice{}, err
 	}
 	return enrollment.HolidayClosureNotice{Families: len(order), Children: len(children)}, nil
-}
-
-// familyFingerprint keys a family with the Träger's secret: no address in
-// logs or keys, and no guessable digest of one (ADR 0196 section 4).
-func familyFingerprint(secret []byte, organizationID int64, family string) string {
-	mac := hmac.New(sha256.New, secret)
-	_, _ = mac.Write([]byte(strconv.FormatInt(organizationID, 10) + ":" + family))
-	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // enqueue writes the one mail of a family: its children with their weeks,

@@ -75,15 +75,21 @@ type HolidayClosureSpan struct {
 
 // HolidayClosureOperation is a confirmed or proposed change of a school
 // closing day (ADR 0196): the operation of its proposal, the school and the
-// days it touches. NoCareDays reads the school's days without care in
-// [from, to] as the current calendar names them; a notice reads it under
-// Enrollment's lock, so a Träger closing day saved meanwhile counts.
+// days it touches.
 type HolidayClosureOperation struct {
 	OperationID string
 	SchoolID    int64
 	From        calendar.Date
 	To          calendar.Date
-	NoCareDays  func(ctx context.Context, from, to calendar.Date) ([]HolidayNoCareDay, error)
+}
+
+// HolidayClosureCalendar is Enrollment's port onto the days without care of
+// one current school of the Träger in [from, to], read in the caller's
+// Träger transaction through School Calendar's narrow read channel
+// (ADR 0196 section 3.4). A notice reads it under Enrollment's lock, so a
+// Träger closing day saved meanwhile counts. The root binds it.
+type HolidayClosureCalendar interface {
+	HolidayClosureNoCareDays(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date) ([]HolidayNoCareDay, error)
 }
 
 // HolidayClosureOperationResult is what the worker learns of a processed
@@ -92,7 +98,7 @@ type HolidayClosureOperation struct {
 type HolidayClosureOperationResult struct {
 	Families int
 	Mails    int
-	Retried  int
+	Retried  int64
 }
 
 // HolidayClosureDelivery sums the mails of an operation up by their
@@ -125,9 +131,10 @@ type TraegerMailState struct {
 type TraegerMailDelivery interface {
 	TraegerMailOutbox
 	TraegerMailStates(ctx context.Context, organizationID int64, idempotencyKeys []string) ([]TraegerMailState, error)
-	// RetryTraegerMails makes the mails with a known transport failure due
-	// again; a mail sent, waiting or with an unknown outcome stays as it is.
-	RetryTraegerMails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int, error)
+	// RetryFailedTraegerEmails makes the mails with a known transport
+	// failure due again; a mail sent, waiting or with an unknown outcome
+	// stays as it is. It returns how many it made due.
+	RetryFailedTraegerEmails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int64, error)
 }
 
 // HolidayClosedDay is a day of a booked week with its reason: without care,

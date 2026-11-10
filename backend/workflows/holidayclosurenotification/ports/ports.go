@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 )
 
 // Proposals is School Calendar's proposal side.
@@ -24,11 +24,6 @@ type Closures interface {
 	HolidayClosureOperationDelivery(ctx context.Context, organizationID int64, operationID string) (enrollment.HolidayClosureDelivery, error)
 }
 
-// NoCareDays names the days without care of a school in [from, to]: the
-// statutory holidays of its federal state, the registry default when it
-// stored none, and the closing days the calendar read names.
-type NoCareDays func(ctx context.Context, school schoolcalendar.HolidayClosureCalendar, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error)
-
 // Units opens the units of work. WithinSchool and WithinTraeger each open
 // a unit of their own and refuse to nest in another one.
 type Units interface {
@@ -36,3 +31,7 @@ type Units interface {
 	WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error
 	WithinAdmin(ctx context.Context, fn func(context.Context) error) error
 }
+
+// Schools names the current, undeleted schools of a Träger with their
+// names, read like the Träger calendar does (ADR 0196 section 3.1).
+type Schools = traegercalendar.Schools

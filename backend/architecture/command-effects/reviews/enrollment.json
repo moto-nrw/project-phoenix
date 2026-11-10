@@ -1769,6 +1769,76 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "reason": "Reads the registry default of operations.federal_state from the in-memory settings registry when a school stored none (ADR 0196 section 3.4); no database access.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.Registry.GetDefinition",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "reason": "ADR 0196 section 3.4: reads one current school of the calling Träger through the read-only SECURITY DEFINER channel in the caller's Träger transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureEventQueue.HolidayClosureCalendar",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "reason": "ADR 0196 section 3.4: reads one current school of the calling Träger through the read-only SECURITY DEFINER channel in the caller's Träger transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose.HolidayClosureEvents.HolidayClosureCalendar",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosure",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",
+      "reason": "Read-only target: draws the Träger's family key candidate for the keyed fingerprint of a closing day mail (ADR 0196). No persistent, lock or scope effect (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosureOperation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosureOperation",
+      "reason": "Read-only target: draws the Träger's family key candidate for the keyed fingerprint of a closing day mail (ADR 0196). No persistent, lock or scope effect (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
       "classification": "platform",
@@ -2275,7 +2345,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
-      "reason": "Reads the host school's closing days, those its Träger planned for it included, in a school transaction of its own detached from the caller's Träger transaction (ADR 0105, #4702); no write.",
+      "reason": "Reads the host school's closing days, those its Träger planned for it included, in a school transaction of its own detached from the caller's Träger transaction (ADR 0105, #4702); no write. Since #6457 it also names each closing day's ID and source, so a changed Träger closing day leaves its stored version out; still read only.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
       "target_owner": "school-calendar"
@@ -2315,7 +2385,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
-      "reason": "Read-only platform helper: validates the host school ID before its school transaction is opened (#4702).",
+      "reason": "Read-only platform helper: validates the host school ID before its school transaction is opened (#4702). Unchanged since #6457, which only adds the closing day sources to the result.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
       "target_owner": "tenant-runtime"
@@ -2326,7 +2396,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
-      "reason": "Platform protocol participation (scope): opens a read-only school transaction of each host school, detached from the caller's Träger transaction, to read its closing days (ADR 0105, #4702).",
+      "reason": "Platform protocol participation (scope): opens a read-only school transaction of each host school, detached from the caller's Träger transaction, to read its closing days (ADR 0105, #4702). Unchanged since #6457, which only adds the closing day sources to the result.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
       "target_owner": "tenant-runtime"
@@ -3610,6 +3680,38 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplatesSourcedFromOffering",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.HolidayClosureMail.EnqueueTraegerMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.EnqueueTraegerMail",
+      "reason": "Platform protocol participation (durable): enrollment reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.HolidayClosureMail.EnqueueTraegerMail. The closing day notice is a mail of the Träger, enqueued in the caller's Träger transaction with the told days and the send record (ADR 0196); transaction and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.HolidayClosureMail.RetryFailedTraegerEmails",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.RetryFailedTraegerEmails",
+      "reason": "Platform protocol participation (durable): enrollment makes the dead letters with a known failure of a confirmed closing day operation due again through Delivery's Träger mail capability, in the caller's Träger transaction (ADR 0196 section 5); same idempotency key, no new mail, unknown outcomes stay (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.RetryFailedTraegerEmails",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.HolidayClosureMail.TraegerMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.TraegerMailStates",
+      "reason": "Reads the outbox state of the operation's Träger mails by idempotency key in the caller's Träger transaction, without recipient or payload (ADR 0196 section 5); read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",

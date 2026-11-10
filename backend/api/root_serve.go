@@ -570,10 +570,11 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData, settings.Traeger))
-			closureMail := HolidayClosureMail{Delivery: delivery.Runtime.Module, Mails: delivery.Runtime.TraegerMails}
+			closureMail := HolidayClosureMail{Delivery: delivery.Runtime.Module, TraegerMails: delivery.Runtime.TraegerMails}
 			holidayCalendar := owners.NewHolidaySchoolCalendar(settings.Service, calendar, organizations)
-			mountHolidayClosureNotificationRoutes(router, tenant, organizations, closureMail, holidayCalendar, calendar, logger)
-			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, presence.Presence, delivery.Runtime.Module, closureMail, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, env.BankData, reports.Statistics, requests.OfferingChanges, owners.NewCareContractSchoolHolidays(settings.Service, calendar), holidayCalendar, owners.NewTraegerCalendarSchools(organizations, settings.Service), env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command, delivery.Runtime.Module))
+			calendarSchools := owners.NewTraegerCalendarSchools(organizations, settings.Service)
+			mountHolidayClosureNotificationRoutes(router, tenant, organizations, calendarSchools, closureMail, holidayCalendar, calendar, logger)
+			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, presence.Presence, delivery.Runtime.Module, closureMail, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, env.BankData, reports.Statistics, requests.OfferingChanges, owners.NewCareContractSchoolHolidays(settings.Service, calendar), holidayCalendar, calendar, calendarSchools, env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command, delivery.Runtime.Module))
 		},
 	)
 	if err != nil {

@@ -63,8 +63,6 @@ const (
 		ORDER BY proposal.span_from, proposal.id`
 	traegerHolidayClosureNoticesSQL = `SELECT ` + holidayClosureNoticeColumns + `
 		FROM calendar.holiday_closure_proposals AS proposal
-		JOIN platform.schools AS school
-			ON school.id = proposal.tenant_id AND school.organization_id = proposal.organization_id AND school.deleted_at IS NULL
 		LEFT JOIN calendar.holiday_closure_events AS event
 			ON event.proposal_id = proposal.id AND event.organization_id = proposal.organization_id
 		WHERE proposal.organization_id = ? AND (` + holidayClosureNoticeVisible + `)
@@ -134,18 +132,28 @@ const (
 	dueHolidayClosureTraegerSQL = `SELECT id FROM calendar.holiday_closure_due_traeger_ids() AS id`
 )
 
-// HolidayClosureEventStore persists the proposals and commands.
+// HolidayClosureEventStore persists the proposals and commands and serves
+// School Calendar's proposal and worker side of them.
 type HolidayClosureEventStore struct {
 	school Database
+	today  func() calendar.Date
 }
 
+var (
+	_ schoolcalendar.HolidayClosureProposals  = (*HolidayClosureEventStore)(nil)
+	_ schoolcalendar.HolidayClosureEventQueue = (*HolidayClosureEventStore)(nil)
+)
+
 // NewHolidayClosureEventStore builds the store; school resolves the
-// caller's school transaction.
-func NewHolidayClosureEventStore(school Database) *HolidayClosureEventStore {
+// caller's school transaction, today names the Berlin day (nil: today).
+func NewHolidayClosureEventStore(school Database, today func() calendar.Date) *HolidayClosureEventStore {
 	if school == nil {
 		panic("school calendar postgres: the school database is required")
 	}
-	return &HolidayClosureEventStore{school: school}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	return &HolidayClosureEventStore{school: school, today: today}
 }
 
 func (s *HolidayClosureEventStore) schoolDB(ctx context.Context) (bun.IDB, int64, error) {
@@ -299,7 +307,7 @@ func (row holidayClosureNoticeRow) notice() schoolcalendar.HolidayClosureNotice 
 	if row.EventState != nil {
 		state = *row.EventState
 	}
-	notice.Status = domain.HolidayClosureStatusOf(row.ProposalState, state)
+	notice.Status = holidayClosureStatusOf(row.ProposalState, state)
 	return notice
 }
 
@@ -312,27 +320,28 @@ func notices(rows []holidayClosureNoticeRow) []schoolcalendar.HolidayClosureNoti
 }
 
 // SchoolHolidayClosureNotices lists the visible notices of the school.
-func (s *HolidayClosureEventStore) SchoolHolidayClosureNotices(ctx context.Context, today calendar.Date) ([]schoolcalendar.HolidayClosureNotice, error) {
+func (s *HolidayClosureEventStore) SchoolHolidayClosureNotices(ctx context.Context) ([]schoolcalendar.HolidayClosureNotice, error) {
 	db, schoolID, err := s.schoolDB(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []holidayClosureNoticeRow
-	if err := db.NewRaw(schoolHolidayClosureNoticesSQL, schoolID, today).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(schoolHolidayClosureNoticesSQL, schoolID, s.today()).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("school calendar postgres: list the holiday closure notices of a school: %w", err)
 	}
 	return notices(rows), nil
 }
 
-// TraegerHolidayClosureNotices lists the visible notices of the current
-// schools of the Träger.
-func (s *HolidayClosureEventStore) TraegerHolidayClosureNotices(ctx context.Context, organizationID int64, today calendar.Date) ([]schoolcalendar.HolidayClosureNotice, error) {
+// TraegerHolidayClosureNotices lists the visible notices of the Träger. Row
+// security keeps them to its current schools; the caller checks the
+// membership once more against Organisation & Tenancy.
+func (s *HolidayClosureEventStore) TraegerHolidayClosureNotices(ctx context.Context, organizationID int64) ([]schoolcalendar.HolidayClosureNotice, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []holidayClosureNoticeRow
-	if err := db.NewRaw(traegerHolidayClosureNoticesSQL, organizationID, today).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(traegerHolidayClosureNoticesSQL, organizationID, s.today()).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("school calendar postgres: list the holiday closure notices of a Träger: %w", err)
 	}
 	return notices(rows), nil
@@ -341,7 +350,13 @@ func (s *HolidayClosureEventStore) TraegerHolidayClosureNotices(ctx context.Cont
 // ConfirmHolidayClosureNotice confirms the proposal under its row lock or
 // takes its failed command up again. The lock serializes the clicks of the
 // school and the Träger-Büro: the second finds the command of the first.
-func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Context, proposalID, revision int64, actor schoolcalendar.HolidayClosureActor, today calendar.Date) (schoolcalendar.HolidayClosureNotice, error) {
+func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Context, proposalID, revision int64, actor schoolcalendar.HolidayClosureActor) (schoolcalendar.HolidayClosureNotice, error) {
+	if proposalID <= 0 {
+		return schoolcalendar.HolidayClosureNotice{}, schoolcalendar.ErrHolidayClosureNoticeNotFound
+	}
+	if actor.Channel != schoolcalendar.HolidayClosureChannelSchool && actor.Channel != schoolcalendar.HolidayClosureChannelTraeger {
+		return schoolcalendar.HolidayClosureNotice{}, errors.New("school calendar postgres: the channel of the click is required")
+	}
 	db, schoolID, err := s.schoolDB(ctx)
 	if err != nil {
 		return schoolcalendar.HolidayClosureNotice{}, err
@@ -606,4 +621,24 @@ func (s *Store) RecordHolidayClosureChange(ctx context.Context, change domain.Ho
 	started := time.Now()
 	err = RecordHolidayClosureChange(ctx, db, tenantID, change)
 	return domain.OperationStats{Queries: 3, StatementDuration: time.Since(started)}, err
+}
+
+// holidayClosureStatusOf names what both places show of a proposal and the
+// state of its command (ADR 0196 section 5).
+func holidayClosureStatusOf(proposalState, eventState string) schoolcalendar.HolidayClosureStatus {
+	if proposalState == "open" || eventState == "" {
+		return schoolcalendar.HolidayClosureSuggested
+	}
+	switch eventState {
+	case schoolcalendar.HolidayClosureEventCompleted:
+		return schoolcalendar.HolidayClosureSent
+	case schoolcalendar.HolidayClosureEventNoMail, schoolcalendar.HolidayClosureEventNeedsConfirmation:
+		return schoolcalendar.HolidayClosureNoMail
+	case schoolcalendar.HolidayClosureEventFailed, schoolcalendar.HolidayClosureEventBlocked:
+		return schoolcalendar.HolidayClosureFailed
+	case schoolcalendar.HolidayClosureEventUnknown:
+		return schoolcalendar.HolidayClosureUnknown
+	default:
+		return schoolcalendar.HolidayClosureSending
+	}
 }

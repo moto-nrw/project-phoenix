@@ -26,6 +26,7 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -98,7 +99,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	require.NoError(t, err)
 	mountParentBillingRoutes(router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), bankCipher, owners.HolidayTestSchoolCalendar{}, slog.Default())
 	mountTraegerClosingDayRoutes(router, owners.NewTraegerCalendarSchools(organizations, schoolSettings.Settings), organizations,
-		HolidayClosureMail{Delivery: delivery.Module, Mails: delivery.TraegerMails}, owners.HolidayTestSchoolCalendar{})
+		HolidayClosureMail{Delivery: delivery.Module, TraegerMails: delivery.TraegerMails}, owners.HolidayTestSchoolCalendar{}, closureTestHolidays{})
 	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog,
 		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), owners.CareContractTestHolidays{}, "http://parents.localhost:3000")
 	return testpkg.SessionVerifier(router)
@@ -525,4 +526,13 @@ func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Fünf")
 	assert.Len(t, list().Statements, len(three.Statements), "the school list reads the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.schools", three)
+}
+
+// closureTestHolidays knows every federal state and no statutory holiday.
+type closureTestHolidays struct{}
+
+func (closureTestHolidays) ValidHolidayRegion(string) bool { return true }
+
+func (closureTestHolidays) ListHolidays(context.Context, string, string, string) ([]schoolcalendar.Holiday, error) {
+	return nil, nil
 }

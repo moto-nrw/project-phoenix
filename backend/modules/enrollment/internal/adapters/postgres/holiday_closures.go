@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 
 	"github.com/uptrace/bun"
@@ -183,17 +182,13 @@ func (s *HolidayRegistrationStore) SetHolidayClosureNotices(ctx context.Context,
 }
 
 // HolidayClosureFamilyKey returns the Träger's key of the family
-// fingerprints, made on first use.
-func (s *HolidayRegistrationStore) HolidayClosureFamilyKey(ctx context.Context, organizationID int64) ([]byte, error) {
+// fingerprints; candidate becomes it on first use.
+func (s *HolidayRegistrationStore) HolidayClosureFamilyKey(ctx context.Context, organizationID int64, candidate []byte) ([]byte, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
-	secret := make([]byte, 32)
-	if _, err := rand.Read(secret); err != nil {
-		return nil, fmt.Errorf("enrollment postgres: make the family key: %w", err)
-	}
-	if _, err := db.NewRaw(insertHolidayClosureFamilyKeyQuery, organizationID, secret).Exec(ctx); err != nil {
+	if _, err := db.NewRaw(insertHolidayClosureFamilyKeyQuery, organizationID, candidate).Exec(ctx); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: store the family key: %w", err)
 	}
 	var stored []byte

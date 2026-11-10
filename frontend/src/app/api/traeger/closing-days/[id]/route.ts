@@ -1,5 +1,5 @@
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
-import { proxyDelete, proxyPut } from "~/lib/traeger/route-wrapper.server";
+import { proxyPut, traeger } from "~/lib/traeger/route-wrapper.server";
 
 // Ein Schließtag des Trägers (#4702): ändern oder löschen.
 const closingDayPath = (params: Record<string, unknown>) =>
@@ -7,4 +7,19 @@ const closingDayPath = (params: Record<string, unknown>) =>
 
 export const PUT = proxyPut(closingDayPath);
 
-export const DELETE = proxyDelete(closingDayPath);
+// Das Löschen bestätigt mit dem Zeichen der Vorschau, dass die Eltern der
+// betroffenen Ferienbuchungen von den wieder geöffneten Tagen erfahren, und
+// antwortet mit der Zahl dieser Familien (#6457).
+export const DELETE = traeger.route(async (request, _token, params) => {
+  const token = request.nextUrl.searchParams.get("holiday_bookings_token");
+  const query = token
+    ? `?${new URLSearchParams({ holiday_bookings_token: token }).toString()}`
+    : "";
+  return traeger.forwardToBackend(
+    request,
+    `${closingDayPath(params)}${query}`,
+    {
+      method: "DELETE",
+    },
+  );
+});

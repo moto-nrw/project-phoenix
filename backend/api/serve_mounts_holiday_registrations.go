@@ -35,13 +35,13 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings TraegerSchoolSettings, attendanceMarks owners.MealAttendanceMarks,
 	delivery deliveryRuntime.Capability, closureMail HolidayClosureMail, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
 	healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, contractHolidays carecontract.SchoolHolidays,
-	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, calendarSchools traegercalendar.Schools,
+	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, closureHolidays owners.HolidayClosureHolidays, calendarSchools traegercalendar.Schools,
 	parentsURL string, logger *slog.Logger) error {
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, holidayCalendar, settings, logger).Router())
-	mountTraegerClosingDayRoutes(root, calendarSchools, organizations, closureMail, holidayCalendar)
+	mountTraegerClosingDayRoutes(root, calendarSchools, organizations, closureMail, holidayCalendar, closureHolidays)
 	mountParentBillingRoutes(root, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, bankData, holidayCalendar, logger)
 	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
 		owners.NewCareContractNoticeAddressees(persons, identity), contractHolidays, parentsURL)

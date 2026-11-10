@@ -94,7 +94,7 @@ func (s *Service) process(ctx context.Context, event schoolcalendar.HolidayClosu
 			outcome = schoolcalendar.HolidayClosureOutcome{State: schoolcalendar.HolidayClosureEventNeedsConfirmation}
 		} else {
 			result, err := s.Closures.NotifyHolidayClosureOperation(ctx, event.OrganizationID,
-				s.operation(event.OrganizationID, event.SchoolID, event.OperationID, event.SpanFrom, event.SpanTo))
+				operation(event.SchoolID, event.OperationID, event.SpanFrom, event.SpanTo))
 			if err != nil {
 				return err
 			}

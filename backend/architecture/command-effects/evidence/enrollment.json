@@ -1305,6 +1305,62 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "binding_digest": "086b8f0952242fec97d2d165f460d74d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.Registry.GetDefinition",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "binding_digest": "fa79d5a2633919e7476313b4c7559824",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "binding_digest": "aac9daf0a084e5dff5596070557db425",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "binding_digest": "7a1c82a7e15fc2c651eef2560b1cc46e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureEventQueue.HolidayClosureCalendar",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "binding_digest": "a031eb01161879ee22a2f2ac239dfd77",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose.HolidayClosureEvents.HolidayClosureCalendar",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosure",
+      "binding_digest": "f3256b775b8eaa9609571e865a6752c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosureOperation",
+      "binding_digest": "f3256b775b8eaa9609571e865a6752c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosureOperation",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
       "binding_digest": "d39cd75aea417360e3819014cc9944ba",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
@@ -1682,7 +1738,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
-      "binding_digest": "e88b5ec2b03cadc21ca50454d97f9b7d",
+      "binding_digest": "a4e8fa5c56607b148c5de1a1089c7a2e",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
@@ -1714,7 +1770,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
-      "binding_digest": "ffed4cb5085914e507a884fa98dc82f3",
+      "binding_digest": "6ed17e040b6ca84b74dc006c44f9f9ac",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
@@ -1722,7 +1778,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
-      "binding_digest": "5178d9980e63150759c861bceb5687db",
+      "binding_digest": "cd163852fe989034eb20ae0044269190",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
@@ -2711,6 +2767,30 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplatesSourcedFromOffering",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.HolidayClosureMail.EnqueueTraegerMail",
+      "binding_digest": "03ced02ffef1caeb3975c7b6a2402794",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.EnqueueTraegerMail",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.HolidayClosureMail.RetryFailedTraegerEmails",
+      "binding_digest": "1df9019abb1f2ca2a1ea17c194baca3c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.RetryFailedTraegerEmails",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.RetryFailedTraegerEmails",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.HolidayClosureMail.TraegerMailStates",
+      "binding_digest": "980f35087e04fefb9440514d47a6f25c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.TraegerMailStates",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerMail.EnqueueTraegerMail",
