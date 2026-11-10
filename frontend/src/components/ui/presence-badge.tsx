@@ -1,7 +1,7 @@
 import * as React from "react";
 
 import type { StudentLocationContext } from "@/lib/location-helper";
-import { locationPillShape } from "./location-badge";
+import { formatLocationSince, locationPillShape } from "./location-badge";
 import { PresenceHint } from "./presence-hint";
 import { StatusColorBadge } from "./status-color-badge";
 import {
@@ -50,22 +50,6 @@ function derivePresenceState(
     return "schulhof";
   }
   return "anwesend";
-}
-
-function formatLocationSince(
-  isoTimestamp: string | null | undefined,
-): string | null {
-  if (!isoTimestamp) return null;
-  try {
-    const date = new Date(isoTimestamp);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return null;
-  }
 }
 
 interface PresenceBadgeProps {
@@ -187,7 +171,7 @@ export function PresenceBadge({
   const dataStatus = parseLocation(student.current_location).status;
 
   return (
-    <div className="flex flex-col items-end">
+    <div className="flex max-w-full min-w-0 flex-col items-end">
       <StatusColorBadge
         {...locationPillShape(sizeKey, variant)}
         wrap
@@ -195,6 +179,11 @@ export function PresenceBadge({
         color={color}
         data-location-status={dataStatus}
         data-presence-state={state}
+        title={
+          label === LOCATION_STATUSES.NOT_ARRIVAL
+            ? (student.not_arrival_reason ?? undefined)
+            : undefined
+        }
       />
       {showSinceTime && (
         <span className="mt-0.5 text-xs text-gray-500">
@@ -202,7 +191,11 @@ export function PresenceBadge({
         </span>
       )}
       {showUnplannedOverlay && (
-        <PresenceHint kind="notArrival" size={sizeKey} />
+        <PresenceHint
+          kind="notArrival"
+          size={sizeKey}
+          title={student.not_arrival_reason ?? undefined}
+        />
       )}
       {showSickOverlay && <PresenceHint kind="sick" size={sizeKey} />}
       {showClassTripOverlay && <PresenceHint kind="classTrip" size={sizeKey} />}

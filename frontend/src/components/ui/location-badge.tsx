@@ -2,6 +2,7 @@ import type {
   DisplayMode,
   StudentLocationContext,
 } from "@/lib/location-helper";
+import { formatTime } from "@/lib/date-helpers";
 import { PresenceHint } from "./presence-hint";
 import { StatusColorBadge } from "./status-color-badge";
 import {
@@ -15,25 +16,14 @@ import {
 } from "@/lib/location-helper";
 
 /**
- * Formats the location_since timestamp for display.
- * Shows only the time (HH:MM) since it's for "current" location.
+ * The clock time for „seit …“: Berlin wall clock, whatever the browser's zone.
+ * Null when the time is missing or unreadable, so no line shows.
  */
-function formatLocationSince(
+export function formatLocationSince(
   isoTimestamp: string | null | undefined,
 ): string | null {
-  if (!isoTimestamp) return null;
-
-  try {
-    const date = new Date(isoTimestamp);
-    if (Number.isNaN(date.getTime())) return null;
-
-    return date.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return null;
-  }
+  if (!isoTimestamp || Number.isNaN(Date.parse(isoTimestamp))) return null;
+  return formatTime(isoTimestamp);
 }
 
 /**
@@ -110,7 +100,7 @@ interface LocationBadgeProps {
   readonly isGroupRoom?: boolean;
   readonly variant?: "simple" | "modern";
   readonly size?: "sm" | "md" | "lg";
-  /** Show "seit XX:XX Uhr" below the badge for Anwesend/Zuhause status. Default: false */
+  /** Show "seit XX:XX Uhr" below the badge when the backend sends a time. Default: false */
   readonly showLocationSince?: boolean;
 }
 
@@ -237,15 +227,8 @@ export function LocationBadge({
             : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
-  const showSinceTime =
-    showLocationSince &&
-    formattedTime &&
-    (parsed.status === LOCATION_STATUSES.PRESENT ||
-      parsed.status === LOCATION_STATUSES.HOME ||
-      parsed.status === LOCATION_STATUSES.IN_CLASS ||
-      sickMode === "replace" ||
-      classTripMode === "replace" ||
-      excusedMode === "replace");
+  // The backend sends a time only where it means something for the state.
+  const showSinceTime = showLocationSince && formattedTime !== null;
 
   // At most one pill per child (#4371): the location stays the pill, a
   // further fact becomes a neutral line below it.
