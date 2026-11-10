@@ -22,6 +22,68 @@ export interface TraegerClosingDayInput {
   readonly endDate: string;
   readonly reason: string;
   readonly schoolIds: readonly string[];
+  /**
+   * Bestätigt die Vorschau der betroffenen Ferienbuchungen (#6434); leer,
+   * wenn die Vorschau keine zeigte.
+   */
+  readonly holidayBookingsToken?: string;
+}
+
+/** Ein gespeicherter Schließtag mit der Zahl der informierten Familien. */
+export interface SavedTraegerClosingDay extends TraegerClosingDay {
+  readonly notifiedFamilies: number;
+}
+
+/** Ein geschlossener Tag in einer gebuchten Ferienwoche. */
+export interface HolidayClosedDay {
+  readonly date: string;
+  readonly reason: string;
+}
+
+/** Eine betroffene Ferienwoche mit der Zahl der Kinder und Familien. */
+export interface HolidayClosureWeek {
+  readonly weekId: string;
+  readonly periodName: string;
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly hostSchoolId: string;
+  readonly closedDays: readonly HolidayClosedDay[];
+  readonly children: number;
+  readonly waitlisted: number;
+  readonly families: number;
+}
+
+/**
+ * Was ein Schließtag für die Ferienbuchungen heißt (#6434): die betroffenen
+ * Wochen, Kinder und Familien und das Zeichen, mit dem das Speichern die
+ * Vorschau bestätigt. Keine Namen von Kindern.
+ */
+export interface HolidayClosureImpact {
+  readonly weeks: readonly HolidayClosureWeek[];
+  readonly children: number;
+  readonly families: number;
+  readonly token: string;
+  readonly keepsContribution: boolean;
+}
+
+interface BackendHolidayClosureImpact {
+  weeks?:
+    | {
+        week_id: number;
+        period_name: string;
+        starts_on: string;
+        ends_on: string;
+        host_school_id: number;
+        closed_days?: { date: string; reason: string }[] | null;
+        children: number;
+        waitlisted: number;
+        families: number;
+      }[]
+    | null;
+  children?: number;
+  families?: number;
+  token?: string;
+  keeps_contribution?: boolean;
 }
 
 export interface TraegerCalendarSchool {
@@ -110,7 +172,76 @@ function backendInput(input: TraegerClosingDayInput) {
     end_date: input.endDate,
     reason: input.reason.trim(),
     school_ids: input.schoolIds.map(Number),
+    holiday_bookings_token: input.holidayBookingsToken ?? "",
   };
+}
+
+function mapSavedClosingDay(
+  day: BackendClosingDay & { notified_families?: number },
+): SavedTraegerClosingDay {
+  return {
+    ...mapTraegerClosingDay(day),
+    notifiedFamilies: day.notified_families ?? 0,
+  };
+}
+
+function mapHolidayClosureImpact(
+  data: BackendHolidayClosureImpact | null | undefined,
+): HolidayClosureImpact {
+  return {
+    weeks: (data?.weeks ?? []).map((week) => ({
+      weekId: String(week.week_id),
+      periodName: week.period_name,
+      startsOn: week.starts_on,
+      endsOn: week.ends_on,
+      hostSchoolId: String(week.host_school_id),
+      closedDays: week.closed_days ?? [],
+      children: week.children,
+      waitlisted: week.waitlisted,
+      families: week.families,
+    })),
+    children: data?.children ?? 0,
+    families: data?.families ?? 0,
+    token: data?.token ?? "",
+    keepsContribution: data?.keeps_contribution ?? true,
+  };
+}
+
+const closuresPath = "/api/traeger/holiday-closures";
+
+/** Welche Ferienbuchungen der geplante Schließtag betrifft (#6434). */
+export async function previewTraegerClosingDayHolidayBookings(
+  input: TraegerClosingDayInput,
+): Promise<HolidayClosureImpact> {
+  return mapHolidayClosureImpact(
+    await traegerRequest<BackendHolidayClosureImpact>(
+      `${closuresPath}/preview`,
+      { method: "POST", body: backendInput(input) },
+    ),
+  );
+}
+
+/**
+ * Schließtage in gebuchten Ferienwochen, über die noch niemand die Eltern
+ * informiert hat, etwa ein Schließtag, den eine Schule selbst eingetragen hat.
+ */
+export async function fetchPendingHolidayClosures(): Promise<HolidayClosureImpact> {
+  return mapHolidayClosureImpact(
+    await traegerRequest<BackendHolidayClosureImpact>(
+      `${closuresPath}/pending`,
+    ),
+  );
+}
+
+/** Informiert die Eltern der offenen Schließtage; gibt die Zahl der Familien. */
+export async function notifyPendingHolidayClosures(
+  token: string,
+): Promise<number> {
+  const result = await traegerRequest<{ families?: number }>(
+    `${closuresPath}/pending/notify`,
+    { method: "POST", body: { token } },
+  );
+  return result?.families ?? 0;
 }
 
 /** Der Kalender des Trägers im Fenster [from, to]. */
@@ -126,8 +257,8 @@ export async function fetchTraegerCalendar(
 
 export async function createTraegerClosingDay(
   input: TraegerClosingDayInput,
-): Promise<TraegerClosingDay> {
-  return mapTraegerClosingDay(
+): Promise<SavedTraegerClosingDay> {
+  return mapSavedClosingDay(
     await traegerRequest<BackendClosingDay>(basePath, {
       method: "POST",
       body: backendInput(input),
@@ -138,8 +269,8 @@ export async function createTraegerClosingDay(
 export async function updateTraegerClosingDay(
   id: string,
   input: TraegerClosingDayInput,
-): Promise<TraegerClosingDay> {
-  return mapTraegerClosingDay(
+): Promise<SavedTraegerClosingDay> {
+  return mapSavedClosingDay(
     await traegerRequest<BackendClosingDay>(
       `${basePath}/${encodeURIComponent(id)}`,
       { method: "PUT", body: backendInput(input) },

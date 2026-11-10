@@ -35,9 +35,13 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/details"}: notCaptured,
 	// The closing days of a Träger (#4702) belong to the Träger, not to a
 	// school: no school to count them for.
-	{http.MethodPost, "/traeger/closing-days/"}:                    notCaptured,
-	{http.MethodPut, "/traeger/closing-days/{id}"}:                 notCaptured,
-	{http.MethodDelete, "/traeger/closing-days/{id}"}:              notCaptured,
+	{http.MethodPost, "/traeger/closing-days/"}:       notCaptured,
+	{http.MethodPut, "/traeger/closing-days/{id}"}:    notCaptured,
+	{http.MethodDelete, "/traeger/closing-days/{id}"}: notCaptured,
+	// The preview and the notices of closing days in booked holiday weeks
+	// (#6434) belong to the Träger as well.
+	{http.MethodPost, "/traeger/holiday-closures/preview"}:         notCaptured,
+	{http.MethodPost, "/traeger/holiday-closures/pending/notify"}:  notCaptured,
 	{http.MethodPost, "/traeger/school-sessions/"}:                 notCaptured,
 	{http.MethodDelete, "/traeger/settings/values/{key}"}:          notCaptured,
 	{http.MethodPut, "/traeger/settings/values/{key}"}:             notCaptured,

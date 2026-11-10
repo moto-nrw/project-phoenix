@@ -3,6 +3,7 @@
   "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "bank_account_label_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "bank_account_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "closing_day_bookings_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "closing_day_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "closing_day_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "closing_day_school_outside": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

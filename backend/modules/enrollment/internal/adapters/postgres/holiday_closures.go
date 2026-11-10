@@ -1,0 +1,143 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/uptrace/bun/dialect/pgdialect"
+
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// Closing days in booked holiday weeks (#6434). Every statement runs in the
+// Träger transaction of the Träger it names and names it once more in its
+// filter, so a missing policy never widens it to a foreign Träger.
+
+const (
+	// holidayClosureBookingsQuery reads the bookings of received and
+	// confirmed registrations in the weeks that overlap [from, to] at the
+	// host schools named (all with an empty list), placed and waitlisted.
+	holidayClosureBookingsQuery = `SELECT registration.id AS registration_id, registration.guardian_email,
+			registration.guardian_first_name, registration.guardian_last_name,
+			child.id AS child_id, child.first_name, child.last_name, child.home_school_id IS NULL AS guest,
+			period.id AS period_id, period.name AS period_name,
+			week.id AS week_id, week.starts_on, week.ends_on, week.host_school_id,
+			model.name AS time_model_name, to_char(model.starts_at, 'HH24:MI') AS starts_at,
+			to_char(model.ends_at, 'HH24:MI') AS ends_at, booking.placement
+		FROM enrollment.holiday_registration_bookings AS booking
+		JOIN enrollment.holiday_registration_children AS child
+			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
+		JOIN enrollment.holiday_registrations AS registration
+			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+		JOIN enrollment.holiday_period_weeks AS week
+			ON week.organization_id = booking.organization_id AND week.id = booking.holiday_period_week_id
+		JOIN enrollment.holiday_periods AS period
+			ON period.organization_id = week.organization_id AND period.id = week.holiday_period_id
+		JOIN enrollment.holiday_week_time_models AS model
+			ON model.organization_id = booking.organization_id AND model.id = booking.holiday_week_time_model_id
+		WHERE booking.organization_id = ? AND registration.status IN ` + holidayCountingStatuses + `
+			AND week.ends_on >= ? AND week.starts_on <= ?
+			AND (cardinality(?::bigint[]) = 0 OR week.host_school_id = ANY(?::bigint[]))
+		ORDER BY week.starts_on, week.id, registration.id, child.position`
+	holidayClosureNoticesQuery = `SELECT holiday_registration_id, holiday_period_week_id, closed_on
+		FROM enrollment.holiday_closure_notices
+		WHERE organization_id = ? AND holiday_registration_id = ANY(?::bigint[])`
+	recordHolidayClosureNoticesQuery = `INSERT INTO enrollment.holiday_closure_notices
+			(organization_id, holiday_registration_id, holiday_period_week_id, closed_on)
+		SELECT ?, unnest(?::bigint[]), unnest(?::bigint[]), unnest(?::date[])
+		ON CONFLICT DO NOTHING`
+)
+
+type holidayClosureBookingRow struct {
+	RegistrationID    int64         `bun:"registration_id"`
+	GuardianEmail     string        `bun:"guardian_email"`
+	GuardianFirstName string        `bun:"guardian_first_name"`
+	GuardianLastName  string        `bun:"guardian_last_name"`
+	ChildID           int64         `bun:"child_id"`
+	FirstName         string        `bun:"first_name"`
+	LastName          string        `bun:"last_name"`
+	Guest             bool          `bun:"guest"`
+	PeriodID          int64         `bun:"period_id"`
+	PeriodName        string        `bun:"period_name"`
+	WeekID            int64         `bun:"week_id"`
+	StartsOn          calendar.Date `bun:"starts_on"`
+	EndsOn            calendar.Date `bun:"ends_on"`
+	HostSchoolID      int64         `bun:"host_school_id"`
+	TimeModelName     string        `bun:"time_model_name"`
+	StartsAt          string        `bun:"starts_at"`
+	EndsAt            string        `bun:"ends_at"`
+	Placement         string        `bun:"placement"`
+}
+
+// HolidayClosureBookings reads the bookings that count of the weeks at
+// schoolIDs (every host school when empty) that overlap [from, to].
+func (s *HolidayRegistrationStore) HolidayClosureBookings(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date) ([]enrollment.HolidayClosureBookingRecord, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	if schoolIDs == nil {
+		schoolIDs = []int64{}
+	}
+	var rows []holidayClosureBookingRow
+	if err := db.NewRaw(holidayClosureBookingsQuery, organizationID, from, to, pgdialect.Array(schoolIDs), pgdialect.Array(schoolIDs)).
+		Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday bookings of a closure: %w", err)
+	}
+	records := make([]enrollment.HolidayClosureBookingRecord, len(rows))
+	for i, row := range rows {
+		records[i] = enrollment.HolidayClosureBookingRecord(row)
+	}
+	return records, nil
+}
+
+type holidayClosureNoticeRow struct {
+	RegistrationID int64         `bun:"holiday_registration_id"`
+	WeekID         int64         `bun:"holiday_period_week_id"`
+	ClosedOn       calendar.Date `bun:"closed_on"`
+}
+
+// HolidayClosureNotices reads the closed days the parents of the
+// registrations were told about.
+func (s *HolidayRegistrationStore) HolidayClosureNotices(ctx context.Context, organizationID int64, registrationIDs []int64) ([]enrollment.HolidayClosureNoticeRecord, error) {
+	if len(registrationIDs) == 0 {
+		return nil, nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []holidayClosureNoticeRow
+	if err := db.NewRaw(holidayClosureNoticesQuery, organizationID, pgdialect.Array(registrationIDs)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday closure notices: %w", err)
+	}
+	notices := make([]enrollment.HolidayClosureNoticeRecord, len(rows))
+	for i, row := range rows {
+		notices[i] = enrollment.HolidayClosureNoticeRecord(row)
+	}
+	return notices, nil
+}
+
+// RecordHolidayClosureNotices records the closed days told; a day told
+// before stays as it is.
+func (s *HolidayRegistrationStore) RecordHolidayClosureNotices(ctx context.Context, organizationID int64, notices []enrollment.HolidayClosureNoticeRecord) error {
+	if len(notices) == 0 {
+		return nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	registrations := make([]int64, len(notices))
+	weeks := make([]int64, len(notices))
+	days := make([]string, len(notices))
+	for i, notice := range notices {
+		registrations[i], weeks[i], days[i] = notice.RegistrationID, notice.WeekID, notice.ClosedOn.String()
+	}
+	if _, err := db.NewRaw(recordHolidayClosureNoticesQuery, organizationID, pgdialect.Array(registrations), pgdialect.Array(weeks), pgdialect.Array(days)).
+		Exec(ctx); err != nil {
+		return fmt.Errorf("enrollment postgres: record holiday closure notices: %w", err)
+	}
+	return nil
+}

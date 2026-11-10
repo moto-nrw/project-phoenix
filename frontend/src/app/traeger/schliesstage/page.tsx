@@ -6,7 +6,7 @@
 // legt das moto-Team fest; hier steht es nur zur Information.
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Mail, Pencil, Plus, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import {
@@ -17,23 +17,39 @@ import {
   formatDayWithWeekday,
   schoolsInState,
 } from "~/components/traeger/closing-day-format";
+import {
+  ClosingDayHolidayImpact,
+  childrenLabel,
+  familiesLabel,
+  HolidayClosureConsequences,
+  HolidayClosureWeekList,
+} from "~/components/traeger/closing-day-holiday-impact";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
+import { useClosingDayHolidayImpact } from "~/components/traeger/use-closing-day-holiday-impact";
 import { ClosingDayModal } from "~/components/planning/closing-day-modal";
 import { TraegerYearCalendar } from "~/components/traeger/traeger-year-calendar";
 import { Button } from "~/components/ui/button";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { closingDaysConcept } from "~/lib/concepts/closingDays";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -43,7 +59,9 @@ import {
   createTraegerClosingDay,
   updateTraegerClosingDay,
   deleteTraegerClosingDay,
+  fetchPendingHolidayClosures,
   fetchTraegerCalendar,
+  notifyPendingHolidayClosures,
   type TraegerClosingDay,
 } from "~/lib/traeger-closing-days";
 
@@ -89,7 +107,30 @@ export default function TraegerClosingDaysPage() {
   const latestDeleteRef = useRef<() => void>(() => undefined);
   const { success: toastSuccess } = useToast();
 
+  // Schließtage in gebuchten Ferienwochen, über die noch niemand die Eltern
+  // informiert hat, etwa einer, den eine Schule selbst eingetragen hat (#6434).
+  const pendingResponse = useSWRAuth(
+    session?.user.scope === "org" && canManage
+      ? traegerKeys.holidayClosures()
+      : null,
+    fetchPendingHolidayClosures,
+  );
+  const pending = pendingResponse.data;
+  const pendingLoadError = useSwrLoadError(
+    pendingResponse.error,
+    "die offenen Hinweise an Eltern",
+    pendingResponse.mutate,
+  );
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [notifying, setNotifying] = useState(false);
+  const informErrors = useApiErrorDisplay();
+  const holiday = useClosingDayHolidayImpact(modalOpen);
+
   const schools = useMemo(() => data?.schools ?? [], [data]);
+  const schoolName = useCallback(
+    (id: string) => schools.find((school) => school.id === id)?.name ?? "–",
+    [schools],
+  );
   const closingDays = useMemo(() => data?.closingDays ?? [], [data]);
   const regions = useMemo(() => data?.regions ?? [], [data]);
   const marks = useMemo(
@@ -135,6 +176,29 @@ export default function TraegerClosingDaysPage() {
   useLayoutEffect(() => {
     latestDeleteRef.current = () => void handleDelete();
   });
+
+  const handleNotify = useCallback(async () => {
+    if (!pending) return;
+    setNotifying(true);
+    try {
+      const families = await notifyPendingHolidayClosures(pending.token);
+      toastSuccess(
+        `${familiesLabel(families)} ${families === 1 ? "bekommt" : "bekommen"} eine E-Mail.`,
+      );
+      setNotifyOpen(false);
+    } catch (err) {
+      logger.error("traeger_holiday_closure_notify_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setNotifyOpen(false);
+      void informErrors.show(err, { object: "die E-Mail an die Eltern" });
+    } finally {
+      setNotifying(false);
+      void pendingResponse.mutate();
+    }
+  }, [informErrors, pending, pendingResponse, toastSuccess]);
+
+  const impactFamilies = holiday.impact?.families ?? 0;
 
   const columns = useMemo<DataTableColumn<TraegerClosingDay>[]>(
     () => [
@@ -266,17 +330,70 @@ export default function TraegerClosingDaysPage() {
             isOpen={modalOpen}
             onClose={() => setModalOpen(false)}
             onSave={async (input) => {
-              const day = editing
-                ? await updateTraegerClosingDay(editing.id, input)
-                : await createTraegerClosingDay(input);
-              toastSuccess(`Der Schließtag „${day.reason}“ ist gespeichert.`);
+              const withToken = {
+                ...input,
+                holidayBookingsToken: holiday.impact?.token ?? "",
+              };
+              try {
+                const day = editing
+                  ? await updateTraegerClosingDay(editing.id, withToken)
+                  : await createTraegerClosingDay(withToken);
+                toastSuccess(
+                  day.notifiedFamilies > 0
+                    ? `Der Schließtag „${day.reason}“ ist gespeichert. ${familiesLabel(day.notifiedFamilies)} ${day.notifiedFamilies === 1 ? "bekommt" : "bekommen"} eine E-Mail.`
+                    : `Der Schließtag „${day.reason}“ ist gespeichert.`,
+                );
+              } catch (err) {
+                // Haben sich die Buchungen seit der Vorschau geändert, zeigt
+                // der Dialog den neuen Stand; die Meldung sagt es.
+                if (
+                  err instanceof ApiError &&
+                  err.code === "traeger.closing_day_bookings_changed"
+                ) {
+                  holiday.reload();
+                }
+                throw err;
+              }
             }}
-            onSaved={() => void mutate()}
+            onSaved={() => {
+              void mutate();
+              void pendingResponse.mutate();
+            }}
+            onDraftChange={holiday.onDraftChange}
+            consequences={
+              <ClosingDayHolidayImpact
+                impact={holiday.impact}
+                loading={holiday.loading}
+                error={holiday.error}
+                schoolName={schoolName}
+              />
+            }
+            saveLabel={
+              impactFamilies > 0
+                ? "Speichern und Eltern informieren"
+                : "Speichern"
+            }
+            saveBlocked={holiday.blocked}
             reasonMaxLength={120}
             initial={editing}
             schools={schools}
             defaultDate={year === thisYear ? today : from}
           />
+          <ConfirmationModal
+            isOpen={notifyOpen}
+            onClose={() => setNotifyOpen(false)}
+            onConfirm={() => void handleNotify()}
+            title="Eltern informieren"
+            confirmText="E-Mails senden"
+            loadingText="Wird gesendet..."
+            isConfirmLoading={notifying}
+          >
+            <p className="text-sm text-gray-700">
+              {pending
+                ? `${familiesLabel(pending.families)} ${pending.families === 1 ? "bekommt" : "bekommen"} je eine E-Mail mit den geschlossenen Tagen. Jede Familie wird nur einmal informiert.`
+                : null}
+            </p>
+          </ConfirmationModal>
           <ConfirmDeleteModal
             isOpen={deleting !== null}
             title="Schließtag löschen"
@@ -302,6 +419,45 @@ export default function TraegerClosingDaysPage() {
       }
     >
       <div className="flex flex-col gap-6">
+        {pendingLoadError ? (
+          <SectionCard
+            title="Eltern noch nicht informiert"
+            concept={holidayWeeksConcept}
+          >
+            <LoadErrorAlert
+              error={pendingLoadError}
+              actionLayout="responsive"
+            />
+          </SectionCard>
+        ) : null}
+        {pending && pending.weeks.length > 0 ? (
+          <SectionCard
+            title="Eltern noch nicht informiert"
+            concept={holidayWeeksConcept}
+            description={`An diesen Tagen ist geschlossen, aber ${childrenLabel(pending.children)} ${pending.children === 1 ? "hat" : "haben"} Ferienbetreuung gebucht. Die Eltern wissen noch nichts davon.`}
+            action={
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => setNotifyOpen(true)}
+              >
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                Eltern informieren
+              </Button>
+            }
+          >
+            <div className="space-y-3">
+              <HolidayClosureWeekList
+                weeks={pending.weeks}
+                schoolName={schoolName}
+              />
+              <HolidayClosureConsequences
+                keepsContribution={pending.keepsContribution}
+              />
+            </div>
+          </SectionCard>
+        ) : null}
         <SectionCard
           title="Schließtage des Trägers"
           concept={closingDaysConcept}

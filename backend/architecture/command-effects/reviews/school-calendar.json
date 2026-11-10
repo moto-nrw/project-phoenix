@@ -4829,6 +4829,28 @@
       "target_owner": "delivery-platform"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerClosingDayHolidayNotices.NotifyHolidayBookings",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.HolidayNotices.NotifyHolidayBookings",
+      "reason": "Guarded target command (#6434): Enrollment's NotifyHolidayClosure joins the caller's Träger transaction, keeps its own preview-token check, Träger filter and host-school authorization, enqueues one Träger mail per family in Delivery's transactional outbox and records the told days. The caller propagates its failure and the save rolls back; no lock order, re-read under foreign locks or after-commit orchestration is shared. Target modules/enrollment.HolidayClosures.NotifyHolidayClosure.",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",
+      "target_owner": "enrollment"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerClosingDayHolidayNotices.NotifyHolidayBookings",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.HolidayNotices.NotifyHolidayBookings",
+      "reason": "Platform protocol participation (scope): school-calendar reaches tenant.MarkRollback (tenant-runtime) through roots/owners.traegerClosingDayHolidayNotices.NotifyHolidayBookings. A refused notice follows the write of the Träger closing day and renders a 4xx, so the binding marks the caller's Träger transaction for rollback; transaction correctness stays with the platform behavior tests (ADR 0098).",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
       "classification": "query",
       "effect": "query",

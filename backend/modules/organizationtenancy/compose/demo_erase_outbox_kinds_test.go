@@ -28,6 +28,12 @@ var traegerOutboxRows = map[string]string{
 		SELECT organization_id, 'care_contract_notice', jsonb_build_object('address', 'eltern@example.org', 'name', '` + visitorFull + `'),
 			jsonb_build_object('guardian_name', '` + visitorFull + `'), 'care_contract', id
 		FROM care_contract.contracts WHERE school_id = ?0 RETURNING id`,
+	// The mail that a closing day falls into a booked holiday week (#6434).
+	"platform.email_outbox holiday_closure_notice": `INSERT INTO platform.email_outbox
+			(organization_id, kind, recipient, payload, related_entity_type, related_entity_id)
+		SELECT organization_id, 'holiday_closure_notice', jsonb_build_object('address', 'besuch@example.org'),
+			jsonb_build_object('guardian_name', '` + visitorFull + `'), 'holiday_registration', holiday_registration_id
+		FROM enrollment.holiday_registration_children WHERE home_school_id = ?0 RETURNING id`,
 	// The mail that a booking of the holiday registration moved up from the
 	// waiting list (#4699).
 	"platform.email_outbox holiday_place_granted": `INSERT INTO platform.email_outbox

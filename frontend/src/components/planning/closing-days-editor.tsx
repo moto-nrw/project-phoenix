@@ -19,7 +19,14 @@ import {
 import { CalendarX, Pencil, Plus, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
-import { ClosingDayModal } from "~/components/planning/closing-day-modal";
+import {
+  ClosingDayHolidayHint,
+  useHostedHolidayWeeks,
+} from "~/components/planning/closing-day-holiday-hint";
+import {
+  type ClosingDayDraft,
+  ClosingDayModal,
+} from "~/components/planning/closing-day-modal";
 import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -64,6 +71,9 @@ export function ClosingDaysEditor({
   const latestLoadRef = useRef<() => void>(() => undefined);
   const latestDeleteRef = useRef<() => void>(() => undefined);
   const [modalOpen, setModalOpen] = useState(false);
+  // Ferienwochen, die die Schule in dem Zeitraum ausrichtet (#6434).
+  const hostedWeeks = useHostedHolidayWeeks(modalOpen);
+  const [draft, setDraft] = useState<ClosingDayDraft | null>(null);
   const [editing, setEditing] = useState<ClosingDay | null>(null);
   const [deleting, setDeleting] = useState<ClosingDay | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -334,6 +344,10 @@ export function ClosingDaysEditor({
         onClose={() => setModalOpen(false)}
         onSaved={refreshAfterMutation}
         initial={editing}
+        onDraftChange={setDraft}
+        consequences={
+          <ClosingDayHolidayHint weeks={hostedWeeks} draft={draft} />
+        }
         onOfferCancel={
           canManageSchedules
             ? (range) => setCancelRange({ ...range, afterSave: true })
