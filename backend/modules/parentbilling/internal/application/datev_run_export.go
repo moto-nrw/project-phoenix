@@ -236,6 +236,15 @@ func (b datevBatch) header(settings parentbilling.DatevSettings, runKind string,
 	}
 }
 
+// addDatevProblem names a problem of a document once, however many of its
+// lines have it.
+func addDatevProblem(refused *parentbilling.DatevBookingsError, number, field, reason string) {
+	problem := parentbilling.DatevBookingProblem{DocumentNumber: number, Field: field, Reason: reason}
+	if !slices.Contains(refused.Problems, problem) {
+		refused.Problems = append(refused.Problems, problem)
+	}
+}
+
 // datevBookingsContent validates before a number is taken and renders the
 // bookings with their accounting settings. File metadata is fixed for the
 // comparison hash; the store also hashes the actual downloaded file.
@@ -246,7 +255,7 @@ func datevBookingsContent(header DatevBatchHeader, batch datevBatch, costCenterR
 	if costCenterRequired {
 		for i, booking := range batch.bookings {
 			if booking.CostCenter1 == "" {
-				refused.Add(batch.numbers[i], parentbilling.DatevBookingCostCenter, parentbilling.DatevProblemMissing)
+				addDatevProblem(refused, batch.numbers[i], parentbilling.DatevBookingCostCenter, parentbilling.DatevProblemMissing)
 			}
 		}
 	}
@@ -276,7 +285,7 @@ func datevBookingsContent(header DatevBatchHeader, batch datevBatch, costCenterR
 		if problem.Line < 1 || problem.Line > len(batch.numbers) || !known {
 			return nil, fmt.Errorf("parent billing: the DATEV batch of a ready Träger: %w", err)
 		}
-		refused.Add(batch.numbers[problem.Line-1], field, reasons[problem.Reason])
+		addDatevProblem(refused, batch.numbers[problem.Line-1], field, reasons[problem.Reason])
 	}
 	return nil, refused
 }

@@ -180,17 +180,6 @@ type DatevBookingsError struct {
 	Problems []DatevBookingProblem
 }
 
-// Add names a problem of a document once, however many of its lines have it.
-func (e *DatevBookingsError) Add(number, field, reason string) {
-	problem := DatevBookingProblem{DocumentNumber: number, Field: field, Reason: reason}
-	for _, known := range e.Problems {
-		if known == problem {
-			return
-		}
-	}
-	e.Problems = append(e.Problems, problem)
-}
-
 func (e *DatevBookingsError) Error() string {
 	return fmt.Sprintf("%d documents of the run make no valid DATEV booking", len(e.Problems))
 }

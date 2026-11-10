@@ -181,23 +181,23 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 type careInvoicePositionRow struct {
 	bun.BaseModel `bun:"table:parent_billing.care_invoice_positions"`
 
-	ID                      int64           `bun:"id,pk,autoincrement"`
-	OrganizationID          int64           `bun:"organization_id"`
-	InvoiceID               int64           `bun:"invoice_id"`
-	Position                int             `bun:"position"`
-	CareOfferingID          int64           `bun:"care_offering_id"`
-	ModuleName              string          `bun:"module_name"`
-	ContractVersionNumber   int             `bun:"contract_version_number"`
-	ServiceFrom             calendar.Date   `bun:"service_from,type:date"`
-	ServiceUntil            calendar.Date   `bun:"service_until,type:date"`
-	Weekdays                json.RawMessage `bun:"weekdays,type:jsonb"`
-	DaysPerWeek             *int            `bun:"days_per_week"`
-	TierMonthlyCents        *int64          `bun:"tier_monthly_cents"`
-	MealExtra               bool            `bun:"meal_extra"`
-	AmountCents             int64           `bun:"amount_cents"`
-	NetCents                int64           `bun:"net_cents"`
-	PayableCents            int64           `bun:"payable_cents"`
-	positionAccountsColumns `bun:",extend"`
+	ID                    int64           `bun:"id,pk,autoincrement"`
+	OrganizationID        int64           `bun:"organization_id"`
+	InvoiceID             int64           `bun:"invoice_id"`
+	Position              int             `bun:"position"`
+	CareOfferingID        int64           `bun:"care_offering_id"`
+	ModuleName            string          `bun:"module_name"`
+	ContractVersionNumber int             `bun:"contract_version_number"`
+	ServiceFrom           calendar.Date   `bun:"service_from,type:date"`
+	ServiceUntil          calendar.Date   `bun:"service_until,type:date"`
+	Weekdays              json.RawMessage `bun:"weekdays,type:jsonb"`
+	DaysPerWeek           *int            `bun:"days_per_week"`
+	TierMonthlyCents      *int64          `bun:"tier_monthly_cents"`
+	MealExtra             bool            `bun:"meal_extra"`
+	AmountCents           int64           `bun:"amount_cents"`
+	NetCents              int64           `bun:"net_cents"`
+	PayableCents          int64           `bun:"payable_cents"`
+	positionAccountsColumns
 }
 
 // CareTariffs reads every price of the Träger.

@@ -1,7 +1,6 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -174,10 +173,17 @@ func freezeCareAccounts(resolver bookingResolver, invoices []parentbilling.CareI
 
 // freezeHolidayAccounts copies where the holiday documents book onto them;
 // their first service day picks the cost center.
-func freezeHolidayAccounts(resolver bookingResolver, documents []parentbilling.BillingDocument) {
+func freezeHolidayAccounts(ctx context.Context, store BookingAssignmentReader, settings parentbilling.DatevBillingSettings,
+	organizationID int64, documents []parentbilling.BillingDocument,
+) error {
+	resolver, err := bookingResolverOf(ctx, store, settings, organizationID)
+	if err != nil {
+		return err
+	}
 	for i := range documents {
 		documents[i].Accounts = resolver.holiday(documents[i].ServiceFrom)
 	}
+	return nil
 }
 
 // BookingAccounts serves parentbilling.BookingAccountService.
@@ -229,7 +235,7 @@ func (b *BookingAccounts) BookingAccounts(ctx context.Context, reviewer parentbi
 			ownOfferings = append(ownOfferings, offering)
 		}
 	}
-	slices.SortFunc(schools, func(a, c parentbilling.CareSchool) int { return cmp.Compare(a.Name, c.Name) })
+	slices.SortFunc(schools, func(a, c parentbilling.CareSchool) int { return strings.Compare(a.Name, c.Name) })
 	page := parentbilling.BookingAccounts{
 		StandardAccount: strings.TrimSpace(datev.RevenueAccount.Value), CostCenterRequired: datev.CostCenterRequired,
 		Schools: schools, Offerings: ownOfferings, RevenueAccounts: assignments.RevenueAccounts, CostCenters: assignments.CostCenters,
@@ -358,12 +364,19 @@ func (b *BookingAccounts) AddCostCenter(ctx context.Context, reviewer parentbill
 	return b.BookingAccounts(ctx, reviewer)
 }
 
-// DeleteCostCenter removes a cost center; positions issued with it keep it.
+// DeleteCostCenter removes a cost center of the Träger; positions issued
+// with it keep it.
 func (b *BookingAccounts) DeleteCostCenter(ctx context.Context, reviewer parentbilling.HolidayReviewer, id int64) (parentbilling.BookingAccounts, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.BookingAccounts{}, err
 	}
-	if id <= 0 {
+	// The cost center must be one of the Träger's; the store names the
+	// Träger again in its statement.
+	assignments, err := b.store.BookingAssignments(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.BookingAccounts{}, err
+	}
+	if id <= 0 || !slices.ContainsFunc(assignments.CostCenters, func(c parentbilling.CostCenter) bool { return c.ID == id }) {
 		return parentbilling.BookingAccounts{}, parentbilling.ErrCostCenterNotFound
 	}
 	if err := b.store.DeleteCostCenter(ctx, reviewer.OrganizationID, id); err != nil {

@@ -45,21 +45,21 @@ type careMealTariffRow struct {
 type careMealPositionRow struct {
 	bun.BaseModel `bun:"table:parent_billing.care_meal_positions"`
 
-	ID                      int64         `bun:"id,pk,autoincrement"`
-	OrganizationID          int64         `bun:"organization_id"`
-	InvoiceID               int64         `bun:"invoice_id"`
-	Replaces                *int64        `bun:"replaces_invoice_id"`
-	Position                int           `bun:"position"`
-	SchoolID                int64         `bun:"school_id"`
-	StudentID               int64         `bun:"student_id"`
-	MealMonth               calendar.Date `bun:"meal_month,type:date"`
-	Mode                    string        `bun:"mode"`
-	Quantity                int           `bun:"quantity"`
-	UnitCents               int64         `bun:"unit_cents"`
-	AmountCents             int64         `bun:"amount_cents"`
-	NetCents                int64         `bun:"net_cents"`
-	ReleaseVersion          int           `bun:"release_version"`
-	positionAccountsColumns `bun:",extend"`
+	ID             int64         `bun:"id,pk,autoincrement"`
+	OrganizationID int64         `bun:"organization_id"`
+	InvoiceID      int64         `bun:"invoice_id"`
+	Replaces       *int64        `bun:"replaces_invoice_id"`
+	Position       int           `bun:"position"`
+	SchoolID       int64         `bun:"school_id"`
+	StudentID      int64         `bun:"student_id"`
+	MealMonth      calendar.Date `bun:"meal_month,type:date"`
+	Mode           string        `bun:"mode"`
+	Quantity       int           `bun:"quantity"`
+	UnitCents      int64         `bun:"unit_cents"`
+	AmountCents    int64         `bun:"amount_cents"`
+	NetCents       int64         `bun:"net_cents"`
+	ReleaseVersion int           `bun:"release_version"`
+	positionAccountsColumns
 }
 
 // CareMealTariffs reads the Mensa prices of the Träger.

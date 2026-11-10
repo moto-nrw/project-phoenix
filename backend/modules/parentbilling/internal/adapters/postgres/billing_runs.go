@@ -166,7 +166,7 @@ type documentPositionRow struct {
 	Note                       string         `bun:"note"`
 	CostBearerID               *int64         `bun:"cost_bearer_id"`
 	CostBearerName             string         `bun:"cost_bearer_name"`
-	positionAccountsColumns    `bun:",extend"`
+	positionAccountsColumns
 }
 
 // ListBillingRuns lists the runs of the Träger, newest first.

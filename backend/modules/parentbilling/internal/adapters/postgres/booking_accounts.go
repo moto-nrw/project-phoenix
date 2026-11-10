@@ -108,7 +108,7 @@ func (s *Store) SetRevenueAccount(ctx context.Context, organizationID, accountID
 	if err != nil {
 		return err
 	}
-	row := &revenueAccountRow{OrganizationID: organizationID, Scope: scope, ScopeID: scopeID, Account: account, UpdatedByAccountID: &accountID}
+	row := &revenueAccountRow{OrganizationID: organizationID, Scope: scope, ScopeID: scopeID, Account: account, UpdatedByAccountID: accountRef(accountID)}
 	if _, err := db.NewInsert().Model(row).
 		On("CONFLICT (organization_id, scope, scope_id) DO UPDATE").
 		Set("account = EXCLUDED.account, updated_by_account_id = EXCLUDED.updated_by_account_id, updated_at = CURRENT_TIMESTAMP").
@@ -138,7 +138,7 @@ func (s *Store) InsertCostCenter(ctx context.Context, organizationID, accountID 
 		return err
 	}
 	row := &costCenterRow{OrganizationID: organizationID, Scope: center.Scope, ScopeID: center.ScopeID, ValidFrom: center.ValidFrom,
-		Code: center.Code, CreatedByAccountID: &accountID}
+		Code: center.Code, CreatedByAccountID: accountRef(accountID)}
 	if _, err := db.NewInsert().Model(row).Exec(ctx); err != nil {
 		if constraintOf(err) == costCenterScopeConstraint {
 			return parentbilling.ErrCostCenterDateTaken

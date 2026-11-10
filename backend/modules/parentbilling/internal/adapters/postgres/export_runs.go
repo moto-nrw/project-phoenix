@@ -373,25 +373,27 @@ ORDER BY position.document_id, position.position`
 )
 
 type exportBookingPartRow struct {
-	DocumentID              int64         `bun:"document_id"`
-	Kind                    string        `bun:"kind"`
-	SchoolID                int64         `bun:"school_id"`
-	CareOfferingID          int64         `bun:"care_offering_id"`
-	Day                     calendar.Date `bun:"day,type:date"`
-	AmountCents             int64         `bun:"amount_cents"`
-	positionAccountsColumns `bun:",extend"`
+	DocumentID     int64         `bun:"document_id"`
+	Kind           string        `bun:"kind"`
+	SchoolID       int64         `bun:"school_id"`
+	CareOfferingID int64         `bun:"care_offering_id"`
+	Day            calendar.Date `bun:"day,type:date"`
+	AmountCents    int64         `bun:"amount_cents"`
+	positionAccountsColumns
 }
 
 // exportBookingParts reads the positions of the documents of a run by
 // document: a monthly invoice by its ID, a holiday document by its own.
 func exportBookingParts(ctx context.Context, db bun.IDB, organizationID int64, runKind string, runID int64,
 ) (map[int64][]parentbilling.ExportBookingPart, error) {
-	query := careBookingPartsQuery
-	if runKind == parentbilling.DebitRunHoliday {
-		query = holidayBookingPartsQuery
-	}
 	var rows []exportBookingPartRow
-	if err := db.NewRaw(query, organizationID, runID).Scan(ctx, &rows); err != nil {
+	var err error
+	if runKind == parentbilling.DebitRunHoliday {
+		err = db.NewRaw(holidayBookingPartsQuery, organizationID, runID).Scan(ctx, &rows)
+	} else {
+		err = db.NewRaw(careBookingPartsQuery, organizationID, runID).Scan(ctx, &rows)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("read where the positions of the run book: %w", err)
 	}
 	parts := map[int64][]parentbilling.ExportBookingPart{}
