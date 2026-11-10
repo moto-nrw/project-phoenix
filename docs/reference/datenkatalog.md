@@ -231,7 +231,7 @@ offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht
    Ausschluss, das Register des Rückgabepakets (Art. 26 Data Act,
    [ADR 0200](../adr/0200-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md))
    im selben PR neu erzeugen:
-   `../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/organizationtenancy/compose -run TestReturnRegisterMatchesMigratedSchema -update-return-register`.
+   `../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/organizationtenancy/internal/adapters/tenantexport -run TestReturnRegisterMatchesMigratedSchema -update-return-register`.
    Der Test schlägt sonst fehl. Die API liefert die eingebettete Datei unter
    `/public/data-return/register`.
 6. Bei Verfahrensänderungen den Katalogstand im späteren datensparsamen

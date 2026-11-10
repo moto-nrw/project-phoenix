@@ -1,4 +1,4 @@
-package compose_test
+package tenantexport
 
 import (
 	"encoding/json"
@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -20,18 +19,17 @@ var updateReturnRegister = flag.Bool("update-return-register", false, "rewrite m
 // model.json reads from the migrated schema. A migration or catalog change
 // that alters the package fails here until the register is regenerated:
 //
-//	go test -tags=testhooks ./modules/organizationtenancy/compose -run TestReturnRegisterMatchesMigratedSchema -update-return-register
+//	go test -tags=testhooks ./modules/organizationtenancy/internal/adapters/tenantexport -run TestReturnRegisterMatchesMigratedSchema -update-return-register
 func TestReturnRegisterMatchesMigratedSchema(t *testing.T) {
 	t.Parallel()
-	builder, err := compose.NewReturnRegisterBuilder(testpkg.SetupTestDB(t), organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint})
-	require.NoError(t, err)
+	builder := NewReturnRegisterBuilder(testpkg.SetupTestDB(t), organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint})
 	register, err := builder.BuildReturnRegister(t.Context())
 	require.NoError(t, err)
 	got, err := json.MarshalIndent(register, "", "  ")
 	require.NoError(t, err)
 	got = append(got, '\n')
 	if *updateReturnRegister {
-		require.NoError(t, os.WriteFile(filepath.Join("..", organizationtenancy.ReturnRegisterFile), got, 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join("..", "..", "..", organizationtenancy.ReturnRegisterFile), got, 0o644))
 	}
 	embedded, err := organizationtenancy.ReturnRegisterSource.ReadFile(organizationtenancy.ReturnRegisterFile)
 	require.NoError(t, err)
@@ -56,19 +54,4 @@ func TestReturnRegisterMatchesMigratedSchema(t *testing.T) {
 	for _, table := range register.ExcludedTables {
 		require.NotEmpty(t, table.Reason, "%s needs the reason it does not leave", table.Name)
 	}
-}
-
-// registerModels answers the tables of the embedded register as model.json
-// describes them.
-func registerModels(t *testing.T) map[string]organizationtenancy.ReturnRegisterTable {
-	t.Helper()
-	data, err := organizationtenancy.ReturnRegisterSource.ReadFile(organizationtenancy.ReturnRegisterFile)
-	require.NoError(t, err)
-	var register organizationtenancy.ReturnRegister
-	require.NoError(t, json.Unmarshal(data, &register))
-	tables := make(map[string]organizationtenancy.ReturnRegisterTable, len(register.Tables))
-	for _, table := range register.Tables {
-		tables[table.Name] = table
-	}
-	return tables
 }
