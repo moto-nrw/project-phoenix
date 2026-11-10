@@ -693,28 +693,10 @@
       "legacy": "parent_billing.beleg_retention_basis_cites_statute"
     },
     {
-      "code": "parent_billing.booking_scope_not_found",
-      "class": "input",
-      "parameters": [],
-      "legacy": "parent_billing.booking_scope_not_found"
-    },
-    {
-      "code": "parent_billing.cost_center_not_found",
-      "class": "input",
-      "parameters": [],
-      "legacy": "parent_billing.cost_center_not_found"
-    },
-    {
       "code": "parent_billing.cost_center_date_taken",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.cost_center_date_taken"
-    },
-    {
-      "code": "parent_billing.booking_account_invalid",
-      "class": "input",
-      "parameters": [],
-      "legacy": "parent_billing.booking_account_invalid"
     },
     {
       "code": "parent_billing.sollstellung_revenue_account_missing",

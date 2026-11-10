@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingBookingAccountsVersion = "1.15.904"
+const parentBillingBookingAccountsVersion = "1.15.906"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -15,7 +15,7 @@ func init() {
 		Description: "Elternabrechnung: Erlöskonto je Leistung und Angebot, Kostenstellen mit Gültigkeit, festgeschrieben je Position (#4821)",
 		DependsOn: []string{
 			parentBillingDatevBookedDocumentsVersion, // the DATEV bookings (1.15.888) whose export_files it extends
-			traegerOwnNameVersion,                    // the newest on development (1.15.902)
+			offboardingTraegerMembershipVersion,      // the newest on development (1.15.904)
 		},
 	})
 	Migrations.MustRegister(parentBillingBookingAccountsUp, parentBillingBookingAccountsDown)

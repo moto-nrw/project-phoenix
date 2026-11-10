@@ -64,7 +64,7 @@ func (rs *FinanceExportResource) setRevenueAccount(w http.ResponseWriter, r *htt
 	}
 	req := &RevenueAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingBookingAccountInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	accounts, err := rs.accounts.SetRevenueAccount(r.Context(), reviewer, req.Scope, req.ScopeID, req.Account)
@@ -83,7 +83,7 @@ func (rs *FinanceExportResource) addCostCenter(w http.ResponseWriter, r *http.Re
 	}
 	req := &CostCenterRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingBookingAccountInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	validFrom, _ := calendar.ParseDate(req.ValidFrom) // Bind checked it
@@ -104,7 +104,7 @@ func (rs *FinanceExportResource) deleteCostCenter(w http.ResponseWriter, r *http
 	}
 	id, err := common.ParseIDParam(r, "id")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(capability.ErrCostCenterNotFound, common.CodeParentBillingCostCenterNotFound))
+		common.RenderError(w, r, common.ErrorNotFound(capability.ErrCostCenterNotFound))
 		return
 	}
 	accounts, err := rs.accounts.DeleteCostCenter(r.Context(), reviewer, id)
@@ -116,16 +116,18 @@ func (rs *FinanceExportResource) deleteCostCenter(w http.ResponseWriter, r *http
 	common.Respond(w, r, http.StatusOK, accounts, "Cost center deleted successfully")
 }
 
-// renderBookingAccountError answers a refused change of the accounts.
+// renderBookingAccountError answers a refused change of the accounts. A
+// wrong value or a scope or cost center of another Träger takes the code of
+// its error class; the page shows the field or reloads.
 func renderBookingAccountError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	switch {
 	case errors.As(err, &fields):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingBookingAccountInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrBookingScopeNotFound):
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBookingScopeNotFound))
+		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, capability.ErrCostCenterNotFound):
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCostCenterNotFound))
+		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, capability.ErrCostCenterDateTaken):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCostCenterDateTaken))
 	default:

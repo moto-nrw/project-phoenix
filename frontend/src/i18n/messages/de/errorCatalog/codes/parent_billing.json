@@ -114,9 +114,6 @@
   "beleg_retention_basis_cites_statute": "Die Grundlage nennt § 147 AO, § 257 HGB oder § 14b UStG. Dann gelten deren Fristen. Bitte prüfen Sie die Grundlage.",
   "online_mandate_disabled": "Ihr Träger nimmt das Lastschrift-Mandat gerade nicht in der App an.",
   "sepa_mandate_text_changed": "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal.",
-  "booking_scope_not_found": "Diese Schule oder dieses Angebot gibt es bei Ihnen nicht. Bitte laden Sie die Seite neu.",
-  "cost_center_not_found": "Diese Kostenstelle gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "cost_center_date_taken": "Ab diesem Tag gibt es schon eine Kostenstelle. Wählen Sie einen anderen Tag oder löschen Sie die alte.",
-  "booking_account_invalid": "Bitte prüfen Sie die markierten Felder.",
   "sollstellung_revenue_account_missing": "Bei {count} Rechnungen fehlt das Erlöskonto. Tragen Sie in den DATEV-Werten ein Standard-Erlöskonto ein."
 }

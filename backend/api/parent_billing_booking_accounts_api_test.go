@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -150,9 +149,9 @@ func TestBookingAccountsRightsAndTraeger(t *testing.T) {
 	rec = traegerJSON(t, other.traeger, other.office.token, http.MethodPost, bookingAccountsPath+"/cost-centers",
 		map[string]any{"scope": "school", "scope_id": f.office.schools[0], "valid_from": "2029-01-01", "code": "X"})
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), common.CodeParentBillingBookingScopeNotFound)
+	assert.Contains(t, rec.Body.String(), `"code":"general.`)
 	rec = traegerJSON(t, other.traeger, other.office.token, http.MethodDelete, fmt.Sprintf("%s/cost-centers/%d", bookingAccountsPath, center), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), common.CodeParentBillingCostCenterNotFound)
+	assert.Contains(t, rec.Body.String(), `"code":"general.`)
 	assert.Len(t, bookingAccountsOf(t, f).CostCenters, 1, "the other Träger deleted nothing")
 }
