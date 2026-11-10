@@ -1,11 +1,12 @@
 "use client";
 
-// Die ausgestellten Läufe mit ihrer letzten Sollstellung und das
-// Exportprotokoll des Trägers (#4693). Jede heruntergeladene Datei steht im
+// Die ausgestellten Läufe mit ihrer letzten Sollstellung und DATEV-Datei
+// und das Exportprotokoll des Trägers (#4693, #4694). Jede heruntergeladene Datei steht im
 // Protokoll mit ihrer Dateinummer, wer sie wann geholt hat und ob sie eine
 // frühere Datei wiederholt.
 
 import { Download } from "lucide-react";
+import { DATEV_READINESS_ID } from "~/components/traeger/finance-export-datev";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
   FINANCE_FILE_KINDS,
@@ -34,9 +35,38 @@ function FileNumber({ value }: Readonly<{ value: number }>) {
   );
 }
 
+/** The format a run file is downloaded in. */
+export type RunFileFormat = "sollstellung" | "datev";
+
+/** The key of a running download: format, kind and run. */
+export function runFileKey(format: RunFileFormat, run: ExportRun): string {
+  return `${format}/${run.pathKind}/${run.runId}`;
+}
+
+/** The last file of one format of a run, or that there is none yet. */
+function LastFile({ entry }: Readonly<{ entry: ExportProtocolEntry | null }>) {
+  if (!entry) {
+    return <StatusBadge label="Noch nicht exportiert" tone="warning" />;
+  }
+  return (
+    <span className="min-w-0">
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <FileNumber value={entry.fileNumber} />
+        <span className="text-sm text-gray-500">
+          {exportedAtLabel(entry.exportedAt)}
+        </span>
+      </span>
+      <span className="block text-sm text-gray-500">
+        {byLabel(entry.exportedByYou, entry.exportedByAccount)}
+      </span>
+    </span>
+  );
+}
+
 function runColumns(
   downloading: string | null,
-  onDownload: (run: ExportRun) => void,
+  datevReady: boolean,
+  onDownload: (format: RunFileFormat, run: ExportRun) => void,
 ): DataTableColumn<ExportRun>[] {
   return [
     {
@@ -72,25 +102,13 @@ function runColumns(
       key: "last",
       header: "Letzte Sollstellung",
       sortValue: (run) => run.lastSollstellung?.fileNumber ?? null,
-      render: (run) =>
-        run.lastSollstellung ? (
-          <span className="min-w-0">
-            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <FileNumber value={run.lastSollstellung.fileNumber} />
-              <span className="text-sm text-gray-500">
-                {exportedAtLabel(run.lastSollstellung.exportedAt)}
-              </span>
-            </span>
-            <span className="block text-sm text-gray-500">
-              {byLabel(
-                run.lastSollstellung.exportedByYou,
-                run.lastSollstellung.exportedByAccount,
-              )}
-            </span>
-          </span>
-        ) : (
-          <StatusBadge label="Noch nicht exportiert" tone="warning" />
-        ),
+      render: (run) => <LastFile entry={run.lastSollstellung} />,
+    },
+    {
+      key: "datev",
+      header: "Letzte DATEV-Datei",
+      sortValue: (run) => run.lastDatev?.fileNumber ?? null,
+      render: (run) => <LastFile entry={run.lastDatev} />,
     },
     {
       key: "download",
@@ -99,37 +117,55 @@ function runColumns(
       align: "right",
       stackedLabel: false,
       render: (run) => (
-        <Button
-          type="button"
-          variant="surface"
-          size="compact"
-          isLoading={downloading === `${run.pathKind}/${run.runId}`}
-          loadingText="Wird erstellt"
-          disabled={downloading !== null}
-          aria-label={`Sollstellung von ${run.label} herunterladen`}
-          onClick={() => onDownload(run)}
-        >
-          <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
-          Sollstellung
-        </Button>
+        <span className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="surface"
+            size="compact"
+            isLoading={downloading === runFileKey("sollstellung", run)}
+            loadingText="Wird erstellt"
+            disabled={downloading !== null}
+            aria-label={`Sollstellung von ${run.label} herunterladen`}
+            onClick={() => onDownload("sollstellung", run)}
+          >
+            <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            Sollstellung
+          </Button>
+          <Button
+            type="button"
+            variant="surface"
+            size="compact"
+            isLoading={downloading === runFileKey("datev", run)}
+            loadingText="Wird erstellt"
+            disabled={downloading !== null || !datevReady}
+            aria-describedby={datevReady ? undefined : DATEV_READINESS_ID}
+            aria-label={`DATEV-Datei von ${run.label} herunterladen`}
+            onClick={() => onDownload("datev", run)}
+          >
+            <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            DATEV
+          </Button>
+        </span>
       ),
     },
   ];
 }
 
-/** The released runs with their last Sollstellung and its download. */
+/** The released runs with their last files and their downloads. */
 export function ExportRunsTable({
   runs,
   downloading,
+  datevReady,
   onDownload,
 }: Readonly<{
   runs: readonly ExportRun[];
   downloading: string | null;
-  onDownload: (run: ExportRun) => void;
+  datevReady: boolean;
+  onDownload: (format: RunFileFormat, run: ExportRun) => void;
 }>) {
   return (
     <DataTable
-      columns={runColumns(downloading, onDownload)}
+      columns={runColumns(downloading, datevReady, onDownload)}
       rows={[...runs]}
       getRowKey={(run) => `${run.pathKind}/${run.runId}`}
       stackedOnMobile
@@ -168,6 +204,12 @@ function entryNotes(entry: ExportProtocolEntry) {
   ) : null;
 }
 
+const FILE_KIND_TONES = {
+  sollstellung: "purple",
+  pain008: "blue",
+  datev: "cyan",
+} as const;
+
 const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
   {
     key: "number",
@@ -198,7 +240,7 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
     render: (entry) => (
       <StatusBadge
         label={FINANCE_FILE_KINDS[entry.format]}
-        tone={entry.format === "pain008" ? "blue" : "purple"}
+        tone={FILE_KIND_TONES[entry.format]}
       />
     ),
   },
@@ -249,7 +291,7 @@ export function ExportProtocolTable({
       emptyState={
         <EmptyState
           title="Noch keine Datei heruntergeladen."
-          description="Jede Sollstellung und jede Lastschriftdatei steht hier mit ihrer Nummer."
+          description="Jede Sollstellung, DATEV-Datei und Lastschriftdatei steht hier mit ihrer Nummer."
         />
       }
     />

@@ -1,7 +1,8 @@
 "use client";
 
-// Exporte für die Kämmerei (#4693): je ausgestellten Lauf die
-// Sollstellung als CSV mit der Feldzuordnung des Trägers und das
+// Exporte für Kämmerei und Steuerbüro (#4693, #4694): je ausgestellten Lauf
+// die Sollstellung als CSV mit der Feldzuordnung des Trägers und den
+// DATEV-Buchungsstapel, sobald die DATEV-Werte vollständig sind, und das
 // Exportprotokoll aller Dateien, auch der Lastschriftdateien. Jeder Abruf
 // bekommt die nächste Dateinummer des Trägers. Nur das Recht
 // „Finanz-Export“ sieht die Seite.
@@ -9,8 +10,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
 import {
+  DATEV_SETTINGS_PATH,
+  DatevReadinessNotice,
+  DatevRefusedNotice,
+} from "~/components/traeger/finance-export-datev";
+import {
   ExportProtocolTable,
   ExportRunsTable,
+  type RunFileFormat,
+  runFileKey,
 } from "~/components/traeger/finance-export-tables";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
@@ -20,13 +28,18 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
+  type DatevBookingProblem,
+  type DatevReadiness,
   type ExportProtocolEntry,
   type ExportRun,
   type FinanceExportPage,
   type FinanceExportRunPage,
+  datevBookingProblems,
+  downloadDatevBatch,
   downloadSollstellung,
   fetchExportProtocol,
   fetchExportRuns,
@@ -37,13 +50,25 @@ import { traegerPath } from "~/lib/traeger-url";
 const logger = createLogger({ component: "TraegerFinanceExportsPage" });
 
 const INFO =
-  "Hier laden Sie die Sollstellung für Ihre Kämmerei herunter. Welche Spalten die Datei hat, legen Sie unter „Feldzuordnung“ fest. Jede Datei bekommt eine neue Nummer und steht im Protokoll.";
+  "Hier laden Sie die Sollstellung für Ihre Kämmerei und die DATEV-Datei für Ihr Steuerbüro herunter. Welche Spalten die Sollstellung hat, legen Sie unter „Feldzuordnung“ fest. Jede Datei bekommt eine neue Nummer und steht im Protokoll.";
 
 interface ExportsData {
   readonly runs: FinanceExportRunPage;
   readonly protocol: FinanceExportPage<ExportProtocolEntry>;
   readonly nextFileNumber: number;
+  readonly datev: DatevReadiness;
 }
+
+/** The invoices of a refused DATEV download and the run they belong to. */
+interface DatevRefusal {
+  readonly runLabel: string;
+  readonly problems: readonly DatevBookingProblem[];
+}
+
+const FILE_NAMES: Record<RunFileFormat, string> = {
+  sollstellung: "die Sollstellung",
+  datev: "die DATEV-Datei",
+};
 
 /** Joins the next page onto the pages read so far. */
 function joinPages<P extends FinanceExportPage<unknown>>(read: P, next: P): P {
@@ -101,6 +126,7 @@ function MorePages({
 export default function TraegerFinanceExportsPage() {
   const [data, setData] = useState<ExportsData | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<DatevRefusal | null>(null);
   const [loadingMore, setLoadingMore] = useState<"runs" | "protocol" | null>(
     null,
   );
@@ -117,7 +143,12 @@ export default function TraegerFinanceExportsPage() {
           readPages(fetchExportProtocol, keepProtocol),
           fetchExportSettings(),
         ]);
-        setData({ runs, protocol, nextFileNumber: settings.nextFileNumber });
+        setData({
+          runs,
+          protocol,
+          nextFileNumber: settings.nextFileNumber,
+          datev: settings.datev,
+        });
         clearLoadError();
       } catch (err) {
         logger.error("traeger_finance_exports_load_failed", {
@@ -171,17 +202,29 @@ export default function TraegerFinanceExportsPage() {
     }
   };
 
-  const download = async (run: ExportRun) => {
-    setDownloading(`${run.pathKind}/${run.runId}`);
+  const download = async (format: RunFileFormat, run: ExportRun) => {
+    setDownloading(runFileKey(format, run));
+    setRefusal(null);
     try {
-      const file = await downloadSollstellung(run.pathKind, run.runId);
+      const file =
+        format === "datev"
+          ? await downloadDatevBatch(run.pathKind, run.runId)
+          : await downloadSollstellung(run.pathKind, run.runId);
       downloadBlob(file.blob, file.filename);
       success(`${file.filename} ist heruntergeladen.`);
     } catch (err) {
-      logger.error("traeger_sollstellung_download_failed", {
+      logger.error("traeger_finance_export_download_failed", {
+        format,
         error: err instanceof Error ? err.message : String(err),
       });
-      void errors.show(err, { object: "die Sollstellung" });
+      const problems =
+        format === "datev" && err instanceof ApiError
+          ? datevBookingProblems(err.details)
+          : [];
+      if (problems.length > 0) {
+        setRefusal({ runLabel: run.label, problems });
+      }
+      void errors.show(err, { object: FILE_NAMES[format] });
     } finally {
       setDownloading(null);
       void load(data?.runs.items.length, data?.protocol.items.length);
@@ -194,13 +237,22 @@ export default function TraegerFinanceExportsPage() {
       info={INFO}
       tabs={billingTabs("exporte")}
       actions={
-        <ButtonLink
-          href={traegerPath("/traeger/abrechnung/exporte/feldzuordnung")}
-          variant="outline"
-          size="md"
-        >
-          Feldzuordnung
-        </ButtonLink>
+        <>
+          <ButtonLink
+            href={traegerPath(DATEV_SETTINGS_PATH)}
+            variant="outline"
+            size="md"
+          >
+            DATEV-Werte
+          </ButtonLink>
+          <ButtonLink
+            href={traegerPath("/traeger/abrechnung/exporte/feldzuordnung")}
+            variant="outline"
+            size="md"
+          >
+            Feldzuordnung
+          </ButtonLink>
+        </>
       }
       stats={
         data ? (
@@ -225,9 +277,17 @@ export default function TraegerFinanceExportsPage() {
     >
       {data ? (
         <>
+          <DatevReadinessNotice readiness={data.datev} />
+          {refusal ? (
+            <DatevRefusedNotice
+              runLabel={refusal.runLabel}
+              problems={refusal.problems}
+              onDismiss={() => setRefusal(null)}
+            />
+          ) : null}
           <SectionCard
-            title="Sollstellung je Lauf"
-            description="Eine Zeile je Rechnung, Storno und Gutschrift des Laufs. Jeder Download ist eine neue Datei mit neuer Nummer."
+            title="Dateien je Lauf"
+            description="Die Sollstellung ist für Ihre Kämmerei, die DATEV-Datei für Ihr Steuerbüro. Jeder Download ist eine neue Datei mit neuer Nummer."
             flush
             footer={
               data.runs.nextOffset === null ? null : (
@@ -244,12 +304,13 @@ export default function TraegerFinanceExportsPage() {
             <ExportRunsTable
               runs={data.runs.items}
               downloading={downloading}
-              onDownload={(run) => void download(run)}
+              datevReady={data.datev.ready}
+              onDownload={(format, run) => void download(format, run)}
             />
           </SectionCard>
           <SectionCard
             title="Exportprotokoll"
-            description="Jede Datei, die moto verlassen hat: Sollstellungen und Lastschriftdateien."
+            description="Jede Datei, die moto verlassen hat: Sollstellungen, DATEV-Dateien und Lastschriftdateien."
             flush
             footer={
               data.protocol.nextOffset === null ? null : (

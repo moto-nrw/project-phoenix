@@ -262,6 +262,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerSepaMandatesTopic(),
   articles.traegerSepaDebitFileTopic(),
   articles.traegerFinanceExportsTopic(),
+  articles.traegerDatevExportTopic(),
   articles.traegerSharedDocumentsTopic(),
   articles.traegerCareTimeOverrunsTopic(),
   articles.traegerAccessLogTopic(),
