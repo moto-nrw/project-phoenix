@@ -100,9 +100,27 @@ describe("FamilyBillingForm", () => {
         payerAddress: null,
         paymentMethod: "direct_debit",
         dueDay: null,
+        debtorNumber: "",
       }),
     );
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null));
+  });
+
+  it("saves a debtor number of the family alone (#4693)", async () => {
+    saveFamilyBilling.mockResolvedValue(null);
+    renderModal();
+    fireEvent.change(screen.getByLabelText(/Debitorennummer/), {
+      target: { value: "10 4711" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(saveFamilyBilling).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientKind: "applicant",
+          debtorNumber: "10 4711",
+        }),
+      ),
+    );
   });
 
   it("starts from the stored deviation", () => {
@@ -119,9 +137,11 @@ describe("FamilyBillingForm", () => {
       payerAddress: { street: "Weg 1", postalCode: "12345", city: "Ort" },
       paymentMethod: "",
       dueDay: 15,
+      debtorNumber: "10 4711",
       updatedAt: "2026-09-01T10:00:00Z",
     });
     expect(screen.getByLabelText(/Vorname/)).toHaveValue("Carla");
+    expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("10 4711");
     expect(screen.getByLabelText(/Postleitzahl/)).toHaveValue("12345");
   });
 });
@@ -143,6 +163,7 @@ describe("family billing request", () => {
       postalCode: "12345",
       city: "Ort",
       dueDay: "15",
+      debtorNumber: " 10 4711 ",
     };
     expect(familyBillingErrors(draft)).toEqual({});
     expect(familyBillingBody(familyBillingInput("42", draft))).toEqual({
@@ -156,6 +177,7 @@ describe("family billing request", () => {
       payer_address: { street: "Weg 1", postal_code: "12345", city: "Ort" },
       payment_method: "",
       due_day: 15,
+      debtor_number: "10 4711",
     });
   });
 });

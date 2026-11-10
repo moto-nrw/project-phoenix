@@ -614,6 +614,26 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.CareLetterMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.InvoiceHistoryPost.CareLetterMailStates",
+      "reason": "Read-only: the invoice history reads the existing monthly or holiday run's mail states through Delivery's Träger-scoped capability in the caller's Träger transaction. No persistent, lock or scope effect (ADR 0110, ADR 0123, ADR 0165).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.InvoiceHistoryPost.LetterMailStates",
+      "reason": "Read-only: the invoice history reads the existing monthly or holiday run's mail states through Delivery's Träger-scoped capability in the caller's Träger transaction. No persistent, lock or scope effect (ADR 0110, ADR 0123, ADR 0165).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
       "classification": "query",
       "effect": "query",

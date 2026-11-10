@@ -749,6 +749,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerBillingTerms,
       HELP_TOPICS.traegerSepaMandates,
       HELP_TOPICS.traegerSepaDebitFile,
+      HELP_TOPICS.traegerFinanceExports,
       HELP_TOPICS.traegerSharedDocuments,
       HELP_TOPICS.traegerCareTimeOverruns,
       HELP_TOPICS.traegerAccessLog,

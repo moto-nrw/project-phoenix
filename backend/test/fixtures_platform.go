@@ -242,6 +242,9 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 	tb.Helper()
 	tb.Cleanup(func() {
 		for _, table := range []string{
+			// The export protocol and the field mapping (#4693); a file's
+			// invoice links go with it.
+			"parent_billing.export_files", "parent_billing.export_mappings",
 			// An evidence holds its income level (#4685): it goes first.
 			"parent_billing.care_evidences",
 			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.care_runs", "parent_billing.care_tariffs",

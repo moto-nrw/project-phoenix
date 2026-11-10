@@ -76,6 +76,8 @@ export interface FamilyBilling {
   readonly paymentMethod: PaymentMethod | "";
   /** Day of the month 1–28; null keeps the date of the run. */
   readonly dueDay: number | null;
+  /** Number of the family in the finance system of the Träger, "" without one (#4693). */
+  readonly debtorNumber: string;
   readonly updatedAt: string;
 }
 
@@ -90,6 +92,7 @@ export interface FamilyBillingInput {
   readonly payerAddress: PostalAddress | null;
   readonly paymentMethod: PaymentMethod | "";
   readonly dueDay: number | null;
+  readonly debtorNumber: string;
 }
 
 /** The due date of a run for one payment method. */
@@ -161,6 +164,7 @@ interface BackendFamilyBilling {
   payer_address: BackendAddress | null;
   payment_method: PaymentMethod | "";
   due_day: number | null;
+  debtor_number?: string;
   updated_at: string;
 }
 
@@ -237,6 +241,7 @@ function familyFromBackend(family: BackendFamilyBilling): FamilyBilling {
       : null,
     paymentMethod: family.payment_method,
     dueDay: family.due_day,
+    debtorNumber: family.debtor_number ?? "",
     updatedAt: family.updated_at,
   };
 }
@@ -324,6 +329,7 @@ export function familyBillingBody(input: FamilyBillingInput) {
         : null,
     payment_method: input.paymentMethod,
     due_day: input.dueDay,
+    debtor_number: input.debtorNumber.trim(),
   };
 }
 

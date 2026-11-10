@@ -352,6 +352,8 @@ import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } 
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
 
+import type { traegerFinanceExportsTopic as authored_traegerFinanceExportsTopic } from "./articles/traeger-finance-exports";
+
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
 
 import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from "./articles/traeger-holiday-form";
@@ -11437,6 +11439,80 @@ export const traegerDocumentTemplatesTopic =
     };
   } satisfies typeof authored_traegerDocumentTemplatesTopic;
 
+export const traegerFinanceExportsTopic =
+  function traegerFinanceExportsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerFinanceExports,
+      title: "Sollstellung für die Kämmerei",
+      question: "Wie gebe ich die Rechnungen an die Kämmerei?",
+      summary:
+        "Für jeden ausgestellten Lauf laden Sie eine Sollstellung herunter. Das ist eine CSV-Datei mit einer Zeile je Rechnung. Welche Spalten sie hat, legen Sie selbst fest. Jede Datei bekommt eine laufende Nummer.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Table",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Der Monatslauf oder Ferienlauf ist ausgestellt.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Spalten festlegen",
+          description:
+            "Fragen Sie Ihre Kämmerei, welche Spalten ihr Programm liest. Das machen Sie nur einmal.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `Feldzuordnung`.",
+            "Wählen Sie bei jeder Spalte den `Inhalt` und tragen Sie den `Spaltennamen` ein.",
+            "Mit `Spalte` fügen Sie eine Spalte hinzu. Für einen Wert, der in jeder Zeile gleich ist, wählen Sie `Fester Wert`, etwa ein Konto.",
+            "Legen Sie unter `Datei` Trennzeichen, Beträge, Datum, Zeichensatz und Dateinamen fest. `{NR}` im Dateinamen wird zur Dateinummer.",
+            "Prüfen Sie die `Vorschau` und wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Erste Dateinummer festlegen",
+          description:
+            "Nur nötig, wenn die Nummern Ihres bisherigen Programms weiterlaufen sollen.",
+          steps: [
+            "Tragen Sie in der Karte `Dateinummern` bei `Erste Nummer` die Nummer nach Ihrer letzten Datei ein.",
+            "Wählen Sie `Festlegen` und dann `Ja, festlegen`.",
+          ],
+        },
+        {
+          title: "Sollstellung herunterladen",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
+            "Geben Sie die Datei an Ihre Kämmerei.",
+          ],
+        },
+      ],
+      result:
+        "Die Datei steht im `Exportprotokoll` mit Nummer, Datum und wer sie geholt hat. Beim Lauf steht die letzte Sollstellung. In jeder Monatsrechnung zeigt `Verlauf`, in welchen Dateien sie war.",
+      notes: [
+        "Jeder Download ist eine neue Datei mit neuer Nummer. Steht im Protokoll `Gleicher Inhalt wie Nr. …`, enthält die Datei nichts Neues.",
+        "Auch jede Lastschriftdatei bekommt eine Nummer aus derselben Reihe. So nennt jede Nummer genau eine Datei.",
+        "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
+        "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
+      ],
+      differences: [
+        "Der Reiter `Exporte` fehlt? Ihnen fehlt das Recht `Finanz-Export`.",
+        "Ein älterer Lauf oder eine ältere Datei fehlt? Die Listen zeigen zuerst die neuesten 50. Wählen Sie unter der Liste `Ältere anzeigen`.",
+        "Die Karte `Dateinummern` zeigt kein Feld? Die Nummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+      ],
+      troubleshootingDetails: [
+        "Die Kämmerei sieht falsche Umlaute? Wählen Sie bei `Zeichensatz` den Wert `Windows-1252`.",
+        "In der Datei stehen alle Werte in einer Spalte? Das Trennzeichen passt nicht zum Programm der Kämmerei. Wählen Sie ein anderes.",
+        "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
+      ],
+      related: [
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerSepaDebitFile,
+        HELP_TOPICS.traegerBillingTerms,
+      ],
+    };
+  } satisfies typeof authored_traegerFinanceExportsTopic;
+
 /** `/traeger/einstellungen/abrechnung` (#4664, #5627, #5685): Regeln des Ferienbeitrags und Kostenträger. */
 export const traegerHolidayContributionTopic =
   function traegerHolidayContributionTopic(): HelpTopic {
@@ -12238,7 +12314,8 @@ export const traegerSepaDebitFileTopic =
       result:
         "Die Karte zeigt `Bei der Bank eingereicht`. Bei einem neuen Mandat ist die nächste Abbuchung eine Folgelastschrift. Auf der Seite des Mandats steht jede Abbuchung unter `Abbuchungen`.",
       notes: [
-        "Sie können die Datei mehrmals herunterladen. Ohne Änderungen am selben Tag bleibt sie gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
+        "Sie können die Datei mehrmals herunterladen. Ohne Änderungen am selben Tag bleibt ihr Inhalt gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
+        "Jeder Download bekommt eine neue Dateinummer im Namen und steht unter `Abrechnung` → `Exporte` im `Exportprotokoll`.",
         "Eine Lastschrift, die schon fällig war, bucht die Datei am nächsten Tag ab.",
         "Ein Einmalmandat darf nur eine Rechnung einziehen. Bei mehreren Rechnungen klären Sie mit der Familie, wie sie zahlt.",
         "Ein Mandat gilt 36 Monate nach der letzten Abbuchung. Danach braucht die Familie ein neues Mandat.",
@@ -12323,7 +12400,7 @@ export const traegerSepaMandatesTopic =
             "Wählen Sie bei `Die Spalte „Zahler“ enthält`, ob dort die E-Mail der Familie oder die Vertragsnummer steht.",
             "Hat Ihre Datei keine Spalte mit der Gläubiger-ID? Dann bestätigen Sie, dass alle Mandate zu Ihrer Gläubiger-ID gehören.",
             "Prüfen Sie die Zeilen unter `Prüfen und übernehmen`. Bei `Bitte klären` wählen Sie unter `Schon abgebucht?` die Antwort `Ja` oder `Nein`.",
-            "Wählen Sie `Mandate übernehmen`.",
+            "Wählen Sie unten `übernehmen`. Der Knopf nennt Mandate und Debitorennummern getrennt.",
           ],
         },
         {
@@ -12344,7 +12421,7 @@ export const traegerSepaMandatesTopic =
         "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
         "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
-        "Beim Import übernimmt moto nur Zeilen mit dem Stand `Bereit`. Zeilen mit Fehlern oder Konflikten bleiben draußen. Korrigieren Sie die Datei und laden Sie sie noch einmal: Was schon da ist, zeigt moto als `Schon vorhanden`.",
+        "Mandate übernimmt moto nur mit dem Stand `Bereit`. Fehlende Debitorennummern können Sie auch bei vorhandenen Mandaten übernehmen. Die Vorschau zählt jede Familie einmal. Unterschiedliche Nummern werden nicht übernommen. Korrigieren Sie die Datei und laden Sie sie noch einmal.",
         "Ein Mandat aus der Datei, mit dem schon abgebucht wurde, übernimmt moto als Folgelastschrift. Steht die letzte Abbuchung in der Datei, zählen die 36 Monate bis zum Verfall ab diesem Tag. Fehlt sie, zählen sie ab dem Import.",
         "Wissen Sie, dass die letzte Abbuchung lange her ist? Dann tragen Sie das Datum in der Datei ein oder holen ein neues Mandat ein. Ohne Datum geht moto davon aus, dass das Mandat bis kurz vor dem Import genutzt wurde.",
       ],

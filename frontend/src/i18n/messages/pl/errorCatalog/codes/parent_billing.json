@@ -101,6 +101,11 @@
   "sepa_import_file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sepa_import_mapping_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sepa_import_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "export_run_not_found": "This run does not exist or is not issued yet. Please reload the page.",
+  "export_run_empty": "This run has no invoice. There is no file to download.",
+  "export_file_number_start_locked": "The file numbers have already started. The first number can no longer be changed.",
+  "export_invoice_not_found": "This invoice does not exist. Please reload the page.",
+  "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields.",
   "beleg_retention_basis_cites_statute": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "online_mandate_disabled": "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
   "sepa_mandate_text_changed": "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie."
