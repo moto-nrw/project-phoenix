@@ -123,7 +123,9 @@
     "emergencyLimit": "Możesz podać najwyżej trzy osoby do kontaktu w nagłych wypadkach.",
     "pickupLimit": "Możesz upoważnić najwyżej pięć osób do odbioru dzieci.",
     "contactLimit": "Możesz podać najwyżej osiem osób.",
-    "postalCode": "Proszę podać kod pocztowy z 5 cyfr."
+    "postalCode": "Proszę podać kod pocztowy z 5 cyfr.",
+    "days": "Wybierz co najmniej jeden dzień.",
+    "dayLimit": "To więcej dni, niż jest możliwe w te ferie. Wybierz mniej dni."
   },
   "childQuestionsTitle": "Pytania i informacje o dziecku",
   "familyQuestionsTitle": "Pytania i informacje ogólne",
@@ -133,5 +135,17 @@
   "contactsTitle": "Kontakty",
   "contactsText": "Wpisz każdą dodatkową osobę tylko raz. Wybierz jej role. Potrzebna jest co najmniej jedna osoba do kontaktu w nagłych wypadkach z numerem telefonu.",
   "emergencyRole": "Kontakt w nagłych wypadkach",
-  "pickupRole": "Może odbierać dzieci"
+  "pickupRole": "Może odbierać dzieci",
+  "timeModelDayPrice": "{name} · {price} za dzień ({startsAt} do {endsAt})",
+  "weeksDayPriceText": "W tygodniach z pojedynczymi dniami cena dotyczy jednego dnia.",
+  "daysLabel": "Dni w tygodniu {week}",
+  "daysHint": "Wybierz dni, w które dziecko przyjdzie.",
+  "fullDaysHint": "Już pełne: {days}.",
+  "fullDayAria": "{day}, już pełny",
+  "fullDaysChosen": "{days} jest już pełny. Z tym dniem dziecko trafi na listę oczekujących na cały tydzień. Bez niego może od razu dostać miejsce.",
+  "dayLimitHint": "W te ferie każde dziecko może przyjść najwyżej {limit} dni. Dni mogą być w różnych tygodniach.",
+  "dayLimitCount": "Wybrano: {count, plural, one {# dzień} other {# dni}}.",
+  "dayLimitOver": "Wybrano: {count, plural, one {# dzień} other {# dni}}. To za dużo. Wybierz mniej dni.",
+  "summaryDays": "Dni: {days}",
+  "contributionDays": "{count, plural, one {# dzień} other {# dni}}"
 }

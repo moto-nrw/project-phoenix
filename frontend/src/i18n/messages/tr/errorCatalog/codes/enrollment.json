@@ -140,6 +140,8 @@
   "holiday_registration_not_found": "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
   "holiday_registration_state_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_week_booked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "holiday_booking_unit_booked": "Bu hafta için zaten kayıtlar var. Bu yüzden rezervasyon şekli ve tek günlerde haftanın tarihleri aynı kalır.",
+  "holiday_child_day_limit": "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {days} gün seçildi. Lütfen daha az gün seçin.",
   "holiday_weeks_booked_together": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "hosted_holiday_week_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_guest_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

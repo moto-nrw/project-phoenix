@@ -9,14 +9,22 @@ import { useMemo } from "react";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { Alert } from "~/components/ui/alert";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
+import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { formatDate } from "~/lib/date-helpers";
+import {
+  holidayDayLabel,
+  holidayDayList,
+  holidayWeekdayShort,
+} from "~/lib/holiday-days";
 import {
   type ConditionContext,
   isFieldVisible,
@@ -35,6 +43,7 @@ import type {
 } from "~/lib/holiday-registration-api";
 import {
   type AddressDraft,
+  bookedDayCount,
   type ChildDraft,
   type ContactDraft,
   emptyContact,
@@ -69,8 +78,8 @@ export function useWeekLabels() {
         }),
       // The price per week at the choice: the base line the summary shows
       // under "Beitrag", before any sibling discount or exemption (#5237).
-      pricedTimeModel: (model: HolidayRegistrationTimeModel) =>
-        t("timeModelPrice", {
+      pricedTimeModel: (model: HolidayRegistrationTimeModel, perDay = false) =>
+        t(perDay ? "timeModelDayPrice" : "timeModelPrice", {
           name: model.name,
           price: euro.format(model.priceCents / 100),
           startsAt: model.startsAt,
@@ -89,14 +98,19 @@ function WeekChoice({
   group,
   prefix,
   value,
+  days,
   invalid,
   onChange,
+  onDaysChange,
 }: Readonly<{
   group: readonly HolidayRegistrationWeek[];
   prefix: string;
   value: string;
+  /** The chosen days of the booked week, when it is booked by days. */
+  days: readonly string[];
   invalid: boolean;
   onChange: (timeModelId: string) => void;
+  onDaysChange: (weekId: string, days: readonly string[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
   const labels = useWeekLabels();
@@ -107,37 +121,131 @@ function WeekChoice({
     week: HolidayRegistrationWeek,
     model: HolidayRegistrationTimeModel,
   ) => {
-    const priced = labels.pricedTimeModel(model);
+    const priced = labels.pricedTimeModel(model, week.bookingUnit === "day");
     return parallel ? `${week.hostSchoolName}: ${priced}` : priced;
   };
   const labelId = `${prefix}-week-${first.id}`;
+  const booked = group.find((week) =>
+    week.timeModels.some((model) => model.id === value),
+  );
   return (
-    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2">
-      <span id={labelId} className="text-sm text-gray-900">
-        {labels.range(first)}
-        <span className="block text-xs text-gray-500">
-          {parallel ? t("parallelWeeksHint") : first.hostSchoolName}
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2">
+        <span id={labelId} className="text-sm text-gray-900">
+          {labels.range(first)}
+          <span className="block text-xs text-gray-500">
+            {parallel ? t("parallelWeeksHint") : first.hostSchoolName}
+          </span>
         </span>
-      </span>
-      <CustomSelect
-        name={`${prefix}.bookings`}
-        wrapLabels
-        ariaLabelledBy={labelId}
-        value={value}
-        invalid={invalid}
-        ariaDescribedBy={invalid ? `${prefix}-bookings-error` : undefined}
-        options={[
-          { value: "", label: t("notBooked") },
-          ...group.flatMap((week) =>
-            week.timeModels.map((model) => ({
-              value: model.id,
-              label: optionLabel(week, model),
-            })),
-          ),
-        ]}
-        onChange={onChange}
-      />
+        <CustomSelect
+          name={`${prefix}.bookings`}
+          wrapLabels
+          ariaLabelledBy={labelId}
+          value={value}
+          invalid={invalid}
+          ariaDescribedBy={invalid ? `${prefix}-bookings-error` : undefined}
+          options={[
+            { value: "", label: t("notBooked") },
+            ...group.flatMap((week) =>
+              week.timeModels.map((model) => ({
+                value: model.id,
+                label: optionLabel(week, model),
+              })),
+            ),
+          ]}
+          onChange={onChange}
+        />
+      </div>
+      {booked?.bookingUnit === "day" ? (
+        <DayChoice
+          week={booked}
+          label={labels.range(booked)}
+          days={days}
+          onChange={(next) => onDaysChange(booked.id, next)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * The days of a week by days (#4701): one toggle per care day. A full day
+ * stays selectable; the line under the days says that a booking with it
+ * waits as a whole.
+ */
+function DayChoice({
+  week,
+  label,
+  days,
+  onChange,
+}: Readonly<{
+  week: HolidayRegistrationWeek;
+  label: string;
+  days: readonly string[];
+  onChange: (days: readonly string[]) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const locale = useLocale();
+  const fullDays = week.fullDays ?? [];
+  const chosenFull = days.filter((day) => fullDays.includes(day));
+  const hint = [
+    t("daysHint"),
+    fullDays.length > 0
+      ? t("fullDaysHint", { days: holidayDayList(fullDays, locale) })
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <InsetPanel padding="sm" className="space-y-2 sm:ml-auto sm:w-1/2">
+      <WeekdayToggleGroup
+        ariaLabel={t("daysLabel", { week: label })}
+        days={(week.careDays ?? []).map((day) => ({
+          value: day,
+          label: holidayWeekdayShort(day, locale),
+          ariaLabel: fullDays.includes(day)
+            ? t("fullDayAria", { day: holidayDayLabel(day, locale) })
+            : holidayDayLabel(day, locale),
+        }))}
+        value={days}
+        onToggle={(day) =>
+          onChange(
+            days.includes(day)
+              ? days.filter((chosen) => chosen !== day)
+              : [...days, day].sort(),
+          )
+        }
+        hint={hint}
+      />
+      {chosenFull.length > 0 ? (
+        <Alert
+          type="warning"
+          size="compact"
+          message={t("fullDaysChosen", {
+            days: holidayDayList(chosenFull, locale),
+          })}
+        />
+      ) : null}
+    </InsetPanel>
+  );
+}
+
+/**
+ * The bound of care days per child (#4701) with the days chosen so far; over
+ * the bound it turns into a warning.
+ */
+function DayLimitHint({
+  limit,
+  count,
+}: Readonly<{ limit: number; count: number }>) {
+  const t = useTranslations("holidayRegistration");
+  const over = count > limit;
+  return (
+    <Alert
+      type={over ? "warning" : "info"}
+      size="compact"
+      message={`${t("dayLimitHint", { limit })} ${t(over ? "dayLimitOver" : "dayLimitCount", { count })}`}
+    />
   );
 }
 
@@ -276,14 +384,36 @@ export function ChildCard({
             <RequiredMark />
           </legend>
           <p className="text-sm text-gray-600">
-            {`${t("weeksText")} ${t("weeksPriceText")}`}
+            {[
+              t("weeksText"),
+              t("weeksPriceText"),
+              offer.weeks.some((week) => week.bookingUnit === "day")
+                ? t("weeksDayPriceText")
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           </p>
+          {offer.maxDaysPerChild == null ? null : (
+            <DayLimitHint
+              limit={offer.maxDaysPerChild}
+              count={bookedDayCount(child, offer)}
+            />
+          )}
           {groupParallelWeeks(offer.weeks).map((group) => (
             <WeekChoice
               key={group[0]?.id}
               group={group}
               prefix={prefix}
               value={weekGroupBooking(child.bookings, group)}
+              days={
+                group
+                  .map((week) => child.days?.[week.id])
+                  .find((chosen) => chosen && chosen.length > 0) ?? []
+              }
+              onDaysChange={(weekId, days) =>
+                set({ days: { ...child.days, [weekId]: days } })
+              }
               invalid={Boolean(bookingsError)}
               onChange={(timeModelId) =>
                 set({

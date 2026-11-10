@@ -245,6 +245,20 @@ export function HolidayPeriodForm({
                 Die Anmeldung ist verbindlich.
               </span>
             </label>
+            <Input
+              controlSize="compact"
+              name="max_days_per_child"
+              label="Höchstens Tage je Kind"
+              hint="Gilt für alle Wochen zusammen. Eltern dürfen die Tage verteilen. Leer lassen, wenn es keine Grenze gibt."
+              inputMode="numeric"
+              placeholder="zum Beispiel 5"
+              className="sm:max-w-xs"
+              value={draft.maxDaysPerChild}
+              error={fieldError("max_days_per_child") ?? undefined}
+              onChange={(event) =>
+                setDraft({ ...draft, maxDaysPerChild: event.target.value })
+              }
+            />
             <Textarea
               name="notes"
               label="Hinweise für Eltern"

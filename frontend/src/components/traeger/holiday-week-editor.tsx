@@ -2,7 +2,8 @@
 
 // Eine buchbare Woche eines Ferienzeitraums (#4659): Tage, ausrichtende OGS
 // und die Zeitmodelle mit ihrem Preis. Ein gebuchtes Zeitmodell lässt sich
-// nicht entfernen, nur archivieren (#5994).
+// nicht entfernen, nur archivieren (#5994). Eine Woche wird ganz oder
+// tageweise gebucht; tageweise ist der Preis ein Tagespreis (#4701).
 
 import { Archive, Plus, X } from "lucide-react";
 import { useCallback } from "react";
@@ -11,16 +12,36 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODateInput } from "~/components/ui/date-picker";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Input } from "~/components/ui/input";
+import { SectionLabel } from "~/components/ui/section-label";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
-import type { TraegerSchool } from "~/lib/traeger-api";
+import type { HolidayBookingUnit, TraegerSchool } from "~/lib/traeger-api";
 import {
   emptyTimeModel,
   MAX_TIME_MODELS_PER_WEEK,
   type TimeModelDraft,
+  weekBooked,
   type WeekDraft,
 } from "./holiday-period-model";
+
+const BOOKING_UNITS = [
+  { value: "week", label: "Ganze Woche" },
+  { value: "day", label: "Einzelne Tage" },
+] as const satisfies readonly { value: HolidayBookingUnit; label: string }[];
+
+/** One line under the choice: what parents book and what the price means. */
+function bookingUnitHint(unit: HolidayBookingUnit, booked: boolean): string {
+  if (booked) {
+    return unit === "day"
+      ? "Eltern haben schon Tage gebucht. Buchungsart und Tage der Woche bleiben deshalb so."
+      : "Eltern haben die Woche schon gebucht. Die Buchungsart bleibt deshalb so.";
+  }
+  return unit === "day"
+    ? "Eltern wählen einzelne Tage von Montag bis Freitag. Der Preis gilt je Tag. Die Plätze gelten für jeden Tag."
+    : "Eltern buchen alle Tage der Woche. Der Preis gilt für die ganze Woche.";
+}
 
 type FieldError = (name: string) => string | null | undefined;
 
@@ -33,7 +54,10 @@ function weekTitle(index: number, week: WeekDraft): string {
  * An archived time model: shown, but no longer changed or offered. The days
  * booked on it keep its times.
  */
-function ArchivedTimeModelRow({ model }: Readonly<{ model: TimeModelDraft }>) {
+function ArchivedTimeModelRow({
+  model,
+  unit,
+}: Readonly<{ model: TimeModelDraft; unit: HolidayBookingUnit }>) {
   return (
     <div className="flex flex-col gap-1 border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center gap-2">
@@ -41,8 +65,9 @@ function ArchivedTimeModelRow({ model }: Readonly<{ model: TimeModelDraft }>) {
         <StatusBadge tone="gray" size="xs" label="Archiviert" />
       </div>
       <p className="text-sm text-gray-600">
-        {model.startsAt} bis {model.endsAt} Uhr, {model.price} Euro. Neu buchen
-        kann es niemand mehr. Gebuchte Tage behalten es.
+        {model.startsAt} bis {model.endsAt} Uhr, {model.price} Euro
+        {unit === "day" ? " je Tag" : ""}. Neu buchen kann es niemand mehr.
+        Gebuchte Tage behalten es.
       </p>
     </div>
   );
@@ -50,18 +75,20 @@ function ArchivedTimeModelRow({ model }: Readonly<{ model: TimeModelDraft }>) {
 
 function TimeModelRow({
   model,
+  unit,
   field,
   fieldError,
   onChange,
   onRemove,
 }: Readonly<{
   model: TimeModelDraft;
+  unit: HolidayBookingUnit;
   field: string;
   fieldError: FieldError;
   onChange: (model: TimeModelDraft) => void;
   onRemove: () => void;
 }>) {
-  if (model.archived) return <ArchivedTimeModelRow model={model} />;
+  if (model.archived) return <ArchivedTimeModelRow model={model} unit={unit} />;
   const startsError = fieldError(`${field}.starts_at`);
   const endsError = fieldError(`${field}.ends_at`);
   return (
@@ -104,7 +131,7 @@ function TimeModelRow({
       </div>
       <Input
         name={`${field}.price_cents`}
-        label="Preis in Euro"
+        label={unit === "day" ? "Preis je Tag in Euro" : "Preis in Euro"}
         controlSize="compact"
         inputMode="decimal"
         placeholder="45,00"
@@ -188,6 +215,8 @@ export function HolidayWeekEditor({
     });
 
   const title = weekTitle(index, week);
+  const booked = weekBooked(week);
+  const unitHintId = `${prefix}.booking_unit-hint`;
   return (
     // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
@@ -242,6 +271,22 @@ export function HolidayWeekEditor({
           />
         </div>
 
+        <div className="space-y-2">
+          <SectionLabel as="p" id={`${prefix}.booking_unit-label`}>
+            Buchung
+          </SectionLabel>
+          <SegmentedControl
+            items={BOOKING_UNITS.map((item) => ({ ...item, disabled: booked }))}
+            value={week.bookingUnit}
+            ariaLabel={`Buchung von ${title}`}
+            ariaDescribedBy={unitHintId}
+            onChange={(bookingUnit) => onChange({ ...week, bookingUnit })}
+          />
+          <p id={unitHintId} className="text-sm text-gray-600">
+            {bookingUnitHint(week.bookingUnit, booked)}
+          </p>
+        </div>
+
         <div className="space-y-3">
           <div>
             <h5 className="text-sm font-semibold text-gray-900">Zeitmodelle</h5>
@@ -260,6 +305,7 @@ export function HolidayWeekEditor({
             <TimeModelRow
               key={model.key}
               model={model}
+              unit={week.bookingUnit}
               field={`${prefix}.time_models.${modelIndex}`}
               fieldError={fieldError}
               onChange={(next) => setTimeModel(modelIndex, next)}

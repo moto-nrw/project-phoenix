@@ -123,7 +123,9 @@
     "emergencyLimit": "Acil durumda aranacak en fazla üç kişi girebilirsiniz.",
     "pickupLimit": "Çocukları alabilecek en fazla beş kişi girebilirsiniz.",
     "contactLimit": "En fazla sekiz kişi girebilirsiniz.",
-    "postalCode": "Lütfen 5 haneli bir posta kodu girin."
+    "postalCode": "Lütfen 5 haneli bir posta kodu girin.",
+    "days": "Lütfen en az bir gün seçin.",
+    "dayLimit": "Bu tatilde mümkün olandan daha fazla gün seçtiniz. Lütfen daha az gün seçin."
   },
   "childQuestionsTitle": "Çocuk hakkında sorular ve bilgiler",
   "familyQuestionsTitle": "Genel sorular ve bilgiler",
@@ -133,5 +135,17 @@
   "contactsTitle": "İletişim kişileri",
   "contactsText": "Her ek kişiyi bir kez girin. Rollerini seçin. Telefon numarası olan en az bir acil durum kişisi gereklidir.",
   "emergencyRole": "Acil durumda aranacak kişi",
-  "pickupRole": "Çocukları alabilir"
+  "pickupRole": "Çocukları alabilir",
+  "timeModelDayPrice": "{name} · günlük {price} ({startsAt}–{endsAt})",
+  "weeksDayPriceText": "Tek tek günlerin seçildiği haftalarda fiyat günlüktür.",
+  "daysLabel": "{week} haftasındaki günler",
+  "daysHint": "Çocuğunuzun geleceği günleri seçin.",
+  "fullDaysHint": "Zaten dolu: {days}.",
+  "fullDayAria": "{day}, zaten dolu",
+  "fullDaysChosen": "{days} zaten dolu. Bu günle çocuğunuz tüm hafta için bekleme listesine girer. Bu gün olmadan belki hemen yer alır.",
+  "dayLimitHint": "Bu tatilde her çocuk en fazla {limit} gün gelebilir. Günler farklı haftalarda olabilir.",
+  "dayLimitCount": "Seçilen: {count} gün.",
+  "dayLimitOver": "Seçilen: {count} gün. Bu çok fazla. Lütfen daha az gün seçin.",
+  "summaryDays": "Günler: {days}",
+  "contributionDays": "{count} gün"
 }

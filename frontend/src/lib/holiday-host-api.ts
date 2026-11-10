@@ -104,6 +104,8 @@ export interface HolidayParticipant {
   readonly homeSchoolId: string | null;
   readonly homeSchoolName: string;
   readonly timeModelId: string;
+  /** Gebuchte Tage einer tageweise gebuchten Woche (#4701); leer: ganze Woche. */
+  readonly days?: readonly string[];
   /** `null` ohne zweite sorgeberechtigte Person. */
   readonly secondGuardian: HolidayHostGuardian | null;
   readonly answers: HolidayHostAnswer[];
@@ -163,6 +165,7 @@ interface BackendParticipantList {
     home_school_id: number | string | null;
     home_school_name: string;
     time_model_id: number | string;
+    days?: string[] | null;
     second_guardian?: HolidayHostGuardian | null;
     answers?: HolidayHostAnswer[] | null;
     health?: BackendHostHealth | null;
@@ -214,6 +217,7 @@ function mapHolidayParticipantList(
       homeSchoolId: optionalId(participant.home_school_id),
       homeSchoolName: participant.home_school_name,
       timeModelId: String(participant.time_model_id),
+      days: participant.days ?? [],
       secondGuardian: participant.second_guardian ?? null,
       answers: participant.answers ?? [],
       health: mapHealth(participant.health),

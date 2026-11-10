@@ -147,7 +147,7 @@ export function HolidayRegistrationContribution({
           ? `${t("weekRange", {
               starts: formatDate(line.weekStartsOn, false, locale),
               ends: formatDate(line.weekEndsOn, false, locale),
-            })} · ${line.timeModelName}`
+            })} · ${line.timeModelName}${line.bookedDays ? ` · ${t("contributionDays", { count: line.bookedDays })}` : ""}`
           : line.timeModelName;
       case "sibling":
         return t("contributionSibling", {
