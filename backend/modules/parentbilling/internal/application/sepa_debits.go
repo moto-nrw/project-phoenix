@@ -427,20 +427,7 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 	if strings.TrimSpace(messageID) != plan.run.MessageID {
 		return parentbilling.SEPADebitRun{}, parentbilling.ErrSEPADebitsChanged
 	}
-	submitted := make([]parentbilling.SEPADebit, len(plan.included))
-	collected := map[int64]calendar.Date{}
-	var mandates []parentbilling.SEPAMandate
-	for i, entry := range plan.included {
-		submitted[i] = entry.Debit
-		submitted[i].CollectOn = plan.collectOn[entry.Debit.ID]
-		on := plan.collectOn[entry.Debit.ID]
-		if last, ok := collected[entry.Debit.MandateID]; !ok || on.After(last) {
-			if !ok {
-				mandates = append(mandates, parentbilling.SEPAMandate{ID: entry.Debit.MandateID, ContractID: entry.Debit.ContractID})
-			}
-			collected[entry.Debit.MandateID] = on
-		}
-	}
+	submitted, collected, mandates := submittedDebits(plan)
 	invoices, rates := splitNoticeRates(submitted)
 	if err := d.store.InsertSubmittedNoticeRates(ctx, reviewer.OrganizationID, reviewer.AccountID, runID, plan.run.MessageID, rates); err != nil {
 		return parentbilling.SEPADebitRun{}, err
@@ -459,6 +446,26 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 		return parentbilling.SEPADebitRun{}, fmt.Errorf("parent billing: record the submission in the export protocol: %w", err)
 	}
 	return d.SEPADebitRun(ctx, reviewer, runKind, runID)
+}
+
+// submittedDebits are the debits of a confirmed file with their collection
+// day, the last collection day per mandate and the mandates they collect.
+func submittedDebits(plan debitPlan) ([]parentbilling.SEPADebit, map[int64]calendar.Date, []parentbilling.SEPAMandate) {
+	submitted := make([]parentbilling.SEPADebit, len(plan.included))
+	collected := map[int64]calendar.Date{}
+	var mandates []parentbilling.SEPAMandate
+	for i, entry := range plan.included {
+		submitted[i] = entry.Debit
+		submitted[i].CollectOn = plan.collectOn[entry.Debit.ID]
+		on := plan.collectOn[entry.Debit.ID]
+		if last, ok := collected[entry.Debit.MandateID]; !ok || on.After(last) {
+			if !ok {
+				mandates = append(mandates, parentbilling.SEPAMandate{ID: entry.Debit.MandateID, ContractID: entry.Debit.ContractID})
+			}
+			collected[entry.Debit.MandateID] = on
+		}
+	}
+	return submitted, collected, mandates
 }
 
 // splitNoticeRates parts the debits of a confirmed file into invoices,
