@@ -314,8 +314,9 @@ export default function TraegerKinderzahlPage() {
         families.length > 0 ? (
           <TenantPageStats
             // How many families, then one figure per pill of the table. The
-            // line holds three figures: with expired numbers the total gives
-            // way, so „ohne Angabe“ stays in view.
+            // line holds three figures: with expired numbers the total moves
+            // into the first one („1 von 7 bestätigt“), so „ohne Angabe“
+            // stays in view.
             items={[
               ...(expired > 0
                 ? []
@@ -325,7 +326,13 @@ export default function TraegerKinderzahlPage() {
                       label: families.length === 1 ? "Familie" : "Familien",
                     },
                   ]),
-              { value: countStatus("confirmed"), label: "bestätigt" },
+              {
+                value:
+                  expired > 0
+                    ? `${countStatus("confirmed")} von ${families.length}`
+                    : countStatus("confirmed"),
+                label: "bestätigt",
+              },
               ...(expired > 0 ? [{ value: expired, label: "abgelaufen" }] : []),
               { value: missing, label: "ohne Angabe" },
             ]}

@@ -446,7 +446,8 @@ export function LegalBlocksSection({
           {customOnly ? (
             // Said once for every entry below, not in each PDF part.
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Eltern können alle PDFs öffnen und herunterladen. Höchstens{" "}
+              Eltern können alle PDFs öffnen und herunterladen. Sie können
+              mehrere PDFs gleichzeitig auswählen, höchstens{" "}
               {MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL} pro Datei.
             </p>
           ) : null}

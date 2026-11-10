@@ -138,6 +138,9 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
         ) : null}
       </span>
     ),
+    // On a phone the period, its dates and the labelled children name
+    // themselves across the card's width; a label beside them would wrap.
+    stackedLabel: false,
   },
   {
     key: "amount",
@@ -273,7 +276,7 @@ export default function TraegerBillingFamilyPage() {
                 {paymentMethodsText(family.paymentMethods) ??
                   (validInvoices > 0
                     ? "Auf den Rechnungen nicht genannt"
-                    : "Keine gültige Rechnung")}
+                    : "Steht auf neuen Rechnungen")}
               </DataField>
               <DataField label="Wer zahlt" fullWidth>
                 {family.payments.length > 0 ? (

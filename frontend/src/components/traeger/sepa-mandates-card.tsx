@@ -438,15 +438,14 @@ export function SepaMandatesCard({
           </span>
           <span className="block text-sm text-gray-500">
             {MANDATE_KIND_LABELS[mandate.kind]}
-            {/* On a tablet the next debit stands beside the kind: the
-                table has no room for its own column there. */}
-            {mandate.revokedOn ? null : (
-              <span className="hidden md:inline xl:hidden">
-                {" "}
-                · {nextDebitLabel(mandate)}
-              </span>
-            )}
           </span>
+          {/* On a tablet the next debit stands under the kind, named: the
+              table has no room for its own column there. */}
+          {mandate.revokedOn ? null : (
+            <span className="hidden text-sm text-gray-500 md:block xl:hidden">
+              Nächste: {nextDebitLabel(mandate)}
+            </span>
+          )}
         </span>
       ),
     },
@@ -459,6 +458,11 @@ export function SepaMandatesCard({
       stackedLabel: false,
       render: (mandate) => (
         <span className="block min-w-0" data-analytics-block>
+          {/* The phone row shows its label above the full-width IBAN;
+              screen readers hear the field's own label. */}
+          <span className="block text-sm text-gray-500 md:hidden" aria-hidden>
+            Konto
+          </span>
           {/* One line on every width: a split IBAN is misread. */}
           <span className="block font-mono whitespace-nowrap text-gray-900 tabular-nums">
             {/* The last two groups are the digits that tell accounts apart:

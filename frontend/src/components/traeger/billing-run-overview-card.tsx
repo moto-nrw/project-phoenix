@@ -91,7 +91,17 @@ function leftForChild(
 
 function invoicesDescription(released: boolean, canPreview: boolean) {
   if (!released) {
-    return "Je Familie eine Rechnung.";
+    // From md on the card's „Aufschlüsselung zeigen“ opens it for every row;
+    // a phone row keeps it in its menu, so the phone names that place.
+    return (
+      <>
+        Je Familie eine Rechnung.
+        <span className="md:hidden">
+          {" "}
+          Die Aufschlüsselung je Kind steht im Menü der Zeile.
+        </span>
+      </>
+    );
   }
   const overview =
     "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag.";
