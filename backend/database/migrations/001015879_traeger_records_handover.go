@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerRecordsHandoverVersion = "1.15.875"
+const traegerRecordsHandoverVersion = "1.15.879"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

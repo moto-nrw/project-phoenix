@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// An erasure order recorded before migration 1.15.875 has neither the hint
+// An erasure order recorded before migration 1.15.879 has neither the hint
 // on the records nor the customer's choice (#4720, AVV Ziff. 8.4). The
 // erasure procedure refuses it and names the missing step; once the operator
 // recorded both, the same order erases the Träger.
@@ -73,7 +73,7 @@ func TestErasureCLIOrganizationRefusesAnOrderWithoutTheRecordsChoice(t *testing.
 	require.Zero(t, count(`SELECT count(*) FROM platform.organizations WHERE id = ?`, organizationID), "the Träger is erased")
 }
 
-// An order that was already started before migration 1.15.875 has no choice
+// An order that was already started before migration 1.15.879 has no choice
 // either (#4720). It is not resumed until the operator records the hint and
 // the customer's choice on it (it can no longer be withdrawn); then the same
 // run resumes and erases the Träger.

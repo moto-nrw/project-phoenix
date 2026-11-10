@@ -31,7 +31,7 @@ ausführen. Restore-Verfahren: siehe [Restore-Prüfung](daily-backup.md).
 Nebensystemfristen und deren produktive Nachweise: 3837-f.
 
 **Aufbewahrungspflichtige Unterlagen vor dem Löschauftrag (#4720, Migration
-`1.15.875`):** Vor dem Erfassen eines Löschauftrags zeigt das Operator-Portal
+`1.15.879`):** Vor dem Erfassen eines Löschauftrags zeigt das Operator-Portal
 den Hinweis nach AVV Ziff. 8.4: Der Träger sichert seine Belege selbst.
 Das moto-Team bietet die Rückgabe an (`tenant export --organization`, siehe
 [Auskunft und Rückgabe](auskunft-und-rueckgabe.md#3-ausführen-und-prüfen), Trägerpaket)
@@ -41,7 +41,7 @@ Kunden: „Rückgabe übergeben“ mit Tag und optional der Prüfsumme aus
 Auftrag nicht an. Die Wahl der Löschung genügt; die Löschung hängt nie von
 einer Bestätigung externer Archivierung ab (Löschkonzept Träger-Finanzdaten,
 Abschnitt 5). Auftrag und Operator-Protokoll (`record_erasure_order`) halten
-Wahl, Tag und Prüfsumme ohne Personendaten fest. Aufträge von vor `1.15.875`
+Wahl, Tag und Prüfsumme ohne Personendaten fest. Aufträge von vor `1.15.879`
 haben keinen Eintrag. Das Löschverfahren führt sie nicht aus und setzt sie
 nicht fort, auch wenn es schon begonnen hat: `organization_erasure_check`
 meldet `records_choice_missing`, die CLI bricht mit diesem Status ab, und

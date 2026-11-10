@@ -39,7 +39,7 @@ für die Rückgabe am Vertragsende:
    Download speichert die ausgegebene Datei bytegenau, mit dem
    Bank-Schlüssel versiegelt und an Träger und Nachrichten-ID gebunden, mit
    SHA-256 und Gläubigerkonto (`parent_billing.sepa_debit_files`, Migration
-   `1.15.876`). Ein späterer Download ersetzt sie bis zur Bestätigung der
+   `1.15.880`). Ein späterer Download ersetzt sie bis zur Bestätigung der
    Einreichung; danach ändert sie sich nicht mehr (nur `bank-data-rekey`
    versiegelt neu). Die Bestätigung hält ohne Download wenigstens das
    Gläubigerkonto fest. Jede gespeicherte Datei nennt ab dem Download ihre
@@ -143,7 +143,7 @@ für die Rückgabe am Vertragsende:
    (#6326).
 7. **Löschauftrag eines Trägers:** Er verlangt den Hinweis auf die Rückgabe
    der Unterlagen und die Wahl des Kunden (Rückgabe oder Verzicht;
-   Migration `1.15.875`). Ein Altauftrag ohne beides und ein bereits
+   Migration `1.15.879`). Ein Altauftrag ohne beides und ein bereits
    begonnener Auftrag laufen erst weiter, wenn beides nachgetragen ist
    (`PUT /operator/organizations/{id}/erasure-order/records`,
    Operator-Protokoll `record_erasure_order_records`); eine erfasste Wahl
