@@ -2692,9 +2692,65 @@ describe("BetreuungsplanView", () => {
     expect(mockShowActionError).not.toHaveBeenCalled();
   });
 
-  // Das Detailpanel schließt sich nach dem Löschen selbst, nur im Vorgang,
-  // der gelöscht hat (#6593). Die View schließt aus der Antwort heraus
-  // nichts, sonst träfe eine späte Antwort den inzwischen neu geöffneten Block.
+  it.each(["detail-delete", "detail-delete-following"])(
+    "clears the deleted selection after the block disappears during refresh (%s)",
+    async (action) => {
+      setTestClock(new Date("2026-05-04T08:00:00"));
+      const gaps = deferred();
+      mockTenantMutate.mockImplementation((key: string) =>
+        key.startsWith("timetable-gaps") ? gaps.promise : Promise.resolve(),
+      );
+      setUrl("view=woche&block=42");
+      const view = render(<BetreuungsplanView />);
+      expect(screen.getByText("detail-close")).toBeVisible();
+      fireEvent.click(screen.getByText(action));
+      await waitFor(() =>
+        expect(mockTenantMutate).toHaveBeenCalledWith(
+          expect.stringMatching(/^timetable-gaps/),
+        ),
+      );
+
+      setupSWR({ instances: [] });
+      view.rerender(<BetreuungsplanView />);
+      // Anker: die Wochenansicht ist nach dem Entfernen des Blocks geladen.
+      expect(screen.getByText("week-grid")).toBeVisible();
+      expect(screen.queryByText("detail-close")).not.toBeInTheDocument();
+      await act(async () => gaps.resolve());
+
+      expect(urlParams().has("block")).toBe(false);
+      expect(urlParams().get("d")).toBe("2026-05-04");
+    },
+  );
+
+  it.each(["detail-delete", "detail-delete-following"])(
+    "preserves a different selection when deletion finishes (%s)",
+    async (action) => {
+      setTestClock(new Date("2026-05-04T08:00:00"));
+      const gaps = deferred();
+      setupSWR({ instances: [instance, { ...instance, id: "43" }] });
+      mockTenantMutate.mockImplementation((key: string) =>
+        key.startsWith("timetable-gaps") ? gaps.promise : Promise.resolve(),
+      );
+      setUrl("view=woche&block=42");
+      render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByText(action));
+      await waitFor(() =>
+        expect(mockTenantMutate).toHaveBeenCalledWith(
+          expect.stringMatching(/^timetable-gaps/),
+        ),
+      );
+      act(() => setUrl("view=woche&block=43"));
+      expect(screen.getByText("detail-close")).toBeVisible();
+
+      await act(async () => gaps.resolve());
+
+      expect(urlParams().get("block")).toBe("43");
+      expect(screen.getByText("detail-close")).toBeVisible();
+    },
+  );
+
+  // Eine neue URL-Auswahl darf auch bei derselben ID nicht durch die
+  // Bereinigung einer früheren Löschantwort geschlossen werden (#6593).
   it("keeps a block opened again when an earlier delete answers late (#6593)", async () => {
     const answer = deferred();
     mockDeleteCancelled.mockReturnValueOnce(answer.promise);

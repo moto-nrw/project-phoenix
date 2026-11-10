@@ -504,6 +504,7 @@ function InstanceStudentsSection({
   instance,
   onAttendancePatch,
   pendingStudentId,
+  pending,
   studentNames,
   students,
 }: Readonly<{
@@ -518,6 +519,7 @@ function InstanceStudentsSection({
   instance: EnrichedInstance;
   onAttendancePatch?: InstanceDetailModalProps["onAttendancePatch"];
   pendingStudentId: string | null;
+  pending: boolean;
   studentNames: Map<string, string>;
   students: InstanceStudentSummary[];
 }>) {
@@ -571,6 +573,7 @@ function InstanceStudentsSection({
             students={group.rows}
             studentNames={studentNames}
             pendingStudentId={pendingStudentId}
+            pending={pending}
             onAttendancePatch={onAttendancePatch}
             instanceStatus={instance.status}
             handleAttendancePatch={handleAttendancePatch}
@@ -1197,6 +1200,7 @@ export function InstanceDetailModal({
                           instance={instance}
                           onAttendancePatch={attendancePatch}
                           pendingStudentId={pendingStudentId}
+                          pending={save.pending}
                           studentNames={names.studentNames}
                           students={visibleStudents}
                         />
@@ -1220,6 +1224,7 @@ export function InstanceDetailModal({
                     instance={instance}
                     onAttendancePatch={attendancePatch}
                     pendingStudentId={pendingStudentId}
+                    pending={save.pending}
                     studentNames={studentNames}
                     students={students}
                   />
@@ -1333,6 +1338,7 @@ function StudentGroup({
   students,
   studentNames,
   pendingStudentId,
+  pending,
   onAttendancePatch,
   instanceStatus,
   handleAttendancePatch,
@@ -1347,6 +1353,7 @@ function StudentGroup({
   students: InstanceStudentSummary[];
   studentNames: Map<string, string>;
   pendingStudentId: string | null;
+  pending: boolean;
   onAttendancePatch?: InstanceDetailModalProps["onAttendancePatch"];
   instanceStatus: InstanceStatus;
   handleAttendancePatch: (
@@ -1422,7 +1429,7 @@ function StudentGroup({
                     label={`${studentName} als anwesend markieren`}
                     tone="green"
                     isLoading={pendingStudentId === student.studentId}
-                    disabled={pendingStudentId !== null}
+                    disabled={pending}
                     onClick={() =>
                       void handleAttendancePatch(student.studentId, {
                         status: "present",
@@ -1441,7 +1448,7 @@ function StudentGroup({
                     }
                     tone="red"
                     isLoading={pendingStudentId === student.studentId}
-                    disabled={pendingStudentId !== null}
+                    disabled={pending}
                     onClick={() =>
                       void handleAttendancePatch(student.studentId, {
                         status: "absent",
@@ -1456,7 +1463,7 @@ function StudentGroup({
                     label={`Status von ${studentName} zurücksetzen`}
                     tone="slate"
                     isLoading={pendingStudentId === student.studentId}
-                    disabled={pendingStudentId !== null}
+                    disabled={pending}
                     onClick={() =>
                       void handleAttendancePatch(student.studentId, {
                         status: "expected",

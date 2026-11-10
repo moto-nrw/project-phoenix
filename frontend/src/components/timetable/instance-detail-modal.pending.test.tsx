@@ -114,6 +114,42 @@ describe("InstanceDetailModal pending lock (#6593)", () => {
       expect(onClose).not.toHaveBeenCalled();
     });
 
+    it.each(["Beenden", "Absagen"])(
+      "sperrt die Anwesenheit während %s und gibt sie nach einem Fehler frei",
+      async (action) => {
+        const answer = deferred();
+        const onAttendancePatch = vi.fn();
+        const { onLifecycleAction } = renderPanel(instance(), {
+          onAttendancePatch,
+        });
+        onLifecycleAction.mockReturnValue(answer.promise);
+        fireEvent.click(screen.getByRole("button", { name: action }));
+        fireEvent.click(confirmDialogButton(action));
+        expect(onLifecycleAction).toHaveBeenCalledOnce();
+
+        const attendanceButtons = screen.getAllByRole("button", {
+          name: /Kind #21 als .* markieren/,
+        });
+        expect(attendanceButtons).toHaveLength(2);
+
+        for (const button of attendanceButtons) {
+          expect(button).toBeDisabled();
+          fireEvent.click(button);
+        }
+        expect(onAttendancePatch).not.toHaveBeenCalled();
+
+        await act(async () => {
+          answer.reject(new Error("bereits gemeldet"));
+        });
+
+        for (const button of attendanceButtons) {
+          expect(button).toBeEnabled();
+        }
+        fireEvent.click(attendanceButtons[0]!);
+        expect(onAttendancePatch).toHaveBeenCalledOnce();
+      },
+    );
+
     it("gibt das Panel nach dem Beenden frei", async () => {
       const { answer, onClose } = renderAndComplete();
 
