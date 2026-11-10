@@ -42,6 +42,24 @@ func (seedTraegerClosingDayStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("plan the Träger closing day: %w", err)
 	}
 	fmt.Printf("  Träger-Büro: closing day %s for %d schools\n", bridge, len(schools))
+	return nil
+}
+
+// seedHolidayClosuresStep puts closing days into a booked holiday week
+// (#6434). It runs after every step that books the holiday weeks: a closing
+// day refuses each new booking of its week.
+type seedHolidayClosuresStep struct{}
+
+func (seedHolidayClosuresStep) Name() string { return "Seeding closing days in a booked holiday week" }
+
+func (seedHolidayClosuresStep) Run(_ context.Context, rt *Runtime) error {
+	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
+		return fmt.Errorf("the holiday closure seed prerequisites are not available")
+	}
+	auth, err := seedTraegerSession(rt)
+	if err != nil {
+		return err
+	}
 	return seedHolidayClosures(rt, auth)
 }
 
