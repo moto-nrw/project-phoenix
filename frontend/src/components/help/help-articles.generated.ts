@@ -10466,7 +10466,7 @@ export const traegerCareContractsTopic =
             "Prüfen Sie unter `Gebuchte Betreuung` jeden Wochentag: das Modul und bis wann das Kind betreut wird. Tage ohne Betreuung stehen als `Keine Betreuung` da.",
             "Prüfen Sie Beginn und Beitrag.",
             "Wählen Sie `Vertrag senden`. moto fragt noch einmal und nennt die Mail-Adresse. Bestätigen Sie mit `Vertrag senden`.",
-            "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
+            "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken. Unten erscheint eine Leiste. Wählen Sie dort zum Beispiel `3 Entwürfe senden`. Gesendet werden nur die gewählten Entwürfe.",
           ],
         },
         {
