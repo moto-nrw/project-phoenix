@@ -97,6 +97,7 @@ async function readDatevRuns(
 
 /** The invoices of a refused DATEV download and the run they belong to. */
 interface DatevRefusal {
+  readonly runKind: ExportRun["runKind"];
   readonly runLabel: string;
   readonly problems: readonly DatevBookingProblem[];
 }
@@ -304,7 +305,7 @@ export default function TraegerFinanceExportsPage() {
           documents: problems.length,
         });
         setRepeat(null);
-        setRefusal({ runLabel: run.label, problems });
+        setRefusal({ runKind: run.runKind, runLabel: run.label, problems });
       } else {
         logger.error("traeger_finance_export_download_failed", {
           format,
@@ -374,6 +375,7 @@ export default function TraegerFinanceExportsPage() {
           ) : null}
           {refusal ? (
             <DatevRefusedNotice
+              runKind={refusal.runKind}
               runLabel={refusal.runLabel}
               problems={refusal.problems}
               onDismiss={() => setRefusal(null)}

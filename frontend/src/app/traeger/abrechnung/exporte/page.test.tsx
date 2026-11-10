@@ -254,65 +254,85 @@ it("downloads the DATEV file of a run once the values are complete", async () =>
 });
 
 // A refused download names the invoices DATEV would refuse and what to do.
-it("lists the invoices a refused DATEV download names", async () => {
-  api.downloadDatevBatch.mockRejectedValue(
-    new ApiError("Request failed (409)", 409, {
-      code: "parent_billing.datev_bookings_invalid",
-      details: {
-        documents: [
-          {
-            document_number: "MB-2026-0001",
-            field: "debtor_number",
-            reason: "missing",
-          },
-          {
-            document_number: "ST-2026-0001",
-            field: "document_date",
-            reason: "out_of_period",
-          },
-          {
-            document_number: "MB-2026-0002",
-            field: "debtor_number",
-            reason: "missing",
-          },
-          { document_number: 7, field: "debtor_number", reason: "missing" },
-        ],
-      },
-    }),
-  );
-  renderPage();
-  fireEvent.click((await screen.findAllByRole("button", DATEV_BUTTON))[0]!);
-  expect(
-    await screen.findByText(
-      "Keine DATEV-Datei für Monatsbeiträge Oktober 2026",
-    ),
-  ).toBeInTheDocument();
-  // One line per reason, with every invoice it names; the malformed entry
-  // is left out.
-  expect(
-    screen.getByText("Debitorennummer fehlt: MB-2026-0001, MB-2026-0002"),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText("Liegt in einem anderen Wirtschaftsjahr: ST-2026-0001"),
-  ).toBeInTheDocument();
-  expect(screen.getAllByRole("listitem")).toHaveLength(2);
-  // The way out of the lock (#6433): the right number at the family, then
-  // Storno and reissue.
-  expect(
-    screen.getByText(
-      /Tragen Sie bei der Familie die richtige Debitorennummer ein\./,
-    ),
-  ).toHaveTextContent(
-    "Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei.",
-  );
-  expect(files.downloadBlob).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Hinweis schließen" }));
-  await waitFor(() =>
+it.each(["care", "holiday"] as const)(
+  "lists the invoices and correction steps of a refused %s DATEV download",
+  async (runKind) => {
+    const run: ExportRun =
+      runKind === "holiday"
+        ? {
+            ...RUN,
+            runKind,
+            pathKind: "holiday-runs",
+            label: "Herbstferien 2026",
+          }
+        : RUN;
+    api.fetchExportRuns.mockResolvedValue({
+      items: [run],
+      total: 1,
+      notExported: 1,
+      nextOffset: null,
+    });
+    api.downloadDatevBatch.mockRejectedValue(
+      new ApiError("Request failed (409)", 409, {
+        code: "parent_billing.datev_bookings_invalid",
+        details: {
+          documents: [
+            {
+              document_number: "MB-2026-0001",
+              field: "debtor_number",
+              reason: "missing",
+            },
+            {
+              document_number: "ST-2026-0001",
+              field: "document_date",
+              reason: "out_of_period",
+            },
+            {
+              document_number: "MB-2026-0002",
+              field: "debtor_number",
+              reason: "missing",
+            },
+            { document_number: 7, field: "debtor_number", reason: "missing" },
+          ],
+        },
+      }),
+    );
+    renderPage();
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", {
+          name: `DATEV-Datei von ${run.label} herunterladen`,
+        })
+      )[0]!,
+    );
     expect(
-      screen.queryByText("Keine DATEV-Datei für Monatsbeiträge Oktober 2026"),
-    ).toBeNull(),
-  );
-});
+      await screen.findByText(`Keine DATEV-Datei für ${run.label}`),
+    ).toBeInTheDocument();
+    // One line per reason, with every invoice it names; the malformed entry
+    // is left out.
+    expect(
+      screen.getByText("Debitorennummer fehlt: MB-2026-0001, MB-2026-0002"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Liegt in einem anderen Wirtschaftsjahr: ST-2026-0001"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    const correction =
+      runKind === "holiday"
+        ? "Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus."
+        : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus.";
+    expect(screen.getByText(/So geht es weiter:/)).toHaveTextContent(
+      `${correction} Danach ist der Lauf wieder frei.`,
+    );
+    expect(files.downloadBlob).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Hinweis schließen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByText(`Keine DATEV-Datei für ${run.label}`),
+      ).toBeNull(),
+    );
+  },
+);
 
 const LAST_DATEV = {
   id: "12",
@@ -374,7 +394,7 @@ it("repeats every DATEV booking only after the warning", async () => {
     nextOffset: null,
   });
   api.fetchDatevRunStates.mockResolvedValue(
-    datevStates(0, ["2026-01-01", "2027-01-01"]),
+    datevStates(0, ["2026-01-01", "2027-01-01", "2028-01-01", "2029-01-01"]),
   );
   api.downloadDatevBatch.mockResolvedValue({
     blob: new Blob(["extf"]),
@@ -407,12 +427,12 @@ it("repeats every DATEV booking only after the warning", async () => {
     screen.getByText("Buchungen können doppelt in DATEV stehen"),
   ).toBeInTheDocument();
   expect(api.downloadDatevBatch).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "2027" }));
+  fireEvent.click(screen.getByRole("button", { name: "2029" }));
   fireEvent.click(screen.getByRole("button", { name: "Erneut herunterladen" }));
   await waitFor(() =>
     expect(api.downloadDatevBatch).toHaveBeenCalledWith("care-runs", "7", {
       all: true,
-      fiscalYear: "2027-01-01",
+      fiscalYear: "2029-01-01",
     }),
   );
   expect(

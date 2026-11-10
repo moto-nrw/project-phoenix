@@ -11342,7 +11342,7 @@ export const traegerDatevExportTopic =
       requirements: [
         "Ihre Rolle im Träger-Büro hat das Recht Finanz-Export.",
         "Ihr Steuerbüro hat Ihnen die DATEV-Werte genannt.",
-        "Jede Familie hat eine Debitorennummer.",
+        "Bei Monatsbeiträgen hat jede Familie eine Debitorennummer. Bei Ferienbeiträgen steht sie in der Ferienanmeldung.",
         "Der Monatslauf oder Ferienlauf ist ausgestellt.",
       ],
       steps: [],
@@ -11376,7 +11376,7 @@ export const traegerDatevExportTopic =
           steps: [
             "Wählen Sie beim Lauf das Menü mit den drei Punkten neben `DATEV`.",
             "Wählen Sie `Alle Buchungen erneut`.",
-            "Lesen Sie den Hinweis. Hat der Lauf Buchungen in zwei Wirtschaftsjahren, wählen Sie das `Wirtschaftsjahr`.",
+            "Lesen Sie den Hinweis. Hat der Lauf Buchungen in mehreren Wirtschaftsjahren, wählen Sie das `Wirtschaftsjahr`.",
             "Wählen Sie `Erneut herunterladen`.",
           ],
         },
@@ -11384,7 +11384,7 @@ export const traegerDatevExportTopic =
       result:
         "In der Datei steht jede Rechnung im Soll, jedes Storno und jede Gutschrift im Haben. Die Datei steht im `Exportprotokoll` mit ihrer Nummer. Eine Datei mit allen Buchungen steht dort als `Alle erneut: Wiederholung`. In jeder Rechnung zeigt `Verlauf`, in welcher Datei sie war.",
       notes: [
-        "Die Debitorennummer tragen Sie bei `Empfänger und Zahlung` der Familie ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
+        "Bei Monatsbeiträgen tragen Sie die Debitorennummer bei `Empfänger und Zahlung` der Familie ein. Bei Ferienbeiträgen tragen Sie sie in der Ferienanmeldung ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
         "Jede Buchung kommt nur einmal in eine DATEV-Datei. Stornieren Sie später eine Rechnung, steht das Storno in der nächsten Datei des Laufs. Die Rechnung selbst steht dort nicht noch einmal.",
         "Eine DATEV-Datei gilt für ein Wirtschaftsjahr. Liegt ein Storno im neuen Jahr, kommt es in eine eigene Datei. Laden Sie dafür noch einmal `DATEV` herunter.",
         "Hat ein Lauf keine neuen Buchungen, lässt sich `DATEV` nicht wählen. Dann entsteht keine Datei und keine Nummer.",
@@ -11397,7 +11397,7 @@ export const traegerDatevExportTopic =
         "Sie können die DATEV-Werte nur ansehen? Ändern darf, wer im Träger-Büro das Recht für die Einstellungen hat.",
       ],
       troubleshootingDetails: [
-        "Es erscheint `Keine DATEV-Datei für …` mit ungültigen Debitorennummern? Eine ausgestellte Rechnung behält ihre Debitorennummer. Tragen Sie bei der Familie die richtige Nummer ein. Stornieren Sie dann die genannte Rechnung und stellen Sie sie neu aus. Rechnung und Storno waren in keiner DATEV-Datei und heben sich auf. Danach lässt sich `DATEV` für den Lauf wieder wählen. Die neue Rechnung kommt mit ihrem Lauf in DATEV.",
+        "Es erscheint `Keine DATEV-Datei für …` mit ungültigen Debitorennummern? Eine ausgestellte Rechnung behält ihre Debitorennummer. Bei Monatsbeiträgen tragen Sie bei der Familie die richtige Nummer ein. Stornieren Sie dann die genannte Rechnung und stellen Sie sie neu aus. Bei Ferienbeiträgen stornieren Sie zuerst die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Waren Rechnung und Storno in keiner DATEV-Datei, heben sie sich auf. Danach lässt sich `DATEV` für den Lauf wieder wählen. Die neue Rechnung kommt mit ihrem Lauf in DATEV.",
         "Es erscheint `Keine neuen Buchungen für …`? Jemand hat die Buchungen gerade heruntergeladen. Die Datei steht im `Exportprotokoll`.",
         "Der Hinweis nennt einen Wert, der `passt nicht`? Prüfen Sie ihn mit Ihrem Steuerbüro. Das Erlöskonto darf höchstens so viele Ziffern haben wie Ihre Sachkonten.",
       ],

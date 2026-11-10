@@ -15,6 +15,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import type {
   DatevBookingProblem,
   DatevReadiness,
+  ExportRun,
 } from "~/lib/traeger-finance-exports-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -132,22 +133,28 @@ function datevProblemLines(problems: readonly DatevBookingProblem[]): string[] {
  * number was used.
  */
 export function DatevRefusedNotice({
+  runKind,
   runLabel,
   problems,
   onDismiss,
 }: Readonly<{
+  runKind: ExportRun["runKind"];
   runLabel: string;
   problems: readonly DatevBookingProblem[];
   onDismiss: () => void;
 }>) {
   const debtor = problems.some((problem) => problem.field === "debtor_number");
+  const correction =
+    runKind === "holiday"
+      ? "Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus."
+      : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus.";
   return (
     <Alert
       type="warning"
       title={`Keine DATEV-Datei für ${runLabel}`}
       message={
         debtor
-          ? "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt. So geht es weiter: Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei."
+          ? `DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt. So geht es weiter: ${correction} Danach ist der Lauf wieder frei.`
           : "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt."
       }
       details={<BulletList lines={datevProblemLines(problems)} />}
@@ -259,6 +266,8 @@ export function DatevRepeatDialog({
               value={year}
               onChange={setChosen}
               ariaLabel="Wirtschaftsjahr der Datei"
+              fullWidth
+              wrap
             />
             <p className="text-sm text-gray-600">
               Eine DATEV-Datei gilt für ein Wirtschaftsjahr.
