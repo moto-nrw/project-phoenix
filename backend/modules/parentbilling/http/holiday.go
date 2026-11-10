@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -95,8 +96,9 @@ type HolidayDebtorNumberRequest struct {
 func (req *HolidayDebtorNumberRequest) Bind(*http.Request) error { return nil }
 
 type holidayQuoteBookingRequest struct {
-	WeekID      int64 `json:"week_id"`
-	TimeModelID int64 `json:"time_model_id"`
+	WeekID      int64           `json:"week_id"`
+	TimeModelID int64           `json:"time_model_id"`
+	Days        []calendar.Date `json:"days"`
 }
 
 type holidayQuoteChildRequest struct {
@@ -398,8 +400,12 @@ func (rs *HolidayResource) resolveLink(ctx context.Context, token string) (capab
 // refusals keep the codes of the registration review (ADR 0114).
 func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var dayLimit *capability.HolidayChildDayLimitRefusal
 	var noCareDay *capability.HolidayWeekNoCareDayRefusal
 	switch {
+	case errors.As(err, &dayLimit):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentHolidayChildDayLimit,
+			map[string]any{"limit": dayLimit.Limit, "days": dayLimit.Days, "child": 1}))
 	case errors.As(err, &noCareDay):
 		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeEnrollmentHolidayWeekNoCareDay, map[string]any{
 			"week": noCareDay.Week, "week_id": noCareDay.WeekID, "date": noCareDay.Date.Format("02.01.2006"),

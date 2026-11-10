@@ -51,6 +51,7 @@ export function traegerHolidayPlacesTopic(): HelpTopic {
       "Das nächste Kind der Warteliste hat sofort einen Platz. Die Anmeldung gilt dann auch für diese Woche. Ist die Anmeldung verbindlich, ist es der Platz auch. Die Eltern bekommen eine E-Mail. Ist die Anmeldung bestätigt, rechnet moto den Ferienbeitrag mit der neuen Woche neu.",
     notes: [
       "Die Plätze gelten für alle Zeitmodelle einer Woche zusammen.",
+      "Bei einer Woche mit einzelnen Tagen gelten die Plätze an jedem Tag. Unter `Plätze je Tag` sehen Sie, wie voll jeder Tag ist. Ein Kind bekommt seinen Platz, wenn alle seine Tage frei sind. Sonst wartet es mit allen Tagen dieser Woche. Ein Kind mit anderen Tagen kann dann vor ihm einen Platz bekommen.",
       "Eingegangene und bestätigte Anmeldungen zählen. Stornierte zählen nicht.",
       "Geschwister bekommen ihre Plätze einzeln. Ein Kind kann einen Platz haben und das andere auf der Warteliste stehen.",
       "Weniger Plätze nehmen niemandem den Platz weg. Neue Anmeldungen kommen dann auf die Warteliste.",
@@ -60,6 +61,7 @@ export function traegerHolidayPlacesTopic(): HelpTopic {
     ],
     differences: [
       "Bei einer Woche steht `Voll`? Alle Plätze sind vergeben. Neue Anmeldungen für diese Woche kommen auf die Warteliste.",
+      "Bei einer Woche steht `2 Tage voll` oder `Alle Tage voll`? Die Woche wird tageweise gebucht. An diesen Tagen sind alle Plätze vergeben.",
       "Bei einer Woche steht `Ohne Grenze`? Für die Woche gibt es keine Grenze.",
     ],
     troubleshootingDetails: [

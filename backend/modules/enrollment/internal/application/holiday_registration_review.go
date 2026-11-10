@@ -420,10 +420,11 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	for i, booking := range child.Bookings {
 		before[i] = enrollment.HolidayBookingChange{
 			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted,
-			PromotedAt: booking.PromotedAt,
+			PromotedAt: booking.PromotedAt, Days: booking.Days,
 		}
-		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
+		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
 	}
+	bookings = normalizeHolidayBookings(bookings)
 	if err := validateHolidayBookings(bookings, period, kept); err != nil {
 		return nil, nil, validation.Errors{"bookings": err}
 	}
@@ -434,9 +435,14 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	if err := refuseHolidayBookingsWithoutCare(bookings, marked, kept); err != nil {
 		return nil, nil, err
 	}
+	// The period is locked: no other change of this child reads its days
+	// until this one commits (#4701).
+	if err := refuseHolidayDayLimit(0, bookings, period, holidayBookedDayCount(kept, period)); err != nil {
+		return nil, nil, err
+	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
 	for i, booking := range bookings {
-		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID}
+		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
 	}
 	changed, err := h.store.ReplaceHolidayChildBookings(ctx, organizationID, period.ID, childID, bookings)
 	if err != nil {
@@ -654,6 +660,10 @@ func completeHolidayChild(child *enrollment.HolidayRegistrationChild, models map
 		known := models[booking.TimeModelID]
 		booking.WeekStartsOn, booking.WeekEndsOn = known.week.StartsOn, known.week.EndsOn
 		booking.HostSchoolID, booking.TimeModelName, booking.PriceCents = known.week.HostSchoolID, known.model.Name, known.model.PriceCents
+		if len(booking.Days) > 0 {
+			// A time model of a week by days prices one day (#4701).
+			booking.PriceCents = known.model.PriceCents * int64(len(booking.Days))
+		}
 	}
 	slices.SortFunc(child.Bookings, func(a, b enrollment.HolidayRegistrationBooking) int {
 		return models[a.TimeModelID].order - models[b.TimeModelID].order

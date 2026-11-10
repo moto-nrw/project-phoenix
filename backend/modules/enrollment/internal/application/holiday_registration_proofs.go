@@ -48,7 +48,7 @@ func (h *HolidayRegistrations) UploadHolidayProof(ctx context.Context, link enro
 	if h.deps.Random == nil || h.deps.Fingerprint == nil {
 		return enrollment.HolidayProofReceipt{}, errors.New("enrollment: holiday proof uploads are not configured")
 	}
-	period, err := h.publishedPeriod(ctx, link)
+	period, err := h.publishedPeriod(ctx, link, false)
 	if err != nil {
 		return enrollment.HolidayProofReceipt{}, err
 	}

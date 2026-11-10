@@ -135,10 +135,43 @@ func refuseHolidayBookingsWithoutCare(bookings []enrollment.HolidayBookingInput,
 		if !ok || len(week.NoCareDays) == 0 {
 			continue
 		}
+		if week.BookingUnit == enrollment.HolidayBookingUnitDay {
+			// A booking of days is refused only for a day without care it
+			// adds; a day it booked before stays (#4701).
+			if day, refused := holidayNewNoCareDay(week, booking, kept); refused {
+				return &enrollment.HolidayWeekNoCareDayRefusal{Week: i, WeekID: week.ID, Day: day}
+			}
+			continue
+		}
 		if slices.ContainsFunc(kept, func(k enrollment.HolidayBookingInput) bool { return k.WeekID == booking.WeekID }) {
 			continue
 		}
 		return &enrollment.HolidayWeekNoCareDayRefusal{Week: i, WeekID: week.ID, Day: week.NoCareDays[0]}
 	}
 	return nil
+}
+
+// holidayNewNoCareDay names the first day without care of the week that a
+// booking of days books and kept, the child's bookings so far, did not.
+func holidayNewNoCareDay(week enrollment.HolidayWeek, booking enrollment.HolidayBookingInput, kept []enrollment.HolidayBookingInput) (enrollment.HolidayNoCareDay, bool) {
+	var before []calendar.Date
+	for _, k := range kept {
+		if k.WeekID == booking.WeekID {
+			before = k.Days
+		}
+	}
+	for _, day := range week.NoCareDays {
+		if slices.Contains(booking.Days, day.Date) && !slices.Contains(before, day.Date) {
+			return day, true
+		}
+	}
+	return enrollment.HolidayNoCareDay{}, false
+}
+
+// holidayBookableCareDays are the care days of a week by days without the
+// days its host school gives no care (#4702).
+func holidayBookableCareDays(week enrollment.HolidayWeek) []calendar.Date {
+	return slices.DeleteFunc(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn), func(day calendar.Date) bool {
+		return slices.ContainsFunc(week.NoCareDays, func(none enrollment.HolidayNoCareDay) bool { return none.Date == day })
+	})
 }

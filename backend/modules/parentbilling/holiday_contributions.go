@@ -3,6 +3,7 @@ package parentbilling
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -92,7 +93,27 @@ var (
 	ErrInvalidHolidayPlaces = errors.New("invalid holiday bookings or capacity")
 	// ErrHolidayWeekNotFound reports a week that is not a week of the period.
 	ErrHolidayWeekNotFound = errors.New("holiday week not found")
+	// ErrHolidayChildDayLimit reports a rebooking with more care days than
+	// the period allows a child (#4701).
+	ErrHolidayChildDayLimit = errors.New("the child books more care days than the period allows")
 )
+
+// HolidayChildDayLimitRefusal is a refused rebooking over the care days of
+// its period (#4701): the bound and the days asked for. It unwraps to
+// ErrHolidayChildDayLimit.
+type HolidayChildDayLimitRefusal struct {
+	Limit int
+	Days  int
+	Err   error
+}
+
+func (r *HolidayChildDayLimitRefusal) Error() string {
+	return fmt.Sprintf("%d care days, the period allows %d: %v", r.Days, r.Limit, r.Err)
+}
+
+func (r *HolidayChildDayLimitRefusal) Unwrap() []error {
+	return []error{ErrHolidayChildDayLimit, r.Err}
+}
 
 // HolidayContributionLine is one position of a contribution. A base line
 // names its week and time model; a sibling line the rank of the child and
@@ -111,6 +132,9 @@ type HolidayContributionLine struct {
 	Note                string         `json:"note"`
 	CostBearerID        *int64         `json:"cost_bearer_id"`
 	CostBearerName      string         `json:"cost_bearer_name"`
+	// BookedDays is the number of days a base line of a week by days prices,
+	// nil for a whole week (#4701).
+	BookedDays *int `json:"booked_days"`
 	// WeekID names the week a base line prices (#4699), so a booking is
 	// priced at most once even after its week moved; zero for a line frozen
 	// before whose week has moved since, which is matched by its dates.
@@ -204,6 +228,12 @@ type HolidayBooking struct {
 	TimeModelID   int64
 	TimeModelName string
 	PriceCents    int64
+	// BookedDays is the number of days a booking of a week by days takes,
+	// zero for a whole week; PriceCents is then the price of all of them
+	// (#4701).
+	BookedDays int
+	// Days retains the selected dates for rule eligibility; empty for a whole week.
+	Days []calendar.Date
 	// Waitlisted marks a booking that waits for a place (#4699). It costs
 	// nothing and gives the child no sibling rank until it moves up.
 	Waitlisted bool
@@ -252,6 +282,8 @@ type HolidayRegistration struct {
 type HolidayBookingChoice struct {
 	WeekID      int64 `json:"week_id"`
 	TimeModelID int64 `json:"time_model_id"`
+	// Days are the days of a week by days (#4701).
+	Days []calendar.Date `json:"days"`
 }
 
 // HolidayPlaceChange is what a rebooking or a new capacity changed in the
@@ -279,6 +311,9 @@ type HolidayWeek struct {
 	StartsOn   calendar.Date
 	EndsOn     calendar.Date
 	TimeModels []HolidayTimeModel
+	// CareDays are the bookable days of a week by days, whose time models
+	// price one day; empty for a week booked as a whole (#4701).
+	CareDays []calendar.Date
 }
 
 // HolidayLink is the Träger and the period a public link names.
@@ -382,6 +417,8 @@ type HolidayDebtorNumber struct {
 type HolidayQuoteBooking struct {
 	WeekID      int64
 	TimeModelID int64
+	// Days are the chosen days of a week by days (#4701).
+	Days []calendar.Date
 }
 
 // HolidayQuoteChild is a child of the public form by its bookings and its

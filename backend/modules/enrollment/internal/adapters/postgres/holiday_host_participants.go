@@ -51,6 +51,7 @@ type hostedWeekRow struct {
 	StartsOn       calendar.Date `bun:"starts_on"`
 	EndsOn         calendar.Date `bun:"ends_on"`
 	Participants   int           `bun:"participants"`
+	BookingUnit    string        `bun:"booking_unit"`
 	GuestGroupID   *int64        `bun:"guest_group_id"`
 	Guests         int           `bun:"guests"`
 }
@@ -140,7 +141,7 @@ func decodeHostAnswers(raw json.RawMessage) ([]enrollment.HolidayHostAnswer, err
 }
 
 const (
-	hostedWeekColumns = `SELECT week.id, week.organization_id, period.name AS period_name, week.starts_on, week.ends_on,
+	hostedWeekColumns = `SELECT week.id, week.organization_id, period.name AS period_name, week.starts_on, week.ends_on, week.booking_unit,
 			(SELECT COUNT(*) FROM enrollment.holiday_registration_bookings AS booking
 				WHERE booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
 					AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id,
@@ -172,6 +173,14 @@ const (
 			registration_id, child_position, health_data, family_health_data, health_fields
 		FROM enrollment.holiday_host_participants(?, ?)
 		ORDER BY lower(last_name), lower(first_name), child_id`
+	// hostedBookingDaysQuery reads the booked days of the confirmed bookings
+	// of a week by days (#4701). The host policy admits only the confirmed,
+	// placed bookings of the school's weeks; the statement names the Träger
+	// and the week once more.
+	hostedBookingDaysQuery = `SELECT booking.holiday_registration_child_id, booking.days::text AS days
+		FROM enrollment.holiday_registration_bookings AS booking
+		WHERE booking.organization_id = ? AND booking.holiday_period_week_id = ? AND booking.days IS NOT NULL
+			AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id, booking.holiday_registration_child_id)`
 )
 
 // ListHostedHolidayWeeks lists the weeks of published periods the school
@@ -215,6 +224,10 @@ func (s *HolidayHostStore) ReadHostedHolidayWeek(ctx context.Context, schoolID, 
 	if err := db.NewRaw(hostedParticipantsQuery, week.OrganizationID, week.ID).Scan(ctx, &children); err != nil {
 		return enrollment.HostedHolidayWeek{}, nil, nil, false, fmt.Errorf("enrollment postgres: read holiday participants: %w", err)
 	}
+	booked, err := readHostedBookingDays(ctx, db, week)
+	if err != nil {
+		return enrollment.HostedHolidayWeek{}, nil, nil, false, err
+	}
 	counted := make([]enrollment.HolidayTimeModelCount, len(models))
 	for i, model := range models {
 		counted[i] = enrollment.HolidayTimeModelCount{ID: model.ID, Name: model.Name, StartsAt: model.StartsAt, EndsAt: model.EndsAt}
@@ -224,13 +237,39 @@ func (s *HolidayHostStore) ReadHostedHolidayWeek(ctx context.Context, schoolID, 
 		if participants[i], err = child.participant(week.OrganizationID); err != nil {
 			return enrollment.HostedHolidayWeek{}, nil, nil, false, err
 		}
+		participants[i].Days = booked[child.ChildID]
 	}
 	return hostedWeek(week), counted, participants, true, nil
+}
+
+// readHostedBookingDays reads the booked days of each child of a hosted week
+// by days; a week booked as a whole reads nothing.
+func readHostedBookingDays(ctx context.Context, db bun.IDB, week hostedWeekRow) (map[int64][]calendar.Date, error) {
+	booked := map[int64][]calendar.Date{}
+	if week.BookingUnit != enrollment.HolidayBookingUnitDay {
+		return booked, nil
+	}
+	var rows []struct {
+		ChildID int64   `bun:"holiday_registration_child_id"`
+		Days    *string `bun:"days"`
+	}
+	if err := db.NewRaw(hostedBookingDaysQuery, week.OrganizationID, week.ID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read hosted holiday booking days: %w", err)
+	}
+	for _, row := range rows {
+		days, err := holidayDaysOf(row.Days)
+		if err != nil {
+			return nil, err
+		}
+		booked[row.ChildID] = days
+	}
+	return booked, nil
 }
 
 func hostedWeek(row hostedWeekRow) enrollment.HostedHolidayWeek {
 	return enrollment.HostedHolidayWeek{
 		ID: row.ID, PeriodName: row.PeriodName, StartsOn: row.StartsOn, EndsOn: row.EndsOn, Participants: row.Participants,
+		BookingUnit:  row.BookingUnit,
 		GuestGroupID: row.GuestGroupID, Guests: row.Guests,
 	}
 }
