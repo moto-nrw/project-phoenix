@@ -10,11 +10,11 @@
 import { apiErrorFromBody, transportFetch } from "~/lib/api-error";
 
 /** Der Stand eines Hinweises, an beiden Stellen derselbe. */
-export type HolidayClosureNoticeStatus =
+type HolidayClosureNoticeStatus =
   "suggested" | "sending" | "no_mail" | "sent" | "failed" | "unknown";
 
 /** Ein Zeitraum des Schließtags, Kalendertage als „YYYY-MM-DD“. */
-export interface HolidayClosureRange {
+interface HolidayClosureRange {
   readonly startDate: string;
   readonly endDate: string;
 }
@@ -95,7 +95,7 @@ export function mapHolidayClosureNotice(
 }
 
 /** Wartet ein Hinweis auf den Versand, fragt die Ansicht öfter nach. */
-export const NOTICE_SENDING_REFRESH_MS = 5000;
+const NOTICE_SENDING_REFRESH_MS = 5000;
 
 /** Solange ein Hinweis gesendet wird, lädt die Liste regelmäßig neu. */
 export function sendingRefreshInterval(

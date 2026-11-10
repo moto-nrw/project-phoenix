@@ -43,7 +43,7 @@ const logger = createLogger({ component: "HolidayClosureNoticeList" });
 const INITIAL_OPEN_COUNT = 5;
 
 /** „1 Familie hat …“ oder „12 Familien haben …“. */
-export function familiesBookedSentence(families: number): string {
+function familiesBookedSentence(families: number): string {
   return families === 1
     ? "1 Familie hat an diesen Tagen Ferienbetreuung gebucht."
     : `${families} Familien haben an diesen Tagen Ferienbetreuung gebucht.`;
@@ -59,7 +59,7 @@ interface NoticeStatusView {
 }
 
 /** Die Texte des Stands aus ADR 0196, Abschnitt 5. */
-export function noticeStatusView(
+function noticeStatusView(
   notice: Pick<HolidayClosureNotice, "status" | "changed">,
 ): NoticeStatusView {
   switch (notice.status) {

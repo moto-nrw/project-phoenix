@@ -41,7 +41,7 @@ export function familiesLabel(count: number): string {
  * Tage einer Woche mit Grund, wenn einer bekannt ist:
  * „Di, 07.07.2027 (Pädagogischer Tag) und Mi, 08.07.2027 (Pädagogischer Tag)“.
  */
-export function daysLabel(list: HolidayClosureWeek["closedDays"]): string {
+function daysLabel(list: HolidayClosureWeek["closedDays"]): string {
   const days = list.map((day) =>
     day.reason
       ? `${formatDayWithWeekday(day.date)} (${day.reason})`
@@ -84,7 +84,7 @@ export function HolidayClosureDayLines({
 }
 
 /** Die betroffenen Wochen als Liste: Zeitraum, Schule, Tage und Kinder. */
-export function HolidayClosureWeekList({
+function HolidayClosureWeekList({
   weeks,
   schoolName,
 }: Readonly<{
