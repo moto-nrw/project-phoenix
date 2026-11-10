@@ -14,13 +14,14 @@ import (
 // DBStats is the database-capacity snapshot consumed by metrics. It keeps the
 // public observability interface independent of database/sql and ORM types.
 type DBStats struct {
-	OpenConnections   int
-	InUse             int
-	Idle              int
-	WaitCount         int64
-	WaitDuration      time.Duration
-	MaxIdleClosed     int64
-	MaxLifetimeClosed int64
+	MaxOpenConnections int
+	OpenConnections    int
+	InUse              int
+	Idle               int
+	WaitCount          int64
+	WaitDuration       time.Duration
+	MaxIdleClosed      int64
+	MaxLifetimeClosed  int64
 }
 
 type SSEStats struct {
@@ -753,6 +754,7 @@ var (
 	workerJobMaxMu   sync.Mutex
 	workerJobMax     = make(map[string]time.Duration)
 
+	dbMaxOpenConnectionsDesc   = prometheus.NewDesc("phoenix_db_max_open_connections", "Configured upper limit of open DB connections in the pool (DB_MAX_OPEN_CONNS).", nil, nil)
 	dbOpenConnectionsDesc      = prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
 	dbInUseConnectionsDesc     = prometheus.NewDesc("phoenix_db_in_use_connections", "DB connections currently in use.", nil, nil)
 	dbIdleConnectionsDesc      = prometheus.NewDesc("phoenix_db_idle_connections", "Idle DB connections.", nil, nil)
@@ -1606,6 +1608,7 @@ func outcomeForStatus(status int) string {
 type dbStatsCollector struct{}
 
 func (dbStatsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- dbMaxOpenConnectionsDesc
 	ch <- dbOpenConnectionsDesc
 	ch <- dbInUseConnectionsDesc
 	ch <- dbIdleConnectionsDesc
@@ -1623,6 +1626,7 @@ func (dbStatsCollector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 	stats := provider()
+	emitDBGauge(ch, dbMaxOpenConnectionsDesc, float64(stats.MaxOpenConnections))
 	emitDBGauge(ch, dbOpenConnectionsDesc, float64(stats.OpenConnections))
 	emitDBGauge(ch, dbInUseConnectionsDesc, float64(stats.InUse))
 	emitDBGauge(ch, dbIdleConnectionsDesc, float64(stats.Idle))

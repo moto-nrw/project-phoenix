@@ -20,7 +20,9 @@ The stack does not run `postgres_exporter`. Phoenix exports connection-pool
 metrics from the backend process. Do not enable the exporter's table-statistics
 collector: its repeated `pg_stat_user_tables` scan costs more database time than
 the application workload. Disable that collector in any older server-local
-monitoring setup before applying this overlay.
+monitoring setup before applying this overlay. Without the exporter, no rule
+or panel sees connections of the whole PostgreSQL cluster; see
+[DB pool utilization](#db-pool-utilization).
 
 ## Deploy
 
@@ -95,6 +97,34 @@ UI so the two do not fire side by side. Verify in Explore that
 rule; a different label means the Alloy mapping differs and both rules need
 the same correction. Runbook: [`runbooks/server-errors.md`](runbooks/server-errors.md).
 
+## DB pool utilization
+
+`DB Pool Utilization High` in `alerting/infrastructure.yml` (UID
+`dfslb2pyr356ob`, formerly "Postgres Connections High") watches the backend's
+connection pool, not the PostgreSQL cluster (#6465). It fires when the 5-minute
+mean of `phoenix_db_in_use_connections` stays above 80% of
+`phoenix_db_max_open_connections` (`DB_MAX_OPEN_CONNS`) for 10 minutes. It
+warns before `DB Pool Saturation`, which fires once requests wait for a free
+connection. Prometheus scrapes both gauges from `production-server-1` and
+`staging-server-1`; the demo environment is not scraped.
+
+Missing data is not OK. An env whose backend is up but exports no pool gauges
+fires with `reason="pool_metric_missing"`; no data at all and evaluation errors
+fire as well. A backend that is down fires `Scrape Target Down`.
+
+Deploy the backend that exports `phoenix_db_max_open_connections` to staging
+and production before deploying this file; until then the rule reports the
+missing gauge. `scripts/db-pool-alerts.integration.test.mjs` runs the query
+with promtool against synthetic gauges.
+
+Response: compare in-use connections with `DB_MAX_OPEN_CONNS` and the wait
+rate in the "Phoenix Scaling" dashboard. Long transactions or slow queries
+that hold connections need a fix in the code; a pool that is too small for
+the load needs a larger `DB_MAX_OPEN_CONNS`, which must stay below the
+cluster's `max_connections` minus the connections of other clients such as
+migrations and SSH tunnel sessions. Connections of the whole cluster need a `postgres_exporter`,
+which needs its own database role, a deployment change and a load assessment.
+
 ## Error codes
 
 `grafana/provisioning/dashboards/json/phoenix-error-codes.json` answers
@@ -145,8 +175,8 @@ provisioned dashboard edited in the UI is overwritten on the next restart.
 not deployed: its collector is not installed, and the rule alerts on missing
 data.
 
-`alerting/infrastructure.yml` (backup, host, DB pool, event loop, Postgres
-connections) and `alerting/production.yml` (5xx, DB connection, server down)
+`alerting/infrastructure.yml` (backup, host, DB pool saturation and
+utilization, event loop) and `alerting/production.yml` (5xx, DB connection, server down)
 hold the rules that were created in the Grafana UI, moved to files on
 2026-10-23 with their UIDs. The hand-made "Error Spike" rule was removed; the
 server error rule replaces it. Every alert rule on the host is now provisioned
@@ -229,7 +259,7 @@ Useful queries:
 ```promql
 histogram_quantile(0.95, sum by (le, route, env) (rate(phoenix_backend_http_request_duration_seconds_bucket[5m])))
 sum by (env, tenant_id, outcome) (rate(phoenix_iot_requests_total[5m]))
-phoenix_db_in_use_connections / phoenix_db_open_connections
+phoenix_db_in_use_connections / phoenix_db_max_open_connections
 phoenix_sse_clients
 sum by (env, tenant_id) (rate(phoenix_tenant_http_requests_total[1m]))
 sum by (env, bucket) (increase(phoenix_rate_limit_rejections_total[5m]))
