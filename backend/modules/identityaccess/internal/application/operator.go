@@ -238,11 +238,13 @@ func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {
 }
 
 // writeOperatorCredential writes the operator's password through the one
-// credential writer on the caller's transaction (#6308) and reports whether
-// the compare-and-swap found the expected state.
+// credential writer on the caller's transaction, which holds the operator row
+// lock (#6308), and reports whether the compare-and-swap found the expected
+// state. It opens no unit of its own.
 func (s *Service) writeOperatorCredential(ctx context.Context, id int64, write domain.CredentialWrite) (bool, error) {
 	var written bool
-	err := s.run(ctx, s.tx.RunAdmin, "write_operator_credential", func(txCtx context.Context, stats *domain.OperationStats) error {
+	inCaller := func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
+	err := s.run(ctx, inCaller, "write_operator_credential", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var err error
 		written, queryStats, err = s.operators.WriteOperatorCredential(txCtx, id, write)

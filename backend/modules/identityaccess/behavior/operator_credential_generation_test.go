@@ -35,7 +35,10 @@ type operatorCredentialFixture struct {
 
 func newOperatorCredentialFixture(t *testing.T, prefix string, enrolled bool) operatorCredentialFixture {
 	t.Helper()
-	db := lockRacePool(t)
+	// A private pool, as lockRacePool explains: a lock test keeps several
+	// connections waiting at once.
+	db := testpkg.SetupClosableTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
 	module := newOperatorMFATestModule(t, db, withDeliveringMailer(nil)...)
 	email := operatorLoginEmail(prefix)
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, email, testPassword)

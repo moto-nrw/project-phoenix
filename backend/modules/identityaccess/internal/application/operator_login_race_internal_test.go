@@ -21,8 +21,11 @@ func TestOperatorLoginMintsNothingAfterAPasswordChange(t *testing.T) {
 	checked, err := f.auth.validateCredentials(ctx, "operator42@example.com", "secret")
 	require.NoError(t, err)
 
+	// A password write moves the credential generation on with the hash
+	// (WriteOperatorCredential; the database refuses it otherwise, #6308).
 	rotated := f.store.operators[42]
 	rotated.PasswordHash = "hash:renewed"
+	rotated.CredentialGeneration++
 	f.store.operators[42] = rotated
 
 	_, err = f.auth.authenticatedResult(ctx, checked, "127.0.0.1")
