@@ -10,7 +10,7 @@ Schema, Daten und ACLs, Rollen ohne Passwörter, gesamtes Upload-Volume samt
 versteckten Dateien, SHA-256-Manifest, age-Verschlüsselung, S3-Transport mit
 vollständigem Download-/Hashvergleich und altersbasierte Bereinigung.
 Nicht gesichert wird das Volume `phoenix-<env>-data-return` mit den
-verschlüsselten, zum Abruf freigegebenen Rückgabepaketen (ADR 0201); nach
+verschlüsselten, zum Abruf freigegebenen Rückgabepaketen (ADR 0203); nach
 einem Restore werden sie neu freigegeben.
 Ein täglicher systemd-Timer arbeitet unabhängig von Deployments. Jeder
 Teilfehler liefert einen Fehlerstatus; erst nach Prüfung und Bereinigung

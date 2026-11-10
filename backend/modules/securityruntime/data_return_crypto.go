@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-// The cryptography of the data return (Data Act, ADR 0201). A released
+// The cryptography of the data return (Data Act, ADR 0203). A released
 // package is encrypted at rest with its own random archive key. The server
 // never stores that key in the clear: each retrieval token wraps it, and the
 // operator keeps it to issue further tokens. Without a live token, the

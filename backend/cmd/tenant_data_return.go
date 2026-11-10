@@ -21,7 +21,7 @@ import (
 )
 
 // The operator side of the retrieval of a return package (Art. 30 Abs. 2
-// Data Act, ADR 0201): release a checked package for HTTPS retrieval, issue
+// Data Act, ADR 0203): release a checked package for HTTPS retrieval, issue
 // further tokens, revoke them and purge the store. Every action is in the
 // operator audit; tokens and keys are printed once and stored nowhere.
 

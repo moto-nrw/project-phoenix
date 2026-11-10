@@ -5,7 +5,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
-// NewDataReturnCrypto binds the cryptography of the data return (ADR 0201)
+// NewDataReturnCrypto binds the cryptography of the data return (ADR 0203)
 // to Security Runtime, for the HTTPS retrieval and the release CLI alike.
 func NewDataReturnCrypto() organizationtenancy.DataReturnCrypto {
 	return organizationtenancy.DataReturnCrypto{

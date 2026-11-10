@@ -45,7 +45,7 @@ eingebettet und entsteht mit demselben Code wie `model.json`;
 Registerstand, zu dem es gehört. Kunden und Zielanbieter auf diese Adresse
 verweisen, nicht auf eine Kopie.
 
-**Abruf über HTTPS (Art. 30 Abs. 2 Data Act, ADR 0201):** Ein geprüftes Paket
+**Abruf über HTTPS (Art. 30 Abs. 2 Data Act, [ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md)):** Ein geprüftes Paket
 gibt `tenant return release` für den Abruf frei (Abschnitt 8). Kunde und ein
 vom Kunden benannter neuer Anbieter laden es mit einem kurzlebigen Token über
 `GET /public/data-return/package/archive` selbst herunter; die Schnittstelle
@@ -531,14 +531,14 @@ vereinbaren und neu exportieren; Kennwörter, Passkeys, MFA-Faktoren, Tokens und
 müssen im Zielsystem neu gesetzt werden; der Import braucht eine Feldzuordnung.
 
 **Offen (Recht):** Die Gründer haben am 10.11.2026 Option B gewählt
-(ADR 0201): Register nach Art. 26 und HTTPS-Abruf des geprüften Pakets mit
+(ADR 0201, ADR 0203): Register nach Art. 26 und HTTPS-Abruf des geprüften Pakets mit
 kurzlebiger Berechtigung nach Art. 30 Abs. 2. Ob das genügt, bestätigt die
 anwaltliche Prüfung. Ein jederzeitiger Selbstbedienungs-Export ist nicht
 zugesagt.
 
 ## 8. Paket zum Abruf freigeben (Art. 30 Abs. 2 Data Act)
 
-Grundlage: [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md).
+Grundlage: [ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md).
 Das Paket enthält vollständige Bankdaten und Gesundheitsangaben. Wer ein Token
 hat, kann es laden.
 

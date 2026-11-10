@@ -269,7 +269,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0197: the export openers of the sealed guardian bank data of
 // modules/peopledirectory/compose (+5) and of the sealed staff bank and tax
 // data of modules/workforce/compose (+5).
-// ADR 0201: the constructors of the HTTPS retrieval and the release CLI of
+// ADR 0203: the constructors of the HTTPS retrieval and the release CLI of
 // the return package of modules/organizationtenancy/compose add exactly 18 LOC.
 const moduleComposeBudgetTotal = 13273
 
@@ -344,7 +344,7 @@ var moduleComposeBudgets = map[string]int{
 	// files and operator audit (+13) and the records command injected into
 	// the operator provisioning (+10).
 	// ADR 0198: the narrow account-retention constructor (+13).
-	// Raised by ADR 0201: the data return retrieval and release constructors (+18).
+	// Raised by ADR 0203: the data return retrieval and release constructors (+18).
 	"modules/organizationtenancy/compose": 374,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).

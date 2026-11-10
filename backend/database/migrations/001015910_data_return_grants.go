@@ -12,14 +12,14 @@ const dataReturnGrantsVersion = "1.15.910"
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     dataReturnGrantsVersion,
-		Description: "Abruf des Rückgabepakets nach Art. 30 Abs. 2 Data Act: Berechtigungen und Abrufe (#3838, ADR 0201)",
+		Description: "Abruf des Rückgabepakets nach Art. 30 Abs. 2 Data Act: Berechtigungen und Abrufe (#3838, ADR 0203)",
 		DependsOn:   []string{offboardingTraegerMembershipVersion},
 	})
 	Migrations.MustRegister(dataReturnGrantsUp, dataReturnGrantsDown)
 }
 
 // dataReturnGrantsUpSQL stores the retrieval of a released return package
-// (ADR 0201).
+// (ADR 0203).
 //
 //   - One grant is one token for one recipient: the customer or a target
 //     provider the customer names. Only an HMAC of the token is stored
@@ -84,9 +84,9 @@ GRANT ALL ON platform.data_return_grants, platform.data_return_downloads TO phoe
 GRANT ALL ON SEQUENCE platform.data_return_grants_id_seq, platform.data_return_downloads_id_seq TO phoenix_admin;
 
 COMMENT ON TABLE platform.data_return_grants IS
-	'Retrieval token of a released return package (Art. 30 Abs. 2 Data Act, ADR 0201): HMAC of the token, archive key wrapped under it, expiry and download budget.';
+	'Retrieval token of a released return package (Art. 30 Abs. 2 Data Act, ADR 0203): HMAC of the token, archive key wrapped under it, expiry and download budget.';
 COMMENT ON TABLE platform.data_return_downloads IS
-	'One retrieval of a released return package with its outcome (ADR 0201).';
+	'One retrieval of a released return package with its outcome (ADR 0203).';
 `
 
 const dataReturnGrantsDownSQL = `

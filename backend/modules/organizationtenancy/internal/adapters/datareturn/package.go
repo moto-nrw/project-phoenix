@@ -1,5 +1,5 @@
 // Package datareturn releases a checked return package for retrieval and
-// serves it to the holder of a token (Art. 30 Abs. 2 Data Act, ADR 0201).
+// serves it to the holder of a token (Art. 30 Abs. 2 Data Act, ADR 0203).
 package datareturn
 
 import (

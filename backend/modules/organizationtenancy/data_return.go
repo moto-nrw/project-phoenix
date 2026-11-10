@@ -8,7 +8,7 @@ import (
 )
 
 // The retrieval of a released return package (Art. 30 Abs. 2 Data Act,
-// ADR 0201). An operator creates and checks the package with `tenant
+// ADR 0203). An operator creates and checks the package with `tenant
 // export`, then releases it: the CLI encrypts it into the store and issues a
 // short-lived token for the customer or a target provider the customer
 // names. The token is the only credential of the HTTPS retrieval; it names

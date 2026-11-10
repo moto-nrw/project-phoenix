@@ -32,7 +32,7 @@ func NewTraegerTenantExporter(db *bun.DB, dependencies organizationtenancy.Tenan
 	return tenantexport.NewTenantExporter(db, dependencies), nil
 }
 
-// NewDataReturn binds the HTTPS retrieval of released packages (ADR 0201).
+// NewDataReturn binds the HTTPS retrieval of released packages (ADR 0203).
 func NewDataReturn(db *bun.DB, crypto organizationtenancy.DataReturnCrypto, root string, logger *slog.Logger) (organizationtenancy.DataReturn, error) {
 	if db == nil || !crypto.Complete() || root == "" {
 		return nil, errors.New("data return requires a database and its cryptography")

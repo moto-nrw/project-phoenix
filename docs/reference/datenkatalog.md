@@ -49,7 +49,7 @@ gehören keiner Schule und werden nicht zurückgegeben.
 Ferienfenster bewusst Betreuung, mit dem bestätigenden Konto) ist `tenant`,
 wird zurückgegeben und mit der Schule gelöscht.
 
-Migration 1.15.910 ergänzt den Abruf des Rückgabepakets (ADR 0201):
+Migration 1.15.910 ergänzt den Abruf des Rückgabepakets ([ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md)):
 `platform.data_return_grants` (Token als HMAC, eingewickelter
 Paketschlüssel, Empfängerorganisation, Ablauf, Downloads) ist `platform` und
 `excludeSecret`; `platform.data_return_downloads` (je Abruf Zeitpunkt,

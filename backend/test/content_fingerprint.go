@@ -14,7 +14,7 @@ func ReaderContentFingerprint(reader io.Reader) (string, int64, error) {
 	return securityruntime.ReaderFingerprint(reader)
 }
 
-// The data return cryptography (ADR 0201) for behavior tests, as the root
+// The data return cryptography (ADR 0203) for behavior tests, as the root
 // binds it, without a crypto import there.
 var (
 	DataReturnNewToken      = securityruntime.NewDataReturnToken

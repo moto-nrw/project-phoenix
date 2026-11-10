@@ -8,7 +8,7 @@ import (
 )
 
 // The HTTP role reads a grant by its token lookup and counts a download; it
-// never issues, revokes or rewrites a grant (ADR 0201).
+// never issues, revokes or rewrites a grant (ADR 0203).
 func TestDataReturnGrantsGiveTheHTTPRoleOnlyTheRetrieval(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

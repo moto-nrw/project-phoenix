@@ -1,5 +1,5 @@
 // Package datareturn serves the return package of a school or Träger to its
-// customer and to a target provider the customer names (Data Act, ADR 0201):
+// customer and to a target provider the customer names (Data Act, ADR 0201 and ADR 0203):
 // the register that describes the package, the OpenAPI description of the
 // retrieval, and the released package to the holder of its token.
 package datareturn

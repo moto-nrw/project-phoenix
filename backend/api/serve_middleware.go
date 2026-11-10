@@ -318,7 +318,7 @@ const (
 	emailWebhookBurst             = 300
 )
 
-// The retrieval of a return package (ADR 0201) is a few requests per
+// The retrieval of a return package (ADR 0203) is a few requests per
 // recipient; a tight limit per address stops token guessing and repeated
 // large downloads alike.
 const (

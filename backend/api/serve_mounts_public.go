@@ -26,7 +26,7 @@ func mountPublic(root chi.Router, metricsToken string, db transactionruntime.Dat
 	mountPublicRoutes(root, metricsToken, db.Pool().PingContext)
 	mountEmailWebhooks(root, emailWebhooks, rateLimitEnabled)
 	// The register and the retrieval of the return package (Data Act,
-	// ADR 0201): register and OpenAPI without a session, the released
+	// ADR 0201, ADR 0203): register and OpenAPI without a session, the released
 	// package only to the bearer of its token, behind its own rate limit.
 	// Its wiring is complete by construction; a failure is a programming error.
 	packages, err := organizationCompose.NewDataReturn(db.Pool(), owners.NewDataReturnCrypto(), organizationtenancy.DataReturnStoreDir, slog.Default().With("handler", "data-return"))
