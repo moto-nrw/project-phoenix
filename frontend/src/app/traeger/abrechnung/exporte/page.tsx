@@ -11,8 +11,10 @@ import { useCallback, useEffect, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
 import {
   DATEV_SETTINGS_PATH,
+  DatevNothingNewNotice,
   DatevReadinessNotice,
   DatevRefusedNotice,
+  DatevRepeatDialog,
 } from "~/components/traeger/finance-export-datev";
 import {
   ExportProtocolTable,
@@ -33,14 +35,18 @@ import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
   type DatevBookingProblem,
+  type DatevDownloadOptions,
   type DatevReadiness,
+  type DatevRunStates,
   type ExportProtocolEntry,
   type ExportRun,
   type FinanceExportPage,
   type FinanceExportRunPage,
   datevBookingProblems,
   downloadDatevBatch,
+  datevRunKey,
   downloadSollstellung,
+  fetchDatevRunStates,
   fetchExportProtocol,
   fetchExportRuns,
   fetchExportSettings,
@@ -57,6 +63,36 @@ interface ExportsData {
   readonly protocol: FinanceExportPage<ExportProtocolEntry>;
   readonly nextFileNumber: number;
   readonly datev: DatevReadiness;
+  /** The new DATEV bookings of the loaded runs (#6433). */
+  readonly datevRuns: DatevRunStates;
+}
+
+/** A DATEV download that found no new booking, and of which run. */
+interface DatevNothingNew {
+  readonly runLabel: string;
+  readonly taken: boolean;
+}
+
+const NO_DATEV_RUNS: DatevRunStates = { ready: false, runs: new Map() };
+
+/**
+ * The DATEV states of the runs. A failure leaves the table with the last
+ * DATEV file of each run, as before #6433, and is logged: the download
+ * still names every refusal itself.
+ */
+async function readDatevRuns(
+  runs: readonly ExportRun[],
+  ready: boolean,
+): Promise<DatevRunStates> {
+  if (!ready) return NO_DATEV_RUNS;
+  try {
+    return await fetchDatevRunStates(runs);
+  } catch (err) {
+    logger.warn("traeger_datev_runs_load_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NO_DATEV_RUNS;
+  }
 }
 
 /** The invoices of a refused DATEV download and the run they belong to. */
@@ -69,6 +105,19 @@ const FILE_NAMES: Record<RunFileFormat, string> = {
   sollstellung: "die Sollstellung",
   datev: "die DATEV-Datei",
 };
+
+/** The toast after a download; a repeat says that it is one. */
+function datevSuccess(
+  filename: string,
+  format: RunFileFormat,
+  run: ExportRun,
+  options: DatevDownloadOptions,
+): string {
+  if (format === "datev" && options.all) {
+    return `${filename} ist heruntergeladen. Sie wiederholt alle Buchungen von ${run.label}.`;
+  }
+  return `${filename} ist heruntergeladen.`;
+}
 
 /** Joins the next page onto the pages read so far. */
 function joinPages<P extends FinanceExportPage<unknown>>(read: P, next: P): P {
@@ -127,6 +176,8 @@ export default function TraegerFinanceExportsPage() {
   const [data, setData] = useState<ExportsData | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<DatevRefusal | null>(null);
+  const [nothingNew, setNothingNew] = useState<DatevNothingNew | null>(null);
+  const [repeat, setRepeat] = useState<ExportRun | null>(null);
   const [loadingMore, setLoadingMore] = useState<"runs" | "protocol" | null>(
     null,
   );
@@ -148,6 +199,7 @@ export default function TraegerFinanceExportsPage() {
           protocol,
           nextFileNumber: settings.nextFileNumber,
           datev: settings.datev,
+          datevRuns: await readDatevRuns(runs.items, settings.datev.ready),
         });
         clearLoadError();
       } catch (err) {
@@ -176,9 +228,17 @@ export default function TraegerFinanceExportsPage() {
     try {
       if (list === "runs") {
         const next = await fetchExportRuns(offset);
+        const datevRuns = await readDatevRuns(next.items, data.datev.ready);
         setData((current) =>
           current
-            ? { ...current, runs: joinPages(current.runs, next) }
+            ? {
+                ...current,
+                runs: joinPages(current.runs, next),
+                datevRuns: {
+                  ready: datevRuns.ready,
+                  runs: new Map([...current.datevRuns.runs, ...datevRuns.runs]),
+                },
+              }
             : current,
         );
       } else {
@@ -202,22 +262,41 @@ export default function TraegerFinanceExportsPage() {
     }
   };
 
-  const download = async (format: RunFileFormat, run: ExportRun) => {
+  const download = async (
+    format: RunFileFormat,
+    run: ExportRun,
+    options: DatevDownloadOptions = {},
+  ) => {
     setDownloading(runFileKey(format, run));
     setRefusal(null);
+    setNothingNew(null);
     try {
       const file =
         format === "datev"
-          ? await downloadDatevBatch(run.pathKind, run.runId)
+          ? await downloadDatevBatch(run.pathKind, run.runId, options)
           : await downloadSollstellung(run.pathKind, run.runId);
       downloadBlob(file.blob, file.filename);
-      success(`${file.filename} ist heruntergeladen.`);
+      setRepeat(null);
+      success(datevSuccess(file.filename, format, run, options));
     } catch (err) {
       const problems =
         format === "datev" && err instanceof ApiError
           ? datevBookingProblems(err.details)
           : [];
-      if (problems.length > 0) {
+      const code =
+        format === "datev" && err instanceof ApiError ? err.code : undefined;
+      if (
+        code === "parent_billing.datev_no_new_bookings" ||
+        code === "parent_billing.datev_bookings_taken"
+      ) {
+        // Nothing new to book: no fault, no number used. The notice above
+        // the list says so and the reload shows the run's state.
+        setRepeat(null);
+        setNothingNew({
+          runLabel: run.label,
+          taken: code === "parent_billing.datev_bookings_taken",
+        });
+      } else if (problems.length > 0) {
         // A refusal of the content, not a fault: the notice above the list
         // names every refused invoice and what to do; a toast would repeat
         // it without the names.
@@ -285,6 +364,13 @@ export default function TraegerFinanceExportsPage() {
       {data ? (
         <>
           <DatevReadinessNotice readiness={data.datev} />
+          {nothingNew ? (
+            <DatevNothingNewNotice
+              runLabel={nothingNew.runLabel}
+              taken={nothingNew.taken}
+              onDismiss={() => setNothingNew(null)}
+            />
+          ) : null}
           {refusal ? (
             <DatevRefusedNotice
               runLabel={refusal.runLabel}
@@ -311,8 +397,9 @@ export default function TraegerFinanceExportsPage() {
             <ExportRunsTable
               runs={data.runs.items}
               downloading={downloading}
-              datevReady={data.datev.ready}
+              datev={{ ...data.datevRuns, settingsReady: data.datev.ready }}
               onDownload={(format, run) => void download(format, run)}
+              onRepeat={setRepeat}
             />
           </SectionCard>
           <SectionCard
@@ -333,6 +420,24 @@ export default function TraegerFinanceExportsPage() {
           >
             <ExportProtocolTable entries={data.protocol.items} />
           </SectionCard>
+          <DatevRepeatDialog
+            key={repeat ? datevRunKey(repeat) : "closed"}
+            runLabel={repeat?.label ?? null}
+            fiscalYears={
+              repeat
+                ? (data.datevRuns.runs.get(datevRunKey(repeat))?.fiscalYears ??
+                  [])
+                : []
+            }
+            loading={
+              repeat !== null && downloading === runFileKey("datev", repeat)
+            }
+            onClose={() => setRepeat(null)}
+            onConfirm={(fiscalYear) => {
+              if (repeat)
+                void download("datev", repeat, { all: true, fiscalYear });
+            }}
+          />
         </>
       ) : null}
     </TenantPage>

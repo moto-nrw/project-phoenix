@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   fetchExportSettings: vi.fn(),
   downloadSollstellung: vi.fn(),
   downloadDatevBatch: vi.fn(),
+  fetchDatevRunStates: vi.fn(),
 }));
 const files = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
 vi.mock("~/lib/traeger-finance-exports-api", async (importOriginal) => ({
@@ -54,6 +55,7 @@ beforeEach(() => {
     blob: new Blob(["csv"]),
     filename: "csv-export-bewegungsdaten-110.csv",
   });
+  api.fetchDatevRunStates.mockResolvedValue({ ready: false, runs: new Map() });
 });
 
 it("downloads the Sollstellung of a run and reads the protocol again", async () => {
@@ -148,6 +150,7 @@ it("offers older files of the protocol", async () => {
     totalCents: 0,
     reference: "",
     repeatOf: null,
+    datevAll: false,
     exportedByYou: true,
     exportedByAccount: true,
     exportedAt: "2026-11-09T10:00:00Z",
@@ -239,7 +242,7 @@ it("downloads the DATEV file of a run once the values are complete", async () =>
   expect(screen.queryByText("Die DATEV-Datei fehlt noch")).toBeNull();
   fireEvent.click(button);
   await waitFor(() =>
-    expect(api.downloadDatevBatch).toHaveBeenCalledWith("care-runs", "7"),
+    expect(api.downloadDatevBatch).toHaveBeenCalledWith("care-runs", "7", {}),
   );
   await waitFor(() =>
     expect(files.downloadBlob).toHaveBeenCalledWith(
@@ -293,15 +296,14 @@ it("lists the invoices a refused DATEV download names", async () => {
     screen.getByText("Liegt in einem anderen Wirtschaftsjahr: ST-2026-0001"),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  // The way out of the lock (#6433): the right number at the family, then
+  // Storno and reissue.
   expect(
-    screen.getByText(/Laden Sie für diesen Lauf die Sollstellung herunter\./),
+    screen.getByText(
+      /Tragen Sie bei der Familie die richtige Debitorennummer ein\./,
+    ),
   ).toHaveTextContent(
-    "Ihr Steuerbüro kann die Buchungen damit von Hand erfassen.",
-  );
-  expect(
-    screen.getByText(/Auch ein Storno hebt diese Sperre nicht auf\./),
-  ).toHaveTextContent(
-    "Änderungen bei der Familie gelten nur für künftige Rechnungen.",
+    "Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei.",
   );
   expect(files.downloadBlob).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Hinweis schließen" }));
@@ -310,4 +312,159 @@ it("lists the invoices a refused DATEV download names", async () => {
       screen.queryByText("Keine DATEV-Datei für Monatsbeiträge Oktober 2026"),
     ).toBeNull(),
   );
+});
+
+const LAST_DATEV = {
+  id: "12",
+  fileNumber: 12,
+  format: "datev" as const,
+  runKind: "care" as const,
+  runId: "7",
+  runLabel: "Monatsbeiträge Oktober 2026",
+  fileName: "EXTF_Buchungsstapel_12.csv",
+  invoiceCount: 42,
+  totalCents: 327600,
+  reference: "",
+  repeatOf: null,
+  datevAll: false,
+  exportedByYou: true,
+  exportedByAccount: true,
+  exportedAt: "2026-11-09T10:00:00Z",
+  submittedAt: null,
+};
+
+function datevStates(newBookings: number, fiscalYears: string[]) {
+  return {
+    ready: true,
+    runs: new Map([["care/7", { newBookings, fiscalYears }]]),
+  };
+}
+
+// The standard download holds only new bookings (#6433): the run names
+// how many, and the button says it.
+it("counts the new DATEV bookings of a run", async () => {
+  api.fetchDatevRunStates.mockResolvedValue(datevStates(3, ["2026-01-01"]));
+  renderPage();
+  expect(
+    (await screen.findAllByText("3 neue Buchungen")).length,
+  ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Noch keine DATEV-Datei").length).toBeGreaterThan(
+    0,
+  );
+  const button = screen.getAllByRole("button", {
+    name: "3 neue Buchungen von Monatsbeiträge Oktober 2026 als DATEV-Datei herunterladen",
+  })[0]!;
+  expect(button).toBeEnabled();
+  expect(api.fetchDatevRunStates).toHaveBeenCalledWith([RUN]);
+  expect(
+    screen.queryByRole("button", {
+      name: "Weitere DATEV-Aktionen für Monatsbeiträge Oktober 2026",
+    }),
+  ).toBeNull();
+});
+
+// Without a new booking there is no file to take: the button is off and
+// says why; „Alle Buchungen erneut“ warns before it repeats them, in the
+// fiscal year the person picks.
+it("repeats every DATEV booking only after the warning", async () => {
+  api.fetchExportRuns.mockResolvedValue({
+    items: [{ ...RUN, lastDatev: LAST_DATEV }],
+    total: 1,
+    notExported: 1,
+    nextOffset: null,
+  });
+  api.fetchDatevRunStates.mockResolvedValue(
+    datevStates(0, ["2026-01-01", "2027-01-01"]),
+  );
+  api.downloadDatevBatch.mockResolvedValue({
+    blob: new Blob(["extf"]),
+    filename: "EXTF_Buchungsstapel_13.csv",
+  });
+  renderPage();
+  expect(
+    (await screen.findAllByText("Alles exportiert")).length,
+  ).toBeGreaterThan(0);
+  const button = screen.getAllByRole("button", DATEV_BUTTON)[0]!;
+  expect(button).toBeDisabled();
+  const reason = button.getAttribute("aria-describedby");
+  expect(reason).toBe("datev-state-care-runs-7");
+  expect(document.getElementById(reason!)).toHaveTextContent(
+    "Zuletzt Nr. 12 am 09.11.2026",
+  );
+
+  fireEvent.click(
+    screen.getAllByRole("button", {
+      name: "Weitere DATEV-Aktionen für Monatsbeiträge Oktober 2026",
+    })[0]!,
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: /Alle Buchungen erneut/ }),
+  );
+  expect(
+    await screen.findByText("Alle Buchungen erneut herunterladen?"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Sonst stehen die Buchungen doppelt in DATEV"),
+  ).toBeInTheDocument();
+  expect(api.downloadDatevBatch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "2027" }));
+  fireEvent.click(screen.getByRole("button", { name: "Erneut herunterladen" }));
+  await waitFor(() =>
+    expect(api.downloadDatevBatch).toHaveBeenCalledWith("care-runs", "7", {
+      all: true,
+      fiscalYear: "2027-01-01",
+    }),
+  );
+  expect(
+    await screen.findByText(
+      "EXTF_Buchungsstapel_13.csv ist heruntergeladen. Sie wiederholt alle Buchungen von Monatsbeiträge Oktober 2026.",
+    ),
+  ).toBeInTheDocument();
+});
+
+// A download that found nothing new (another person took the bookings a
+// moment earlier) is no fault: a notice says no file and no number.
+it("says when a DATEV download found no new booking", async () => {
+  api.fetchDatevRunStates.mockResolvedValue(datevStates(1, ["2026-01-01"]));
+  api.downloadDatevBatch.mockRejectedValue(
+    new ApiError("Request failed (409)", 409, {
+      code: "parent_billing.datev_bookings_taken",
+    }),
+  );
+  renderPage();
+  fireEvent.click(
+    (
+      await screen.findAllByRole("button", {
+        name: "1 neue Buchung von Monatsbeiträge Oktober 2026 als DATEV-Datei herunterladen",
+      })
+    )[0]!,
+  );
+  expect(
+    await screen.findByText(
+      "Keine neuen Buchungen für Monatsbeiträge Oktober 2026",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /Es wurde keine weitere Datei erstellt und keine Nummer verbraucht\./,
+    ),
+  ).toBeInTheDocument();
+  expect(files.downloadBlob).not.toHaveBeenCalled();
+});
+
+it("marks a DATEV file of all bookings again in the protocol", async () => {
+  api.fetchExportProtocol.mockResolvedValue({
+    items: [
+      { ...LAST_DATEV, datevAll: true, repeatOf: 12, id: "13", fileNumber: 13 },
+    ],
+    total: 1,
+    nextOffset: null,
+  });
+  renderPage();
+  expect(
+    (await screen.findAllByText("Alle erneut: Wiederholung")).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Gleicher Inhalt wie Nr. 12").length,
+  ).toBeGreaterThan(0);
 });
