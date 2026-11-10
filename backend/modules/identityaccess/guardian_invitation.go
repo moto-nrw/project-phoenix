@@ -161,3 +161,6 @@ type GuardianInvitationReads interface {
 	// in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error)
 }
+
+// GuardianInvitationInvalidation ends a school's open links in the caller's transaction.
+type GuardianInvitationInvalidation func(ctx context.Context, guardianProfileID int64) error

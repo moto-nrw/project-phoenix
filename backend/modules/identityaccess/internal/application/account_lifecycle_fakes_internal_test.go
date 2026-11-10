@@ -763,11 +763,11 @@ func (s *lifecycleInvitations) InsertGuardianInvitation(_ context.Context, invit
 	return s.add(invitation), nil
 }
 
-func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error {
+func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string, expectedExpiresAt time.Time) error {
 	if s.updateErr != nil {
 		return s.updateErr
 	}
-	if stored, ok := s.rows[invitation.ID]; !ok || stored.AcceptedAt != nil || stored.ApprovalStatus != expectedApprovalStatus {
+	if stored, ok := s.rows[invitation.ID]; !ok || stored.AcceptedAt != nil || stored.ApprovalStatus != expectedApprovalStatus || !stored.ExpiresAt.Equal(expectedExpiresAt) {
 		return domain.ErrGuardianInvitationNotFound
 	}
 	s.rows[invitation.ID] = invitation
@@ -811,7 +811,7 @@ func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id in
 		return false, s.updateErr
 	}
 	invitation, ok := s.rows[id]
-	if !ok || invitation.AcceptedAt != nil {
+	if !ok || invitation.AcceptedAt != nil || invitation.Redeemable(acceptedAt) != nil {
 		return false, nil
 	}
 	invitation.AcceptedAt = &acceptedAt
@@ -958,4 +958,21 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 
 func tenantContext() context.Context {
 	return (&fakeRuntime{}).WithTenantID(context.Background(), lifecycleTenant)
+}
+
+func (s *lifecycleInvitations) InvalidateGuardianInvitations(_ context.Context, profileID int64, now time.Time, includePendingApprovals bool) error {
+	for id, row := range s.rows {
+		if !includePendingApprovals && row.ApprovalStatus == domain.GuardianInvitationApprovalPending {
+			continue
+		}
+		if row.GuardianProfileID == profileID && row.AcceptedAt == nil && row.ExpiresAt.After(now) {
+			row.ExpiresAt = now
+			row.Email = ""
+			if row.ApprovalStatus == domain.GuardianInvitationApprovalPending {
+				row.ApprovalStatus = domain.GuardianInvitationApprovalRejected
+			}
+			s.rows[id] = row
+		}
+	}
+	return nil
 }

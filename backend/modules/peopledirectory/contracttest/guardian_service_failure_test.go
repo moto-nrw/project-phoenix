@@ -266,6 +266,7 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 
 	email := "edited@example.com"
 	svc := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
+		InvalidateInvites: func(context.Context, int64) error { return nil },
 
 		// UpdateGuardian now locks the profile row FOR UPDATE before reading
 		// it (serializes with the parents-portal contact path — #1667 review);
@@ -285,11 +286,11 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 			},
 		}}, nil)
 
-	err := svc.UpdateGuardian(context.Background(), 1, peoplePorts.GuardianCreateRequest{
+	err := svc.UpdateGuardian(guardianAmbientTxContext(), 1, peoplePorts.GuardianCreateRequest{
 		FirstName: "Edited", LastName: "Name", Email: &email,
 	})
 
-	require.Error(t, err)
+	require.ErrorContains(t, err, "connection refused")
 	var validationErr *userscontract.ValidationError
 	assert.False(t, errors.As(err, &validationErr),
 		"a non-unique update failure must not be classified as a 400")
