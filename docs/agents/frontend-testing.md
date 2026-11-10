@@ -228,7 +228,8 @@ baseline's selection unless given its own.
 - A refactor ticket adds missing stories for the pieces it touches in its
   first commit, without code changes, and takes the baseline from that commit.
 - Open states (menu, popover, picker) are stories with a `play` function that
-  opens them; `OverflowMenu` and `ListboxDropdown` `Opened` are the templates.
+  opens them. Templates: `OverflowMenu` and `ListboxDropdown` `Opened`
+  (menu, list), `TenantPage` `InfoOpened` (popover).
   A modal story passes `isOpen`. The run waits for `play` to finish and fails
   the story when `play` throws: Storybook itself still reports success then.
 - Fixed for stable images: the app fonts (`.storybook/fonts.css`, loaded
