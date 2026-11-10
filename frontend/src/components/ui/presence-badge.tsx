@@ -144,6 +144,7 @@ export function PresenceBadge({
   size = DEFAULT_SIZE,
   showLocationSince = false,
 }: PresenceBadgeProps) {
+  const parsedLocation = parseLocation(student.current_location);
   const state = derivePresenceState(student.current_location);
   const location = resolveLocationStyle(state, student);
   const dayStatus = resolveDayStatusStyle(state, student);
@@ -182,18 +183,24 @@ export function PresenceBadge({
           : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
+  const locationStatusForSince =
+    // A room name has no status prefix but is displayed as „Anwesend“ in
+    // binary mode. Unknown and missing locations must not inherit that time.
+    parsedLocation.status === LOCATION_STATUSES.UNKNOWN
+      ? parsedLocation.status
+      : isTransitLocation(student.current_location)
+        ? LOCATION_STATUSES.TRANSIT
+        : location.label;
   const showSinceTime =
     showLocationSince &&
     formattedTime !== null &&
-    showsLocationSince(
-      // The pill shows Unterwegs as Anwesend; „seit“ still follows Unterwegs.
-      isTransitLocation(student.current_location)
-        ? LOCATION_STATUSES.TRANSIT
-        : location.label,
-      replaceTimeSource !== null,
-    );
+    // „Kommt heute nicht“ keeps the established time at home, but not after
+    // the child was checked out to class.
+    (label !== LOCATION_STATUSES.NOT_ARRIVAL ||
+      parsedLocation.status === LOCATION_STATUSES.HOME) &&
+    showsLocationSince(locationStatusForSince, replaceTimeSource !== null);
 
-  const dataStatus = parseLocation(student.current_location).status;
+  const dataStatus = parsedLocation.status;
 
   return (
     <div className="flex max-w-full min-w-0 flex-col items-end">

@@ -109,6 +109,38 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
       expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
     }
   });
+
+  it("keeps „seit“ for not arriving at home but not after checkout to class", () => {
+    const { rerender } = render(
+      renderBadge(
+        {
+          current_location: "Zuhause",
+          location_since: "2026-09-09T08:15:00Z",
+          not_arrival_today: true,
+        },
+        true,
+      ),
+    );
+
+    // Anker: „Kommt heute nicht“ replaces the home status.
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+    expect(screen.getByText(/^seit /)).toHaveTextContent("seit 10:15 Uhr");
+
+    rerender(
+      renderBadge(
+        {
+          current_location: "Im Unterricht",
+          location_since: "2026-09-09T08:15:00Z",
+          not_arrival_today: true,
+        },
+        true,
+      ),
+    );
+
+    // Anker: Die Ersetzung bleibt sichtbar, nur ihre unpassende Zeit fehlt.
+    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+    expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
+  });
 });
 
 // PresenceBadge shows Unterwegs and a bare room name as „Anwesend“. A room
@@ -136,5 +168,27 @@ it.each([
     } else {
       expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
     }
+  },
+);
+
+it.each([
+  ["ohne Ortsangabe", null, "Zuhause"],
+  ["unbekannter Ort", "Unbekannt", "Anwesend"],
+])(
+  "PresenceBadge hides „seit“ for %s",
+  (_description, currentLocation, expectedLabel) => {
+    render(
+      <PresenceBadge
+        student={{
+          current_location: currentLocation,
+          location_since: "2026-09-09T08:15:00Z",
+        }}
+        showLocationSince
+      />,
+    );
+
+    // Anker: Das Badge zeigt weiterhin den für den Binärmodus passenden Status.
+    expect(screen.getByText(expectedLabel)).toBeInTheDocument();
+    expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
   },
 );
