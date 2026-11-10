@@ -147,6 +147,28 @@
       "source_role": "port",
       "target_owner": "organization-tenancy",
       "target_role": "public"
+    },
+    {
+      "id": "holiday-closure-notification.adapter-test.delivery-platform-compose",
+      "description": "ADR 0196: the workflow's behavior tests send through the real Delivery outbox to prove one mail per family and the protected repetition.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "holiday-closure-notification.adapter-test.school-calendar-compose",
+      "description": "ADR 0196: the workflow's behavior tests read School Calendar's commands as the worker does, to prove the filters beneath row security.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "adapter-test",
+      "target_owner": "school-calendar",
+      "target_role": "compose"
     }
   ]
 }

@@ -1,4 +1,4 @@
-package api
+package compose_test
 
 import (
 	"context"
@@ -29,6 +29,31 @@ import (
 // The booked week of bookHolidayWeek runs from Monday 2030-07-08 to Friday
 // 2030-07-12, so every day of these tests is in the future.
 
+// bookHolidayWeek books one child of the family email into a week of a
+// published period of the Träger at school.
+func bookHolidayWeek(t *testing.T, db *bun.DB, organization, school int64, email string) {
+	t.Helper()
+	ctx := context.Background()
+	var period, week, model, registration, child int64
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on,
+			registration_closes_on, status, published_at) VALUES (?, 'Sommerferien', '2030-01-01', '2030-06-01', 'published', NOW())
+		RETURNING id`, organization).Scan(ctx, &period))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_period_weeks (organization_id, holiday_period_id, starts_on, ends_on, host_school_id)
+		VALUES (?, ?, '2030-07-08', '2030-07-12', ?) RETURNING id`, organization, period, school).Scan(ctx, &week))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_week_time_models (organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
+		VALUES (?, ?, 'Ganztag', '08:00', '16:00', 4500) RETURNING id`, organization, week).Scan(ctx, &model))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name,
+			guardian_last_name, guardian_email, guardian_phone, privacy_consent_at)
+		VALUES (?, ?, 'Eva', 'Ferien', ?, '0123', NOW()) RETURNING id`, organization, period, email).Scan(ctx, &registration))
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id,
+			holiday_registration_id, position, first_name, last_name, birth_date)
+		VALUES (?, ?, ?, 1, 'Mia', 'Ferien', '2019-03-04') RETURNING id`, organization, period, registration).Scan(ctx, &child))
+	_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_bookings (organization_id, holiday_period_id,
+			holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id) VALUES (?, ?, ?, ?, ?)`,
+		organization, period, child, week, model)
+	require.NoError(t, err)
+}
+
 // closureWorld is a Träger with one school, two families who booked its
 // holiday week, the school's calendar and the workflow over real owners.
 type closureWorld struct {
@@ -52,8 +77,8 @@ func newClosureWorld(t *testing.T, name string) closureWorld {
 	testpkg.OwnTraegerHolidayPeriods(t, db, organization)
 	testpkg.OwnTraegerClosingDays(t, db, organization)
 	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, name+" OGS")
-	bookHolidayWeek(t, organization, school, "familie.eins@example.org")
-	bookHolidayWeek(t, organization, school, "familie.zwei@example.org")
+	bookHolidayWeek(t, db, organization, school, "familie.eins@example.org")
+	bookHolidayWeek(t, db, organization, school, "familie.zwei@example.org")
 	settings, err := owners.NewSettingsTestModule(database, unit)
 	require.NoError(t, err)
 	records, err := owners.BuildSchoolCalendarRecords(database, func(schoolCalendarCompose.Observation) {}, settings.Settings)
@@ -431,4 +456,12 @@ func TestHolidayClosureNoticesKeepTheirFiltersBeneathRLS(t *testing.T) {
 		Scan(context.Background(), &dead))
 	assert.Equal(t, len(foreignKeys), dead, "B's failed mails stay as they are")
 	require.NotEmpty(t, foreignOperation)
+}
+
+func keysOf(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	return keys
 }
