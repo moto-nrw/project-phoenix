@@ -16,7 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -160,7 +160,7 @@ func variedEnrollmentFile(prefix string) []importModels.StudentImportRow {
 // openedHealth reads every child's health information through People
 // Directory, which opens it with the child's membership as the associated
 // data: a care profile written for another membership does not open.
-func openedHealth(t *testing.T, db *bun.DB, persons peopledirectory.Capability) map[string]string {
+func openedHealth(t *testing.T, db *bun.DB, persons importPorts.StudentDirectory) map[string]string {
 	t.Helper()
 	var students []struct {
 		ID   int64  `bun:"id"`

@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
@@ -12,5 +13,5 @@ type StudentOwners interface {
 	Enroll(context.Context, domain.StudentRecord) (int64, error)
 	Renew(context.Context, domain.StudentRecord) (int64, error)
 	SaveCare(context.Context, int64, domain.StudentRecord, domain.DeparturePlan, *string, bool) error
-	SaveCareBatch(context.Context, []domain.StudentCareSave) error
+	SaveCareBatch(context.Context, []peopledirectory.StudentCareSave) error
 }

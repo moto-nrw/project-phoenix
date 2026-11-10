@@ -167,8 +167,25 @@ func (s studentOwners) Renew(ctx context.Context, record peopledirectory.Student
 }
 
 func (s studentOwners) SaveCare(ctx context.Context, membershipID int64, record peopledirectory.StudentRecord, plan peopledirectory.StudentPlan, note *string, touched bool) error {
-	profile, departure := careProfileOf(membershipID, record, plan, note, touched)
-	return s.care.SaveStudentCareProfile(ctx, profile, departure)
+	modes := make(map[string][]string, len(plan.AllowedDepartureModes))
+	for day, values := range plan.AllowedDepartureModes {
+		for _, value := range values {
+			modes[day] = append(modes[day], string(value))
+		}
+	}
+	days := make(map[string]string, len(plan.DepartureDays))
+	for day, value := range plan.DepartureDays {
+		days[day] = string(value)
+	}
+	return s.care.SaveStudentCareProfile(ctx, careplan.StudentCareProfile{
+		MembershipID: membershipID, HealthInfo: record.HealthInfo,
+		PickupStatus: record.PickupStatus, Sick: record.Sick != nil && *record.Sick,
+		SickSince: record.SickSince, Excused: record.Excused != nil && *record.Excused, ExcusedSince: record.ExcusedSince,
+	}, &careplan.StudentDeparturePlan{
+		MembershipID: membershipID, PickupStatus: plan.AllowedDepartureModes.LegacyPickupStatus(),
+		AllowedDepartureModes: modes, DepartureDays: days,
+		BusDays: plan.BusDays, PickupDays: plan.PickupDays, CompanionNote: note, PlanTouched: touched,
+	})
 }
 
 // SaveCareBatch saves the care profiles of many new memberships in one Care
@@ -188,7 +205,7 @@ func (s studentOwners) SaveCareBatch(ctx context.Context, saves []peopledirector
 var errStudentCareBatchesUnbound = errors.New("people directory student owners: the care profile batch is not bound")
 
 // careProfileOf is the Care Plan care profile and departure plan of one
-// membership.
+// membership, built as SaveCare builds them.
 func careProfileOf(membershipID int64, record peopledirectory.StudentRecord, plan peopledirectory.StudentPlan, note *string, touched bool) (careplan.StudentCareProfile, *careplan.StudentDeparturePlan) {
 	modes := make(map[string][]string, len(plan.AllowedDepartureModes))
 	for day, values := range plan.AllowedDepartureModes {

@@ -91,8 +91,9 @@ type enrollmentProfileRow struct {
 }
 
 // CreateEnrollments inserts the profiles of new children in one statement,
-// as createEnrollmentStudent inserts one: the shared class-writes gate in the
-// statement (or before it), each person locked FOR KEY SHARE, the same
+// as createEnrollmentStudent inserts one, after the caller took the shared
+// class-writes gate (LockEnrollmentClassWrites): each person locked FOR KEY
+// SHARE, the same
 // columns with the values the initial profile patch gives. A row is assigned
 // to its input by person_id (unique per profile), never by RETURNING order;
 // a person the school does not have fails the call with ErrPersonNotFound.
@@ -105,17 +106,6 @@ func (s *StudentStore) CreateEnrollments(ctx context.Context, inputs []domain.En
 	if err != nil {
 		return nil, stats, err
 	}
-	var gate *bun.SelectQuery
-	if s.classGateQuery != nil {
-		gate, err = s.classGateQuery(ctx)
-	} else {
-		err = s.classGate(ctx, false)
-		stats.Queries++
-		gate = db.NewSelect().ColumnExpr("TRUE")
-	}
-	if err != nil {
-		return nil, stats, err
-	}
 	columns, rows, err := enrollmentProfileColumns(scope.TenantID, inputs)
 	if err != nil {
 		return nil, stats, err
@@ -123,15 +113,14 @@ func (s *StudentStore) CreateEnrollments(ctx context.Context, inputs []domain.En
 	var written []enrollmentProfileRow
 	stats.Queries++
 	started := time.Now()
-	err = db.NewRaw(`WITH class_write_gate AS MATERIALIZED (?),
-  source AS (
+	err = db.NewRaw(`WITH source AS (
    SELECT k.* FROM unnest(?::bigint[], ?::text[], ?::boolean[], ?::text[], ?::boolean[], ?::text[], ?::boolean[], ?::text[], ?::boolean[],
      ?::timestamptz[], ?::boolean[], ?::bigint[], ?::timestamptz[], ?::boolean[], ?::timestamptz[], ?::boolean[], ?::timestamptz[], ?::boolean[])
    WITH ORDINALITY AS k(person_id, street, street_set, city, city_set, postal, postal_set, extra, extra_set,
      photo_at, photo_at_set, photo_by, agb_at, agb_at_set, processing_at, processing_at_set, contact_at, contact_at_set, ord)
   ),
   enrolled_person AS MATERIALIZED (
-   SELECT person.id FROM users.persons AS person CROSS JOIN class_write_gate
+   SELECT person.id FROM users.persons AS person
    WHERE person.id IN (SELECT person_id FROM source) AND person.tenant_id = ? AND person.deleted_at IS NULL
    FOR KEY SHARE OF person
   )
@@ -147,29 +136,39 @@ func (s *StudentStore) CreateEnrollments(ctx context.Context, inputs []domain.En
   FROM source JOIN enrolled_person ON enrolled_person.id = source.person_id
   ORDER BY source.ord
   RETURNING id, person_id, created_at, updated_at`,
-		append(append([]any{gate}, columns...), scope.TenantID, scope.TenantID)...).Scan(ctx, &written)
+		append(columns, scope.TenantID, scope.TenantID)...).Scan(ctx, &written)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, fmt.Errorf("people directory postgres: create enrollment students: %w", err)
+	}
+	result, err := enrollmentStudents(rows, written)
+	if err != nil {
+		return nil, stats, err
+	}
+	stats.Rows = int64(len(written))
+	return result, stats, nil
+}
+
+// enrollmentStudents maps the written profiles back onto the input rows by
+// person; a person without a profile row was deleted or not in the tenant.
+func enrollmentStudents(rows []studentRow, written []enrollmentProfileRow) ([]peopledirectory.Student, error) {
+	if len(written) != len(rows) {
+		return nil, peopledirectory.ErrPersonNotFound
 	}
 	byPerson := make(map[int64]enrollmentProfileRow, len(written))
 	for _, row := range written {
 		byPerson[row.PersonID] = row
 	}
-	result := make([]peopledirectory.Student, len(inputs))
+	result := make([]peopledirectory.Student, len(rows))
 	for i, row := range rows {
 		profile, ok := byPerson[row.PersonID]
 		if !ok {
-			return nil, stats, peopledirectory.ErrPersonNotFound
+			return nil, peopledirectory.ErrPersonNotFound
 		}
 		row.ID, row.CreatedAt, row.UpdatedAt = profile.ID, profile.CreatedAt, profile.UpdatedAt
 		result[i] = toStudent(row)
 	}
-	if len(written) != len(inputs) {
-		return nil, stats, peopledirectory.ErrPersonNotFound
-	}
-	stats.Rows = int64(len(written))
-	return result, stats, nil
+	return result, nil
 }
 
 // enrollmentProfileColumns are the statement arrays of CreateEnrollments,

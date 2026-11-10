@@ -26,7 +26,10 @@ type StudentOwnerWrites interface {
 // NewStudentOwners adapts the root's enrollment and care owners to the
 // module's port; unbound owners refuse every call.
 func NewStudentOwners(owners ports.StudentOwners) StudentOwnerWrites {
-	return studentOwners{owners: owners}
+	if owners == nil {
+		return studentOwners{careBatches: unboundCareBatches{}}
+	}
+	return studentOwners{owners: owners, careBatches: owners}
 }
 
 // studentCompanions adapts the composition root's public-typed seam to the
@@ -67,7 +70,22 @@ func (a studentCompanions) DeleteEdges(ctx context.Context, edgeIDs []int64) err
 	return nil
 }
 
-type studentOwners struct{ owners ports.StudentOwners }
+// studentOwners adapts the root's owners per method; the care batch already
+// takes the public type and passes through as it is.
+type studentOwners struct {
+	careBatches
+	owners ports.StudentOwners
+}
+
+type careBatches interface {
+	SaveCareBatch(context.Context, []peopledirectory.StudentCareSave) error
+}
+
+type unboundCareBatches struct{}
+
+func (unboundCareBatches) SaveCareBatch(context.Context, []peopledirectory.StudentCareSave) error {
+	return errors.New("people directory: student owners are not bound")
+}
 
 func (s studentOwners) LockClassWrites(ctx context.Context, exclusive bool) error {
 	if s.owners == nil {
@@ -97,18 +115,4 @@ func (s studentOwners) SaveCare(ctx context.Context, membershipID int64, record 
 	return s.owners.SaveCare(ctx, membershipID, peopledirectory.StudentRecord(record), peopledirectory.StudentPlan{
 		AllowedDepartureModes: plan.AllowedDepartureModes, DepartureDays: plan.DepartureDays, BusDays: plan.BusDays, PickupDays: plan.PickupDays,
 	}, note, touched)
-}
-
-func (s studentOwners) SaveCareBatch(ctx context.Context, saves []domain.StudentCareSave) error {
-	if s.owners == nil {
-		return errors.New("people directory: student owners are not bound")
-	}
-	public := make([]peopledirectory.StudentCareSave, len(saves))
-	for i, save := range saves {
-		public[i] = peopledirectory.StudentCareSave{
-			MembershipID: save.MembershipID, Record: peopledirectory.StudentRecord(save.Record),
-			Plan: save.Plan, Note: save.Note, Touched: save.Touched,
-		}
-	}
-	return s.owners.SaveCareBatch(ctx, public)
 }

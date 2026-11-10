@@ -83,15 +83,6 @@ type StudentRecord struct {
 	EmailContactAcceptedAt   *time.Time
 }
 
-// StudentCareSave is one care profile of a new membership a batch saves.
-type StudentCareSave struct {
-	MembershipID int64
-	Record       StudentRecord
-	Plan         DeparturePlan
-	Note         *string
-	Touched      bool
-}
-
 func (r StudentRecord) IsAlumnus() bool { return r.Status == StudentStatusAlumnus }
 
 // StudentDirectoryFilter narrows the staff directory page. Every field is

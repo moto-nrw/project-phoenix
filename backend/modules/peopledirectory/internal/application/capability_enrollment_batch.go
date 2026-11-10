@@ -76,7 +76,10 @@ func (s *Service) EnrollCreatedStudent(ctx context.Context, created peopledirect
 	if err != nil {
 		return 0, err
 	}
-	membershipID, err := s.students.EnrollCreated(ctx, studentOfCreated(created), enrollmentInput(value))
+	if err := s.tx.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	membershipID, err := s.students.enrollCreated(ctx, studentOfCreated(created), enrollmentInput(value))
 	return membershipID, MapError(err)
 }
 

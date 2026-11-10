@@ -128,30 +128,41 @@ func (c *StudentImportConfig) writeLeafs(ctx context.Context, leafs *studentLeaf
 		return nil
 	}
 	return bounded(ctx, func(ctx context.Context) error {
-		if len(leafs.cares) > 0 {
-			if err := c.EnrollmentBatches.SaveEnrollmentCares(ctx, leafs.cares); err != nil {
-				return fmt.Errorf("create student care profiles: %w", err)
-			}
+		if err := c.writeCaresAndGuardians(ctx, leafs); err != nil {
+			return err
 		}
-		if len(leafs.guardians) > 0 {
-			if err := c.GuardianBatches.CreateNewStudentGuardians(ctx, leafs.guardians); err != nil {
-				return fmt.Errorf("create guardians: %w", err)
-			}
-		}
-		if len(leafs.consents) > 0 {
-			if err := ports.ObserveCommand(ctx, "student-presence", "record_privacy_consents", func() error {
-				return c.PrivacyConsentBatches.RecordPrivacyConsents(ctx, leafs.consents)
-			}); err != nil {
-				return fmt.Errorf("create privacy consents: %w", err)
-			}
-		}
-		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions_all", func() error {
-			return c.ConsentHistoryBatches.RecordTransitionsAll(ctx, leafs.transitions)
-		}); err != nil {
-			return fmt.Errorf("create student consent history: %w", err)
-		}
-		return nil
+		return c.writeConsentLeafs(ctx, leafs)
 	})
+}
+
+func (c *StudentImportConfig) writeCaresAndGuardians(ctx context.Context, leafs *studentLeafWrites) error {
+	if len(leafs.cares) > 0 {
+		if err := c.EnrollmentBatches.SaveEnrollmentCares(ctx, leafs.cares); err != nil {
+			return fmt.Errorf("create student care profiles: %w", err)
+		}
+	}
+	if len(leafs.guardians) > 0 {
+		if err := c.GuardianBatches.CreateNewStudentGuardians(ctx, leafs.guardians); err != nil {
+			return fmt.Errorf("create guardians: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c *StudentImportConfig) writeConsentLeafs(ctx context.Context, leafs *studentLeafWrites) error {
+	if len(leafs.consents) > 0 {
+		if err := ports.ObserveCommand(ctx, "student-presence", "record_privacy_consents", func() error {
+			return c.PrivacyConsentBatches.RecordPrivacyConsents(ctx, leafs.consents)
+		}); err != nil {
+			return fmt.Errorf("create privacy consents: %w", err)
+		}
+	}
+	if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions_all", func() error {
+		return c.ConsentHistoryBatches.RecordTransitionsAll(ctx, leafs.transitions)
+	}); err != nil {
+		return fmt.Errorf("create student consent history: %w", err)
+	}
+	return nil
 }
 
 // hasConsentEvents reports whether a transition of a new child records an

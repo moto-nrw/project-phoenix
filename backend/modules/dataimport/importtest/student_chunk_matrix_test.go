@@ -149,11 +149,8 @@ func matrixFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 
 // runMatrixUpload imports the matrix file on its own tenant of the package
 // clone over a pool that records every statement and injects fault.
-func runMatrixUpload(t *testing.T, db *bun.DB, dsn string, options api.ImportTestOptions, fault *matrixFault) matrixUpload {
-	return runMatrixUploadOf(t, db, dsn, options, fault, matrixFile)
-}
-
-// runMatrixUploadOf is runMatrixUpload over the file fixture builds.
+// runMatrixUploadOf imports the file fixture builds on its own tenant of the
+// package clone over a pool that records every statement and injects fault.
 func runMatrixUploadOf(t *testing.T, db *bun.DB, dsn string, options api.ImportTestOptions, fault *matrixFault, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) matrixUpload {
 	t.Helper()
 	testpkg.OwnTenant(t)
@@ -438,6 +435,13 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 		default:
 			class = classChunk
 		}
+		if class == classBounded && kind == batchClassGate {
+			// The enrollment batch takes the class gate in a statement of its
+			// own under the bound; the row path takes it in the first profile
+			// insert. It is no occurrence of the per-row gate statements.
+			record(key{0, phase, kind, class}, matrixStatement{kind: kind, index: i, class: class, row: -2, segment: segment, phase: phase})
+			continue
+		}
 		if class != classResolverRead && class != classResolverControl {
 			occurrence[kind]++
 		}
@@ -463,6 +467,10 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 		case classResolverRead, classResolverControl, classBoundControl:
 			statement.row = -1 // the row path has no resolver read and no bound
 		default:
+			if statement.row == -2 {
+				statement.row = firstRowPathStatement(t, rowPath, firstPerson, enrollmentWrite+" (SELECT pg_advisory_xact_lock_shared(#, #)), enrolled_person")
+				break
+			}
 			statement.row = rowPathIndex(t, rowPath, firstPerson, statement.kind, statement.row)
 		}
 		statements = append(statements, statement)
@@ -513,6 +521,19 @@ func controlClass(t *testing.T, owners []string, kind string) matrixClass {
 	return ""
 }
 
+// firstRowPathStatement is the first statement after the first person insert
+// on the row path that starts with prefix.
+func firstRowPathStatement(t *testing.T, rowPath []string, firstPerson int, prefix string) int {
+	t.Helper()
+	for i := firstPerson; i < len(rowPath); i++ {
+		if strings.HasPrefix(statementKind(rowPath[i]), prefix) {
+			return i
+		}
+	}
+	t.Fatalf("the row path issues no statement %q", prefix)
+	return -1
+}
+
 func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, occurrence int) int {
 	t.Helper()
 	if strings.HasPrefix(kind, personBatch) {
@@ -541,6 +562,10 @@ func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, 
 	return -1
 }
 
+// batchClassGate is the class-writes gate statement the enrollment batch
+// takes before its profiles (#5552 step 7).
+const batchClassGate = "SELECT pg_advisory_xact_lock_shared(#, #)"
+
 // bundledStatement is one statement the batch command bundles after the
 // rows (#5552, steps 5b and 5c): how to recognize it in the batch recording
 // and the single statement of its table on the row path.
@@ -567,8 +592,8 @@ var bundledStatements = []bundledStatement{
 	{bundledPrefix("INSERT INTO auth.guardian_student_access ", " SELECT "), "INSERT INTO auth.guardian_student_access "},
 	// The enrollment batch of step 7: the profiles before the rows, the care
 	// profiles after them.
-	{bundledPrefix(enrollmentWrite, " source AS ("), enrollmentWrite + " (SELECT pg_advisory_xact_lock_shared(#, #)), enrolled_person"},
-	{multiRow("INSERT INTO users.student_care_profiles ("), "INSERT INTO users.student_care_profiles AS care "},
+	{bundledPrefix("WITH source AS ", "INSERT INTO users.student_profiles"), enrollmentWrite + " (SELECT pg_advisory_xact_lock_shared(#, #)), enrolled_person"},
+	{bundledPrefix("INSERT INTO users.student_care_profiles (", " unnest("), "INSERT INTO users.student_care_profiles AS care "},
 }
 
 // bundledLeafTable names the row-path statement a bundled statement stands
