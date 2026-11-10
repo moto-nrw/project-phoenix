@@ -52,12 +52,15 @@ export function WizardStepper({
         })}
       </div>
       {labeled ? (
-        // One name under each bar; on a phone one step per line.
+        // One name under each bar; on a phone one step per line, where
+        // only the weight and the shade mark the current step: the other
+        // steps stay a clear step lighter. text-pretty: a long name never
+        // leaves its last word alone on a line.
         <ol className="flex gap-2 text-sm max-sm:flex-col max-sm:gap-1">
           {steps.map((label, index) => (
             <li
               key={label}
-              className={`min-w-0 flex-1 ${index === clampedCurrent ? "font-medium" : "text-gray-600"}`}
+              className={`min-w-0 flex-1 text-pretty ${index === clampedCurrent ? "font-semibold" : "text-gray-500"}`}
               style={
                 index === clampedCurrent ? { color: ACTIVE_TEXT } : undefined
               }
