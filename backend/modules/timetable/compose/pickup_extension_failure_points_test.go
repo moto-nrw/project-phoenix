@@ -700,6 +700,59 @@ func scanSequentially(ctx context.Context) error {
 	return err
 }
 
+// Retention against offboarding (#6232): both lock the history blocks of a
+// staff member, offboarding in one statement by ascending id. The retention
+// delete runs with a sequential scan over a heap whose order runs against
+// the ids; it locks by ascending id as well, so it waits instead of closing
+// a cycle.
+func TestRetentionDeleteAndOffboardingDoNotDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	f := newPickupChainFixture(t, db, pickupChainOptions{})
+	for _, instance := range f.instances {
+		createOwnedInstanceStaff(t, f.module, f.ctx, instance, f.staffID, true, false)
+	}
+	f.moveSmallestBlocksToHeapEnd(t)
+	offboarding, err := NewOffboarding(OffboardingDependencies{DB: f.db, Sessions: &fixedSessions{}, Observe: func(Observation) {}})
+	require.NoError(t, err)
+	preview, err := offboarding.Preview(f.ctx, f.staffID, "2099-03-01")
+	require.NoError(t, err)
+
+	holder := f.holdInstance(t, f.instances[1], "")
+	offboarded := make(chan error, 1)
+	go func() {
+		offboarded <- testpkg.TenantCommand0(t, f.ctx, f.db, func(ctx context.Context) error {
+			_, err := offboarding.Execute(ctx, f.staffID, "2099-03-01", preview.Revision)
+			return err
+		})
+	}()
+	f.waitForLockWaiters(t, 1)
+	retained := make(chan error, 1)
+	go func() {
+		retained <- testpkg.TenantCommand0(t, f.ctx, f.db, func(ctx context.Context) error {
+			if err := scanSequentially(ctx); err != nil {
+				return err
+			}
+			_, err := f.module.DeleteActivityInstancesBefore(ctx, "2099-12-31")
+			return err
+		})
+	}()
+	f.waitForLockWaiters(t, 2)
+	require.NoError(t, holder.Rollback())
+	for range 2 {
+		select {
+		case err := <-offboarded:
+			assert.NotEqual(t, "40P01", sqlState(err), "offboarding is no deadlock victim: %v", err)
+			require.NoError(t, err)
+		case err := <-retained:
+			assert.NotEqual(t, "40P01", sqlState(err), "the retention delete is no deadlock victim: %v", err)
+			require.NoError(t, err)
+		case <-time.After(20 * time.Second):
+			t.Fatal("a writer never finished")
+		}
+	}
+}
+
 // Two chosen templates (#6232): the first template gained a block after the
 // second template's blocks were planned, so its ids are not contiguous. The
 // resolve locks the blocks of both templates in one ascending pass before it

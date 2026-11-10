@@ -457,8 +457,12 @@ func (s *Store) DeleteActivityInstancesBefore(ctx context.Context, before string
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	// The rows are locked by ascending id first (#6232), as offboarding locks
+	// the same history rows.
+	locked := db.NewSelect().TableExpr("schedule.activity_instances").Column("id").
+		Where("tenant_id = ?", tenantID).Where("date < ?::date", before).OrderExpr("id ASC").For("UPDATE")
 	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("schedule.activity_instances").
-		Where("tenant_id = ?", tenantID).Where("date < ?::date", before), "delete activity instances before")
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", locked), "delete activity instances before")
 	return stats.Rows, stats, err
 }
 
