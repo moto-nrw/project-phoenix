@@ -148,6 +148,7 @@
   "holiday_booking_unit_booked": "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
   "holiday_child_day_limit": "In these holidays a child can come on at most {limit} days. {days} are chosen. Please choose fewer days.",
   "holiday_weeks_booked_together": "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
+  "holiday_week_day_limit": "A child is already registered for this week. With the new days, the child would have more days than allowed. Keep the days as they are or raise “Höchstens Tage je Kind”.",
   "hosted_holiday_week_not_found": "There is no participant list for this week any more. It is only available until the last day of the week.",
   "holiday_guest_not_found": "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
   "holiday_guest_group_invalid": "This group no longer exists. Please choose another group.",

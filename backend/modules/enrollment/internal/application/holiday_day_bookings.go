@@ -92,6 +92,73 @@ func refuseHolidayDayLimit(child int, bookings []enrollment.HolidayBookingInput,
 	return &enrollment.HolidayChildDayLimitRefusal{Child: child, Limit: limit, Days: days}
 }
 
+// refuseRaisedDayLimit applies the bound of care days to a change of the
+// period (#6506): a booking of a whole week takes the care days of the
+// week's current dates, so new dates of a booked week change the days its
+// children take. A child may keep or lower its days, as with a rebooking;
+// it may not get more days than the written bound allows. The caller holds
+// the lock of the period, which every change of a child's bookings takes
+// too, so the bookings read here stay those of the commit. A change that
+// moves no stored week reads nothing.
+func (h *HolidayPeriods) refuseRaisedDayLimit(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayPeriodInput, current enrollment.HolidayPeriod) error {
+	if input.MaxDaysPerChild == nil {
+		return nil
+	}
+	written := enrollment.HolidayPeriod{MaxDaysPerChild: input.MaxDaysPerChild}
+	moved := map[int64]int{}
+	for i, week := range input.Weeks {
+		if week.ID == 0 {
+			continue
+		}
+		written.Weeks = append(written.Weeks, enrollment.HolidayWeek{ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, BookingUnit: week.BookingUnit})
+		if before, ok := holidayStoredWeek(current, week.ID); ok && (before.StartsOn != week.StartsOn || before.EndsOn != week.EndsOn) {
+			moved[week.ID] = i
+		}
+	}
+	if len(moved) == 0 {
+		return nil
+	}
+	children, err := h.store.HolidayChildBookings(ctx, organizationID, periodID)
+	if err != nil {
+		return fmt.Errorf("enrollment: read holiday child bookings: %w", err)
+	}
+	for _, bookings := range children {
+		var refusal *enrollment.HolidayChildDayLimitRefusal
+		if !errors.As(refuseHolidayDayLimit(0, bookings, written, holidayBookedDayCount(bookings, current)), &refusal) {
+			continue
+		}
+		return &enrollment.HolidayWeekDayLimitRefusal{Week: holidayRaisingWeek(bookings, moved, current, written), Limit: refusal.Limit, Days: refusal.Days}
+	}
+	return nil
+}
+
+// holidayRaisingWeek is the position of the first moved week in which the
+// bookings take more days than before; the bookings take more days in all,
+// so one of them does.
+func holidayRaisingWeek(bookings []enrollment.HolidayBookingInput, moved map[int64]int, current, written enrollment.HolidayPeriod) int {
+	week := -1
+	for _, booking := range bookings {
+		index, ok := moved[booking.WeekID]
+		if !ok || (week >= 0 && week <= index) {
+			continue
+		}
+		single := []enrollment.HolidayBookingInput{booking}
+		if holidayBookedDayCount(single, written) > holidayBookedDayCount(single, current) {
+			week = index
+		}
+	}
+	return max(week, 0)
+}
+
+func holidayStoredWeek(period enrollment.HolidayPeriod, weekID int64) (enrollment.HolidayWeek, bool) {
+	for _, week := range period.Weeks {
+		if week.ID == weekID {
+			return week, true
+		}
+	}
+	return enrollment.HolidayWeek{}, false
+}
+
 // fullHolidayDays names the days of each week by days whose places are all
 // given (#4701): the parents see them before they choose. It names no child.
 // A period without a week by days with a capacity reads nothing.

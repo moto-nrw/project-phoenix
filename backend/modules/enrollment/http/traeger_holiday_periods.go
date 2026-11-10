@@ -236,6 +236,7 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	var fields validation.Errors
 	var refusedHost *capability.HolidayHostSchoolRefusal
 	var refusedDates *capability.HolidayWeeksBookedTogetherRefusal
+	var refusedDays *capability.HolidayWeekDayLimitRefusal
 	if renderHolidayWeekWithoutCare(w, r, err) {
 		return
 	}
@@ -252,6 +253,9 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.As(err, &refusedDates):
 		field := fmt.Sprintf("weeks.%d.starts_on", refusedDates.Week)
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayWeeksBookedTogether, field))
+	case errors.As(err, &refusedDays):
+		field := fmt.Sprintf("weeks.%d.ends_on", refusedDays.Week)
+		common.RenderError(w, r, common.ErrorConflictOnField(err, common.CodeEnrollmentHolidayWeekDayLimit, field))
 	case errors.Is(err, capability.ErrHolidayBookingUnitBooked):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayBookingUnitBooked))
 	case errors.Is(err, capability.ErrHolidayWeekBooked):

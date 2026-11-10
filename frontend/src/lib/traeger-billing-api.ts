@@ -183,6 +183,11 @@ export interface BillingRunDetail extends BillingRun {
   readonly documentKind?: string;
   /** A release would refuse: the fee notice has no legal remedy (#4688). */
   readonly legalRemedyMissing?: boolean;
+  /**
+   * Names the content of the preview; the release sends it back and is
+   * refused when the content changed since (#6506). Empty once released.
+   */
+  readonly fingerprint: string;
 }
 
 /** An emergency number of a hosting OGS on the letters of a run. */
@@ -321,6 +326,7 @@ interface BackendRunDetail extends BackendRun {
   due_dates?: BackendRunDueDate[] | null;
   document_kind?: string;
   legal_remedy_missing?: boolean;
+  fingerprint?: string;
 }
 
 interface BackendLetters {
@@ -457,6 +463,7 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     dueDates: runDueDatesFromBackend(run.due_dates),
     documentKind: run.document_kind,
     legalRemedyMissing: run.legal_remedy_missing ?? false,
+    fingerprint: run.fingerprint ?? "",
   };
 }
 
@@ -596,12 +603,13 @@ export async function creditBillingDocument(
 
 /**
  * Issues the invoices. The backend refuses when the preview no longer
- * matches the count and the sum the person checked.
+ * matches the count, the sum and the content (fingerprint, #6506) the
+ * person checked.
  */
 export async function releaseBillingRun(
   run: Pick<
     BillingRunDetail,
-    "id" | "previewCount" | "previewCents" | "documentKind"
+    "id" | "previewCount" | "previewCents" | "documentKind" | "fingerprint"
   >,
 ): Promise<BillingRunDetail> {
   return detailFromBackend(
@@ -610,6 +618,7 @@ export async function releaseBillingRun(
       body: {
         document_count: run.previewCount,
         total_cents: run.previewCents,
+        fingerprint: run.fingerprint,
         // The release refuses another kind than the one shown (#4688).
         ...(run.documentKind ? { document_kind: run.documentKind } : {}),
       },
