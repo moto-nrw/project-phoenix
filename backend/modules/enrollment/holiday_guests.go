@@ -286,9 +286,11 @@ type HolidayGuestSource struct {
 	TimeModelName   string
 	TimeModelStarts string
 	TimeModelEnds   string
-	Emergency       []HolidayGuestContact
-	Pickup          []HolidayGuestContact
-	Answers         []HolidayHostAnswer
+	// Days names the booked dates; empty books the whole week.
+	Days      []calendar.Date
+	Emergency []HolidayGuestContact
+	Pickup    []HolidayGuestContact
+	Answers   []HolidayHostAnswer
 	// Health is the opened health information of the child (#4722), nil
 	// without any; Sealed carries it from the store to the service.
 	Health *HolidayHostHealth
@@ -313,9 +315,11 @@ type HolidayGuest struct {
 	TimeModelName   string
 	TimeModelStarts string
 	TimeModelEnds   string
-	Emergency       []HolidayGuestContact
-	Pickup          []HolidayGuestContact
-	Answers         []HolidayHostAnswer
+	// Days names the booked dates; empty books the whole week.
+	Days      []calendar.Date
+	Emergency []HolidayGuestContact
+	Pickup    []HolidayGuestContact
+	Answers   []HolidayHostAnswer
 	// Health is the copied health information (#4722), nil without any. The
 	// store keeps it sealed for the school and the child; HealthSealed
 	// carries the stored value between the store and the service.

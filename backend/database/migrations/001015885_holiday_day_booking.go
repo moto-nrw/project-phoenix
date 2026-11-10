@@ -33,6 +33,8 @@ func init() {
 //   - holiday_registration_bookings.days: the days a booking of a week by
 //     days names, NULL for a booking of the whole week. The application
 //     checks them against the week; the CHECK bounds their number.
+//   - holiday_guests.days: the dates copied to the hosting school, so a
+//     date-only rebooking replans care without touching unchanged plans.
 //   - parent_billing.holiday_contribution_lines.booked_days: the number of
 //     days a base line prices, NULL for a whole week. The price of a time
 //     model of a week by days is the price of one day.
@@ -58,6 +60,10 @@ ALTER TABLE enrollment.holiday_registration_bookings ADD CONSTRAINT chk_holiday_
 COMMENT ON COLUMN enrollment.holiday_registration_bookings.days IS
 	'The booked days of a week offered by days, ascending; NULL books the whole week (#4701).';
 
+ALTER TABLE enrollment.holiday_guests ADD COLUMN IF NOT EXISTS days DATE[];
+COMMENT ON COLUMN enrollment.holiday_guests.days IS
+	'Booked dates copied to the hosting school for care planning; NULL books the whole week (#4701).';
+
 ALTER TABLE parent_billing.holiday_contribution_lines ADD COLUMN IF NOT EXISTS booked_days SMALLINT;
 ALTER TABLE parent_billing.holiday_contribution_lines DROP CONSTRAINT IF EXISTS chk_holiday_contribution_lines_booked_days;
 ALTER TABLE parent_billing.holiday_contribution_lines ADD CONSTRAINT chk_holiday_contribution_lines_booked_days
@@ -67,6 +73,7 @@ COMMENT ON COLUMN parent_billing.holiday_contribution_lines.booked_days IS
 `
 
 const holidayDayBookingDownSQL = `
+ALTER TABLE enrollment.holiday_guests DROP COLUMN IF EXISTS days;
 ALTER TABLE parent_billing.holiday_contribution_lines DROP CONSTRAINT IF EXISTS chk_holiday_contribution_lines_booked_days;
 ALTER TABLE parent_billing.holiday_contribution_lines DROP COLUMN IF EXISTS booked_days;
 ALTER TABLE enrollment.holiday_registration_bookings DROP CONSTRAINT IF EXISTS chk_holiday_registration_bookings_days;

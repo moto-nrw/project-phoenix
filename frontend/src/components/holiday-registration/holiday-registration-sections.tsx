@@ -261,25 +261,6 @@ function DayChoice({
   );
 }
 
-/**
- * The bound of care days per child (#4701) with the days chosen so far; over
- * the bound it turns into a warning.
- */
-function DayLimitHint({
-  limit,
-  count,
-}: Readonly<{ limit: number; count: number }>) {
-  const t = useTranslations("holidayRegistration");
-  const over = count > limit;
-  return (
-    <Alert
-      type={over ? "warning" : "info"}
-      size="compact"
-      message={`${t("dayLimitHint", { limit })} ${t(over ? "dayLimitOver" : "dayLimitCount", { count })}`}
-    />
-  );
-}
-
 export function ChildCard({
   index,
   child,
@@ -317,6 +298,9 @@ export function ChildCard({
       .map((_, booking) => fieldError(`${prefix}.bookings.${booking}`))
       .find(Boolean);
   const birthDateError = fieldError(`${prefix}.birth_date`);
+  const dayCount = bookedDayCount(child, offer);
+  const overDayLimit =
+    offer.maxDaysPerChild != null && dayCount > offer.maxDaysPerChild;
 
   return (
     <SectionCard
@@ -426,37 +410,40 @@ export function ChildCard({
               .join(" ")}
           </p>
           {offer.maxDaysPerChild == null ? null : (
-            <DayLimitHint
-              limit={offer.maxDaysPerChild}
-              count={bookedDayCount(child, offer)}
+            <Alert
+              type={overDayLimit ? "warning" : "info"}
+              size="compact"
+              message={`${t("dayLimitHint", { limit: offer.maxDaysPerChild })} ${t(overDayLimit ? "dayLimitOver" : "dayLimitCount", { count: dayCount })}`}
             />
           )}
-          {groupParallelWeeks(offer.weeks).map((group) => (
-            <WeekChoice
-              key={group[0]?.id}
-              group={group}
-              prefix={prefix}
-              value={weekGroupBooking(child.bookings, group)}
-              days={
-                group
-                  .map((week) => child.days?.[week.id])
-                  .find((chosen) => chosen && chosen.length > 0) ?? []
-              }
-              onDaysChange={(weekId, days) =>
-                set({ days: { ...child.days, [weekId]: days } })
-              }
-              invalid={Boolean(bookingsError)}
-              onChange={(timeModelId) =>
-                set({
-                  bookings: withWeekGroupBooking(
-                    child.bookings,
-                    group,
-                    timeModelId,
-                  ),
-                })
-              }
-            />
-          ))}
+          {groupParallelWeeks(offer.weeks).map((group) => {
+            const value = weekGroupBooking(child.bookings, group);
+            const bookedWeek = group.find((week) =>
+              week.timeModels.some((model) => model.id === value),
+            );
+            return (
+              <WeekChoice
+                key={group[0]?.id}
+                group={group}
+                prefix={prefix}
+                value={value}
+                days={bookedWeek ? (child.days?.[bookedWeek.id] ?? []) : []}
+                onDaysChange={(weekId, days) =>
+                  set({ days: { ...child.days, [weekId]: days } })
+                }
+                invalid={Boolean(bookingsError)}
+                onChange={(timeModelId) =>
+                  set({
+                    bookings: withWeekGroupBooking(
+                      child.bookings,
+                      group,
+                      timeModelId,
+                    ),
+                  })
+                }
+              />
+            );
+          })}
           <FieldErrorHint
             id={`${prefix}-bookings-error`}
             message={bookingsError}

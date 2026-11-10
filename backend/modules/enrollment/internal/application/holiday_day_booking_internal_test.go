@@ -59,6 +59,21 @@ func TestHolidayFirstFitHoldsTheCapacityOnEachDay(t *testing.T) {
 	assert.Empty(t, holidayFirstFit(whole))
 }
 
+// Whole-week offers without weekdays still have one place per child.
+func TestHolidayFirstFitKeepsCapacityForWeekendOnlyWeeks(t *testing.T) {
+	t.Parallel()
+	one := 1
+	queue := enrollment.HolidayWeekQueue{
+		Capacity: &one, StartsOn: calendar.NewDate(2027, 1, 9), EndsOn: calendar.NewDate(2027, 1, 10),
+		Bookings: []enrollment.HolidayQueuedBooking{{ID: 1}, {ID: 2}, {ID: 3}},
+	}
+	assert.Equal(t, []int64{1}, firstFitIDs(holidayFirstFit(queue)))
+	queue.Bookings[0].Placed = true
+	assert.Empty(t, holidayFirstFit(queue), "the existing booking already takes the only place")
+	queue.Capacity = nil
+	assert.Equal(t, []int64{2, 3}, firstFitIDs(holidayFirstFit(queue)))
+}
+
 // The care days of a week are its days from Monday to Friday; a whole week
 // counts all of them against the bound of the period.
 func TestHolidayDayLimitCountsTheCareDaysOfEveryBooking(t *testing.T) {

@@ -126,6 +126,11 @@ func (p holidayPlacement) placeWeek(ctx context.Context, organizationID, weekID,
 // every day, so this is the first free places in order, as before.
 func holidayFirstFit(queue enrollment.HolidayWeekQueue) []enrollment.HolidayQueuedBooking {
 	careDays := enrollment.HolidayWeekCareDays(queue.StartsOn, queue.EndsOn)
+	if len(careDays) == 0 {
+		// Whole-week offers can cover only a weekend. Count each booking
+		// against one shared date so their capacity still holds per child.
+		careDays = []calendar.Date{queue.StartsOn}
+	}
 	daysOf := func(booking enrollment.HolidayQueuedBooking) []calendar.Date {
 		if len(booking.Days) > 0 {
 			return booking.Days

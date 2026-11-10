@@ -275,10 +275,13 @@ var holidayParticipantColumns = []lists.Column{
 }
 
 // holidayParticipantExtraColumns adds to the minimum fields the second
-// guardian, when a child has one, and one column per shared question
-// (#5202). A list without either keeps exactly the columns of before.
+// guardian, when a child has one, the booked dates of a day offer, and one
+// column per shared question (#5202).
 func holidayParticipantExtraColumns(list capability.HolidayParticipantList) []lists.Column {
 	columns := append([]lists.Column{}, holidayParticipantColumns...)
+	if list.Week.BookingUnit == capability.HolidayBookingUnitDay {
+		columns = append(columns, lists.Column{ID: "days", Label: "Tage"})
+	}
 	for _, participant := range list.Participants {
 		if participant.SecondGuardian != nil {
 			columns = append(columns,
@@ -325,6 +328,11 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 			"birth_date": participant.BirthDate.Format("02.01.2006"), "home_school": names.participantSchool(participant),
 			"time_model": models[participant.TimeModelID],
 		}
+		days := make([]string, len(participant.Days))
+		for j, day := range participant.Days {
+			days[j] = day.Format("02.01.2006")
+		}
+		values["days"] = strings.Join(days, ", ")
 		if participant.SecondGuardian != nil {
 			values["second_guardian"] = participant.SecondGuardian.Name
 			values["second_guardian_phone"] = participant.SecondGuardian.Phone

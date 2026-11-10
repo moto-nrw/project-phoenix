@@ -255,7 +255,16 @@ func TestDateColumnTypes(t *testing.T) {
 				continue
 			}
 			for _, f := range fields {
-				switch f.goType {
+				fieldType := f.goType
+				if strings.Contains(ref, "(DATE[])") {
+					if !strings.HasPrefix(fieldType, "[]") {
+						violations = append(violations, formatViolation(f.file, f.line,
+							col+" is a DATE[] column — use []calendar.Date"))
+						continue
+					}
+					fieldType = strings.TrimPrefix(fieldType, "[]")
+				}
+				switch fieldType {
 				case "calendar.Date", "*calendar.Date":
 					// migrated — ok
 				case "calendarDate", "*calendarDate":
@@ -406,8 +415,8 @@ var (
 	createTableRe = regexp.MustCompile(`CREATE TABLE (?:IF NOT EXISTS )?([a-z_]+\.[a-z_]+)`)
 	alterTableRe  = regexp.MustCompile(`ALTER TABLE (?:ONLY )?(?:IF EXISTS )?([a-z_]+\.[a-z_]+)`)
 	// Case-sensitive DATE so CURRENT_DATE, ::date casts, and VALIDATE never match.
-	colDeclRe = regexp.MustCompile(`^\s*([a-z_]+)\s+DATE\b`)
-	addColRe  = regexp.MustCompile(`ADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_]+)\s+DATE\b`)
+	colDeclRe = regexp.MustCompile(`^\s*([a-z_]+)\s+DATE\b(\[\])?`)
+	addColRe  = regexp.MustCompile(`ADD COLUMN\s+(?:IF NOT EXISTS\s+)?([a-z_]+)\s+DATE\b(\[\])?`)
 )
 
 // scanMigrationsForDateColumns line-scans the SQL embedded in migration Go
@@ -457,8 +466,14 @@ func scanMigrationsForDateColumns(t *testing.T, root string) map[string]string {
 
 			ref := fmt.Sprintf("database/migrations/%s:%d", entry.Name(), lineNo)
 			if m := addColRe.FindStringSubmatch(line); m != nil {
+				if m[2] != "" {
+					ref += " (DATE[])"
+				}
 				result[currentTable+"."+m[1]] = ref
 			} else if m := colDeclRe.FindStringSubmatch(line); m != nil {
+				if m[2] != "" {
+					ref += " (DATE[])"
+				}
 				result[currentTable+"."+m[1]] = ref
 			}
 		}
@@ -681,6 +696,10 @@ func renderType(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.StarExpr:
 		return "*" + renderType(e.X)
+	case *ast.ArrayType:
+		if e.Len == nil {
+			return "[]" + renderType(e.Elt)
+		}
 	case *ast.SelectorExpr:
 		if pkg, ok := e.X.(*ast.Ident); ok {
 			return pkg.Name + "." + e.Sel.Name
@@ -688,9 +707,8 @@ func renderType(expr ast.Expr) string {
 		return e.Sel.Name
 	case *ast.Ident:
 		return e.Name
-	default:
-		return "(complex)"
 	}
+	return "(complex)"
 }
 
 // underscore approximates bun's CamelCase → snake_case column naming.
