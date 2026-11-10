@@ -18,7 +18,7 @@ func NewHolidayPeriods(today func() calendar.Date, schoolCalendar enrollment.Hol
 func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
 		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(), Forms: postgres.NewHolidayPeriodStore(),
-		Proofs: postgres.NewHolidayRegistrationStore(), Places: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Calendar: schoolCalendar, Random: random, Fingerprint: fingerprint, Logger: logger,
+		Proofs: postgres.NewHolidayRegistrationStore(), Places: postgres.NewHolidayRegistrationStore(), Criteria: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Calendar: schoolCalendar, Random: random, Fingerprint: fingerprint, Logger: logger,
 	})
 }
 
@@ -29,7 +29,14 @@ func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.Holi
 
 // NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722) and places (#4699); nil mail moves nobody up; schoolCalendar (#4702) may be nil without rebooking.
 func NewHolidayRegistrationReview(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces) {
-	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, mail, schoolCalendar)
+	review, places, _ := NewHolidayReviewAllocation(health, mail, schoolCalendar)
+	return review, places
+}
+
+// NewHolidayReviewAllocation builds the review and places with the allocation by criteria over them (#4700); nil mail decides nothing.
+func NewHolidayReviewAllocation(health enrollment.HolidayHealthCipher, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (enrollment.HolidayRegistrationReview, enrollment.HolidayPlaces, enrollment.HolidayAllocation) {
+	review, places := applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, mail, schoolCalendar)
+	return review, places, applicationNative.NewHolidayAllocation(review)
 }
 
 // NewHolidayHealthExportFields opens the sealed health information for the return export (#3838, #6328); only the administrative export CLI binds it, never HTTP.

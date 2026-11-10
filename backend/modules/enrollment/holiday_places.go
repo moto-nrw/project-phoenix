@@ -30,6 +30,9 @@ import (
 const (
 	HolidayPlacementPlaced     = "placed"
 	HolidayPlacementWaitlisted = "waitlisted"
+	// HolidayPlacementPending is a booking of a period by criteria that
+	// waits for the decision of the Träger-Büro (#4700).
+	HolidayPlacementPending = "pending"
 )
 
 // Actions of the audit trail of the places (#4699): a booking moved up, a
@@ -95,6 +98,9 @@ type HolidayWeekPlaces struct {
 	Capacity     *int                   `json:"capacity"`
 	Placed       int                    `json:"placed"`
 	Waitlist     []HolidayWaitlistEntry `json:"waitlist"`
+	// Pending counts the bookings that wait for the decision of the Büro
+	// (#4700).
+	Pending int `json:"pending"`
 	// BookingUnit is how the week is booked; Days are the placed bookings
 	// of each care day of a week by days, empty for a whole week (#4701).
 	BookingUnit string             `json:"booking_unit"`
@@ -117,6 +123,10 @@ type HolidayPlaceGrantedMail struct {
 	TraegerName  string `json:"traeger_name"`
 	PeriodName   string `json:"period_name"`
 	Binding      bool   `json:"binding"`
+	// Allocated marks the mail of a decision of the Büro by criteria
+	// (#4700): the children name the weeks with a place and those on the
+	// waiting list.
+	Allocated bool `json:"allocated,omitempty"`
 	// Children are the children that moved up, each with the weeks it now
 	// has a place in.
 	Children []HolidayRegistrationMailChild `json:"children"`

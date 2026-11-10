@@ -114,7 +114,7 @@ const (
 		LEFT JOIN (
 			SELECT waiting_booking.id, row_number() OVER (
 				PARTITION BY waiting_booking.holiday_period_week_id
-				ORDER BY registration.submitted_at, registration.id, waiting_child.position) AS position
+				ORDER BY ` + holidayCriteriaOrderHead + "waiting_child" + holidayCriteriaOrderTail + `, registration.submitted_at, registration.id, waiting_child.position) AS position
 			FROM enrollment.holiday_registration_bookings AS waiting_booking
 			JOIN enrollment.holiday_registration_children AS waiting_child
 				ON waiting_child.organization_id = waiting_booking.organization_id AND waiting_child.id = waiting_booking.holiday_registration_child_id
@@ -423,13 +423,13 @@ const (
 		)
 		INSERT INTO enrollment.holiday_registration_bookings AS booking
 			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement, days)
-		SELECT ?, ?, ?, wanted.week_id, wanted.time_model_id, 'waitlisted', wanted.days
+		SELECT ?, ?, ?, wanted.week_id, wanted.time_model_id, ?::text, wanted.days
 		FROM wanted
 		ON CONFLICT (holiday_registration_child_id, holiday_period_week_id)
 			DO UPDATE SET holiday_week_time_model_id = EXCLUDED.holiday_week_time_model_id,
 				days = EXCLUDED.days,
 				placement = CASE WHEN booking.days IS NULL OR EXCLUDED.days IS NULL OR EXCLUDED.days <@ booking.days
-					THEN booking.placement ELSE 'waitlisted' END,
+					THEN booking.placement ELSE ?::text END,
 				promoted_at = CASE WHEN booking.days IS NULL OR EXCLUDED.days IS NULL OR EXCLUDED.days <@ booking.days
 					THEN booking.promoted_at ELSE NULL END
 		RETURNING booking.holiday_period_week_id,
@@ -442,8 +442,9 @@ const (
 // it newly books, which wait for their placement (#4699). A week it keeps
 // keeps its placement. The caller checked that the child belongs to the
 // locked registration and that every week and time model belongs to the
-// period.
-func (s *HolidayRegistrationStore) ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) ([]int64, error) {
+// period. A new or grown booking takes the placement waiting: waitlisted, or
+// pending in a period by criteria (#4700).
+func (s *HolidayRegistrationStore) ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput, waiting string) ([]int64, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -463,7 +464,7 @@ func (s *HolidayRegistrationStore) ReplaceHolidayChildBookings(ctx context.Conte
 		Inserted bool  `bun:"inserted"`
 	}
 	if err := db.NewRaw(insertHolidayChildBookingsQuery, pgdialect.Array(weekIDs), pgdialect.Array(modelIDs), pgdialect.Array(days),
-		organizationID, childID, organizationID, periodID, childID).Scan(ctx, &written); err != nil {
+		organizationID, childID, organizationID, periodID, childID, waiting, waiting).Scan(ctx, &written); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: insert holiday child bookings: %w", err)
 	}
 	for _, week := range written {

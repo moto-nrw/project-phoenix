@@ -116,11 +116,13 @@ const (
 		WHERE organization_id = ? AND id = ?`
 	// insertHolidayBookingsQuery puts every booking on the waiting list:
 	// only the placement under the lock of its week gives it a place (#4699).
+	// In a period by criteria it is pending instead: only the Büro gives it
+	// a place (#4700).
 	// A booking of days carries its days as an array literal, a booking of
 	// the whole week an empty text (#4701).
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
 			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement, days)
-		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id, 'waitlisted', NULLIF(booking.days, '')::date[]
+		SELECT ?, ?, booking.child_id, booking.week_id, booking.time_model_id, ?::text, NULLIF(booking.days, '')::date[]
 		FROM unnest(?::bigint[], ?::bigint[], ?::bigint[], ?::text[]) AS booking(child_id, week_id, time_model_id, days)`
 	insertHolidayContactsQuery = `INSERT INTO enrollment.holiday_registration_contacts
 			(organization_id, holiday_registration_id, kind, position, name, phone, relationship)
@@ -170,7 +172,7 @@ func encodeAnswers(answers enrollment.HolidayAnswers) (string, error) {
 // sealed health information when it has any, one per child and one each for
 // all bookings and all contacts. seal returns the sealed values for the new
 // registration's ID; the store writes no plaintext health information.
-func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput,
+func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput, waiting string,
 	seal func(registrationID int64) (enrollment.HolidaySealedHealth, error)) (enrollment.HolidayRegistrationReceipt, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -203,7 +205,11 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
-	if err := insertHolidayChildren(ctx, db, organizationID, periodID, receipt.ID, input.Children, sealed.Children); err != nil {
+	childIDs, err := insertHolidayChildren(ctx, db, organizationID, periodID, receipt.ID, input.Children, sealed.Children, waiting)
+	if err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	if err := insertHolidayCriterionAnswers(ctx, db, organizationID, periodID, receipt.ID, input, childIDs); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	if err := insertHolidayContacts(ctx, db, organizationID, receipt.ID, input); err != nil {
@@ -232,9 +238,11 @@ func storeHolidayFamilyHealth(ctx context.Context, db bun.IDB, organizationID, r
 }
 
 // insertHolidayChildren stores one row per child with its sealed health
-// information, then all bookings in one statement.
+// information, then all bookings in one statement with the placement
+// waiting, and returns the children's IDs in their order.
 func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, periodID, registrationID int64,
-	children []enrollment.HolidayChildInput, sealed [][]byte) error {
+	children []enrollment.HolidayChildInput, sealed [][]byte, waiting string) ([]int64, error) {
+	ids := make([]int64, len(children))
 	var childIDs, weekIDs, modelIDs []int64
 	var days []string
 	for i, child := range children {
@@ -248,8 +256,9 @@ func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, peri
 			row.HomeSchoolID = &child.HomeSchoolID
 		}
 		if _, err := db.NewInsert().Model(&row).ExcludeColumn("id").Returning("id").Exec(ctx); err != nil {
-			return fmt.Errorf("enrollment postgres: insert holiday registration child: %w", err)
+			return nil, fmt.Errorf("enrollment postgres: insert holiday registration child: %w", err)
 		}
+		ids[i] = row.ID
 		for _, booking := range child.Bookings {
 			childIDs = append(childIDs, row.ID)
 			weekIDs = append(weekIDs, booking.WeekID)
@@ -257,11 +266,11 @@ func insertHolidayChildren(ctx context.Context, db bun.IDB, organizationID, peri
 			days = append(days, holidayDaysLiteral(booking.Days))
 		}
 	}
-	if _, err := db.NewRaw(insertHolidayBookingsQuery, organizationID, periodID, pgdialect.Array(childIDs),
+	if _, err := db.NewRaw(insertHolidayBookingsQuery, organizationID, periodID, waiting, pgdialect.Array(childIDs),
 		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs), pgdialect.Array(days)).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: insert holiday registration bookings: %w", err)
+		return nil, fmt.Errorf("enrollment postgres: insert holiday registration bookings: %w", err)
 	}
-	return nil
+	return ids, nil
 }
 
 func insertHolidayContacts(ctx context.Context, db bun.IDB, organizationID, registrationID int64, input enrollment.HolidayRegistrationInput) error {

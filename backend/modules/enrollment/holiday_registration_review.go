@@ -120,8 +120,8 @@ type HolidayRegistrationBooking struct {
 	// Days are the booked days of a week by days, empty for a whole week
 	// (#4701).
 	Days []calendar.Date `json:"days,omitempty"`
-	// Placement is HolidayPlacementPlaced or HolidayPlacementWaitlisted
-	// (#4699); WaitlistPosition is the place in the waiting list of the
+	// Placement is HolidayPlacementPlaced, HolidayPlacementWaitlisted
+	// (#4699) or HolidayPlacementPending (#4700); WaitlistPosition is the place in the waiting list of the
 	// week, from 1, for a waitlisted booking of a registration that counts.
 	Placement        string     `json:"placement"`
 	WaitlistPosition *int       `json:"waitlist_position,omitempty"`
@@ -297,6 +297,9 @@ type HolidayRegistrationDetail struct {
 	// recipients of the Elternabrechnung carry it (#5627), no answer does.
 	BenefitsProofAttached bool                       `json:"-"`
 	History               []HolidayRegistrationEvent `json:"history"`
+	// Criteria are the answers to the criteria of a period by criteria
+	// (#4700), empty for a period by arrival. Only the detail names them.
+	Criteria []HolidayRegistrationCriterion `json:"criteria"`
 	// Promotions are the bookings of other registrations that moved up from
 	// the waiting list because of the change that answers with this detail:
 	// a cancellation or a rebooking (#4699). A read has none.

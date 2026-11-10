@@ -738,7 +738,7 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 				TimeModelID: booking.TimeModelID, TimeModelName: booking.TimeModelName, PriceCents: booking.PriceCents,
 				BookedDays:    len(booking.Days),
 				Days:          booking.Days,
-				Waitlisted:    booking.Placement == enrollmentOwner.HolidayPlacementWaitlisted,
+				Waitlisted:    booking.Placement != enrollmentOwner.HolidayPlacementPlaced,
 				Promoted:      booking.PromotedAt != nil,
 				ReplacedWeeks: replacements,
 			}
@@ -759,6 +759,7 @@ func parentBillingHolidayError(err error) error {
 		{enrollmentOwner.ErrHolidayRegistrationEntryNotFound, parentbilling.ErrHolidayRegistrationNotFound},
 		{enrollmentOwner.ErrHolidayRegistrationStateConflict, parentbilling.ErrHolidayRegistrationStateConflict},
 		{enrollmentOwner.ErrHolidayRegistrationFrozen, parentbilling.ErrHolidayRegistrationFrozen},
+		{enrollmentOwner.ErrHolidayAllocationPending, parentbilling.ErrHolidayAllocationPending},
 	} {
 		if errors.Is(err, known.from) {
 			return fmt.Errorf("%w: %w", known.to, err)

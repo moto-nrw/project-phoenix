@@ -89,6 +89,10 @@ type HolidayRegistrationOffer struct {
 	// MaxDaysPerChild bounds the care days per child, nil for no bound
 	// (#4701).
 	MaxDaysPerChild *int
+	// AllocationMode is how the period gives its places (#4700); Criteria
+	// are the questions of its active criteria, empty by arrival.
+	AllocationMode string
+	Criteria       []HolidayCriterionQuestion
 	// FullDays are the days of each week by days without a free place, by
 	// week ID (#4701); a booking of such a day waits.
 	FullDays map[int64][]calendar.Date
@@ -141,6 +145,9 @@ type HolidayChildInput struct {
 	// CustomData are the answers to the questions of the form per child
 	// (#5198), by field key.
 	CustomData HolidayAnswers
+	// Criteria are the answers to the child criteria of a period by
+	// criteria, by criterion ID (#4700).
+	Criteria map[int64]bool
 }
 
 // HolidayContactInput is an emergency contact or a person allowed to
@@ -182,7 +189,10 @@ type HolidayRegistrationInput struct {
 	BenefitsProofTokens []string
 	FormVersion         int
 	CustomData          HolidayAnswers
-	LegalAcceptances    map[string]bool
+	// Criteria are the answers to the family criteria of a period by
+	// criteria, by criterion ID (#4700).
+	Criteria         map[int64]bool
+	LegalAcceptances map[string]bool
 	// ConsentVersion is the version of the consent texts the parent agreed
 	// to (#4722). A new registration names HolidayConsentVersionCurrent
 	// (#5626); from HolidayConsentVersionHostHealth on the hosting OGS sees
@@ -256,6 +266,8 @@ type HolidayRegistrationMailChild struct {
 	// WaitlistWeeks are the weeks the child waits for a place in (#4699);
 	// Weeks then are the weeks with a place. A mail enqueued before has none.
 	WaitlistWeeks []string `json:"waitlist_weeks,omitempty"`
+	// PendingWeeks are the weeks the Büro still decides on (#4700).
+	PendingWeeks []string `json:"pending_weeks,omitempty"`
 }
 
 // HolidayRegistrationMail is the payload of the receipt mail. It carries no

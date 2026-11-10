@@ -85,8 +85,15 @@ const CodeEnrollmentGuardianAccountMismatch = "enrollment.guardian_account_misma
 const CodeEnrollmentGuardianEmailRequired = "enrollment.guardian_email_required"
 const CodeEnrollmentGuardianNameRequired = "enrollment.guardian_name_required"
 const CodeEnrollmentGuardianPhoneRequired = "enrollment.guardian_phone_required"
+const CodeEnrollmentHolidayAllocationChanged = "enrollment.holiday_allocation_changed"
+const CodeEnrollmentHolidayAllocationFull = "enrollment.holiday_allocation_full"
+const CodeEnrollmentHolidayAllocationModeLocked = "enrollment.holiday_allocation_mode_locked"
+const CodeEnrollmentHolidayAllocationOff = "enrollment.holiday_allocation_off"
+const CodeEnrollmentHolidayAllocationPending = "enrollment.holiday_allocation_pending"
+const CodeEnrollmentHolidayAllocationReasonRequired = "enrollment.holiday_allocation_reason_required"
 const CodeEnrollmentHolidayBookingUnitBooked = "enrollment.holiday_booking_unit_booked"
 const CodeEnrollmentHolidayChildDayLimit = "enrollment.holiday_child_day_limit"
+const CodeEnrollmentHolidayCriteriaInvalid = "enrollment.holiday_criteria_invalid"
 const CodeEnrollmentHolidayFormFieldNotAllowed = "enrollment.holiday_form_field_not_allowed"
 const CodeEnrollmentHolidayGuestGroupInvalid = "enrollment.holiday_guest_group_invalid"
 const CodeEnrollmentHolidayGuestNotFound = "enrollment.holiday_guest_not_found"
@@ -240,8 +247,15 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentGuardianEmailRequired, "input"},
 	{CodeEnrollmentGuardianNameRequired, "input"},
 	{CodeEnrollmentGuardianPhoneRequired, "input"},
+	{CodeEnrollmentHolidayAllocationChanged, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationFull, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationModeLocked, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationOff, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationPending, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationReasonRequired, "input"},
 	{CodeEnrollmentHolidayBookingUnitBooked, "business_rejection"},
 	{CodeEnrollmentHolidayChildDayLimit, "input"},
+	{CodeEnrollmentHolidayCriteriaInvalid, "input"},
 	{CodeEnrollmentHolidayFormFieldNotAllowed, "input"},
 	{CodeEnrollmentHolidayGuestGroupInvalid, "input"},
 	{CodeEnrollmentHolidayGuestNotFound, "business_rejection"},

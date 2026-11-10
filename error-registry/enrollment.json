@@ -946,6 +946,48 @@
       "class": "input",
       "parameters": [],
       "legacy": "enrollment.family_children_invalid"
+    },
+    {
+      "code": "enrollment.holiday_allocation_mode_locked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_mode_locked"
+    },
+    {
+      "code": "enrollment.holiday_allocation_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_pending"
+    },
+    {
+      "code": "enrollment.holiday_allocation_full",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_full"
+    },
+    {
+      "code": "enrollment.holiday_allocation_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_changed"
+    },
+    {
+      "code": "enrollment.holiday_allocation_off",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_off"
+    },
+    {
+      "code": "enrollment.holiday_allocation_reason_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_reason_required"
+    },
+    {
+      "code": "enrollment.holiday_criteria_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_criteria_invalid"
     }
   ]
 }

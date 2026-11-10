@@ -61,12 +61,14 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 		subject = "Ferienanmeldung eingegangen: " + payload.PeriodName
 	}
 	children := make([]map[string]any, 0, len(payload.Children))
-	waitlisted := false
+	waitlisted, pending := false, false
 	for _, child := range payload.Children {
 		children = append(children, map[string]any{
 			"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks,
+			"PendingWeeks": child.PendingWeeks,
 		})
 		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
+		pending = pending || len(child.PendingWeeks) > 0
 	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
@@ -80,6 +82,7 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 			"Binding":      payload.Binding,
 			"Children":     children,
 			"Waitlisted":   waitlisted,
+			"Pending":      pending,
 			"Declaration":  holidayDeclarationContent(payload.Declaration),
 		},
 	}, nil
@@ -96,12 +99,18 @@ func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessa
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
 	subject := "Ferienplatz frei geworden"
+	if payload.Allocated {
+		// The Büro decided on the places by criteria (#4700).
+		subject = "Ferienplätze vergeben"
+	}
 	if payload.PeriodName != "" {
-		subject = "Ferienplatz frei geworden: " + payload.PeriodName
+		subject += ": " + payload.PeriodName
 	}
 	children := make([]map[string]any, 0, len(payload.Children))
+	waitlisted := false
 	for _, child := range payload.Children {
-		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks})
+		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks})
+		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
 	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
@@ -114,6 +123,8 @@ func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessa
 			"PeriodName":   payload.PeriodName,
 			"Binding":      payload.Binding,
 			"Children":     children,
+			"Allocated":    payload.Allocated,
+			"Waitlisted":   waitlisted,
 		},
 	}, nil
 }

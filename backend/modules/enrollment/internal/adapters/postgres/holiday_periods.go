@@ -66,6 +66,7 @@ type holidayPeriodRow struct {
 	PublicToken          string        `bun:"public_token"`
 	RegistrationCount    int           `bun:"registration_count"`
 	MaxDaysPerChild      *int          `bun:"max_days_per_child"`
+	AllocationMode       string        `bun:"allocation_mode"`
 }
 
 type holidayWeekRow struct {
@@ -93,7 +94,7 @@ type holidayTimeModelRow struct {
 
 const (
 	holidayPeriodColumns = `id, name, registration_opens_on, registration_closes_on, binding, notes,
-		status, published_at, updated_at, public_token, max_days_per_child,
+		status, published_at, updated_at, public_token, max_days_per_child, allocation_mode,
 		(SELECT count(*) FROM enrollment.holiday_registrations AS registration
 			WHERE registration.organization_id = holiday_periods.organization_id
 				AND registration.holiday_period_id = holiday_periods.id) AS registration_count`
@@ -209,14 +210,15 @@ func (s *HolidayPeriodStore) withWeeks(ctx context.Context, db bun.IDB, organiza
 			Status: row.Status, PublishedAt: row.PublishedAt, UpdatedAt: row.UpdatedAt,
 			PublicToken: row.PublicToken, RegistrationCount: row.RegistrationCount, Weeks: periodWeeks,
 			MaxDaysPerChild: row.MaxDaysPerChild,
+			AllocationMode:  row.AllocationMode, AllocationModeLocked: row.RegistrationCount > 0,
 		})
 	}
 	return periods, nil
 }
 
 const insertHolidayPeriodQuery = `INSERT INTO enrollment.holiday_periods
-		(organization_id, name, registration_opens_on, registration_closes_on, binding, notes, max_days_per_child)
-	VALUES (?, ?, ?, ?, ?, ?, ?)
+		(organization_id, name, registration_opens_on, registration_closes_on, binding, notes, max_days_per_child, allocation_mode)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	RETURNING id`
 
 // InsertHolidayPeriod adds a draft period with its weeks and time models.
@@ -227,7 +229,7 @@ func (s *HolidayPeriodStore) InsertHolidayPeriod(ctx context.Context, organizati
 	}
 	var periodID int64
 	if err := db.NewRaw(insertHolidayPeriodQuery, organizationID, input.Name, input.RegistrationOpensOn,
-		input.RegistrationClosesOn, input.Binding, input.Notes, input.MaxDaysPerChild).Scan(ctx, &periodID); err != nil {
+		input.RegistrationClosesOn, input.Binding, input.Notes, input.MaxDaysPerChild, input.AllocationMode).Scan(ctx, &periodID); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: insert holiday period: %w", err)
 	}
 	if err := writeHolidayWeeks(ctx, db, organizationID, periodID, input.Weeks, calendar.TodayDate()); err != nil {
@@ -243,7 +245,7 @@ const checkHolidayBookingsNowQuery = `SET CONSTRAINTS enrollment.fk_holiday_regi
 	enrollment.fk_holiday_registration_bookings_time_model IMMEDIATE`
 
 const updateHolidayPeriodQuery = `UPDATE enrollment.holiday_periods
-	SET name = ?, registration_opens_on = ?, registration_closes_on = ?, binding = ?, notes = ?, max_days_per_child = ?
+	SET name = ?, registration_opens_on = ?, registration_closes_on = ?, binding = ?, notes = ?, max_days_per_child = ?, allocation_mode = ?
 	WHERE organization_id = ? AND id = ?`
 
 // UpdateHolidayPeriod writes the period and its weeks and time models.
@@ -253,7 +255,7 @@ func (s *HolidayPeriodStore) UpdateHolidayPeriod(ctx context.Context, organizati
 		return err
 	}
 	if _, err := db.NewRaw(updateHolidayPeriodQuery, input.Name, input.RegistrationOpensOn, input.RegistrationClosesOn,
-		input.Binding, input.Notes, input.MaxDaysPerChild, organizationID, periodID).Exec(ctx); err != nil {
+		input.Binding, input.Notes, input.MaxDaysPerChild, input.AllocationMode, organizationID, periodID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: update holiday period: %w", err)
 	}
 	if _, err := db.NewRaw(checkHolidayBookingsNowQuery).Exec(ctx); err != nil {

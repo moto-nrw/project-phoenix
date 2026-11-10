@@ -84,6 +84,9 @@ var (
 	// ErrHolidayRegistrationFrozen reports a cancellation of a registration
 	// after the registration deadline; the Träger-Büro reopens it first.
 	ErrHolidayRegistrationFrozen = errors.New("the holiday registration is frozen")
+	// ErrHolidayAllocationPending reports a confirmation of a registration
+	// with a booking the Büro has not decided on by criteria (#4700).
+	ErrHolidayAllocationPending = errors.New("the holiday registration has bookings without a decision on their place")
 	// ErrDebtorNumberLocked reports a change of the debtor number of a
 	// registration an issued invoice already bills: the invoice keeps its
 	// copy (#5621, ADR 0119).
