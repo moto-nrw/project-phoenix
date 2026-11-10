@@ -18,8 +18,9 @@ const bulkCancelReason = "Termine im Zeitraum abgesagt"
 // Each occurrence runs through Cancel (change log entry, SSE) and then the
 // DeleteCancelled path (slot exception, so no later materialization or
 // re-plan recreates it). Guardians are not notified. opts.DryRun only counts.
-// Everything runs in one tenant transaction behind the ascending day locks
-// ReplanWeek takes, so a concurrent move into the range waits.
+// Everything runs in one tenant transaction behind the recurrence gate and
+// the ascending day locks ReplanWeek takes, so a concurrent move into the
+// range or a materialization run waits.
 func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, to calendar.Date, opts timetable.BulkCancelOptions, actorAccountID *int64) (*timetable.BulkCancelResult, error) {
 	if err := timetable.ValidateBulkCancelRange(from.String(), to.String()); err != nil {
 		return nil, err
@@ -34,6 +35,11 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 		return result, err
 	}
 	if !opts.DryRun {
+		// The recurrence gate before the days: the deletes write slot
+		// exceptions a running materialization must see (#6499).
+		if err := s.lockRecurrence(ctx, "bulk cancel"); err != nil {
+			return nil, err
+		}
 		if err := s.LockDeviationDays(ctx, tenant.FromContext(ctx), from, to); err != nil {
 			return nil, &ports.ScheduleError{Op: "bulk cancel: lock days", Err: err}
 		}
