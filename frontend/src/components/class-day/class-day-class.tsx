@@ -12,7 +12,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 // ein; die Rückmeldung der OGS steht am Kind (#4796).
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -396,6 +396,13 @@ export function ClassDayClass({
     setHintOpen(false);
     hintErrors.clear();
   };
+  const retrySaveRef = useRef<
+    Record<"hint" | "morning" | "handover", () => Promise<void>>
+  >({
+    hint: async () => undefined,
+    morning: async () => undefined,
+    handover: async () => undefined,
+  });
   const saveHint = async () => {
     if (trimmedHint === "") {
       hintErrors.invalid("Bitte schreiben Sie einen Hinweis.", {
@@ -419,7 +426,7 @@ export function ClassDayClass({
       });
       await hintErrors.show(err, {
         object: "der Hinweis",
-        retry: () => void saveHint(),
+        retry: () => void retrySaveRef.current.hint(),
       });
     } finally {
       setHintSaving(false);
@@ -528,7 +535,7 @@ export function ClassDayClass({
       });
       void morningErrors.show(cause, {
         object: "die Anwesenheit",
-        retry: () => void saveMorning(),
+        retry: () => void retrySaveRef.current.morning(),
       });
     } finally {
       setSavingMorning(false);
@@ -593,12 +600,19 @@ export function ClassDayClass({
       });
       void handoverErrors.show(cause, {
         object: "die Übergabe",
-        retry: () => void saveHandover(),
+        retry: () => void retrySaveRef.current.handover(),
       });
     } finally {
       setSavingHandover(false);
     }
   };
+  useLayoutEffect(() => {
+    retrySaveRef.current = {
+      hint: saveHint,
+      morning: saveMorning,
+      handover: saveHandover,
+    };
+  });
   const confirmWithdraw = async () => {
     if (!withdrawClassHandover) return;
     withdrawErrors.clear();

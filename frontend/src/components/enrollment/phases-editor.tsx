@@ -913,6 +913,7 @@ export function PhasesEditor() {
           Formular ist zu breit für eine aufgeklappte Tabellenzeile, und die
           Liste darf beim Bearbeiten nicht verschwinden. */}
           <SlideOver
+            isDismissDisabled={saving}
             open={Boolean((editingId && draft) ?? rolloverSource)}
             onOpenChange={(open) => {
               if (open) return;
