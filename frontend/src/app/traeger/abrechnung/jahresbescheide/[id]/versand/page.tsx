@@ -13,13 +13,10 @@ import {
   NOTICE_KIND_TONES,
   noticeCountLabel,
 } from "~/components/traeger/care-notice-format";
-import {
-  canSendMail,
-  mailBadge,
-  mailStatusDetail,
-} from "~/components/traeger/billing-mail-status";
+import { canSendMail } from "~/components/traeger/billing-mail-status";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
+import { LetterSendCell } from "~/components/traeger/letter-send-cell";
 import {
   LetterSendState,
   lettersToSend,
@@ -109,20 +106,11 @@ function SendCell({ notice }: Readonly<{ notice: CareNoticeMailing }>) {
   if (!notice.hasLetter) {
     return <p className="text-sm text-gray-600">Noch kein Original</p>;
   }
-  const detail = mailStatusDetail(notice);
   return (
-    <div className="flex min-w-0 flex-col items-start gap-1">
-      <StatusBadge {...mailBadge(notice)} />
-      {detail ? <p className="text-xs text-gray-600">{detail}</p> : null}
-      {!notice.recipientEmail.trim() ? (
-        <p className="text-xs text-gray-600">Bitte drucken Sie den Bescheid.</p>
-      ) : null}
-      {!notice.inInbox ? (
-        <p className="text-xs text-gray-600">
-          Nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz.
-        </p>
-      ) : null}
-    </div>
+    <LetterSendCell
+      letter={notice}
+      printInstruction="Bitte drucken Sie den Bescheid."
+    />
   );
 }
 
