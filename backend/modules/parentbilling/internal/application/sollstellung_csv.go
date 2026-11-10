@@ -155,12 +155,6 @@ func invoiceSollRows(invoices []parentbilling.ExportInvoice) []sollRow {
 	return rows
 }
 
-// renderSollstellung writes the file of the invoices with the mapping, one
-// row per document.
-func renderSollstellung(mapping parentbilling.SollstellungMapping, invoices []parentbilling.ExportInvoice, fileNumber int64) ([]byte, error) {
-	return renderSollRows(mapping, invoiceSollRows(invoices), fileNumber)
-}
-
 // renderSollRows writes the file of the rows with the mapping.
 func renderSollRows(mapping parentbilling.SollstellungMapping, rows []sollRow, fileNumber int64) ([]byte, error) {
 	var buffer bytes.Buffer
