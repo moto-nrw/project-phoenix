@@ -917,7 +917,7 @@ interface StaffSessionBreak {
   id?: string;
   duration_minutes?: number;
   started_at: string;
-  ended_at: string | null;
+  ended_at?: string | null;
 }
 
 export interface StaffHistorySession {

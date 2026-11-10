@@ -72,7 +72,7 @@ export function AdminSessionEditModal({
     [mode, session],
   );
   const hasIndividualBreaks = breaks.length > 0;
-  const hasActiveBreak = breaks.some((brk) => brk.ended_at === null);
+  const hasActiveBreak = breaks.some((brk) => brk.ended_at == null);
   const [breakDurations, setBreakDurations] = useState<Record<string, string>>(
     {},
   );
@@ -354,7 +354,7 @@ export function AdminSessionEditModal({
                 />
               )}
               {parsedBreaks
-                .filter((brk) => brk.ended_at !== null)
+                .filter((brk) => brk.ended_at != null)
                 .map((brk) => (
                   <Input
                     key={brk.id}

@@ -181,47 +181,50 @@ describe("AdminSessionEditModal", () => {
     );
   });
 
-  it("explains why a running pause must end before correction", async () => {
-    const session = {
-      ...recordedSession,
-      check_out_time: null,
-      breaks: [
-        ...(recordedSession.breaks ?? []),
-        {
-          id: "83",
-          started_at: "2026-09-07T12:30:00Z",
-          ended_at: null,
-          duration_minutes: 0,
-        },
-      ],
-    };
-    render(
-      <AdminSessionEditModal
-        isOpen
-        mode="edit"
-        staffId="7"
-        date={new Date(2026, 8, 7)}
-        session={session}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
-    fireEvent.change(
-      screen.getByPlaceholderText(
-        "z. B. Mitarbeiter hatte vergessen einzustempeln",
-      ),
-      { target: { value: "Korrektur" } },
-    );
-    expect(
-      await screen.findByText(
-        "Die Pause läuft noch. Die Person muss sie zuerst beenden.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Änderungen speichern" }),
-    ).toBeDisabled();
-    expect(mocks.updateSession).not.toHaveBeenCalled();
-  });
+  it.each([null, undefined])(
+    "explains why a running pause must end before correction (%s)",
+    async (endedAt) => {
+      const session = {
+        ...recordedSession,
+        check_out_time: null,
+        breaks: [
+          ...(recordedSession.breaks ?? []),
+          {
+            id: "83",
+            started_at: "2026-09-07T12:30:00Z",
+            ...(endedAt === null ? { ended_at: null } : {}),
+            duration_minutes: 0,
+          },
+        ],
+      };
+      render(
+        <AdminSessionEditModal
+          isOpen
+          mode="edit"
+          staffId="7"
+          date={new Date(2026, 8, 7)}
+          session={session}
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />,
+      );
+      fireEvent.change(
+        screen.getByPlaceholderText(
+          "z. B. Mitarbeiter hatte vergessen einzustempeln",
+        ),
+        { target: { value: "Korrektur" } },
+      );
+      expect(
+        await screen.findByText(
+          "Die Pause läuft noch. Die Person muss sie zuerst beenden.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Änderungen speichern" }),
+      ).toBeDisabled();
+      expect(mocks.updateSession).not.toHaveBeenCalled();
+    },
+  );
 
   describe("edit across a daylight saving switch (#6293)", () => {
     // 20.10.2026 is summer time: 08:00 Berlin = 06:00 UTC. The stored end
