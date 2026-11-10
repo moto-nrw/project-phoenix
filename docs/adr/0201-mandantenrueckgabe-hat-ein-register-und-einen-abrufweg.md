@@ -36,7 +36,8 @@ Self-Service-Export, keine allgemeine Export-API, keine Importer, kein SLA.
    (`data_lifecycle_catalog.json`) und dem migrierten Schema, mit demselben
    Code wie `model.json`: `loadExportSchema` unter der Leserolle
    `phoenix_tenant_export` und `exportTableModel` je Tabelle. Es liest keine
-   Zeile.
+   Zeile. Der Generator läuft nur im Wächtertest; produktiv liefert die API
+   die eingebettete Datei.
 2. **Eingebettet und geprüft.** Das Ergebnis liegt als
    `backend/modules/organizationtenancy/return_register.json` im Repository und
    im Binary (`organizationtenancy.ReturnRegisterSource`).
