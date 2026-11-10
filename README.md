@@ -50,7 +50,7 @@ Project Phoenix is the software behind [**moto**](https://moto-ogs.de), the digi
 |---|---|
 | **NFC check-in/out** | Kids scan themselves in and out at tablet kiosks |
 | **Rooms & groups** | Occupancy, supervision, combined groups, activities with schedules |
-| **Parents portal** | Cross-school guardian accounts with multi-language UI (de/en/ru/sq) |
+| **Parents portal** | Cross-school guardian accounts with multi-language UI (de/en/pl/ru/sq/tr/uk) |
 | **Online enrollment** | Public, configurable enrollment forms with phases, care offerings, and consent blocks |
 | **Staff time tracking** | Work sessions, balances, and vacation workflows (ArbZG-aware) |
 | **Per-school settings** | Tenant admins configure behavior at runtime, no redeploys |
@@ -95,13 +95,13 @@ Editor/LSP setup, fresh worktrees and tooling health checks:
 | **Backend** | Go 1.27.3, Chi Router, Bun ORM |
 | **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
 | **Database** | PostgreSQL 17 with 15 domain schemas, SSL, Row-Level Security |
-| **Auth** | JWT with refresh tokens + MFA, NextAuth.js, three isolated portals (staff / operator / parents) |
+| **Auth** | JWT with refresh tokens + MFA, NextAuth.js, six isolated portals (staff / operator / parents / school / caterer / Träger) |
 | **Deployment** | Docker Compose, SOPS-encrypted environments, GitHub Actions CI/CD |
 
 ```
 project-phoenix/
 ├── backend/        # Go API: handlers, services, repositories, models, migrations
-├── frontend/       # Next.js app: staff, operator, and parents portals
+├── frontend/       # Next.js app: all six portals
 ├── environments/   # SOPS-encrypted staging/production configs
 └── docs/           # Documentation
 ```

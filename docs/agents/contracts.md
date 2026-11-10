@@ -24,8 +24,8 @@ no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 `status` as the HTTP status number, the diagnostic text in `detail` and the
 identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
 across repos. Changing a code the kiosk branches on is a two-repo change.
-PyrePortal's `CODE_MESSAGES` maps 35 codes; the backend pins them in two
-places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
+PyrePortal's `CODE_MESSAGES` maps 36 codes. `module.not_booked` is pinned
+under Booked modules below; the backend pins the other 35 in two places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
 conflict, staff-clock and open-room codes to the declaration that emits them
 (`TestFullProductionRouterGolden/contracts/IoT_error_code_declarations`). The
 21 codes of the table below are pinned on the wire (see after the table);
@@ -856,7 +856,7 @@ Backend paths in this section are relative to `backend/`:
   portal (empty or legacy `tenant` claim) and `platform`. The portal facts
   live in `tokenprimitives.AllPortalClaims()` and `internal/domain/portal.go`,
   pinned to each other by `TestPortalTableMatchesTheTokenGates`.
-  `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
+  `TestFullProductionRouterGolden/contracts/school_scope_matrix` checks school-token rejection under `/api`.
 - Every account portal answers a refused sign-in, MFA step, exchange, switch,
   refresh or passkey sign-in through the owner's rule tables in
   `modules/identityaccess/inbound/portalauth`, so one refusal has one status and

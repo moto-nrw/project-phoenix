@@ -99,6 +99,7 @@ jobs:
         uses: ./.github/actions/notify-deploy-failure
         with:
           exit_code: ${{ steps.rollback.outputs.rollback_exit }}
+          notification_type: rollback
           environment: ${{ inputs.environment }}
           resend_api_key: ${{ secrets.RESEND_API_KEY }}
           notify_emails: ${{ vars.DEPLOY_NOTIFY_EMAILS }}

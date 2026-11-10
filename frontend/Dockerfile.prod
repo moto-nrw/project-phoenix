@@ -2,7 +2,7 @@
 FROM node:24-alpine AS base
 
 RUN apk add --no-cache tzdata && \
-    corepack enable && corepack prepare pnpm@10.34.4 --activate
+    corepack enable && corepack prepare pnpm@10.34.5 --activate
 ENV TZ=Europe/Berlin
 ENV NEXT_TELEMETRY_DISABLED=1
 

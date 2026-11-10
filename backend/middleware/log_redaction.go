@@ -22,6 +22,45 @@ var invitationPathMarkers = []string{"/caterer/invitations/", "/einladung/"}
 var signingTokenPattern = regexp.MustCompile(`(?i)(` + encodedPathMarker("/public/care-contract-signing/") + `|` +
 	encodedPathMarker("/vertrag-unterschreiben/") + `)[^/?#\s"']+`)
 
+// tokenPathPattern matches the segment after a route prefix whose token is the
+// only credential of an unauthenticated request: enrollment status links,
+// staff, guardian and Träger invitations, holiday registration and quote
+// links, and payroll download links. Some prefixes also serve signed-in
+// routes with a numeric ID or a fixed word in that position; isRouteID keeps
+// those readable.
+var tokenPathPattern = regexp.MustCompile(`(/api/enrollment/requests/|/auth/invitations/|/auth/guardian-invitations/|` +
+	`/traeger/invitations/|/traeger/holiday-registrations/|/traeger/holiday-quotes/|/parent/holiday-registrations/|` +
+	`/public/payroll-download/)([^/?#\s"']+)`)
+
+// fixedTokenPathSegments are the route words that share a position with a token.
+// The operator's invitation routes take their token in the body.
+var fixedTokenPathSegments = map[string]bool{"former-employment": true, "accept": true, "validate": true}
+
+// isRouteID reports whether a path segment is a numeric ID or a fixed route
+// word rather than a token. An unknown word is redacted: a lost word costs a
+// log line some detail, a logged token can be replayed.
+func isRouteID(segment string) bool {
+	if fixedTokenPathSegments[segment] {
+		return true
+	}
+	for _, char := range segment {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func redactTokenPaths(s string) string {
+	return tokenPathPattern.ReplaceAllStringFunc(s, func(match string) string {
+		parts := tokenPathPattern.FindStringSubmatch(match)
+		if isRouteID(parts[2]) {
+			return match
+		}
+		return parts[1] + "[REDACTED]"
+	})
+}
+
 func encodedPathMarker(path string) string {
 	var pattern strings.Builder
 	for _, char := range path {
@@ -131,8 +170,11 @@ func (h *attrRedactor) redactAttr(a slog.Attr) slog.Attr {
 	}
 }
 
-// RedactFeedToken replaces the credential segment of a public feed, invitation
-// or contract-signing URL with "[REDACTED]", preserving any trailing path or query.
+// RedactFeedToken replaces the credential segment of a public feed, invitation,
+// status-link or contract-signing URL with "[REDACTED]", preserving any
+// trailing path or query. TestRouteCredentialsStayOutOfLogs holds it to the
+// route table: a new route with a token parameter fails there until it is
+// covered here.
 func RedactFeedToken(s string) string {
 	for _, marker := range feedPathMarkers {
 		s = redactAfter(s, marker, 0)
@@ -140,6 +182,7 @@ func RedactFeedToken(s string) string {
 	for _, marker := range invitationPathMarkers {
 		s = redactAfter(s, marker, 1)
 	}
+	s = redactTokenPaths(s)
 	return signingTokenPattern.ReplaceAllString(s, "${1}[REDACTED]")
 }
 
