@@ -152,6 +152,7 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 	})
 	database := testpkg.NewDatabase(t, db)
 	adjust := append([]func(*portalCompose.Dependencies){func(deps *portalCompose.Dependencies) {
+		deps.InvitationAccounts = owners.NewParentInvitationAccountLock(database)
 		deps.StatusDayRepo = NewRepositoryTestFactory(database).StudentStatusDay
 		deps.StudentPhotos = &photoUnlinks{db: db}
 		deps.OfferingChanges = owners.MarkingParentOfferings(deps.OfferingChanges, markOwnerWrite)

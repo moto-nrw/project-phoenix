@@ -51,14 +51,11 @@ type Dependencies struct {
 	TenantRuntime tenant.UnitOfWork
 }
 
-// New composes the Identity & Access module. Guardian operations join the
-// caller's ambient transaction or open one for the tenant in context, so
-// guardian-access writes commit with the approval that requested them.
-// Operator and account-session operations join an ambient transaction or run
-// on the root connection: operators and sessions are platform-wide rows, and
-// login, refresh, switch and logout open the administrative transaction their
-// rotation and audit evidence commit in before a tenant is known; their
-// statements apply the tenant filter the runtime scoped the caller to.
+// New composes Identity & Access. Guardian writes join the caller's transaction
+// or open one for its tenant, committing with the approval that requested them.
+// Operator/session operations join an ambient transaction or use the root
+// connection. Login, refresh, switch and logout open an administrative unit
+// before a tenant is known; school statements apply the runtime's tenant filter.
 func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
@@ -70,8 +67,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	runAdmin := newCommandTransactions(attach).RunAdmin
 	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, application.NewObserver(dependencies.Observe))
 	operatorMFARecords := application.NewOperatorMFA(service, store)
-	// The second factor is composed first: every login path consults its
-	// gate, and the passkey ceremonies below need the sessions it gates.
+	// Compose MFA first: login and passkey ceremonies depend on its gate.
 	flows, err := newMFACore(service, operatorMFARecords, postgres.NewAccountMFARecords(store), dependencies.Sessions, dependencies.MFA, runtime)
 	if err != nil {
 		return nil, err
@@ -149,6 +145,10 @@ func NewGuardianInvitationInvalidation(db *bun.DB) (identityaccess.GuardianInvit
 // NewSchoolMembershipLock binds the parent write guard's membership lock (#6529).
 func NewSchoolMembershipLock(db *bun.DB) identityaccess.SchoolMembershipLock {
 	return application.NewSchoolMembershipLock(postgres.NewStore(db), tenant.FromContext, tenant.TransactionFromContext)
+}
+
+func NewGuardianInvitationAccountLock(db *bun.DB) identityaccess.GuardianInvitationAccountLock {
+	return application.NewGuardianInvitationAccountLock(postgres.NewStore(db), tenant.FromContext, tenant.TransactionFromContext)
 }
 
 func newCommandTransactions(attach func(context.Context) context.Context) application.CommandTransactions {

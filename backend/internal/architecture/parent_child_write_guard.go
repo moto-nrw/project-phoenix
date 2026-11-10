@@ -253,6 +253,7 @@ var portClasses = map[string]string{
 	"care.TraegerRuntime":                                       "read",
 	"care.TraegerSharedDocuments":                               "read",
 	"care.Config.Memberships":                                   "read",
+	"care.Config.InvitationAccounts":                            "read",
 	"care.Config.InvalidateInvites":                             "write",
 	"carerequests.Reads":                                        "read",
 	"carerequests.Service":                                      "read",

@@ -339,3 +339,8 @@ type SchoolMembershipLockStore interface {
 	LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error)
 	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
 }
+
+// GuardianInvitationLockStore pins the accounts an invitation participates in.
+type GuardianInvitationLockStore interface {
+	LockGuardianInvitationAccounts(ctx context.Context, inviterID int64, email string) error
+}

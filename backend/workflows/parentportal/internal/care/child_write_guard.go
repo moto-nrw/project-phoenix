@@ -29,12 +29,18 @@ import (
 //  4. the relationship row, FOR UPDATE through People Directory: every change
 //     of its permissions, role or existence locks or deletes it first.
 //
+// Invitations first take both participating accounts FOR UPDATE in ID order;
+// otherwise an invite could hold the child while waiting for the invitee's
+// account, whose own write holds that account and waits for the child.
+//
 // The relationship must still name the account's guardian profile; the
 // profile cannot change its account while a relationship holds it, so the
 // locked relationship also binds the account. Whether the child's care still
 // runs is a separate rule of each write (RequireCareRunningForUpdate), so a
 // write the school allows after the care ended keeps its own decision.
 type ChildWriteAccess struct {
+	// InviteEmail takes both invitation accounts before the normal guard locks.
+	InviteEmail string
 	// Permissions are the action permissions of the write; portal access is
 	// always required.
 	Permissions []string
@@ -60,6 +66,10 @@ func childWriteNeeds(permissions ...string) ChildWriteAccess {
 // account's membership of the school in context until the caller's
 // transaction ends. It runs inside the caller's school transaction.
 type SchoolMembershipLock func(ctx context.Context, accountID int64) (bool, error)
+
+// InvitationAccountLock pins inviter and invitee accounts in ID order before
+// the guard takes the membership and child locks, in the same transaction.
+type InvitationAccountLock func(ctx context.Context, accountID int64, email string) error
 
 // ErrChildWriteGuardUnavailable reports a service composed without the
 // membership, child, profile or relationship port the guard needs; parent
@@ -100,6 +110,14 @@ func (s *Service) guardChildWrite(ctx context.Context, accountID, studentID int6
 	}
 	if s.Memberships == nil || s.StudentRepo == nil || s.GuardianProfileRepo == nil || s.StudentGuardianRepo == nil {
 		return ErrChildWriteGuardUnavailable
+	}
+	if access.InviteEmail != "" {
+		if s.InvitationAccounts == nil {
+			return ErrChildWriteGuardUnavailable
+		}
+		if err := s.InvitationAccounts(ctx, accountID, access.InviteEmail); err != nil {
+			return err
+		}
 	}
 	if err := s.lockSchoolMembership(ctx, accountID); err != nil {
 		return err

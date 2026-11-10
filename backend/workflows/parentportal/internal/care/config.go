@@ -115,6 +115,7 @@ type Config struct {
 	// until commit (#6529), inviting and removing further guardians, and the
 	// open invitations shown as pending.
 	Memberships         SchoolMembershipLock
+	InvitationAccounts  InvitationAccountLock
 	GuardianInvites     GuardianAccess
 	GuardianInvitations GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error

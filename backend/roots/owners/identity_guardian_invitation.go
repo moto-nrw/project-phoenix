@@ -312,6 +312,10 @@ func NewParentSchoolMembershipLock(db transactionruntime.Database) parentportal.
 	return parentportal.SchoolMembershipLock(identityaccessCompose.NewSchoolMembershipLock(db.Pool()))
 }
 
+func NewParentInvitationAccountLock(db transactionruntime.Database) parentportal.InvitationAccountLock {
+	return parentportal.InvitationAccountLock(identityaccessCompose.NewGuardianInvitationAccountLock(db.Pool()))
+}
+
 // NewGuardianInvitationInvalidation binds a transaction-participating identity
 // command without composing the account lifecycle or introducing late binding.
 func NewGuardianInvitationInvalidation(db transactionruntime.Database) identityaccess.GuardianInvitationInvalidation {

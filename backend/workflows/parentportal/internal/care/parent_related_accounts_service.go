@@ -233,7 +233,9 @@ func (s *Service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 		return nil, ErrGuardianAccessUnavailable
 	}
 	var result GuardianInviteOutcome
-	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionRelatedAccountsManage), func(txCtx context.Context) error {
+	access := childWriteNeeds(GuardianPermissionRelatedAccountsManage)
+	access.InviteEmail = email
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
