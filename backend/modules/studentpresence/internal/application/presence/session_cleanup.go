@@ -48,13 +48,39 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 	cleanedCount := 0
 	for _, id := range ids {
 		// Without an ambient unit each timeout still commits independently, as
-		// before. An ended session remains an expected skip after discovery.
-		if _, err := s.ProcessSessionTimeoutByID(ctx, id); err == nil {
+		// before. An ended or resumed session is an expected skip after
+		// discovery.
+		if _, err := s.processSessionTimeout(ctx, id, s.stillAbandoned(cutoffTime)); err == nil {
 			cleanedCount++
 		}
 	}
 
 	return cleanedCount, nil
+}
+
+// errSessionResumed skips a sweep candidate that became active again between
+// the unlocked selection and the session lock.
+var errSessionResumed = errors.New("session is no longer abandoned")
+
+// stillAbandoned re-judges a sweep candidate under its session lock (#6502).
+// The selection ran without one: a scan or heartbeat may have refreshed the
+// session's activity since, or the device may have come back online. The
+// lock serializes against activity writes, which update the same row; device
+// contact committed before this read is seen, later contact orders after the
+// sweep. The predicate matches FindActiveSessionsOlderThan's.
+func (s *service) stillAbandoned(cutoff time.Time) sessionTimeoutCheck {
+	return func(ctx context.Context, session *ports.ActiveGroup) error {
+		if session.DeviceID == nil || !session.LastActivity.Before(cutoff) {
+			return errSessionResumed
+		}
+		if err := s.GroupRepo.AttachSessionDevice(ctx, session); err != nil {
+			return err
+		}
+		if s.isDeviceOnline(ctx, session.Device, time.Now()) {
+			return errSessionResumed
+		}
+		return nil
+	}
 }
 
 // isDeviceOnline reports whether the device was online at the supplied

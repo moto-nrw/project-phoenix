@@ -44,6 +44,9 @@ type ActiveGroupRepository interface {
 	// Session timeout methods
 	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*ActiveGroup, error)
+	// AttachSessionDevice resolves the session's device through Device Fleet,
+	// so a caller holding the session lock can judge its current online state.
+	AttachSessionDevice(ctx context.Context, group *ActiveGroup) error
 
 	// FindActiveGroups finds all groups with no end time (currently active)
 	FindActiveGroups(ctx context.Context) ([]*ActiveGroup, error)

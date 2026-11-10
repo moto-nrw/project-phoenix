@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // ProcessSessionTimeout handles device-triggered session timeout
@@ -70,6 +71,17 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 // This is the preferred method for cleanup operations to avoid TOCTOU race conditions.
 // It verifies the session is still active before ending it.
 func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64) (*TimeoutResult, error) {
+	return s.processSessionTimeout(ctx, sessionID, nil)
+}
+
+// sessionTimeoutCheck judges the locked, still open session before the
+// timeout writes anything. A non-nil error skips the timeout.
+type sessionTimeoutCheck func(context.Context, *ports.ActiveGroup) error
+
+// processSessionTimeout ends the session as a timeout. The explicit device
+// timeout passes no check; the abandoned-session sweep passes one that
+// re-judges inactivity under the session lock (#6502).
+func (s *service) processSessionTimeout(ctx context.Context, sessionID int64, check sessionTimeoutCheck) (*TimeoutResult, error) {
 	// Collect visit data BEFORE transaction for SSE broadcasts
 	visitsToNotify, err := s.collectActiveVisitsForSSE(ctx, sessionID)
 	if err != nil {
@@ -89,7 +101,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 	var result *TimeoutResult
 	var endData activityEndSSEData
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
-		res, end, err := s.processSessionTimeoutTx(txCtx, sessionID)
+		res, end, err := s.processSessionTimeoutTx(txCtx, sessionID, check)
 		if err != nil {
 			return err
 		}
@@ -113,7 +125,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 // inside one transaction and announces nothing — the SSE events belong to the
 // caller, after the commit. The returned activityEndSSEData is that event's
 // payload, resolved while the transaction still holds the tenant role.
-func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, activityEndSSEData, error) {
+func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64, check sessionTimeoutCheck) (*TimeoutResult, activityEndSSEData, error) {
 	if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: []int64{sessionID}}); err != nil {
 		return nil, activityEndSSEData{}, err
 	}
@@ -123,6 +135,11 @@ func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) 
 	}
 	if !session.IsActive() {
 		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupAlreadyEnded}
+	}
+	if check != nil {
+		if err := check(ctx, session); err != nil {
+			return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
+		}
 	}
 
 	// The timetable side closes FIRST, before anything is announced (#1747

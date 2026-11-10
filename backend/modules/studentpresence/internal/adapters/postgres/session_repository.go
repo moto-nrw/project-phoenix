@@ -271,6 +271,20 @@ func (r *SessionRepository) FindActiveSessionsOlderThan(ctx context.Context, cut
 	return groups, nil
 }
 
+// AttachSessionDevice resolves the session's device through the Device Fleet
+// owner. It replaces any device the session carried; a device that is gone or
+// belongs to another school leaves the session without one.
+func (r *SessionRepository) AttachSessionDevice(ctx context.Context, group *ActiveGroupRow) error {
+	if group == nil {
+		return nil
+	}
+	group.Device = nil
+	if err := attachDevices(ctx, r.devices, []*ActiveGroupRow{group}); err != nil {
+		return r.errors.WrapRecordError("attach session device", err)
+	}
+	return nil
+}
+
 // FindActiveGroups finds all open groups, oldest start first.
 func (r *SessionRepository) FindActiveGroups(ctx context.Context) ([]*ActiveGroupRow, error) {
 	groups, err := r.query(ctx, studentpresence.LiveGroupFilter{OpenOnly: true})

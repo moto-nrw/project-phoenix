@@ -65,6 +65,7 @@ type mockGroupRepository struct {
 	createFunc                      func(ctx context.Context, entity *ports.ActiveGroup) error
 	findByIDFunc                    func(ctx context.Context, id interface{}) (*ports.ActiveGroup, error)
 	findByIDForUpdateFunc           func(ctx context.Context, id int64) (*ports.ActiveGroup, error)
+	attachSessionDeviceFunc         func(ctx context.Context, group *ports.ActiveGroup) error
 	listFunc                        func(ctx context.Context) ([]*ports.ActiveGroup, error)
 	findActiveByDeviceIDFunc        func(ctx context.Context, deviceID int64) (*ports.ActiveGroup, error)
 	findActiveByGroupIDFunc         func(ctx context.Context, groupID int64) ([]*ports.ActiveGroup, error)
@@ -187,6 +188,13 @@ func (m *mockGroupRepository) FindActiveSessionsOlderThan(ctx context.Context, c
 		return m.findActiveSessionsOlderThanFunc(ctx, cutoffTime)
 	}
 	return nil, nil
+}
+
+func (m *mockGroupRepository) AttachSessionDevice(ctx context.Context, group *ports.ActiveGroup) error {
+	if m.attachSessionDeviceFunc != nil {
+		return m.attachSessionDeviceFunc(ctx, group)
+	}
+	return nil
 }
 
 func (m *mockGroupRepository) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*ports.ActiveGroup, error) {
