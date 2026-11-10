@@ -5,7 +5,6 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
-import { FocusScope } from "@radix-ui/react-focus-scope";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DateRange, Matcher } from "react-day-picker";
@@ -103,12 +102,22 @@ export function DateRangePicker({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Escape closes only the calendar. Modal and slide-over (Radix, document
-  // capture) listen on the document, so the window capture phase comes first.
+  // Escape closes only the calendar: the window capture phase runs before the
+  // document listeners of Modal (bubble) and slide-over (Radix, capture). An
+  // open select keeps its own Escape, like in `DatePicker`.
   useEffect(() => {
     if (!isOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          '[role="combobox"][aria-expanded="true"], [role="listbox"]',
+        )
+      ) {
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       setIsOpen(false);
@@ -286,15 +295,12 @@ function RangeCalendar({
   if (!mounted) return null;
 
   // Like `DatePicker`: inside a modal the panel stays in its FocusScope, or the
-  // trap pulls keyboard focus out of the calendar. A slide-over transforms its
-  // content, so there the panel keeps the body portal with its own scope.
-  const trigger = triggerRef.current;
+  // trap pulls keyboard focus out of the calendar. The modal wrapper has no
+  // transform, so it can host the fixed panel.
   const portalContainer =
-    trigger?.closest("[data-modal-focus-scope]") ?? document.body;
-  const needsOwnFocusScope =
-    trigger?.closest("[data-date-picker-focus-trap]") != null;
+    triggerRef.current?.closest("[data-modal-focus-scope]") ?? document.body;
 
-  const panel = (
+  return createPortal(
     <div
       ref={panelRef}
       data-range-panel
@@ -309,17 +315,7 @@ function RangeCalendar({
       }
     >
       <RangeCalendarInline {...props} />
-    </div>
-  );
-
-  return createPortal(
-    needsOwnFocusScope ? (
-      <FocusScope asChild loop trapped>
-        {panel}
-      </FocusScope>
-    ) : (
-      panel
-    ),
+    </div>,
     portalContainer,
   );
 }

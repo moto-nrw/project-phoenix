@@ -14,6 +14,7 @@ vi.mock("react-day-picker", () => ({
 }));
 
 import { DateRangePicker, RangeCalendarInline } from "./date-range-picker";
+import { CustomSelect } from "./custom-select";
 import { Modal } from "./modal";
 
 describe("DateRangePicker", () => {
@@ -145,6 +146,32 @@ describe("DateRangePicker in a dialog", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(trigger).toHaveFocus();
+  });
+
+  it("leaves Escape to an open select in the same dialog", async () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Termine absagen">
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <CustomSelect
+          ariaLabel="Grund"
+          value=""
+          options={[{ value: "krank", label: "Krank" }]}
+          onChange={vi.fn()}
+        />
+      </Modal>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+    const select = screen.getByRole("combobox", { name: "Grund" });
+    fireEvent.keyDown(select, { key: "ArrowDown" });
+    expect(select).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(select, { key: "Escape" });
+
+    expect(select).toHaveAttribute("aria-expanded", "false");
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
 
   it("keeps the calendar reachable by keyboard inside the dialog's focus trap", async () => {

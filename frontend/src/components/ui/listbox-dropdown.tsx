@@ -189,8 +189,8 @@ interface ListboxDropdownProps<K extends string> {
   /**
    * Stacking level of the portaled menu. The default (`Z_INDEX.menu`) clears
    * modal overlays; a caller that itself portals higher — the kit calendar
-   * sits at `Z_INDEX.popover` — has to lift the menu above its own surface,
-   * or the menu opens behind it.
+   * and `AnchoredPopover` sit at `Z_INDEX.popover` — has to lift the menu
+   * above its own surface (`Z_INDEX.popoverMenu`), or the menu opens behind it.
    */
   readonly menuZIndex?: number;
   readonly disabled?: boolean;
