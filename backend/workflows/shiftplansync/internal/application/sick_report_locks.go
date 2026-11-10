@@ -41,8 +41,8 @@ type SickReportAbsences interface {
 // subject's staff-shift gate, so it either waits for this write or this
 // write waits for it, and no lock cycle with the key share its rows take on
 // the staff row can close. staffID names the
-// subject of a new absence; an existing absence names its own. Malformed
-// dates and unknown absences add nothing: the write itself reports them.
+// subject of the absence. Malformed dates, unknown absences and ownership
+// mismatches add nothing: the write itself reports them.
 func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error {
 	if s.absences == nil {
 		return errors.New("sick report lock: absence capability is not configured")
@@ -165,7 +165,8 @@ func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absence
 }
 
 // lockedSubject takes the absence gate of the write's subject and returns
-// the subject; 0 when an edited or deleted absence does not exist.
+// the subject; 0 when an edited or deleted absence does not exist or belongs
+// to another staff member.
 func (s *sickCascade) lockedSubject(ctx context.Context, staffID, absenceID int64) (int64, error) {
 	subject := staffID
 	if absenceID > 0 {
@@ -176,6 +177,11 @@ func (s *sickCascade) lockedSubject(ctx context.Context, staffID, absenceID int6
 		}
 		if err != nil {
 			return 0, fmt.Errorf("sick report lock: load absence: %w", err)
+		}
+		if stored.StaffID != staffID {
+			// Workforce reports the ownership error. Taking the other subject's
+			// gates here could deadlock with a valid write of staffID.
+			return 0, nil
 		}
 		subject = stored.StaffID
 	}
