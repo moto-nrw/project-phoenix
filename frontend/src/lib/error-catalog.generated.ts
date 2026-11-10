@@ -501,6 +501,8 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
+      "enrollment.holiday_week_no_care_day":
+        "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen.",
       "enrollment.holiday_week_not_found":
         "Diese Woche gehört nicht zu diesem Ferienzeitraum. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_weeks_booked_together":
@@ -893,6 +895,8 @@ export const ERROR_CATALOG = {
         "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_notice_not_found":
         "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+      "parent_billing.care_notice_recipient_changed":
+        "Die Person oder ihre E-Mail-Adresse hat sich seit dem Ausstellen geändert. Drucken Sie den gespeicherten Bescheid. Geben Sie ihn der Familie auf Papier.",
       "parent_billing.care_notice_run_invalid":
         "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
       "parent_billing.care_notice_run_not_found":
@@ -934,6 +938,10 @@ export const ERROR_CATALOG = {
         "Diesen Kostenträger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.cost_takeover_with_exemption":
         "Bitte wählen Sie entweder die Befreiung oder einen Kostenträger.",
+      "parent_billing.datev_bookings_invalid":
+        "Einige Rechnungen passen nicht in die DATEV-Datei. Bitte prüfen Sie die genannten Rechnungen.",
+      "parent_billing.datev_not_ready":
+        "Für die DATEV-Datei fehlen noch Werte. Tragen Sie sie in den Einstellungen unter „DATEV“ ein.",
       "parent_billing.debtor_number_invalid":
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
@@ -1116,6 +1124,8 @@ export const ERROR_CATALOG = {
         "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
       "provisioning.traeger_erasure_order_open":
         "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_records_recorded":
+        "Die Wahl des Kunden ist schon eingetragen. Sie kann nicht mehr geändert werden.",
       "provisioning.traeger_erasure_started":
         "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
       "rollover.deadline_required":
@@ -1650,6 +1660,12 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_invalid":
+        "Der Schließtag ist nicht vollständig. Bitte prüfen Sie Datum, Grund und Schulen.",
+      "traeger.closing_day_not_found":
+        "Diesen Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_school_outside":
+        "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen aus der Liste.",
       "traeger.document_already_released":
         "Das Dokument ist für diese Menschen schon freigegeben.",
       "traeger.document_audience_invalid":
@@ -2189,6 +2205,8 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
+      "enrollment.holiday_week_no_care_day":
+        "There is no care on {date} ({name}). This week cannot be booked.",
       "enrollment.holiday_week_not_found":
         "This week is not part of this holiday period. Please reload the page.",
       "enrollment.holiday_weeks_booked_together":
@@ -2333,6 +2351,10 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.care_amendment_disabled":
         "{object} could not be changed. Please check its current status.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -2435,6 +2457,12 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.closing_day_invalid":
+        "The closing day is incomplete. Please check the dates, the reason and the schools.",
+      "traeger.closing_day_not_found":
+        "This closing day no longer exists. Please reload the page.",
+      "traeger.closing_day_school_outside":
+        "A selected school does not belong to your Träger. Please choose the schools from the list.",
       "traeger.document_already_released":
         "The document is already shared with these people.",
       "traeger.document_audience_invalid":
@@ -2785,6 +2813,8 @@ export const ERROR_CATALOG = {
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
       "enrollment.holiday_wish_missing":
         "На эти каникулы можно записать только детей, для которых при записи в OGS вы выбрали присмотр на каникулах. По вопросам обращайтесь к организатору.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
@@ -2920,6 +2950,10 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.care_amendment_disabled":
         "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -3325,6 +3359,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+      "enrollment.holiday_week_no_care_day":
+        "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
       "enrollment.holiday_wish_missing":
         "Për këto pushime mund të regjistroni vetëm fëmijët për të cilët keni zgjedhur kujdes gjatë pushimeve në regjistrimin e OGS. Për pyetje kontaktoni organizatorin.",
       "enrollment.invalid_email":
@@ -3463,6 +3499,10 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.care_amendment_disabled":
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -3858,6 +3898,8 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+      "enrollment.holiday_week_no_care_day":
+        "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
       "enrollment.holiday_wish_missing":
         "Na te ferie można zapisać tylko dzieci, dla których przy zapisie do OGS wybrano opiekę w czasie ferii. W razie pytań prosimy o kontakt z organizatorem.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
@@ -3994,6 +4036,10 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.care_amendment_disabled":
         "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4395,6 +4441,8 @@ export const ERROR_CATALOG = {
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
       "enrollment.holiday_wish_missing":
         "Bu tatil için yalnızca OGS kaydında tatil bakımı seçtiğiniz çocukları kaydedebilirsiniz. Sorularınız için kurumla iletişime geçin.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
@@ -4530,6 +4578,10 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.care_amendment_disabled":
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4924,6 +4976,8 @@ export const ERROR_CATALOG = {
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
       "enrollment.holiday_wish_missing":
         "На ці канікули можна записати лише дітей, для яких під час запису до OGS ви обрали догляд на канікулах. З питаннями звертайтеся до організатора.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
@@ -5059,6 +5113,10 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.care_amendment_disabled":
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "parent_billing.datev_bookings_invalid":
+        "Some invoices do not fit into the DATEV file. Please check the invoices listed.",
+      "parent_billing.datev_not_ready":
+        "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":

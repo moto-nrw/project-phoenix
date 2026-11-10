@@ -46,7 +46,7 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	operator := testpkg.CreateTestOperator(t, db)
 
 	token, err := module.OperatorMFA.StartOperatorMFAChallenge(
-		context.Background(), operator.ID, net.ParseIP("203.0.113.73"))
+		context.Background(), operator.ID, net.ParseIP("203.0.113.73"), nil)
 
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.Empty(t, token)

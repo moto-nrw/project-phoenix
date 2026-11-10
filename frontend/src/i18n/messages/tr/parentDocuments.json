@@ -8,6 +8,8 @@
   "creditLetter": "Alacak dekontu: {period}",
   "careInvoiceLetter": "Fatura: {period}",
   "careCancellationLetter": "İptal yazısı: {period}",
+  "careFeeNotice": "Ücret kararı: {period}",
+  "careChangeNotice": "Ücret kararı değişikliği: {period}",
   "sender": "Gönderen: {traeger}",
   "children": "Çocuk",
   "amount": "Tutar",

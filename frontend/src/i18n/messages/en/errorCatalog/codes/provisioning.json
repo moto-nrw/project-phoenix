@@ -13,6 +13,7 @@
   "traeger_erasure_order_not_found": "{object} could not be changed. Please check its current status.",
   "traeger_erasure_order_open": "{object} could not be changed. Please check its current status.",
   "traeger_erasure_started": "{object} could not be changed. Please check its current status.",
+  "traeger_erasure_records_recorded": "{object} could not be changed. Please check its current status.",
   "school_not_found": "{object} could not be changed. Please check its current status.",
   "school_inactive": "{object} could not be changed. Please check its current status.",
   "school_already_deleted": "{object} could not be changed. Please check its current status.",

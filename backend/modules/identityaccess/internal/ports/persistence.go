@@ -52,9 +52,13 @@ type OperatorStore interface {
 	// InsertOperator stores a validated operator and returns the row with its
 	// identity and timestamps.
 	InsertOperator(ctx context.Context, operator domain.Operator) (domain.Operator, domain.OperationStats, error)
-	// UpdateOperator overwrites every mutable column of the operator's row and
-	// reports whether the row existed.
+	// UpdateOperator overwrites every mutable column of the operator's row but
+	// the password and reports whether the row existed.
 	UpdateOperator(ctx context.Context, operator domain.Operator) (bool, domain.OperationStats, error)
+	// WriteOperatorCredential is the one writer of an operator's password
+	// (#6308): it moves the credential generation on in the same statement,
+	// and its expectations make it a compare-and-swap (written=false).
+	WriteOperatorCredential(ctx context.Context, operatorID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 	DeleteOperator(ctx context.Context, id int64) (domain.OperationStats, error)
 	// DeleteDeactivatedOperators removes the accounts whose database-clock
 	// retention window has ended and reports how many went.

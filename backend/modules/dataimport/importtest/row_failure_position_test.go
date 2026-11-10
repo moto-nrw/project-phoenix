@@ -30,10 +30,15 @@ var refusedMarkers = map[string][2]string{
 	"users.persons":                     {"first_name", "Refused"},
 	"users.student_profiles":            {"address_street", "Refusedweg 1"},
 	"schedule.student_pickup_schedules": {"pickup_time", "17:17:00"},
-	"users.staff_master_data":           {"address_city", "Refusedstadt"},
-	"users.staff_qualifications":        {"name", "Refusedkurs"},
-	"users.class_list_entries":          {"last_name", "Refused"},
-	"active.staff_balance_adjustments":  {"minutes_delta", "-150"},
+	// The consents and the consent history of a student segment go to their
+	// tables in one bundled statement each (#5552 step 5b); the row triggers
+	// still fire per row, so row k fails inside that statement.
+	"users.privacy_consents":           {"data_retention_days", "17"},
+	"audit.student_consent_changes":    {"consent_key", "photo"},
+	"users.staff_master_data":          {"address_city", "Refusedstadt"},
+	"users.staff_qualifications":       {"name", "Refusedkurs"},
+	"users.class_list_entries":         {"last_name", "Refused"},
+	"active.staff_balance_adjustments": {"minutes_delta", "-150"},
 }
 
 func installRefusedMarkers(t *testing.T, db *bun.DB) {
@@ -96,6 +101,10 @@ func TestImportBatchesRefusedRowKeepsTheRowPathOutcome(t *testing.T) {
 		{"student create", "schedule.student_pickup_schedules", "creation_failed", studentCreateAt(db, func(row *importModels.StudentImportRow) {
 			row.PickupSchedules = []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "17:17"}}
 		})},
+		{"student create", "users.privacy_consents", "creation_failed", studentCreateBundledAt(db, func(row *importModels.StudentImportRow) { row.DataRetentionDays = 17 })},
+		// Only row k carries a photo consent date, so only it records a
+		// "photo" transition.
+		{"student create", "audit.student_consent_changes", "creation_failed", studentCreateBundledAt(db, func(row *importModels.StudentImportRow) { row.PhotoConsentGivenAt = "2026-07-17" })},
 		{"student update", "users.student_profiles", "update_failed", studentUpdateAt(db)},
 		{"staff create", "users.persons", "creation_failed", staffCreateAt(db, func(row *importModels.StaffImportRow) { row.FirstName = "Refused" })},
 		{"staff create", "users.staff_master_data", "creation_failed", staffCreateAt(db, func(row *importModels.StaffImportRow) { row.AddressCity = "Refusedstadt" })},
@@ -168,6 +177,31 @@ func studentCreateAt(db *bun.DB, mark func(*importModels.StudentImportRow)) func
 			Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true,
 		}, importModels.BatchAudit{EntityType: "student", Filename: "position.csv", AccountID: actor.accountID})
 		require.Error(t, err)
+		return positionOutcome{
+			created: result.CreatedCount, updated: result.UpdatedCount, failures: blockingFailures(result),
+			persisted: countIn(t, db, `SELECT count(*) FROM users.student_profiles WHERE tenant_id = ?`),
+		}
+	}
+}
+
+// studentCreateBundledAt is studentCreateAt for a write the batch command
+// bundles (#5552 step 5b): row k fails inside the bundled statement, the
+// chunk rolls back to its savepoint and replays row by row, and the replay
+// names row k as the row path does.
+func studentCreateBundledAt(db *bun.DB, mark func(*importModels.StudentImportRow)) func(*testing.T, int, int) positionOutcome {
+	return func(t *testing.T, n, k int) positionOutcome {
+		module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		require.NoError(t, err)
+		actor := newImporter(t, db)
+		rows := studentBatch(0, n)
+		mark(&rows[k-1])
+		result, err := module.Import.ImportBatches(uploadContext(t, db), importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true,
+		}, importModels.BatchAudit{EntityType: "student", Filename: "position.csv", AccountID: actor.accountID})
+		require.Error(t, err)
+		observation := (*module.Observations)[0]
+		require.Equal(t, 1, observation.BatchFallbacks, "the bundled statement failed and the chunk replayed")
+		require.Zero(t, observation.BatchesRetried)
 		return positionOutcome{
 			created: result.CreatedCount, updated: result.UpdatedCount, failures: blockingFailures(result),
 			persisted: countIn(t, db, `SELECT count(*) FROM users.student_profiles WHERE tenant_id = ?`),

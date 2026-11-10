@@ -82,8 +82,8 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar)
 	if err != nil {
 		return err
 	}
@@ -96,10 +96,11 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // Enrollment, the Träger settings and the master data of Organisation &
 // Tenancy to the portal's route ports. healthData opens the health
 // information of a holiday registration behind the right
-// "Gesundheitsangaben sehen" (#4722).
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) (*traegerportal.Resource, error) {
-	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil {
-		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log and the settings are required")
+// "Gesundheitsangaben sehen" (#4722). holidayCalendar names the host
+// schools' days without care, which no holiday week may book (#4702).
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar) (*traegerportal.Resource, error) {
+	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil {
+		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings and the host schools' calendar are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
@@ -114,9 +115,9 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	if err != nil {
 		return nil, err
 	}
-	review, places := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil)
+	review, places := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil, holidayCalendar)
 	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
-	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil), review, wishes, places, holidaySchoolNames{overview: overview},
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, wishes, places, holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)

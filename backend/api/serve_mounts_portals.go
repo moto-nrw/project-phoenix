@@ -110,7 +110,7 @@ func newOperatorRouter(
 	db transactionruntime.Database, logger *slog.Logger, sessionAuth *sessiontoken.TokenAuth, limiters authRateLimiters,
 	iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity identityaccess.Owner,
-	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
+	provisioning organizationtenancy.OperatorProvisioning, caregivers peoplePorts.CaregiverCapabilityService,
 	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
 	students importModels.RowImporter[importModels.StudentImportRow], traegerSettings settingsOperatorAPI.TraegerOperations,
 ) (chi.Router, error) {
@@ -237,9 +237,10 @@ func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
 // newProvisioningConfig binds the operator provisioning routes to the
 // provisioning, the caregiver capability views and the audit of the Beleg
 // retention (#4720) of the same composition.
-func newProvisioningConfig(provisioning organizationtenancy.Provisioning, caregivers provisioningOperatorAPI.SchoolAccountCaregivers) (provisioningOperatorAPI.ProvisioningConfig, error) {
-	audit, err := organizationCompose.BelegRetentionAudit(provisioning)
+func newProvisioningConfig(provisioning organizationtenancy.OperatorProvisioning, caregivers provisioningOperatorAPI.SchoolAccountCaregivers) (provisioningOperatorAPI.ProvisioningConfig, error) {
+	audit, err := organizationCompose.BelegRetentionAudit(provisioning.Provisioning)
 	return provisioningOperatorAPI.ProvisioningConfig{
 		Service: provisioning, CaregiverCapability: caregivers, AppEnv: viper.GetString("app_env"), BelegRetentionAudit: audit,
+		ErasureOrderRecords: provisioning.ErasureOrderRecords,
 	}, err
 }

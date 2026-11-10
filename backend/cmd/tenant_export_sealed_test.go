@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -107,12 +108,15 @@ func TestTenantExportOrganizationPackageOnTheMigratedSchema(t *testing.T) {
 
 	sealed, err := tenantExportSealedFields()
 	require.NoError(t, err)
-	exporter, err := organizationCompose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{
-		Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint,
-	}, sealed, tenantExportProjectedFields())
+	// The root binds a Träger package with its PAIN.008 files and its
+	// operator audit (ADR 0187).
+	database := testpkg.NewDatabase(t, db)
+	exporter, err := newTenantExporter(database, sealed, tenantExportProjectedFields(), true)
 	require.NoError(t, err)
+	operator := testpkg.CreateTestOperator(t, db)
 	out := filepath.Join(t.TempDir(), "traeger")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{OrganizationID: organization, Output: out, Uploads: t.TempDir()}))
+	require.NoError(t, exporter.Export(tenant.WithUnitOfWork(t.Context(), database.UnitOfWork()),
+		organizationtenancy.TenantExportOptions{OrganizationID: organization, OperatorID: operator.ID, Output: out, Uploads: t.TempDir()}))
 	require.FileExists(t, filepath.Join(out, "COMPLETE"))
 
 	var schools []int64

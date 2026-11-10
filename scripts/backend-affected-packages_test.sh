@@ -470,10 +470,13 @@ assert_ci_gate fail ENV_CHECK_REQUIRED=true
 assert_ci_gate pass ENV_CHECK_REQUIRED=true ENV_CHECK_RESULT=success
 # Failures/cancellations remain the alls-green action's responsibility. Do not
 # permit either outcome while allowing intentionally skipped reusable jobs.
-if ! grep -Fq 'jobs: ${{ toJSON(needs) }}' "$repo_root/.github/workflows/main.yml" ||
+if ! grep -Fq 'CI_NEEDS: ${{ toJSON(needs) }}' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'id: normalize' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'run: python3 scripts/normalize-ci-needs.py' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'jobs: ${{ steps.normalize.outputs.jobs }}' "$repo_root/.github/workflows/main.yml" ||
    ! grep -Fq 'allowed-skips: lint, test, backend-architecture-ratchet, ci-scripts, env-sync-check' "$repo_root/.github/workflows/main.yml" ||
    grep -Eq 'allowed-failures:|allowed-cancelled:' "$repo_root/.github/workflows/main.yml"; then
-  echo 'ci-gate must still pass all results to alls-green without allowing failures' >&2
+  echo 'ci-gate must normalize all results before alls-green without allowing failures' >&2
   exit 1
 fi
 if ! grep -Fq 'packages_output=$(scripts/backend-lint-packages.sh)' \

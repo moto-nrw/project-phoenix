@@ -26,6 +26,7 @@ const settings: ExportSettings = {
   updatedAt: null,
   nextFileNumber: 1,
   fileNumbersStarted: false,
+  datev: { ready: true, missingSettings: [], invalidSettings: [] },
 };
 
 describe("SollMappingEditor", () => {

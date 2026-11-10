@@ -59,6 +59,7 @@ export function useWeekLabels() {
       currency: "EUR",
     });
     return {
+      locale,
       range: (week: HolidayRegistrationWeek) =>
         t("weekRange", {
           starts: formatDate(week.startsOn, false, locale),
@@ -114,6 +115,18 @@ function WeekChoice({
     return parallel ? `${week.hostSchoolName}: ${priced}` : priced;
   };
   const labelId = `${prefix}-week-${first.id}`;
+  // A week with a day without care at its host school takes no booking
+  // (#4702); the server refuses it as well.
+  const bookable = group.filter((week) => !week.noCareDays?.length);
+  const blocked = group.filter((week) => (week.noCareDays?.length ?? 0) > 0);
+  const blockedHints = blocked.map((week) => {
+    const day = week.noCareDays![0]!;
+    const hint = t("weekWithoutCare", {
+      date: formatDate(day.date, false, labels.locale),
+      name: day.name,
+    });
+    return parallel ? `${week.hostSchoolName}: ${hint}` : hint;
+  });
   return (
     <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2">
       <span id={labelId} className="text-sm text-gray-900">
@@ -121,6 +134,11 @@ function WeekChoice({
         <span className="block text-xs text-gray-500">
           {parallel ? t("parallelWeeksHint") : first.hostSchoolName}
         </span>
+        {blockedHints.map((hint) => (
+          <span key={hint} className="mt-1 block text-xs text-gray-600">
+            {hint}
+          </span>
+        ))}
       </span>
       <CustomSelect
         name={`${prefix}.bookings`}
@@ -128,10 +146,11 @@ function WeekChoice({
         ariaLabelledBy={labelId}
         value={value}
         invalid={invalid}
+        disabled={bookable.length === 0 && !value}
         ariaDescribedBy={invalid ? `${prefix}-bookings-error` : undefined}
         options={[
           { value: "", label: t("notBooked") },
-          ...group.flatMap((week) =>
+          ...bookable.flatMap((week) =>
             week.timeModels.map((model) => ({
               value: model.id,
               label: optionLabel(week, model),

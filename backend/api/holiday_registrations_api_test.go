@@ -58,7 +58,7 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 	settings, err := owners.BuildTraegerSettings(testpkg.NewDatabase(t, db), unit, slog.Default(), organizations, nil)
 	require.NoError(t, err)
 	resource := NewHolidayRegistrationHTTP(organizations, delivery.Module, TurnstileKeys{SiteKey: "site-key", SecretKey: "secret-key"},
-		turnstile.URL, testHealthCipher(), settings, slog.Default())
+		turnstile.URL, testHealthCipher(), owners.HolidayTestSchoolCalendar{}, settings, slog.Default())
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

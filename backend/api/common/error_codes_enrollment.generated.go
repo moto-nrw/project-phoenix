@@ -102,6 +102,7 @@ const CodeEnrollmentHolidayRegistrationInvalid = "enrollment.holiday_registratio
 const CodeEnrollmentHolidayRegistrationNotFound = "enrollment.holiday_registration_not_found"
 const CodeEnrollmentHolidayRegistrationStateConflict = "enrollment.holiday_registration_state_conflict"
 const CodeEnrollmentHolidayWeekBooked = "enrollment.holiday_week_booked"
+const CodeEnrollmentHolidayWeekNoCareDay = "enrollment.holiday_week_no_care_day"
 const CodeEnrollmentHolidayWeekNotFound = "enrollment.holiday_week_not_found"
 const CodeEnrollmentHolidayWeeksBookedTogether = "enrollment.holiday_weeks_booked_together"
 const CodeEnrollmentHolidayWishMissing = "enrollment.holiday_wish_missing"
@@ -256,6 +257,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayRegistrationNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationStateConflict, "business_rejection"},
 	{CodeEnrollmentHolidayWeekBooked, "business_rejection"},
+	{CodeEnrollmentHolidayWeekNoCareDay, "business_rejection"},
 	{CodeEnrollmentHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayWeeksBookedTogether, "input"},
 	{CodeEnrollmentHolidayWishMissing, "business_rejection"},

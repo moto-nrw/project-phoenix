@@ -730,6 +730,40 @@ describe("HolidayRegistrationForm", () => {
     ).toBeInTheDocument();
   });
 
+  it("offers no time model of a week without care at its school (#4702)", () => {
+    const firstWeek = offer.weeks[0]!;
+    renderForm(null, {
+      ...offer,
+      weeks: [
+        {
+          ...firstWeek,
+          noCareDays: [{ date: "2027-01-06", name: "Heilige Drei Könige" }],
+        },
+        {
+          ...firstWeek,
+          id: "12",
+          hostSchoolName: "OGS Süd",
+          timeModels: [
+            { ...firstWeek.timeModels[0]!, id: "22", name: "bis 16 Uhr" },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      screen.getByText(/^OGS Nord: .*06\.01\.2027.*Heilige Drei Könige/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
+    );
+    expect(
+      screen.getByRole("option", { name: /^OGS Süd: bis 16 Uhr/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /^OGS Nord: bis 13 Uhr/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("lets parents send the registration when the contribution cannot be shown", async () => {
     mockQuote.mockRejectedValue(new Error("offline"));
     renderForm();

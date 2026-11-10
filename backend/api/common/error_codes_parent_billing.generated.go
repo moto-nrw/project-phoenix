@@ -36,6 +36,7 @@ const CodeParentBillingCareMealTariffInvalid = "parent_billing.care_meal_tariff_
 const CodeParentBillingCareMealTariffMonthBilled = "parent_billing.care_meal_tariff_month_billed"
 const CodeParentBillingCareMealTariffNotFound = "parent_billing.care_meal_tariff_not_found"
 const CodeParentBillingCareNoticeNotFound = "parent_billing.care_notice_not_found"
+const CodeParentBillingCareNoticeRecipientChanged = "parent_billing.care_notice_recipient_changed"
 const CodeParentBillingCareNoticeRunInvalid = "parent_billing.care_notice_run_invalid"
 const CodeParentBillingCareNoticeRunNotFound = "parent_billing.care_notice_run_not_found"
 const CodeParentBillingCareNoticeRunOpen = "parent_billing.care_notice_run_open"
@@ -57,6 +58,8 @@ const CodeParentBillingCostBearerInactive = "parent_billing.cost_bearer_inactive
 const CodeParentBillingCostBearerInvalid = "parent_billing.cost_bearer_invalid"
 const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_found"
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
+const CodeParentBillingDatevBookingsInvalid = "parent_billing.datev_bookings_invalid"
+const CodeParentBillingDatevNotReady = "parent_billing.datev_not_ready"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
 const CodeParentBillingDirectDebitWithoutMandate = "parent_billing.direct_debit_without_mandate"
@@ -148,6 +151,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCareMealTariffMonthBilled, "business_rejection"},
 	{CodeParentBillingCareMealTariffNotFound, "business_rejection"},
 	{CodeParentBillingCareNoticeNotFound, "business_rejection"},
+	{CodeParentBillingCareNoticeRecipientChanged, "business_rejection"},
 	{CodeParentBillingCareNoticeRunInvalid, "input"},
 	{CodeParentBillingCareNoticeRunNotFound, "business_rejection"},
 	{CodeParentBillingCareNoticeRunOpen, "business_rejection"},
@@ -169,6 +173,8 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostBearerInvalid, "input"},
 	{CodeParentBillingCostBearerNotFound, "business_rejection"},
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
+	{CodeParentBillingDatevBookingsInvalid, "business_rejection"},
+	{CodeParentBillingDatevNotReady, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
 	{CodeParentBillingDirectDebitWithoutMandate, "business_rejection"},

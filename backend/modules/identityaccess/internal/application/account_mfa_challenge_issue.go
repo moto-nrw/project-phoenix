@@ -127,7 +127,7 @@ func (f *AccountMFAFlows) requireCredentialGeneration(ctx context.Context, accou
 	if err != nil || !found {
 		return identityaccess.ErrMFAStatusUnavailable
 	}
-	if account.MFAResetGeneration != *credentialGeneration {
+	if !domain.CredentialStillHolds(credentialGeneration, account.MFAResetGeneration) {
 		return identityaccess.ErrInvalidCredentials
 	}
 	return nil

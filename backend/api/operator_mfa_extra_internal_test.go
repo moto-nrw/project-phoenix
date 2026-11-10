@@ -39,18 +39,19 @@ func (s *stubOperatorMFAServiceExtra) HasOperatorMFAEnrollment(context.Context, 
 	return false, nil
 }
 
-func (s *stubOperatorMFAServiceExtra) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
+func (s *stubOperatorMFAServiceExtra) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP, _ *int64) (string, error) {
 	if s.startChallengeFn != nil {
 		return s.startChallengeFn(ctx, operatorID, ip)
 	}
 	return "challenge", nil
 }
 
-func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (int64, error) {
+func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (identityaccess.OperatorMFAProof, error) {
 	if s.verifyChallengeFn != nil {
-		return s.verifyChallengeFn(ctx, challengeToken, code)
+		operatorID, err := s.verifyChallengeFn(ctx, challengeToken, code)
+		return identityaccess.OperatorMFAProof{OperatorID: operatorID}, err
 	}
-	return 0, errors.New("not implemented")
+	return identityaccess.OperatorMFAProof{}, errors.New("not implemented")
 }
 
 func (s *stubOperatorMFAServiceExtra) ResendOperatorMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
@@ -60,7 +61,7 @@ func (s *stubOperatorMFAServiceExtra) ResendOperatorMFAChallenge(ctx context.Con
 	return "renewed-token", nil
 }
 
-func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error {
+func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string, _ *int64) error {
 	if s.verifyCodeFn != nil {
 		return s.verifyCodeFn(ctx, operatorID, code)
 	}
@@ -76,7 +77,7 @@ func (s *stubOperatorMFAServiceExtra) EnrollOperatorMFA(ctx context.Context, ope
 
 func (s *stubOperatorMFAServiceExtra) DisableOperatorMFA(context.Context, int64) error { return nil }
 
-func (s *stubOperatorMFAServiceExtra) IssueOperatorTrustedDevice(context.Context, int64, string, net.IP) (string, time.Time, error) {
+func (s *stubOperatorMFAServiceExtra) IssueOperatorTrustedDevice(context.Context, identityaccess.OperatorMFAProof, string, net.IP) (string, time.Time, error) {
 	return "", time.Time{}, nil
 }
 

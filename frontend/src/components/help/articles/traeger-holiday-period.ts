@@ -33,6 +33,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
         steps: [
           "Tragen Sie bei jeder Woche `Erster Tag` und `Letzter Tag` ein.",
           "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
+          "Liegt ein Feiertag oder Schließtag der Schule in der Woche, zeigt moto einen Hinweis. Wählen Sie dann andere Tage, zum Beispiel Dienstag bis Freitag.",
           "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
           "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
           "Dieselben Tage an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
@@ -64,11 +65,13 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
     troubleshootingDetails: [
       "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
       "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
+      "Die Woche lässt sich nicht speichern, weil keine Betreuung ist? An einem Feiertag oder Schließtag der Schule kann niemand buchen. Lassen Sie diesen Tag aus der Woche.",
     ],
     related: [
       HELP_TOPICS.traegerLogin,
       HELP_TOPICS.traegerHolidayForm,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerClosingDays,
       HELP_TOPICS.traegerHolidayWish,
     ],
   };

@@ -25,6 +25,10 @@ type datevExport struct {
 // NewDatevExport builds the DATEV booking batch over the settings port the
 // root binds.
 func NewDatevExport(settings parentbilling.DatevBillingSettings, today func() calendar.Date, now func() time.Time) parentbilling.DatevExport {
+	return newDatevExport(settings, today, now)
+}
+
+func newDatevExport(settings parentbilling.DatevBillingSettings, today func() calendar.Date, now func() time.Time) *datevExport {
 	if settings == nil || today == nil || now == nil {
 		panic("parent billing: the DATEV export needs its settings and clocks")
 	}

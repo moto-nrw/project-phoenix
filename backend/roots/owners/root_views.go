@@ -148,18 +148,18 @@ func BuildProvisioning(
 	persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, devices devicefleet.Capability,
 	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, owner TimetableOwner,
 	operatorAuditLog OperatorAuditEntries, settings settingsCompose.SettingsService,
-) (organizationtenancy.Provisioning, error) {
+) (organizationtenancy.OperatorProvisioning, error) {
 	adapters, err := NewOperatorProvisioningAdapters(
 		operatorPersonStudentMembership(db), devices, persons, membership, people.Persons, people.Staff, identity,
 		sessions, supervisions, arrivalTimetable.NewActivityCategorySeeder(owner.Repositories.ActivityCategory), operatorAuditLog,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("compose operator provisioning: %w", fmt.Errorf("compose operator provisioning adapters: %w", err))
+		return organizationtenancy.OperatorProvisioning{}, fmt.Errorf("compose operator provisioning: %w", fmt.Errorf("compose operator provisioning adapters: %w", err))
 	}
 	provisioning, err := newOperatorProvisioning(organizations, identity, NewOperatorAccountDirectory(identity, persons, membership, organizations),
 		adapters, settings, env.Logger.With("service", "platform"))
 	if err != nil {
-		return nil, fmt.Errorf("compose operator provisioning: %w", err)
+		return organizationtenancy.OperatorProvisioning{}, fmt.Errorf("compose operator provisioning: %w", err)
 	}
 	return provisioning, nil
 }

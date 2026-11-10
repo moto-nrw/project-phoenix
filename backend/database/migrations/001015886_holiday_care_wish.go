@@ -14,7 +14,8 @@ func init() {
 		Version:     holidayCareWishVersion,
 		Description: "Ferienwunsch aus der OGS-Anmeldung, Vorrang je Ferienzeitraum und Prüfkennzeichen je angemeldetem Kind (#4703)",
 		DependsOn: []string{
-			holidayWeekCapacityVersion, // the newest migration on development (1.15.878)
+			parentBillingDatevExportFilesVersion, // the newest migration on development (1.15.884)
+			holidayWeekCapacityVersion,           // the audit actions this one extends
 		},
 	})
 	Migrations.MustRegister(holidayCareWishUp, holidayCareWishDown)

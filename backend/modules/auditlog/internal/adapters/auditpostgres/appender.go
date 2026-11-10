@@ -29,28 +29,51 @@ func (a *Appender) Append(ctx context.Context, event any) error {
 	return wrapDatabase("append "+table, err)
 }
 
-// AppendAll inserts class-list entry changes in one statement with the same
-// columns as Append; any other event type is appended one by one.
+// AppendAll inserts class-list entry changes or consent changes in one
+// statement with the same columns as Append; any other event type, or a
+// mix, is appended one by one.
 func (a *Appender) AppendAll(ctx context.Context, events []any) error {
-	rows := make([]*auditModels.ClassListEntryChange, 0, len(events))
-	var db bun.IDB
-	for _, event := range events {
-		change, ok := event.(*classlist.ClassListEntryChange)
-		if !ok {
-			return a.appendEach(ctx, events)
-		}
-		prepared, err := a.prepare(ctx, change)
-		if err != nil {
-			return err
-		}
-		db = prepared
-		rows = append(rows, classListChangeRow(change))
-	}
-	if len(rows) == 0 {
+	if len(events) == 0 {
 		return nil
 	}
-	_, err := db.NewInsert().Model(&rows).ModelTableExpr("audit.class_list_entry_changes").Exec(ctx)
-	return wrapDatabase("append audit.class_list_entry_changes", err)
+	switch events[0].(type) {
+	case *classlist.ClassListEntryChange:
+		db, rows, err := prepareAll(ctx, a, events, classListChangeRow)
+		if err != nil || rows == nil {
+			return err
+		}
+		_, err = db.NewInsert().Model(&rows).ModelTableExpr("audit.class_list_entry_changes").Exec(ctx)
+		return wrapDatabase("append audit.class_list_entry_changes", err)
+	case *consents.ConsentChange:
+		db, rows, err := prepareAll(ctx, a, events, consentChangeRow)
+		if err != nil || rows == nil {
+			return err
+		}
+		_, err = db.NewInsert().Model(&rows).ModelTableExpr("audit.student_consent_changes").Exec(ctx)
+		return wrapDatabase("append audit.student_consent_changes", err)
+	}
+	return a.appendEach(ctx, events)
+}
+
+// prepareAll prepares every event like Append and maps it onto its ledger
+// row. An event of another type appends the whole call one by one instead:
+// rows is then nil, and so is the error unless that append failed.
+func prepareAll[E any, R any](ctx context.Context, a *Appender, events []any, row func(E) R) (bun.IDB, []R, error) {
+	rows := make([]R, 0, len(events))
+	var db bun.IDB
+	for _, event := range events {
+		typed, ok := event.(E)
+		if !ok {
+			return nil, nil, a.appendEach(ctx, events)
+		}
+		prepared, err := a.prepare(ctx, typed)
+		if err != nil {
+			return nil, nil, err
+		}
+		db = prepared
+		rows = append(rows, row(typed))
+	}
+	return db, rows, nil
 }
 
 func (a *Appender) appendEach(ctx context.Context, events []any) error {
@@ -187,13 +210,7 @@ func appendRow(event any) any {
 	case *auditImports.DataImport:
 		return importEventRow(value)
 	case *consents.ConsentChange:
-		row := &auditModels.StudentConsentChange{
-			Model:     auditModels.Model{CreatedAt: value.ChangedAt, UpdatedAt: value.ChangedAt},
-			StudentID: value.StudentID, ConsentKey: value.ConsentKey, Action: value.Action,
-			Source: value.Source, ActorAccountID: value.ActorAccountID,
-		}
-		row.SetTenantID(value.TenantID)
-		return row
+		return consentChangeRow(value)
 	default:
 		return event
 	}
@@ -252,6 +269,16 @@ func validateEvent(event any) error {
 		return fmt.Errorf("invalid audit event %T: %w", event, err)
 	}
 	return nil
+}
+
+func consentChangeRow(value *consents.ConsentChange) *auditModels.StudentConsentChange {
+	row := &auditModels.StudentConsentChange{
+		Model:     auditModels.Model{CreatedAt: value.ChangedAt, UpdatedAt: value.ChangedAt},
+		StudentID: value.StudentID, ConsentKey: value.ConsentKey, Action: value.Action,
+		Source: value.Source, ActorAccountID: value.ActorAccountID,
+	}
+	row.SetTenantID(value.TenantID)
+	return row
 }
 
 func classListChangeRow(value *classlist.ClassListEntryChange) *auditModels.ClassListEntryChange {

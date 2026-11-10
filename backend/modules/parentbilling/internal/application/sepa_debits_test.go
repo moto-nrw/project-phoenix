@@ -67,10 +67,44 @@ type debitStoreFake struct {
 	events    map[string][]int64
 	submitted [][]int64
 	collected []map[int64]calendar.Date
+	// storedFileMap holds the stored files per message ID (#6314).
+	storedFileMap map[string]parentbilling.StoredSEPADebitFile
 	// files is the export protocol (#4693); exportNumber its counter.
 	files        []parentbilling.ExportFileRecord
 	exportNumber int64
 	marked       []string
+}
+
+func (s *debitStoreFake) SaveSEPADebitFile(_ context.Context, _, _ int64, file parentbilling.StoredSEPADebitFile) error {
+	if s.storedFileMap == nil {
+		s.storedFileMap = map[string]parentbilling.StoredSEPADebitFile{}
+	}
+	if s.storedFileMap[file.MessageID].Submitted {
+		return nil
+	}
+	s.storedFileMap[file.MessageID] = file
+	return nil
+}
+
+func (s *debitStoreFake) SubmitSEPADebitFile(_ context.Context, _, _ int64, file parentbilling.StoredSEPADebitFile) error {
+	if s.storedFileMap == nil {
+		s.storedFileMap = map[string]parentbilling.StoredSEPADebitFile{}
+	}
+	stored, ok := s.storedFileMap[file.MessageID]
+	if !ok {
+		stored = file
+	}
+	stored.Submitted = true
+	s.storedFileMap[file.MessageID] = stored
+	return nil
+}
+
+func (s *debitStoreFake) storedFiles() []parentbilling.StoredSEPADebitFile {
+	var files []parentbilling.StoredSEPADebitFile
+	for _, file := range s.storedFileMap {
+		files = append(files, file)
+	}
+	return files
 }
 
 func (s *debitStoreFake) ReserveExportFileNumber(context.Context, int64) (int64, error) {
@@ -181,7 +215,7 @@ func newSJRDebits(store *debitStoreFake) *SEPADebits {
 	return NewSEPADebits(store, fakeLetterheads{account: &parentbilling.LetterheadBankAccount{
 		AccountHolder: "Stadtjugendring Pforzheim e. V.", IBAN: "DE75 5121 0800 1245 1261 99", BIC: "SOLADES1PFO"}},
 		prefixCipher{}, func() calendar.Date { return calendar.NewDate(2026, 11, 20) },
-		func() time.Time { return time.Date(2026, 11, 20, 9, 30, 0, 0, time.UTC) })
+		func() time.Time { return time.Date(2026, 11, 20, 9, 30, 0, 0, time.UTC) }, testpkg.ContentFingerprint)
 }
 
 func TestSEPADebitFileValidatesAgainstTheISOSchema(t *testing.T) {
@@ -331,7 +365,7 @@ func TestSEPADebitPastDueIsCollectedTomorrow(t *testing.T) {
 func TestSEPADebitFileNeedsTheAccountOfTheTraeger(t *testing.T) {
 	t.Parallel()
 	store := sjrDebits()
-	debits := NewSEPADebits(store, fakeLetterheads{}, prefixCipher{}, func() calendar.Date { return calendar.NewDate(2026, 11, 20) }, time.Now)
+	debits := NewSEPADebits(store, fakeLetterheads{}, prefixCipher{}, func() calendar.Date { return calendar.NewDate(2026, 11, 20) }, time.Now, testpkg.ContentFingerprint)
 	_, err := debits.SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
 	require.ErrorIs(t, err, parentbilling.ErrSEPACreditorAccountMissing)
 	run, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)

@@ -1,8 +1,8 @@
 /**
  * Client of the finance exports (#4693): the field mapping of the
  * Sollstellung, the file numbers of the Träger, the released runs with
- * their last export, the export protocol, the download of a Sollstellung and
- * the history of one invoice. Backend int64 IDs leave here as strings;
+ * their last export, the export protocol, the download of a Sollstellung or
+ * a DATEV booking batch (#4694) and the history of one invoice. Backend int64 IDs leave here as strings;
  * calendar dates stay "YYYY-MM-DD", instants ISO strings.
  */
 
@@ -12,7 +12,7 @@ import { type BillingFile, billingFile } from "./traeger-billing-api";
 /** The kind of run, as the path names it. */
 export type ExportRunPathKind = "care-runs" | "holiday-runs" | "notice-months";
 type ExportRunKind = "care" | "holiday" | "notice";
-export type ExportFormat = "sollstellung" | "pain008";
+export type ExportFormat = "sollstellung" | "pain008" | "datev";
 
 export type SollField =
   | "invoice_number"
@@ -56,6 +56,23 @@ export interface SollMapping {
   readonly fileNamePattern: string;
 }
 
+/** Whether the DATEV values of the Träger make a valid file (#4694). */
+export interface DatevReadiness {
+  readonly ready: boolean;
+  /** Keys of the settings that are empty. */
+  readonly missingSettings: readonly string[];
+  /** Keys of the settings whose value DATEV would refuse. */
+  readonly invalidSettings: readonly string[];
+}
+
+/** An invoice DATEV would refuse, named by a refused download. */
+export interface DatevBookingProblem {
+  readonly documentNumber: string;
+  readonly field:
+    "debtor_number" | "document_date" | "document_number" | "amount";
+  readonly reason: "missing" | "invalid" | "out_of_period";
+}
+
 export interface ExportSettings {
   readonly mapping: SollMapping;
   /** Whether the Träger set a mapping of its own. */
@@ -65,6 +82,7 @@ export interface ExportSettings {
   readonly nextFileNumber: number;
   /** A start value was set or a file was made: the start is fixed. */
   readonly fileNumbersStarted: boolean;
+  readonly datev: DatevReadiness;
 }
 
 export interface ExportProtocolEntry {
@@ -97,6 +115,7 @@ export interface ExportRun {
   readonly invoiceCount: number;
   readonly totalCents: number;
   readonly lastSollstellung: ExportProtocolEntry | null;
+  readonly lastDatev: ExportProtocolEntry | null;
   readonly exports: number;
 }
 
@@ -142,6 +161,11 @@ interface BackendSettings {
     updated_at: string | null;
   };
   file_numbers: { next: number; started: boolean };
+  datev?: {
+    ready: boolean;
+    missing_settings: string[] | null;
+    invalid_settings: string[] | null;
+  };
 }
 
 interface BackendEntry {
@@ -170,6 +194,7 @@ interface BackendRun {
   invoice_count: number;
   total_cents: number;
   last_sollstellung: BackendEntry | null;
+  last_datev?: BackendEntry | null;
   exports: number;
 }
 
@@ -235,6 +260,11 @@ function settingsFromBackend(settings: BackendSettings): ExportSettings {
     updatedAt: settings.sollstellung.updated_at,
     nextFileNumber: settings.file_numbers.next,
     fileNumbersStarted: settings.file_numbers.started,
+    datev: {
+      ready: settings.datev?.ready ?? false,
+      missingSettings: settings.datev?.missing_settings ?? [],
+      invalidSettings: settings.datev?.invalid_settings ?? [],
+    },
   };
 }
 
@@ -337,6 +367,7 @@ export async function fetchExportRuns(
       lastSollstellung: run.last_sollstellung
         ? entryFromBackend(run.last_sollstellung)
         : null,
+      lastDatev: run.last_datev ? entryFromBackend(run.last_datev) : null,
       exports: run.exports,
     })),
     total: body.total,
@@ -369,6 +400,66 @@ export async function downloadSollstellung(
     {},
     "sollstellung.csv",
   );
+}
+
+/**
+ * Downloads the DATEV booking batch of a run with the next file number. A
+ * refusal keeps its code: `parent_billing.datev_not_ready` while values are
+ * missing, `parent_billing.datev_bookings_invalid` with the invoices DATEV
+ * would refuse.
+ */
+export async function downloadDatevBatch(
+  kind: ExportRunPathKind,
+  runId: string,
+): Promise<BillingFile> {
+  return billingFile(
+    `${BASE}/runs/${kind}/${encodeURIComponent(runId)}/datev`,
+    {},
+    "EXTF_Buchungsstapel.csv",
+  );
+}
+
+const DATEV_PROBLEM_FIELDS = new Set<string>([
+  "debtor_number",
+  "document_date",
+  "document_number",
+  "amount",
+]);
+const DATEV_PROBLEM_REASONS = new Set<string>([
+  "missing",
+  "invalid",
+  "out_of_period",
+]);
+
+/**
+ * The invoices a refused DATEV download names in its details; an entry of
+ * another shape is left out, never guessed.
+ */
+export function datevBookingProblems(
+  details: Record<string, unknown> | undefined,
+): DatevBookingProblem[] {
+  const documents = details?.documents;
+  if (!Array.isArray(documents)) return [];
+  return documents.flatMap((entry: unknown) => {
+    if (typeof entry !== "object" || entry === null) return [];
+    const { document_number, field, reason } = entry as Record<string, unknown>;
+    if (
+      typeof document_number !== "string" ||
+      typeof field !== "string" ||
+      typeof reason !== "string" ||
+      !DATEV_PROBLEM_FIELDS.has(field) ||
+      !DATEV_PROBLEM_REASONS.has(reason)
+    ) {
+      return [];
+    }
+    return [
+      {
+        documentNumber: document_number,
+        field: field as DatevBookingProblem["field"],
+        reason: reason as DatevBookingProblem["reason"],
+      },
+    ];
+  });
 }
 
 /** The history of an invoice, oldest step first. */

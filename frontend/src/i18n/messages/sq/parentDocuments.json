@@ -8,6 +8,8 @@
   "creditLetter": "Notë krediti: {period}",
   "careInvoiceLetter": "Faturë: {period}",
   "careCancellationLetter": "Anulim: {period}",
+  "careFeeNotice": "Vendim për tarifën: {period}",
+  "careChangeNotice": "Ndryshim i vendimit për tarifën: {period}",
   "sender": "Nga: {traeger}",
   "children": "Për",
   "amount": "Shuma",

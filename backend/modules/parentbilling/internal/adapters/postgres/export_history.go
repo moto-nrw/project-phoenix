@@ -95,6 +95,8 @@ const exportFilesOfCareInvoiceQuery = `SELECT file.*,
 			AND earlier.format = file.format
 			AND CASE WHEN file.format = 'pain008' AND NULLIF(file.reference, '') IS NOT NULL
 				THEN earlier.reference = file.reference
+				WHEN file.format = 'datev' AND file.booking_sha256 IS NOT NULL
+				THEN earlier.booking_sha256 = file.booking_sha256
 				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of
 FROM parent_billing.export_files AS file
@@ -115,6 +117,8 @@ const exportFilesOfHolidayDocumentQuery = `SELECT file.*,
 			AND earlier.format = file.format
 			AND CASE WHEN file.format = 'pain008' AND NULLIF(file.reference, '') IS NOT NULL
 				THEN earlier.reference = file.reference
+				WHEN file.format = 'datev' AND file.booking_sha256 IS NOT NULL
+				THEN earlier.booking_sha256 = file.booking_sha256
 				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of
 FROM parent_billing.export_files AS file

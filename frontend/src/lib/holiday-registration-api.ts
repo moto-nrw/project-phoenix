@@ -42,6 +42,11 @@ export interface HolidayRegistrationWeek {
   readonly endsOn: string;
   readonly hostSchoolName: string;
   readonly timeModels: readonly HolidayRegistrationTimeModel[];
+  /** Days without care at the host school (#4702); such a week is not bookable. */
+  readonly noCareDays?: readonly {
+    readonly date: string;
+    readonly name: string;
+  }[];
 }
 
 interface HolidayRegistrationSchool {
@@ -92,6 +97,7 @@ interface BackendOffer {
         starts_on: string;
         ends_on: string;
         host_school_name: string;
+        no_care_days?: { date: string; name: string }[] | null;
         time_models?:
           | {
               id: number;
@@ -192,6 +198,10 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       startsOn: week.starts_on,
       endsOn: week.ends_on,
       hostSchoolName: week.host_school_name,
+      noCareDays: (week.no_care_days ?? []).map((day) => ({
+        date: day.date,
+        name: day.name,
+      })),
       timeModels: (week.time_models ?? []).map((model) => ({
         id: String(model.id),
         name: model.name,

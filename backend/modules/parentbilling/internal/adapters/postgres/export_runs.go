@@ -12,8 +12,8 @@ import (
 )
 
 // The released runs of a Träger as the finance exports read them (#4693):
-// the list with the last export of each run, and the invoices a
-// Sollstellung writes. Every subquery names the Träger.
+// the list with the last Sollstellung and DATEV batch of each run, and the
+// invoices a Sollstellung or a DATEV batch writes. Every subquery names the Träger.
 
 type exportRunRow struct {
 	RunKind      string         `bun:"run_kind"`
@@ -33,23 +33,43 @@ type exportRunRow struct {
 	LastTotal      *int64     `bun:"last_total"`
 	LastAccountID  *int64     `bun:"last_account_id"`
 	LastExportedAt *time.Time `bun:"last_exported_at"`
+	// The newest DATEV batch of the run, all NULL before the first.
+	DatevID         *int64     `bun:"datev_id"`
+	DatevNumber     *int64     `bun:"datev_number"`
+	DatevName       *string    `bun:"datev_name"`
+	DatevSHA        *string    `bun:"datev_sha"`
+	DatevCount      *int       `bun:"datev_count"`
+	DatevTotal      *int64     `bun:"datev_total"`
+	DatevAccountID  *int64     `bun:"datev_account_id"`
+	DatevExportedAt *time.Time `bun:"datev_exported_at"`
+}
+
+// lastFile is the newest file of one format of a run, nil before the first.
+func lastFile(run parentbilling.ExportRun, format string, id, number *int64, name, sha *string, count *int, total, account *int64,
+	at *time.Time,
+) *parentbilling.ExportProtocolEntry {
+	if id == nil || number == nil || at == nil {
+		return nil
+	}
+	entry := &parentbilling.ExportProtocolEntry{ID: *id, FileNumber: *number, Format: format, RunKind: run.RunKind, RunID: run.RunID,
+		RunLabel: run.Label, FileName: textOf(name), Fingerprint: textOf(sha), ExportedBy: account, ExportedAt: *at}
+	if count != nil {
+		entry.InvoiceCount = *count
+	}
+	if total != nil {
+		entry.TotalCents = *total
+	}
+	return entry
 }
 
 func (r exportRunRow) run() parentbilling.ExportRun {
 	run := parentbilling.ExportRun{RunKind: r.RunKind, RunID: r.RunID, IssuedOn: r.IssuedOn, InvoiceCount: r.InvoiceCount,
 		TotalCents: r.TotalCents, Exports: r.Exports,
 		Label: parentbilling.ExportRunLabel(r.RunKind, r.CareMonth, nil, textOf(r.PeriodName))}
-	if r.LastID != nil && r.LastNumber != nil && r.LastExportedAt != nil {
-		run.LastSollstellung = &parentbilling.ExportProtocolEntry{ID: *r.LastID, FileNumber: *r.LastNumber,
-			Format: parentbilling.ExportFormatSollstellung, RunKind: r.RunKind, RunID: r.RunID, RunLabel: run.Label,
-			FileName: textOf(r.LastName), Fingerprint: textOf(r.LastSHA), ExportedBy: r.LastAccountID, ExportedAt: *r.LastExportedAt}
-		if r.LastCount != nil {
-			run.LastSollstellung.InvoiceCount = *r.LastCount
-		}
-		if r.LastTotal != nil {
-			run.LastSollstellung.TotalCents = *r.LastTotal
-		}
-	}
+	run.LastSollstellung = lastFile(run, parentbilling.ExportFormatSollstellung, r.LastID, r.LastNumber, r.LastName, r.LastSHA,
+		r.LastCount, r.LastTotal, r.LastAccountID, r.LastExportedAt)
+	run.LastDatev = lastFile(run, parentbilling.ExportFormatDatev, r.DatevID, r.DatevNumber, r.DatevName, r.DatevSHA,
+		r.DatevCount, r.DatevTotal, r.DatevAccountID, r.DatevExportedAt)
 	return run
 }
 
@@ -82,6 +102,9 @@ const exportRunsQuery = `SELECT released.run_kind, released.run_id, released.car
 	last.id AS last_id, last.file_number AS last_number, last.file_name AS last_name, last.content_sha256 AS last_sha,
 	last.invoice_count AS last_count, last.total_cents AS last_total, last.exported_by_account_id AS last_account_id,
 	last.exported_at AS last_exported_at,
+	datev.id AS datev_id, datev.file_number AS datev_number, datev.file_name AS datev_name, datev.content_sha256 AS datev_sha,
+	datev.invoice_count AS datev_count, datev.total_cents AS datev_total, datev.exported_by_account_id AS datev_account_id,
+	datev.exported_at AS datev_exported_at,
 	COUNT(*) OVER () AS total_runs, COUNT(*) FILTER (WHERE last.id IS NULL) OVER () AS not_exported
 FROM (
 	SELECT 'care' AS run_kind, run.id AS run_id, run.billing_month AS care_month, NULL::text AS period_name, run.issued_on,
@@ -102,6 +125,12 @@ LEFT JOIN LATERAL (
 		AND file.format = 'sollstellung'
 	ORDER BY file.file_number DESC LIMIT 1
 ) AS last ON TRUE
+LEFT JOIN LATERAL (
+	SELECT file.* FROM parent_billing.export_files AS file
+	WHERE file.organization_id = ?0 AND file.run_kind = released.run_kind AND file.run_id = released.run_id
+		AND file.format = 'datev'
+	ORDER BY file.file_number DESC LIMIT 1
+) AS datev ON TRUE
 ORDER BY released.released_at DESC, released.run_id DESC, released.run_kind
 OFFSET ?1 LIMIT ?2`
 

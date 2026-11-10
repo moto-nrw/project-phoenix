@@ -31,7 +31,7 @@ var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 
 // buildOperatorProvisioning returns the production composition of the
 // operator provisioning over db.
-func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.Provisioning {
+func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.OperatorProvisioning {
 	t.Helper()
 	provisioning, _ := buildOperatorProvisioningWithIdentity(t, db)
 	return provisioning
@@ -39,7 +39,7 @@ func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.Pro
 
 // buildOperatorProvisioningWithIdentity returns the operator provisioning
 // with the Identity & Access module of the same composition.
-func buildOperatorProvisioningWithIdentity(t *testing.T, db *bun.DB) (organizationtenancy.Provisioning, identityaccess.Owner) {
+func buildOperatorProvisioningWithIdentity(t *testing.T, db *bun.DB) (organizationtenancy.OperatorProvisioning, identityaccess.Owner) {
 	t.Helper()
 	_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, provisioning, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err, "Failed to create service graph")

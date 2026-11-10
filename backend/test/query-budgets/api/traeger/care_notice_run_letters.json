@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_notice_run_letters",
+  "max": 8,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-notice-runs/{id}/letters (#6347):\nthe selects: the Träger binding, the run, its issued notices with their months and references,\nthe stored originals, their sends and the mail states of Delivery. Flat in the number of notices.",
+  "route": "GET /traeger/care-notice-runs/{id}/letters"
+}

@@ -81,6 +81,7 @@
   "guardian_name_required": "Lütfen adı ve soyadı girin.",
   "guardian_phone_required": "Lütfen bir telefon numarası girin.",
   "holiday_care_wish_required": "Lütfen çocuğunuzun tatilde bakıma ihtiyacı olup olmadığını seçin.",
+  "holiday_week_no_care_day": "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
   "invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
   "invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
   "late_invite_invalid": "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",

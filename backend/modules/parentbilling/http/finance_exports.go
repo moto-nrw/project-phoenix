@@ -1,6 +1,7 @@
 package parentbillinghttp
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -18,8 +19,8 @@ import (
 // FinanceExportResource serves the finance exports of the Elternabrechnung
 // (#4693) at /traeger/finance-exports: the field mapping and the start of
 // the file numbers, the released runs with their exports, the export
-// protocol and the Sollstellung of a run behind the Träger right
-// "Finanz-Export", and the history of an invoice behind the right
+// protocol, the Sollstellung and the DATEV booking batch (#4694) of a run
+// behind the Träger right "Finanz-Export", and the history of an invoice behind the right
 // "Abrechnung". Every route runs in the Träger transaction of the session's
 // Träger; a download answers its file only after its protocol entry
 // committed with it.
@@ -50,6 +51,7 @@ func (rs *FinanceExportResource) Router(protectedTraegerRoutes func(chi.Router, 
 		export.Get("/runs", rs.runs)
 		export.Get("/files", rs.files)
 		export.Get("/runs/{kind}/{id}/sollstellung", rs.sollstellung)
+		export.Get("/runs/{kind}/{id}/datev", rs.datev)
 		r.With(rs.requireBilling, withTx).Get("/invoice-history/{kind}/{id}", rs.history)
 	})
 	return r
@@ -210,10 +212,22 @@ func (rs *FinanceExportResource) files(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, files, "Export protocol retrieved successfully")
 }
 
-// sollstellung answers the Sollstellung of a run; it leaves the server only
-// in this answer and is never stored or cached. Its number and protocol
-// entry commit with the answer, or neither does.
+// sollstellung answers the Sollstellung of a run.
 func (rs *FinanceExportResource) sollstellung(w http.ResponseWriter, r *http.Request) {
+	rs.runFile(w, r, rs.exports.SollstellungFile)
+}
+
+// datev answers the DATEV booking batch of a run (#4694).
+func (rs *FinanceExportResource) datev(w http.ResponseWriter, r *http.Request) {
+	rs.runFile(w, r, rs.exports.DatevFile)
+}
+
+// runFile answers a file of a run; it leaves the server only in this answer
+// and is never stored or cached. Its number and protocol entry commit with
+// the answer, or neither does.
+func (rs *FinanceExportResource) runFile(w http.ResponseWriter, r *http.Request,
+	build func(context.Context, capability.HolidayReviewer, string, int64) (capability.ExportedFile, error),
+) {
 	reviewer, ok := reviewerOf(w, r)
 	if !ok {
 		return
@@ -224,7 +238,7 @@ func (rs *FinanceExportResource) sollstellung(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(capability.ErrExportRunNotFound, common.CodeParentBillingExportRunNotFound))
 		return
 	}
-	file, err := rs.exports.SollstellungFile(r.Context(), reviewer, kind, id)
+	file, err := build(r.Context(), reviewer, kind, id)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderExportError(w, r, err)
@@ -256,10 +270,19 @@ func (rs *FinanceExportResource) history(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, history, "Invoice history retrieved successfully")
 }
 
-// renderExportError answers a refused export.
+// renderExportError answers a refused export. A refused DATEV batch names
+// the missing settings or the refused documents in details.
 func renderExportError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var notReady *capability.DatevNotReadyError
+	var bookings *capability.DatevBookingsError
 	switch {
+	case errors.As(err, &notReady):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingDatevNotReady, map[string]any{
+			"missing_settings": notReady.Readiness.MissingSettings, "invalid_settings": notReady.Readiness.InvalidSettings}))
+	case errors.As(err, &bookings):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingDatevBookingsInvalid, map[string]any{
+			"documents": bookings.Problems}))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportMappingInvalid))
 	case errors.Is(err, capability.ErrExportRunNotFound):
