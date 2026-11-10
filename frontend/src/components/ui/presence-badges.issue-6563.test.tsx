@@ -65,19 +65,29 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
     );
   });
 
-  it("shows „seit“ for the Schulhof when the time is known", () => {
+  // Same path, only the location differs: „seit“ belongs to a stay in a
+  // room, at home or in class, never to Schulhof or Schule.
+  it.each([
+    ["Anwesend", "seit 10:15 Uhr"],
+    ["Zuhause", "seit 10:15 Uhr"],
+    ["Im Unterricht", "seit 10:15 Uhr"],
+    ["Schulhof", null],
+    ["Schule", null],
+  ])("shows „seit“ by location status (%s)", (location, expected) => {
     render(
       renderBadge(
-        {
-          current_location: "Schulhof",
-          location_since: "2026-09-09T08:15:00Z",
-        },
+        { current_location: location, location_since: "2026-09-09T08:15:00Z" },
         true,
       ),
     );
 
-    expect(screen.getByText("Schulhof")).toBeInTheDocument();
-    expect(screen.getByText("seit 10:15 Uhr")).toBeInTheDocument();
+    // Anker: the badge rendered its pill.
+    expect(screen.getByText(location)).toBeInTheDocument();
+    if (expected) {
+      expect(screen.getByText(/^seit /)).toHaveTextContent(expected);
+    } else {
+      expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
+    }
   });
 
   it.each([

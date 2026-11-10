@@ -1,7 +1,11 @@
 import * as React from "react";
 
 import type { StudentLocationContext } from "@/lib/location-helper";
-import { formatLocationSince, locationPillShape } from "./location-badge";
+import {
+  formatLocationSince,
+  locationPillShape,
+  showsLocationSince,
+} from "./location-badge";
 import { PresenceHint } from "./presence-hint";
 import { StatusColorBadge } from "./status-color-badge";
 import {
@@ -40,9 +44,7 @@ import {
  * into "anwesend" when this component is reached via the wrapper in
  * unexpected circumstances.
  */
-function derivePresenceState(
-  location?: string | null,
-): "anwesend" | "schulhof" | "abwesend" {
+function derivePresenceState(location?: string | null): PresenceState {
   if (isNotCheckedInLocation(location)) {
     return "abwesend";
   }
@@ -62,12 +64,16 @@ interface PresenceBadgeProps {
 
 const DEFAULT_SIZE = "md";
 
+type PresenceState = "anwesend" | "schulhof" | "abwesend";
+type BadgeStyle = { label: string; color: string };
+
 // Sick/excused status takes visual precedence over absence (a sick student
 // at home reads as "Krank", not "Abwesend") — matches LocationBadge behaviour.
-function resolveBadgeStyle(
-  state: "anwesend" | "schulhof" | "abwesend",
+// Null when no day status replaces the location.
+function resolveDayStatusStyle(
+  state: PresenceState,
   student: StudentLocationContext,
-): { label: string; color: string } {
+): BadgeStyle | null {
   const atHome = state === "abwesend";
   if (student.sick && atHome) {
     return { label: LOCATION_STATUSES.SICK, color: LOCATION_COLORS.SICK };
@@ -87,7 +93,14 @@ function resolveBadgeStyle(
       color: LOCATION_COLORS.NOT_ARRIVAL,
     };
   }
+  return null;
+}
 
+/** The location the pill shows when no day status replaces it. */
+function resolveLocationStyle(
+  state: PresenceState,
+  student: StudentLocationContext,
+): BadgeStyle {
   switch (state) {
     case "anwesend":
       return {
@@ -131,7 +144,9 @@ export function PresenceBadge({
   showLocationSince = false,
 }: PresenceBadgeProps) {
   const state = derivePresenceState(student.current_location);
-  const { label, color } = resolveBadgeStyle(state, student);
+  const location = resolveLocationStyle(state, student);
+  const dayStatus = resolveDayStatusStyle(state, student);
+  const { label, color } = dayStatus ?? location;
 
   const sizeKey = size ?? DEFAULT_SIZE;
 
@@ -166,7 +181,10 @@ export function PresenceBadge({
           : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
-  const showSinceTime = showLocationSince && formattedTime !== null;
+  const showSinceTime =
+    showLocationSince &&
+    formattedTime !== null &&
+    showsLocationSince(location.label, replaceTimeSource !== null);
 
   const dataStatus = parseLocation(student.current_location).status;
 

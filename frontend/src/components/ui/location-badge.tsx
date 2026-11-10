@@ -26,6 +26,24 @@ export function formatLocationSince(
   return formatTime(isoTimestamp);
 }
 
+const SINCE_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.PRESENT,
+  LOCATION_STATUSES.HOME,
+  LOCATION_STATUSES.IN_CLASS,
+]);
+
+/**
+ * Whether „seit …“ belongs under the pill: for a stay in a room, at home or in
+ * class, and for a day status (krank, Klassenfahrt, entschuldigt) that replaces
+ * the location. Never for Schulhof, Unterwegs or Schule (#6563).
+ */
+export function showsLocationSince(
+  locationStatus: string,
+  replacedByDayStatus: boolean,
+): boolean {
+  return replacedByDayStatus || SINCE_STATUSES.has(locationStatus);
+}
+
 /**
  * Determines how to display sickness status on the badge.
  * - If sick AND at home: replace "Zuhause" with "Krank"
@@ -100,7 +118,7 @@ interface LocationBadgeProps {
   readonly isGroupRoom?: boolean;
   readonly variant?: "simple" | "modern";
   readonly size?: "sm" | "md" | "lg";
-  /** Show "seit XX:XX Uhr" below the badge when the backend sends a time. Default: false */
+  /** Show "seit XX:XX Uhr" below the badge for Anwesend/Zuhause status. Default: false */
   readonly showLocationSince?: boolean;
 }
 
@@ -227,8 +245,15 @@ export function LocationBadge({
             : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
-  // The backend sends a time only where it means something for the state.
-  const showSinceTime = showLocationSince && formattedTime !== null;
+  const showSinceTime =
+    showLocationSince &&
+    formattedTime !== null &&
+    showsLocationSince(
+      parsed.status,
+      sickMode === "replace" ||
+        classTripMode === "replace" ||
+        excusedMode === "replace",
+    );
 
   // At most one pill per child (#4371): the location stays the pill, a
   // further fact becomes a neutral line below it.
