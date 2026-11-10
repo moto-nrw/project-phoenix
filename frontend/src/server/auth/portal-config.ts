@@ -1,7 +1,6 @@
 import "server-only";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import DiscordProvider from "next-auth/providers/discord";
 import { env } from "~/env";
 import { loginAtBackend, refusalFor } from "./backend-login";
 import { buildAuthUser, parseJwtPayload, seededEmail } from "./jwt-claims";
@@ -165,10 +164,7 @@ function cookieConfig(portal: PortalDescriptor): NextAuthConfig["cookies"] {
 export function createPortalAuthConfig(portal: PortalDescriptor) {
   return {
     secret: env.NEXTAUTH_SECRET,
-    providers: [
-      ...(portal.tenantFeatures ? [DiscordProvider] : []),
-      credentialsProvider(portal),
-    ],
+    providers: [credentialsProvider(portal)],
     basePath: portal.basePath,
     callbacks: {
       redirect: portal.redirect,
