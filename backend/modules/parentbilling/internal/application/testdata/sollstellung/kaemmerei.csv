@@ -1,0 +1,4 @@
+Buchungskreis,Personenkonto,Belegnummer,Belegart,Belegdatum,Betrag,Name,Kind,Datei
+1000,10 4711,MB-2026-0110,Rechnung,2026-10-30,78.00,Eva Müller,Lia Müller,110
+1000,10 4711,MB-2026-0111,Storno,2026-11-02,-78.00,Eva Müller,Lia Müller,110
+1000,,FE-2026-0007,Rechnung,2026-10-30,1234.56,"'=HYPERLINK(""x"")",Ben; Ida,110

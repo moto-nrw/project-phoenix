@@ -33,6 +33,12 @@ type MandateImportStore interface {
 	// SEPAMandateImportEvents reads the creation entry of each imported
 	// mandate, newest first, as an entry of one mandate.
 	SEPAMandateImportEvents(ctx context.Context, organizationID int64) ([]parentbilling.SEPAMandateImportEntry, error)
+	// FamilyDebtorNumbers reads the debtor number of each family that has
+	// one (#4693).
+	FamilyDebtorNumbers(ctx context.Context, organizationID int64) (map[string]string, error)
+	// SetFamilyDebtorNumbers gives each family its debtor number where it
+	// has none and records the change in the family's trail.
+	SetFamilyDebtorNumbers(ctx context.Context, organizationID, accountID int64, numbers []parentbilling.FamilyDebtorNumber) error
 }
 
 // importRequiredFields are the fields every import needs a column for.
@@ -92,6 +98,7 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		result.Rows = append(result.Rows, candidate.row)
 		countImportRow(&result.Counts, candidate.row.Status)
 	}
+	countDebtorNumbers(&result.Counts, candidates)
 	return result, nil
 }
 
@@ -151,7 +158,7 @@ func mappingHeaders(columns parentbilling.SEPAMandateImportColumns) map[string]s
 		parentbilling.ImportFieldIBAN: columns.IBAN, parentbilling.ImportFieldBIC: columns.BIC,
 		parentbilling.ImportFieldAccountHolder: columns.AccountHolder, parentbilling.ImportFieldPayer: columns.Payer,
 		parentbilling.ImportFieldCreditorID: columns.CreditorID, parentbilling.ImportFieldSequence: columns.Sequence,
-		parentbilling.ImportFieldLastCollected: columns.LastCollected,
+		parentbilling.ImportFieldLastCollected: columns.LastCollected, parentbilling.ImportFieldDebtorNumber: columns.DebtorNumber,
 	}
 }
 
@@ -203,6 +210,13 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 	candidates := make([]importCandidate, len(table.rows))
 	for i, cells := range table.rows {
 		candidates[i] = check.row(cells, table.lines[i])
+	}
+	if _, mapped := columns.fields[parentbilling.ImportFieldDebtorNumber]; mapped {
+		known, err := m.store.FamilyDebtorNumbers(ctx, reviewer.OrganizationID)
+		if err != nil {
+			return nil, err
+		}
+		assignDebtorNumbers(candidates, table, columns, known)
 	}
 	return candidates, nil
 }
@@ -266,6 +280,9 @@ func (m *SEPAMandates) applyConfirmed(ctx context.Context, reviewer parentbillin
 ) error {
 	if fingerprint == "" || request.Fingerprint != fingerprint {
 		return parentbilling.ErrImportChanged
+	}
+	if err := m.store.SetFamilyDebtorNumbers(ctx, reviewer.OrganizationID, reviewer.AccountID, debtorNumbersToSet(candidates)); err != nil {
+		return fmt.Errorf("parent billing: take over the debtor numbers: %w", err)
 	}
 	return m.applyImport(ctx, reviewer, importFileName(request.FileName), candidates)
 }

@@ -18,6 +18,9 @@ import type { ImportResult, ImportRow } from "~/lib/traeger-sepa-import-api";
 import {
   IMPORT_STATUS,
   type ImportFilter,
+  importDebtorNumberText,
+  importChangesLabel,
+  importableCount,
   importHintText,
   importPayerName,
   importProblemText,
@@ -32,11 +35,6 @@ const ANSWER_ITEMS: { value: MandateSequence; label: string }[] = [
   { value: "first", label: "Nein" },
   { value: "recurring", label: "Ja" },
 ];
-
-/** Nur die vom Backend geprüften, bereiten Zeilen werden übernommen. */
-export function importableCount(result: ImportResult): number {
-  return result.rows.filter((row) => row.status === "ready").length;
-}
 
 function SequenceCell({
   row,
@@ -90,6 +88,8 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
     ...(row.problems.length === 0 ? row.hints.map(importHintText) : []),
   ];
   if (row.status === "duplicate") lines.unshift("Dieses Mandat gibt es schon.");
+  const debtor = importDebtorNumberText(row);
+  if (debtor) lines.push(debtor);
   if (lines.length === 0) return <span className="text-gray-400">–</span>;
   return (
     <ul className="space-y-0.5 text-sm text-gray-700">
@@ -250,7 +250,7 @@ export function SepaImportPreviewCard({
           <p className="text-sm text-gray-600">
             {openQuestions > 0
               ? `Noch ${openQuestions} ${openQuestions === 1 ? "Zeile" : "Zeilen"} offen. Offene Zeilen bleiben draußen.`
-              : "Zeilen mit Fehlern bleiben draußen. Sie können die Datei später korrigiert noch einmal laden."}
+              : "Mandate mit Fehlern bleiben draußen. Debitorennummern prüft moto getrennt."}
           </p>
           <Button
             type="button"
@@ -261,9 +261,7 @@ export function SepaImportPreviewCard({
             isLoading={applying}
             loadingText="Wird übernommen …"
           >
-            {importable === 1
-              ? "1 Mandat übernehmen"
-              : `${importable} Mandate übernehmen`}
+            {importChangesLabel(counts.ready, counts.debtorNumbers)} übernehmen
           </Button>
         </div>
       }

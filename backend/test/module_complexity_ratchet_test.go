@@ -197,7 +197,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/architecture/import_debt.go:basePackageImports": 29,
 	// ADR 0087.
-	"internal/architecture/migration_additions.go:migrationCreateDataObjects": 19,
 	// ADR 0087.
 	"internal/architecture/migration_queries.go:analyzeMigrationQueries": 48,
 	// ADR 0087.
