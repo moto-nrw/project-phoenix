@@ -273,11 +273,16 @@ export function HolidayPeriodForm({
                 Sie dieselben Tage an mehreren Schulen anbieten? Legen Sie dafür
                 je Schule eine Woche an. Eltern wählen dann eine Schule.
               </p>
+              {/* What a booked time model allows is said only where one
+                  exists: a new period has none. */}
               <p className="mt-2 text-sm text-gray-600">
                 Jede Woche hat Zeitmodelle, zum Beispiel „bis 13 Uhr“ und „bis
-                16 Uhr“, jedes mit eigenem Preis. Ein gebuchtes Zeitmodell
-                archivieren Sie: die Buchungen bleiben. Ein ungebuchtes
-                entfernen Sie mit „×“.
+                16 Uhr“, jedes mit eigenem Preis.
+                {draft.weeks.some((week) =>
+                  week.timeModels.some((model) => model.protected),
+                )
+                  ? " Ein gebuchtes Zeitmodell archivieren Sie: die Buchungen bleiben. Ein ungebuchtes entfernen Sie mit „×“."
+                  : ""}
                 {draft.weeks.some((week) =>
                   week.timeModels.some(
                     (model) => model.protected && !model.archived,
