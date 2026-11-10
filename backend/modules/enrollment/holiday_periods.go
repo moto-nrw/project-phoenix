@@ -101,6 +101,9 @@ type HolidayWeek struct {
 	// BookingUnit is HolidayBookingUnitWeek or HolidayBookingUnitDay
 	// (#4701); a time model of a week by days prices one day.
 	BookingUnit string `json:"booking_unit"`
+	// CareDays are the bookable days of a week by days, Monday to Friday;
+	// only the public offer fills them (#4701).
+	CareDays []calendar.Date `json:"-"`
 }
 
 // HolidayPeriod is a holiday period of a Träger with its weeks.

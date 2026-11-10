@@ -3,6 +3,7 @@ package parentbilling
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -106,7 +107,9 @@ type HolidayChildDayLimitRefusal struct {
 	Err   error
 }
 
-func (r *HolidayChildDayLimitRefusal) Error() string { return r.Err.Error() }
+func (r *HolidayChildDayLimitRefusal) Error() string {
+	return fmt.Sprintf("%d care days, the period allows %d: %v", r.Days, r.Limit, r.Err)
+}
 
 func (r *HolidayChildDayLimitRefusal) Unwrap() []error {
 	return []error{ErrHolidayChildDayLimit, r.Err}

@@ -184,6 +184,103 @@ AS $function$
 
 `
 
+// holidayBookedWeekWindowsSQL is the booked windows function of 1.15.878, as
+// the down migration writes it back.
+const holidayBookedWeekWindowsSQL = `
+CREATE OR REPLACE FUNCTION enrollment.holiday_host_booked_windows_for_retention(p_from date, p_to date, p_school bigint, p_registration bigint)
+ RETURNS TABLE(organization_id bigint, child_id bigint, week_id bigint, home_school_id bigint, first_name text, last_name text, birth_date date, starts_on date, ends_on date, starts_at time without time zone, ends_at time without time zone)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'pg_temp'
+AS $function$
+	WITH host AS (
+		SELECT p_school AS school_id
+	),
+ guest_access AS (
+  SELECT guest.id, guest.organization_id, guest.holiday_registration_child_id,
+   guest.holiday_period_week_id, guest.starts_on, guest.ends_on
+  FROM enrollment.holiday_guests AS guest
+  WHERE guest.tenant_id = (SELECT school_id FROM host)
+ ),
+	own AS (
+		SELECT child.id AS child_id, child.organization_id, child.home_school_id, child.first_name, child.last_name, child.birth_date,
+			registration.id AS registration_id, cancellation.cancelled_on
+		FROM host
+		JOIN platform.schools AS host_school ON host_school.id = host.school_id
+		JOIN enrollment.holiday_registration_children AS child
+   ON child.organization_id = host_school.organization_id OR EXISTS (
+    SELECT 1 FROM guest_access AS granted
+    WHERE granted.organization_id = child.organization_id AND granted.holiday_registration_child_id = child.id)
+		JOIN enrollment.holiday_registrations AS registration
+			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+		JOIN enrollment.holiday_periods AS period
+			ON period.organization_id = registration.organization_id AND period.id = registration.holiday_period_id
+		LEFT JOIN LATERAL (
+			SELECT (cancel.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS cancelled_on
+			FROM enrollment.holiday_registration_audit AS cancel
+			WHERE cancel.organization_id = registration.organization_id AND cancel.holiday_registration_id = registration.id
+				AND cancel.action = 'cancel'
+				AND EXISTS (
+					SELECT 1 FROM enrollment.holiday_registration_audit AS confirm
+					WHERE confirm.organization_id = cancel.organization_id
+						AND confirm.holiday_registration_id = cancel.holiday_registration_id
+						AND confirm.action = 'confirm' AND confirm.occurred_at < cancel.occurred_at)
+			ORDER BY cancel.occurred_at DESC
+			LIMIT 1
+		) AS cancellation ON true
+		WHERE period.status = 'published' AND (p_registration IS NULL OR registration.id = p_registration)
+			AND (registration.status = 'confirmed'
+				OR registration.status = 'cancelled' AND cancellation.cancelled_on IS NOT NULL)
+	),
+	rebook AS (
+		SELECT own.child_id, audit.occurred_at, (audit.occurred_at AT TIME ZONE 'Europe/Berlin')::date AS on_date, audit.details
+		FROM own
+		JOIN enrollment.holiday_registration_audit AS audit
+			ON audit.organization_id = own.organization_id AND audit.holiday_registration_id = own.registration_id
+				AND audit.action = 'rebook' AND audit.details->>'child_id' = own.child_id::text
+	),
+	segment AS (
+		SELECT own.child_id, booking.holiday_period_week_id AS week_id, booking.holiday_week_time_model_id AS model_id,
+			GREATEST((SELECT max(rebook.on_date) FROM rebook WHERE rebook.child_id = own.child_id), (booking.promoted_at AT TIME ZONE 'Europe/Berlin')::date) AS valid_from,
+			NULL::date AS valid_until
+		FROM own
+		JOIN enrollment.holiday_registration_bookings AS booking
+			ON booking.organization_id = own.organization_id AND booking.holiday_registration_child_id = own.child_id
+			AND booking.placement = 'placed'
+		UNION ALL
+		SELECT rebook.child_id, (previous->>'week_id')::bigint, (previous->>'time_model_id')::bigint,
+			GREATEST((SELECT max(earlier.on_date) FROM rebook AS earlier
+				WHERE earlier.child_id = rebook.child_id AND earlier.occurred_at < rebook.occurred_at), ((previous->>'promoted_at')::timestamptz AT TIME ZONE 'Europe/Berlin')::date),
+			rebook.on_date - 1
+		FROM rebook
+		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(rebook.details->'before', '[]'::jsonb)) AS previous
+		WHERE COALESCE((previous->>'waitlisted')::boolean, false) = false
+	),
+	booked AS (
+		SELECT own.organization_id, own.child_id, week.id AS week_id, own.home_school_id, own.first_name, own.last_name, own.birth_date, care_window.starts_at, care_window.ends_at,
+			GREATEST(COALESCE(granted.starts_on, week.starts_on), segment.valid_from, care_window.valid_from) AS first_day,
+			LEAST(COALESCE(granted.ends_on, week.ends_on), segment.valid_until, own.cancelled_on - 1, care_window.valid_until - 1) AS last_day
+		FROM segment
+		JOIN own ON own.child_id = segment.child_id
+		JOIN enrollment.holiday_period_weeks AS week
+			ON week.organization_id = own.organization_id AND week.id = segment.week_id
+		JOIN platform.schools AS school
+			ON school.id = week.host_school_id AND school.organization_id = week.organization_id
+		JOIN enrollment.holiday_week_time_models AS model
+			ON model.organization_id = week.organization_id AND model.holiday_period_week_id = week.id
+				AND model.id = segment.model_id
+  LEFT JOIN guest_access AS granted ON granted.organization_id = own.organization_id
+   AND granted.holiday_registration_child_id = own.child_id AND granted.holiday_period_week_id = week.id
+		CROSS JOIN LATERAL enrollment.holiday_time_model_windows(model.care_time_history, model.starts_at, model.ends_at) AS care_window
+		WHERE week.host_school_id = (SELECT host.school_id FROM host) OR granted.id IS NOT NULL
+	)
+	SELECT organization_id, child_id, week_id, home_school_id, first_name, last_name, birth_date, first_day, last_day, starts_at, ends_at
+	FROM booked
+	WHERE first_day <= last_day AND first_day <= p_to AND last_day >= p_from
+	$function$;
+
+`
+
 func holidayDayBookingUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, holidayDayBookingUpSQL); err != nil {
@@ -196,11 +293,11 @@ func holidayDayBookingUp(ctx context.Context, db *bun.DB) error {
 	})
 }
 
-// holidayDayBookingDown writes back the booked windows of 1.15.878 (with the
-// other host functions of that migration, unchanged) before the days go.
+// holidayDayBookingDown writes back the booked windows of 1.15.878 before the
+// days go.
 func holidayDayBookingDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, holidayHostPlacedSQL); err != nil {
+		if _, err := tx.ExecContext(ctx, holidayBookedWeekWindowsSQL); err != nil {
 			return fmt.Errorf("restore the booked holiday windows: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, holidayDayBookingDownSQL); err != nil {

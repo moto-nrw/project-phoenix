@@ -450,7 +450,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.HolidayWeeks",
-      "binding_digest": "82fbb0d59ad14384dd1a0fffdbd5b869",
+      "binding_digest": "135da418563fd3f308bb7564baa14bb9",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.HolidayWeeks",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer",
@@ -458,7 +458,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RebookHolidayChild",
-      "binding_digest": "8c8b89255f8b3f6b27d78e39c43f1c84",
+      "binding_digest": "3fd4bcd90ea9da7c914d6be258d678b5",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RebookHolidayChild",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.RebookHolidayChild",

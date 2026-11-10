@@ -299,7 +299,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		}
 		careDays, fullDays := []calendar.Date{}, []calendar.Date{}
 		if week.BookingUnit == capability.HolidayBookingUnitDay {
-			careDays = capability.HolidayWeekCareDays(week.StartsOn, week.EndsOn)
+			careDays = append(careDays, week.CareDays...)
 			fullDays = append(fullDays, offer.FullDays[week.ID]...)
 		}
 		weeks = append(weeks, HolidayRegistrationWeek{

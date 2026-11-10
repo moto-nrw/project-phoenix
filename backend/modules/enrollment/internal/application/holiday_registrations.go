@@ -183,6 +183,9 @@ func offeredHolidayWeeks(weeks []enrollment.HolidayWeek) []enrollment.HolidayWee
 	for i, week := range weeks {
 		week.TimeModels = slices.DeleteFunc(slices.Clone(week.TimeModels),
 			func(model enrollment.HolidayTimeModel) bool { return model.Archived })
+		if week.BookingUnit == enrollment.HolidayBookingUnitDay {
+			week.CareDays = enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn)
+		}
 		offered[i] = week
 	}
 	return offered

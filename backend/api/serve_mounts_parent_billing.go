@@ -579,9 +579,7 @@ func (b parentBillingHolidayRegistrations) HolidayWeeks(ctx context.Context, lin
 			models[j] = parentbilling.HolidayTimeModel{ID: model.ID, Name: model.Name, PriceCents: model.PriceCents}
 		}
 		weeks[i] = parentbilling.HolidayWeek{ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, TimeModels: models}
-		if week.BookingUnit == enrollmentOwner.HolidayBookingUnitDay {
-			weeks[i].CareDays = enrollmentOwner.HolidayWeekCareDays(week.StartsOn, week.EndsOn)
-		}
+		weeks[i].CareDays = week.CareDays
 	}
 	return weeks, nil
 }

@@ -576,7 +576,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.HolidayWeeks",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer: the published period of a resolved link with the prices of its time models, read in the Träger transaction of the link's Träger for the public contribution (ADR 0115).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer: the published period of a resolved link with the prices of its time models, read in the Träger transaction of the link's Träger for the public contribution (ADR 0115). Since #4701 the binding also copies the care days Enrollment names for a week by days, so the quote prices a day; it adds no read and no write.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.HolidayRegistrationOffer",
       "target_owner": "enrollment"
@@ -587,7 +587,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RebookHolidayChild",
-      "reason": "Guarded target record command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.RebookHolidayChild: Enrollment locks the period, the registration, then the affected weeks in ascending ID, replaces the child's bookings keeping the placement of kept weeks, gives freed places to the waiting lists with an audit entry and a parent mail per moved-up registration through the Träger outbox, and appends the rebook entry in the caller's Träger transaction (#4699). The Elternabrechnung takes it after its period billing lock and HoldHolidayPeriod and freezes the contribution of moved-up registrations again in the same unit; the route rolls back on any later refusal.",
+      "reason": "Guarded target record command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.RebookHolidayChild: Enrollment locks the period, the registration, then the affected weeks in ascending ID, replaces the child's bookings keeping the placement of kept weeks, gives freed places to the waiting lists with an audit entry and a parent mail per moved-up registration through the Träger outbox, and appends the rebook entry in the caller's Träger transaction (#4699). The Elternabrechnung takes it after its period billing lock and HoldHolidayPeriod and freezes the contribution of moved-up registrations again in the same unit; the route rolls back on any later refusal. Since #4701 the choice carries the days of a week by days, which Enrollment checks against the week and the child's bound of care days under the same period lock; a booking that gains a day waits for its placement again.",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.RebookHolidayChild",
       "target_owner": "enrollment"
