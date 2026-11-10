@@ -22,7 +22,7 @@ import { cn } from "~/lib/utils";
  * Verwendungen — keine zweite Schreibweise.
  */
 export const TILE_CARD_SURFACE =
-  "group moto-content-surface moto-hover-elevated relative block w-full overflow-hidden rounded-2xl border text-left focus-visible:outline-2 focus-visible:outline-gray-300 focus-visible:outline-offset-2";
+  "group moto-content-surface moto-hover-elevated relative block w-full overflow-hidden rounded-2xl border text-left focus-visible:outline-2 focus-visible:outline-moto-blue focus-visible:outline-offset-2";
 
 const NEW_TAB_HINT = "(öffnet in neuem Tab)";
 
