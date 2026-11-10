@@ -1,6 +1,127 @@
 {
   "entries": [
     {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Download",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturn.Download",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.DecryptDataReturnArchive (security-runtime) through datareturn.Service.Download for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.DecryptDataReturnArchive",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Download",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturn.Download",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.OpenDataReturnKey (security-runtime) through datareturn.Service.Download for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.OpenDataReturnKey",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.dataReturnAudit.BeginDataReturn",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnAudit.BeginDataReturn",
+      "reason": "Capability read: before a release, grant, revocation, purge or listing of the data return, the root reads the operator through Identity \u0026 Access and refuses an unknown or inactive one, like the export (ADR 0201, #6326). It writes no identity row.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.FindOperator",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.dataReturnAudit.RecordDataReturn",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnAudit.RecordDataReturn",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.OperatorAuditLogRepository.Create (audit-platform) through cmd.dataReturnAudit.RecordDataReturn. The data return records each release, grant, revocation and purge (operator, school or Träger, archive, grant, recipient kind; no token, key or personal data) in the operator audit (ADR 0201, #4720).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.dataReturnAudit.RecordDataReturn",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnAudit.RecordDataReturn",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinAdmin (tenant-runtime) through cmd.dataReturnAudit.RecordDataReturn, the administrative unit of the operator audit append of a data return action (ADR 0201, #4720). Transaction, savepoint, after-commit and lock-order correctness stay with the audit platform.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Grant",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Grant",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.NewDataReturnToken (security-runtime) through datareturn.Service.Grant for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.NewDataReturnToken",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Grant",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Grant",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.SealDataReturnKey (security-runtime) through datareturn.Service.Grant for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.SealDataReturnKey",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.EncryptDataReturnArchive (security-runtime) through datareturn.Service.Release for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.EncryptDataReturnArchive",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.NewDataReturnArchiveKey (security-runtime) through datareturn.Service.Release for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.NewDataReturnArchiveKey",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.NewDataReturnToken (security-runtime) through datareturn.Service.Release for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.NewDataReturnToken",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0201",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "reason": "Pure cryptography: organization-tenancy reaches securityruntime.SealDataReturnKey (security-runtime) through datareturn.Service.Release for the data return (ADR 0201): token, archive key wrapping or archive encryption in memory. No persistent, lock or scope effect.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.SealDataReturnKey",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/delivery/objects.Local.TenantObjects",
       "classification": "query",
       "effect": "query",

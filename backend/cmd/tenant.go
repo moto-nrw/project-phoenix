@@ -81,7 +81,7 @@ func newTenantCommand() *cobra.Command {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(results[0])
 		}}
 	receipt.Flags().Int64Var(&receiptID, "id", 0, "Erasure evidence ID")
-	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand())
+	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand(), newTenantReturnCommand())
 	return parent
 }
 

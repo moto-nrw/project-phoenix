@@ -318,6 +318,28 @@ const (
 	emailWebhookBurst             = 300
 )
 
+// The retrieval of a return package (ADR 0201) is a few requests per
+// recipient; a tight limit per address stops token guessing and repeated
+// large downloads alike.
+const (
+	dataReturnRequestsPerMinute = 30
+	dataReturnBurst             = 10
+)
+
+// dataReturnRateLimit is nil when rate limiting is disabled.
+func dataReturnRateLimit(enabled bool) func(http.Handler) http.Handler {
+	if !enabled {
+		return nil
+	}
+	limiter := customMiddleware.NewRateLimiter(dataReturnRequestsPerMinute, dataReturnBurst)
+	limiter.SetBucketFunc(func(*http.Request) string { return "data-return" })
+	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+	if securityLogger := securityLoggerFromEnv(); securityLogger != nil {
+		limiter.SetLogger(securityLogger)
+	}
+	return limiter.Middleware()
+}
+
 // emailWebhookRateLimit is nil when rate limiting is disabled.
 func emailWebhookRateLimit(enabled bool) func(http.Handler) http.Handler {
 	if !enabled {

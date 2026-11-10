@@ -44,6 +44,13 @@ eingebettet und entsteht mit demselben Code wie `model.json`;
 Registerstand, zu dem es gehört. Kunden und Zielanbieter auf diese Adresse
 verweisen, nicht auf eine Kopie.
 
+**Abruf über HTTPS (Art. 30 Abs. 2 Data Act, ADR 0201):** Ein geprüftes Paket
+gibt `tenant return release` für den Abruf frei (Abschnitt 8). Kunde und ein
+vom Kunden benannter neuer Anbieter laden es mit einem kurzlebigen Token über
+`GET /public/data-return/package/archive` selbst herunter; die Schnittstelle
+beschreibt `/public/data-return/openapi.json`. Wir erstellen und prüfen das
+Paket weiter selbst; es gibt keinen Selbstbedienungs-Export.
+
 **Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten
 (Bankring) und alle Gesundheitsangaben (Gesundheitsring) stehen geöffnet im
 Paket, nie als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
@@ -53,8 +60,9 @@ Paket, nie als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
 
 **Weiter offen:** Der Mail-Payload bleibt ausgeschlossen (Sicherheitsmails
 tragen dort Link oder Code); der Inhalt einer Mail ist der verknüpfte
-Datensatz. Die rechtliche Bewertung der Data-Act-Schnittstellenpflicht
-(Abschnitt 7) und die menschlichen Nachweise unten. Die Beschäftigtenauskunft
+Datensatz. Die anwaltliche Bestätigung, dass Register und Abrufweg Art. 26 und
+Art. 30 Abs. 2 Data Act genügen (Abschnitt 7), und die menschlichen Nachweise
+unten. Die Beschäftigtenauskunft
 nimmt weiter mehr Kontextzeilen auf als nötig; Pflicht-Redigierung und
 Zweitprüfung fangen das ab.
 
@@ -326,7 +334,10 @@ Es gibt keinen Modus zum stillen Überspringen.
    Sicherungen genügt Überschreiben einzelner Dateien nicht als sicherer
    Löschbeleg. Geschütztes temporäres Medium und dessen Lebenszyklus nutzen;
    keine dauerhaften unkontrollierten Kopien erstellen.
-4. Ein Wechselauftrag folgt zusätzlich dem Wechselprozess mit seinen Fristen
+4. Statt der Übergabe nach 1. und 2. kann das Paket über die
+   HTTPS-Schnittstelle abgerufen werden (Abschnitt 8); bei einem Wechsel ist das
+   der vorgesehene Weg, auch für den neuen Anbieter.
+5. Ein Wechselauftrag folgt zusätzlich dem Wechselprozess mit seinen Fristen
    in Abschnitt 7. Bei einem Wechsel bleibt das verschlüsselte Paket bis zum
    Ende des Abrufzeitraums erhalten; erst danach die lokalen Kopien entfernen.
 
@@ -499,7 +510,7 @@ Die Fristen laufen ab dem Eingang der Wechselanfrage:
 | Wechselanfrage bestätigen, Umfang (Schulen, Träger, Ziel) festhalten | unverzüglich; Ankündigungsfrist höchstens 2 Monate (10.1) | zuständige Person |
 | Ist der Übergang in 30 Tagen nicht machbar: begründen, Ersatzzeitraum ≤ 7 Monate nennen | 14 Arbeitstage nach der Anfrage (10.3) | zuständige Person |
 | Pakete erstellen, prüfen, verschlüsselt übergeben; Dienst läuft weiter | Übergangszeitraum ≤ 30 Kalendertage nach der Ankündigungsfrist, einmal verlängerbar (10.3) | zuständige Person, zweite Person prüft |
-| Verschlüsselte Pakete zum Abruf bereithalten, erneute Übergabe auf Anfrage | 30 Kalendertage nach dem Übergangszeitraum (10.3) | zuständige Person |
+| Pakete nach Abschnitt 8 freigeben (`--keep-until` = Ende des Abrufzeitraums), Tokens bei Bedarf neu ausstellen | ab Freigabe bis 30 Kalendertage nach dem Übergangszeitraum (10.3) | zuständige Person |
 | Löschung nach [tenant-erasure.md](tenant-erasure.md), Nachweis auf Anfrage | danach (10.4, AVV 8.2) | zuständige Person |
 
 Bekannte Wechselrisiken, die dem Kunden mitzuteilen sind: Daten ändern sich
@@ -508,8 +519,80 @@ vereinbaren und neu exportieren; Kennwörter, Passkeys, MFA-Faktoren, Tokens und
 `password`-Einstellungen (Geräte-PIN, SFTP-Passwort) kommen nicht mit und
 müssen im Zielsystem neu gesetzt werden; der Import braucht eine Feldzuordnung.
 
-**Offen (Recht, Yannick):** Ob ein von moto-Mitarbeitenden betreuter Export
-in offenem, dokumentiertem Format die „offenen Schnittstellen“ nach Art. 30
-Abs. 2 Data Act erfüllt oder ob Kunde oder Zielanbieter einen eigenen Abruf
-(etwa eine API) erhalten müssen. Bis zur Entscheidung kein jederzeitiger
-Selbstdownload zugesagt.
+**Offen (Recht):** Die Gründer haben am 10.11.2026 Option B gewählt
+(ADR 0201): Register nach Art. 26 und HTTPS-Abruf des geprüften Pakets mit
+kurzlebiger Berechtigung nach Art. 30 Abs. 2. Ob das genügt, bestätigt die
+anwaltliche Prüfung. Ein jederzeitiger Selbstbedienungs-Export ist nicht
+zugesagt.
+
+## 8. Paket zum Abruf freigeben (Art. 30 Abs. 2 Data Act)
+
+Grundlage: [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md).
+Das Paket enthält vollständige Bankdaten und Gesundheitsangaben. Wer ein Token
+hat, kann es laden.
+
+1. Paket nach Abschnitt 3 erstellen und prüfen. Freigegeben wird nur ein Paket
+   mit passendem `COMPLETE`, unveränderten Dateien laut Manifest, ohne
+   zusätzliche Datei oder Link, ohne Personen-Prüfpaket und mit genau der
+   angegebenen Schule bzw. dem angegebenen Träger. Die CLI prüft das und bricht
+   sonst ab.
+2. Das geprüfte Paketverzeichnis auf den Server der Installation bringen
+   (verschlüsselter Kanal, geschützte temporäre Ablage) und mit derselben
+   Binary wie `server` freigeben. Der Einmal-Container nutzt die Volumes von
+   `server`, also auch `phoenix-<env>-data-return`. Das Paketverzeichnis muss für UID 1001 lesbar sein:
+
+   ```sh
+   docker compose run --rm --no-deps -v "$PACKAGE_DIR":/package:ro server \
+     /app/main tenant return release --package /package \
+     --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+     --keep-until "$LETZTER_ABRUFTAG" \
+     --recipient customer --recipient-name "$KUNDE" \
+     --valid-for 168h --max-downloads 5
+   ```
+
+   Für einen Träger `--organization` statt `--school`. Lokal gilt
+   `scripts/dev-native.sh backend go run . tenant return …`.
+   `--keep-until` ist der letzte Tag des Abrufzeitraums (YYYY-MM-DD). Die
+   Ausgabe nennt `grant_id`, `archive`, `archive_sha256`, `token` und
+   `archive_key`. **Beides erscheint nur einmal.** Das Token über einen
+   bestätigten zweiten Kanal an die Empfängerorganisation geben, nie in das
+   Ticket oder eine unverschlüsselte Mail. Den `archive_key` im geschützten
+   Auftrag (Passwortmanager) bis zum Ende des Abrufzeitraums aufbewahren.
+   Danach die Paketkopie auf dem Server entfernen.
+3. Token für den benannten neuen Anbieter oder ein neues Token nach Ablauf:
+
+   ```sh
+   printf '%s\n' "$ARCHIVE_KEY" | docker compose run --rm --no-deps -T server \
+     /app/main tenant return grant --archive "$ARCHIVE" --operator "$OPERATOR_ID" \
+     --recipient target_provider --recipient-name "$ZIELANBIETER"
+   ```
+
+   Den Schlüssel nur über stdin geben, nie als Argument. Ein Token gilt
+   höchstens 30 Tage und nie über `--keep-until` hinaus.
+4. Abruf durch den Empfänger, beschrieben in `/public/data-return/openapi.json`:
+
+   ```sh
+   curl -fsS -H "Authorization: Bearer $TOKEN" \
+     "$API_URL/public/data-return/package"
+   curl -fsS -H "Authorization: Bearer $TOKEN" -o paket.zip \
+     "$API_URL/public/data-return/package/archive"
+   ```
+
+   `$API_URL` ist die API-Adresse der Installation; Agents verwenden nur
+   localhost. Nach dem Download die SHA-256 der ZIP mit `archiveSHA256`
+   vergleichen, dann `COMPLETE` und `manifest.json`. Jeder Download zählt; ein
+   abgebrochener Download liefert weniger Bytes als `Content-Length`.
+5. Überblick ohne Tokens: `tenant return list --operator "$OPERATOR_ID"`.
+   Abrufe stehen in `platform.data_return_downloads`, Freigaben, Tokens,
+   Widerrufe und Bereinigungen im Operator-Protokoll (Aktion `data_return_*`).
+6. Ein Token sofort beenden: `tenant return revoke --grant "$GRANT_ID"`; alle
+   Tokens eines Pakets: `--archive "$ARCHIVE"`, jeweils mit `--operator`.
+7. Nach dem Abrufzeitraum, vor jeder Löschung nach
+   [tenant-erasure.md](tenant-erasure.md) und regelmäßig:
+   `tenant return purge --operator "$OPERATOR_ID"`. Das löscht Archive nach
+   `--keep-until` oder mit nur widerrufenen Tokens und leert deren Schlüssel;
+   die Nachweiszeilen gehen drei Jahre nach dem Abrufzeitraum.
+
+Die Ablage `phoenix-<env>-data-return` ist nicht Teil der täglichen
+Sicherung. Fehlt ein Archiv nach einem Restore, antwortet der Abruf mit 503;
+dann neu exportieren und freigeben.

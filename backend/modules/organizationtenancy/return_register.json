@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "17d891284d1422ccf62b33f5ae71802ffb8b88d1cd6b6d8d5ffc6dcf255b0f5e",
+  "catalogSHA256": "665be4072330040c5019c03f88a605d8efcd4b4f064f39f161890d6196b29aee",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -48,7 +48,7 @@
   ],
   "commonSpecifications": "Für diese Art von Dienst gibt es noch keine gemeinsamen Spezifikationen oder harmonisierten Normen im Unionsrepositorium nach Art. 35 Data Act. Deshalb geben wir die Daten in den oben genannten offenen Standards zurück (Art. 30 Abs. 5 Data Act).",
   "timeEstimate": "Unverbindliche Schätzung: Ein Paket erstellen und prüfen wir voraussichtlich innerhalb von 10 Arbeitstagen nach Ihrem Auftrag. Bei vielen gespeicherten Dateien kann es länger dauern. Maßgeblich sind die Fristen in Ihrem Vertrag.",
-  "retrieval": "Wir erstellen und prüfen das Paket und übergeben es Ihnen verschlüsselt. Die Rückgabe ist kostenlos.",
+  "retrieval": "Wir erstellen und prüfen das Paket. Danach können Sie oder ein von Ihnen benannter neuer Anbieter es kostenlos über HTTPS abrufen: GET /public/data-return/package/archive mit einem kurzlebigen Token, das wir für genau dieses Paket ausgeben. Die Schnittstelle beschreibt /public/data-return/openapi.json (OpenAPI 3.1).",
   "packages": [
     {
       "kind": "school",
@@ -34928,6 +34928,16 @@
       "name": "platform.cleanup_runs",
       "classification": "excludeInternal",
       "reason": "Internal scheduler execution state, not customer content."
+    },
+    {
+      "name": "platform.data_return_downloads",
+      "classification": "excludeInternal",
+      "reason": "Retrieval log of the return itself, not a school record; the operator provides it on request."
+    },
+    {
+      "name": "platform.data_return_grants",
+      "classification": "excludeSecret",
+      "reason": "Token lookups and wrapped archive keys are credentials of the retrieval; never part of a package."
     },
     {
       "name": "platform.demo_school_file_erasures",

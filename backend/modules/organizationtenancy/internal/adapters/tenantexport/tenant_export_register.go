@@ -116,8 +116,9 @@ const registerTimeEstimate = "Unverbindliche Schätzung: Ein Paket erstellen und
 	"von 10 Arbeitstagen nach Ihrem Auftrag. Bei vielen gespeicherten Dateien kann es länger dauern. " +
 	"Maßgeblich sind die Fristen in Ihrem Vertrag."
 
-const registerRetrieval = "Wir erstellen und prüfen das Paket und übergeben es Ihnen verschlüsselt. " +
-	"Die Rückgabe ist kostenlos."
+const registerRetrieval = "Wir erstellen und prüfen das Paket. Danach können Sie oder ein von Ihnen benannter neuer " +
+	"Anbieter es kostenlos über HTTPS abrufen: GET /public/data-return/package/archive mit einem kurzlebigen Token, " +
+	"das wir für genau dieses Paket ausgeben. Die Schnittstelle beschreibt /public/data-return/openapi.json (OpenAPI 3.1)."
 
 var registerStandards = []organizationtenancy.ReturnRegisterStandard{
 	{Name: "JSON", Reference: "RFC 8259", Use: "manifest.json, model.json, Zeilen der Tabellen"},
