@@ -150,6 +150,11 @@ func matrixFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 // runMatrixUpload imports the matrix file on its own tenant of the package
 // clone over a pool that records every statement and injects fault.
 func runMatrixUpload(t *testing.T, db *bun.DB, dsn string, options api.ImportTestOptions, fault *matrixFault) matrixUpload {
+	return runMatrixUploadOf(t, db, dsn, options, fault, matrixFile)
+}
+
+// runMatrixUploadOf is runMatrixUpload over the file fixture builds.
+func runMatrixUploadOf(t *testing.T, db *bun.DB, dsn string, options api.ImportTestOptions, fault *matrixFault, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) matrixUpload {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	var (
@@ -202,7 +207,7 @@ func runMatrixUpload(t *testing.T, db *bun.DB, dsn string, options api.ImportTes
 	module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), options)
 	require.NoError(t, err)
 	actor := newImporter(t, db)
-	rows := matrixFile(t, db)
+	rows := fixture(t, db)
 	upload.before = studentOutcomeOf(t, db, nil)
 	armed.Store(true)
 	done := awaitStudents(t, uploadStudents(t, module, pool, actor, rows, "matrix.csv"))
@@ -243,8 +248,16 @@ const (
 	classOwnerLink          matrixClass = "K3b in a guardian link savepoint"
 	classOwnerEnrollControl matrixClass = "K4a enrollment savepoint statement"
 	classOwnerLinkControl   matrixClass = "K4b guardian link savepoint statement"
-	classResolverRead       matrixClass = "K5 resolver read"
-	classResolverControl    matrixClass = "K5 resolver savepoint statement"
+	// The inner savepoint of School Membership's counting write when the
+	// school has a child quota (#5552 step 7, table review R1 finding 3):
+	// in a batch row it sits in the chunk savepoint, in a row created in
+	// place inside the enrollment savepoint.
+	classQuota                matrixClass = "K6 in the quota savepoint"
+	classQuotaControl         matrixClass = "K6c quota savepoint statement"
+	classQuotaInEnroll        matrixClass = "K3a/K6 in the quota savepoint of an enrollment"
+	classQuotaInEnrollControl matrixClass = "K3a/K6c quota savepoint statement of an enrollment"
+	classResolverRead         matrixClass = "K5 resolver read"
+	classResolverControl      matrixClass = "K5 resolver savepoint statement"
 	// classBoundControl sets or resets a bound: not the batch command, so a
 	// failure behaves as the row path's first write (table A: R for 40P01
 	// and 40001, otherwise 500) and a failed cleanup after it ends the upload
@@ -256,15 +269,19 @@ const (
 // cleanupPoints are the savepoint cleanup statements a failure of the class
 // runs through, numbered in order, and the chunk transaction's ROLLBACK.
 var cleanupPoints = map[matrixClass][]int{
-	classBounded:            {1, 2, outerRollback}, // chunk ROLLBACK TO, RELEASE
-	classChunk:              {1, 2, outerRollback},
-	classOwnerEnroll:        {1, 2, 3, 4, outerRollback}, // inner ROLLBACK TO, RELEASE, then the chunk's
-	classOwnerLink:          {1, 2, 3, 4, outerRollback},
-	classOwnerEnrollControl: {1, 2, outerRollback}, // the chunk's
-	classOwnerLinkControl:   {1, 2, outerRollback},
-	classResolverRead:       {1, 2, outerRollback}, // the read's
-	classResolverControl:    {1, 2, outerRollback}, // the chunk's
-	classBoundControl:       {1, 2, outerRollback}, // the chunk's
+	classBounded:              {1, 2, outerRollback}, // chunk ROLLBACK TO, RELEASE
+	classChunk:                {1, 2, outerRollback},
+	classOwnerEnroll:          {1, 2, 3, 4, outerRollback}, // inner ROLLBACK TO, RELEASE, then the chunk's
+	classOwnerLink:            {1, 2, 3, 4, outerRollback},
+	classOwnerEnrollControl:   {1, 2, outerRollback}, // the chunk's
+	classOwnerLinkControl:     {1, 2, outerRollback},
+	classQuota:                {1, 2, 3, 4, outerRollback},       // inner ROLLBACK TO, RELEASE, then the chunk's
+	classQuotaControl:         {1, 2, outerRollback},             // the chunk's
+	classQuotaInEnroll:        {1, 2, 3, 4, 5, 6, outerRollback}, // quota, enrollment, chunk
+	classQuotaInEnrollControl: {1, 2, 3, 4, outerRollback},       // enrollment, chunk
+	classResolverRead:         {1, 2, outerRollback},             // the read's
+	classResolverControl:      {1, 2, outerRollback},             // the chunk's
+	classBoundControl:         {1, 2, outerRollback},             // the chunk's
 }
 
 // matrixStatement is one statement of the chunk in the recording.
@@ -315,6 +332,8 @@ func savepointOwner(next string) string {
 	switch {
 	case strings.HasPrefix(next, `SELECT "person"`):
 		return "resolver"
+	case strings.HasPrefix(next, enrollmentWrite) && strings.Contains(next, "INSERT INTO users.student_school_memberships"):
+		return "quota"
 	case strings.HasPrefix(next, enrollmentWrite):
 		return "enroll"
 	case strings.HasPrefix(next, "WITH linked_guardian"):
@@ -381,15 +400,15 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 				segment, phase = segment+1, "resolve"
 			}
 			owners = append(owners, owner)
-			class = controlClass(t, owner, kind)
+			class = controlClass(t, owners, kind)
 		case strings.HasPrefix(kind, "RELEASE SAVEPOINT ") || strings.HasPrefix(kind, "ROLLBACK TO SAVEPOINT "):
 			if len(owners) == 0 {
 				done = true // the chunk's own release ends it
 				continue
 			}
 			owner := owners[len(owners)-1]
+			class = controlClass(t, owners, kind)
 			owners = owners[:len(owners)-1]
-			class = controlClass(t, owner, kind)
 			if owner == "resolver" {
 				phase = "resolved"
 			}
@@ -406,6 +425,10 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 			class = classResolverRead
 		case phase == "bound 1" || phase == "bound 2":
 			class = classBounded
+		case len(owners) > 1 && owners[len(owners)-1] == "quota" && owners[len(owners)-2] == "enroll":
+			class = classQuotaInEnroll
+		case len(owners) > 0 && owners[len(owners)-1] == "quota":
+			class = classQuota
 		case len(owners) > 0 && owners[len(owners)-1] == "enroll":
 			class = classOwnerEnroll
 		case len(owners) > 0 && owners[len(owners)-1] == "link":
@@ -469,8 +492,15 @@ func classExtremes(statements []matrixStatement) map[matrixClass][2]int {
 
 // controlClass is the class of a savepoint statement by the savepoint it
 // belongs to.
-func controlClass(t *testing.T, owner, kind string) matrixClass {
+func controlClass(t *testing.T, owners []string, kind string) matrixClass {
 	t.Helper()
+	owner := owners[len(owners)-1]
+	if owner == "quota" {
+		if len(owners) > 1 && owners[len(owners)-2] == "enroll" {
+			return classQuotaInEnrollControl
+		}
+		return classQuotaControl
+	}
 	switch owner {
 	case "resolver":
 		return classResolverControl
@@ -592,17 +622,49 @@ var matrixFailures = []error{
 // package clone: each upload has a tenant of its own.
 func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	t.Parallel()
+	runStudentFaultMatrix(t, matrixFile, false)
+}
+
+// TestStudentQuotaSavepointFaultMatrix is the matrix over the file with a
+// child quota (#5552 step 7, table review R1 finding 3): School Membership's
+// counting write then opens its inner savepoint, in the chunk savepoint for
+// a batch row and inside the enrollment savepoint for a row created in place
+// (the card row and a row with a group). Only the statements of those quota
+// classes are crossed; the rest is the matrix above.
+func TestStudentQuotaSavepointFaultMatrix(t *testing.T) {
+	t.Parallel()
+	runStudentFaultMatrix(t, matrixQuotaFile, true)
+}
+
+// matrixQuotaFile is matrixFile in a school with a child quota of 100 and
+// O3 in a group, so its child is created in place.
+func matrixQuotaFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
+	t.Helper()
+	testpkg.SetTestChildQuota(t, db, 1, 100)
+	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Kontingent %d", testpkg.Tenant(t)))
+	rows := matrixFile(t, db)
+	rows[10].GroupName = group.Name
+	return rows
+}
+
+// quotaClasses are the classes only a school with a child quota records.
+var quotaClasses = map[matrixClass]bool{classQuota: true, classQuotaControl: true, classQuotaInEnroll: true, classQuotaInEnrollControl: true}
+
+// runStudentFaultMatrix runs the matrix over the file fixture builds; with
+// quota it crosses the quota classes only.
+func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow, quota bool) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	dsn := testpkg.PackageTestDSN(t)
 	var batchRecording, rowRecording, clean matrixUpload
 	t.Run("recording", func(t *testing.T) {
-		batchRecording = runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, nil)
+		batchRecording = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, nil, fixture)
 		require.Equal(t, "200", batchRecording.status)
 		require.Equal(t, 2, countKind(batchRecording.statements, personBatch), "both batch segments ran")
 		require.Zero(t, batchRecording.replays)
 	})
 	t.Run("row path recording", func(t *testing.T) {
-		rowRecording = runMatrixUpload(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, nil)
+		rowRecording = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, nil, fixture)
 		clean = rowRecording
 	})
 	require.Equal(t, "200", clean.status)
@@ -637,7 +699,20 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 		require.Equal(t, 2, perKind[statement.rowPath], "each segment bundles %s once", statement.rowPath)
 	}
 	require.Equal(t, 8, bounds, "two segments × two bounds × set and reset")
-	require.Len(t, classes, len(cleanupPoints), "every class is in the recording")
+	for class := range cleanupPoints {
+		require.Equal(t, !quotaClasses[class] || quota, classes[class], "class %s in the recording", class)
+	}
+	if quota {
+		// Cross the quota classes only; every other statement is the
+		// matrix over the file without a quota.
+		kept := statements[:0]
+		for _, statement := range statements {
+			if quotaClasses[statement.class] {
+				kept = append(kept, statement)
+			}
+		}
+		statements = kept
+	}
 
 	// Part 1: every statement × every main error, cleanups succeed.
 	var mainOnly sync.Map // "index err" -> matrixUpload of the batch path
@@ -651,7 +726,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 					// tenant of its own.
 					var batch, rowPath matrixUpload
 					t.Run("batch", func(t *testing.T) {
-						batch = runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err})
+						batch = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err}, fixture)
 					})
 					require.True(t, batch.primary, "the fault fired")
 					mainOnly.Store(fmt.Sprint(statement.index, err), batch)
@@ -679,7 +754,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 						return
 					}
 					t.Run("row path", func(t *testing.T) {
-						rowPath = runMatrixUpload(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, &matrixFault{at: statement.row, err: err})
+						rowPath = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, &matrixFault{at: statement.row, err: err}, fixture)
 					})
 					require.True(t, rowPath.primary, "the fault fired on the row path")
 					want := rowPath
@@ -728,13 +803,20 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 					// every bound, get the whole cross.
 					mains, cleanups = matrixFailures, matrixFailures
 				}
+				if quota {
+					// The quota classes take every main error with the two
+					// cleanup errors that stand for the rest (a failed
+					// cleanup ends the upload whatever its error), so the
+					// package stays inside CI's ten minutes.
+					cleanups = minimumCleanupErrors
+				}
 				for _, err := range mains {
 					for _, point := range cleanupPoints[statement.class] {
 						for _, err2 := range cleanups {
 							cases++
 							t.Run(fmt.Sprintf("%s × %v, cleanup %d × %v", statement.label(), err, point, err2), func(t *testing.T) {
 								t.Parallel()
-								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2)
+								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2, fixture)
 							})
 						}
 					}
@@ -759,10 +841,10 @@ var minimumCleanupFailures = []error{
 }
 
 // runCleanupCase is one cell of part 2 (tables A and B of the PR).
-func runCleanupCase(t *testing.T, db *bun.DB, dsn string, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error) {
+func runCleanupCase(t *testing.T, db *bun.DB, dsn string, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) {
 	t.Helper()
 	logStatementOnFailure(t, statement)
-	got := runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2})
+	got := runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2}, fixture)
 	require.True(t, got.primary, "the fault fired")
 	if err != injectedSQLState("40P01") {
 		require.Zero(t, got.deadlocks, "a cleanup's 40P01 is no deadlock of the upload")
