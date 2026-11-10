@@ -634,15 +634,17 @@ export default function TraegerDashboardPage() {
           }
         >
           {alerts ? (
-            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+            // The same flat button as the actions of each school below,
+            // and on a phone the same full width.
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
               <p className="text-sm text-gray-600">
                 {thresholdsSentence(alerts.thresholds)}
               </p>
               <ButtonLink
                 href={traegerPath(ALERT_SETTINGS_PATH)}
-                variant="outline"
+                variant="surface"
                 size="compact"
-                className="shrink-0 self-start sm:self-auto"
+                className="w-full shrink-0 min-[480px]:w-auto min-[480px]:self-start sm:self-auto"
               >
                 {canChangeThresholds ? "Grenzen ändern" : "Grenzen ansehen"}
               </ButtonLink>
