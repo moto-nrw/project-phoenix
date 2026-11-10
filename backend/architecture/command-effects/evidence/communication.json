@@ -3425,22 +3425,6 @@
       "target_owner": "delivery-platform"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "binding_digest": "d87e84b5527ebf9d05034de2d530433e",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "source_owner": "communication",
-      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "binding_digest": "ce492daac78242928e7fb18a85d0d969",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "target_owner": "delivery-platform"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToGroup",
       "binding_digest": "34e57aa4986b7c17b6d6df955904577b",
       "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToGroup",

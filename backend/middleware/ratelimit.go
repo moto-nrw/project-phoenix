@@ -72,7 +72,8 @@ func (rl *RateLimiter) SetKeyFunc(keyFunc func(*http.Request) string) {
 
 // SetBucketFunc partitions one identity's quota into independent buckets.
 // The general API limiter uses this to keep SSE-driven reads from consuming
-// the write budget. Auth limiters intentionally leave it unset.
+// the write budget. Auth and webhook limiters use a fixed bucket name for
+// metrics; their instances still have independent quotas.
 func (rl *RateLimiter) SetBucketFunc(bucketFunc func(*http.Request) string) {
 	rl.bucketFunc = bucketFunc
 }

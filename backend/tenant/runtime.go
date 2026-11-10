@@ -306,7 +306,7 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 	defer func() {
 		if panicValue := recover(); panicValue != nil {
 			if !committed {
-				runAfterRollbackHooks(attemptHooks)
+				discardAfterCommitHooks(attemptHooks)
 				observeTransaction(ctx, UnitOfWorkPanicked, nil, started, retries)
 			}
 			panic(panicValue)
@@ -323,7 +323,7 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 			runAfterCommitHooks(commitHooks)
 			return nil
 		}
-		runAfterRollbackHooks(commitHooks)
+		discardAfterCommitHooks(commitHooks)
 		attemptHooks = nil
 		if !retry || attempt == maxTransactionRetries || !uow.replayable(err) {
 			observeTransaction(ctx, transactionResult(err), err, started, retries)

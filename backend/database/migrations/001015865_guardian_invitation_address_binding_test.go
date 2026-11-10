@@ -93,9 +93,16 @@ func TestGuardianInvitationAddressBinding(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT expires_at FROM auth.guardian_invitations WHERE id = ?`, expired).Scan(ctx, &expiredBefore))
 
 	require.NoError(t, guardianInvitationAddressBindingUp(ctx, db))
+	databaseNow := func() time.Time {
+		t.Helper()
+		var now time.Time
+		require.NoError(t, db.NewRaw(`SELECT clock_timestamp()`).Scan(ctx, &now))
+		return now
+	}
 	assertBound := func() {
 		t.Helper()
-		now := time.Now()
+		// Expiry is written by PostgreSQL, so check it against that clock.
+		now := databaseNow()
 		for _, id := range []int64{unchanged, changed, approved, rehashed, overlap} {
 			row := read(id)
 			assert.False(t, row.Expires.After(now), "legacy link %d ends without proof of its recipient", id)
@@ -130,9 +137,9 @@ func TestGuardianInvitationAddressBinding(t *testing.T) {
 	require.NoError(t, guardianInvitationAddressBindingDown(ctx, db))
 	var expires time.Time
 	require.NoError(t, db.NewRaw(`SELECT expires_at FROM auth.guardian_invitations WHERE id = ?`, bound).Scan(ctx, &expires))
-	assert.False(t, expires.After(time.Now()), "Down ends a link whose address the profile no longer has")
+	assert.False(t, expires.After(databaseNow()), "Down ends a link whose address the profile no longer has")
 	var pendingExpires time.Time
 	require.NoError(t, db.NewRaw(`SELECT expires_at FROM auth.guardian_invitations WHERE id = ?`, pending).Scan(ctx, &pendingExpires))
-	assert.True(t, pendingExpires.After(time.Now()), "Down keeps a request awaiting staff")
+	assert.True(t, pendingExpires.After(databaseNow()), "Down keeps a request awaiting staff")
 	require.NoError(t, guardianInvitationAddressBindingDown(ctx, db), "a second Down finds the column gone")
 }

@@ -207,8 +207,8 @@ func demoLoopbackExempt() bool {
 // It runs after the session Verifier, whose parse the per-account key reads,
 // and before the session family check, so a flood of signed tokens is limited
 // before it reaches the database.
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, exemptLoopback bool) {
-	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, enabled, exemptLoopback bool) {
+	if !enabled {
 		return
 	}
 
@@ -278,24 +278,25 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 		emailConfirm: customMiddleware.NewRateLimiter(authLimit, burst),
 		invitation:   customMiddleware.NewRateLimiter(authLimit, burst),
 	}
-	if exemptLoopback {
-		limiters.auth.ExemptLoopback()
-		limiters.emailConfirm.ExemptLoopback()
-		limiters.invitation.ExemptLoopback()
-	}
-	if securityLogger != nil {
-		limiters.auth.SetLogger(securityLogger)
-		limiters.emailConfirm.SetLogger(securityLogger)
-		limiters.invitation.SetLogger(securityLogger)
+	for bucket, limiter := range map[string]*customMiddleware.RateLimiter{
+		"auth": limiters.auth, "email-confirm": limiters.emailConfirm, "invitation": limiters.invitation,
+	} {
+		limiter.SetBucketFunc(func(*http.Request) string { return bucket })
+		limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+		if exemptLoopback {
+			limiter.ExemptLoopback()
+		}
+		if securityLogger != nil {
+			limiter.SetLogger(securityLogger)
+		}
 	}
 	return limiters
 }
 
-// authRateLimitersFromEnv builds the auth-endpoint limiters while
-// RATE_LIMIT_ENABLED is set. When it is not, the zero-value limiters carry
-// nil fields and the portals mount without them.
-func authRateLimitersFromEnv() authRateLimiters {
-	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+// authRateLimitersFromEnv builds the auth-endpoint limiters from the root
+// configuration snapshot. Disabled limiters carry nil fields.
+func authRateLimitersFromEnv(enabled bool) authRateLimiters {
+	if !enabled {
 		return authRateLimiters{}
 	}
 	return buildAuthRateLimiters(securityLoggerFromEnv(), os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"), demoLoopbackExempt())
@@ -318,8 +319,8 @@ const (
 )
 
 // emailWebhookRateLimit is nil when rate limiting is disabled.
-func emailWebhookRateLimit() func(http.Handler) http.Handler {
-	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+func emailWebhookRateLimit(enabled bool) func(http.Handler) http.Handler {
+	if !enabled {
 		return nil
 	}
 	return newEmailWebhookRateLimit(securityLoggerFromEnv())
@@ -327,6 +328,7 @@ func emailWebhookRateLimit() func(http.Handler) http.Handler {
 
 func newEmailWebhookRateLimit(securityLogger *customMiddleware.SecurityLogger) func(http.Handler) http.Handler {
 	limiter := customMiddleware.NewRateLimiter(emailWebhookRequestsPerMinute, emailWebhookBurst)
+	limiter.SetBucketFunc(func(*http.Request) string { return "webhook" })
 	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
 	if securityLogger != nil {
 		limiter.SetLogger(securityLogger)
