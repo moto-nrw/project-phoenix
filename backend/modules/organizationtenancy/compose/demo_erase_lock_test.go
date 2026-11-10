@@ -291,6 +291,10 @@ func (o demoOrder) erasureFirst(t *testing.T, hold []step, marker string, write 
 	t.Helper()
 	ctx := t.Context()
 	before := o.snapshot(t)
+	// Poll for lock transitions without competing with the run for CPU or
+	// querying pg_stat_activity again once the writer's wait was observed.
+	poll := time.NewTicker(time.Millisecond)
+	defer poll.Stop()
 	type outcome struct {
 		erased int
 		err    error
@@ -312,7 +316,7 @@ func (o demoOrder) erasureFirst(t *testing.T, hold []step, marker string, write 
 			select {
 			case result = <-erasure:
 				finished = true
-			default:
+			case <-poll.C:
 			}
 		}
 		writerWaited := false
@@ -327,8 +331,8 @@ func (o demoOrder) erasureFirst(t *testing.T, hold []step, marker string, write 
 					finished = true
 				case writeErr = <-written:
 					wrote = true
-				default:
-					if !finished && !wrote && lockWaits(t, o.db, marker) {
+				case <-poll.C:
+					if !finished && !wrote && !writerWaited && lockWaits(t, o.db, marker) {
 						writerWaited = true
 					}
 				}
