@@ -110,3 +110,31 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
     }
   });
 });
+
+// PresenceBadge shows Unterwegs and a bare room name as „Anwesend“. A room
+// keeps its „seit“ like LocationBadge; Unterwegs hides it like LocationBadge.
+it.each([
+  ["Gruppenraum 1", "seit 10:15 Uhr"],
+  ["Unterwegs", null],
+])(
+  "PresenceBadge shows „seit“ under Anwesend for %s like LocationBadge",
+  (location, expected) => {
+    render(
+      <PresenceBadge
+        student={{
+          current_location: location,
+          location_since: "2026-09-09T08:15:00Z",
+        }}
+        showLocationSince
+      />,
+    );
+
+    // Anker: PresenceBadge maps both locations to Anwesend.
+    expect(screen.getByText("Anwesend")).toBeInTheDocument();
+    if (expected) {
+      expect(screen.getByText(/^seit /)).toHaveTextContent(expected);
+    } else {
+      expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
+    }
+  },
+);

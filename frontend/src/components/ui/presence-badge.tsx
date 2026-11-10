@@ -15,6 +15,7 @@ import {
   isInClassLocation,
   isNotCheckedInLocation,
   isSchoolyardLocation,
+  isTransitLocation,
   parseLocation,
 } from "@/lib/location-helper";
 
@@ -184,7 +185,13 @@ export function PresenceBadge({
   const showSinceTime =
     showLocationSince &&
     formattedTime !== null &&
-    showsLocationSince(location.label, replaceTimeSource !== null);
+    showsLocationSince(
+      // The pill shows Unterwegs as Anwesend; „seit“ still follows Unterwegs.
+      isTransitLocation(student.current_location)
+        ? LOCATION_STATUSES.TRANSIT
+        : location.label,
+      replaceTimeSource !== null,
+    );
 
   const dataStatus = parseLocation(student.current_location).status;
 
