@@ -8,6 +8,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -114,6 +116,19 @@ func (f reviewFixture) mails(t *testing.T, kind string, registrationID int64) in
 		WHERE organization_id = ? AND kind = ? AND related_entity_id = ?`, f.office.organization, kind, registrationID).
 		Scan(context.Background(), &count))
 	return count
+}
+
+// placeMail reads the one mail that a booking of registrationID moved up.
+func (f reviewFixture) placeMail(t *testing.T, registrationID int64) enrollmentOwner.HolidayPlaceGrantedMail {
+	t.Helper()
+	var payloads []string
+	require.NoError(t, f.db.NewRaw(`SELECT payload::text FROM platform.email_outbox
+		WHERE organization_id = ? AND kind = 'holiday_place_granted' AND related_entity_id = ?`, f.office.organization, registrationID).
+		Scan(context.Background(), &payloads))
+	require.Len(t, payloads, 1)
+	var mail enrollmentOwner.HolidayPlaceGrantedMail
+	require.NoError(t, json.Unmarshal([]byte(payloads[0]), &mail))
+	return mail
 }
 
 // hostParticipants counts the children the host school of the week sees in
@@ -238,6 +253,60 @@ func TestHolidayPlacesMoveUpOnRebookingAndCapacity(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another Träger reads no places: %s", rec.Body.String())
 	rec = traegerJSON(t, f.traeger, other.token, http.MethodPut, holidayCapacityPath(f.period.ID, first.ID), map[string]any{"capacity": 9})
 	assert.Equal(t, http.StatusNotFound, rec.Code, "nor changes them: %s", rec.Body.String())
+}
+
+// TestHolidayPlaceMailAfterAnOfficeChangeNamesTheTraegerAndTheHostSchool
+// pins #6437: the mail that a booking moved up after a change in the
+// Träger-Büro names the Träger and, for each week, its host school, as the
+// public registration names them. A higher capacity moves Tom up in the
+// week of the south school, a rebooking Ole and a cancellation Max in the
+// week of the north school. Before #6437 the Träger transaction read no
+// name: the mail named neither, and the parents could not tell whose place
+// it was. A foreign Träger with its own schools appears in no mail.
+func TestHolidayPlaceMailAfterAnOfficeChangeNamesTheTraegerAndTheHostSchool(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Plätze Absender")
+	foreign := newTraegerOffice(t, f.db, f.traeger, "Träger Plätze Absender Fremd", identityaccess.TraegerRoleAdministration)
+	first, second := f.offer.Weeks[0], f.offer.Weeks[1]
+	require.NotEqual(t, first.HostSchoolName, second.HostSchoolName, "the weeks are hosted by two schools")
+	// Lia and Ben hold the first week, LIA of the second registration the second.
+	f.setCapacity(t, first.ID, 2)
+	f.setCapacity(t, second.ID, 1)
+	tom := f.submitPlaces(t, "tom.absender@example.org", map[string][]int{"Tom": {1}})
+	ole := f.submitPlaces(t, "ole.absender@example.org", map[string][]int{"Ole": {0}})
+	max := f.submitPlaces(t, "max.absender@example.org", map[string][]int{"Max": {0}})
+	for _, receipt := range []receiptBody{tom, ole, max} {
+		require.Equal(t, "waitlisted", receipt.Placements[0].Placement)
+	}
+	want := func(email, child string, week int) enrollmentOwner.HolidayPlaceGrantedMail {
+		days := map[int]string{0: "04.01.2027 bis 08.01.2027", 1: "11.01.2027 bis 15.01.2027"}[week]
+		return enrollmentOwner.HolidayPlaceGrantedMail{
+			Recipient: email, GuardianName: "Eva Muster", TraegerName: f.offer.TraegerName, PeriodName: "Winterferien 2027", Binding: true,
+			Children: []enrollmentOwner.HolidayRegistrationMailChild{{Name: child + " Platz", Weeks: []string{
+				days + ": " + f.offer.Weeks[week].HostSchoolName + ", bis 13 Uhr (08:00 bis 13:00 Uhr)",
+			}}},
+		}
+	}
+	require.Equal(t, "Träger Plätze Absender", f.offer.TraegerName)
+
+	assert.Equal(t, []int64{tom.ID}, f.setCapacity(t, second.ID, 3).MovedUp)
+	assert.Equal(t, want("tom.absender@example.org", "Tom", 1), f.placeMail(t, tom.ID), "a higher capacity names the south school")
+
+	ben := f.list(t, "").Registrations[0].Children[1]
+	rebook := map[string]any{"bookings": []map[string]any{{"week_id": second.ID, "time_model_id": second.TimeModels[0].ID}}}
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayRebookPath(f.period.ID, f.siblings, ben.ID), rebook)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, want("ole.absender@example.org", "Ole", 0), f.placeMail(t, ole.ID), "a rebooking names the north school")
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, holidayCancelPath(f.period.ID, f.siblings), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, want("max.absender@example.org", "Max", 0), f.placeMail(t, max.ID), "a cancellation names the north school")
+
+	var foreignMentions int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM platform.email_outbox WHERE organization_id = ? AND payload::text LIKE '%Fremd%'`,
+		f.office.organization).Scan(context.Background(), &foreignMentions))
+	assert.Zero(t, foreignMentions, "no mail names the foreign Träger or its schools")
+	assert.NotEmpty(t, foreign.schools)
 }
 
 // TestHolidayPlacesHoldTheLastPlaceAgainstAConcurrentRegistration runs two
