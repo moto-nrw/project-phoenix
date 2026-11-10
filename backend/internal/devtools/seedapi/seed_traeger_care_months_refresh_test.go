@@ -39,7 +39,7 @@ func TestSeedCareRunReviewsAChangedPreviewBeforeReleasing(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				switch r.Method + " " + r.URL.Path {
 				case "GET /traeger/care-billing-runs/":
-					_, _ = fmt.Fprint(w, `{"data":{"runs":[{"id":5,"billing_month":"2026-11-01","status":"calculated"}]}}`)
+					_, _ = fmt.Fprint(w, `{"data":{"runs":[{"id":5,"billing_month":"2026-11-01","status":"calculated","school_ids":[7]}]}}`)
 				case "PUT /traeger/billing-terms/care", "PUT /traeger/billing-terms/meal", "PUT /traeger/billing-terms/holiday":
 					terms++
 					_, _ = fmt.Fprint(w, `{"data":{}}`)
@@ -82,7 +82,7 @@ func TestSeedCareRunReviewsAChangedPreviewBeforeReleasing(t *testing.T) {
 				}
 			})
 			defer srv.Close()
-			issued, err := seedCareRun(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, calendar.NewDate(2026, 11, 1), true)
+			issued, err := seedCareRun(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 7, calendar.NewDate(2026, 11, 1), true)
 			if scenario.wantError {
 				require.Error(t, err)
 				code := scenario.refusal

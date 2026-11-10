@@ -609,7 +609,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.AssignTraegerRole",
-      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access validates the Träger role, locks the live account against a concurrent erasure and inserts the role on the operator's administrative unit, which the Träger membership grant of Organisation \u0026 Tenancy owns (ADR 0084, #4649). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access validates the Träger role, locks the live account against a concurrent erasure, refuses a deactivated account under that lock without reactivating it (#6535) and inserts the role on the operator's administrative unit, which the Träger membership grant of Organisation \u0026 Tenancy owns (ADR 0084, #4649). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself.",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignTraegerRole",
       "target_owner": "identity-access"

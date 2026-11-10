@@ -830,6 +830,17 @@ jobs:
             finished=$(date +%s)
             echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
           done
+          # Both schools share the demo Träger, as every demo order on the
+          # demo server does: each bills its own contracts in a run of its
+          # own and exports that run to DATEV, even though the other school
+          # billed and exported the same months first.
+          for slug in demo-smoke-zwei demo-smoke-eins; do
+            invoices=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM parent_billing.care_invoices i JOIN platform.schools s ON s.id = i.school_id WHERE s.slug = '${slug}'")
+            datev=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM parent_billing.export_files f JOIN parent_billing.care_run_schools r ON r.organization_id = f.organization_id AND r.run_id = f.run_id JOIN platform.schools s ON s.id = r.school_id WHERE f.run_kind = 'care' AND f.format = 'datev' AND s.slug = '${slug}'")
+            echo "demo school ${slug}: ${invoices} monthly invoices, ${datev} DATEV files of its runs"
+            test "${invoices}" -gt 0
+            test "${datev}" -gt 0
+          done
 
       - name: Provision and restart the standing demo school
         if: ${{ matrix.scenario == 'profiles' }}
