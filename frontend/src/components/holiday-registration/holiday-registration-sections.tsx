@@ -252,6 +252,7 @@ function DayChoice({
           type="warning"
           size="compact"
           message={t("fullDaysChosen", {
+            count: chosenFull.length,
             days: holidayDayList(chosenFull, locale),
           })}
         />
