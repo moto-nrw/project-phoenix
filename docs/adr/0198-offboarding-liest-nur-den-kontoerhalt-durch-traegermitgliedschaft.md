@@ -17,7 +17,7 @@ nicht. Beide Entzugspfade behalten ihre bestehende Transaktion und Kontosperre;
 das Team-Portal bindet die Deaktivierungsentscheidung in die Vorschau-Revision.
 
 `phoenix_tenant` darf `platform.organization_accounts` weiterhin nicht lesen.
-Migration 1.15.901 bietet stattdessen eine `SECURITY DEFINER`-Funktion mit
+Migration 1.15.904 bietet stattdessen eine `SECURITY DEFINER`-Funktion mit
 festem Suchpfad an, die nur ein Boolean und nur für ein an der aktuellen
 Schule aktiv zugeordnetes Konto liefert. Der Operator liest mit seinen
 bestehenden Tabellenrechten. Es entstehen weder ein Scope-Wechsel noch

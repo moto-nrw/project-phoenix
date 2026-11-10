@@ -265,7 +265,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // downloads (+5) of modules/parentbilling/compose.
 // ADR 0191: the constructor of the stored originals of the Jahresbescheide
 // of modules/parentbilling/compose adds exactly 5 LOC.
-// ADR 0197: the narrow account-retention constructor adds exactly 13 LOC.
+// ADR 0198: the narrow account-retention constructor adds exactly 13 LOC.
 const moduleComposeBudgetTotal = 13245
 
 // moduleComposeBudgets maps every owner composition package to its production
@@ -338,7 +338,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0187: the Träger package constructor with its PAIN.008
 	// files and operator audit (+13) and the records command injected into
 	// the operator provisioning (+10).
-	// ADR 0197: the narrow account-retention constructor (+13).
+	// ADR 0198: the narrow account-retention constructor (+13).
 	"modules/organizationtenancy/compose": 356,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).

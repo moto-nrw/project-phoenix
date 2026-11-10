@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const offboardingTraegerMembershipVersion = "1.15.901"
+const offboardingTraegerMembershipVersion = "1.15.904"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
