@@ -173,3 +173,19 @@ für die Rückgabe am Vertragsende:
   Personendaten der Familien (Schreiben, Verträge, Nachweise). Die Übergabe bleibt ein
   Mensch-Schritt: nur verschlüsselt, lokale Kopie nach bestätigtem Empfang
   löschen (Runbook Auskunft und Rückgabe).
+
+## Addendum: Schulpaket im Operator-Protokoll (#6326, 2026-11-10)
+
+Punkt 6 gilt jetzt für jeden Lauf von `tenant export`, auch `--school`
+(mit oder ohne `--person`). Der Schul-Export verlangt `--operator` mit einem
+bestehenden, aktiven Operator und schreibt denselben Versuch und dasselbe
+Ergebnis, mit Ressource `school` und `school_id` statt `organization`; ein
+internes Prüfpaket trägt `person_review: true` ohne die Person. Ohne
+Protokoll verweigert der Exporter jedes Paket (`compose.NewTenantExporter`
+verlangt es). Der Satz „Das Schulpaket bleibt ohne Protokoll“ ist damit
+überholt. Abweichend vom Trägerpaket löscht ein fehlgeschlagenes
+Schulpaket seine Teilstände nicht: Das bestehende Verfahren sperrt und
+entfernt sie nach dem Runbook, und der Fehlerfall-Vertrag des Schulpakets
+(nur Vorgängerdateien bleiben, kein Manifest, kein `COMPLETE`) bleibt
+unverändert. Kein neuer Port, kein neuer Owner-Zugriff; die Root bindet
+dasselbe Operator-Protokoll für beide Pakete.

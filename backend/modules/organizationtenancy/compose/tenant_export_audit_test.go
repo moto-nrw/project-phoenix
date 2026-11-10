@@ -168,7 +168,7 @@ func TestTenantExportOrganizationWithoutPAIN008FilesOrAuditNeverCompletes(t *tes
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(t.Context(), &organization))
 	fingerprints := organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}
 
-	plain, err := compose.NewTenantExporter(db, fingerprints, openedSealedFields{}, projectedFields{})
+	plain, err := compose.NewTenantExporter(db, fingerprints, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	require.Error(t, plain.Export(t.Context(), organizationtenancy.TenantExportOptions{OrganizationID: organization, OperatorID: 42, Output: out, Uploads: t.TempDir()}),
@@ -247,4 +247,64 @@ func artifactPaths(manifest organizationtenancy.ExportManifest) []string {
 		paths[i] = artifact.Path
 	}
 	return paths
+}
+
+// A school package is in the operator audit like the Träger package
+// (#6326): without an operator nothing is read, every run records its
+// attempt first and its outcome, without personal data, and a run whose
+// completion is not recorded never completes.
+func TestTenantExportSchoolIsAuditedLikeTheTraegerPackage(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	school := testpkg.Tenant(t)
+	const name = "Synthetisch-Auditkind"
+	testpkg.CreateTestStudentForTenant(t, db, school, name, "Rueckgabe", "1a")
+	fingerprints := organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}
+	_, err := compose.NewTenantExporter(db, fingerprints, openedSealedFields{}, projectedFields{}, nil)
+	require.Error(t, err, "a school package needs its operator audit")
+
+	export := func(audit *exportAuditFake, operator int64) (string, error) {
+		exporter, err := compose.NewTenantExporter(db, fingerprints, openedSealedFields{}, projectedFields{}, audit)
+		require.NoError(t, err)
+		out := filepath.Join(t.TempDir(), "export")
+		audit.onBegin = func() { require.NoDirExists(t, out, "the attempt is recorded before any file is written") }
+		return out, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: operator, Output: out, Uploads: t.TempDir()})
+	}
+
+	unattributed := &exportAuditFake{}
+	out, err := export(unattributed, 0)
+	require.Error(t, err, "a school package without operator is refused")
+	require.NoDirExists(t, out, "nothing is written")
+	require.Empty(t, unattributed.attempts)
+
+	refused := &exportAuditFake{err: errors.New("operator inactive")}
+	out, err = export(refused, 42)
+	require.Error(t, err, "an attempt the audit refuses never starts")
+	require.NoDirExists(t, out)
+
+	audit := &exportAuditFake{}
+	out, err = export(audit, 42)
+	require.NoError(t, err)
+	require.Equal(t, []organizationtenancy.TenantExportAttempt{{OperatorID: 42, SchoolID: school, StartedAt: audit.attempts[0].StartedAt}}, audit.attempts)
+	require.Len(t, audit.records, 1)
+	record := audit.records[0]
+	manifest := readExportManifest(t, out)
+	marker, err := os.ReadFile(filepath.Join(out, "COMPLETE"))
+	require.NoError(t, err)
+	require.Equal(t, organizationtenancy.TenantExportRecord{OperatorID: 42, SchoolID: school, Outcome: organizationtenancy.TenantExportCompleted,
+		StartedAt: audit.attempts[0].StartedAt, ManifestSHA256: strings.TrimSpace(string(marker)), ExportedAt: manifest.ExportedAt,
+		Tables: len(manifest.Tables), Artifacts: len(manifest.Artifacts)}, record, "the school instead of the Träger, the same counts")
+	encoded, err := json.Marshal(record)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), name, "the audit holds no personal data")
+	require.NotContains(t, string(encoded), out, "nor the local path")
+
+	unrecorded := &exportAuditFake{completedErr: errors.New("ledger down")}
+	out, err = export(unrecorded, 42)
+	require.Error(t, err)
+	require.NoFileExists(t, filepath.Join(out, "COMPLETE"), "no COMPLETE without its audit entry")
+	require.Len(t, unrecorded.records, 1, "the failure is recorded")
+	require.Equal(t, organizationtenancy.TenantExportFailed, unrecorded.records[0].Outcome)
+	require.Equal(t, "audit", unrecorded.records[0].ErrorClass)
+	require.Equal(t, school, unrecorded.records[0].SchoolID)
 }

@@ -66,7 +66,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
-      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.OperatorAuditLogRepository.Create (audit-platform) through cmd.tenantExportAudit.BeginTenantExport. The Rückgabe of a Träger records its attempt (operator, Träger, start time; no personal data) before anything is read or written (#4720, ADR 0187). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.OperatorAuditLogRepository.Create (audit-platform) through cmd.tenantExportAudit.BeginTenantExport. The Rückgabe of a school or a Träger records its attempt (operator, school or Träger, start time; no personal data) on the school or the organization before anything is read or written (#4720, ADR 0187, #6326). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
       "target_owner": "audit-platform"
@@ -77,7 +77,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
-      "reason": "Capability read: before the attempt is recorded, the root reads the operator through Identity \u0026 Access and refuses an unknown or inactive one, like the erasure (#4720, ADR 0187). It writes no identity row.",
+      "reason": "Capability read: before the attempt is recorded, the root reads the operator through Identity \u0026 Access and refuses an unknown or inactive one for a school or a Träger package, like the erasure (#4720, ADR 0187, #6326). It writes no identity row.",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.FindOperator",
       "target_owner": "identity-access"
@@ -88,7 +88,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.BeginTenantExport",
-      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinAdmin (tenant-runtime) through cmd.tenantExportAudit.BeginTenantExport, the administrative unit of the operator audit append of the attempt (#4720). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinAdmin (tenant-runtime) through cmd.tenantExportAudit.BeginTenantExport, the administrative unit of the operator audit append of the attempt of a school or Träger package (#4720, #6326). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
@@ -99,7 +99,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.RecordTenantExport",
-      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.OperatorAuditLogRepository.Create (audit-platform) through cmd.tenantExportAudit.RecordTenantExport. The Rückgabe of a Träger records each run (operator, Träger, manifest checksum, counts; no personal data) before COMPLETE (#4720, #6314). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): organization-tenancy reaches modules/auditlog/records.OperatorAuditLogRepository.Create (audit-platform) through cmd.tenantExportAudit.RecordTenantExport. The Rückgabe of a school or a Träger records each run (operator, school or Träger, manifest checksum, counts; no personal data) before COMPLETE (#4720, #6314, #6326). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
       "target_owner": "audit-platform"
@@ -110,7 +110,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportAudit.RecordTenantExport",
-      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinAdmin (tenant-runtime) through cmd.tenantExportAudit.RecordTenantExport, the administrative unit of the operator audit append (#4720). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): organization-tenancy reaches tenant.WithinAdmin (tenant-runtime) through cmd.tenantExportAudit.RecordTenantExport, the administrative unit of the operator audit append of a school or Träger package (#4720, #6326). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
