@@ -83,6 +83,7 @@
   "care_notice_run_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "care_notice_run_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "care_notice_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "care_notice_recipient_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "sepa_creditor_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sepa_mandate_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sepa_mandate_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

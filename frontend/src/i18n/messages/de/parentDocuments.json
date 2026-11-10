@@ -8,6 +8,8 @@
   "creditLetter": "Gutschrift {period}",
   "careInvoiceLetter": "Rechnung {period}",
   "careCancellationLetter": "Storno {period}",
+  "careFeeNotice": "Gebührenbescheid {period}",
+  "careChangeNotice": "Änderungsbescheid {period}",
   "sender": "Von {traeger}",
   "children": "Für",
   "amount": "Betrag",
