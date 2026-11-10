@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
@@ -96,7 +97,8 @@ export function FilteredBulkArrivalModal({
   const { success: toastSuccess } = useToast();
   const weekendOpen = useWeekendFollowsFriday();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
   // FormModal error slot, not as a toast.
   const formErrors = useApiFormError();
@@ -266,28 +268,28 @@ export function FilteredBulkArrivalModal({
       expected_arrival: draft[value] ?? "",
     }));
 
-    setSaving(true);
-    try {
-      await bulkUpsertArrivalSchedules(filter, schedules);
-      toastSuccess(
-        isClassTimetable
-          ? `Der Unterrichtsschluss für ${targetTitle} ist gespeichert.`
-          : `Die Ankunftszeiten für ${childCountLabel(studentsInFilter.length)} aus ${targetTitle} sind gespeichert.`,
-      );
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      logger.error("failed to bulk upsert arrival schedules", {
-        filter_type: filter.type,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: isClassTimetable ? "die Klassenzeit" : "die Ankunftszeit",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await bulkUpsertArrivalSchedules(filter, schedules);
+        toastSuccess(
+          isClassTimetable
+            ? `Der Unterrichtsschluss für ${targetTitle} ist gespeichert.`
+            : `Die Ankunftszeiten für ${childCountLabel(studentsInFilter.length)} aus ${targetTitle} sind gespeichert.`,
+        );
+        onSuccess?.();
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("failed to bulk upsert arrival schedules", {
+          filter_type: filter.type,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: isClassTimetable ? "die Klassenzeit" : "die Ankunftszeit",
+          retry: () => void latestSubmitRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = handleSubmit;
@@ -305,6 +307,7 @@ export function FilteredBulkArrivalModal({
       isOpen={isOpen}
       suspended={arrivalExceptionConfirmationOpen}
       onClose={onClose}
+      pending={save}
       error={formErrors.error}
       title={
         showDayView
@@ -367,6 +370,7 @@ export function FilteredBulkArrivalModal({
             schoolClass={schoolClass}
             classLabel={targetTitle}
             onChanged={onSuccess}
+            pending={save}
             onConfirmationVisibilityChange={setArrivalExceptionConfirmationOpen}
             weekendOpen={weekendOpen}
           />

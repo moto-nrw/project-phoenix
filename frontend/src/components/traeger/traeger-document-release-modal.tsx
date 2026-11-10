@@ -10,6 +10,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError } from "~/contexts/ToastContext";
 import type { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -73,7 +74,8 @@ export function TraegerDocumentReleaseModal({
   const [scope, setScope] = useState<Scope>("all");
   const [schoolId, setSchoolId] = useState("");
   const [groupId, setGroupId] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -127,30 +129,29 @@ export function TraegerDocumentReleaseModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", missing);
       return;
     }
-    setSaving(true);
-    try {
-      onReleased(
-        await releaseTraegerDocument(documentId, {
+    await save.run(async (op) => {
+      try {
+        const result = await releaseTraegerDocument(documentId, {
           audience,
           schoolId: scope === "all" ? null : schoolId,
           groupId: scope === "group" ? groupId : null,
-        }),
-      );
-    } catch (err) {
-      logger.error("traeger_document_release_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Freigabe" });
-    } finally {
-      setSaving(false);
-    }
+        });
+        if (op.isCurrent()) onReleased(result);
+      } catch (err) {
+        logger.error("traeger_document_release_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Freigabe" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Dokument freigeben"
       size="md"

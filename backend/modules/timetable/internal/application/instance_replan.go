@@ -41,7 +41,9 @@ func (s *InstanceLifecycleService) ReplanWeek(ctx context.Context, from, to cale
 }
 
 func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantID int64, from, to calendar.Date, activityGroupID, actorAccountID *int64) (*timetable.ReplanWeekResult, error) {
-	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
+	// Recurrence, then the grade-transition gate the materialization below
+	// reads roster state under, then the days (#6232).
+	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
 		return nil, &ports.ScheduleError{Op: "replan week: lock recurrence", Err: err}
 	}
 	// Lock every day of the window, ascending, BEFORE snapshotting: the

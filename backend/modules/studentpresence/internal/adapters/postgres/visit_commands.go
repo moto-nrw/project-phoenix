@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 func (s *Store) CloseGroupVisits(ctx context.Context, ids []int64) (ports.Stats, error) {
@@ -82,24 +83,44 @@ func (s *Store) TransferRecentDeviceVisits(ctx context.Context, to, deviceID int
 	return stats, err
 }
 
-func (s *Store) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (ports.Stats, error) {
+// deleteExpiredVisitsSQL deletes the completed visits of every listed
+// student past its own cutoff in one statement and counts the rows it
+// actually deleted per student.
+const deleteExpiredVisitsSQL = `WITH expiry AS (
+	SELECT * FROM unnest(?::bigint[], ?::timestamptz[], ?::boolean[]) AS e(student_id, cutoff, by_exit)
+), deleted AS (
+	DELETE FROM active.visits AS v USING expiry AS e
+	WHERE v.tenant_id = ? AND v.student_id = e.student_id AND v.exit_time IS NOT NULL
+	AND CASE WHEN e.by_exit THEN v.exit_time < e.cutoff ELSE v.created_at < e.cutoff END
+	RETURNING v.student_id
+)
+SELECT student_id, COUNT(*) AS deleted FROM deleted GROUP BY student_id`
+
+func (s *Store) DeleteExpiredVisits(ctx context.Context, expiries []ports.VisitExpiry) (map[int64]int64, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return ports.Stats{}, err
+		return nil, ports.Stats{}, err
+	}
+	studentIDs := make([]int64, len(expiries))
+	cutoffs := make([]time.Time, len(expiries))
+	byExit := make([]bool, len(expiries))
+	for i, expiry := range expiries {
+		studentIDs[i], cutoffs[i], byExit[i] = expiry.StudentID, expiry.Cutoff, expiry.ByExit
+	}
+	var rows []struct {
+		StudentID int64 `bun:"student_id"`
+		Deleted   int64 `bun:"deleted"`
 	}
 	started := time.Now()
-	query := db.NewDelete().Table("active.visits").Where("tenant_id = ?", tenantID).
-		Where("student_id = ?", studentID).Where("exit_time IS NOT NULL")
-	if policy.CompletedBefore != nil {
-		query = query.Where("exit_time < ?", *policy.CompletedBefore)
-	} else {
-		query = query.Where("created_at < ?", cutoff)
-	}
-	result, err := query.Exec(ctx)
+	err = db.NewRaw(deleteExpiredVisitsSQL, pgdialect.Array(studentIDs), pgdialect.Array(cutoffs), pgdialect.Array(byExit), tenantID).Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
-		return stats, err
+		return nil, stats, err
 	}
-	stats.Rows, err = result.RowsAffected()
-	return stats, err
+	deleted := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		deleted[row.StudentID] = row.Deleted
+		stats.Rows += row.Deleted
+	}
+	return deleted, stats, nil
 }

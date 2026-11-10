@@ -47,7 +47,7 @@ func (r *TransitionRetention) DeleteExpiredGradeTransitions(ctx context.Context,
 	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		return 0, errors.New("school structure: the transition retention requires a tenant transaction")
 	}
-	if _, err := r.store.LockTransitions(ctx, tenantID.Int64()); err != nil {
+	if _, err := lockTransitionGate(ctx, r.store, tenantID.Int64()); err != nil {
 		return 0, err
 	}
 	deleted, _, err := r.store.DeleteTransitionsEndedBefore(ctx, tenantID.Int64(), calendar.TodayDate().AddDays(-retentionDays).BerlinMidnight())

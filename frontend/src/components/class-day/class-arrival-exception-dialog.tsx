@@ -15,6 +15,7 @@ import {
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import {
   deleteClassArrivalExceptionSchool,
   fetchClassArrivalExceptionsSchool,
@@ -54,6 +55,8 @@ export function ClassArrivalExceptionDialog({
   // gemeinsamen Fehlerweg (#2513) in seinem Formular.
   const [success, setSuccess] = useState<string | null>(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
+  // Das Panel speichert; der Dialog sperrt währenddessen (#6533).
+  const save = useFormModalPending(isOpen);
 
   useEffect(() => {
     if (!isOpen) setConfirmationOpen(false);
@@ -72,6 +75,7 @@ export function ClassArrivalExceptionDialog({
       isOpen={isOpen}
       suspended={confirmationOpen}
       onClose={close}
+      pending={save}
       title={`Ankunftszeit an einem Tag für ${schoolClassLabel(schoolClass)}`}
       size="md"
       mobilePosition="bottom"
@@ -97,6 +101,7 @@ export function ClassArrivalExceptionDialog({
             notify={notify}
             onConfirmationVisibilityChange={setConfirmationOpen}
             onChanged={onChanged}
+            pending={save}
             defaultDate={defaultDate}
             readOnlyHint="Die OGS hat das Eintragen für die Schule nicht mehr freigegeben."
             originLabel={(exception) =>

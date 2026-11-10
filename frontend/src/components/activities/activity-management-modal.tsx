@@ -22,6 +22,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
@@ -118,7 +119,8 @@ export function ActivityManagementModal({
   currentStaffId: _currentStaffId,
   readOnly = false,
 }: ActivityManagementModalProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submission = useFormModalPending(isOpen);
+  const isSubmitting = submission.pending;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -187,47 +189,46 @@ export function ActivityManagementModal({
       return;
     }
 
-    setIsSubmitting(true);
+    await submission.run(async (op) => {
+      try {
+        // Prepare the update data
+        const updateData = {
+          name: form.name.trim(),
+          category_id: Number.parseInt(form.category_id, 10),
+          max_participants: parseParticipantLimit(form.max_participants),
+          // Include existing values that might be required
+          is_open: activity.is_open_ags || false,
+          supervisor_ids: activity.supervisor_id
+            ? [Number.parseInt(activity.supervisor_id, 10)]
+            : [],
+        };
 
-    try {
-      // Prepare the update data
-      const updateData = {
-        name: form.name.trim(),
-        category_id: Number.parseInt(form.category_id, 10),
-        max_participants: parseParticipantLimit(form.max_participants),
-        // Include existing values that might be required
-        is_open: activity.is_open_ags || false,
-        supervisor_ids: activity.supervisor_id
-          ? [Number.parseInt(activity.supervisor_id, 10)]
-          : [],
-      };
+        // Call the update API
+        await updateActivity(activity.id, updateData);
 
-      // Call the update API
-      await updateActivity(activity.id, updateData);
+        const successMessage = `Die Aktivität „${form.name.trim()}“ ist gespeichert.`;
 
-      const successMessage = `Die Aktivität „${form.name.trim()}“ ist gespeichert.`;
+        // Close modal with animation
+        if (op.isCurrent()) onClose();
 
-      // Close modal with animation
-      onClose();
-
-      // Handle success with message after modal starts closing
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess(successMessage);
-        }
-      }, 100);
-    } catch (err) {
-      logger.error("activity_update_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        activity_id: activity.id,
-      });
-      void formErrors.show(err, {
-        object: "die Aktivität",
-        retry: () => retrySaveRef.current(),
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+        // Handle success with message after modal starts closing
+        setTimeout(() => {
+          if (onSuccess) {
+            onSuccess(successMessage);
+          }
+        }, 100);
+      } catch (err) {
+        logger.error("activity_update_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          activity_id: activity.id,
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: "die Aktivität",
+          retry: () => retrySaveRef.current(),
+        });
+      }
+    });
   };
 
   const handleSubmit = (e: FormEvent) => {
@@ -236,35 +237,39 @@ export function ActivityManagementModal({
   };
 
   const handleDelete = async () => {
-    setIsDeleting(true);
     deleteErrors.clear();
+    // Auch das Löschen sperrt den Dialog, und eine späte Antwort schließt
+    // keinen inzwischen neuen Dialog (#6533).
+    await submission.run(async (op) => {
+      setIsDeleting(true);
+      try {
+        await deleteActivity(activity.id);
 
-    try {
-      await deleteActivity(activity.id);
+        const successMessage = `Die Aktivität „${activity.name}“ ist gelöscht.`;
 
-      const successMessage = `Die Aktivität „${activity.name}“ ist gelöscht.`;
+        // Close modal with animation
+        if (op.isCurrent()) onClose();
 
-      // Close modal with animation
-      onClose();
-
-      // Handle success with message after modal starts closing
-      setTimeout(() => {
-        if (onSuccess) {
-          onSuccess(successMessage);
-        }
-      }, 100);
-    } catch (err) {
-      logger.error("activity_delete_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        activity_id: activity.id,
-      });
-      void deleteErrors.show(err, {
-        object: "die Aktivität",
-        retry: () => retryDeleteRef.current(),
-      });
-    } finally {
-      setIsDeleting(false);
-    }
+        // Handle success with message after modal starts closing
+        setTimeout(() => {
+          if (onSuccess) {
+            onSuccess(successMessage);
+          }
+        }, 100);
+      } catch (err) {
+        logger.error("activity_delete_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          activity_id: activity.id,
+        });
+        if (!op.isCurrent()) return;
+        void deleteErrors.show(err, {
+          object: "die Aktivität",
+          retry: () => retryDeleteRef.current(),
+        });
+      } finally {
+        setIsDeleting(false);
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -288,6 +293,7 @@ export function ActivityManagementModal({
       <FormModal
         isOpen={isOpen}
         onClose={onClose}
+        pending={submission}
         title={`Aktivität: ${activity.name}`}
         size="sm"
         mobilePosition="center"

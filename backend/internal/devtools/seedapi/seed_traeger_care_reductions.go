@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -27,11 +29,15 @@ func seedConflictCode(err error, code string) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == 409 && apiErr.Code == code
 }
 
+type seedCareRule struct {
+	ID         int64          `json:"id"`
+	Kind       string         `json:"kind"`
+	ValidUntil *calendar.Date `json:"valid_until"`
+	SchoolIDs  []int64        `json:"school_ids"`
+}
+
 type seedCareRuleSet struct {
-	Rules []struct {
-		ID   int64  `json:"id"`
-		Kind string `json:"kind"`
-	} `json:"rules"`
+	Rules   []seedCareRule `json:"rules"`
 	Schools []struct {
 		ID int64 `json:"id"`
 	} `json:"schools"`
@@ -40,11 +46,10 @@ type seedCareRuleSet struct {
 type seedCareEvidenceSet struct {
 	Contracts []struct {
 		ContractID int64             `json:"contract_id"`
+		SchoolID   int64             `json:"school_id"`
 		Evidences  []json.RawMessage `json:"evidences"`
 	} `json:"contracts"`
-	Levels []struct {
-		ID int64 `json:"id"`
-	} `json:"levels"`
+	Levels []seedCareRule `json:"levels"`
 }
 
 func seedReadData[T any](raw []byte, what string) (T, error) {
@@ -57,57 +62,121 @@ func seedReadData[T any](raw []byte, what string) (T, error) {
 	return envelope.Data, nil
 }
 
+// seedCareRules are the placeholder rules of the Träger: two income levels
+// and one rule of every other kind.
+var seedCareRules = []map[string]any{
+	{"kind": "income_level", "name": "Stufe 1 (Platzhalter)", "discount_basis_points": 5000},
+	{"kind": "income_level", "name": "Stufe 2 (Platzhalter)", "discount_basis_points": 2500},
+	{"kind": "sibling", "name": "Geschwister ab dem 2. Kind (Platzhalter)", "sibling_from_child": 2, "discount_basis_points": 5000,
+		"counts_family_children": true},
+	{"kind": "single_parent", "name": "Alleinerziehende (Platzhalter)", "discount_cents": 1000},
+	{"kind": "cap", "name": "Höchstbetrag je Familie (Platzhalter)", "cap_cents": 25000},
+}
+
 // seedCareReductions keeps the placeholder rules of the Träger from month on
 // and an income level and a single-parent evidence for the first two
-// contracts. A Träger that already has care rules keeps them.
-func seedCareReductions(client *Client, auth AuthRef, month calendar.Date) (int, int, error) {
-	raw, err := client.GetWithAuth(auth, "/traeger/care-rules/")
-	if err != nil {
-		return 0, 0, fmt.Errorf("read the care rules: %w", err)
-	}
-	set, err := seedReadData[seedCareRuleSet](raw, "care rules")
+// contracts of the seeded school.
+func seedCareReductions(client *Client, auth AuthRef, schoolID int64, month calendar.Date) (int, int, error) {
+	rules, err := seedCareRuleChain(client, auth, schoolID, month)
 	if err != nil {
 		return 0, 0, err
 	}
+	evidences, err := seedCareEvidences(client, auth, schoolID, month)
+	if err != nil {
+		return rules, evidences, err
+	}
+	if err := seedCareCostShares(client, auth, month); err != nil {
+		return rules, evidences, err
+	}
+	families, err := seedFamilyChildren(client, auth, month)
+	fmt.Printf("  Träger family numbers: %d confirmed\n", families)
+	return rules, evidences, err
+}
+
+// seedCareRuleChain keeps every placeholder rule for the seeded school. A
+// Träger without rules of a kind gets them for all its schools. The public
+// demo seeds many schools into one Träger, one after another: a school that
+// came after the first seed gets rules of its own, since a rule of a kind
+// the school does not fall under cannot carry its evidences (#6127). Rules
+// the Träger already keeps stay as they are.
+func seedCareRuleChain(client *Client, auth AuthRef, schoolID int64, month calendar.Date) (int, error) {
+	raw, err := client.GetWithAuth(auth, "/traeger/care-rules/")
+	if err != nil {
+		return 0, fmt.Errorf("read the care rules: %w", err)
+	}
+	set, err := seedReadData[seedCareRuleSet](raw, "care rules")
+	if err != nil {
+		return 0, err
+	}
 	if len(set.Schools) == 0 {
-		return 0, 0, nil
+		return 0, nil
 	}
 	schools := make([]int64, len(set.Schools))
 	for i, school := range set.Schools {
 		schools[i] = school.ID
 	}
-	if len(set.Rules) == 0 {
-		for _, rule := range []map[string]any{
-			{"kind": "income_level", "name": "Stufe 1 (Platzhalter)", "discount_basis_points": 5000},
-			{"kind": "income_level", "name": "Stufe 2 (Platzhalter)", "discount_basis_points": 2500},
-			{"kind": "sibling", "name": "Geschwister ab dem 2. Kind (Platzhalter)", "sibling_from_child": 2, "discount_basis_points": 5000,
-				"counts_family_children": true},
-			{"kind": "single_parent", "name": "Alleinerziehende (Platzhalter)", "discount_cents": 1000},
-			{"kind": "cap", "name": "Höchstbetrag je Familie (Platzhalter)", "cap_cents": 25000},
-		} {
-			rule["valid_from"], rule["school_ids"] = month.String(), schools
-			// Demo schools of one Träger seed in parallel: another seed may
-			// have kept the rule of this kind for the same schools already.
-			if _, err := client.PostWithAuth(auth, "/traeger/care-rules/", rule); err != nil && !seedConflictCode(err, seedCareRuleOverlap) {
-				return 0, 0, fmt.Errorf("keep the care rule %q: %w", rule["name"], err)
-			}
+	kept := len(set.Rules)
+	for _, placeholder := range seedCareRules {
+		kind, _ := placeholder["kind"].(string)
+		targets := seedCareRuleTargets(set.Rules, kind, schools, schoolID, month)
+		if len(targets) == 0 {
+			continue
+		}
+		kept++
+		// Demo schools of one Träger seed in parallel: another seed may have
+		// kept the rule of this kind a moment earlier, possibly without the
+		// seeded school, which it did not know yet.
+		err := seedKeepCareRule(client, auth, placeholder, targets, month)
+		if seedConflictCode(err, seedCareRuleOverlap) && len(targets) > 1 && slices.Contains(targets, schoolID) {
+			err = seedKeepCareRule(client, auth, placeholder, []int64{schoolID}, month)
+		}
+		if err != nil && !seedConflictCode(err, seedCareRuleOverlap) {
+			return kept, err
 		}
 	}
-	evidences, err := seedCareEvidences(client, auth, month)
-	if err != nil {
-		return 0, evidences, err
-	}
-	if err := seedCareCostShares(client, auth, month); err != nil {
-		return 0, evidences, err
-	}
-	families, err := seedFamilyChildren(client, auth, month)
-	fmt.Printf("  Träger family numbers: %d confirmed\n", families)
-	return max(len(set.Rules), 5), evidences, err
+	return kept, nil
 }
 
-// seedCareEvidences gives the first contract without an evidence the first
-// income level and the next one the single-parent status.
-func seedCareEvidences(client *Client, auth AuthRef, month calendar.Date) (int, error) {
+// seedCareRuleTargets are the schools a placeholder rule of kind is kept
+// for: every school of a Träger without such a rule, otherwise the seeded
+// school if no rule of kind reaches it yet.
+func seedCareRuleTargets(rules []seedCareRule, kind string, schools []int64, schoolID int64, month calendar.Date) []int64 {
+	if !seedCareKindKept(rules, kind) {
+		return schools
+	}
+	if !slices.Contains(schools, schoolID) || seedCareRuleCovers(rules, kind, schoolID, month) {
+		return nil
+	}
+	return []int64{schoolID}
+}
+
+func seedKeepCareRule(client *Client, auth AuthRef, placeholder map[string]any, schools []int64, month calendar.Date) error {
+	rule := maps.Clone(placeholder)
+	rule["valid_from"], rule["school_ids"] = month.String(), schools
+	if _, err := client.PostWithAuth(auth, "/traeger/care-rules/", rule); err != nil {
+		return fmt.Errorf("keep the care rule %q: %w", rule["name"], err)
+	}
+	return nil
+}
+
+// seedCareKindKept reports whether the Träger keeps any rule of kind.
+func seedCareKindKept(rules []seedCareRule, kind string) bool {
+	return slices.ContainsFunc(rules, func(rule seedCareRule) bool { return rule.Kind == kind })
+}
+
+// seedCareRuleCovers reports whether a rule of kind applies at the school
+// in month or later.
+func seedCareRuleCovers(rules []seedCareRule, kind string, schoolID int64, month calendar.Date) bool {
+	return slices.ContainsFunc(rules, func(rule seedCareRule) bool {
+		return rule.Kind == kind && slices.Contains(rule.SchoolIDs, schoolID) && (rule.ValidUntil == nil || !rule.ValidUntil.Before(month))
+	})
+}
+
+// seedCareEvidences gives the first contract of the seeded school without
+// an evidence an income level of that school and the next one the
+// single-parent status. Contracts of the Träger's other schools belong to
+// other demo visitors and stay untouched.
+func seedCareEvidences(client *Client, auth AuthRef, schoolID int64, month calendar.Date) (int, error) {
 	raw, err := client.GetWithAuth(auth, "/traeger/care-evidences/")
 	if err != nil {
 		return 0, fmt.Errorf("read the care evidences: %w", err)
@@ -116,19 +185,19 @@ func seedCareEvidences(client *Client, auth AuthRef, month calendar.Date) (int, 
 	if err != nil {
 		return 0, err
 	}
-	if len(set.Levels) == 0 {
-		return 0, nil
+	var kinds []map[string]any
+	if level := slices.IndexFunc(set.Levels, func(rule seedCareRule) bool {
+		return seedCareRuleCovers([]seedCareRule{rule}, rule.Kind, schoolID, month)
+	}); level >= 0 {
+		kinds = append(kinds, map[string]any{"kind": "income_level", "rule_id": set.Levels[level].ID, "evidence": "Einkommensteuerbescheid 2025"})
 	}
-	kinds := []map[string]any{
-		{"kind": "income_level", "rule_id": set.Levels[0].ID, "evidence": "Einkommensteuerbescheid 2025"},
-		{"kind": "single_parent", "evidence": "Erklärung des Elternteils"},
-	}
+	kinds = append(kinds, map[string]any{"kind": "single_parent", "evidence": "Erklärung des Elternteils"})
 	added := 0
 	for _, contract := range set.Contracts {
 		if added == len(kinds) {
 			break
 		}
-		if len(contract.Evidences) > 0 {
+		if contract.SchoolID != schoolID || len(contract.Evidences) > 0 {
 			continue
 		}
 		body := kinds[added]

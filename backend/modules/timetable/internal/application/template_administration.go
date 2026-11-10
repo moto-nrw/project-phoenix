@@ -313,6 +313,7 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		ResyncOfferingRoster:   deps.ResyncOfferingRoster,
 		RecurrenceLock:         deps.RecurrenceLock,
 		SickReports:            deps.SickReports,
+		Deviations:             deps.Deviations,
 		SchoolClasses:          deps.SchoolClasses,
 		Staffing:               deps.Staffing,
 		Logger:                 deps.Logger,

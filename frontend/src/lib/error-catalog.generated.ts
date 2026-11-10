@@ -538,6 +538,8 @@ export const ERROR_CATALOG = {
         "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
       "enrollment.phase_eligibility_setting_required":
         "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
+      "enrollment.phase_has_effective_bookings":
+        "Für diese Anmeldephase sind noch Kinder gebucht. Deshalb kann sie nicht gelöscht werden. Wählen Sie stattdessen „Deaktivieren“ oder beenden Sie zuerst die Buchungen.",
       "enrollment.phase_name_exists":
         "Es gibt schon eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
       "enrollment.phase_name_required":
@@ -546,6 +548,8 @@ export const ERROR_CATALOG = {
         "Diese Anmeldung ist für Ihr Konto nicht freigegeben. Bitte melden Sie sich in der Eltern-App an oder fragen Sie die Schule.",
       "enrollment.phase_not_found":
         "Diese Anmeldephase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.phase_pending_child_window_conflict":
+        "Der neue Zeitraum passt nicht zu einem vorgemerkten Kind. Bitte prüfen Sie zuerst dessen Betreuungszeitraum.",
       "enrollment.phase_school_classes_invalid":
         "Die angebotenen und die zugelassenen Klassen passen nicht zusammen. Bitte prüfen Sie die Klassen.",
       "enrollment.phase_service_period_invalid":

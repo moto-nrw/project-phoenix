@@ -5,9 +5,10 @@ import (
 	"time"
 )
 
-// DeletionAudit writes retention evidence in the deletion transaction.
+// DeletionAudit writes retention evidence in the deletion transaction: the
+// events of many students at once, all or nothing.
 type DeletionAudit interface {
-	Create(context.Context, *DeletionEvent) error
+	CreateAll(context.Context, []*DeletionEvent) error
 }
 
 // DeletionEvent carries the subject and evidence of a retention operation.
