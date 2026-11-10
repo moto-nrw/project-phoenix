@@ -226,7 +226,9 @@ function figureColumns(
       // Der Link ist der Weg per Tastatur und Vorlesehilfe; die Zeile hat eigene
       // Bedienelemente und wird deshalb selbst kein Knopf.
       render: (school) => (
-        <div className="min-w-0">
+        // Room for a hyphenated word („Demo-Schule“): the name breaks at its
+        // spaces, not at the hyphen, beside six figure columns.
+        <div className="min-w-28">
           <NavigationLink
             href={schoolPath(school)}
             className="font-medium text-gray-900 hover:underline"
@@ -480,8 +482,8 @@ export default function TraegerDashboardPage() {
           ...figures,
           {
             key: "actions",
-            // Over the icons the header names what they open.
-            header: iconAction ? "Schul-App" : "",
+            // Over the icons the header names their action in full.
+            header: iconAction ? "Schul-App öffnen" : "",
             align: "right",
             stacked: "meta",
             stackedLabel: false,
@@ -774,6 +776,9 @@ export default function TraegerDashboardPage() {
         isLoading={loading}
         loadingRowCount={3}
         defaultSortKey="name"
+        // Six figures and the action beside the school: narrower cells keep
+        // the name whole and every column in view on a laptop.
+        dense
         stackedOnMobile
         rowHasInteractiveControls
         onRowClick={(school) => router.push(schoolPath(school))}
