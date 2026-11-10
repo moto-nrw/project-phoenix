@@ -185,56 +185,7 @@ export default function TraegerDocumentPage() {
       }
       actions={
         document ? (
-          canManage ? (
-            <>
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                className="gap-2"
-                onClick={() => setReleasing(true)}
-              >
-                <ShareNetworkIcon className="h-4 w-4" aria-hidden="true" />
-                Freigeben
-              </Button>
-              {/* One visible action; download and deletion wait in the menu.
-                  Without the school names the dialog could not name the
-                  schools that lose the document; the page shows their failed
-                  load with a retry instead, and the menu offers no deletion. */}
-              <OverflowMenu
-                ariaLabel="Weitere Aktionen zum Dokument"
-                items={[
-                  {
-                    label: "Herunterladen",
-                    icon: (
-                      <DownloadSimpleIcon
-                        className="size-4"
-                        aria-hidden="true"
-                      />
-                    ),
-                    onClick: () => void download(),
-                  },
-                  ...(schools === null
-                    ? []
-                    : [
-                        {
-                          label: "Dokument löschen",
-                          description:
-                            "Alle Freigaben enden, die Datei ist weg.",
-                          icon: (
-                            <TrashIcon className="size-4" aria-hidden="true" />
-                          ),
-                          destructive: true,
-                          onClick: () => {
-                            deleteErrors.clear();
-                            setConfirmingDelete(true);
-                          },
-                        },
-                      ]),
-                ]}
-              />
-            </>
-          ) : (
+          <>
             <Button
               type="button"
               variant="outline"
@@ -247,7 +198,39 @@ export default function TraegerDocumentPage() {
               <DownloadSimpleIcon className="h-4 w-4" aria-hidden="true" />
               Herunterladen
             </Button>
-          )
+            {canManage && (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="gap-2"
+                onClick={() => setReleasing(true)}
+              >
+                <ShareNetworkIcon className="h-4 w-4" aria-hidden="true" />
+                Freigeben
+              </Button>
+            )}
+            {/* Without the school names the dialog could not name the
+                schools that lose the document; the page shows their failed
+                load with a retry instead. */}
+            {canManage && schools !== null && (
+              <OverflowMenu
+                ariaLabel="Weitere Aktionen zum Dokument"
+                items={[
+                  {
+                    label: "Dokument löschen",
+                    description: "Alle Freigaben enden, die Datei ist weg.",
+                    icon: <TrashIcon className="size-4" aria-hidden="true" />,
+                    destructive: true,
+                    onClick: () => {
+                      deleteErrors.clear();
+                      setConfirmingDelete(true);
+                    },
+                  },
+                ]}
+              />
+            )}
+          </>
         ) : null
       }
       overlays={

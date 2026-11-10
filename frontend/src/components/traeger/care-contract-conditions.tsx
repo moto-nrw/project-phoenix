@@ -522,8 +522,8 @@ function CopyableLegalText({
   );
   return (
     <div className="space-y-2">
-      {/* The whole text in view, no scroll box cut mid-line: the field
-          grows with its text where the browser can. */}
+      {/* A fixed height that scrolls: the few conditions to edit stay in
+          view, and the copy button copies the whole text at once. */}
       <Textarea
         id={id}
         label={label}
@@ -531,7 +531,6 @@ function CopyableLegalText({
         rows={rows}
         value={value}
         hint={hint}
-        className="[field-sizing:content]"
       />
       <Button
         type="button"

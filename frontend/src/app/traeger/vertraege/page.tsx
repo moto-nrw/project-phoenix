@@ -40,7 +40,6 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
-import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SelectionBar } from "~/components/ui/selection-bar";
@@ -96,22 +95,6 @@ function contractHref(contract: CareContractSummary): string {
   return traegerPath(`/traeger/vertraege/${contract.id}`);
 }
 
-/** The date beside a contract's status, in words: „gekündigt zum 31.12.2026“. */
-function statusDateNote(contract: CareContractSummary): string | null {
-  if (contract.status === "gekuendigt") {
-    return contract.endsOn
-      ? `gekündigt zum ${formatDate(contract.endsOn)}`
-      : "gekündigt, Ende festlegen";
-  }
-  if (contract.status === "widerrufen") return null;
-  if (contract.concluded) {
-    return `gilt seit ${formatBerlinDate(contract.concluded.at)}`;
-  }
-  if (contract.sentAt)
-    return `versendet am ${formatBerlinDate(contract.sentAt)}`;
-  return null;
-}
-
 const COLUMNS: DataTableColumn<CareContractSummary>[] = [
   {
     key: "child",
@@ -141,32 +124,19 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     stacked: "title",
   },
   {
-    // On a phone the line under the child: the school and, where it
-    // matters, the date beside the status (only the badge is meta there).
     key: "school",
     header: "Betreuungsort",
     render: (contract) => contract.schoolName,
     sortValue: (contract) => contract.schoolName,
     stackedLabel: false,
-    // The parents stay findable on a phone too: the search covers them.
-    // An open end is a task: on the phone it keeps its orange note.
-    stackedRender: (contract) => {
-      const facts = [contract.schoolName, contract.partyName]
-        .filter(Boolean)
-        .join(" · ");
-      if (contract.status === "gekuendigt" && !contract.endsOn) {
-        return (
-          <>
-            {facts}
-            {facts ? " · " : null}
-            <span className="text-moto-orange-strong font-medium">
-              Ende festlegen
-            </span>
-          </>
-        );
-      }
-      return [facts, statusDateNote(contract)].filter(Boolean).join(" · ");
-    },
+    // A phone row stays two lines (child, offer and start); only an open
+    // end, a task, adds its orange note.
+    stackedRender: (contract) =>
+      contract.status === "gekuendigt" && !contract.endsOn ? (
+        <span className="text-moto-orange-strong font-medium">
+          Ende festlegen
+        </span>
+      ) : null,
   },
   {
     key: "party",
@@ -237,7 +207,6 @@ export default function TraegerVertraegePage() {
   const [status, setStatus] = useState<StatusChoice>("all");
   const [schoolId, setSchoolId] = useState("");
   const [search, setSearch] = useState("");
-  const isPhone = useMediaQuery("(max-width: 639px)");
   // Null until the person opens or closes the card: then the device decides.
   const [rulesOpen, setRulesOpen] = useState<boolean | null>(null);
   const debouncedSearch = useDebounce(search.trim(), 250);
@@ -466,14 +435,10 @@ export default function TraegerVertraegePage() {
       : []),
   ];
 
-  // The count promises drafts: it stands only while at least one child can
-  // get one. Children who cannot are counted in the status line and listed
-  // with their reason in the dialog.
-  const creatable = candidates.some(
-    (candidate) => candidate.templateIssue === null,
-  );
+  // The count names the children waiting for a contract; the dialog lists
+  // each of them, with the reason where a draft cannot be made yet.
   const createLabel =
-    candidates.length > 0 && creatable
+    candidates.length > 0
       ? `Verträge erstellen (${candidates.length})`
       : "Verträge erstellen";
 
@@ -548,13 +513,12 @@ export default function TraegerVertraegePage() {
           // Closed, the card shows only its title: the explanation would
           // push the contracts down again.
           description={
-            (rulesOpen ?? !isPhone)
-              ? conclusionDescription(data.modes)
-              : undefined
+            (rulesOpen ?? true) ? conclusionDescription(data.modes) : undefined
           }
-          // On a phone the rule card starts closed: the contracts come first.
+          // Open on every device: the rule per school decides what to do
+          // next; it folds away on request.
           collapsible
-          collapsed={!(rulesOpen ?? !isPhone)}
+          collapsed={!(rulesOpen ?? true)}
           onCollapsedChange={(collapsed) => setRulesOpen(!collapsed)}
           action={
             hasPermission(session, "traeger_overview:read") ? (
@@ -782,13 +746,12 @@ function statusFigures(
   active: number,
   candidates: number,
 ): { value: number; label: string }[] {
-  // The line holds three figures: the work waiting (drafts, children
-  // without a contract) comes before what only waits for the parents.
+  // The contracts by state; children without a contract complete the line
+  // when there is room (the create button carries their number).
   const figures = [
     { value: active, label: "aktiv" },
-    { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
-    { value: candidates, label: "ohne Vertrag" },
     { value: sent, label: "versendet" },
+    { value: drafts, label: drafts === 1 ? "Entwurf" : "Entwürfe" },
   ].filter((figure) => figure.value > 0);
   if (figures.length < 2) {
     figures.unshift({
@@ -796,5 +759,7 @@ function statusFigures(
       label: total === 1 ? "Vertrag" : "Verträge",
     });
   }
+  if (candidates > 0)
+    figures.push({ value: candidates, label: "ohne Vertrag" });
   return figures.slice(0, 3);
 }

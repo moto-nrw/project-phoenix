@@ -83,7 +83,6 @@ import {
   mergeHolidaySiblings,
 } from "~/lib/traeger-sibling-groups-api";
 import { foldForSearch } from "~/lib/search-fold";
-import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
@@ -167,11 +166,8 @@ function columns(
   names: ReadonlyMap<string, string>,
   debtorNumber: boolean,
   siblings: SiblingView,
-  /** Between tablet and desktop width: siblings and debtor number stand
-   * under the parents' name, so the weeks keep their width. */
-  folded = false,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
-  const all: DataTableColumn<HolidayRegistrationSummary>[] = [
+  return [
     {
       key: "number",
       header: "Nr.",
@@ -290,34 +286,6 @@ function columns(
     siblingsColumn(siblings),
     ...(debtorNumber ? [DEBTOR_NUMBER_COLUMN] : []),
   ];
-  if (!folded) return all;
-  const siblingCell = siblingsColumn(siblings).render;
-  return all
-    .filter((col) => col.key !== "siblings" && col.key !== "debtorNumber")
-    .map((col) =>
-      col.key === "guardian"
-        ? {
-            ...col,
-            render: (registration) => {
-              const sibling = siblingCell(registration);
-              return (
-                <div className="min-w-0 space-y-1">
-                  {col.render(registration)}
-                  {sibling ? <div className="text-sm">{sibling}</div> : null}
-                  {debtorNumber && registration.debtorNumber ? (
-                    <div className="text-sm text-gray-600">
-                      Debitorennummer{" "}
-                      <span className="font-mono whitespace-nowrap text-gray-900">
-                        {registration.debtorNumber}
-                      </span>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            },
-          }
-        : col,
-    );
 }
 
 /** Die Zahlen je Status in denselben Farben wie die Plaketten der Tabelle. */
@@ -416,11 +384,6 @@ export default function TraegerHolidayRegistrationsPage() {
   // Whether the Träger asks for the debtor number (#5621); the column shows
   // only then.
   const [debtorNumberColumn, setDebtorNumberColumn] = useState(false);
-  // Between tablet and desktop width the table folds two columns into the
-  // parents' cell instead of running past the card edge.
-  const foldedColumns = useMediaQuery(
-    "(min-width: 768px) and (max-width: 1279px)",
-  );
 
   useEffect(() => {
     let current = true;
@@ -725,9 +688,6 @@ export default function TraegerHolidayRegistrationsPage() {
         )
       }
       filters={filters}
-      // Four filters squeeze the search below 1280 px: a tablet gets them
-      // behind the filter button, a laptop keeps them in the row (#5146).
-      desktopFiltersFrom="xl"
       activeFilters={activeFilters}
       onClearAllFilters={clearFilters}
       error={loadError}
@@ -743,13 +703,7 @@ export default function TraegerHolidayRegistrationsPage() {
         />
       ) : null}
       <DataTable
-        columns={columns(
-          periodId,
-          names,
-          debtorNumberColumn,
-          siblings,
-          foldedColumns,
-        )}
+        columns={columns(periodId, names, debtorNumberColumn, siblings)}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}
         selection={{

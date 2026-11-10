@@ -576,29 +576,12 @@ export function HolidayRegistrationStatusCard({
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
         {/* The children's cards sit far below on a phone: the status names a
-            possible double registration first, with the way to the other. */}
+            possible double registration first, in one line; the child's card
+            holds the way to the other registration. */}
         {duplicateIds.length > 0 ? (
           <Alert
             type="warning"
-            message={`Vielleicht doppelt angemeldet: ${duplicateNames.join(", ")}.`}
-            actionLayout="stacked"
-            action={
-              <span className="flex flex-wrap gap-3">
-                {duplicateIds.map((id) => (
-                  // A kit link button: 44 px by finger, in the notice's colour.
-                  <ButtonLink
-                    key={id}
-                    href={traegerPath(
-                      `/traeger/ferien/${periodId}/anmeldungen/${id}`,
-                    )}
-                    variant="link_tone"
-                    size="compact"
-                  >
-                    Anmeldung Nr. {id} öffnen
-                  </ButtonLink>
-                ))}
-              </span>
-            }
+            message={`Vielleicht doppelt angemeldet: ${duplicateNames.join(", ")}. Die andere Anmeldung öffnen Sie beim Kind.`}
           />
         ) : null}
         {registration.status === "received" ? (

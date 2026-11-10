@@ -223,37 +223,47 @@ export function CareContractCreateModal({
             description="Neue Anmeldungen erscheinen hier, sobald die Schule sie annimmt."
           />
         ) : null}
-        {candidates.some(
-          (candidate) =>
-            candidate.templateIssue === "acceptance_missing" ||
-            candidate.templateIssue === "acceptance_changed",
-        ) ? (
-          // The per-child advice names the switch; this says once what the
-          // switch does for the whole school, and where it is.
-          <Alert
-            type="info"
-            message="„Später verschicken“ gilt für jede spätere Annahme der Schule: Danach erstellen und senden Sie alle Verträge dieser Schule hier."
-            actionLayout="responsive"
-            action={
-              <ButtonLink
-                href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
-                variant="ghost_tone"
-                size="compact"
-              >
-                Einstellung öffnen
-              </ButtonLink>
-            }
-          />
-        ) : null}
-        {candidates.length > 0 && ready.length === 0 ? (
-          // Says first that this dialog cannot create anything yet, so the
-          // greyed-out children read as a to-do list, not as a choice.
-          <Alert
-            type="info"
-            title="Gerade lässt sich kein Entwurf erstellen."
-            message="Bei jedem Kind steht, was noch fehlt. Ist das erledigt, erstellen Sie die Entwürfe hier."
-          />
-        ) : null}
+        {(() => {
+          const acceptanceIssue = candidates.some(
+            (candidate) =>
+              candidate.templateIssue === "acceptance_missing" ||
+              candidate.templateIssue === "acceptance_changed",
+          );
+          const settingsLink = (
+            <ButtonLink
+              href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
+              variant="ghost_tone"
+              size="compact"
+            >
+              Einstellung öffnen
+            </ButtonLink>
+          );
+          // One notice, so the children stay in view: first whether the
+          // dialog can create anything, then the school-wide switch.
+          if (candidates.length > 0 && ready.length === 0) {
+            return (
+              <Alert
+                type="info"
+                title="Gerade lässt sich kein Entwurf erstellen."
+                message={
+                  acceptanceIssue
+                    ? "Bei jedem Kind steht, was noch fehlt. Mit „Später verschicken“ erstellen und senden Sie alle Verträge der Schule hier."
+                    : "Bei jedem Kind steht, was noch fehlt. Ist das erledigt, erstellen Sie die Entwürfe hier."
+                }
+                actionLayout="responsive"
+                action={acceptanceIssue ? settingsLink : undefined}
+              />
+            );
+          }
+          return acceptanceIssue ? (
+            <Alert
+              type="info"
+              message="„Später verschicken“ gilt für jede spätere Annahme der Schule: Danach erstellen und senden Sie alle Verträge dieser Schule hier."
+              actionLayout="responsive"
+              action={settingsLink}
+            />
+          ) : null;
+        })()}
         {missing + differing > 0 ? (
           <Alert
             type="warning"

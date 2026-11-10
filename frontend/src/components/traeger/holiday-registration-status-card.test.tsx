@@ -95,15 +95,17 @@ describe("HolidayRegistrationStatusCard", () => {
     });
   });
 
-  it("names a possible double registration with the way to the other one", () => {
+  it("names a possible double registration and where the other one opens", () => {
+    // The link to the other registration sits on the child's card
+    // (holiday-registration-child-card.test.tsx); the status names it in
+    // one line, so the status actions stay close on a phone.
     renderCard(HOLIDAY_REGISTRATION);
 
     expect(
-      screen.getByText("Vielleicht doppelt angemeldet: Lia Muster."),
+      screen.getByText(
+        "Vielleicht doppelt angemeldet: Lia Muster. Die andere Anmeldung öffnen Sie beim Kind.",
+      ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Anmeldung Nr. 8 öffnen" }),
-    ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen/8");
   });
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {
