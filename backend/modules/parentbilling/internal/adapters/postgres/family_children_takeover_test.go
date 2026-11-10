@@ -66,7 +66,9 @@ func TestFamilyChildrenStatementKeepsTheNewerOne(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, count.StatedAt)
 		assert.Equal(t, 4, *count.StatedChildren)
-		assert.False(t, count.StatedAt.After(time.Now()), "a time in the future counts as now")
+		var databaseNow time.Time
+		require.NoError(t, tx.NewRaw("SELECT clock_timestamp()").Scan(ctx, &databaseNow))
+		assert.False(t, count.StatedAt.After(databaseNow), "a time in the future counts as now")
 
 		var foreign int
 		require.NoError(t, tx.NewRaw(`SELECT stated_children FROM parent_billing.family_child_counts WHERE organization_id = ?`,
