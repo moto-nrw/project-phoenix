@@ -44,7 +44,7 @@ func (s *Service) ProcessDue(ctx context.Context) error {
 	var errs []error
 	for _, organizationID := range organizations {
 		if err := s.processTraeger(ctx, organizationID); err != nil {
-			errs = append(errs, fmt.Errorf("Träger %d: %w", organizationID, err))
+			errs = append(errs, fmt.Errorf("organization %d: %w", organizationID, err))
 		}
 	}
 	return errors.Join(errs...)
