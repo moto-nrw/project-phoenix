@@ -441,10 +441,13 @@ export function useEventForm({
   const [pendingKind, setPendingKind] = useState<"save" | "delete">("save");
   const submitting = save.pending && pendingKind === "save";
   const deletingSeries = save.pending && pendingKind === "delete";
-  const runSave = (task: (op: FormModalOperation) => Promise<void>) =>
-    save.run(async (op) => {
-      setPendingKind("save");
-      await task(op);
+  const runWrite = (
+    kind: "save" | "delete",
+    task: (op: FormModalOperation) => Promise<void>,
+  ) =>
+    save.run((op) => {
+      setPendingKind(kind);
+      return task(op);
     });
   /** Refreshes and points the planner at the result, for the open panel only. */
   const reportSaved = (
@@ -2389,7 +2392,7 @@ export function useEventForm({
     if (isEditingInstance && initialInstance?.status !== "planned") return;
     const parsed = validateForm();
     if (!parsed) return;
-    await runSave((op) => submitParsed(op, parsed));
+    await runWrite("save", (op) => submitParsed(op, parsed));
   };
 
   const submitParsed = async (
@@ -3095,7 +3098,7 @@ export function useEventForm({
     const typedScope = scope === "following" ? "following" : "all";
     const groupId = initialInstance.activityGroupId;
     const occurrenceDate = initialInstance.date;
-    await runSave(async (op) => {
+    await runWrite("save", async (op) => {
       clearFormError();
       try {
         const template = await timetableService.getTemplate(
@@ -3136,7 +3139,7 @@ export function useEventForm({
 
   async function handleScopeSelect(scope: string) {
     if (save.pending) return;
-    await runSave((op) => selectScope(op, scope));
+    await runWrite("save", (op) => selectScope(op, scope));
   }
 
   async function selectScope(
@@ -3232,7 +3235,7 @@ export function useEventForm({
     if (!warning) return;
     closingDayChoice.current = includeClosingDays;
     setScopeClosingDayWarning(null);
-    await runSave(async (op) => {
+    await runWrite("save", async (op) => {
       try {
         await continuePreparedSeriesEdit(op, {
           typedScope: warning.scope,
@@ -3251,7 +3254,7 @@ export function useEventForm({
     if (save.pending) return;
     const pending = lostEdits;
     if (!pending) return;
-    await runSave(async (op) => {
+    await runWrite("save", async (op) => {
       try {
         await pending.onConfirm(op);
         if (!op.isCurrent()) return;
@@ -3293,8 +3296,7 @@ export function useEventForm({
 
     const series = initialSeries;
     const effectiveDate = deleteEffectiveDate;
-    await save.run(async (op) => {
-      setPendingKind("delete");
+    await runWrite("delete", async (op) => {
       clearDeleteError();
       try {
         await onDeleteSeries(series, effectiveDate);
