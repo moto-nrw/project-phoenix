@@ -278,21 +278,30 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if err := h.validateBookable(ctx, input, period, form, answers, link.Traeger.Schools, today); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
+	if input, err = h.completeSubmitted(ctx, link, period, form, input, answers); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	return h.storeSubmitted(ctx, link, period, form, input)
+}
+
+// completeSubmitted finishes the checked input: the day bound per child
+// (#4701), the health consent only where health information is asked, the
+// answers and the holiday care wishes the statements prove (#4703).
+func (h *HolidayRegistrations) completeSubmitted(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,
+	form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput, answers holidayAnswerSet) (enrollment.HolidayRegistrationInput, error) {
 	for i, child := range input.Children {
 		if err := refuseHolidayDayLimit(i, child.Bookings, period, 0); err != nil {
-			return enrollment.HolidayRegistrationReceipt{}, err
+			return input, err
 		}
 	}
 	if !holidayRegistrationHasHealth(input, form, answers) {
 		input.HealthConsent = false
 	}
-	if input, err = withHolidayAnswers(input, answers); err != nil {
-		return enrollment.HolidayRegistrationReceipt{}, err
+	input, err := withHolidayAnswers(input, answers)
+	if err != nil {
+		return input, err
 	}
-	if input, err = h.resolveHolidayWishes(ctx, link, period, input); err != nil {
-		return enrollment.HolidayRegistrationReceipt{}, err
-	}
-	return h.storeSubmitted(ctx, link, period, form, input)
+	return h.resolveHolidayWishes(ctx, link, period, input)
 }
 
 // storeSubmitted stores the checked registration, claims its proofs, gives
