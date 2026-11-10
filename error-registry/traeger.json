@@ -27,6 +27,12 @@
       "legacy": "traeger.bank_account_not_found"
     },
     {
+      "code": "traeger.closing_day_bookings_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.closing_day_bookings_changed"
+    },
+    {
       "code": "traeger.closing_day_invalid",
       "class": "input",
       "parameters": [],

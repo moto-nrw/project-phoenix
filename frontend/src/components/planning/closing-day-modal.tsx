@@ -6,7 +6,13 @@
  * unlike CalendarPeriodModal there is no type, cycle, or link section.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -34,6 +40,10 @@ export function ClosingDayModal({
   schools,
   defaultDate = "",
   reasonMaxLength = 255,
+  onDraftChange,
+  consequences,
+  saveLabel = "Speichern",
+  saveBlocked = false,
 }: ClosingDayModalProps) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -62,6 +72,21 @@ export function ClosingDayModal({
     );
     clearErrors();
   }, [isOpen, initial, schools, defaultDate, clearErrors]);
+
+  // Die Seite zeigt zum Entwurf, was der Schließtag bewirkt (#6434).
+  const draftChanged = useRef(onDraftChange);
+  useLayoutEffect(() => {
+    draftChanged.current = onDraftChange;
+  });
+  const schoolKey = schoolIds.join(",");
+  useEffect(() => {
+    if (!isOpen) return;
+    draftChanged.current?.({
+      startDate,
+      endDate,
+      schoolIds: schoolKey ? schoolKey.split(",") : [],
+    });
+  }, [isOpen, startDate, endDate, schoolKey]);
 
   const allSelected =
     (schools?.length ?? 0) > 0 &&
@@ -133,9 +158,9 @@ export function ClosingDayModal({
             variant="primary"
             size="md"
             onClick={() => void handleSave()}
-            disabled={saving}
+            disabled={saving || saveBlocked}
           >
-            {saving ? "Speichern..." : "Speichern"}
+            {saving ? "Speichern..." : saveLabel}
           </Button>
         </div>
       }
@@ -224,6 +249,8 @@ export function ClosingDayModal({
           </FormFieldset>
         ) : null}
 
+        {consequences}
+
         <p className="text-xs text-gray-500">
           {schools
             ? "An diesem Tag ist die OGS zu. Es gibt keine Ferienbetreuung, Termine fallen aus und Mitarbeitende haben kein Soll."
@@ -232,6 +259,13 @@ export function ClosingDayModal({
       </div>
     </FormModal>
   );
+}
+
+/** The days and schools of the draft; the reason changes no effect. */
+export interface ClosingDayDraft {
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly schoolIds: readonly string[];
 }
 
 interface ClosingDayModalProps {
@@ -250,6 +284,14 @@ interface ClosingDayModalProps {
     reason: string;
     schoolIds: readonly string[];
   }) => Promise<void>;
+  /** Reports the draft as it changes, so the page can show its effects. */
+  readonly onDraftChange?: (draft: ClosingDayDraft) => void;
+  /** What the draft means beyond the calendar, such as booked holiday care. */
+  readonly consequences?: ReactNode;
+  /** Label of the save button, e.g. when saving also tells parents. */
+  readonly saveLabel?: string;
+  /** Holds the save while the consequences are still loading. */
+  readonly saveBlocked?: boolean;
   /** Opens „Termine absagen“ for the saved range when appointments remain. */
   readonly onOfferCancel?: (range: {
     startDate: string;

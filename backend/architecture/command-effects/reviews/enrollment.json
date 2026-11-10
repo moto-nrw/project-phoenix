@@ -2394,6 +2394,36 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization. #6434: the closure notice names the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization. #6434: the closure notice names the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayClosureTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted. #6434: the closure notice names the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "classification": "query",
       "effect": "query",

@@ -729,14 +729,9 @@ func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
 	return ids, nil
 }
 
-// seedHolidayPeriod is the request body: the two Herbstferien weeks, Monday
-// to Friday, both hosted by host, with prices in whole cent.
-func seedHolidayPeriod(today calendar.Date, host int64) map[string]any {
-	return seedHolidayPeriodShifted(today, host, 0)
-}
-
-// seedHolidayPeriodShifted is seedHolidayPeriod with both weeks shifted by
-// weeks.
+// seedHolidayPeriodShifted is the seeded holiday period with two weeks from
+// the autumn holidays on, Monday to Friday, hosted by host, with prices in
+// whole cent; both weeks shifted by shift weeks.
 func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[string]any {
 	ferienStart, _ := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
 	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day()).AddDays(7 * shift)

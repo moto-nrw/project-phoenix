@@ -226,6 +226,9 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		// A child that moved up from the waiting list of a holiday week
 		// (#4699): a mail of the Träger like the receipt.
 		enrollmentOwner.MailKindHolidayPlaceGranted: render(renderers.HolidayPlaceGranted),
+		// A closing day in a booked holiday week (#6434): a mail of the
+		// Träger like the receipt.
+		enrollmentOwner.MailKindHolidayClosureNotice: render(renderers.HolidayClosureNotice),
 	}
 }
 

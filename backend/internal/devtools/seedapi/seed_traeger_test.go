@@ -310,7 +310,7 @@ func TestSeedHolidayPeriodCoversTheSeededHerbstferien(t *testing.T) {
 	t.Parallel()
 
 	today := calendar.NewDate(2026, time.September, 23)
-	period := seedHolidayPeriod(today, 31)
+	period := seedHolidayPeriodShifted(today, 31, 0)
 	assert.Equal(t, "Ferienbetreuung Herbstferien 2026", period["name"])
 	assert.Equal(t, "2026-09-23", period["registration_opens_on"])
 	assert.Equal(t, "2026-10-05", period["registration_closes_on"], "a week before the Ferien")

@@ -103,6 +103,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_closure_notices",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_periods",
       "write_owner": "enrollment"
     },

@@ -1678,6 +1678,8 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_bookings_changed":
+        "Die gebuchten Ferientage haben sich gerade geändert. Bitte prüfen Sie die betroffenen Buchungen noch einmal.",
       "traeger.closing_day_invalid":
         "Der Schließtag ist nicht vollständig. Bitte prüfen Sie Datum, Grund und Schulen.",
       "traeger.closing_day_not_found":
@@ -2493,6 +2495,8 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.closing_day_bookings_changed":
+        "The booked holiday days changed just now. Please check the affected bookings again.",
       "traeger.closing_day_invalid":
         "The closing day is incomplete. Please check the dates, the reason and the schools.",
       "traeger.closing_day_not_found":

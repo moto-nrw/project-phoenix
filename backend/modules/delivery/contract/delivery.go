@@ -297,6 +297,7 @@ var parentMailTemplates = map[string]bool{
 	"enrollment_change_request_rejected": true,
 	"holiday_registration_received":      true,
 	"holiday_place_granted":              true,
+	"holiday_closure_notice":             true,
 	"appointment_published":              true,
 	"appointment_updated":                true,
 	"appointment_cancelled":              true,
