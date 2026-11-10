@@ -81,6 +81,10 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	// The accounts come before the release, which copies them (#4821).
+	if _, err := seedBookingAccounts(rt.Client, auth, from); err != nil {
+		return err
+	}
 	released, err := seedCareRuns(rt.Client, auth, first, current)
 	if err != nil {
 		return err
