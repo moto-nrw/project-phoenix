@@ -104,7 +104,7 @@ function DatevState({
   }
   const last = run.lastDatev;
   let badge = (
-    <StatusBadge label={bookingsLabel(state.newBookings)} tone="warning" />
+    <StatusBadge label={bookingsLabel(state.newBookings)} tone="blue" />
   );
   let line = last
     ? `Zuletzt Nr. ${last.fileNumber} am ${formatBerlinDate(last.exportedAt)}`
@@ -121,7 +121,10 @@ function DatevState({
   return (
     <span className="min-w-0">
       <span className="block">{badge}</span>
-      <span id={datevStateId(run)} className="mt-1 block text-sm text-gray-500">
+      <span
+        id={datevStateId(run)}
+        className="mt-1 block text-sm whitespace-nowrap text-gray-500"
+      >
         {line}
       </span>
     </span>
@@ -181,6 +184,9 @@ function DatevActions({
             },
           ]}
         />
+      ) : ready ? (
+        // Keeps the DATEV buttons of every row in one column.
+        <span aria-hidden="true" className="w-9 shrink-0 max-sm:hidden" />
       ) : null}
     </>
   );

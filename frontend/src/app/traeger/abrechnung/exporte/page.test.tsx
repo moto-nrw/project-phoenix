@@ -404,7 +404,7 @@ it("repeats every DATEV booking only after the warning", async () => {
     await screen.findByText("Alle Buchungen erneut herunterladen?"),
   ).toBeInTheDocument();
   expect(
-    screen.getByText("Sonst stehen die Buchungen doppelt in DATEV"),
+    screen.getByText("Buchungen können doppelt in DATEV stehen"),
   ).toBeInTheDocument();
   expect(api.downloadDatevBatch).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "2027" }));

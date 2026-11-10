@@ -380,7 +380,7 @@ export default function TraegerFinanceExportsPage() {
           ) : null}
           <SectionCard
             title="Dateien je Lauf"
-            description="Die Sollstellung ist für Ihre Kämmerei, die DATEV-Datei für Ihr Steuerbüro. Jeder Download ist eine neue Datei mit neuer Nummer."
+            description="Die Sollstellung ist für Ihre Kämmerei, die DATEV-Datei für Ihr Steuerbüro. Die DATEV-Datei enthält nur neue Buchungen."
             flush
             footer={
               data.runs.nextOffset === null ? null : (

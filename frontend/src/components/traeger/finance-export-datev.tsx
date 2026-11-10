@@ -244,7 +244,7 @@ export function DatevRepeatDialog({
         </p>
         <Alert
           type="warning"
-          title="Sonst stehen die Buchungen doppelt in DATEV"
+          title="Buchungen können doppelt in DATEV stehen"
           message="Geben Sie die Datei nur weiter, wenn Ihr Steuerbüro die frühere Datei nicht hat oder nicht einlesen konnte."
           announce="off"
         />
