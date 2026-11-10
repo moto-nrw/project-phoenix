@@ -81,7 +81,9 @@ export function HolidayClosureWeekList({
                 className="mt-0.5 h-4 w-4 shrink-0 text-gray-500"
                 aria-hidden="true"
               />
-              <span>Geschlossen: {closedDaysLabel(week)}</span>
+              <span className="min-w-0 wrap-anywhere">
+                Geschlossen: {closedDaysLabel(week)}
+              </span>
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">

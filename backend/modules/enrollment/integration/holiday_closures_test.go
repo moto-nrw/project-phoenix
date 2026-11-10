@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,6 +146,9 @@ func TestHolidayClosureTellsEachFamilyOnceAndOnlyAboutNewDays(t *testing.T) {
 		var payload enrollment.HolidayClosureMail
 		require.NoError(t, json.Unmarshal(mail.mails[0].Payload, &payload))
 		assert.Len(t, payload.Children, 3)
+		var registrations []int64
+		require.NoError(t, db.NewRaw(`SELECT id FROM enrollment.holiday_registrations WHERE organization_id = ? ORDER BY id`, w.organization).Scan(ctx, &registrations))
+		assert.Equal(t, registrations, payload.RegistrationIDs, "erasure must find every registration named in a grouped mail")
 		assert.Equal(t, []string{"Dienstag, 06.07.2027", "Mittwoch, 07.07.2027", "Freitag, 09.07.2027"}, payload.Children[0].Weeks[0].ClosedDays)
 		assert.Equal(t, []string{"Betriebsausflug"}, payload.Reasons)
 
@@ -273,4 +278,121 @@ func TestHolidayClosuresKeepTheirTraegerBeneathRLS(t *testing.T) {
 		assert.Empty(t, told, "A reads no notice of B")
 	})
 	assert.Equal(t, fmt.Sprint([]string{"placed", "waitlisted"}), fmt.Sprint(placements(t, db, foreign.week)))
+}
+
+func TestHolidayClosureRefusesChangedRecipients(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Schließtag Adresse")
+	mail := &capturedMails{}
+	closures := newClosures(mail, nil)
+	closure := enrollment.HolidayClosure{SchoolIDs: []int64{hostSchoolOf(t, db, w.week)}, StartsOn: calendar.NewDate(2027, 7, 9), EndsOn: calendar.NewDate(2027, 7, 9)}
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		impact, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, `UPDATE enrollment.holiday_registrations SET guardian_email = ' Eva.Platz@Example.org ' WHERE organization_id = ? AND id = ?`, w.organization, w.waiting)
+		require.NoError(t, err)
+		normalized, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
+		require.NoError(t, err)
+		assert.Equal(t, impact.Token, normalized.Token, "the grouping uses normalized addresses")
+		_, err = db.ExecContext(ctx, `UPDATE enrollment.holiday_registrations SET guardian_email = 'andere@example.org' WHERE organization_id = ? AND id = ?`, w.organization, w.waiting)
+		require.NoError(t, err)
+		_, err = closures.NotifyHolidayClosure(ctx, w.organization, closure, impact.Token)
+		require.ErrorIs(t, err, enrollment.ErrHolidayClosureChanged)
+	})
+	assert.Empty(t, mail.mails)
+}
+
+// heldClosureMail pauses the first notification inside its transaction.
+type heldClosureMail struct {
+	calls   atomic.Int32
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (m *heldClosureMail) EnqueueTraegerMail(ctx context.Context, _ enrollment.TraegerMail) error {
+	if m.calls.Add(1) == 1 {
+		close(m.entered)
+		select {
+		case <-m.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+func TestHolidayClosureSerializesOverlappingPendingNotices(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Schließtag gleichzeitig")
+	mail := &heldClosureMail{entered: make(chan struct{}), release: make(chan struct{})}
+	days := closureCalendar{
+		{Date: calendar.NewDate(2027, 7, 7), Kind: enrollment.HolidayNoCareClosingDay},
+		{Date: calendar.NewDate(2027, 7, 8), Kind: enrollment.HolidayNoCareClosingDay},
+	}
+	closures := compose.NewHolidayClosures(days, closureTraeger{}, mail, func() calendar.Date { return closureToday })
+	closure := enrollment.HolidayClosure{SchoolIDs: []int64{hostSchoolOf(t, db, w.week)}, StartsOn: calendar.NewDate(2027, 7, 6), EndsOn: calendar.NewDate(2027, 7, 7)}
+	ctx, cancel := context.WithTimeout(testpkg.ContextWithTenantRuntime(t.Context(), testpkg.TenantRuntime(t, db)), 10*time.Second)
+	defer cancel()
+	var token, pendingToken string
+	require.NoError(t, testpkg.WithinTraeger(ctx, w.organization, func(ctx context.Context) error {
+		impact, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
+		if err != nil {
+			return err
+		}
+		token = impact.Token
+		pending, err := closures.PendingHolidayClosures(ctx, w.organization)
+		pendingToken = pending.Token
+		return err
+	}))
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- testpkg.WithinTraeger(ctx, w.organization, func(ctx context.Context) error {
+			_, err := closures.NotifyHolidayClosure(ctx, w.organization, closure, token)
+			return err
+		})
+	}()
+	select {
+	case <-mail.entered:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	secondDone := make(chan error, 1)
+	pidReady := make(chan int, 1)
+	go func() {
+		secondDone <- testpkg.WithinTraeger(ctx, w.organization, func(ctx context.Context) error {
+			var pid int
+			tx, err := postgres.NewDatabase()(ctx)
+			if err != nil {
+				return err
+			}
+			if err := tx.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &pid); err != nil {
+				return err
+			}
+			pidReady <- pid
+			_, err = closures.NotifyPendingHolidayClosures(ctx, w.organization, pendingToken)
+			return err
+		})
+	}()
+	var pid int
+	select {
+	case pid = <-pidReady:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	// Wait for either the blocked advisory lock or the buggy second enqueue.
+	assert.Eventually(t, func() bool {
+		if mail.calls.Load() > 1 {
+			return true
+		}
+		var waiting bool
+		err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = ? AND locktype = 'advisory' AND NOT granted)`, pid).Scan(ctx, &waiting)
+		return err == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond)
+	assert.EqualValues(t, 1, mail.calls.Load(), "an overlapping notification must wait before reading unnotified days")
+	close(mail.release)
+	require.NoError(t, <-firstDone)
+	require.ErrorIs(t, <-secondDone, enrollment.ErrHolidayClosureChanged)
+	assert.EqualValues(t, 1, mail.calls.Load(), "a stale overlapping preview cannot enqueue duplicate mail")
 }

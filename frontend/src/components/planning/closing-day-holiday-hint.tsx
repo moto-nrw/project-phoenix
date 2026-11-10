@@ -80,15 +80,10 @@ export function ClosingDayHolidayHint({
     [weeks, draft],
   );
   if (affected.length === 0) return null;
-  const children = affected.reduce((sum, week) => sum + week.participants, 0);
   return (
     <Alert
       type="warning"
-      title={
-        children === 1
-          ? "1 Kind hat in dieser Zeit Ferienbetreuung bei Ihnen"
-          : `${children} Kinder haben in dieser Zeit Ferienbetreuung bei Ihnen`
-      }
+      title="In dieser Zeit sind Ferienwochen bei Ihnen gebucht"
       message="Der Träger sieht den Schließtag und informiert die Eltern. Die Buchungen bleiben bestehen."
       details={
         <ul className="mt-2 space-y-1 text-sm">

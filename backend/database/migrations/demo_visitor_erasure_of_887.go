@@ -8,10 +8,16 @@ import (
 )
 
 // The statement of the erasure of 1.15.883 that deletes the mails naming a
-// registration; 1.15.887 adds the closure notice (#6434).
+// registration; 1.15.887 adds the closure notice and all its links (#6434).
 const (
-	holidayClosureErasureBefore = "AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted')"
-	holidayClosureErasureAfter  = "AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_closure_notice')"
+	holidayClosureErasureBefore = `AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted')
+						AND outbox.related_entity_type = 'holiday_registration'
+						AND outbox.related_entity_id = child.holiday_registration_id`
+	holidayClosureErasureAfter = `AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_closure_notice')
+						AND outbox.related_entity_type = 'holiday_registration'
+						AND (outbox.related_entity_id = child.holiday_registration_id
+							OR (outbox.kind = 'holiday_closure_notice'
+								AND outbox.payload->'registration_ids' @> to_jsonb(child.holiday_registration_id)))`
 )
 
 // demoVisitorErasureHolidayClosureSQL is platform.erase_closed_demo_visitors
@@ -523,7 +529,9 @@ const demoVisitorErasureHolidayClosureSQL = `
 						AND outbox.organization_id = child.organization_id
 						AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_closure_notice')
 						AND outbox.related_entity_type = 'holiday_registration'
-						AND outbox.related_entity_id = child.holiday_registration_id;
+						AND (outbox.related_entity_id = child.holiday_registration_id
+							OR (outbox.kind = 'holiday_closure_notice'
+								AND outbox.payload->'registration_ids' @> to_jsonb(child.holiday_registration_id)));
 					DELETE FROM enrollment.holiday_registrations AS registration
 					WHERE EXISTS (
 						SELECT 1 FROM enrollment.holiday_registration_children AS child

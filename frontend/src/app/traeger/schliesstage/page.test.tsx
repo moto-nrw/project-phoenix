@@ -5,6 +5,7 @@ import {
   render as rtlRender,
   screen,
   within,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -309,5 +310,34 @@ describe("TraegerClosingDaysPage (#4702)", () => {
     );
     await screen.findByText("3 Familien bekommen eine E-Mail.");
     expect(api.notifyPendingHolidayClosures).toHaveBeenCalledWith("abc123");
+  });
+  it("refreshes pending notices when their closing day is deleted", async () => {
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    api.fetchPendingHolidayClosures.mockResolvedValue(summerImpact);
+    api.deleteTraegerClosingDay.mockResolvedValue(undefined);
+    render(<TraegerClosingDaysPage />);
+    await screen.findByText("Eltern noch nicht informiert");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen für Brückentag" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schließtag löschen",
+    });
+    api.fetchPendingHolidayClosures.mockResolvedValue(noImpact);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Endgültig löschen" }),
+    );
+    await waitFor(() =>
+      expect(api.deleteTraegerClosingDay).toHaveBeenCalledWith("9"),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Eltern noch nicht informiert"),
+      ).not.toBeInTheDocument(),
+    );
   });
 });

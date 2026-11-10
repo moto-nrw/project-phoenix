@@ -52,16 +52,16 @@ describe("ClosingDayHolidayHint (#6434)", () => {
         weeks={weeks}
         draft={{
           startDate: "2026-08-05",
-          endDate: "2026-08-05",
+          endDate: "2026-08-19",
           schoolIds: [],
         }}
       />,
     );
     expect(
-      screen.getByText(
-        "12 Kinder haben in dieser Zeit Ferienbetreuung bei Ihnen",
-      ),
+      screen.getByText("In dieser Zeit sind Ferienwochen bei Ihnen gebucht"),
     ).toBeInTheDocument();
+    expect(screen.getByText(/12 Kinder/)).toBeInTheDocument();
+    expect(screen.getByText(/4 Kinder/)).toBeInTheDocument();
     expect(
       screen.getByText(
         "Der Träger sieht den Schließtag und informiert die Eltern. Die Buchungen bleiben bestehen.",

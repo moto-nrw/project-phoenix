@@ -50,6 +50,20 @@ const (
 		ON CONFLICT DO NOTHING`
 )
 
+// LockHolidayClosureNotices serializes the notice read/enqueue/write sequence
+// per Träger in the caller's transaction. It takes no foreign owner's locks.
+func (s *HolidayRegistrationStore) LockHolidayClosureNotices(ctx context.Context, organizationID int64) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	_, err = db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('enrollment:holiday-closure:' || ?::text, 0))`, organizationID).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("enrollment postgres: lock holiday closure notices: %w", err)
+	}
+	return nil
+}
+
 type holidayClosureBookingRow struct {
 	RegistrationID    int64         `bun:"registration_id"`
 	GuardianEmail     string        `bun:"guardian_email"`

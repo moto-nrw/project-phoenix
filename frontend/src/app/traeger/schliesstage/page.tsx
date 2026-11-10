@@ -160,6 +160,7 @@ export default function TraegerClosingDaysPage() {
       toastSuccess(`Der Schließtag „${deleting.reason}“ ist gelöscht.`);
       setDeleting(null);
       void mutate();
+      void pendingResponse.mutate();
     } catch (err) {
       logger.error("traeger_closing_day_delete_failed", {
         closing_day_id: deleting.id,
@@ -172,7 +173,7 @@ export default function TraegerClosingDaysPage() {
     } finally {
       setDeleteLoading(false);
     }
-  }, [deleting, deleteErrors, mutate, toastSuccess]);
+  }, [deleting, deleteErrors, mutate, pendingResponse, toastSuccess]);
   useLayoutEffect(() => {
     latestDeleteRef.current = () => void handleDelete();
   });

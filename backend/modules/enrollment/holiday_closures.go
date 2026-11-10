@@ -116,6 +116,8 @@ type HolidayClosureMailChild struct {
 // with their weeks and closed days, the reasons, and what happens to the
 // contribution. No date of birth, no health information.
 type HolidayClosureMail struct {
+	// RegistrationIDs links every included registration for demo erasure.
+	RegistrationIDs   []int64                   `json:"registration_ids"`
 	Recipient         string                    `json:"recipient_email"`
 	GuardianName      string                    `json:"guardian_name"`
 	TraegerName       string                    `json:"traeger_name"`
