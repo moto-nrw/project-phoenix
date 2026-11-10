@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strconv"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -138,7 +139,7 @@ func parseAbsenceTypeID(raw json.RawMessage) (*int64, error) {
 // legitimately span longer than the week-sized plan views, but allowing an
 // arbitrary multi-year range would hold the tenant transaction while the
 // cascade expands and locks every civil day.
-const maxSickAbsenceRangeDays = 366
+const maxSickAbsenceRangeDays = workforce.MaxSickAbsenceRangeDays
 
 // StaffAbsenceResponse wraps an absence with calculated fields
 type StaffAbsenceResponse struct {

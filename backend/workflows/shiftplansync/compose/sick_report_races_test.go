@@ -444,3 +444,30 @@ func TestSickReport_EditMovingOnlyTheStartLocksItsNewDays(t *testing.T) {
 	assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, stampWeekOne), absenceID, "the new first day")
 	assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, stampWeekTwo), absenceID, "the kept day")
 }
+
+func TestSickReport_OversizedRangeDoesNotWaitForPlanLocks(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	e := buildSickCascadeEnv(t)
+	absenceID := e.createSickAbsence(t, stampWeekOne, stampWeekOne)
+	held := e.holdWrite(t, func(ctx context.Context) error {
+		return e.timetable.TimetableData.RecurrenceLock.LockRecurrenceWrites(ctx)
+	})
+	end := "9999-12-31"
+	c := e.startContender(t, func(ctx context.Context) error {
+		_, err := e.absences.SickReports.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, workforce.UpdateAbsenceRequest{DateEnd: &end})
+		return err
+	})
+	returned, early := e.awaitLockWait(t, c)
+	require.NoError(t, held.commit())
+	if !returned {
+		early = <-c.done
+	}
+	require.True(t, returned, "an invalid partial edit must reach validation before the recurrence gate")
+	require.ErrorIs(t, early, workforce.ErrAbsenceInvalid)
+
+	_, err := e.absences.SickReports.CreateAbsenceFor(e.ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+		AbsenceType: workforce.AbsenceTypeSick, DateStart: stampWeekOne.String(), DateEnd: end,
+	})
+	require.ErrorIs(t, err, workforce.ErrAbsenceInvalid)
+}

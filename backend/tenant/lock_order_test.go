@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -103,4 +104,48 @@ func TestOrderLockOutsideATransactionAdmitsEverything(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, tenant.OrderLock(ctx, tenant.LockScheduleDay, "2026-09-07"))
 	require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(1)))
+}
+
+func TestOrderLockRestoresSavepointLocks(t *testing.T) {
+	t.Parallel()
+	operationErr := errors.New("completion failed")
+	err := inLedgerTransaction(t, func(ctx context.Context) error {
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(9)))
+		err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+			require.NoError(t, tenant.OrderLock(ctx, tenant.LockScheduleDay, "2026-08-31"))
+			return operationErr
+		})
+		require.ErrorIs(t, err, operationErr)
+		// The rolled-back day must neither advance the frontier nor count as held.
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(12)))
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockScheduleDay, "2026-09-07"))
+		require.ErrorIs(t, tenant.OrderLock(ctx, tenant.LockScheduleDay, "2026-08-31"), tenant.ErrLockOrder)
+		// Locks from before the savepoint remain held.
+		return tenant.OrderLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(9))
+	})
+	require.NoError(t, err)
+}
+
+func TestOrderLockNestedSavepointsRestoreTheirOwnLocks(t *testing.T) {
+	t.Parallel()
+	operationErr := errors.New("completion failed")
+	err := inLedgerTransaction(t, func(ctx context.Context) error {
+		err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+			require.NoError(t, tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+				return tenant.OrderLock(ctx, tenant.LockScheduleDay, "2026-08-31")
+			}))
+			err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+				require.NoError(t, tenant.OrderLock(ctx, tenant.LockScheduleDay, "2026-09-14"))
+				return operationErr
+			})
+			require.ErrorIs(t, err, operationErr)
+			require.NoError(t, tenant.OrderLock(ctx, tenant.LockScheduleDay, "2026-09-07"))
+			require.ErrorIs(t, tenant.OrderLock(ctx, tenant.LockRecurrence, "7"), tenant.ErrLockOrder)
+			return operationErr
+		})
+		require.ErrorIs(t, err, operationErr)
+		// The outer rollback also releases locks kept by the successful inner savepoint.
+		return tenant.OrderLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(9))
+	})
+	require.NoError(t, err)
 }

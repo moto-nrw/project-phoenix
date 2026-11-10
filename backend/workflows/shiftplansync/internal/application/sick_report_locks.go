@@ -51,7 +51,7 @@ func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceI
 		return err
 	}
 	days, staffIDs, err := s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
-	if err != nil {
+	if err != nil || len(staffIDs) == 0 {
 		return err
 	}
 	if err := s.lockStaffSet(ctx, staffIDs); err != nil {
@@ -73,20 +73,27 @@ func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceI
 func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
 	days := make(map[calendar.Date]bool)
 	var reportIDs []int64
+	var stored workforce.StaffAbsence
 	if absenceID > 0 {
-		stored, err := s.absences.FindStaffAbsence(ctx, absenceID)
+		var err error
+		stored, err = s.absences.FindStaffAbsence(ctx, absenceID)
 		switch {
 		case errors.Is(err, workforce.ErrStaffAbsenceNotFound):
 		case err != nil:
 			return nil, nil, fmt.Errorf("sick report lock: load absence: %w", err)
 		case stored.StaffID == subject:
-			addDateRange(days, stored.DateStart, stored.DateEnd)
 			reportIDs = append(reportIDs, stored.ID)
 			// An edit may move one bound only; the other keeps its stored day.
 			dateStart, dateEnd = cmp.Or(dateStart, stored.DateStart), cmp.Or(dateEnd, stored.DateEnd)
 		}
 	}
-	addDateRange(days, dateStart, dateEnd)
+	// Workforce validates sick ranges before writing. Leave invalid or oversized
+	// ranges to that validation without expanding or locking them here. Other
+	// absence types may legitimately span longer and have no sick cascade.
+	if !addDateRange(days, dateStart, dateEnd) {
+		return days, nil, nil
+	}
+	addDateRange(days, stored.DateStart, stored.DateEnd)
 	overlapping, err := s.overlappingSickReports(ctx, subject, days)
 	if err != nil {
 		return nil, nil, err
@@ -166,15 +173,19 @@ func (s *sickCascade) addStampedBlockDays(ctx context.Context, days map[calendar
 	return nil
 }
 
-// addDateRange adds every day of [start, end]; a malformed range adds none.
-func addDateRange(days map[calendar.Date]bool, start, end string) {
+// addDateRange adds every day of a bounded [start, end]. Invalid or oversized
+// ranges add none and return false, leaving validation to Workforce.
+func addDateRange(days map[calendar.Date]bool, start, end string) bool {
 	from, errFrom := calendar.ParseDate(start)
 	to, errTo := calendar.ParseDate(end)
-	if errFrom != nil || errTo != nil {
-		return
+	if errFrom != nil || errTo != nil || to.Before(from) || from.DaysUntil(to)+1 > workforce.MaxSickAbsenceRangeDays {
+		return false
 	}
-	for day := from; !day.After(to); day = day.AddDays(1) {
+	for day := from; ; day = day.AddDays(1) {
 		days[day] = true
+		if day == to {
+			return true
+		}
 	}
 }
 

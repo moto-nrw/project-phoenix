@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -79,6 +80,22 @@ type lockLedger struct {
 
 func withLockLedger(ctx context.Context) context.Context {
 	return context.WithValue(ctx, lockLedgerKey{}, &lockLedger{held: make(map[heldLock]struct{})})
+}
+
+// lockCheckpoint records the locks PostgreSQL will keep on savepoint rollback.
+func lockCheckpoint(ctx context.Context) func() {
+	ledger, _ := ctx.Value(lockLedgerKey{}).(*lockLedger)
+	if ledger == nil {
+		return func() {}
+	}
+	ledger.mu.Lock()
+	held, last, started := maps.Clone(ledger.held), ledger.last, ledger.started
+	ledger.mu.Unlock()
+	return func() {
+		ledger.mu.Lock()
+		defer ledger.mu.Unlock()
+		ledger.held, ledger.last, ledger.started = held, last, started
+	}
 }
 
 // OrderLock admits one ordered lock of the ambient transaction before the

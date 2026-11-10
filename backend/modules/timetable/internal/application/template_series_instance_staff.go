@@ -53,11 +53,11 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	if err != nil || len(instances) == 0 {
 		return err
 	}
-	pass, err := s.loadInstanceStaffReconciliation(ctx, templateID, instanceIDs, priorSupervisors)
-	if err != nil {
+	if err := s.lockOccurrenceDays(ctx, instances); err != nil {
 		return err
 	}
-	if err := s.lockOccurrenceDays(ctx, instances); err != nil {
+	pass, err := s.loadInstanceStaffReconciliation(ctx, templateID, instanceIDs, priorSupervisors)
+	if err != nil {
 		return err
 	}
 	if pass.sickDays, err = sickDaysIn(ctx, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
@@ -341,11 +341,11 @@ func sortedInt64Keys(set map[int64]bool) []int64 {
 // write, ascending, before it reads the sick reports (#6232): a sick-report
 // write holds the days of its range while it writes, so the pass either
 // reads the committed report or the report's cascade sees the rows the pass
-// added. The callers hold the recurrence gate, which every date-moving write
-// takes as well, so the occurrence days stay put. Without a sick-report
-// reader the pass stamps nothing and needs no day.
+// added. It also serializes participant reconciliation with cancellation.
+// The callers hold the recurrence gate, which every date-moving write takes
+// as well, so the occurrence days stay put.
 func (s *TemplateService) lockOccurrenceDays(ctx context.Context, instances []*scheduleModel.ActivityInstance) error {
-	if s.deps.SickReports == nil {
+	if len(instances) == 0 {
 		return nil
 	}
 	if s.deps.Deviations == nil {
