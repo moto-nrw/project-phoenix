@@ -1,0 +1,33 @@
+{{define "holiday-place-granted.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ein Ferienplatz ist frei geworden</h1>
+
+    <p>Guten Tag {{.GuardianName}},</p>
+
+    <p>für <strong>{{.PeriodName}}</strong>{{if .SchoolName}} bei <strong>{{.SchoolName}}</strong>{{end}} ist ein Platz frei geworden. Ihr Kind war auf der Warteliste und hat den Platz jetzt bekommen.</p>
+
+    {{range .Children}}
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}} hat jetzt einen Platz:</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .Weeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
+
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Was heißt das für Sie?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Sie müssen nichts tun. Ihr Kind ist in diesen Wochen angemeldet.</p>
+        {{if .Binding}}<p style="margin: 8px 0 0 0; font-size: 14px;">Die Anmeldung ist verbindlich. Das gilt auch für diesen Platz.</p>{{end}}
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Können Sie den Platz nicht nutzen? Dann sagen Sie bitte dem Träger schnell Bescheid. So bekommt ein anderes Kind den Platz.</p>
+    </div>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

@@ -222,7 +222,11 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 		Data map[string]any `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &receipt))
-	assert.ElementsMatch(t, []string{"id", "submitted_at"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	// The placements name each booking by the child's position and week
+	// (#4699), never by a name.
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	assert.NotContains(t, rec.Body.String(), "Lia", "the placements name no child")
+	assert.NotContains(t, rec.Body.String(), "Muster", "the placements name no family")
 
 	ctx := context.Background()
 	var children []struct {

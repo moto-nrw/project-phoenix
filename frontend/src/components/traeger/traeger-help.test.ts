@@ -68,6 +68,15 @@ describe("getTraegerHelpTopicForPath", () => {
     }
   });
 
+  it.each(["/traeger/ferien/5/plaetze", "/ferien/5/plaetze"])(
+    "opens the holiday places and waitlist article on %s",
+    (path) => {
+      expect(getTraegerHelpTopicForPath(path)).toBe(
+        HELP_TOPICS.traegerHolidayPlaces,
+      );
+    },
+  );
+
   it("opens the article of the contribution rules on the page Abrechnungsvorgaben (#4664, #5685)", () => {
     for (const path of [
       "/einstellungen/abrechnung",

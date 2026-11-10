@@ -40,7 +40,7 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, holidayCalendar, logger).Router())
 	mountTraegerClosingDayRoutes(root, calendarSchools)
-	mountParentBillingRoutes(root, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, bankData, logger)
+	mountParentBillingRoutes(root, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, bankData, holidayCalendar, logger)
 	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
 		owners.NewCareContractNoticeAddressees(persons, identity), contractHolidays, parentsURL)
 	mountCareTimeOverrunRoutes(root, organizations, statistics, audit.Log)

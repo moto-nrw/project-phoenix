@@ -55,6 +55,7 @@ type holidayContributionLineRow struct {
 	Note                  string         `bun:"note"`
 	CostBearerID          *int64         `bun:"cost_bearer_id"`
 	CostBearerName        string         `bun:"cost_bearer_name"`
+	HolidayPeriodWeekID   *int64         `bun:"holiday_period_week_id"`
 }
 
 func (l holidayContributionLineRow) line() parentbilling.HolidayContributionLine {
@@ -62,7 +63,22 @@ func (l holidayContributionLineRow) line() parentbilling.HolidayContributionLine
 		Kind: l.Kind, AmountCents: l.AmountCents, WeekStartsOn: l.WeekStartsOn, WeekEndsOn: l.WeekEndsOn,
 		TimeModelName: l.TimeModelName, ChildRank: l.ChildRank, DiscountBasisPoints: l.DiscountBasisPoints,
 		DiscountCents: l.DiscountCents, Note: l.Note, CostBearerID: l.CostBearerID, CostBearerName: l.CostBearerName,
+		WeekID: valueOrZero(l.HolidayPeriodWeekID),
 	}
+}
+
+func valueOrZero(id *int64) int64 {
+	if id == nil {
+		return 0
+	}
+	return *id
+}
+
+func zeroOrNil(id int64) *int64 {
+	if id == 0 {
+		return nil
+	}
+	return &id
 }
 
 // HolidayContributions reads the newest frozen contributions of a
@@ -155,6 +171,7 @@ func (s *Store) InsertHolidayContributions(ctx context.Context, organizationID, 
 				Kind: line.Kind, AmountCents: line.AmountCents, WeekStartsOn: line.WeekStartsOn, WeekEndsOn: line.WeekEndsOn,
 				TimeModelName: line.TimeModelName, ChildRank: line.ChildRank, DiscountBasisPoints: line.DiscountBasisPoints,
 				DiscountCents: line.DiscountCents, Note: line.Note, CostBearerID: line.CostBearerID, CostBearerName: line.CostBearerName,
+				HolidayPeriodWeekID: zeroOrNil(line.WeekID),
 			})
 		}
 	}

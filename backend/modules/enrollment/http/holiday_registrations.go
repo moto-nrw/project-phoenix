@@ -236,6 +236,9 @@ func holidayContacts(contacts []holidayContactRequest) []capability.HolidayConta
 type HolidayRegistrationReceiptResponse struct {
 	ID          int64     `json:"id"`
 	SubmittedAt time.Time `json:"submitted_at"`
+	// Placements say for every booking whether the child got a place or is
+	// on the waiting list (#4699), by the child's position in the form.
+	Placements []capability.HolidayReceiptPlacement `json:"placements"`
 }
 
 // resolveLink resolves the link in the administrative transaction.

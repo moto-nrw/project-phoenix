@@ -501,6 +501,8 @@ export const ERROR_CATALOG = {
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
       "enrollment.holiday_week_no_care_day":
         "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen.",
+      "enrollment.holiday_week_not_found":
+        "Diese Woche gehört nicht zu diesem Ferienzeitraum. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_weeks_booked_together":
         "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
       "enrollment.hosted_holiday_week_not_found":
@@ -2191,6 +2193,8 @@ export const ERROR_CATALOG = {
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
       "enrollment.holiday_week_no_care_day":
         "There is no care on {date} ({name}). This week cannot be booked.",
+      "enrollment.holiday_week_not_found":
+        "This week is not part of this holiday period. Please reload the page.",
       "enrollment.holiday_weeks_booked_together":
         "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
       "enrollment.hosted_holiday_week_not_found":

@@ -368,7 +368,10 @@ func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID i
 		return fmt.Errorf("merge the siblings of two registrations: %w", err)
 	}
 	fmt.Println("  Träger-Büro: the third sibling's registration merged with the siblings")
-	return seedHolidaySiblingCancellation(rt, auth, token, periodID, sibling, siblings)
+	if err := seedHolidaySiblingCancellation(rt, auth, token, periodID, sibling, siblings); err != nil {
+		return err
+	}
+	return seedHolidayWaitlist(rt, auth, token, periodID, sibling)
 }
 
 // seedHolidayAfterConfirmation corrects the confirmed siblings' details
