@@ -75,7 +75,7 @@ export function ExclusionMenu({
               {
                 label: "Rechnung ändern",
                 description:
-                  "Nur diese Rechnung: Betrag, Positionen, Empfänger",
+                  "Nur diese Rechnung: Betrag, Positionen, Empfänger, Anschrift",
                 onClick: () => onAmend(invoice),
               },
             ]
@@ -293,13 +293,16 @@ function DebitHintsCard({
   const description = creditorMissing
     ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnungsvorgaben ein."
     : [
+        // Short: each row names its own date and its earliest day.
         tooSoon > 0
-          ? `${subject(tooSoon)} kommt die Abbuchung früher als Ihre Vorabankündigung erlaubt${earliest ? `, frühestens am ${formatDate(earliest)}` : ""}. Legen Sie für den Lauf eine spätere Fälligkeit fest.`
+          ? `${subject(tooSoon)} ist die Abbuchung zu früh für Ihre Vorabankündigung. Legen Sie eine spätere Fälligkeit fest.`
           : null,
         halted > 0
           ? `${subject(halted)} fehlt ein gültiges Mandat. Klären Sie das vor der Freigabe.`
           : null,
-        transfers > 0
+        // A transfer needs nothing before the release: beside open points
+        // its rows under „Zur Information“ say it already.
+        transfers > 0 && open === 0
           ? transfers === hints.length
             ? "Diese Familien zahlen per Überweisung, weil ein gültiges Mandat fehlt."
             : `${familiesLabel(transfers)} ${transfers === 1 ? "zahlt" : "zahlen"} per Überweisung, weil ein gültiges Mandat fehlt.`
