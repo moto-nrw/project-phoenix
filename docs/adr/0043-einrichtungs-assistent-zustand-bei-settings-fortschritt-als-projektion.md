@@ -1,6 +1,7 @@
 # Einrichtungs-Assistent: Zustand bei Settings, Fortschritt als Projektion
 
-Status: accepted. Freigegeben von Yannick Wenger am 10.11.2026 (#6468). Gilt für den Einrichtungs-Assistenten neuer Schulen aus
+Status: accepted. Freigegeben von Yannick Wenger am 10.11.2026 (#6468).
+Gilt für den Einrichtungs-Assistenten neuer Schulen aus
 [#2832](https://github.com/moto-nrw/project-phoenix/issues/2832). Führt den
 Projection-Owner `school-setup` ein, den
 [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) nur mit einer
@@ -46,8 +47,7 @@ Daraus entstehen zwei Arten von Daten:
    Domain-Owner lohnt für zwei kleine Tabellen ohne eigene Fachregeln nicht.
 2. **Der Fortschritt ist eine Projektion des Owners `school-setup`** (Kind
    `projection`, Paket `modules/schoolsetup/internal/adapters/schoolsetupview`,
-   Read-Projection
-   `school-setup-progress`). Sie liest mit festen `SELECT`-Anweisungen:
+   Read-Projection `school-setup-progress`). Sie liest mit festen `SELECT`-Anweisungen:
 
    | Tabelle | Write-Owner | Frage |
    |---|---|---|
@@ -122,8 +122,8 @@ Read-Projection `school-setup-progress` mit den fünf Tabellen oben und
 Die Data-Objects `config.school_setups` und `config.school_setup_dismissals`
 behalten den Write-Owner `settings-platform`; ein Projection-Owner besitzt
 keine Tabelle. Deshalb liegt der Speicher in
-`modules/settings/internal/adapters/configpostgres` und erfüllt dort den Port `Store` des
-öffentlichen Vertrags.
+`modules/settings/internal/adapters/configpostgres` und erfüllt dort den Port
+`Store` des öffentlichen Vertrags.
 
 Dass der Assistent ein eigener Owner ist und nicht ein weiteres Paket von
 `settings-platform`, ist keine Geschmacksfrage: Regeln gelten je Owner und
