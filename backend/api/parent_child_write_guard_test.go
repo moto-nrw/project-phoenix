@@ -1,10 +1,15 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +24,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -48,6 +54,14 @@ type guardedWrite struct {
 	permissions []string
 	// prepare arranges what the write needs and returns the request.
 	prepare func(t *testing.T, r *guardRig, f childReadFamily) childWrite
+	// direct calls the workflow instead of a route, for a write whose route
+	// belongs to another resource; it replaces prepare's request.
+	direct func(r *guardRig, f childReadFamily) func(context.Context) error
+	// gateAtGuard parks the write in its unit, at the guard's first lock,
+	// instead of after the check before the unit.
+	gateAtGuard bool
+	// compose adds ports the read rig does not bind.
+	compose func(t *testing.T, db *bun.DB, deps *portalCompose.Dependencies)
 }
 
 // guardRig is the parents portal over the read rig's composition, with a
@@ -57,6 +71,7 @@ type guardRig struct {
 	people   peopledirectory.GuardianRelationshipCommand
 	settings childReadSettings
 	checked  *requestGate
+	guarded  *requestGate
 	locked   *lockGate
 }
 
@@ -64,9 +79,14 @@ type guardRig struct {
 type requestGate struct {
 	armed   atomic.Bool
 	once    sync.Once
+	opened  sync.Once
 	reached chan struct{}
 	release chan struct{}
 }
+
+// open lets the parked write go on; a failed test opens it in its cleanup so
+// no request keeps its transaction.
+func (g *requestGate) open() { g.opened.Do(func() { close(g.release) }) }
 
 func newRequestGate() *requestGate {
 	return &requestGate{reached: make(chan struct{}), release: make(chan struct{})}
@@ -88,14 +108,35 @@ func (r gatedChildReads) FindForAccount(ctx context.Context, accountID, studentI
 	return child, err
 }
 
+// gatedMemberships parks the guard before its first lock, while armed.
+type gatedMemberships struct {
+	inner interface {
+		LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error)
+	}
+	gate *requestGate
+}
+
+func (m gatedMemberships) LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error) {
+	if m.gate.armed.Load() {
+		m.gate.once.Do(func() {
+			close(m.gate.reached)
+			<-m.gate.release
+		})
+	}
+	return m.inner.LockActiveSchoolMembership(ctx, accountID)
+}
+
 // lockGate parks the first relationship lock while armed and reports the
 // backend that holds it.
 type lockGate struct {
 	armed   atomic.Bool
 	once    sync.Once
+	opened  sync.Once
 	holder  chan lockHolder
 	release chan struct{}
 }
+
+func (g *lockGate) open() { g.opened.Do(func() { close(g.release) }) }
 
 type lockHolder struct {
 	pid int
@@ -124,13 +165,21 @@ func (g *lockGate) afterLock(ctx context.Context) {
 
 func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependencies)) *guardRig {
 	t.Helper()
-	rig := &guardRig{checked: newRequestGate(), locked: newLockGate()}
+	rig := &guardRig{checked: newRequestGate(), guarded: newRequestGate(), locked: newLockGate()}
+	t.Cleanup(func() {
+		rig.checked.open()
+		rig.guarded.open()
+		rig.locked.open()
+	})
 	database := testpkg.NewDatabase(t, db)
 	adjust := append([]func(*portalCompose.Dependencies){func(deps *portalCompose.Dependencies) {
 		deps.StatusDayRepo = NewRepositoryTestFactory(database).StudentStatusDay
 		deps.StudentPhotos = &photoUnlinks{db: db}
 		deps.OfferingChanges = markingOfferings{OfferingChangeRequests: deps.OfferingChanges}
 		deps.GuardianInvites = markingInvites{}
+		if deps.Signatures == nil {
+			deps.Signatures = owners.ParentDeclarationSignatures{Ledger: owners.SignatureLedger()}
+		}
 		if deps.ArrivalSchedules == nil || deps.PickupSchedules == nil {
 			_, schedules, _, _, _, _, err := NewTestCareRequests(database, slog.Default())
 			require.NoError(t, err)
@@ -139,6 +188,7 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 		}
 		deps.InvalidateInvites = owners.NewGuardianInvitationInvalidation(database)
 		deps.ChildRepo = gatedChildReads{ChildReads: deps.ChildRepo, gate: rig.checked}
+		deps.Memberships = gatedMemberships{inner: deps.Memberships, gate: rig.guarded}
 		deps.StudentGuardianRepo = parentportal.StudentGuardianReadsAfterLock(deps.StudentGuardianRepo, rig.locked.afterLock)
 	}}, with...)
 	rig.childReadRig = newChildReadRigOn(t, db, adjust...)
@@ -149,6 +199,39 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 	require.NoError(t, err)
 	rig.settings = settings.Settings
 	return rig
+}
+
+// contact creates an accountless contact of the child and returns its profile.
+func (r *guardRig) contact(t *testing.T, f childReadFamily) int64 {
+	t.Helper()
+	r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
+	r.do(t, childWrite{http.MethodPost, childPath(f, "/guardians"), map[string]any{"first_name": "Oma", "last_name": "Kontakt", "relationship_type": "relative", "phones": []any{}}}, f.token)
+	return r.scalar(t, `SELECT guardian_profile_id FROM users.student_guardian_relationships WHERE student_id = ? AND guardian_profile_id <> ? ORDER BY id DESC LIMIT 1`, f.StudentID, f.GuardianProfileID)
+}
+
+// signature signs the statement the portal shows for request, with a drawn
+// stroke.
+func (r *guardRig) signature(t *testing.T, f childReadFamily, request map[string]any) map[string]any {
+	t.Helper()
+	rec := r.do(t, childWrite{http.MethodPost, childPath(f, "/pickup-signature-statement"), request}, f.token)
+	var body struct {
+		Data struct {
+			Statement string `json:"statement"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.NotEmpty(t, body.Data.Statement)
+	img := image.NewRGBA(image.Rect(0, 0, 40, 20))
+	for x := 5; x < 35; x++ {
+		img.Set(x, 10, color.Black)
+	}
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+	return map[string]any{"method": "drawn", "image_png": base64.StdEncoding.EncodeToString(buf.Bytes()), "statement": body.Data.Statement}
+}
+
+func pickupChange(f childReadFamily) childWrite {
+	return childWrite{http.MethodPost, childPath(f, "/care-exception"), map[string]any{"date": "2026-09-02", "pickup_time": "14:00", "reason": "Arzttermin"}}
 }
 
 func offeringChange(f childReadFamily, method, suffix string) childWrite {
@@ -185,6 +268,23 @@ func careScheduleRequest(f childReadFamily) childWrite {
 	return childWrite{http.MethodPost, childPath(f, "/care-schedule/requests"), map[string]any{"payload": map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "pickup": "15:30"}}}}}
 }
 
+// composeParentMessaging binds the parent-OGS conversation to its stores.
+func composeParentMessaging(t *testing.T, db *bun.DB, deps *portalCompose.Dependencies) {
+	database := testpkg.NewDatabase(t, db)
+	organizations, err := owners.NewOrganizationTenancy(database)
+	require.NoError(t, err)
+	threads := NewParentMessagingSuiteRepositories(database).WithSchoolProjections(organizations)
+	stores, err := NewParentMessagingTestRepositories(database)
+	require.NoError(t, err)
+	settings, err := owners.NewSettingsTestModule(database, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	deps.MessageThreadRepo = owners.BindParentMessageThreadAccess(threads.ParentMessageThread)
+	deps.MessageRepo = owners.BindParentMessageReads(stores.Message)
+	deps.MessageReadRepo = owners.BindParentMessageInboxReads(threads.ParentMessageRead)
+	deps.Conversations = NewParentConversationCore(threads.ParentMessageThread, stores.Message, threads.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default())
+	deps.MessagingEnabled = owners.BindParentMessagingGate(settings.Settings, slog.Default())
+}
+
 // markOwnerWrite is the row an owner-command double writes in the request's
 // transaction: a pending Stammdaten request of the child, so the fingerprint
 // sees a committed write and a rolled-back one leaves nothing.
@@ -218,6 +318,28 @@ func (m markingOfferings) CreateCourseRequest(ctx context.Context, input parentp
 
 func (m markingOfferings) WithdrawCourseRequest(ctx context.Context, _ int64, accountID, studentID int64) error {
 	return markOwnerWrite(ctx, studentID, accountID)
+}
+
+// markingMeals keeps the meal plan's reads; its day and week writes check a
+// deadline against the wall clock, so a marker stands for them here.
+type markingMeals struct {
+	portalCompose.MealPlanProvider
+}
+
+func (m markingMeals) SetParticipationForDay(ctx context.Context, change mealplanModule.SetParticipationDay) error {
+	return markOwnerWrite(ctx, change.StudentID, change.GuardianAccountID)
+}
+
+func (m markingMeals) ClearParticipationForDay(ctx context.Context, change mealplanModule.SetParticipationDay) error {
+	return markOwnerWrite(ctx, change.StudentID, change.GuardianAccountID)
+}
+
+func (m markingMeals) SetParticipationForWeek(ctx context.Context, change mealplanModule.SetParticipationWeek) (mealplanModule.WeekChange, error) {
+	return mealplanModule.WeekChange{}, markOwnerWrite(ctx, change.StudentID, change.GuardianAccountID)
+}
+
+func composeMarkingMeals(_ *testing.T, _ *bun.DB, deps *portalCompose.Dependencies) {
+	deps.MealPlan = markingMeals{MealPlanProvider: deps.MealPlan}
 }
 
 // markingInvites stands for Identity & Access's relative-access flows.
@@ -302,6 +424,20 @@ var deleteMembership = withdrawal{name: "Schulmitgliedschaft gelöscht", run: fu
 	}
 }}
 
+func (w guardedWrite) request(t *testing.T, r *guardRig, f childReadFamily) (childWrite, func(context.Context) error) {
+	if w.direct != nil {
+		return childWrite{method: "CALL", path: w.name}, w.direct(r, f)
+	}
+	return w.prepare(t, r, f), nil
+}
+
+func (w guardedWrite) composeWith(t *testing.T, db *bun.DB) []func(*portalCompose.Dependencies) {
+	if w.compose == nil {
+		return nil
+	}
+	return []func(*portalCompose.Dependencies){func(deps *portalCompose.Dependencies) { w.compose(t, db, deps) }}
+}
+
 func (w guardedWrite) withdrawals() []withdrawal {
 	out := make([]withdrawal, 0, len(w.permissions)+3)
 	for _, permission := range w.permissions {
@@ -381,14 +517,35 @@ func changedTables(before, after map[string]string) []string {
 
 // sendParked sends w, parks it at the gate g reached, and returns the channel
 // of its answer.
-func (r *guardRig) sendAsync(t *testing.T, w childWrite, token string) <-chan *httptest.ResponseRecorder {
+func (r *guardRig) sendAsync(t *testing.T, w childWrite, direct func(context.Context) error, token string) <-chan *httptest.ResponseRecorder {
 	t.Helper()
 	done := make(chan *httptest.ResponseRecorder, 1)
+	if direct != nil {
+		ctx, cancel := context.WithTimeout(testpkg.WithTenantRuntime(t, context.Background(), r.db), writeDeadline)
+		t.Cleanup(cancel)
+		go func() { done <- directAnswer(direct(ctx)) }()
+		return done
+	}
 	req := testutil.NewAuthenticatedRequest(t, w.method, w.path, w.body, testutil.WithJWTBearer(token))
 	ctx, cancel := context.WithTimeout(context.Background(), writeDeadline)
 	t.Cleanup(cancel)
 	go func() { done <- testutil.ExecuteRequest(r.router, req.WithContext(ctx)) }()
 	return done
+}
+
+// directAnswer renders a workflow result like the routes do.
+func directAnswer(err error) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	switch {
+	case err == nil:
+		rec.WriteHeader(http.StatusOK)
+	case errors.Is(err, parentportal.ErrChildNotLinked), errors.Is(err, parentportal.ErrGuardianPermissionDenied):
+		rec.WriteHeader(http.StatusForbidden)
+	default:
+		rec.WriteHeader(http.StatusInternalServerError)
+	}
+	_, _ = fmt.Fprint(rec, err)
+	return rec
 }
 
 func awaitAnswer(t *testing.T, done <-chan *httptest.ResponseRecorder, what string) *httptest.ResponseRecorder {
@@ -404,16 +561,25 @@ func awaitAnswer(t *testing.T, done <-chan *httptest.ResponseRecorder, what stri
 
 func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 	for _, change := range w.withdrawals() {
+		change := change
 		t.Run(w.name+"/"+change.name, func(t *testing.T) {
-			rig := newGuardRig(t, db)
+			// Subtests share the test's school; each has its own family and
+			// sets only switches every route here wants on.
+			t.Parallel()
+			guardSlot(t)
+			rig := newGuardRig(t, db, w.composeWith(t, db)...)
 			f := rig.family(t)
-			request := w.prepare(t, rig, f)
+			request, direct := w.request(t, rig, f)
 			apply := change.run(t, rig, f)
 
-			rig.checked.armed.Store(true)
-			done := rig.sendAsync(t, request, f.token)
+			gate := rig.checked
+			if w.gateAtGuard {
+				gate = rig.guarded
+			}
+			gate.armed.Store(true)
+			done := rig.sendAsync(t, request, direct, f.token)
 			select {
-			case <-rig.checked.reached:
+			case <-gate.reached:
 			case rec := <-done:
 				t.Fatalf("the write answered before its child check: %d %s", rec.Code, rec.Body.String())
 			case <-time.After(writeDeadline):
@@ -421,7 +587,7 @@ func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 			}
 			require.NoError(t, apply(), "the owner withdrawal commits while the write waits behind its check")
 			before := rig.fingerprint(t, f)
-			close(rig.checked.release)
+			gate.open()
 
 			rec := awaitAnswer(t, done, request.path)
 			require.GreaterOrEqual(t, rec.Code, 400, "the write must be refused after %s: %s", change.name, rec.Body.String())
@@ -431,13 +597,17 @@ func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 	}
 	for _, change := range []withdrawal{withdrawPermission(firstOr(w.permissions, guardPortalAccess)), withdrawMembership} {
 		t.Run(w.name+"/gesichert vor "+change.name, func(t *testing.T) {
-			rig := newGuardRig(t, db)
+			// Subtests share the test's school; each has its own family and
+			// sets only switches every route here wants on.
+			t.Parallel()
+			guardSlot(t)
+			rig := newGuardRig(t, db, w.composeWith(t, db)...)
 			f := rig.family(t)
-			request := w.prepare(t, rig, f)
+			request, direct := w.request(t, rig, f)
 			apply := change.run(t, rig, f)
 
 			rig.locked.armed.Store(true)
-			done := rig.sendAsync(t, request, f.token)
+			done := rig.sendAsync(t, request, direct, f.token)
 			var held lockHolder
 			select {
 			case held = <-rig.locked.holder:
@@ -461,7 +631,7 @@ func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 				t.Fatalf("the withdrawal committed while the write held the guard: %v", err)
 			default:
 			}
-			close(rig.locked.release)
+			rig.locked.open()
 			rec := awaitAnswer(t, done, request.path)
 			require.Less(t, rec.Code, 500, "the guarded write commits first: %s", rec.Body.String())
 			select {
@@ -493,6 +663,17 @@ func (r *guardRig) scalar(t *testing.T, query string, args ...any) int64 {
 	var id int64
 	require.NoError(t, r.db.NewRaw(query, args...).Scan(context.Background(), &id), query)
 	return id
+}
+
+// guardSlots bounds the subtests that run at once: a parked write holds a
+// connection of the clone's pool while its test needs others to withdraw and
+// to read, so -parallel alone could exhaust the pool.
+var guardSlots = make(chan struct{}, 3)
+
+func guardSlot(t *testing.T) {
+	t.Helper()
+	guardSlots <- struct{}{}
+	t.Cleanup(func() { <-guardSlots })
 }
 
 func firstOr(values []string, fallback string) string {
@@ -666,6 +847,125 @@ func guardedWrites() []guardedWrite {
 				r.set(t, map[string]any{parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDirect, parentportal.KeyGuardianParentCanRemove: true})
 				other := r.secondGuardian(t, f)
 				return childWrite{http.MethodDelete, childPath(f, fmt.Sprintf("/related-accounts/%d", other)), nil}
+			},
+		},
+		{
+			name:        "Abholänderung",
+			permissions: []string{permPickupManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyParentPickupChangeEnabled: true})
+				return pickupChange(f)
+			},
+		},
+		{
+			name:        "Abholänderung löschen",
+			permissions: []string{permPickupManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyParentPickupChangeEnabled: true})
+				r.do(t, pickupChange(f), f.token)
+				return childWrite{http.MethodDelete, childPath(f, "/care-exception?date=2026-09-02"), nil}
+			},
+		},
+		{
+			name:        "Abholänderungsantrag bearbeiten",
+			permissions: []string{permPickupManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyParentPickupChangeEnabled: true})
+				r.do(t, pickupChange(f), f.token)
+				id := r.scalar(t, `SELECT id FROM schedule.care_schedule_change_requests WHERE student_id = ? ORDER BY id DESC LIMIT 1`, f.StudentID)
+				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/pickup-change-requests/%d", id)), map[string]any{"date": "2026-09-02", "pickup_time": "14:30", "reason": "Arzttermin"}}
+			},
+		},
+		{
+			name:        "Kontakt mit Abholberechtigung anlegen",
+			permissions: []string{permGuardianEdit, permPickupManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
+				signature := r.signature(t, f, map[string]any{"kind": "pickup_permission", "person_name": "Oma Kontakt", "weekdays": []int{1}})
+				return childWrite{http.MethodPost, childPath(f, "/guardians"), map[string]any{
+					"first_name": "Oma", "last_name": "Kontakt", "relationship_type": "relative", "phones": []any{},
+					"can_pickup": true, "pickup_weekdays": []int{1}, "pickup_signature": signature,
+				}}
+			},
+		},
+		{
+			name:        "Abholberechtigung beantragen",
+			permissions: []string{permPickupManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				contact := r.contact(t, f)
+				signature := r.signature(t, f, map[string]any{"kind": "pickup_permission", "person_name": "Oma Kontakt", "weekdays": []int{1}})
+				return childWrite{http.MethodPost, childPath(f, fmt.Sprintf("/guardians/%d/pickup-permission-requests", contact)), map[string]any{
+					"weekdays": []int{1}, "reason": "Oma holt montags ab", "signature": signature,
+				}}
+			},
+		},
+		{
+			name:        "Notfallkontakt setzen",
+			permissions: []string{permPickupManage},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				contact := r.contact(t, f)
+				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/guardians/%d/pickup", contact)), map[string]any{"is_emergency_contact": true}}
+			},
+		},
+		{
+			name:        "Nachricht an die OGS",
+			permissions: []string{permNotesWrite},
+			compose:     composeParentMessaging,
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyParentNotesEnabled: true})
+				return childWrite{http.MethodPost, fmt.Sprintf("/parent/me/messages/children/%d", f.StudentID), map[string]any{"body": "Felix wird heute abgeholt."}}
+			},
+		},
+		{
+			name:        "Elternsprechtag buchen",
+			permissions: []string{"parent_portal.conference.book"},
+			direct: func(r *guardRig, f childReadFamily) func(context.Context) error {
+				return func(ctx context.Context) error {
+					return r.portal.WithParentConferenceBooking(ctx, f.AccountID, f.StudentID, func(txCtx context.Context, _ *parentportal.Child) error {
+						return markOwnerWrite(txCtx, f.StudentID, f.AccountID)
+					})
+				}
+			},
+		},
+		{
+			name:        "eigene E-Mail direkt ändern",
+			permissions: []string{permMasterEdit},
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.set(t, map[string]any{parentportal.KeyParentMasterDataEditEnabled: true, parentportal.KeyParentGuardianManagementEnabled: true})
+				return childWrite{http.MethodPatch, childPath(f, "/master-data/guardian_profile/email"), map[string]any{"value": fmt.Sprintf("neu-%d@example.test", testpkg.UniqueSuffix())}}
+			},
+		},
+		{
+			name:        "Fotoeinwilligung widerrufen nach der früheren Prüfung in der Transaktion",
+			permissions: []string{permConsent},
+			gateAtGuard: true,
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				r.givePhoto(t, f)
+				return photoConsent(http.MethodDelete, f.StudentID)
+			},
+		},
+		{
+			name:        "Essen an einem Tag",
+			permissions: []string{permMealManage},
+			compose:     composeMarkingMeals,
+			prepare: func(t *testing.T, _ *guardRig, f childReadFamily) childWrite {
+				return childWrite{http.MethodPut, childPath(f, "/meal-participation/2026-09-02"), map[string]any{"participating": true}}
+			},
+		},
+		{
+			name:        "Essen einer Woche",
+			permissions: []string{permMealManage},
+			compose:     composeMarkingMeals,
+			prepare: func(t *testing.T, _ *guardRig, f childReadFamily) childWrite {
+				return childWrite{http.MethodPut, childPath(f, "/meal-participation/weeks/2026-09-07"), map[string]any{"participating": true}}
+			},
+		},
+		{
+			name:        "Essen eines Tages zurücksetzen",
+			permissions: []string{permMealManage},
+			compose:     composeMarkingMeals,
+			prepare: func(t *testing.T, _ *guardRig, f childReadFamily) childWrite {
+				return childWrite{http.MethodDelete, childPath(f, "/meal-participation/2026-09-02"), nil}
 			},
 		},
 		{
