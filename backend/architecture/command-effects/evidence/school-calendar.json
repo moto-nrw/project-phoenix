@@ -1457,6 +1457,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListCareCalendarRanges",
+      "binding_digest": "c5461688bb635bb616283cb4da56f894",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.ClosingDayReads.ListCareCalendarRanges",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListCareCalendarRanges",
+      "target_owner": "school-closing-days-view"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListClosingDays",
+      "binding_digest": "58c3cef55f744369b4c668d3edd49352",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.ClosingDayReads.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/schoolclosingdaysview/internal/adapters/postgres.Reader.ListClosingDays",
+      "target_owner": "school-closing-days-view"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CareCalendarDays",
       "binding_digest": "be95033208c6ac1126d984e6f084406e",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CareCalendarDays",

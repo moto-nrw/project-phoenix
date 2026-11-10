@@ -91,4 +91,9 @@ func TestTraegerClosingDaysFollowTheTraegerPolicy(t *testing.T) {
 		return err
 	})
 	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot write a closing day for another Träger")
+	_, err = db.ExecContext(ctx, `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, foreign, named)
+	require.NoError(t, err)
+	assert.Zero(t, count("app.current_tenant_id", fmt.Sprint(named)), "a transferred school no longer reads the former Träger's closing days")
+	assert.Equal(t, 1, count("app.current_org_id", fmt.Sprint(own)), "the former Träger keeps its own closing-day record")
+
 }

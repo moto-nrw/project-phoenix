@@ -21,13 +21,16 @@ const calendarPeriodNameConstraint = "unique_calendar_period_name"
 // Database resolves the existing transaction and required school.
 type Database func(context.Context) (bun.IDB, int64, error)
 
-type Store struct{ database Database }
+type Store struct {
+	database        Database
+	closingDayReads schoolcalendar.ClosingDayReads
+}
 
-func New(database Database) *Store {
+func New(database Database, closingDayReads schoolcalendar.ClosingDayReads) *Store {
 	if database == nil {
 		panic("school calendar postgres: database runtime is required")
 	}
-	return &Store{database: database}
+	return &Store{database: database, closingDayReads: closingDayReads}
 }
 
 // calendarDate maps the module's YYYY-MM-DD strings onto PostgreSQL DATE
@@ -240,7 +243,14 @@ func (s *Store) ListClosingDays(ctx context.Context, filter schoolcalendar.Closi
 	// (#4702), in the same statement; a read by ID names only the school's
 	// own rows, which it may change.
 	if filter.IDs == nil {
-		return listSchoolClosingDays(ctx, db, tenantID, filter.OverlappingFrom, filter.OverlappingTo)
+		if s.closingDayReads == nil {
+			return nil, domain.OperationStats{}, errors.New("school calendar: closing-day reads are required")
+		}
+		stats := domain.OperationStats{Queries: 1}
+		started := time.Now()
+		rows, err := s.closingDayReads.ListClosingDays(ctx, filter)
+		stats.StatementDuration, stats.Rows = time.Since(started), int64(len(rows))
+		return rows, stats, err
 	}
 	rows := []closingDayRow{}
 	query := withTenant(closingDaySelect(db, &rows), "closing_day", tenantID)
@@ -266,57 +276,22 @@ func (s *Store) ListClosingDays(ctx context.Context, filter schoolcalendar.Closi
 	return result, stats, nil
 }
 
-type careCalendarRangeRow struct {
-	Kind      string       `bun:"kind"`
-	StartDate calendarDate `bun:"start_date,type:date"`
-	EndDate   calendarDate `bun:"end_date,type:date"`
-}
-
-// careCalendarRangesSQL lists the closing days, those the Träger planned for
-// the school included (#4702), and the active holiday periods of the tenant
-// overlapping the window in one statement (#5994).
-const careCalendarRangesSQL = `SELECT 'closing' AS kind, closing_day.start_date::text AS start_date, closing_day.end_date::text AS end_date
-	FROM schedule.closing_days AS closing_day
-	WHERE closing_day.tenant_id = ? AND closing_day.start_date <= ? AND closing_day.end_date >= ?
-	UNION ALL
-	SELECT 'closing', traeger_day.start_date::text, traeger_day.end_date::text
-	FROM schedule.traeger_closing_days AS traeger_day
-	WHERE ? = ANY (traeger_day.school_ids) AND traeger_day.start_date <= ? AND traeger_day.end_date >= ?
-	UNION ALL
-	SELECT 'holiday', calendar_period.start_date::text, calendar_period.end_date::text
-	FROM schedule.calendar_periods AS calendar_period
-	WHERE calendar_period.tenant_id = ? AND calendar_period.period_type = ? AND calendar_period.is_active
-		AND calendar_period.start_date <= ? AND calendar_period.end_date >= ?`
-
 func (s *Store) ListCareCalendarRanges(ctx context.Context, from, to string) ([]schoolcalendar.ClosingDay, []schoolcalendar.ClosingDay, domain.OperationStats, error) {
-	db, tenantID, err := s.database(ctx)
+	_, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, nil, domain.OperationStats{}, err
 	}
 	if tenantID <= 0 {
 		return nil, nil, domain.OperationStats{}, errors.New("schoolcalendar: tenant is required")
 	}
+	if s.closingDayReads == nil {
+		return nil, nil, domain.OperationStats{}, errors.New("school calendar: closing-day reads are required")
+	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	var rows []careCalendarRangeRow
-	err = db.NewRaw(careCalendarRangesSQL, tenantID, calendarDate(to), calendarDate(from),
-		tenantID, calendarDate(to), calendarDate(from),
-		tenantID, schoolcalendar.PeriodTypeHoliday, calendarDate(to), calendarDate(from)).Scan(ctx, &rows)
-	stats.StatementDuration = time.Since(started)
-	if err != nil {
-		return nil, nil, stats, fmt.Errorf("school calendar postgres: list care calendar ranges: %w", err)
-	}
-	var closing, holidays []schoolcalendar.ClosingDay
-	for _, row := range rows {
-		value := schoolcalendar.ClosingDay{StartDate: string(row.StartDate), EndDate: string(row.EndDate)}
-		if row.Kind == "closing" {
-			closing = append(closing, value)
-		} else {
-			holidays = append(holidays, value)
-		}
-	}
-	stats.Rows = int64(len(rows))
-	return closing, holidays, stats, nil
+	closing, holidays, err := s.closingDayReads.ListCareCalendarRanges(ctx, from, to)
+	stats.StatementDuration, stats.Rows = time.Since(started), int64(len(closing)+len(holidays))
+	return closing, holidays, stats, err
 }
 
 func (s *Store) CreateClosingDay(ctx context.Context, fields schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error) {

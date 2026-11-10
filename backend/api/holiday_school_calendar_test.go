@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -48,7 +49,9 @@ func TestHolidaySchoolCalendarNamesEachHostSchoolsDaysWithoutCare(t *testing.T) 
 		VALUES (?, '2026-05-15', '2026-05-15', 'Brückentag', ARRAY[?]::bigint[])`, org, pforzheim)
 	require.NoError(t, err)
 
-	source := owners.NewHolidaySchoolCalendar(settings.Settings, records)
+	organizations, err := owners.NewOrganizationTenancy(database)
+	require.NoError(t, err)
+	source := owners.NewHolidaySchoolCalendar(settings.Settings, records, organizations)
 	var days map[int64][]enrollment.HolidayNoCareDay
 	require.NoError(t, testpkg.WithinTraeger(ctx, org, func(txCtx context.Context) error {
 		days, err = source.HolidayNoCareDays(txCtx, []int64{pforzheim, iserlohn}, calendar.NewDate(2026, 5, 11), calendar.NewDate(2026, 6, 5))
@@ -67,4 +70,27 @@ func TestHolidaySchoolCalendarNamesEachHostSchoolsDaysWithoutCare(t *testing.T) 
 		{Date: calendar.NewDate(2026, 6, 4), Kind: enrollment.HolidayNoCareHoliday, Name: "Fronleichnam"},
 		{Date: calendar.NewDate(2026, 6, 5), Kind: enrollment.HolidayNoCareClosingDay, Name: "Pädagogische Tage"},
 	}, days[iserlohn], "the school's own closing days, not the bridge day of the other school; a holiday names a day that is both")
+	foreignOrg := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Fremde Ferientage", Slug: fmt.Sprintf("fremde-ferientage-%d", suffix), Active: true}).ID
+	foreign := testpkg.CreateTestSchoolInOrganization(t, db, foreignOrg, "Fremde OGS")
+	_, err = records.CreateClosingDay(tenant.WithTenantID(ctx, foreign), schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{
+		StartDate: "2026-06-03", EndDate: "2026-06-05", Reason: "Vertraulicher Schließgrund",
+	}})
+	require.NoError(t, err)
+	testpkg.OwnTraegerHolidayPeriods(t, db, org)
+	periods := enrollmentCompose.NewHolidayPeriods(nil, source)
+	input := enrollment.HolidayPeriodInput{
+		Name: "Sommer", RegistrationOpensOn: calendar.NewDate(2026, 1, 1), RegistrationClosesOn: calendar.NewDate(2026, 5, 1),
+	}
+	require.NoError(t, testpkg.WithinTraeger(ctx, org, func(txCtx context.Context) error {
+		period, err := periods.CreateHolidayPeriod(txCtx, org, input)
+		require.NoError(t, err)
+		foreignInput := input
+		foreignInput.Weeks = []enrollment.HolidayWeekInput{{HostSchoolID: foreign, StartsOn: calendar.NewDate(2026, 6, 3), EndsOn: calendar.NewDate(2026, 6, 5)}}
+		_, err = periods.CreateHolidayPeriod(txCtx, org, foreignInput)
+		assert.ErrorIs(t, err, enrollment.ErrHolidayHostSchoolOutsideTraeger, "create authorizes the host school before reading its closure")
+		_, err = periods.UpdateHolidayPeriod(txCtx, org, period.ID, foreignInput)
+		assert.ErrorIs(t, err, enrollment.ErrHolidayHostSchoolOutsideTraeger, "update authorizes the host school before reading its closure")
+		return nil
+	}))
+
 }

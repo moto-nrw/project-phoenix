@@ -227,15 +227,19 @@ export function ClosingDaysEditor({
           // ein Auslöser passt auch auf 320px neben die Grund-Spalte. Einen
           // Schließtag des Trägers ändert nur das Träger-Büro (#4702).
           <div className="flex justify-end">
-            {day.traeger ? null : (
+            {day.traeger && !canManageSchedules ? null : (
               <OverflowMenu
                 ariaLabel={`Aktionen für ${day.reason}`}
                 items={[
-                  {
-                    label: "Bearbeiten",
-                    icon: <Pencil className="h-4 w-4" aria-hidden />,
-                    onClick: () => beginEdit(day),
-                  },
+                  ...(!day.traeger
+                    ? [
+                        {
+                          label: "Bearbeiten",
+                          icon: <Pencil className="h-4 w-4" aria-hidden />,
+                          onClick: () => beginEdit(day),
+                        },
+                      ]
+                    : []),
                   ...(canManageSchedules
                     ? [
                         {
@@ -249,13 +253,17 @@ export function ClosingDaysEditor({
                         },
                       ]
                     : []),
-                  { kind: "separator" },
-                  {
-                    label: "Löschen",
-                    icon: <Trash2 className="h-4 w-4" aria-hidden />,
-                    destructive: true,
-                    onClick: () => setDeleting(day),
-                  },
+                  ...(!day.traeger
+                    ? [
+                        { kind: "separator" as const },
+                        {
+                          label: "Löschen",
+                          icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                          destructive: true,
+                          onClick: () => setDeleting(day),
+                        },
+                      ]
+                    : []),
                 ]}
               />
             )}

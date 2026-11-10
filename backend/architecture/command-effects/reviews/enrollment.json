@@ -2194,6 +2194,26 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
       "reason": "Reads the host school's closing days, those its Träger planned for it included, in a school transaction of its own detached from the caller's Träger transaction (ADR 0105, #4702); no write.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",

@@ -88,7 +88,7 @@ func ObserveSchoolCalendar(observation schoolCalendarCompose.Observation) {
 // over the tenant's federal state; the period administration is composed
 // once its guards exist.
 func BuildSchoolCalendarRecords(db transactionruntime.Database, observe func(schoolCalendarCompose.Observation), settings settingsCompose.SettingsService) (schoolcalendar.Days, error) {
-	return schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{
+	return schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{ClosingDayReads: NewSchoolClosingDayReads(),
 		DB: db.Pool(), Observe: observe,
 		FederalState: func(ctx context.Context) (string, error) {
 			region, err := settings.ResolveString(ctx, configModels.KeyFederalState)

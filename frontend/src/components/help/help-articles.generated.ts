@@ -1140,7 +1140,8 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       },
       {
         title: "Termine an Schließtagen absagen",
-        description: "Für Termine, die schon vor dem Schließtag geplant waren.",
+        description:
+          "Für Termine, die schon vor dem Schließtag geplant waren. Das geht auch bei Schließtagen mit `Vom Träger`.",
         steps: [
           "Wählen Sie beim Schließtag die drei Punkte.",
           "Wählen Sie `Termine absagen`.",

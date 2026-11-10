@@ -231,6 +231,8 @@ func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error)
 	case errors.As(err, &refusedHost):
 		field := fmt.Sprintf("weeks.%d.host_school_id", refusedHost.Week)
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayHostSchoolOutsideTraeger, field))
+	case errors.Is(err, capability.ErrHolidayHostSchoolOutsideTraeger):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayHostSchoolOutsideTraeger))
 	case errors.As(err, &refusedDates):
 		field := fmt.Sprintf("weeks.%d.starts_on", refusedDates.Week)
 		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayWeeksBookedTogether, field))

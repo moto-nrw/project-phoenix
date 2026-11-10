@@ -56,3 +56,16 @@ func TestHolidayWeekWithoutCareAnswersItsDay(t *testing.T) {
 	assert.Equal(t, "Feiertag", body.Details["name"])
 	assert.False(t, renderHolidayWeekWithoutCare(httptest.NewRecorder(), req, capability.ErrHolidayRegistrationClosed))
 }
+
+func TestForeignHolidayHostSchoolRefusalHasAValidationCode(t *testing.T) {
+	t.Parallel()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	renderHolidayPeriodError(rec, req, capability.ErrHolidayHostSchoolOutsideTraeger)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Equal(t, "enrollment.holiday_host_school_outside_traeger", body.Code)
+}

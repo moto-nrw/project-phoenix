@@ -18,7 +18,7 @@ import {
   schoolsInState,
 } from "~/components/traeger/closing-day-format";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
-import { TraegerClosingDayModal } from "~/components/traeger/traeger-closing-day-modal";
+import { ClosingDayModal } from "~/components/planning/closing-day-modal";
 import { TraegerYearCalendar } from "~/components/traeger/traeger-year-calendar";
 import { Button } from "~/components/ui/button";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
@@ -40,6 +40,8 @@ import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
 import {
+  createTraegerClosingDay,
+  updateTraegerClosingDay,
   deleteTraegerClosingDay,
   fetchTraegerCalendar,
   type TraegerClosingDay,
@@ -154,7 +156,7 @@ export default function TraegerClosingDaysPage() {
         key: "reason",
         header: "Grund",
         sortValue: (day) => day.reason,
-        stacked: "meta",
+        stacked: "field",
         render: (day) => (
           <span className="wrap-anywhere text-gray-900">{day.reason}</span>
         ),
@@ -162,7 +164,7 @@ export default function TraegerClosingDaysPage() {
       {
         key: "schools",
         header: "Gilt für",
-        stacked: "meta",
+        stacked: "field",
         render: (day) => {
           const label = closingDaySchoolsLabel(day, schools);
           return label === "Alle Schulen" ? (
@@ -260,13 +262,17 @@ export default function TraegerClosingDaysPage() {
       }
       overlays={
         <>
-          <TraegerClosingDayModal
+          <ClosingDayModal
             isOpen={modalOpen}
             onClose={() => setModalOpen(false)}
-            onSaved={(day) => {
+            onSave={async (input) => {
+              const day = editing
+                ? await updateTraegerClosingDay(editing.id, input)
+                : await createTraegerClosingDay(input);
               toastSuccess(`Der Schließtag „${day.reason}“ ist gespeichert.`);
-              void mutate();
             }}
+            onSaved={() => void mutate()}
+            reasonMaxLength={120}
             initial={editing}
             schools={schools}
             defaultDate={year === thisYear ? today : from}
@@ -322,7 +328,6 @@ export default function TraegerClosingDaysPage() {
               defaultSortKey="range"
               defaultSortDirection="asc"
               stackedOnMobile
-              stackedLayout="row"
             />
           )}
         </SectionCard>
