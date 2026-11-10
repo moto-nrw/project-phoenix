@@ -262,6 +262,24 @@ export default function TraegerVertragPage() {
   const refreshInCard = !!contract && !isDraft && contract.mailings.length > 0;
 
   const headMenu: OverflowMenuItem[] = [];
+  // The mail actions of the card „Versand“ are also one tap away from the
+  // head: on a phone that card sits several cards down the page.
+  if (refreshInCard) {
+    headMenu.push({
+      label: "Versand aktualisieren",
+      icon: <RotateCw className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => {
+        if (!refreshing) void refreshDelivery();
+      },
+    });
+  }
+  if (contract && resendInCard && !sendBlocked) {
+    headMenu.push({
+      label: "Erneut senden",
+      icon: <Send className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => setConfirmingSend(true),
+    });
+  }
   if (contract && sendInHead) {
     headMenu.push({
       label: "PDF herunterladen",
