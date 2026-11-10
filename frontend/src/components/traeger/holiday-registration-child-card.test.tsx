@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { apiErrorFromBody } from "~/lib/api-error";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import {
   HOLIDAY_PERIOD,
@@ -136,6 +137,37 @@ describe("HolidayRegistrationChildCard", () => {
 
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
+
+  it.each(["Feiertag", "Betriebsausflug"])(
+    "shows the calendar reason %s and the next step after a refused rebooking",
+    async (name) => {
+      mockRebook.mockRejectedValue(
+        apiErrorFromBody("calendar refusal", 409, {
+          status: 409,
+          code: "enrollment.holiday_week_no_care_day",
+          detail: "Internal calendar diagnostics",
+          details: { date: "04.01.2027", name },
+        }),
+      );
+      const onChanged = renderCard(HOLIDAY_REGISTRATION, 1);
+      fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+      fireEvent.click(
+        screen.getByRole("combobox", {
+          name: "Zeitmodell 04.01. bis 08.01.2027, OGS Nord",
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("option", { name: "bis 16 Uhr" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        `Am 04.01.2027 gibt es keine Betreuung (${name}). Diese Woche kann man nicht buchen. Wählen Sie eine andere Woche.`,
+      );
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+      expect(onChanged).not.toHaveBeenCalled();
+    },
+  );
 
   it("moves a child to the parallel week of another school (#5689)", async () => {
     mockRebook.mockResolvedValue(HOLIDAY_REGISTRATION);
