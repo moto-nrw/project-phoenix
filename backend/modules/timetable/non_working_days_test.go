@@ -111,12 +111,30 @@ func TestSelectBulkCancel(t *testing.T) {
 
 	ids, result := timetable.SelectBulkCancel(candidates, "2026-10-01", "2026-10-16", "2026-10-12", timetable.BulkCancelOptions{})
 
-	assert.Equal(t, []int64{10, 11, 30}, ids, "planned, from today, inside the range, date order")
+	assert.Equal(t, []int64{10, 11, 30}, ids, "planned, from today, inside the range, ascending id")
 	assert.Equal(t, 3, result.Count)
 	assert.Equal(t, 1, result.Kept, "holiday care in the range stays and is reported; past occurrences are not counted")
 	assert.Equal(t, "2026-10-01", result.From)
 	assert.Equal(t, "2026-10-16", result.To)
 	assert.Equal(t, []timetable.BulkCancelDay{{Date: "2026-10-12", Count: 2}, {Date: "2026-10-13", Count: 1}}, result.Days)
+}
+
+// The cancellation locks each block it selects; it takes them in the
+// canonical instance lock order, ascending id, also when ids run against the
+// dates (#6232). The day summary stays in date order.
+func TestSelectBulkCancel_ReturnsBlocksInAscendingIDOrder(t *testing.T) {
+	t.Parallel()
+
+	candidates := []timetable.BulkCancelCandidate{
+		{InstanceID: 9, Date: "2026-10-12", Status: timetable.InstanceStatusPlanned},
+		{InstanceID: 3, Date: "2026-10-14", Status: timetable.InstanceStatusPlanned},
+		{InstanceID: 7, Date: "2026-10-13", Status: timetable.InstanceStatusPlanned},
+	}
+
+	ids, result := timetable.SelectBulkCancel(candidates, "2026-10-12", "2026-10-16", "2026-10-12", timetable.BulkCancelOptions{})
+
+	assert.Equal(t, []int64{3, 7, 9}, ids)
+	assert.Equal(t, []timetable.BulkCancelDay{{Date: "2026-10-12", Count: 1}, {Date: "2026-10-13", Count: 1}, {Date: "2026-10-14", Count: 1}}, result.Days)
 }
 
 func TestSelectBulkCancel_EmptyRangeHasNoDays(t *testing.T) {

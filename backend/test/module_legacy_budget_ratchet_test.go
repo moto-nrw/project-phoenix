@@ -269,7 +269,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0197: the export openers of the sealed guardian bank data of
 // modules/peopledirectory/compose (+5) and of the sealed staff bank and tax
 // data of modules/workforce/compose (+5).
-const moduleComposeBudgetTotal = 13255
+const moduleComposeBudgetTotal = 13253
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -405,7 +405,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/supervisiondashboard/compose":            11,
 	// Raised by ADR 0128: the student template days constructor (+5) and by
 	// ADR 0144: the vacation hint constructor (+6).
-	"modules/timetable/compose":                     1153,
+	"modules/timetable/compose":                     1151,
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,
