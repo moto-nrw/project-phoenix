@@ -6,9 +6,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import HomePage from "./page";
+import { preloadHomeBoardEditor } from "~/components/home/home-board";
 import { ToastProvider } from "~/contexts/ToastContext";
 
 import type {
@@ -193,6 +194,11 @@ import { catalogText } from "~/test/error-catalog-text";
 function requestedKeys(): (string | null)[] {
   return vi.mocked(useSWRAuth).mock.calls.map((call) => call[0]);
 }
+
+// Das Anpassen lädt die Seite erst bei Bedarf nach (#6469). Vorab geladen
+// öffnet es im selben Durchgang wie ein Klick, so wie im Browser nach dem
+// Zeigen auf „Anpassen“.
+beforeAll(() => preloadHomeBoardEditor());
 
 describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
   beforeEach(() => {
