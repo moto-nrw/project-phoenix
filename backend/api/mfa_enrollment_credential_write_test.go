@@ -68,9 +68,8 @@ func TestSchoolMFAEnrollConfirmHoldsTheRedeemedCredentialGeneration(t *testing.T
 	assert.Zero(t, tokens, "a refused enrollment mints no session")
 }
 
-// writeAfterEnrollmentCode commits a credential write on its own connection
-// right after the enrollment code was redeemed, before the confirm records
-// the enrollment.
+// writeAfterEnrollmentCode commits a credential write right after the
+// enrollment code was redeemed, before the confirm records the enrollment.
 type writeAfterEnrollmentCode struct {
 	identityaccess.Owner
 	write func() error
@@ -79,9 +78,7 @@ type writeAfterEnrollmentCode struct {
 func (m writeAfterEnrollmentCode) VerifyMFAChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (identityaccess.VerifiedMFAChallenge, error) {
 	verified, err := m.Owner.VerifyMFAChallengeForOwner(ctx, challengeToken, code, expectedScope, accountID, tenantID)
 	if err == nil {
-		done := make(chan error, 1)
-		go func() { done <- m.write() }()
-		err = <-done
+		err = m.write()
 	}
 	return verified, err
 }
@@ -93,8 +90,23 @@ func (m writeAfterEnrollmentCode) VerifyMFAChallengeForOwner(ctx context.Context
 // enrolls, so the root's binding hands the code's generation on.
 func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.T) {
 	t.Parallel()
-	for _, write := range []string{"none", "password_change", "mfa_reset"} {
-		t.Run(write, func(t *testing.T) {
+	type credentialWrite func(module AuthTestModule, accountID int64, password string) error
+	for _, tc := range []struct {
+		name     string
+		write    credentialWrite
+		enrolled bool
+	}{
+		{name: "none", write: func(AuthTestModule, int64, string) error { return nil }, enrolled: true},
+		{name: "password_change", write: func(module AuthTestModule, accountID int64, password string) error {
+			return module.Auth.ChangeAccountPassword(context.Background(), identityaccess.OwnPasswordChange{
+				AccountID: accountID, CurrentPassword: password, NewPassword: testpkg.NewTestPassword(),
+			})
+		}},
+		{name: "mfa_reset", write: func(module AuthTestModule, accountID int64, _ string) error {
+			return module.Auth.DisableMFA(context.Background(), accountID)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			unit := testpkg.TenantRuntime(t, db)
@@ -102,21 +114,12 @@ func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.
 			module, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, WithAuthTestMailer(mail))
 			require.NoError(t, err)
 			password := testpkg.NewTestPassword()
-			organization := traegerOrganization(t, db, fmt.Sprintf("Träger Einrichtung %s", write), true)
+			organization := traegerOrganization(t, db, fmt.Sprintf("Träger Einrichtung %s", tc.name), true)
 			account := traegerAccount(t, db, password)
 			testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
 			_, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = 3 WHERE id = ?`, account.ID).Exec(context.Background())
 			require.NoError(t, err)
-			writes := map[string]func() error{
-				"none": func() error { return nil },
-				"password_change": func() error {
-					return module.Auth.ChangeAccountPassword(context.Background(), identityaccess.OwnPasswordChange{
-						AccountID: account.ID, CurrentPassword: password, NewPassword: testpkg.NewTestPassword(),
-					})
-				},
-				"mfa_reset": func() error { return module.Auth.DisableMFA(context.Background(), account.ID) },
-			}
-			identity := writeAfterEnrollmentCode{Owner: module.Auth, write: writes[write]}
+			identity := writeAfterEnrollmentCode{Owner: module.Auth, write: func() error { return tc.write(module, account.ID, password) }}
 			portal := &traegerPortalHandler{Handler: traegerPortalRouter(t, db, identity, unit), mail: mail}
 
 			code, login := traegerLogin(t, portal, account.Email, password, 0)
@@ -132,7 +135,7 @@ func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.
 			require.NoError(t, err)
 			var tokens int
 			require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(t.Context(), &tokens))
-			if write == "none" {
+			if tc.enrolled {
 				require.Equal(t, http.StatusOK, code, "the code of the current credential enrolls")
 				assert.NotEmpty(t, answer.AccessToken)
 				assert.True(t, enrolled)
