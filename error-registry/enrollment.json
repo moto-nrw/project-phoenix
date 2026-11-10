@@ -507,6 +507,12 @@
       "legacy": "enrollment.guardian_phone_required"
     },
     {
+      "code": "enrollment.holiday_care_wish_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_care_wish_required"
+    },
+    {
       "code": "enrollment.holiday_form_field_not_allowed",
       "class": "input",
       "parameters": [],
@@ -607,6 +613,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_week_booked"
+    },
+    {
+      "code": "enrollment.holiday_wish_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_wish_missing"
     },
     {
       "code": "enrollment.holiday_weeks_booked_together",

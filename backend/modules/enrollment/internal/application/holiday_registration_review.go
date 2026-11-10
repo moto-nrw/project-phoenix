@@ -627,6 +627,7 @@ func (h *HolidayRegistrationReview) complete(period enrollment.HolidayPeriod, re
 		}
 		for c := range registration.Children {
 			completeHolidayChild(&registration.Children[c], models, cancelled)
+			registration.Children[c].HolidayWishCheck = holidayWishCheck(period, registration.Children[c], cancelled)
 		}
 	}
 }
@@ -683,7 +684,7 @@ func validateHolidayRegistrationFilter(filter enrollment.HolidayRegistrationFilt
 	if filter.WeekID < 0 {
 		return fmt.Errorf("%w: week_id must be a positive ID", enrollment.ErrInvalidHolidayRegistrationFilter)
 	}
-	return nil
+	return validateHolidayWishFilter(filter.Wish)
 }
 
 // holidayExportRows lists one row per child and booking of the filter.
@@ -730,6 +731,9 @@ func holidayRegistrationMatches(registration enrollment.HolidayRegistrationSumma
 }
 
 func holidayChildMatches(child enrollment.HolidayRegistrationChild, filter enrollment.HolidayRegistrationFilter) bool {
+	if !holidayWishMatches(child, filter.Wish) {
+		return false
+	}
 	switch filter.School {
 	case "":
 		return true
@@ -762,6 +766,9 @@ func holidayFilterDetails(filter enrollment.HolidayRegistrationFilter) map[strin
 	}
 	if filter.TimeModel != "" {
 		details["time_model"] = filter.TimeModel
+	}
+	if filter.Wish != "" {
+		details["wish"] = filter.Wish
 	}
 	return details
 }

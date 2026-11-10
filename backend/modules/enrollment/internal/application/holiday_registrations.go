@@ -41,8 +41,9 @@ const (
 // HolidayRegistrationStore persists the public registrations of a Träger.
 type HolidayRegistrationStore interface {
 	// FindHolidayRegistrationLink reads the Träger and the published period
-	// of token in the administrative transaction.
-	FindHolidayRegistrationLink(ctx context.Context, token string) (organizationID, periodID int64, found bool, err error)
+	// of token, with its holiday care wish rule and first day, in the
+	// administrative transaction. The link has no Träger name yet.
+	FindHolidayRegistrationLink(ctx context.Context, token string) (link enrollment.HolidayRegistrationLink, found bool, err error)
 	// CountHolidayRegistrationAttempt counts one attempt in the bucket of
 	// value for the Träger and returns the attempts of its running window.
 	// The bucket keeps only a SHA-256 digest of value.
@@ -67,8 +68,13 @@ type HolidayRegistrationDependencies struct {
 	Mail    enrollment.TraegerMailOutbox
 	// Health seals the health information of a registration (#4722).
 	Health enrollment.HolidayHealthCipher
-	// Today is the calendar day the registration window is checked against.
+	// WishModes reads the Träger's holiday wish mode (#4703).
+	WishModes enrollment.HolidayWishModes
+	// Today is the calendar day the registration window is checked against;
+	// Now the instant a statement of the holiday care wish is checked
+	// against (#4703).
 	Today func() calendar.Date
+	Now   func() time.Time
 	// Random fills the token of an uploaded proof and Fingerprint names it
 	// in the store (#5238); without them no proof is uploaded.
 	Random      func([]byte) error
@@ -92,8 +98,14 @@ func NewHolidayRegistrations(deps HolidayRegistrationDependencies) *HolidayRegis
 	if deps.Health == nil {
 		panic(errHolidayHealthCipherRequired)
 	}
+	if deps.WishModes == nil {
+		panic(errHolidayWishModesRequired)
+	}
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
+	}
+	if deps.Now == nil {
+		deps.Now = time.Now
 	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
@@ -108,18 +120,17 @@ func (h *HolidayRegistrations) ResolveHolidayRegistrationLink(ctx context.Contex
 	if token == "" {
 		return enrollment.HolidayRegistrationLink{}, enrollment.ErrHolidayRegistrationNotFound
 	}
-	organizationID, periodID, found, err := h.deps.Registrations.FindHolidayRegistrationLink(ctx, token)
+	link, found, err := h.deps.Registrations.FindHolidayRegistrationLink(ctx, token)
 	if err != nil {
 		return enrollment.HolidayRegistrationLink{}, fmt.Errorf("enrollment: resolve holiday registration link: %w", err)
 	}
 	if !found {
 		return enrollment.HolidayRegistrationLink{}, enrollment.ErrHolidayRegistrationNotFound
 	}
-	traeger, err := h.deps.Traeger.HolidayTraeger(ctx, organizationID)
-	if err != nil {
+	if link.Traeger, err = h.deps.Traeger.HolidayTraeger(ctx, link.OrganizationID); err != nil {
 		return enrollment.HolidayRegistrationLink{}, err
 	}
-	return enrollment.HolidayRegistrationLink{OrganizationID: organizationID, PeriodID: periodID, Traeger: traeger}, nil
+	return link, nil
 }
 
 // HolidayRegistrationOffer returns the published period of the link.
@@ -137,8 +148,13 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 	}
 	today := h.deps.Today()
 	texts, _ := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent)
+	wishMode, err := h.offerHolidayWishMode(ctx, link.OrganizationID, period)
+	if err != nil {
+		return enrollment.HolidayRegistrationOffer{}, err
+	}
 	return enrollment.HolidayRegistrationOffer{
-		Name: period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
+		HolidayWishMode: wishMode,
+		Name:            period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
 		Binding: period.Binding, Notes: period.Notes, Weeks: offeredHolidayWeeks(period.Weeks),
 		Open: !today.Before(period.RegistrationOpensOn) && !today.After(period.RegistrationClosesOn), Form: form,
 		ConsentTexts: texts,
@@ -252,6 +268,9 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 		input.HealthConsent = false
 	}
 	if input, err = withHolidayAnswers(input, answers); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	if input, err = h.resolveHolidayWishes(ctx, link, period, input); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	return h.storeSubmitted(ctx, link, period, form, input)

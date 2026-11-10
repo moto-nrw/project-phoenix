@@ -69,7 +69,7 @@ func TestHolidayRegistrationFamilyOffersOnlyPermittedOwnChildren(t *testing.T) {
 	foreignGuardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Frieda", "Fremd", "frieda.fremd")
 	testpkg.CreateTestStudentGuardianLink(t, db, foreign.ID, foreignGuardian.ID, "primary_guardian")
 
-	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, 42, []int64{chain.TenantID})
+	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, SchoolIDs: []int64{chain.TenantID}})
 	require.NoError(t, err)
 	require.Len(t, family.Children, 1, "only the child whose relationship grants the registration")
 	child := family.Children[0]
@@ -87,7 +87,7 @@ func TestHolidayRegistrationFamilyOffersOnlyPermittedOwnChildren(t *testing.T) {
 	assert.Zero(t, prefillReads(t, db, pickupOnly.ID), "a child without the permission is not read")
 	assert.Zero(t, prefillReads(t, db, foreign.ID), "a child of another family is not read")
 
-	other, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, 43, []int64{chain.TenantID + 1_000_000})
+	other, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 43, SchoolIDs: []int64{chain.TenantID + 1_000_000}})
 	require.NoError(t, err)
 	assert.Empty(t, other.Children, "a child at a school of another Träger is not offered")
 	assert.Nil(t, other.Guardian)

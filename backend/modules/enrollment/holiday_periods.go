@@ -108,10 +108,14 @@ type HolidayPeriod struct {
 	// Binding states that a registration is binding once submitted.
 	Binding bool `json:"binding"`
 	// Notes are the hints for parents, such as lunch or a packed lunch.
-	Notes       string     `json:"notes"`
-	Status      string     `json:"status"`
-	PublishedAt *time.Time `json:"published_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	Notes string `json:"notes"`
+	// HolidayWishRule takes the holiday care wish of the online
+	// registration into account (#4703); the Träger setting
+	// holiday_registration.wish_mode says how.
+	HolidayWishRule bool       `json:"holiday_wish_rule"`
+	Status          string     `json:"status"`
+	PublishedAt     *time.Time `json:"published_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 	// PublicToken is the key of the period's one public registration link
 	// for all its schools (#4661, ADR 0110). Only the Träger-Portal reads it.
 	PublicToken string `json:"public_token"`
@@ -152,6 +156,7 @@ type HolidayPeriodInput struct {
 	RegistrationClosesOn calendar.Date
 	Binding              bool
 	Notes                string
+	HolidayWishRule      bool
 	Weeks                []HolidayWeekInput
 }
 

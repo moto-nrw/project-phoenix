@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
@@ -33,16 +34,15 @@ func TestParentHolidayRegistrationLinksNameTheLinksTraegerOnly(t *testing.T) {
 		DB: f.db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	links := newParentHolidayRegistrationLinks(organizations, delivery.Module, testHealthCipher(), slog.Default())
+	links := newParentHolidayRegistrationLinks(organizations, delivery.Module, testHealthCipher(), nil, slog.Default())
 	resolve := func(token string) (int64, []int64, error) {
-		var organizationID int64
-		var schoolIDs []int64
+		var scope parentportal.HolidayRegistrationScope
 		err := tenant.WithinAdmin(tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db)), func(ctx context.Context) error {
 			var resolveErr error
-			organizationID, schoolIDs, resolveErr = links.ResolveHolidayRegistrationSchools(ctx, token)
+			scope, resolveErr = links.ResolveHolidayRegistrationSchools(ctx, token)
 			return resolveErr
 		})
-		return organizationID, schoolIDs, err
+		return scope.OrganizationID, scope.SchoolIDs, err
 	}
 
 	period := openHolidays(t, f, office)

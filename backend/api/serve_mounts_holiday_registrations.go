@@ -17,8 +17,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
@@ -36,7 +38,7 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData); err != nil {
 		return err
 	}
-	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
+	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, settings, logger).Router())
 	mountParentBillingRoutes(root, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, bankData, logger)
 	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
 		owners.NewCareContractNoticeAddressees(persons, identity), contractHolidays, parentsURL)
@@ -63,10 +65,11 @@ type HolidayOrganizations interface {
 
 // NewHolidayRegistrationHTTP binds the public holiday registration to
 // Organisation & Tenancy, Delivery and Turnstile; healthData seals the health
-// information (#4722). An empty verifyURL uses Turnstile's endpoint; tests
-// point it at a local provider.
-func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
-	registrations := newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "holiday-registrations"))
+// information (#4722) and the statements of the holiday care wish, settings
+// reads the Träger's holiday wish mode (#4703). An empty verifyURL uses
+// Turnstile's endpoint; tests point it at a local provider.
+func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, healthData enrollmentOwner.HolidayHealthCipher, settings TraegerBrandingSettings, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
+	registrations := newHolidayRegistrations(organizations, delivery, healthData, settings, logger.With("service", "holiday-registrations"))
 	captcha := enrollmentCompose.NewCaptcha(holidayCaptchaSettings(keys), verifyURL, logger.With("service", "holiday-registration-captcha"))
 	return enrollmentAPI.NewHolidayRegistrationResource(registrations, holidayProofUnits{registrations: registrations}, captcha)
 }
@@ -136,30 +139,50 @@ type parentHolidayRegistrationLinks struct {
 
 // newParentHolidayRegistrationLinks binds the parents portal to Enrollment's
 // link resolution over the same Träger directory as the public link.
-func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
-	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "parent-holiday-registrations"))}
+func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, settings TraegerBrandingSettings, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
+	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, healthData, settings, logger.With("service", "parent-holiday-registrations"))}
 }
 
 // newHolidayRegistrations binds Enrollment's holiday registrations to the
 // Träger directory, the Träger's mail and Security Runtime's entropy and
 // fingerprint for the tokens of uploaded proofs (#5238), and the health
 // information to the root's cipher (#4722).
-func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
+func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, settings TraegerBrandingSettings, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
 	return enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-		holidayTraegerMail{delivery: delivery}, healthData, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
+		holidayTraegerMail{delivery: delivery}, healthData, holidayWishModes{settings: settings}, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
 }
 
-func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {
+// holidayWishModes binds Enrollment's holiday wish mode (#4703) to the
+// Träger level of the settings system, in the caller's Träger transaction.
+type holidayWishModes struct {
+	settings TraegerBrandingSettings
+}
+
+func (m holidayWishModes) HolidayWishMode(ctx context.Context, organizationID int64) (string, error) {
+	if m.settings == nil {
+		return "", errors.New("holiday registration: the Träger settings are not configured")
+	}
+	texts, err := m.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyHolidayRegistrationWishMode})
+	if err != nil {
+		return "", err
+	}
+	return texts[configModels.KeyHolidayRegistrationWishMode], nil
+}
+
+func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (parentportal.HolidayRegistrationScope, error) {
 	link, err := l.registrations.ResolveHolidayRegistrationLink(ctx, token)
 	if errors.Is(err, enrollmentOwner.ErrHolidayRegistrationNotFound) {
-		return 0, nil, parentAPI.ErrHolidayRegistrationLinkNotFound
+		return parentportal.HolidayRegistrationScope{}, parentAPI.ErrHolidayRegistrationLinkNotFound
 	}
 	if err != nil {
-		return 0, nil, err
+		return parentportal.HolidayRegistrationScope{}, err
 	}
 	schoolIDs := make([]int64, 0, len(link.Traeger.Schools))
 	for _, school := range link.Traeger.Schools {
 		schoolIDs = append(schoolIDs, school.ID)
 	}
-	return link.OrganizationID, schoolIDs, nil
+	return parentportal.HolidayRegistrationScope{
+		OrganizationID: link.OrganizationID, PeriodID: link.PeriodID, SchoolIDs: schoolIDs,
+		HolidayWishRule: link.HolidayWishRule, FirstDay: link.FirstDay,
+	}, nil
 }
