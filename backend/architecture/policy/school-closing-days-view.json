@@ -1,0 +1,76 @@
+{
+  "packages": [
+    {
+      "path": "modules/schoolclosingdaysview",
+      "owner": "school-closing-days-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/schoolclosingdaysview/internal/adapters/postgres",
+      "owner": "school-closing-days-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "school-closing-days-view.compose.school-calendar-public",
+      "description": "ADR 0194: the read projection answers School Calendar’s consumer-owned closing-day port without exposing persistence types.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-closing-days-view",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "school-closing-days-view.postgres.school-calendar-public",
+      "description": "ADR 0194: the read projection answers School Calendar’s consumer-owned closing-day port without exposing persistence types.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-closing-days-view",
+      "source_role": "postgres",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "school-closing-days-view.compose.tenant-runtime",
+      "description": "ADR 0194: bind only the existing school transaction and its tenant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-closing-days-view",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-closing-days-view.compose.orm-sql",
+      "description": "ADR 0194: composition binds the existing BUN school transaction to the private projection adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-closing-days-view",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "school-closing-days.current-membership",
+      "package": "modules/schoolclosingdaysview/internal/adapters/postgres",
+      "data_objects": [
+        "platform.schools",
+        "schedule.calendar_periods",
+        "schedule.closing_days",
+        "schedule.traeger_closing_days"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

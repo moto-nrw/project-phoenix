@@ -464,7 +464,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
-      "reason": "Reads the federal state from the resolved settings snapshot in memory (#6350).",
+      "reason": "Reads the federal state from the resolved settings snapshot in memory (#6350). The federal states are read through schoolFederalStates, which the Träger calendar and the holiday weeks share (#4702).",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
       "target_owner": "settings-platform"
@@ -474,7 +474,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
-      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#6350).",
+      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#6350). The federal states are read through schoolFederalStates, which the Träger calendar and the holiday weeks share (#4702).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.HolidayDates",
       "target_owner": "school-calendar"
@@ -484,7 +484,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
-      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#6350).",
+      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#6350). The federal states are read through schoolFederalStates, which the Träger calendar and the holiday weeks share (#4702).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
       "target_owner": "school-calendar"
@@ -494,7 +494,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
-      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#6350).",
+      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#6350). The federal states are read through schoolFederalStates, which the Träger calendar and the holiday weeks share (#4702).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayQuery.HolidayDates",
       "target_owner": "school-calendar"
@@ -504,7 +504,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
-      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#6350).",
+      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#6350). The federal states are read through schoolFederalStates, which the Träger calendar and the holiday weeks share (#4702).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayQuery.ValidHolidayRegion",
       "target_owner": "school-calendar"
@@ -514,7 +514,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
-      "reason": "Reads each school's federal state for the withdrawal period (#6350) in an administrative unit detached from the caller's Träger transaction (ADR 0175, ADR 0105); no write or scope change of the caller.",
+      "reason": "Reads each school's federal state for the withdrawal period (#6350) in an administrative unit detached from the caller's Träger transaction (ADR 0175, ADR 0105); no write or scope change of the caller. The federal states are read through schoolFederalStates, which the Träger calendar and the holiday weeks share (#4702).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
       "target_owner": "settings-platform"

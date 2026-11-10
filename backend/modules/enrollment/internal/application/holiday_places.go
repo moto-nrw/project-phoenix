@@ -125,7 +125,6 @@ func (p holidayPlacement) placeWeek(ctx context.Context, organizationID, weekID,
 // booking gets its place. For a week booked as a whole every booking needs
 // every day, so this is the first free places in order, as before.
 func holidayFirstFit(queue enrollment.HolidayWeekQueue) []enrollment.HolidayQueuedBooking {
-	var chosen []enrollment.HolidayQueuedBooking
 	careDays := enrollment.HolidayWeekCareDays(queue.StartsOn, queue.EndsOn)
 	daysOf := func(booking enrollment.HolidayQueuedBooking) []calendar.Date {
 		if len(booking.Days) > 0 {
@@ -136,25 +135,34 @@ func holidayFirstFit(queue enrollment.HolidayWeekQueue) []enrollment.HolidayQueu
 	taken := map[calendar.Date]int{}
 	for _, booking := range queue.Bookings {
 		if booking.Placed {
-			for _, day := range daysOf(booking) {
-				taken[day]++
-			}
+			holidayTakeDays(taken, daysOf(booking))
 		}
 	}
+	var chosen []enrollment.HolidayQueuedBooking
 	for _, booking := range queue.Bookings {
-		if booking.Placed {
+		if booking.Placed || !holidayDaysFree(queue.Capacity, taken, daysOf(booking)) {
 			continue
 		}
-		days := daysOf(booking)
-		if queue.Capacity != nil && (*queue.Capacity <= 0 || slices.ContainsFunc(days, func(day calendar.Date) bool { return taken[day] >= *queue.Capacity })) {
-			continue
-		}
-		for _, day := range days {
-			taken[day]++
-		}
+		holidayTakeDays(taken, daysOf(booking))
 		chosen = append(chosen, booking)
 	}
 	return chosen
+}
+
+// holidayTakeDays counts one more place on each of days.
+func holidayTakeDays(taken map[calendar.Date]int, days []calendar.Date) {
+	for _, day := range days {
+		taken[day]++
+	}
+}
+
+// holidayDaysFree reports whether each of days has a free place; without a
+// capacity every day has one.
+func holidayDaysFree(capacity *int, taken map[calendar.Date]int, days []calendar.Date) bool {
+	if capacity == nil {
+		return true
+	}
+	return *capacity > 0 && !slices.ContainsFunc(days, func(day calendar.Date) bool { return taken[day] >= *capacity })
 }
 
 // announce records each registration's moves up in its trail and enqueues

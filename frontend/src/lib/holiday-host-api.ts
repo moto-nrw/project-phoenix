@@ -217,7 +217,7 @@ function mapHolidayParticipantList(
       homeSchoolId: optionalId(participant.home_school_id),
       homeSchoolName: participant.home_school_name,
       timeModelId: String(participant.time_model_id),
-      days: participant.days ?? [],
+      ...(participant.days?.length ? { days: participant.days } : {}),
       secondGuardian: participant.second_guardian ?? null,
       answers: participant.answers ?? [],
       health: mapHealth(participant.health),

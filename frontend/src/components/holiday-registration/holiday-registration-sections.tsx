@@ -65,6 +65,7 @@ export function useWeekLabels() {
       currency: "EUR",
     });
     return {
+      locale,
       range: (week: HolidayRegistrationWeek) =>
         t("weekRange", {
           starts: formatDate(week.startsOn, false, locale),
@@ -125,6 +126,23 @@ function WeekChoice({
     return parallel ? `${week.hostSchoolName}: ${priced}` : priced;
   };
   const labelId = `${prefix}-week-${first.id}`;
+  // A week with a day without care at its host school takes no booking
+  // (#4702); the server refuses it as well. A week by days stays bookable:
+  // that day is simply not offered (#4701).
+  const bookable = group.filter(
+    (week) => week.bookingUnit === "day" || !week.noCareDays?.length,
+  );
+  const blocked = group.filter(
+    (week) => week.bookingUnit !== "day" && (week.noCareDays?.length ?? 0) > 0,
+  );
+  const blockedHints = blocked.map((week) => {
+    const day = week.noCareDays![0]!;
+    const hint = t("weekWithoutCare", {
+      date: formatDate(day.date, false, labels.locale),
+      name: day.name,
+    });
+    return parallel ? `${week.hostSchoolName}: ${hint}` : hint;
+  });
   const booked = group.find((week) =>
     week.timeModels.some((model) => model.id === value),
   );
@@ -136,6 +154,11 @@ function WeekChoice({
           <span className="block text-xs text-gray-500">
             {parallel ? t("parallelWeeksHint") : first.hostSchoolName}
           </span>
+          {blockedHints.map((hint) => (
+            <span key={hint} className="mt-1 block text-xs text-gray-600">
+              {hint}
+            </span>
+          ))}
         </span>
         <CustomSelect
           name={`${prefix}.bookings`}
@@ -143,10 +166,11 @@ function WeekChoice({
           ariaLabelledBy={labelId}
           value={value}
           invalid={invalid}
+          disabled={bookable.length === 0 && !value}
           ariaDescribedBy={invalid ? `${prefix}-bookings-error` : undefined}
           options={[
             { value: "", label: t("notBooked") },
-            ...group.flatMap((week) =>
+            ...bookable.flatMap((week) =>
               week.timeModels.map((model) => ({
                 value: model.id,
                 label: optionLabel(week, model),
@@ -190,6 +214,12 @@ function DayChoice({
   const chosenFull = days.filter((day) => fullDays.includes(day));
   const hint = [
     t("daysHint"),
+    ...(week.noCareDays ?? []).map((day) =>
+      t("dayWithoutCare", {
+        date: holidayDayLabel(day.date, locale),
+        name: day.name,
+      }),
+    ),
     fullDays.length > 0
       ? t("fullDaysHint", { days: holidayDayList(fullDays, locale) })
       : "",

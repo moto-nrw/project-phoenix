@@ -27,3 +27,19 @@ func (e *ConsentChange) SetTenantID(id int64) { e.TenantID = id }
 type ConsentTransitions interface {
 	RecordTransitions(context.Context, *ConsentSnapshot, *ConsentSnapshot, string, *int64, time.Time) error
 }
+
+// ConsentTransition is one RecordTransitions call of a batch.
+type ConsentTransition struct {
+	Before, After  *ConsentSnapshot
+	Source         string
+	ActorAccountID *int64
+	ChangedAt      time.Time
+}
+
+// ConsentTransitionBatches records the transitions of many students at once
+// (#5552, ADR 0067 addendum of 2026-11-08: RecordTransitionsBatch is a
+// leaf). Each transition is checked like RecordTransitions; all events go to
+// Audit in one AppendAll, all or nothing.
+type ConsentTransitionBatches interface {
+	RecordTransitionsAll(context.Context, []ConsentTransition) error
+}

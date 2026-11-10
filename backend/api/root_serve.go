@@ -171,7 +171,7 @@ func composeServeRoot(
 		planExport       planexport.Service
 		workforce        owners.WorkforcePlanning
 		staffAdmin       *workforceModule.StaffAdmin
-		provisioning     organizationtenancy.Provisioning
+		provisioning     organizationtenancy.OperatorProvisioning
 		deliveryDevices  owners.DeliveryDevices
 		emergency        emergencysnapshot.Query
 		reminders        reminder.Module
@@ -570,7 +570,7 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications, delivery.Runtime.Module, env.HealthData))
-			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, presence.Presence, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, env.BankData, reports.Statistics, requests.OfferingChanges, owners.NewCareContractSchoolHolidays(settings.Service, calendar), env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command, delivery.Runtime.Module))
+			return errors.Join(mountTraegerRoutes(router, limiters, identity, organizations, persons, membership, TraegerAudit{Trail: audit.Persistence.AccessTrail, Log: audit.Persistence.DataAccessLog}, settings.Traeger, settings.Service, presence.Presence, delivery.Runtime.Module, delivery.Runtime.EmailOutcomes, config.Turnstile, env.HealthData, env.BankData, reports.Statistics, requests.OfferingChanges, owners.NewCareContractSchoolHolidays(settings.Service, calendar), owners.NewHolidaySchoolCalendar(settings.Service, calendar, organizations), owners.NewTraegerCalendarSchools(organizations, settings.Service), env.Links.ParentsURL, logger), mountTraegerDocumentRoutes(router, tenant, db, organizations, audit.Persistence.DataAccessLog, audit.Command, delivery.Runtime.Module))
 		},
 	)
 	if err != nil {

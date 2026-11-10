@@ -98,7 +98,8 @@ func (rs *SEPADebitResource) run(w http.ResponseWriter, r *http.Request) {
 }
 
 // file answers the PAIN.008 file; it leaves the server only in this answer
-// and is never stored or cached.
+// and is never cached. The platform keeps it sealed for the Rückgabe (ADR
+// 0187); a member deleted meanwhile refuses it as a changed file.
 func (rs *SEPADebitResource) file(w http.ResponseWriter, r *http.Request) {
 	reviewer, kind, id, ok := debitRunKey(w, r)
 	if !ok {

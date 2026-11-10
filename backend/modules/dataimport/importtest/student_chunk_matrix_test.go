@@ -37,11 +37,11 @@ import (
 // Part 2: the whole cross of main error × cleanup point × cleanup error for
 // the first and the last statement of each equivalence class, and for every
 // other statement the main errors 40P01, 57014 and one without SQLSTATE ×
-// every cleanup error at the first cleanup point (a ROLLBACK TO SAVEPOINT in
-// every class). The executor reads two things of a failing statement only:
-// whether it ran in the bounded call, and which savepoints enclose it, which
-// fixes the cleanup statements after it. Its SQL enters no decision. The
-// classes are those two properties.
+// every cleanup point of its class × every cleanup error. The executor
+// reads two things of a failing statement only: whether it ran in the
+// bounded call, and which savepoints enclose it, which fixes the cleanup
+// statements after it. Its SQL enters no decision. The classes are those two
+// properties.
 
 const matrixRows = 6
 
@@ -219,6 +219,13 @@ const (
 	classOwnerControl    matrixClass = "K4 owner savepoint statement"
 	classResolverRead    matrixClass = "K5 resolver read"
 	classResolverControl matrixClass = "K5 resolver savepoint statement"
+	// classBoundControl sets or resets a bound: not the batch command, so a
+	// failure behaves as the row path's first write (table A: R for 40P01
+	// and 40001, otherwise 500) and a failed cleanup after it ends the upload
+	// (E19). The recording keeps the last statement of each kind, so the
+	// second bound (consents and consent history, #5552 step 5b) stands for
+	// both.
+	classBoundControl matrixClass = "bound set or reset"
 )
 
 // cleanupPoints are the savepoint cleanup statements a failure of the class
@@ -230,6 +237,7 @@ var cleanupPoints = map[matrixClass][]int{
 	classOwnerControl:    {1, 2, outerRollback},       // the chunk's
 	classResolverRead:    {1, 2, outerRollback},       // the read's
 	classResolverControl: {1, 2, outerRollback},       // the chunk's
+	classBoundControl:    {1, 2, outerRollback},       // the chunk's
 }
 
 // matrixStatement is one statement of the chunk in the recording.
@@ -264,6 +272,12 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 	last := map[key]matrixStatement{}
 	occurrence := map[string]int{}
 	var order []key
+	recordStatement := func(k key, statement matrixStatement) {
+		if _, seen := last[k]; !seen {
+			order = append(order, k)
+		}
+		last[k] = statement
+	}
 	depth, phase, group := 0, "", ""
 	for i, query := range batch {
 		query = strings.TrimSpace(query)
@@ -285,9 +299,11 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 			phase = "done" // the chunk's own release ends it
 		case strings.HasPrefix(query, boundSet):
 			phase = "bound"
+			recordStatement(key{classBoundControl, kind}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1})
 			continue
 		case strings.HasPrefix(query, boundReset):
 			phase = "command"
+			recordStatement(key{classBoundControl, kind}, matrixStatement{kind: kind, index: i, class: classBoundControl, row: -1})
 			continue
 		}
 		if phase == "done" {
@@ -319,23 +335,19 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 		if phase != "resolve" {
 			occurrence[kind]++
 		}
-		k := key{class, kind}
-		if _, seen := last[k]; !seen {
-			order = append(order, k)
-		}
 		statement := matrixStatement{kind: kind, index: i, class: class, row: occurrence[kind]}
 		if class == classOwner {
 			statement.group = group
 		}
-		last[k] = statement
+		recordStatement(key{class, kind}, statement)
 	}
 	require.Equal(t, "done", phase, "the recording holds a whole batch attempt")
 	statements := make([]matrixStatement, 0, len(order))
 	for _, k := range order {
 		statement := last[k]
 		switch k.class {
-		case classResolverRead, classResolverControl:
-			statement.row = -1 // the row path has no resolver read
+		case classResolverRead, classResolverControl, classBoundControl:
+			statement.row = -1 // the row path has no resolver read and no bound
 		default:
 			statement.row = rowPathIndex(t, rowPath, firstPerson, statement.kind, statement.row)
 		}
@@ -349,6 +361,16 @@ func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, 
 	if strings.HasPrefix(kind, personBatch) {
 		return firstPerson
 	}
+	if table, bundled := bundledLeafTable(kind); bundled {
+		// A bundled leaf statement stands for the first single insert of its
+		// table on the row path (#5552, step 5b).
+		for i := firstPerson; i < len(rowPath); i++ {
+			if strings.HasPrefix(statementKind(rowPath[i]), table) {
+				return i
+			}
+		}
+		t.Fatalf("the row path issues no insert into %q", table)
+	}
 	seen := 0
 	for i := firstPerson; i < len(rowPath); i++ {
 		if statementKind(rowPath[i]) == kind {
@@ -360,6 +382,21 @@ func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, 
 	}
 	t.Fatalf("the row path issues no statement %d of kind %q", occurrence, kind)
 	return -1
+}
+
+// bundledLeafTables are the leaf inserts the batch command bundles after the
+// rows (#5552, step 5b).
+var bundledLeafTables = []string{"INSERT INTO users.privacy_consents ", "INSERT INTO audit.student_consent_changes "}
+
+// bundledLeafTable names the table of a bundled leaf insert: one of
+// bundledLeafTables with more than one VALUES row.
+func bundledLeafTable(kind string) (string, bool) {
+	for _, table := range bundledLeafTables {
+		if strings.HasPrefix(kind, table) && strings.Contains(kind, "), (") {
+			return table, true
+		}
+	}
+	return "", false
 }
 
 // replays says whether a failure of the statement makes the batch command
@@ -417,9 +454,15 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	requireSameEnd(t, clean, batchRecording)
 	statements := chunkStatements(t, batchRecording.statements, rowRecording.statements)
 	classes := map[matrixClass]bool{}
+	bundled := 0
 	for _, statement := range statements {
 		classes[statement.class] = true
+		if _, ok := bundledLeafTable(statement.kind); ok {
+			bundled++
+			require.Equal(t, classBounded, statement.class, "a bundled leaf statement runs under the bound (E13): %s", statement.kind)
+		}
 	}
+	require.Equal(t, len(bundledLeafTables), bundled, "the consents and the consent history are bundled")
 	require.Len(t, classes, len(cleanupPoints), "every class is in the recording")
 
 	// Part 1: every statement × every main error, cleanups succeed.
@@ -447,6 +490,18 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 					case classResolverControl:
 						requireLost(t, batch)
 						return
+					case classBoundControl:
+						// As the row path's first write: 40P01 and 40001 retry the
+						// chunk transaction, which then succeeds; anything else ends
+						// the upload. Never a replay.
+						require.Zero(t, batch.replays, "a bound statement is not the batch command")
+						if errors.Is(err, injectedSQLState("40P01")) || errors.Is(err, injectedSQLState("40001")) {
+							requireSameEnd(t, clean, batch)
+							require.Equal(t, 1, batch.retries)
+							return
+						}
+						requireLost(t, batch)
+						return
 					}
 					t.Run("row path", func(t *testing.T) {
 						rowPath = runMatrixUpload(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, &matrixFault{at: statement.row, err: err})
@@ -467,69 +522,85 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 		}
 	})
 
-	// Part 2: main error × cleanup point × cleanup error, per class.
-	members := map[string][]int{} // class and owner group -> statement positions
+	// Part 2: main error × cleanup point × cleanup error, per class: the
+	// first and the last statement of each class (and owner savepoint) with
+	// every main error, every other one with the minimum main errors; each
+	// against every cleanup point of its class and every cleanup error.
+	cases := 0
+	members := map[string][]int{}
+	var classOrder []string
 	for i, statement := range statements {
 		class := string(statement.class) + " " + statement.group
+		if _, seen := members[class]; !seen {
+			classOrder = append(classOrder, class)
+		}
 		members[class] = append(members[class], i)
 	}
-	represented := map[int]bool{}
-	for class, positions := range members {
-		first, last := positions[0], positions[len(positions)-1]
-		represented[first], represented[last] = true, true
-		t.Logf("%s: %d statements, the whole cross for the first and the last", class, len(positions))
-	}
-	minimalMain := []error{injectedSQLState("40P01"), injectedSQLState("57014"), errors.New("injected failure without SQLSTATE")}
-	cases := 0
 	t.Run("cleanup", func(t *testing.T) {
-		for i, statement := range statements {
-			mains, points := matrixFailures, cleanupPoints[statement.class]
-			if !represented[i] {
-				mains, points = minimalMain, points[:1]
-			}
-			for _, err := range mains {
-				for _, point := range points {
-					for _, err2 := range matrixFailures {
-						cases++
-						t.Run(fmt.Sprintf("%s %s × %v, cleanup %d × %v", statement.class, statement.kind, err, point, err2), func(t *testing.T) {
-							t.Parallel()
-							got := runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2})
-							require.True(t, got.primary, "the fault fired")
-							if err != injectedSQLState("40P01") {
-								require.Zero(t, got.deadlocks, "a cleanup's 40P01 is no deadlock of the upload")
-							}
-							if point == outerRollback {
-								// The transaction's ROLLBACK is diagnostics: the upload
-								// ends as with the main error alone (#6316).
-								value, ok := mainOnly.Load(fmt.Sprint(statement.index, err))
-								require.True(t, ok)
-								want := value.(matrixUpload)
-								if want.status != "200" || want.retries > 0 {
-									require.True(t, got.cleaned, "the ROLLBACK fault fired")
-								}
-								requireSameEnd(t, want, got)
-								require.Equal(t, want.retries, got.retries)
-								require.Equal(t, want.replays, got.replays)
-								return
-							}
-							require.True(t, got.cleaned, "the cleanup fault fired")
-							if statement.class == classBounded && err == injectedSQLState("57014") {
-								// E13′: the bound cancelled the bundled statement, whose
-								// connection pgdriver closes; the chunk replays in a new
-								// transaction whatever its rollback returned.
-								requireSameEnd(t, clean, got)
-								require.Equal(t, 1, got.replays)
-								require.Zero(t, got.retries)
-								return
-							}
-							requireLost(t, got) // E19
-						})
+		for _, class := range classOrder {
+			indices := members[class]
+			for position, at := range indices {
+				statement := statements[at]
+				mains := minimumCleanupFailures
+				if position == 0 || position == len(indices)-1 {
+					mains = matrixFailures
+				}
+				for _, err := range mains {
+					for _, point := range cleanupPoints[statement.class] {
+						for _, err2 := range matrixFailures {
+							cases++
+							t.Run(fmt.Sprintf("%s %s × %v, cleanup %d × %v", statement.class, statement.kind, err, point, err2), func(t *testing.T) {
+								t.Parallel()
+								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2)
+							})
+						}
 					}
 				}
 			}
 		}
 	})
-	t.Logf("%d statements in %d classes; %d main-error cases, %d cleanup cases", len(statements), len(members), len(statements)*len(matrixFailures), cases)
+	t.Logf("%d statements in %d classes; %d main-error cases, %d cleanup cases", len(statements), len(classOrder), len(statements)*len(matrixFailures), cases)
+}
+
+// minimumCleanupFailures are the main errors every statement that does not
+// stand first or last for its class is crossed with.
+var minimumCleanupFailures = []error{
+	injectedSQLState("40P01"), injectedSQLState("57014"), errors.New("injected failure without SQLSTATE"),
+}
+
+// runCleanupCase is one cell of part 2 (tables A and B of the PR).
+func runCleanupCase(t *testing.T, db *bun.DB, dsn string, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error) {
+	t.Helper()
+	got := runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2})
+	require.True(t, got.primary, "the fault fired")
+	if err != injectedSQLState("40P01") {
+		require.Zero(t, got.deadlocks, "a cleanup's 40P01 is no deadlock of the upload")
+	}
+	if point == outerRollback {
+		// The transaction's ROLLBACK is diagnostics: the upload ends as with
+		// the main error alone (#6316).
+		value, ok := mainOnly.Load(fmt.Sprint(statement.index, err))
+		require.True(t, ok)
+		want := value.(matrixUpload)
+		if want.status != "200" || want.retries > 0 {
+			require.True(t, got.cleaned, "the ROLLBACK fault fired")
+		}
+		requireSameEnd(t, want, got)
+		require.Equal(t, want.retries, got.retries)
+		require.Equal(t, want.replays, got.replays)
+		return
+	}
+	require.True(t, got.cleaned, "the cleanup fault fired")
+	if statement.class == classBounded && err == injectedSQLState("57014") {
+		// E13′: the bound cancelled the bundled statement, whose connection
+		// pgdriver closes; the chunk replays in a new transaction whatever its
+		// rollback returned.
+		requireSameEnd(t, clean, got)
+		require.Equal(t, 1, got.replays)
+		require.Zero(t, got.retries)
+		return
+	}
+	requireLost(t, got) // E19
 }
 
 func countKind(statements []string, prefix string) int {

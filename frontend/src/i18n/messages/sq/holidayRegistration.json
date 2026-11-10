@@ -39,6 +39,7 @@
   "weeksText": "Zgjidhni për çdo javë sa gjatë qëndron fëmija.",
   "notBooked": "Pa regjistrim",
   "parallelWeeksHint": "Kjo javë ofrohet në disa shkolla. Zgjidhni një shkollë dhe kohën.",
+  "weekWithoutCare": "Nuk mund të rezervohet: më {date} nuk ka kujdes ({name}).",
   "weekRange": "{starts} deri më {ends}",
   "timeModel": "{name} ({startsAt} deri {endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt} deri {endsAt})",
@@ -147,5 +148,6 @@
   "dayLimitCount": "Zgjedhur: {count, plural, one {# ditë} other {# ditë}}.",
   "dayLimitOver": "Zgjedhur: {count, plural, one {# ditë} other {# ditë}}. Janë shumë. Ju lutemi zgjidhni më pak ditë.",
   "summaryDays": "Ditët: {days}",
-  "contributionDays": "{count, plural, one {# ditë} other {# ditë}}"
+  "contributionDays": "{count, plural, one {# ditë} other {# ditë}}",
+  "dayWithoutCare": "Më {date} nuk ka kujdes ({name})."
 }

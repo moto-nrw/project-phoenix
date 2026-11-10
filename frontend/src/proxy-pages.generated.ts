@@ -60,6 +60,7 @@ export const PORTAL_PAGES = {
     "/invite",
     "/login",
     "/reset-password",
+    "/schliesstage",
     "/schulen",
     "/stichtagszahlen",
     "/uebersicht",

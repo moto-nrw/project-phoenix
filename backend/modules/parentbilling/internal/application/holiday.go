@@ -347,27 +347,30 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 		priced[i] = parentbilling.HolidayChild{Position: i + 1, AgeRank: child.AgeRank, Bookings: make([]parentbilling.HolidayBooking, 0, len(child.Bookings))}
 		booked := map[int64]bool{}
 		for _, booking := range child.Bookings {
-			known, ok := models[booking.TimeModelID]
-			if !ok || known.week.ID != booking.WeekID || booked[booking.WeekID] {
+			known, found := models[booking.TimeModelID]
+			quoted, daysOffered := quotedBooking(known.week, known.model, booking.Days)
+			if !found || known.week.ID != booking.WeekID || booked[booking.WeekID] || !daysOffered {
 				return nil, fmt.Errorf("%w: child %d books a time model the period does not offer", parentbilling.ErrInvalidHolidayQuote, i+1)
 			}
 			booked[booking.WeekID] = true
-			days, ok := quotedDays(known.week, booking.Days)
-			if !ok {
-				return nil, fmt.Errorf("%w: child %d books days the week does not offer", parentbilling.ErrInvalidHolidayQuote, i+1)
-			}
-			price := known.model.PriceCents
-			if days > 0 {
-				// A time model of a week by days prices one day (#4701).
-				price *= int64(days)
-			}
-			priced[i].Bookings = append(priced[i].Bookings, parentbilling.HolidayBooking{
-				WeekID: known.week.ID, WeekStartsOn: known.week.StartsOn, WeekEndsOn: known.week.EndsOn,
-				TimeModelID: known.model.ID, TimeModelName: known.model.Name, PriceCents: price, BookedDays: days,
-			})
+			priced[i].Bookings = append(priced[i].Bookings, quoted)
 		}
 	}
 	return priced, nil
+}
+
+// quotedBooking prices a quoted booking: a time model of a week by days
+// prices one day (#4701).
+func quotedBooking(week parentbilling.HolidayWeek, model parentbilling.HolidayTimeModel, chosen []calendar.Date) (parentbilling.HolidayBooking, bool) {
+	days, ok := quotedDays(week, chosen)
+	price := model.PriceCents
+	if days > 0 {
+		price *= int64(days)
+	}
+	return parentbilling.HolidayBooking{
+		WeekID: week.ID, WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn,
+		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days,
+	}, ok
 }
 
 // quotedDays counts the distinct chosen days of a quoted booking (#4701):

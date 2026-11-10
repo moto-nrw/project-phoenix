@@ -80,6 +80,10 @@ func newStudentImport(
 			FindRFIDCard:    identity.FindRFIDCard,
 			Resolver:        resolver,
 			ConsentHistory:  consentHistory,
+			// The leaf batch slices stay outside the owners' capabilities
+			// (#5552); without them every chunk takes the row path.
+			PrivacyConsentBatches: privacyConsentBatches(presence),
+			ConsentHistoryBatches: consentHistoryBatches(consentHistory),
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
 			CountsTowardChildQuota: ImportChildQuotaRule(),
@@ -158,6 +162,23 @@ func personBatches(persons peopledirectory.Capability) importPorts.PersonBatches
 		return nil
 	}
 	if bound, ok := composed.Owner.(peopledirectory.PersonBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// privacyConsentBatches binds Student Presence's consent batch slice, which
+// its application implements outside Capability and Owner (#5552).
+func privacyConsentBatches(presence studentpresence.Capability) importPorts.PrivacyConsentBatches {
+	if bound, ok := presence.(studentpresence.PrivacyConsentBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// consentHistoryBatches binds the Audit consent recorder's batch slice.
+func consentHistoryBatches(recorder consents.ConsentTransitions) importPorts.ConsentTransitionBatches {
+	if bound, ok := recorder.(consents.ConsentTransitionBatches); ok {
 		return bound
 	}
 	return nil

@@ -36,6 +36,7 @@ const CodeParentBillingCareMealTariffInvalid = "parent_billing.care_meal_tariff_
 const CodeParentBillingCareMealTariffMonthBilled = "parent_billing.care_meal_tariff_month_billed"
 const CodeParentBillingCareMealTariffNotFound = "parent_billing.care_meal_tariff_not_found"
 const CodeParentBillingCareNoticeNotFound = "parent_billing.care_notice_not_found"
+const CodeParentBillingCareNoticeRecipientChanged = "parent_billing.care_notice_recipient_changed"
 const CodeParentBillingCareNoticeRunInvalid = "parent_billing.care_notice_run_invalid"
 const CodeParentBillingCareNoticeRunNotFound = "parent_billing.care_notice_run_not_found"
 const CodeParentBillingCareNoticeRunOpen = "parent_billing.care_notice_run_open"
@@ -148,6 +149,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCareMealTariffMonthBilled, "business_rejection"},
 	{CodeParentBillingCareMealTariffNotFound, "business_rejection"},
 	{CodeParentBillingCareNoticeNotFound, "business_rejection"},
+	{CodeParentBillingCareNoticeRecipientChanged, "business_rejection"},
 	{CodeParentBillingCareNoticeRunInvalid, "input"},
 	{CodeParentBillingCareNoticeRunNotFound, "business_rejection"},
 	{CodeParentBillingCareNoticeRunOpen, "business_rejection"},

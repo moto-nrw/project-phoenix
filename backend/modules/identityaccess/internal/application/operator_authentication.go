@@ -100,7 +100,9 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 		return nil, err
 	}
 	if !enrolled {
-		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL, 0)
+		// The token names the credential generation this password check read:
+		// the enrollment it starts is bound to it (#6308).
+		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL, operator.CredentialGeneration)
 		if err != nil {
 			return nil, fmt.Errorf("issue operator mfa enrollment token: %w", err)
 		}
@@ -118,7 +120,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 		trusted = ok
 	}
 	if !trusted {
-		challenge, err := s.mfa.StartOperatorMFAChallenge(ctx, operator.ID, net.ParseIP(strings.TrimSpace(ipAddress)))
+		challenge, err := s.mfa.StartOperatorMFAChallenge(ctx, operator.ID, net.ParseIP(strings.TrimSpace(ipAddress)), &operator.CredentialGeneration)
 		if err != nil {
 			return nil, fmt.Errorf("start operator mfa challenge: %w", err)
 		}
@@ -169,7 +171,7 @@ func (s *OperatorAuthentication) validateCredentials(ctx context.Context, email,
 }
 
 func (s *OperatorAuthentication) authenticatedResult(ctx context.Context, operator domain.Operator, ipAddress string) (*domain.OperatorLoginResult, error) {
-	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, operator.PasswordHash, ipAddress)
+	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, &operator.CredentialGeneration, ipAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -180,13 +182,15 @@ func (s *OperatorAuthentication) authenticatedResult(ctx context.Context, operat
 // whose identity was proven via a non-password channel (MFA code, recovery
 // code or passkey). It skips the credential check but otherwise reuses the
 // login pipeline, so the session is indistinguishable from a password
-// login.
-func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, _ string) (_, _ string, err error) {
+// login. credentialGeneration is the generation the password check behind
+// the proof read (the second factor of a password sign-in); a passkey sign-in
+// checked no password and passes none.
+func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, credentialGeneration *int64, ipAddress, _ string) (_, _ string, err error) {
 	if s == nil {
 		return "", "", errOperatorAuthenticationUnavailable
 	}
 	defer func() { err = operatorError(err) }()
-	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, "", ipAddress)
+	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, credentialGeneration, ipAddress)
 	return access, refresh, err
 }
 
@@ -194,10 +198,11 @@ func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context
 // the login and writes the login audit row in one administrative
 // transaction, and signs the pair inside it: an operator deactivated after
 // the credential check gets no session, and a login that cannot be recorded
-// issues none either. checkedHash is the hash a password sign-in verified;
-// a password rotated since then ended every session, so the old password
-// earns no new one (#6289). Other channels pass none.
-func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, checkedHash, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
+// issues none either. checkedGeneration is the credential generation the
+// password check behind this sign-in read; a password written since then
+// ended every session and moved the generation on under the same operator
+// lock, so the old password earns no new one (#6289, #6308).
+func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, checkedGeneration *int64, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
 	session := s.newRefreshSession(operatorID, "", 0)
 	entry := domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: domain.OperatorAuditActionLogin, ResourceType: domain.OperatorAuditResourceOperator,
@@ -208,7 +213,7 @@ func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID 
 		if operator, err = s.activeOperator(txCtx, operatorID); err != nil {
 			return err
 		}
-		if checkedHash != "" && checkedHash != operator.PasswordHash {
+		if !domain.CredentialStillHolds(checkedGeneration, operator.CredentialGeneration) {
 			return identityaccess.ErrOperatorInvalidCredentials
 		}
 		if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(session)); err != nil {
@@ -384,24 +389,25 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 
 // storeRotatedPassword writes the new hash on the caller's transaction and
 // invalidates the e-mail change links, remembered devices (#6289) and
-// refresh sessions with it. The
-// verification ran without a lock and the hash is slow, so the hash is set on
-// the row UpdateOperator locked: a deactivation committed meanwhile stays in
-// force, and a password rotated meanwhile (verifiedHash no longer stored)
-// invalidates the proof.
+// refresh sessions with it. The verification ran without a lock and the hash
+// is slow, so the write is a compare-and-swap on the verified hash under the
+// operator lock: a password rotated meanwhile (verifiedHash no longer stored)
+// invalidates the proof. The one credential writer moves the credential
+// generation on, which ends every code, enrollment token and remembered
+// device of the old password, also one issued concurrently (#6308).
 func (s *OperatorAuthentication) storeRotatedPassword(ctx context.Context, operatorID int64, verifiedHash, hash string) error {
-	_, err := s.operators.UpdateOperator(ctx, operatorID, func(current *identityaccess.Operator) error {
-		if current.PasswordHash != verifiedHash {
-			return identityaccess.ErrOperatorPasswordMismatch
+	if _, err := s.operators.findOperatorForUpdate(ctx, operatorID); err != nil {
+		if errors.Is(err, identityaccess.ErrOperatorNotFound) {
+			return err
 		}
-		current.PasswordHash = hash
-		return nil
-	})
-	if errors.Is(err, identityaccess.ErrOperatorPasswordMismatch) || errors.Is(err, identityaccess.ErrOperatorNotFound) {
-		return err
+		return fmt.Errorf("failed to lock operator: %w", err)
 	}
+	written, err := s.operators.writeOperatorCredential(ctx, operatorID, domain.CredentialWrite{PasswordHash: hash, ExpectedPasswordHash: verifiedHash})
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
+	}
+	if !written {
+		return identityaccess.ErrOperatorPasswordMismatch
 	}
 	if err := s.credentials.RevokePasswordBoundCredentials(ctx, operatorID); err != nil {
 		return fmt.Errorf("failed to invalidate email change tokens and remembered devices after password change: %w", err)

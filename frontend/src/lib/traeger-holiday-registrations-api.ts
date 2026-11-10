@@ -392,7 +392,7 @@ function summaryFromBackend(
         placement: booking.placement ?? "placed",
         waitlistPosition: booking.waitlist_position ?? null,
         promotedAt: booking.promoted_at ?? null,
-        days: booking.days ?? [],
+        ...(booking.days?.length ? { days: booking.days } : {}),
       })),
       duplicateRegistrationIds: (child.duplicate_registration_ids ?? []).map(
         String,
@@ -407,7 +407,7 @@ function changesFromBackend(
   return (changes ?? []).map((change) => ({
     weekId: String(change.week_id),
     timeModelId: String(change.time_model_id),
-    days: change.days ?? [],
+    ...(change.days?.length ? { days: change.days } : {}),
   }));
 }
 
@@ -920,7 +920,7 @@ export async function fetchHolidayWeekPlaces(
       childFirstName: entry.child_first_name,
       childLastName: entry.child_last_name,
       timeModelName: entry.time_model_name,
-      days: entry.days ?? [],
+      ...(entry.days?.length ? { days: entry.days } : {}),
     })),
   }));
 }

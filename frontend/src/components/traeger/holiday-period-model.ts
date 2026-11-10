@@ -36,7 +36,7 @@ export interface WeekDraft {
   readonly hostSchoolId: string;
   readonly timeModels: readonly TimeModelDraft[];
   /** Whole week or single days (#4701); the price is per week or per day. */
-  readonly bookingUnit: HolidayBookingUnit;
+  readonly bookingUnit?: HolidayBookingUnit;
 }
 
 export interface HolidayPeriodDraft {

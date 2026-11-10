@@ -29,6 +29,7 @@ const (
 	personBatch      = "WITH staff_person_merge_gate AS MATERIALIZED"
 	enrollmentWrite  = "WITH class_write_gate AS MATERIALIZED"
 	studentCount     = `SELECT count(*) FROM users.student_profiles WHERE tenant_id = ?`
+	consentBatch     = "INSERT INTO users.privacy_consents "
 	studentChunkRows = 8
 )
 
@@ -188,6 +189,16 @@ func TestStudentChunkFaultTable(t *testing.T) {
 		{point: "ResolveChunk person read", prefix: personRead, nth: 1, err: injectedSQLState("40P01"), want: faultOutcome{entries: studentChunkRows}},
 		{point: "bound set", prefix: boundSet, err: injectedSQLState("40P01"), want: retried},
 		{point: "bound set", prefix: boundSet, err: driver.ErrBadConn, want: broken},
+		// The bundled consents run under a second bound after the rows (step
+		// 5b): they are the batch command, the bound around them is not.
+		{point: "consent batch", prefix: consentBatch, nth: 1, err: injectedSQLState("40P01"), want: replayed},
+		{point: "consent batch", prefix: consentBatch, nth: 1, err: injectedSQLState("57014"), want: replayed},
+		{point: "consent batch", prefix: consentBatch, nth: 1, err: injectedSQLState("23514"), want: replayed},
+		{point: "consent batch", prefix: consentBatch, nth: 1, err: driver.ErrBadConn, want: broken},
+		{point: "consent batch", prefix: consentBatch, nth: 1, err: injectedSQLState("40P01"), prefix2: rollbackTo, err2: injectedSQLState("40P01"), want: faultOutcome{failsWith: "rollback failed"}},
+		{point: "second bound set", prefix: boundSet, nth: 2, err: injectedSQLState("40P01"), want: retried},
+		{point: "second bound set", prefix: boundSet, nth: 2, err: driver.ErrBadConn, want: broken},
+		{point: "second bound reset", prefix: boundReset, nth: 2, err: injectedSQLState("40001"), want: retried},
 		{point: "chunk savepoint", prefix: savepoint, err: driver.ErrBadConn, want: broken},
 		{point: "checkpoint", prefix: checkpoint, err: injectedSQLState("40P01"), want: retried},
 	})

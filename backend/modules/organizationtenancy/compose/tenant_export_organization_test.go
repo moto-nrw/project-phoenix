@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -39,10 +38,10 @@ func TestTenantExportOrganizationPackageHoldsOnlyItsTraeger(t *testing.T) {
 	t.Parallel()
 	db, catalog, a, b := exportFixture(t)
 	uploads := fixtureUploads(t, db, catalog, a, b)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
-	require.NoError(t, err)
+	// A Träger package runs with its PAIN.008 files and its operator audit (ADR 0187).
+	exporter := newTraegerExporter(t, db, &sepaFilesFake{}, &exportAuditFake{})
 	out := filepath.Join(t.TempDir(), "traeger")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{OrganizationID: a, Output: out, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{OrganizationID: a, OperatorID: 42, Output: out, Uploads: uploads}))
 	manifest := readExportManifest(t, out)
 	require.Equal(t, "organization", manifest.Package)
 	require.Len(t, manifest.Tables, len(catalog.Tables))
@@ -94,8 +93,9 @@ func TestTenantExportOrganizationPackageHoldsOnlyItsTraeger(t *testing.T) {
 func TestTenantExportRejectsAmbiguousSubjects(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
-	require.NoError(t, err)
+	// The Träger exporter, so a Träger subject fails for its own reason,
+	// not for a missing audit (ADR 0187).
+	exporter := newTraegerExporter(t, db, &sepaFilesFake{}, &exportAuditFake{})
 	school := testpkg.Tenant(t)
 	for name, options := range map[string]organizationtenancy.TenantExportOptions{
 		"neither":            {},
@@ -105,6 +105,9 @@ func TestTenantExportRejectsAmbiguousSubjects(t *testing.T) {
 		"negative Träger":    {OrganizationID: -1},
 	} {
 		options.Output, options.Uploads = filepath.Join(t.TempDir(), "export"), t.TempDir()
+		if options.OrganizationID != 0 {
+			options.OperatorID = 42
+		}
 		require.Error(t, exporter.Export(t.Context(), options), name)
 		require.NoFileExists(t, filepath.Join(options.Output, "COMPLETE"), name)
 	}

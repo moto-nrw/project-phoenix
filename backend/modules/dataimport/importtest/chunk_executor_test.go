@@ -363,6 +363,9 @@ type faultConnector struct {
 	// rollback, when set, sees every transaction ROLLBACK after the real one
 	// ran and returns the error to report instead, or nil.
 	rollback func() error
+	// commit, when set, sees every transaction COMMIT after the real one ran
+	// and returns the error to report instead, or nil.
+	commit func() error
 }
 
 func (c faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -416,22 +419,38 @@ func (c *faultConn) QueryContext(ctx context.Context, query string, args []drive
 
 func (c *faultConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	tx, err := c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
-	if err != nil || c.connector.rollback == nil {
+	if err != nil || (c.connector.rollback == nil && c.connector.commit == nil) {
 		return tx, err
 	}
-	return faultTx{Tx: tx, rollback: c.connector.rollback}, nil
+	return faultTx{Tx: tx, rollback: c.connector.rollback, commit: c.connector.commit}, nil
 }
 
 // faultTx reports an injected failure of ROLLBACK after it really rolled
 // back, so the connection never returns to the pool inside a transaction.
 type faultTx struct {
 	driver.Tx
-	rollback func() error
+	rollback, commit func() error
 }
 
 func (t faultTx) Rollback() error {
 	err := t.Tx.Rollback()
+	if t.rollback == nil {
+		return err
+	}
 	if injected := t.rollback(); injected != nil {
+		return injected
+	}
+	return err
+}
+
+// Commit reports an injected failure after the real COMMIT: the outcome is
+// durable, the caller cannot know it.
+func (t faultTx) Commit() error {
+	err := t.Tx.Commit()
+	if t.commit == nil {
+		return err
+	}
+	if injected := t.commit(); injected != nil {
 		return injected
 	}
 	return err

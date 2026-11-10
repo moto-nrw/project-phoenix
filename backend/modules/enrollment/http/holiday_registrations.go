@@ -86,6 +86,9 @@ type HolidayRegistrationWeek struct {
 	BookingUnit string          `json:"booking_unit"`
 	CareDays    []calendar.Date `json:"care_days"`
 	FullDays    []calendar.Date `json:"full_days"`
+	// NoCareDays are the days the host school gives no care (#4702); such
+	// a week takes no booking.
+	NoCareDays []capability.HolidayNoCareDay `json:"no_care_days"`
 }
 
 // HolidayRegistrationOfferResponse is the body of GET
@@ -305,6 +308,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
 			BookingUnit: week.BookingUnit, CareDays: careDays, FullDays: fullDays,
+			NoCareDays: noCareDaysOrEmpty(week.NoCareDays),
 		})
 	}
 	return HolidayRegistrationOfferResponse{
@@ -387,6 +391,9 @@ func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organiz
 func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	var rejection *capability.UploadRejection
+	if renderHolidayWeekWithoutCare(w, r, err) {
+		return
+	}
 	var dayLimit *capability.HolidayChildDayLimitRefusal
 	switch {
 	case common.HasInputRejection(err):

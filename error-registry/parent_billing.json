@@ -507,6 +507,12 @@
       "legacy": "parent_billing.care_notice_not_found"
     },
     {
+      "code": "parent_billing.care_notice_recipient_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_notice_recipient_changed"
+    },
+    {
       "code": "parent_billing.sepa_creditor_invalid",
       "class": "input",
       "parameters": [],

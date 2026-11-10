@@ -646,13 +646,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (h *HolidayPeriods) HolidayPeriod(ctx context.Context, organizationID, periodID int64) (enrollment.HolidayPeriod, error) {\n\tif err := holidayPeriodKey(organizationID, periodID); err != nil {\n\t\treturn enrollment.HolidayPeriod{}, err\n\t}\n\treturn foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/enrollment/internal/application/HolidayPeriods.HolidayPeriod",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
       "evidence": "func (h *HolidayPeriods) ListHolidayPeriods(ctx context.Context, organizationID int64) ([]enrollment.HolidayPeriod, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn nil, errHolidayPeriodRequired\n\t}\n\tperiods, err := h.store.ListHolidayPeriods(ctx, organizationID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"enrollment: list holiday periods: %w\", err)\n\t}\n\treturn periods, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/HolidayPeriods.ListHolidayPeriods",

@@ -186,6 +186,9 @@ func registrationKey(w http.ResponseWriter, r *http.Request) (capability.Holiday
 func renderHolidayReviewError(w http.ResponseWriter, r *http.Request, err error) {
 	tenant.MarkRollback(r.Context())
 	var fields validation.Errors
+	if renderHolidayWeekWithoutCare(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
@@ -333,17 +336,13 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			frozen = "Ja"
 		}
 		secondName, secondPhone := holidaySecondGuardianContact(row.SecondGuardian)
-		week := row.Booking.WeekStartsOn.Format("02.01.") + " bis " + row.Booking.WeekEndsOn.Format("02.01.2006")
-		if len(row.Booking.Days) > 0 {
-			week += " (" + capability.HolidayDayNames(row.Booking.Days) + ")"
-		}
 		values := map[lists.ColumnID]string{
 			"status": holidayRegistrationStatusLabels[row.Registration.Status], "frozen": frozen,
 			"registration": strconv.FormatInt(row.Registration.ID, 10),
 			"submitted_at": row.Registration.SubmittedAt.In(calendar.Berlin).Format("02.01.2006 15:04"),
 			"last_name":    row.Child.LastName, "first_name": row.Child.FirstName,
 			"birth_date": row.Child.BirthDate.Format("02.01.2006"), "school": school,
-			"week":        week,
+			"week":        holidayExportWeek(row.Booking),
 			"host_school": schoolName(row.Booking.HostSchoolID), "time_model": row.Booking.TimeModelName,
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
@@ -466,4 +465,14 @@ func holidayTextAnswer(question capability.HolidayFormField, answer string) stri
 		}
 	}
 	return answer
+}
+
+// holidayExportWeek names the week of a booking in the export, with its days
+// for a booking of days (#4701).
+func holidayExportWeek(booking capability.HolidayRegistrationBooking) string {
+	week := booking.WeekStartsOn.Format("02.01.") + " bis " + booking.WeekEndsOn.Format("02.01.2006")
+	if len(booking.Days) > 0 {
+		week += " (" + capability.HolidayDayNames(booking.Days) + ")"
+	}
+	return week
 }

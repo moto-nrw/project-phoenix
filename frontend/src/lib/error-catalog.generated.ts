@@ -503,6 +503,8 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
+      "enrollment.holiday_week_no_care_day":
+        "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen.",
       "enrollment.holiday_week_not_found":
         "Diese Woche gehört nicht zu diesem Ferienzeitraum. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_weeks_booked_together":
@@ -893,6 +895,8 @@ export const ERROR_CATALOG = {
         "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_notice_not_found":
         "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+      "parent_billing.care_notice_recipient_changed":
+        "Die Person oder ihre E-Mail-Adresse hat sich seit dem Ausstellen geändert. Drucken Sie den gespeicherten Bescheid. Geben Sie ihn der Familie auf Papier.",
       "parent_billing.care_notice_run_invalid":
         "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
       "parent_billing.care_notice_run_not_found":
@@ -1116,6 +1120,8 @@ export const ERROR_CATALOG = {
         "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
       "provisioning.traeger_erasure_order_open":
         "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_records_recorded":
+        "Die Wahl des Kunden ist schon eingetragen. Sie kann nicht mehr geändert werden.",
       "provisioning.traeger_erasure_started":
         "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
       "rollover.deadline_required":
@@ -1650,6 +1656,12 @@ export const ERROR_CATALOG = {
         "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
       "traeger.bank_account_not_found":
         "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_invalid":
+        "Der Schließtag ist nicht vollständig. Bitte prüfen Sie Datum, Grund und Schulen.",
+      "traeger.closing_day_not_found":
+        "Diesen Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "traeger.closing_day_school_outside":
+        "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen aus der Liste.",
       "traeger.document_already_released":
         "Das Dokument ist für diese Menschen schon freigegeben.",
       "traeger.document_audience_invalid":
@@ -2191,6 +2203,8 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
+      "enrollment.holiday_week_no_care_day":
+        "There is no care on {date} ({name}). This week cannot be booked.",
       "enrollment.holiday_week_not_found":
         "This week is not part of this holiday period. Please reload the page.",
       "enrollment.holiday_weeks_booked_together":
@@ -2435,6 +2449,12 @@ export const ERROR_CATALOG = {
         "Another bank account already has this label. Please choose a different label.",
       "traeger.bank_account_not_found":
         "This bank account no longer exists. Please reload the page.",
+      "traeger.closing_day_invalid":
+        "The closing day is incomplete. Please check the dates, the reason and the schools.",
+      "traeger.closing_day_not_found":
+        "This closing day no longer exists. Please reload the page.",
+      "traeger.closing_day_school_outside":
+        "A selected school does not belong to your Träger. Please choose the schools from the list.",
       "traeger.document_already_released":
         "The document is already shared with these people.",
       "traeger.document_audience_invalid":
@@ -2787,6 +2807,8 @@ export const ERROR_CATALOG = {
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
@@ -3327,6 +3349,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+      "enrollment.holiday_week_no_care_day":
+        "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
       "enrollment.invalid_phone":
@@ -3860,6 +3884,8 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+      "enrollment.holiday_week_no_care_day":
+        "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
@@ -4397,6 +4423,8 @@ export const ERROR_CATALOG = {
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
@@ -4926,6 +4954,8 @@ export const ERROR_CATALOG = {
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+      "enrollment.holiday_week_no_care_day":
+        "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":

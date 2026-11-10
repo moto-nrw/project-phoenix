@@ -39,6 +39,7 @@
   "weeksText": "Wählen Sie für jede Woche, wie lange Ihr Kind bleibt.",
   "notBooked": "Nicht angemeldet",
   "parallelWeeksHint": "Diese Woche gibt es an mehreren Schulen. Wählen Sie eine Schule und die Zeit.",
+  "weekWithoutCare": "Nicht buchbar: Am {date} ist keine Betreuung ({name}).",
   "weekRange": "{starts} bis {ends}",
   "timeModel": "{name} ({startsAt} bis {endsAt} Uhr)",
   "timeModelPrice": "{name} · {price} ({startsAt} bis {endsAt} Uhr)",
@@ -147,5 +148,6 @@
   "dayLimitCount": "Gewählt: {count, plural, one {# Tag} other {# Tage}}.",
   "dayLimitOver": "Gewählt: {count, plural, one {# Tag} other {# Tage}}. Das sind zu viele. Bitte wählen Sie weniger Tage.",
   "summaryDays": "Tage: {days}",
-  "contributionDays": "{count, plural, one {# Tag} other {# Tage}}"
+  "contributionDays": "{count, plural, one {# Tag} other {# Tage}}",
+  "dayWithoutCare": "Am {date} ist keine Betreuung ({name})."
 }

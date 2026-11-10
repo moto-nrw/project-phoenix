@@ -39,6 +39,7 @@
   "weeksText": "Her hafta için çocuğunuzun ne kadar kalacağını seçin.",
   "notBooked": "Kayıt yok",
   "parallelWeeksHint": "Bu hafta birkaç okulda sunuluyor. Bir okul ve saat seçin.",
+  "weekWithoutCare": "Rezerve edilemez: {date} tarihinde bakım yok ({name}).",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",
@@ -147,5 +148,6 @@
   "dayLimitCount": "Seçilen: {count} gün.",
   "dayLimitOver": "Seçilen: {count} gün. Bu çok fazla. Lütfen daha az gün seçin.",
   "summaryDays": "Günler: {days}",
-  "contributionDays": "{count} gün"
+  "contributionDays": "{count} gün",
+  "dayWithoutCare": "{date} tarihinde bakım yok ({name})."
 }

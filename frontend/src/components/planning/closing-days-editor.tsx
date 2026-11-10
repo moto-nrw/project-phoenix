@@ -29,6 +29,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { closingDayService } from "~/lib/closing-day-api";
 import {
   type ClosingDay,
@@ -197,6 +198,15 @@ export function ClosingDaysEditor({
                 Wortes wie "Weihnachtsschließung". */}
             <p className="font-medium wrap-anywhere text-gray-900">
               {day.reason}
+              {day.traeger ? (
+                <StatusBadge
+                  label="Vom Träger"
+                  tone="blue"
+                  size="xs"
+                  className="ml-2 align-middle"
+                  title="Diesen Schließtag hat Ihr Träger geplant. Ändern kann ihn nur das Träger-Büro."
+                />
+              ) : null}
             </p>
             <p className="mt-0.5 text-xs leading-5 break-words text-gray-500 sm:hidden">
               {formatClosingDayRange(day)}
@@ -214,38 +224,49 @@ export function ClosingDaysEditor({
         headerClassName: "w-px",
         render: (day) => (
           // Zeilenaktionen nur im Kebab (BAUARTEN-SPEC Bauart 1 Regel 4);
-          // ein Auslöser passt auch auf 320px neben die Grund-Spalte.
+          // ein Auslöser passt auch auf 320px neben die Grund-Spalte. Einen
+          // Schließtag des Trägers ändert nur das Träger-Büro (#4702).
           <div className="flex justify-end">
-            <OverflowMenu
-              ariaLabel={`Aktionen für ${day.reason}`}
-              items={[
-                {
-                  label: "Bearbeiten",
-                  icon: <Pencil className="h-4 w-4" aria-hidden />,
-                  onClick: () => beginEdit(day),
-                },
-                ...(canManageSchedules
-                  ? [
-                      {
-                        label: "Termine absagen",
-                        icon: <CalendarX className="h-4 w-4" aria-hidden />,
-                        onClick: () =>
-                          setCancelRange({
-                            startDate: day.startDate,
-                            endDate: day.endDate,
-                          }),
-                      },
-                    ]
-                  : []),
-                { kind: "separator" },
-                {
-                  label: "Löschen",
-                  icon: <Trash2 className="h-4 w-4" aria-hidden />,
-                  destructive: true,
-                  onClick: () => setDeleting(day),
-                },
-              ]}
-            />
+            {day.traeger && !canManageSchedules ? null : (
+              <OverflowMenu
+                ariaLabel={`Aktionen für ${day.reason}`}
+                items={[
+                  ...(!day.traeger
+                    ? [
+                        {
+                          label: "Bearbeiten",
+                          icon: <Pencil className="h-4 w-4" aria-hidden />,
+                          onClick: () => beginEdit(day),
+                        },
+                      ]
+                    : []),
+                  ...(canManageSchedules
+                    ? [
+                        {
+                          label: "Termine absagen",
+                          icon: <CalendarX className="h-4 w-4" aria-hidden />,
+                          onClick: () =>
+                            setCancelRange({
+                              startDate: day.startDate,
+                              endDate: day.endDate,
+                            }),
+                        },
+                      ]
+                    : []),
+                  ...(!day.traeger
+                    ? [
+                        { kind: "separator" as const },
+                        {
+                          label: "Löschen",
+                          icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                          destructive: true,
+                          onClick: () => setDeleting(day),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            )}
           </div>
         ),
       },
@@ -273,7 +294,7 @@ export function ClosingDaysEditor({
       <DataTable
         columns={columns}
         rows={closingDays}
-        getRowKey={(day) => day.id}
+        getRowKey={(day) => `${day.traeger ? "traeger" : "schule"}-${day.id}`}
         defaultSortKey="range"
         defaultSortDirection="asc"
         isLoading={loading || failedWithoutData}
@@ -287,7 +308,7 @@ export function ClosingDaysEditor({
           freier Absatz und eigene Buttonzeile über der Tabelle zu stehen. */}
       <SectionCard
         title="Schließtage"
-        description="Tage, an denen die OGS geschlossen hat, z. B. Ferien oder pädagogische Tage. Dann fallen Termine aus und Mitarbeitende haben kein Soll. Ausnahmen: Serien mit „Auch an Schließtagen planen“ und Sonderarbeitszeiten."
+        description="Tage, an denen die OGS geschlossen hat, z. B. Ferien oder pädagogische Tage. Dann fallen Termine aus und Mitarbeitende haben kein Soll. Ausnahmen: Serien mit „Auch an Schließtagen planen“ und Sonderarbeitszeiten. Schließtage „Vom Träger“ ändert das Träger-Büro."
         actions={
           <Button
             type="button"

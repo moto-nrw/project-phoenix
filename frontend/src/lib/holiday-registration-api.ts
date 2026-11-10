@@ -47,10 +47,21 @@ export interface HolidayRegistrationWeek {
   readonly timeModels: readonly HolidayRegistrationTimeModel[];
   /** "day": parents choose single days and prices are per day (#4701). */
   readonly bookingUnit?: "week" | "day";
-  /** The days a week by days offers, Monday to Friday, "YYYY-MM-DD". */
+  /**
+   * The days a week by days offers, Monday to Friday without the days
+   * without care, "YYYY-MM-DD".
+   */
   readonly careDays?: readonly string[];
   /** Days of a week by days without a free place: a booking of them waits. */
   readonly fullDays?: readonly string[];
+  /**
+   * Days without care at the host school (#4702); a week booked as a whole
+   * with such a day is not bookable, a week by days leaves the day out.
+   */
+  readonly noCareDays?: readonly {
+    readonly date: string;
+    readonly name: string;
+  }[];
 }
 
 interface HolidayRegistrationSchool {
@@ -92,6 +103,7 @@ interface BackendOffer {
         starts_on: string;
         ends_on: string;
         host_school_name: string;
+        no_care_days?: { date: string; name: string }[] | null;
         time_models?:
           | {
               id: number;
@@ -195,6 +207,10 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       startsOn: week.starts_on,
       endsOn: week.ends_on,
       hostSchoolName: week.host_school_name,
+      noCareDays: (week.no_care_days ?? []).map((day) => ({
+        date: day.date,
+        name: day.name,
+      })),
       timeModels: (week.time_models ?? []).map((model) => ({
         id: String(model.id),
         name: model.name,

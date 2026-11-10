@@ -102,3 +102,28 @@ func TestHolidayBookingDaysLieInTheirWeek(t *testing.T) {
 	assert.Equal(t, []calendar.Date{firstFitMonday, firstFitTuesday},
 		enrollment.NormalizeHolidayDays([]calendar.Date{firstFitTuesday, firstFitMonday, firstFitTuesday}))
 }
+
+// A week by days with a day without care at its host school stays bookable
+// on its other days (#4701 on #4702): the offer leaves the day out, a new
+// booking of it is refused, a booking that had it before keeps it, and a
+// whole week with such a day still takes no new booking.
+func TestHolidayDayBookingLeavesOutTheDaysWithoutCare(t *testing.T) {
+	t.Parallel()
+	closed := enrollment.HolidayNoCareDay{Date: firstFitTuesday, Kind: enrollment.HolidayNoCareClosingDay, Name: "Teamtag"}
+	byDays := enrollment.HolidayWeek{ID: 1, StartsOn: firstFitMonday, EndsOn: calendar.NewDate(2027, 1, 8),
+		BookingUnit: enrollment.HolidayBookingUnitDay, NoCareDays: []enrollment.HolidayNoCareDay{closed}}
+	whole := byDays
+	whole.ID, whole.BookingUnit = 2, enrollment.HolidayBookingUnitWeek
+	period := enrollment.HolidayPeriod{Weeks: []enrollment.HolidayWeek{byDays, whole}}
+
+	assert.NotContains(t, holidayBookableCareDays(byDays), firstFitTuesday)
+	assert.Len(t, holidayBookableCareDays(byDays), 4)
+	assert.NoError(t, refuseHolidayBookingsWithoutCare(
+		[]enrollment.HolidayBookingInput{{WeekID: 1, Days: []calendar.Date{firstFitMonday, firstFitWednesday}}}, period, nil))
+	tuesday := []enrollment.HolidayBookingInput{{WeekID: 1, Days: []calendar.Date{firstFitMonday, firstFitTuesday}}}
+	var refusal *enrollment.HolidayWeekNoCareDayRefusal
+	require.ErrorAs(t, refuseHolidayBookingsWithoutCare(tuesday, period, nil), &refusal)
+	assert.Equal(t, firstFitTuesday, refusal.Day.Date)
+	assert.NoError(t, refuseHolidayBookingsWithoutCare(tuesday, period, tuesday), "a day booked before stays")
+	assert.Error(t, refuseHolidayBookingsWithoutCare([]enrollment.HolidayBookingInput{{WeekID: 2}}, period, nil))
+}

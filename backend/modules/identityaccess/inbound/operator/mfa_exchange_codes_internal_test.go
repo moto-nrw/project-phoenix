@@ -21,7 +21,7 @@ type refusingSessions struct {
 	err error
 }
 
-func (s refusingSessions) IssueTokensForAuthenticatedOperator(context.Context, int64, string, string) (string, string, error) {
+func (s refusingSessions) IssueTokensForAuthenticatedOperator(context.Context, int64, *int64, string, string) (string, string, error) {
 	return "", "", s.err
 }
 
@@ -38,6 +38,7 @@ func TestOperatorMFAExchangeRefusalsCarryIdentityCodes(t *testing.T) {
 		code   string
 	}{
 		{"operator not found", identityaccess.ErrOperatorNotFound, http.StatusUnauthorized, "identity.invalid_credentials"},
+		{"password changed since the proof", identityaccess.ErrOperatorInvalidCredentials, http.StatusUnauthorized, "identity.invalid_credentials"},
 		{"operator inactive", identityaccess.ErrOperatorInactive, http.StatusForbidden, "identity.account_inactive"},
 		{"issue failure", errors.New("boom"), http.StatusInternalServerError, "general.server"},
 	} {
@@ -45,7 +46,7 @@ func TestOperatorMFAExchangeRefusalsCarryIdentityCodes(t *testing.T) {
 			t.Parallel()
 			rs := &MFAResource{authService: refusingSessions{err: tc.err}}
 			recorder := httptest.NewRecorder()
-			rs.completeMFAExchange(recorder, httptest.NewRequest(http.MethodPost, "/operator/auth/mfa/verify", nil), 7, false)
+			rs.completeMFAExchange(recorder, httptest.NewRequest(http.MethodPost, "/operator/auth/mfa/verify", nil), identityaccess.OperatorMFAProof{OperatorID: 7}, false)
 
 			var body struct {
 				Status int    `json:"status"`

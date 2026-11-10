@@ -39,6 +39,7 @@
   "weeksText": "Оберіть для кожного тижня, як довго дитина залишається.",
   "notBooked": "Без запису",
   "parallelWeeksHint": "Цей тиждень пропонується в кількох школах. Оберіть одну школу та час.",
+  "weekWithoutCare": "Забронювати не можна: {date} догляду немає ({name}).",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",
@@ -147,5 +148,6 @@
   "dayLimitCount": "Обрано днів: {count}.",
   "dayLimitOver": "Обрано днів: {count}. Це забагато. Оберіть менше днів.",
   "summaryDays": "Дні: {days}",
-  "contributionDays": "днів: {count}"
+  "contributionDays": "днів: {count}",
+  "dayWithoutCare": "{date} догляду немає ({name})."
 }

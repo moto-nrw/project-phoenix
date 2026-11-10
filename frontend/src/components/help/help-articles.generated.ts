@@ -344,6 +344,8 @@ import type { traegerCareReductionsTopic as authored_traegerCareReductionsTopic 
 
 import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
 
+import type { traegerClosingDaysTopic as authored_traegerClosingDaysTopic } from "./articles/traeger-closing-days";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
 import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } from "./articles/traeger-document-kinds";
@@ -1142,7 +1144,8 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       },
       {
         title: "Termine an Schließtagen absagen",
-        description: "Für Termine, die schon vor dem Schließtag geplant waren.",
+        description:
+          "Für Termine, die schon vor dem Schließtag geplant waren. Das geht auch bei Schließtagen mit `Vom Träger`.",
         steps: [
           "Wählen Sie beim Schließtag die drei Punkte.",
           "Wählen Sie `Termine absagen`.",
@@ -1158,6 +1161,7 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
+      "Ein Schließtag mit `Vom Träger` hat Ihr Träger geplant. Er gilt wie Ihre eigenen Schließtage. Ändern kann ihn nur das Träger-Büro.",
       "Mit `Auch in den Ferien und an Schließtagen planen` planen Sie auch dann Schichten.",
       "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
       "Schichten, die schon geplant waren, bleiben stehen.",
@@ -5940,6 +5944,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Sie bekommen das Dokument auf Ihr Gerät. Sie können es speichern oder drucken. Nach der Unterschrift steht beim Vertrag `Unterschrieben`, und Sie bekommen eine Bestätigung mit dem Vertrag per Mail.",
     notes: [
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
+      "Hat Ihr Träger Ihnen einen Gebührenbescheid für das Jahr geschickt, liegt er hier mit demselben PDF wie in der Mail. Ändert sich Ihr Vertrag, kommt ein Änderungsbescheid dazu. Der alte Bescheid bleibt hier stehen.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
       "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin und dann `Jetzt kündigen`. Solange Sie den Vertrag widerrufen können, steht beim Vertrag auch `Vertrag widerrufen`. Wählen Sie dann `Widerruf bestätigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
@@ -11008,7 +11013,19 @@ export const traegerCareNoticesTopic =
             "Prüfen Sie Zahl und Summe und wählen Sie `Ausstellen`.",
             "Jeder Bescheid bekommt seine Nummer. Danach ändert er sich nicht mehr.",
             "Hat sich seit Ihrer Prüfung etwas geändert, stellt moto nichts aus. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und stellen Sie dann aus.",
-            "Wählen Sie bei einem Bescheid `Drucken`, um ihn auszudrucken.",
+          ],
+        },
+        {
+          title: "Bescheide an die Familien senden",
+          description:
+            "moto speichert jeden ausgestellten Bescheid einmal als PDF. Dieses Original bleibt gleich, auch wenn sich später Briefkopf, Vorlage, Adresse oder Vertrag ändern. Die Familie bekommt den Bescheid erst, wenn Sie senden.",
+          steps: [
+            "Öffnen Sie den ausgestellten Jahreslauf und wählen Sie `An Familien senden`.",
+            "Wählen Sie `Originale speichern`. Gesendet wird dabei noch nichts.",
+            "Wählen Sie `An alle senden` und bestätigen Sie. Jede Familie mit E-Mail-Adresse bekommt das Original als Anhang.",
+            "Hat die Familie mit dieser Adresse ein Konto in der Eltern-App, liegt der Bescheid dort unter `Dokumente`.",
+            "Familien ohne E-Mail geben Sie den Bescheid auf Papier. Wählen Sie `Drucken` und dann `Nur Familien ohne E-Mail`.",
+            "Einen einzelnen Bescheid senden Sie über das Menü seiner Zeile mit `Senden` oder `Erneut senden`.",
           ],
         },
         {
@@ -11030,12 +11047,17 @@ export const traegerCareNoticesTopic =
         "Endet ein Vertrag, setzt der Änderungsbescheid die Monate danach auf 0,00 €. Das ist ein Abgang.",
       ],
       notes: [
+        "E-Mail und Eltern-App sind keine förmliche Zustellung. Brauchen Sie einen Nachweis, dass die Familie den Bescheid bekommen hat? Dann stellen Sie ihn zusätzlich auf anderem Weg zu.",
+        "Ein Änderungsbescheid ist ein eigener Bescheid mit eigenem Original. Senden Sie ihn genauso. Der alte Bescheid bleibt unverändert.",
         "Fehlt ein Preis oder gibt es einen doppelten Vertrag, bleibt die bisherige Bewertung gültig. Prüfen Sie die Hinweise im Monatslauf.",
         "Das Essen steht nicht im Bescheid. Die Mensa rechnet es nach den Essen ab.",
         "Der `Gesamtbetrag aller Bescheide` ist die Forderung vor Zahlungseingang. Zahlungen sieht moto nicht, auch nicht nach der Lastschrift. Ob eine Rate bezahlt ist, prüfen Sie in Ihrer Buchhaltung.",
         "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
       ],
       troubleshootingDetails: [
+        "Bei `Nicht angekommen`: Wählen Sie im Menü der Zeile `Erneut senden`. Oder geben Sie der Familie den gedruckten Bescheid.",
+        "Ein Bescheid geht nicht raus und es steht `Die Person zahlt nicht mehr für diesen Vertrag`: Empfänger oder Zahler haben sich nach dem Ausstellen geändert. Der Bescheid geht nur an die Adresse, die er nennt. Drucken Sie den Bescheid und geben Sie ihn der Familie auf Papier.",
+        "Ein Bescheid steht nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz, oder das Konto der Familie hat eine andere E-Mail-Adresse. Die Familie bekommt ihn per E-Mail oder auf Papier.",
         "`Bescheide ausstellen` geht nicht und oben steht `Rechtsbehelfsbelehrung fehlt`: Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Dafür brauchen Sie das Recht `Einstellungen`.",
         "Ein Jahreslauf lässt sich nicht starten: Für dieses Jahr gibt es schon einen offenen Lauf. Öffnen Sie ihn in der Liste. Stellen Sie die Bescheide aus oder schließen Sie den leeren Lauf ab.",
         "Die Vorschau ist leer: Es gibt nichts Neues auszustellen. Wählen Sie `Jahreslauf abschließen` und dann `Abschließen`. Danach können Sie einen neuen Jahreslauf für andere Schulen starten.",
@@ -11198,6 +11220,63 @@ export const traegerCareTimeOverrunsTopic =
       related: [HELP_TOPICS.traegerCareContracts, HELP_TOPICS.traegerAccessLog],
     };
   } satisfies typeof authored_traegerCareTimeOverrunsTopic;
+
+/** `/traeger/schliesstage` (#4702): Schließtage des Trägers und Feiertage je Bundesland. */
+export const traegerClosingDaysTopic =
+  function traegerClosingDaysTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerClosingDays,
+      title: "Schließtage für Schulen planen",
+      question: "Wie plane ich einen Brückentag für mehrere Schulen?",
+      summary:
+        "Ein Schließtag gilt für die Schulen, die Sie wählen. An diesem Tag ist die OGS zu. Die Feiertage kommen aus dem Bundesland der Schule.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CalendarSlash",
+      requirements: [
+        "Sehen kann die Seite jede Rolle im Träger-Büro.",
+        "Schließtage anlegen darf Ihre Rolle, wenn sie Einstellungen verwalten darf. Das gilt für die Rolle Verwaltung.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Schließtag anlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Schließtage`.",
+            "Wählen Sie `Schließtag anlegen`.",
+            "Tragen Sie den `Grund` ein, zum Beispiel Brückentag.",
+            "Tragen Sie `Von` und `Bis` ein. Für einen Tag tragen Sie zweimal dasselbe Datum ein.",
+            "Wählen Sie bei `Gilt für` die Schulen. `Alle Schulen` wählt alle auf einmal.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Feiertage prüfen",
+          steps: [
+            "Wählen Sie in der Navigation `Schließtage`.",
+            "Oben wählen Sie das Jahr.",
+            "In der `Jahresübersicht` sind Feiertage blau und Schließtage orange.",
+            "Unter `Feiertage nach Bundesland` stehen die Feiertage und die Schulen dazu.",
+          ],
+        },
+      ],
+      result:
+        "Die gewählten Schulen haben an diesem Tag zu. Ferienwochen mit diesem Tag sind nicht mehr buchbar. Termine fallen aus, und Mitarbeitende haben kein Soll.",
+      notes: [
+        "Die Schulen sehen den Schließtag in ihrem Kalender mit `Vom Träger`. Ändern kann ihn nur das Träger-Büro.",
+        "Der Elternbeitrag ändert sich durch einen Schließtag nicht.",
+        "Das Bundesland einer Schule legt das moto-Team fest. Stimmt es nicht, schreiben Sie dem moto-Team.",
+        "Bisherige Buchungen einer Ferienwoche bleiben, auch wenn Sie später einen Schließtag in die Woche legen. Neue Buchungen der Woche sind dann nicht möglich.",
+      ],
+      differences: [
+        "Sie sehen keinen Knopf `Schließtag anlegen`? Ihre Rolle darf keine Einstellungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerSchoolView,
+      ],
+    };
+  } satisfies typeof authored_traegerClosingDaysTopic;
 
 /** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen und ihre Auffälligkeiten (#4675). */
 export const traegerDashboardTopic =
@@ -11698,6 +11777,7 @@ export const traegerHolidayPeriodTopic =
           steps: [
             "Tragen Sie bei jeder Woche `Erster Tag` und `Letzter Tag` ein.",
             "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
+            "Liegt ein Feiertag oder Schließtag der Schule in der Woche, zeigt moto einen Hinweis. Wählen Sie dann andere Tage, zum Beispiel Dienstag bis Freitag.",
             "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
             "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
             "Dieselben Tage an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
@@ -11728,11 +11808,13 @@ export const traegerHolidayPeriodTopic =
       troubleshootingDetails: [
         "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
         "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
+        "Die Woche lässt sich nicht speichern, weil keine Betreuung ist? An einem Feiertag oder Schließtag der Schule kann niemand buchen. Lassen Sie diesen Tag aus der Woche.",
       ],
       related: [
         HELP_TOPICS.traegerLogin,
         HELP_TOPICS.traegerHolidayForm,
         HELP_TOPICS.traegerHolidayContribution,
+        HELP_TOPICS.traegerClosingDays,
       ],
     };
   } satisfies typeof authored_traegerHolidayPeriodTopic;

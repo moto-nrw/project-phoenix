@@ -7,6 +7,7 @@
 
 import { Archive, Plus, X } from "lucide-react";
 import { useCallback } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODateInput } from "~/components/ui/date-picker";
@@ -18,6 +19,8 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
 import type { HolidayBookingUnit, TraegerSchool } from "~/lib/traeger-api";
+import { formatDayWithWeekday } from "./closing-day-format";
+import type { WeekNoCareDays } from "./use-week-no-care-days";
 import {
   emptyTimeModel,
   MAX_TIME_MODELS_PER_WEEK,
@@ -44,6 +47,20 @@ function bookingUnitHint(unit: HolidayBookingUnit, booked: boolean): string {
 }
 
 type FieldError = (name: string) => string | null | undefined;
+
+/** Nennt die Tage ohne Betreuung und was daraus folgt (#4702). */
+function noCareDaysMessage(noCare: WeekNoCareDays): string {
+  const days = noCare.days
+    .map(
+      (day) =>
+        `${formatDayWithWeekday(day.date)} ${day.kind === "holiday" ? "Feiertag" : "Schließtag"} (${day.name})`,
+    )
+    .join(", ");
+  const head = `In dieser Woche ist keine Betreuung: ${days}.`;
+  return noCare.keptAsStored
+    ? `${head} Bisherige Buchungen bleiben. Neue Buchungen sind nicht möglich.`
+    : `${head} Bitte wählen Sie andere Tage, zum Beispiel ohne diesen Tag.`;
+}
 
 function weekTitle(index: number, week: WeekDraft): string {
   if (!week.startsOn || !week.endsOn) return `Woche ${index + 1}`;
@@ -178,6 +195,7 @@ export function HolidayWeekEditor({
   index,
   week,
   schools,
+  noCareDays,
   fieldError,
   onChange,
   onRemove,
@@ -186,6 +204,8 @@ export function HolidayWeekEditor({
   index: number;
   week: WeekDraft;
   schools: readonly TraegerSchool[];
+  /** Days without care at the host school (#4702). */
+  noCareDays?: WeekNoCareDays;
   fieldError: FieldError;
   onChange: (week: WeekDraft) => void;
   onRemove: () => void;
@@ -270,6 +290,9 @@ export function HolidayWeekEditor({
             onChange={(hostSchoolId) => onChange({ ...week, hostSchoolId })}
           />
         </div>
+        {noCareDays && noCareDays.days.length > 0 ? (
+          <Alert type="warning" message={noCareDaysMessage(noCareDays)} />
+        ) : null}
 
         <div className="space-y-2">
           <SectionLabel as="p" id={`${prefix}.booking_unit-label`}>
@@ -277,13 +300,13 @@ export function HolidayWeekEditor({
           </SectionLabel>
           <SegmentedControl
             items={BOOKING_UNITS.map((item) => ({ ...item, disabled: booked }))}
-            value={week.bookingUnit}
+            value={week.bookingUnit ?? "week"}
             ariaLabel={`Buchung von ${title}`}
             ariaDescribedBy={unitHintId}
             onChange={(bookingUnit) => onChange({ ...week, bookingUnit })}
           />
           <p id={unitHintId} className="text-sm text-gray-600">
-            {bookingUnitHint(week.bookingUnit, booked)}
+            {bookingUnitHint(week.bookingUnit ?? "week", booked)}
           </p>
         </div>
 
@@ -305,7 +328,7 @@ export function HolidayWeekEditor({
             <TimeModelRow
               key={model.key}
               model={model}
-              unit={week.bookingUnit}
+              unit={week.bookingUnit ?? "week"}
               field={`${prefix}.time_models.${modelIndex}`}
               fieldError={fieldError}
               onChange={(next) => setTimeModel(modelIndex, next)}

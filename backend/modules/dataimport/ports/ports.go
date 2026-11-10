@@ -172,6 +172,12 @@ type ClassListEntryBatches interface {
 	MatchClassListEntries(context.Context, []ClassListEntryFields) ([][]ClassListEntry, error)
 }
 
+// PrivacyConsentBatches is the Student Presence consent batch slice of the
+// student chunk executor (#5552).
+type PrivacyConsentBatches interface {
+	RecordPrivacyConsents(context.Context, []PrivacyConsent) error
+}
+
 // PersonBatches is the People Directory batch slice of the student chunk
 // executor (#5552).
 type PersonBatches interface {

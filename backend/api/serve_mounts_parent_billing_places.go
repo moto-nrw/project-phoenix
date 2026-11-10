@@ -53,6 +53,10 @@ func parentBillingPlacesError(err error) error {
 		return &parentbilling.HolidayChildDayLimitRefusal{Limit: dayLimit.Limit, Days: dayLimit.Days, Err: err}
 	case errors.As(err, &fields):
 		return fmt.Errorf("%w: %w", parentbilling.ErrInvalidHolidayPlaces, err)
+	case errors.Is(err, enrollmentOwner.ErrHolidayWeekNoCareDay):
+		// A week with a day without care at its host school takes no new
+		// booking (#4702).
+		return fmt.Errorf("%w: %w", parentbilling.ErrInvalidHolidayPlaces, err)
 	case errors.Is(err, enrollmentOwner.ErrHolidayWeekNotFound):
 		return fmt.Errorf("%w: %w", parentbilling.ErrHolidayWeekNotFound, err)
 	}

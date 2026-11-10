@@ -162,16 +162,9 @@ func (s *HolidayRegistrationStore) ReadHolidayReview(ctx context.Context, organi
 }
 
 func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children []holidayReviewChildRow, bookings []holidayReviewBookingRow) ([]enrollment.HolidayRegistrationDetail, error) {
-	childBookings := map[int64][]enrollment.HolidayRegistrationBooking{}
-	for _, booking := range bookings {
-		days, err := holidayDaysOf(booking.Days)
-		if err != nil {
-			return nil, err
-		}
-		childBookings[booking.ChildID] = append(childBookings[booking.ChildID], enrollment.HolidayRegistrationBooking{
-			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Placement: booking.Placement,
-			WaitlistPosition: booking.WaitlistPosition, PromotedAt: booking.PromotedAt, Days: days,
-		})
+	childBookings, err := holidayChildBookings(bookings)
+	if err != nil {
+		return nil, err
 	}
 	byRegistration := map[int64][]enrollment.HolidayRegistrationChild{}
 	for _, child := range children {
@@ -566,4 +559,20 @@ func (s *HolidayRegistrationStore) ReadHolidayAnswers(ctx context.Context, organ
 		answers[child.RegistrationID] = registration
 	}
 	return answers, nil
+}
+
+// holidayChildBookings groups the bookings by their child.
+func holidayChildBookings(bookings []holidayReviewBookingRow) (map[int64][]enrollment.HolidayRegistrationBooking, error) {
+	childBookings := map[int64][]enrollment.HolidayRegistrationBooking{}
+	for _, booking := range bookings {
+		days, err := holidayDaysOf(booking.Days)
+		if err != nil {
+			return nil, err
+		}
+		childBookings[booking.ChildID] = append(childBookings[booking.ChildID], enrollment.HolidayRegistrationBooking{
+			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Placement: booking.Placement,
+			WaitlistPosition: booking.WaitlistPosition, PromotedAt: booking.PromotedAt, Days: days,
+		})
+	}
+	return childBookings, nil
 }

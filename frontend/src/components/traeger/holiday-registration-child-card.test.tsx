@@ -200,4 +200,43 @@ describe("HolidayRegistrationChildCard", () => {
     expect(screen.getByText("Lia Muster")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Umbuchen" })).toBeNull();
   });
+  it("can restore a saved booking on a closed week after changing the draft", async () => {
+    const period = {
+      ...HOLIDAY_PERIOD,
+      weeks: HOLIDAY_PERIOD.weeks.map((week) => ({
+        ...week,
+        noCareDays: [
+          {
+            date: week.startsOn,
+            kind: "closing_day" as const,
+            name: "Brückentag",
+          },
+        ],
+      })),
+    };
+    renderCard(HOLIDAY_REGISTRATION, 1, vi.fn(), false, period);
+    fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+    const select = screen.getByRole("combobox", {
+      name: "Zeitmodell 11.01. bis 15.01.2027, OGS Süd",
+    });
+    fireEvent.click(select);
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Nicht angemeldet" }),
+    );
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole("option", { name: "bis 13 Uhr" }));
+    expect(select).toHaveTextContent("bis 13 Uhr");
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Zeitmodell 04.01. bis 08.01.2027, OGS Nord",
+      }),
+    );
+    expect(
+      await screen.findByRole("option", { name: "Nicht angemeldet" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "bis 16 Uhr" }),
+    ).not.toBeInTheDocument();
+  });
 });

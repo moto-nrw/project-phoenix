@@ -16,6 +16,7 @@ import { billingConcept } from "~/lib/concepts/billing";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
 import { contributionsConcept } from "~/lib/concepts/contributions";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { documentsConcept } from "~/lib/concepts/documents";
@@ -113,6 +114,14 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         label: "Ferienbetreuung",
         concept: holidayWeeksConcept,
         right: ENROLLMENT_RIGHT,
+      },
+      {
+        // Schließtage des Trägers und Feiertage je Bundesland (#4702).
+        key: "schliesstage",
+        href: "/traeger/schliesstage",
+        label: "Schließtage",
+        concept: closingDaysConcept,
+        right: OVERVIEW_RIGHT,
       },
       {
         // Betreuungsverträge aus angenommenen Anmeldungen (#4678).

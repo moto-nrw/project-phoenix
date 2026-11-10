@@ -1920,6 +1920,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (c traegerCreditorAccounts) CreditorAccount(ctx context.Context, organizationID int64) (*parentbilling.LetterheadBankAccount, error) {\n\tprofile, err := c.masterData.Profile(ctx, organizationID, 0)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tfor _, account := range profile.BankAccounts {\n\t\tif account.IsDefault {\n\t\t\treturn \u0026parentbilling.LetterheadBankAccount{AccountHolder: account.AccountHolder, IBAN: account.IBAN, BIC: account.BIC, BankName: account.BankName}, nil\n\t\t}\n\t}\n\treturn nil, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "cmd/traegerCreditorAccounts.CreditorAccount",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b traegerSEPADebitFiles) SEPADebitFiles(ctx context.Context, organizationID int64, write func(organizationtenancy.ExportSEPADebitFile) error) error {\n\treturn tenant.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {\n\t\treturn b.billing.SEPAReturn(ctx, organizationID, func(file parentbilling.SEPAReturnFile) error {\n\t\t\treturn write(organizationtenancy.ExportSEPADebitFile{Name: file.Path, Data: file.Data, Origin: file.Origin, Reason: file.Reason})\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "cmd/traegerSEPADebitFiles.SEPADebitFiles",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p ArrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetablePorts.ArrivalBaselines, error) {\n\tprojection, err := p.Reader.Project(ctx, studentIDs, from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn arrivalBaselineProjection{projection: projection}, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ArrivalBaselineProjector.ProjectArrivals",
