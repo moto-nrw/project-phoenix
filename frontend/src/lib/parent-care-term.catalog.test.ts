@@ -22,7 +22,6 @@ const NAMESPACES = [
   "parentFirstSteps",
   "parentMealPlan",
   "parentDeclarationProof",
-  "parentFeedback",
   "parentGroupThreads",
   "parentNews",
   "parentMasterData",
@@ -58,7 +57,8 @@ describe("care facility term in the parents portal catalogs", () => {
     expect(germanKeys).toContain("parentToday.atOgs");
     expect(germanKeys).toContain("parentMessages.ogsTeam");
     expect(germanKeys).toContain("parentMasterData.careSchedule.requestSubmit");
-    expect(germanKeys.length).toBeGreaterThanOrEqual(114);
+    // Unused catalog entries were removed; all remaining care-term keys stay covered.
+    expect(germanKeys.length).toBeGreaterThanOrEqual(113);
   });
 
   it.each(Object.keys(LOCALES))(

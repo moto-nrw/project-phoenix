@@ -4,16 +4,10 @@ import {
   mapVisitResponse,
   mapSupervisorResponse,
   mapSchulhofStatusResponse,
-  prepareActiveGroupForBackend,
-  prepareVisitForBackend,
-  prepareSupervisorForBackend,
   type BackendActiveGroup,
   type BackendVisit,
   type BackendSupervisor,
   type BackendSchulhofStatus,
-  type ActiveGroup,
-  type Visit,
-  type Supervisor,
 } from "./active-helpers";
 import {
   buildBackendActiveSession,
@@ -221,122 +215,6 @@ describe("active-helpers", () => {
       expect(result.notes).toBeUndefined();
       expect(result.staffName).toBeUndefined();
       expect(result.activeGroupName).toBeUndefined();
-    });
-  });
-
-  describe("prepareActiveGroupForBackend", () => {
-    it("converts frontend ActiveGroup to backend format", () => {
-      const frontendGroup: Partial<ActiveGroup> = {
-        groupId: "10",
-        roomId: "5",
-        startTime: new Date("2024-01-15T08:00:00Z"),
-        endTime: new Date("2024-01-15T12:00:00Z"),
-        notes: "Test notes",
-      };
-
-      const result = prepareActiveGroupForBackend(frontendGroup);
-
-      expect(result.group_id).toBe(10);
-      expect(result.room_id).toBe(5);
-      expect(result.start_time).toBe("2024-01-15T08:00:00.000Z");
-      expect(result.end_time).toBe("2024-01-15T12:00:00.000Z");
-      expect(result.notes).toBe("Test notes");
-    });
-
-    it("only includes defined fields", () => {
-      const partialGroup: Partial<ActiveGroup> = {
-        groupId: "10",
-        roomId: "5",
-      };
-
-      const result = prepareActiveGroupForBackend(partialGroup);
-
-      expect(result.group_id).toBe(10);
-      expect(result.room_id).toBe(5);
-      expect(result.start_time).toBeUndefined();
-      expect(result.end_time).toBeUndefined();
-      expect(result.notes).toBeUndefined();
-    });
-
-    it("handles empty notes", () => {
-      const groupWithEmptyNotes: Partial<ActiveGroup> = {
-        groupId: "10",
-        notes: "",
-      };
-
-      const result = prepareActiveGroupForBackend(groupWithEmptyNotes);
-
-      expect(result.notes).toBe("");
-    });
-  });
-
-  describe("prepareVisitForBackend", () => {
-    it("converts frontend Visit to backend format", () => {
-      const frontendVisit: Partial<Visit> = {
-        studentId: "50",
-        activeGroupId: "1",
-        checkInTime: new Date("2024-01-15T08:30:00Z"),
-        checkOutTime: new Date("2024-01-15T11:45:00Z"),
-        notes: "Test visit",
-      };
-
-      const result = prepareVisitForBackend(frontendVisit);
-
-      expect(result.student_id).toBe(50);
-      expect(result.active_group_id).toBe(1);
-      expect(result.check_in_time).toBe("2024-01-15T08:30:00.000Z");
-      expect(result.check_out_time).toBe("2024-01-15T11:45:00.000Z");
-      expect(result.notes).toBe("Test visit");
-    });
-
-    it("only includes defined fields", () => {
-      const partialVisit: Partial<Visit> = {
-        studentId: "50",
-        activeGroupId: "1",
-      };
-
-      const result = prepareVisitForBackend(partialVisit);
-
-      expect(result.student_id).toBe(50);
-      expect(result.active_group_id).toBe(1);
-      expect(result.check_in_time).toBeUndefined();
-      expect(result.check_out_time).toBeUndefined();
-      expect(result.notes).toBeUndefined();
-    });
-  });
-
-  describe("prepareSupervisorForBackend", () => {
-    it("converts frontend Supervisor to backend format", () => {
-      const frontendSupervisor: Partial<Supervisor> = {
-        staffId: "30",
-        activeGroupId: "1",
-        startTime: new Date("2024-01-15T08:00:00Z"),
-        endTime: new Date("2024-01-15T12:00:00Z"),
-        notes: "Primary supervisor",
-      };
-
-      const result = prepareSupervisorForBackend(frontendSupervisor);
-
-      expect(result.staff_id).toBe(30);
-      expect(result.active_group_id).toBe(1);
-      expect(result.start_time).toBe("2024-01-15T08:00:00.000Z");
-      expect(result.end_time).toBe("2024-01-15T12:00:00.000Z");
-      expect(result.notes).toBe("Primary supervisor");
-    });
-
-    it("only includes defined fields", () => {
-      const partialSupervisor: Partial<Supervisor> = {
-        staffId: "30",
-        activeGroupId: "1",
-      };
-
-      const result = prepareSupervisorForBackend(partialSupervisor);
-
-      expect(result.staff_id).toBe(30);
-      expect(result.active_group_id).toBe(1);
-      expect(result.start_time).toBeUndefined();
-      expect(result.end_time).toBeUndefined();
-      expect(result.notes).toBeUndefined();
     });
   });
 

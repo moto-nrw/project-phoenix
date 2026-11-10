@@ -29,15 +29,6 @@
   "allDay": "All day",
   "moreEvents": "+ {count} more",
   "responseRequired": "Response required",
-  "weekdayShort": {
-    "1": "Mon",
-    "2": "Tue",
-    "3": "Wed",
-    "4": "Thu",
-    "5": "Fri",
-    "6": "Sat",
-    "7": "Sun"
-  },
   "errorObjectList": "the list of appointments",
   "errorObjectResponse": "the reply"
 }

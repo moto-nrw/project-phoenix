@@ -1,8 +1,6 @@
 {
-  "switcherLabel": "Choose a child",
   "overviewKicker": "Children at a glance",
   "overviewDescription": "Choose a child to view care, details and contacts.",
-  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Care has ended",
     "body": "Your child is no longer in care at this {careTerm}. You can still view everything from before. New reports are no longer possible."
@@ -10,10 +8,7 @@
   "notFound": "There is no child at this address in your account. Please choose your child from the overview.",
   "noChildren": "No child is linked to your account yet. Your school's {careTerm} can set this up.",
   "sections": {
-    "today": "Today",
-    "care": "Care at the {careTerm}",
-    "data": "Child details",
-    "people": "Parents and pick-up contacts"
+    "today": "Today"
   },
   "areas": {
     "label": "Child sections",

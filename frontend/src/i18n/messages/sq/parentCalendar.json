@@ -29,15 +29,6 @@
   "allDay": "Gjithë ditën",
   "moreEvents": "+ {count} të tjera",
   "responseRequired": "Kërkohet përgjigje",
-  "weekdayShort": {
-    "1": "Hën",
-    "2": "Mar",
-    "3": "Mër",
-    "4": "Enj",
-    "5": "Pre",
-    "6": "Sht",
-    "7": "Die"
-  },
   "errorObjectList": "lista e takimeve",
   "errorObjectResponse": "përgjigjja"
 }

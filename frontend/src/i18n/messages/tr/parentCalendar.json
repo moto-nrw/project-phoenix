@@ -29,15 +29,6 @@
   "allDay": "Tüm gün",
   "moreEvents": "+ {count} daha",
   "responseRequired": "Yanıt gerekli",
-  "weekdayShort": {
-    "1": "Pzt",
-    "2": "Sal",
-    "3": "Çar",
-    "4": "Per",
-    "5": "Cum",
-    "6": "Cmt",
-    "7": "Paz"
-  },
   "errorObjectList": "randevu listesi",
   "errorObjectResponse": "yanıt"
 }

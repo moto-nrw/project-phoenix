@@ -24,13 +24,6 @@
     "procedure": "Podpisują Państwo prostym podpisem elektronicznym z odręcznie narysowanym podpisem.",
     "missing": "Proszę się podpisać i nacisnąć „Potwierdź podpis”."
   },
-  "statement": {
-    "permissionAll": "Zezwalam, aby {person} odbierał(a) dziecko z {careTerm} codziennie.",
-    "permissionSome": "Zezwalam, aby {person} odbierał(a) dziecko z {careTerm} w te dni: {days}.",
-    "day": "Zezwalam, aby {person} odebrał(a) dziecko z {careTerm} w dniu {date}.",
-    "aloneDay": "Zezwalam, aby dziecko w dniu {date} samo wróciło do domu.",
-    "aloneWeekly": "Zezwalam, aby dziecko w te dni samo wracało do domu: {days}."
-  },
   "waitsForOgs": "{careTerm} potwierdza zgodę. Do tego czasu nie obowiązuje.",
   "pendingBadge": "Czeka na {careTerm}",
   "pending": "Czeka na {careTerm}: {days}",
