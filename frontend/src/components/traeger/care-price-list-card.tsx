@@ -45,19 +45,34 @@ function hasSiblingPrices(rows: readonly PriceRow[]): boolean {
   );
 }
 
-/** A price with the price for every further child under it. */
+/**
+ * A price with the price for every further child under it. A stored sibling
+ * price that no rule bills stays visible, muted, so the office can check what
+ * is saved; the line above the table says once that it does not apply.
+ */
 function PriceCell({
   cents,
   sibling,
+  siblingApplies,
   booked,
-}: Readonly<{ cents?: number; sibling?: number; booked: boolean }>) {
+}: Readonly<{
+  cents?: number;
+  sibling?: number;
+  siblingApplies: boolean;
+  booked: boolean;
+}>) {
   if (cents !== undefined) {
     return (
       <span className="inline-flex flex-col items-end leading-tight">
         <span className="text-gray-900 tabular-nums">{formatEuro(cents)}</span>
         {sibling !== undefined && sibling !== cents ? (
-          <span className="text-sm text-gray-600 tabular-nums">
+          <span
+            className={`text-sm tabular-nums xl:whitespace-nowrap ${siblingApplies ? "text-gray-600" : "text-gray-500"}`}
+          >
             ab 2. Kind {formatEuro(sibling)}
+            {siblingApplies ? null : (
+              <span className="sr-only"> (gilt zurzeit nicht)</span>
+            )}
           </span>
         ) : null}
       </span>
@@ -115,7 +130,8 @@ function weekdayColumns(
   const cell = (row: PriceRow, weekday: CareWeekday) => (
     <PriceCell
       cents={row.prices[weekday]}
-      sibling={siblings ? row.siblingPrices[weekday] : undefined}
+      sibling={row.siblingPrices[weekday]}
+      siblingApplies={siblings}
       booked={row.bookedWeekdays.includes(weekday)}
     />
   );
@@ -141,7 +157,8 @@ function scaleColumns(siblings: boolean): DataTableColumn<PriceRow>[] {
   const cell = (row: PriceRow, days: number) => (
     <PriceCell
       cents={row.steps[days]}
-      sibling={siblings ? row.siblingSteps[days] : undefined}
+      sibling={row.siblingSteps[days]}
+      siblingApplies={siblings}
       booked={row.bookedDaysPerWeek.includes(days)}
     />
   );
@@ -178,8 +195,8 @@ export function CarePriceListCard({
   school: { id: string; name: string };
   /**
    * Whether a sibling rule bills the sibling prices of the list
-   * („Preis laut Preisliste“). Without one they are never charged, so the
-   * cells leave them out and the card says so once.
+   * („Preis laut Preisliste“). Without one they are never charged: the cells
+   * show them muted and the line above each table says so once.
    */
   siblingPricesApply?: boolean;
   /** The price list the card shows, "YYYY-MM-01"; empty without one. */
@@ -218,11 +235,7 @@ export function CarePriceListCard({
       ? `Im ${freeMonthsLabel(freeMonths)} zahlen Familien keinen Beitrag.`
       : null,
     billedUntil
-      ? `Abgerechnet bis ${formatMonth(billedUntil)}. Preise, mit denen schon abgerechnet ist, bleiben. Fehlende Preise können Sie ergänzen.`
-      : null,
-    !siblingPricesApply && hasSiblingPrices(rows)
-      ? // The table hides those prices then: name no column it lacks.
-        "Gespeicherte Preise für weitere Kinder gelten zurzeit nicht. Für Geschwister gilt die Ermäßigung unter „Ermäßigungen“."
+      ? `Abgerechnet bis ${formatMonth(billedUntil)}. Abgerechnete Preise bleiben, fehlende können Sie ergänzen.`
       : null,
   ]
     .filter(Boolean)
@@ -240,12 +253,21 @@ export function CarePriceListCard({
           <SectionLabel as="h3">{label}</SectionLabel>
         ) : null}
         {/* What the amounts are stays right above them, whatever the card
-            says about free months or billing. */}
-        <p className="text-sm text-gray-600">{basis}</p>
+            says about free months or billing; so does whether the prices
+            from the 2nd child on apply. */}
+        <p className="text-sm text-gray-600">
+          {basis}
+          {!siblingPricesApply && hasSiblingPrices(groupRows)
+            ? " Die Preise ab dem 2. Kind gelten zurzeit nicht: Für Geschwister gilt die Ermäßigung unter „Ermäßigungen“."
+            : null}
+        </p>
         <DataTable
           columns={columns}
           rows={groupRows}
           getRowKey={(row) => row.careOfferingId}
+          // Five or more price columns: narrower cells keep the price from
+          // the 2nd child on one line from the laptop on.
+          dense
           stackedOnMobile
         />
       </div>
