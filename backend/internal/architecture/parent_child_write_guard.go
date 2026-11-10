@@ -1,48 +1,50 @@
-package parentportal_test
+package architecture
 
 import (
+	"fmt"
 	"go/ast"
 	"go/types"
 	"sort"
 	"strings"
-	"testing"
 
 	"golang.org/x/tools/go/packages"
 )
 
-// TestParentChildWritesRunBehindTheGuard is the ratchet of #6529: every
-// parent write for an existing child runs in a school unit opened by one of
-// the guarded openers, whose write argument runs only after guardChildWrite
-// locked membership, child, profile and relationship and re-checked the
-// permissions. The test reads the flows' call graph, not names: from every
-// exported method of the two flow services it follows the calls inside the
-// package (closures and method values included) and reports every call of a
-// port method the register below classifies as a write. A write argument of a
-// guarded opener is not followed: whatever runs there is guarded. Every write
-// reached on another way fails, unless its entry is in the exact register of
-// writes that are not bound to one child, with the reason. A port method the
-// classification does not know fails as well, so a new port or a new method
-// of a port is classified before it can be reached.
-func TestParentChildWritesRunBehindTheGuard(t *testing.T) {
-	t.Parallel()
-	// go test runs in the package directory, inside the backend module.
-	pkgs, err := packages.Load(&packages.Config{
-		Mode: packages.NeedName | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedSyntax | packages.NeedFiles,
-	}, flowPackages...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, pkg := range pkgs {
-		for _, loadErr := range pkg.Errors {
-			t.Fatalf("load %s: %v", pkg.PkgPath, loadErr)
+// parentChildWriteGuardViolations is the rule of #6529: every parent write
+// for an existing child runs in a school unit opened by one of the guarded
+// openers of the Parent Portal workflow, whose write argument runs only after
+// guardChildWrite locked membership, child, profile and relationship and
+// re-checked the permissions. The rule reads the flows' call graph, not
+// names: from every exported method of the two flow services it follows the
+// calls inside the two packages (closures and method values included) and
+// reports every call of a port method the register below classifies as a
+// write. The write argument of a guarded opener is not followed: whatever
+// runs there is guarded. Every write reached another way is a violation,
+// unless its entry is in the exact register of writes not bound to one child,
+// with the reason. A port method the classification does not know is a
+// violation as well, so a new port or a new method of a port is classified
+// before it can be reached, and an exemption that reaches no write is stale.
+func parentChildWriteGuardViolations(project, modulePath string, loaded []*packages.Package) []Violation {
+	var flows []*packages.Package
+	for _, pkg := range loaded {
+		for _, path := range flowPackages {
+			if pkg.PkgPath == modulePath+"/"+path {
+				flows = append(flows, pkg)
+			}
 		}
 	}
-	graph := newFlowGraph(pkgs)
-	var failures []string
+	if len(flows) == 0 {
+		return nil
+	}
+	graph := newFlowGraph(flows)
+	graph.project = project
+	var violations []Violation
 	reached := map[string]bool{}
 	for _, root := range graph.roots() {
 		sinks, unknown := graph.writesFrom(root)
-		failures = append(failures, unknown...)
+		for _, port := range unknown {
+			violations = append(violations, parentChildWriteViolation("parent-child-writes.unclassified-port", graph.name(root), port, graph.location(root)))
+		}
 		if len(sinks) == 0 {
 			continue
 		}
@@ -51,23 +53,50 @@ func TestParentChildWritesRunBehindTheGuard(t *testing.T) {
 		if strings.TrimSpace(childWriteGuardExemptions[name]) != "" {
 			continue
 		}
-		failures = append(failures, name+" writes outside a guarded child unit: "+strings.Join(sinks, ", "))
+		violations = append(violations, parentChildWriteViolation("parent-child-writes.unguarded", name, strings.Join(sinks, ","), graph.location(root)))
 	}
 	for name := range childWriteGuardExemptions {
 		if !reached[name] {
-			failures = append(failures, "stale exemption "+name+": it reaches no write")
+			violations = append(violations, parentChildWriteViolation("parent-child-writes.stale-exemption", name, "no write", nil))
 		}
 	}
-	sort.Strings(failures)
-	failures = compactStrings(failures)
-	if len(failures) > 0 {
-		t.Fatalf("parent child writes must run behind the child write guard (#6529):\n%s", strings.Join(failures, "\n"))
+	return violations
+}
+
+// checkParentChildWriteFlows loads the two flow packages of project, with
+// overlay replacing or adding files, and applies the rule; the rule's tests
+// use it to check the real tree and its mutations.
+func checkParentChildWriteFlows(project, modulePath string, overlay map[string][]byte) ([]Violation, error) {
+	cgo := false
+	patterns := make([]string, 0, len(flowPackages))
+	for _, path := range flowPackages {
+		patterns = append(patterns, "./"+path)
+	}
+	loaded, err := packages.Load(&packages.Config{
+		Mode:    packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Dir:     project,
+		Env:     fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgo}),
+		Overlay: overlay,
+	}, patterns...)
+	if err != nil {
+		return nil, err
+	}
+	for _, pkg := range loaded {
+		if len(pkg.Errors) > 0 {
+			return nil, fmt.Errorf("load %s: %v", pkg.PkgPath, pkg.Errors[0])
+		}
+	}
+	return parentChildWriteGuardViolations(project, modulePath, loaded), nil
+}
+
+func parentChildWriteViolation(rule, source, target string, locations []Location) Violation {
+	return Violation{
+		Scope: ScopeProduction, Rule: rule, Source: source, Target: target, Locations: locations,
+		Detail: "parent writes for an existing child run behind the child write guard (#6529): open the unit with WithChildWrite or WithPermittedChildForWrite, or classify the port",
 	}
 }
 
-const flowModule = "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/"
-
-var flowPackages = []string{flowModule + "care", flowModule + "messaging"}
+var flowPackages = []string{"workflows/parentportal/internal/care", "workflows/parentportal/internal/messaging"}
 
 // guardedOpeners open a school unit behind guardChildWrite; their last
 // argument is the write.
@@ -261,12 +290,14 @@ var portClasses = map[string]string{
 
 // flowGraph is the call graph of the flow packages.
 type flowGraph struct {
-	decls map[*types.Func]*ast.FuncDecl
-	infos map[*types.Func]*types.Info
+	decls   map[*types.Func]*ast.FuncDecl
+	infos   map[*types.Func]*types.Info
+	pkgs    map[*types.Func]*packages.Package
+	project string
 }
 
 func newFlowGraph(pkgs []*packages.Package) *flowGraph {
-	g := &flowGraph{decls: map[*types.Func]*ast.FuncDecl{}, infos: map[*types.Func]*types.Info{}}
+	g := &flowGraph{decls: map[*types.Func]*ast.FuncDecl{}, infos: map[*types.Func]*types.Info{}, pkgs: map[*types.Func]*packages.Package{}}
 	for _, pkg := range pkgs {
 		for _, file := range pkg.Syntax {
 			for _, decl := range file.Decls {
@@ -278,7 +309,7 @@ func newFlowGraph(pkgs []*packages.Package) *flowGraph {
 				if !ok {
 					continue
 				}
-				g.decls[obj], g.infos[obj] = fn, pkg.TypesInfo
+				g.decls[obj], g.infos[obj], g.pkgs[obj] = fn, pkg.TypesInfo, pkg
 			}
 		}
 	}
@@ -309,7 +340,7 @@ func (g *flowGraph) roots() []*types.Func {
 func (g *flowGraph) writesFrom(root *types.Func) (sinks, unknown []string) {
 	seen := map[*types.Func]bool{root: true}
 	queue := []*types.Func{root}
-	found := map[string]bool{}
+	found, unclassified := map[string]bool{}, map[string]bool{}
 	for len(queue) > 0 {
 		fn := queue[0]
 		queue = queue[1:]
@@ -350,7 +381,7 @@ func (g *flowGraph) writesFrom(root *types.Func) (sinks, unknown []string) {
 				case "write":
 					found[port] = true
 				case "":
-					unknown = append(unknown, "unclassified port method "+port)
+					unclassified[port] = true
 				}
 			case *types.Var:
 				if obj.IsField() && isFunc(obj.Type()) {
@@ -368,7 +399,11 @@ func (g *flowGraph) writesFrom(root *types.Func) (sinks, unknown []string) {
 	for port := range found {
 		sinks = append(sinks, port)
 	}
+	for port := range unclassified {
+		unknown = append(unknown, port)
+	}
 	sort.Strings(sinks)
+	sort.Strings(unknown)
 	return sinks, unknown
 }
 
@@ -384,6 +419,18 @@ func classify(port string) string {
 
 func (g *flowGraph) name(fn *types.Func) string {
 	return funcName(fn)
+}
+
+func (g *flowGraph) location(fn *types.Func) []Location {
+	pkg, decl := g.pkgs[fn], g.decls[fn]
+	if pkg == nil || decl == nil {
+		return nil
+	}
+	location, err := sourceLocation(g.project, pkg.Fset.PositionFor(decl.Pos(), false), funcName(fn))
+	if err != nil {
+		return nil
+	}
+	return []Location{location}
 }
 
 func funcName(fn *types.Func) string {
@@ -480,14 +527,4 @@ func namedOf(typ types.Type) *types.Named {
 func isFunc(typ types.Type) bool {
 	_, ok := typ.Underlying().(*types.Signature)
 	return ok
-}
-
-func compactStrings(values []string) []string {
-	out := values[:0]
-	for i, value := range values {
-		if i == 0 || value != values[i-1] {
-			out = append(out, value)
-		}
-	}
-	return out
 }

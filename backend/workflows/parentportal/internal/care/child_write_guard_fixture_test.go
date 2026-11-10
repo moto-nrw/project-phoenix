@@ -17,18 +17,19 @@ type summaryGuard struct {
 
 const summaryGuardProfileID int64 = 4711
 
-// install wires the guard ports into svc and gives the fixture child the
-// guardian profile the stubs answer for.
-func (g summaryGuard) install(svc *Service) {
-	if g.child != nil && g.child.GuardianProfileID == 0 {
-		g.child.GuardianProfileID = summaryGuardProfileID
+// newSummaryGuard gives the fixture child the guardian profile the stubs
+// answer for.
+func newSummaryGuard(accountID int64, child *ChildSummary) summaryGuard {
+	if child != nil && child.GuardianProfileID == 0 {
+		child.GuardianProfileID = summaryGuardProfileID
 	}
-	svc.Memberships = g
-	svc.GuardianProfileRepo = summaryGuardProfiles{guard: g}
-	svc.StudentGuardianRepo = summaryGuardRelationships{guard: g}
-	if svc.GuardianPolicy == nil {
-		svc.GuardianPolicy = summaryGuardPolicy{}
-	}
+	return summaryGuard{accountID: accountID, child: child}
+}
+
+func (g summaryGuard) profiles() GuardianProfileReads { return summaryGuardProfiles{guard: g} }
+
+func (g summaryGuard) relationships() StudentGuardianReads {
+	return summaryGuardRelationships{guard: g}
 }
 
 func (g summaryGuard) LockActiveSchoolMembership(context.Context, int64) (bool, error) {

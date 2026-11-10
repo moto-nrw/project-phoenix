@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	parentHTTP "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,9 @@ import (
 type childReadRig struct {
 	db     *bun.DB
 	router chi.Router
-	portal *parentportal.Portal
+	// bookConference runs a write as the Elternsprechtag booking, in the
+	// unit the portal guards.
+	bookConference func(ctx context.Context, accountID, studentID int64, write func(context.Context) error) error
 	// childCheckDelay slows the child lookup of the administrative part.
 	childCheckDelay *atomic.Int64
 }
@@ -93,7 +94,7 @@ func newChildReadRigOn(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dep
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Use(RequestSettingsCacheMiddleware, RequestIdentityCacheMiddleware)
 	router.Mount("/parent", parentHTTP.NewResource(parentHTTP.ResourceConfig{Parent: portal}).Router(ParentSessionChain))
-	return childReadRig{db: db, router: router, portal: portal, childCheckDelay: childCheckDelay}
+	return childReadRig{db: db, router: router, bookConference: owners.ParentConferenceBooking(portal), childCheckDelay: childCheckDelay}
 }
 
 type childReadSettings interface {

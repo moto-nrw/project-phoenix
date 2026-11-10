@@ -29,7 +29,6 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
@@ -68,11 +67,14 @@ type guardedWrite struct {
 // gate after the child check and a hook after the guard's relationship lock.
 type guardRig struct {
 	childReadRig
-	people   peopledirectory.GuardianRelationshipCommand
-	settings childReadSettings
-	checked  *requestGate
-	guarded  *requestGate
-	locked   *lockGate
+	// linkGuardian and removeGuardian are People Directory's relationship
+	// commands.
+	linkGuardian   func(ctx context.Context, link peopledirectory.LinkGuardian) error
+	removeGuardian func(ctx context.Context, removal peopledirectory.RemoveGuardian) error
+	settings       childReadSettings
+	checked        *requestGate
+	guarded        *requestGate
+	locked         *lockGate
 }
 
 // requestGate parks the first child check after it decided, while armed.
@@ -92,20 +94,15 @@ func newRequestGate() *requestGate {
 	return &requestGate{reached: make(chan struct{}), release: make(chan struct{})}
 }
 
-type gatedChildReads struct {
-	parentportal.ChildReads
-	gate *requestGate
-}
-
-func (r gatedChildReads) FindForAccount(ctx context.Context, accountID, studentID int64) (*parentportal.ChildSummary, error) {
-	child, err := r.ChildReads.FindForAccount(ctx, accountID, studentID)
-	if r.gate.armed.Load() {
-		r.gate.once.Do(func() {
-			close(r.gate.reached)
-			<-r.gate.release
-		})
+// park parks the first call while armed until the gate opens.
+func (g *requestGate) park() {
+	if !g.armed.Load() {
+		return
 	}
-	return child, err
+	g.once.Do(func() {
+		close(g.reached)
+		<-g.release
+	})
 }
 
 // gatedMemberships parks the guard before its first lock, while armed.
@@ -117,12 +114,7 @@ type gatedMemberships struct {
 }
 
 func (m gatedMemberships) LockActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error) {
-	if m.gate.armed.Load() {
-		m.gate.once.Do(func() {
-			close(m.gate.reached)
-			<-m.gate.release
-		})
-	}
+	m.gate.park()
 	return m.inner.LockActiveSchoolMembership(ctx, accountID)
 }
 
@@ -175,8 +167,8 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 	adjust := append([]func(*portalCompose.Dependencies){func(deps *portalCompose.Dependencies) {
 		deps.StatusDayRepo = NewRepositoryTestFactory(database).StudentStatusDay
 		deps.StudentPhotos = &photoUnlinks{db: db}
-		deps.OfferingChanges = markingOfferings{OfferingChangeRequests: deps.OfferingChanges}
-		deps.GuardianInvites = markingInvites{}
+		deps.OfferingChanges = owners.MarkingParentOfferings(deps.OfferingChanges, markOwnerWrite)
+		deps.GuardianInvites = owners.MarkingParentGuardianAccess(markOwnerWrite)
 		if deps.Signatures == nil {
 			deps.Signatures = owners.ParentDeclarationSignatures{Ledger: owners.SignatureLedger()}
 		}
@@ -187,14 +179,19 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 			deps.PickupSchedules = owners.NewParentPickupSchedules(schedules.Pickups)
 		}
 		deps.InvalidateInvites = owners.NewGuardianInvitationInvalidation(database)
-		deps.ChildRepo = gatedChildReads{ChildReads: deps.ChildRepo, gate: rig.checked}
+		deps.ChildRepo = owners.ParentChildReadsAfterCheck(deps.ChildRepo, rig.checked.park)
 		deps.Memberships = gatedMemberships{inner: deps.Memberships, gate: rig.guarded}
-		deps.StudentGuardianRepo = parentportal.StudentGuardianReadsAfterLock(deps.StudentGuardianRepo, rig.locked.afterLock)
+		deps.StudentGuardianRepo = owners.ParentRelationshipLockHook(deps.StudentGuardianRepo, rig.locked.afterLock)
 	}}, with...)
 	rig.childReadRig = newChildReadRigOn(t, db, adjust...)
 	guardians, err := NewGuardianTestModule(database, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	rig.people = guardians.PeopleDirectory
+	people := guardians.PeopleDirectory
+	rig.linkGuardian = func(ctx context.Context, link peopledirectory.LinkGuardian) error {
+		_, err := people.LinkGuardianToStudent(ctx, link)
+		return err
+	}
+	rig.removeGuardian = people.RemoveGuardianFromStudent
 	settings, err := owners.NewSettingsTestModule(database, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	rig.settings = settings.Settings
@@ -204,7 +201,7 @@ func newGuardRig(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependenc
 // contact creates an accountless contact of the child and returns its profile.
 func (r *guardRig) contact(t *testing.T, f childReadFamily) int64 {
 	t.Helper()
-	r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
+	r.set(t, map[string]any{"operations.parent_guardian_management_enabled": true})
 	r.do(t, childWrite{http.MethodPost, childPath(f, "/guardians"), map[string]any{"first_name": "Oma", "last_name": "Kontakt", "relationship_type": "relative", "phones": []any{}}}, f.token)
 	return r.scalar(t, `SELECT guardian_profile_id FROM users.student_guardian_relationships WHERE student_id = ? AND guardian_profile_id <> ? ORDER BY id DESC LIMIT 1`, f.StudentID, f.GuardianProfileID)
 }
@@ -247,11 +244,10 @@ func (r *guardRig) secondGuardian(t *testing.T, f childReadFamily) int64 {
 	t.Helper()
 	other := testpkg.CreateTestParentGuardianChain(t, r.db)
 	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), r.db, f.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		_, err := r.people.LinkGuardianToStudent(txCtx, peopledirectory.LinkGuardian{
+		return r.linkGuardian(txCtx, peopledirectory.LinkGuardian{
 			StudentID: f.StudentID, GuardianProfileID: other.GuardianProfileID,
 			RelationshipType: "parent", GuardianRole: "legal_guardian",
 		})
-		return err
 	}))
 	return other.GuardianProfileID
 }
@@ -259,8 +255,8 @@ func (r *guardRig) secondGuardian(t *testing.T, f childReadFamily) int64 {
 func (r *guardRig) enableCareScheduleRequests(t *testing.T) {
 	t.Helper()
 	r.set(t, map[string]any{
-		parentportal.KeyParentCarePickupRequestEnabled: true,
-		parentportal.KeyParentCareModeRequestEnabled:   true, parentportal.KeyEnrollmentBookingsAuthoritative: false,
+		"operations.parent_care_pickup_request_enabled": true,
+		"operations.parent_care_mode_request_enabled":   true, "enrollment.bookings_authoritative": false,
 	})
 }
 
@@ -269,7 +265,7 @@ func careScheduleRequest(f childReadFamily) childWrite {
 }
 
 // composeParentMessaging binds the parent-OGS conversation to its stores.
-func composeParentMessaging(t *testing.T, db *bun.DB, deps *portalCompose.Dependencies) {
+var composeParentMessaging = func(t *testing.T, db *bun.DB, deps *portalCompose.Dependencies) {
 	database := testpkg.NewDatabase(t, db)
 	organizations, err := owners.NewOrganizationTenancy(database)
 	require.NoError(t, err)
@@ -298,28 +294,6 @@ func markOwnerWrite(ctx context.Context, studentID, accountID int64) error {
 	return err
 }
 
-// markingOfferings keeps the reads of Enrollment and writes a marker row for
-// the request commands, whose own preconditions are Enrollment's tests.
-type markingOfferings struct {
-	parentportal.OfferingChangeRequests
-}
-
-func (m markingOfferings) SubmitOfferingChange(ctx context.Context, input parentportal.CreateOfferingChangeInputSnapshot) (*parentportal.OfferingChangeRequestSnapshot, error) {
-	return &parentportal.OfferingChangeRequestSnapshot{}, markOwnerWrite(ctx, input.StudentID, input.AccountID)
-}
-
-func (m markingOfferings) Edit(ctx context.Context, _ int64, input parentportal.CreateOfferingChangeInputSnapshot, _ string) (*parentportal.OfferingChangeRequestSnapshot, error) {
-	return &parentportal.OfferingChangeRequestSnapshot{}, markOwnerWrite(ctx, input.StudentID, input.AccountID)
-}
-
-func (m markingOfferings) CreateCourseRequest(ctx context.Context, input parentportal.CreateCourseRequestInputSnapshot) (*parentportal.OfferingChangeRequestSnapshot, error) {
-	return &parentportal.OfferingChangeRequestSnapshot{}, markOwnerWrite(ctx, input.StudentID, input.AccountID)
-}
-
-func (m markingOfferings) WithdrawCourseRequest(ctx context.Context, _ int64, accountID, studentID int64) error {
-	return markOwnerWrite(ctx, studentID, accountID)
-}
-
 // markingMeals keeps the meal plan's reads; its day and week writes check a
 // deadline against the wall clock, so a marker stands for them here.
 type markingMeals struct {
@@ -338,19 +312,8 @@ func (m markingMeals) SetParticipationForWeek(ctx context.Context, change mealpl
 	return mealplanModule.WeekChange{}, markOwnerWrite(ctx, change.StudentID, change.GuardianAccountID)
 }
 
-func composeMarkingMeals(_ *testing.T, _ *bun.DB, deps *portalCompose.Dependencies) {
+var composeMarkingMeals = func(_ *testing.T, _ *bun.DB, deps *portalCompose.Dependencies) {
 	deps.MealPlan = markingMeals{MealPlanProvider: deps.MealPlan}
-}
-
-// markingInvites stands for Identity & Access's relative-access flows.
-type markingInvites struct{}
-
-func (markingInvites) InviteToStudent(ctx context.Context, request parentportal.GuardianInviteRequest) (parentportal.GuardianInviteOutcome, error) {
-	return parentportal.GuardianInviteOutcome{Outcome: "invited"}, markOwnerWrite(ctx, request.StudentID, request.RequestedByAccountID)
-}
-
-func (markingInvites) RevokeAccess(ctx context.Context, revocation parentportal.GuardianAccessRevocation) error {
-	return markOwnerWrite(ctx, revocation.StudentID, revocation.ActorAccountID)
 }
 
 // givePhoto stores a granted photo consent with a photo.
@@ -398,7 +361,7 @@ func withdrawPermission(permission string) withdrawal {
 var removeRelationship = withdrawal{name: "Beziehung entfernt", run: func(t *testing.T, r *guardRig, f childReadFamily) func() error {
 	ctx := testpkg.Ctx(t)
 	return func() error {
-		return r.people.RemoveGuardianFromStudent(ctx, peopledirectory.RemoveGuardian{
+		return r.removeGuardian(ctx, peopledirectory.RemoveGuardian{
 			StudentID: f.StudentID, GuardianProfileID: f.GuardianProfileID, ActorAccountID: f.AccountID,
 		})
 	}
@@ -539,7 +502,7 @@ func directAnswer(err error) *httptest.ResponseRecorder {
 	switch {
 	case err == nil:
 		rec.WriteHeader(http.StatusOK)
-	case errors.Is(err, parentportal.ErrChildNotLinked), errors.Is(err, parentportal.ErrGuardianPermissionDenied):
+	case owners.IsParentChildRefusal(err):
 		rec.WriteHeader(http.StatusForbidden)
 	default:
 		rec.WriteHeader(http.StatusInternalServerError)
@@ -709,7 +672,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Abwesenheitsantrag bearbeiten",
 			permissions: []string{permSickNote},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentSickNoteEnabled: true, parentportal.KeyParentExcusedReportsEnabled: true, parentportal.KeyParentExcusedRequiresApproval: true})
+				r.set(t, map[string]any{"operations.parent_sick_note_enabled": true, "operations.parent_excused_reports_enabled": true, "operations.parent_excused_requires_approval": true})
 				r.do(t, childWrite{http.MethodPost, childPath(f, "/sick-note"), map[string]any{"dates": []string{"2026-09-03"}, "status": "excused", "reason": "Termin"}}, f.token)
 				id := r.scalar(t, `SELECT id FROM active.excused_absence_requests WHERE student_id = ? ORDER BY id DESC LIMIT 1`, f.StudentID)
 				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/excused-requests/%d", id)), map[string]any{"dates": []string{"2026-09-04"}, "note": "Termin verschoben"}}
@@ -719,7 +682,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Stammdatenantrag",
 			permissions: []string{permMasterRequest},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentMasterDataRequestEnabled: true})
+				r.set(t, map[string]any{"operations.parent_master_data_request_enabled": true})
 				return childWrite{http.MethodPost, childPath(f, "/master-data/requests"), map[string]any{"changes": []map[string]any{{"target": "person", "field_key": "last_name", "value": "Neumann"}}}}
 			},
 		},
@@ -734,7 +697,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Stammdaten direkt ändern",
 			permissions: []string{permMasterEdit},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentMasterDataEditEnabled: true})
+				r.set(t, map[string]any{"operations.parent_master_data_edit_enabled": true})
 				return childWrite{http.MethodPatch, childPath(f, "/master-data/student/health_info"), map[string]any{"value": "Allergie: Nüsse"}}
 			},
 		},
@@ -766,7 +729,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Kontakt anlegen",
 			permissions: []string{permGuardianEdit},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
+				r.set(t, map[string]any{"operations.parent_guardian_management_enabled": true})
 				return childWrite{http.MethodPost, childPath(f, "/guardians"), map[string]any{"first_name": "Oma", "last_name": "Kontakt", "relationship_type": "relative", "phones": []any{}}}
 			},
 		},
@@ -774,7 +737,7 @@ func guardedWrites() []guardedWrite {
 			name:        "eigenen Kontakt ändern",
 			permissions: []string{permGuardianEdit},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
+				r.set(t, map[string]any{"operations.parent_guardian_management_enabled": true})
 				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/guardians/%d/contact", f.GuardianProfileID)), map[string]any{"first_name": "Sabine", "last_name": "Geändert", "phones": []any{}}}
 			},
 		},
@@ -782,7 +745,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Abholhinweis ändern",
 			permissions: []string{permGuardianEdit},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
+				r.set(t, map[string]any{"operations.parent_guardian_management_enabled": true})
 				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/guardians/%d/pickup", f.GuardianProfileID)), map[string]any{"pickup_notes": "Nur nach Absprache"}}
 			},
 		},
@@ -836,7 +799,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Mitbenutzer einladen",
 			permissions: []string{permRelatedManage},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDirect})
+				r.set(t, map[string]any{"guardians.parent_invite_mode": "direct"})
 				return childWrite{http.MethodPost, childPath(f, "/related-accounts"), map[string]any{"email": fmt.Sprintf("mitbenutzer-%d@example.test", testpkg.UniqueSuffix()), "first_name": "Max", "last_name": "Mitbenutzer"}}
 			},
 		},
@@ -844,7 +807,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Mitbenutzer entfernen",
 			permissions: []string{permRelatedManage},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDirect, parentportal.KeyGuardianParentCanRemove: true})
+				r.set(t, map[string]any{"guardians.parent_invite_mode": "direct", "guardians.parent_can_remove": true})
 				other := r.secondGuardian(t, f)
 				return childWrite{http.MethodDelete, childPath(f, fmt.Sprintf("/related-accounts/%d", other)), nil}
 			},
@@ -853,7 +816,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Abholänderung",
 			permissions: []string{permPickupManage},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentPickupChangeEnabled: true})
+				r.set(t, map[string]any{"operations.parent_pickup_change_enabled": true})
 				return pickupChange(f)
 			},
 		},
@@ -861,7 +824,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Abholänderung löschen",
 			permissions: []string{permPickupManage},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentPickupChangeEnabled: true})
+				r.set(t, map[string]any{"operations.parent_pickup_change_enabled": true})
 				r.do(t, pickupChange(f), f.token)
 				return childWrite{http.MethodDelete, childPath(f, "/care-exception?date=2026-09-02"), nil}
 			},
@@ -870,7 +833,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Abholänderungsantrag bearbeiten",
 			permissions: []string{permPickupManage},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentPickupChangeEnabled: true})
+				r.set(t, map[string]any{"operations.parent_pickup_change_enabled": true})
 				r.do(t, pickupChange(f), f.token)
 				id := r.scalar(t, `SELECT id FROM schedule.care_schedule_change_requests WHERE student_id = ? ORDER BY id DESC LIMIT 1`, f.StudentID)
 				return childWrite{http.MethodPut, childPath(f, fmt.Sprintf("/pickup-change-requests/%d", id)), map[string]any{"date": "2026-09-02", "pickup_time": "14:30", "reason": "Arzttermin"}}
@@ -880,7 +843,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Kontakt mit Abholberechtigung anlegen",
 			permissions: []string{permGuardianEdit, permPickupManage},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentGuardianManagementEnabled: true})
+				r.set(t, map[string]any{"operations.parent_guardian_management_enabled": true})
 				signature := r.signature(t, f, map[string]any{"kind": "pickup_permission", "person_name": "Oma Kontakt", "weekdays": []int{1}})
 				return childWrite{http.MethodPost, childPath(f, "/guardians"), map[string]any{
 					"first_name": "Oma", "last_name": "Kontakt", "relationship_type": "relative", "phones": []any{},
@@ -912,7 +875,7 @@ func guardedWrites() []guardedWrite {
 			permissions: []string{permNotesWrite},
 			compose:     composeParentMessaging,
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentNotesEnabled: true})
+				r.set(t, map[string]any{"operations.parent_notes_enabled": true})
 				return childWrite{http.MethodPost, fmt.Sprintf("/parent/me/messages/children/%d", f.StudentID), map[string]any{"body": "Felix wird heute abgeholt."}}
 			},
 		},
@@ -921,7 +884,7 @@ func guardedWrites() []guardedWrite {
 			permissions: []string{"parent_portal.conference.book"},
 			direct: func(r *guardRig, f childReadFamily) func(context.Context) error {
 				return func(ctx context.Context) error {
-					return r.portal.WithParentConferenceBooking(ctx, f.AccountID, f.StudentID, func(txCtx context.Context, _ *parentportal.Child) error {
+					return r.bookConference(ctx, f.AccountID, f.StudentID, func(txCtx context.Context) error {
 						return markOwnerWrite(txCtx, f.StudentID, f.AccountID)
 					})
 				}
@@ -931,7 +894,7 @@ func guardedWrites() []guardedWrite {
 			name:        "eigene E-Mail direkt ändern",
 			permissions: []string{permMasterEdit},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentMasterDataEditEnabled: true, parentportal.KeyParentGuardianManagementEnabled: true})
+				r.set(t, map[string]any{"operations.parent_master_data_edit_enabled": true, "operations.parent_guardian_management_enabled": true})
 				return childWrite{http.MethodPatch, childPath(f, "/master-data/guardian_profile/email"), map[string]any{"value": fmt.Sprintf("neu-%d@example.test", testpkg.UniqueSuffix())}}
 			},
 		},
@@ -979,7 +942,7 @@ func guardedWrites() []guardedWrite {
 			name:        "Krankmeldung",
 			permissions: []string{permSickNote},
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
-				r.set(t, map[string]any{parentportal.KeyParentSickNoteEnabled: true, parentportal.KeyParentSickReportsEnabled: true, parentportal.KeyParentSickRequiresApproval: false})
+				r.set(t, map[string]any{"operations.parent_sick_note_enabled": true, "operations.parent_sick_reports_enabled": true, "operations.parent_sick_requires_approval": false})
 				return childWrite{http.MethodPost, childPath(f, "/sick-note"), map[string]any{"dates": []string{"2026-09-02"}, "status": "sick", "reason": "Fieber"}}
 			},
 		},

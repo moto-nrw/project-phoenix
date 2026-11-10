@@ -65,6 +65,7 @@ func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
 			violations = append(violations, packageViolations...)
 		}
 	}
+	violations = append(violations, parentChildWriteGuardViolations(project, policy.ModulePath, loaded)...)
 	return finishSemanticEffects(project, policy, loaded, violations)
 }
 
