@@ -1,6 +1,6 @@
 # Einrichtungs-Assistent: Zustand bei Settings, Fortschritt als Projektion
 
-Status: proposed. Gilt für den Einrichtungs-Assistenten neuer Schulen aus
+Status: accepted. Freigegeben von Yannick Wenger am 10.11.2026 (#6468). Gilt für den Einrichtungs-Assistenten neuer Schulen aus
 [#2832](https://github.com/moto-nrw/project-phoenix/issues/2832). Führt den
 Projection-Owner `school-setup` ein, den
 [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) nur mit einer
@@ -45,7 +45,8 @@ Daraus entstehen zwei Arten von Daten:
    `config.home_layouts`, die `settings-platform` schon besitzt. Ein eigener
    Domain-Owner lohnt für zwei kleine Tabellen ohne eigene Fachregeln nicht.
 2. **Der Fortschritt ist eine Projektion des Owners `school-setup`** (Kind
-   `projection`, Paket `modules/schoolsetupview`, Read-Projection
+   `projection`, Paket `modules/schoolsetup/internal/adapters/schoolsetupview`,
+   Read-Projection
    `school-setup-progress`). Sie liest mit festen `SELECT`-Anweisungen:
 
    | Tabelle | Write-Owner | Frage |
@@ -85,8 +86,9 @@ Daraus entstehen zwei Arten von Daten:
    (Rolle `compose`) verdrahtet Speicher, Projektion und Service; die
    Root-Komposition baut daraus die Routen und hängt sie über eine Liste von
    Modul-Routen ein, nicht über ein neues Feld in `api.API`. Der Speicher
-   liegt bei den Tabellen, die er schreibt: `database/repositories/config`
-   (`settings-platform`, Rolle `postgres`) erfüllt den Port `Store` des
+   liegt bei den Tabellen, die er schreibt:
+   `modules/settings/internal/adapters/configpostgres` (`settings-platform`,
+   Rolle `postgres`, Datei `school_setup.go`) erfüllt den Port `Store` des
    öffentlichen Vertrags.
 4. **Die Anwesenheitsart bleibt beim Operator.** `operations.presence_mode`
    bleibt `AccessOperatorOnly`, auch während der Einrichtung. Der Assistent
@@ -108,7 +110,8 @@ Tenant-Transaktion bricht diese Entscheidung.
 ## Policy-Registrierung
 
 Neu: Owner `school-setup` (Kind `projection`) mit den Paketen
-`modules/schoolsetupview` (Rolle `postgres`, die Projektion),
+`modules/schoolsetup/internal/adapters/schoolsetupview` (Rolle `postgres`, die
+Projektion),
 `modules/schoolsetup` (`public`), `modules/schoolsetup/internal/application`
 (`application`), `modules/schoolsetup/compose` (`compose`, externe Tests
 `workflow-integration-test`) und `modules/schoolsetup/http` (`http`). Dazu die
@@ -119,7 +122,7 @@ Read-Projection `school-setup-progress` mit den fünf Tabellen oben und
 Die Data-Objects `config.school_setups` und `config.school_setup_dismissals`
 behalten den Write-Owner `settings-platform`; ein Projection-Owner besitzt
 keine Tabelle. Deshalb liegt der Speicher in
-`database/repositories/config` und erfüllt dort den Port `Store` des
+`modules/settings/internal/adapters/configpostgres` und erfüllt dort den Port `Store` des
 öffentlichen Vertrags.
 
 Dass der Assistent ein eigener Owner ist und nicht ein weiteres Paket von
@@ -160,7 +163,8 @@ Was anders ist als beim Assistenten der Schule:
    Tabelle `config.staff_onboardings` (eine Zeile pro Schule und Konto:
    erledigte Schritte, übersprungene Schritte, Ausblenden), Write-Owner
    `settings-platform` wie die beiden Tabellen oben; der Speicher liegt in
-   `database/repositories/config` und erfüllt den Port `StaffStore`.
+   `modules/settings/internal/adapters/configpostgres` (`staff_onboarding.go`)
+   und erfüllt den Port `StaffStore`.
 2. **Die Projektion beantwortet nur, ob die Schule bereit ist.** Vor der ersten
    Gruppe oder dem ersten Kind zeigten die Touren leere Seiten; die Checkliste
    wartet deshalb auf `GroupCreated || StudentEnrolled` aus
@@ -214,7 +218,13 @@ ersten Schritte: Die Sitzung trägt die Rolle Verwaltung und damit
    `config.school_setup_dismissed_in_traeger`) liefern nur den Onboarding-Stand
    einer Person und prüfen die Beziehung selbst: den aktiven Zugang zur Schule
    der Sitzung oder die aktive Mitgliedschaft beim Träger der Schule. Außerhalb
-   einer Schul-Transaktion liefern sie nichts. Das Löschen von Schule und Konto
+   einer Schul-Transaktion liefern sie nichts. Dazu kommt ein schreibender Pfad:
+   Blendet eine Person den Assistenten in einer Absprung-Sitzung wieder ein,
+   löscht `config.restore_school_setup_dismissals_in_traeger`, ebenfalls
+   `SECURITY DEFINER`, ihre Ausblende-Zeilen in allen Schulen des Trägers. Die
+   Funktion prüft die aktive Mitgliedschaft beim Träger der Schule der Sitzung
+   und löscht nur Zeilen dieses Kontos. Ausblenden schreibt weiter nur in der
+   Schule der Sitzung. Das Löschen von Schule und Konto
    bleibt unverändert, weil die Zeilen bleiben, wo sie waren.
 
 Folgen: Verlässt eine Schule den Träger oder wird gelöscht, zählt ihr
