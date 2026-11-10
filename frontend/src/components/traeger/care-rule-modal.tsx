@@ -323,7 +323,7 @@ export function CareRuleModal({
           onCancel={onClose}
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
-          saveLabel="Speichern"
+          saveLabel="Regel speichern"
         />
       }
     >

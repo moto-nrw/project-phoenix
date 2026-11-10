@@ -461,15 +461,23 @@ export function SepaMandatesCard({
       ),
     },
     {
-      // Only the date: the kind of the next debit stands on the family's
-      // mandate page, and the list keeps „Stand“ in view on a tablet.
+      // The kind of the next debit is a second line under the signature
+      // date: the list keeps it without a column that pushes „Stand“ out of
+      // view on a tablet.
       key: "signed",
       header: "Unterschrieben",
       stacked: "field",
       sortValue: (mandate) => mandate.signedOn,
       render: (mandate) => (
-        <span className="whitespace-nowrap tabular-nums">
-          {formatDate(mandate.signedOn)}
+        <span className="block">
+          <span className="block whitespace-nowrap tabular-nums">
+            {formatDate(mandate.signedOn)}
+          </span>
+          {mandate.revokedOn ? null : (
+            <span className="block text-sm text-gray-500">
+              Nächste Abbuchung: {nextDebitLabel(mandate)}
+            </span>
+          )}
         </span>
       ),
     },

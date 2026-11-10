@@ -261,19 +261,12 @@ export default function TraegerKinderzahlPage() {
       header: "Stand",
       stacked: "field",
       className: "w-44 align-top",
-      // „Keine Angabe“ is plain text: a missing number is no state of its
-      // own, and the gray pill belongs to „Abgelaufen“.
-      render: (family) =>
-        family.status === "missing" ? (
-          <span className="text-sm whitespace-nowrap text-gray-600">
-            {STATUS_LABELS.missing}
-          </span>
-        ) : (
-          <StatusBadge
-            tone={STATUS_TONES[family.status]}
-            label={STATUS_LABELS[family.status]}
-          />
-        ),
+      render: (family) => (
+        <StatusBadge
+          tone={STATUS_TONES[family.status]}
+          label={STATUS_LABELS[family.status]}
+        />
+      ),
     },
     {
       key: "actions",
@@ -318,8 +311,12 @@ export default function TraegerKinderzahlPage() {
       stats={
         families.length > 0 ? (
           <TenantPageStats
-            // Three figures fit the line; each counts one pill of the table.
+            // How many families, then one figure per pill of the table.
             items={[
+              {
+                value: families.length,
+                label: families.length === 1 ? "Familie" : "Familien",
+              },
               { value: countStatus("confirmed"), label: "bestätigt" },
               ...(expired > 0 ? [{ value: expired, label: "abgelaufen" }] : []),
               { value: missing, label: "ohne Angabe" },

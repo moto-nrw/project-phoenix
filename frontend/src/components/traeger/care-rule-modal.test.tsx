@@ -46,7 +46,7 @@ describe("CareRuleModal", () => {
     fireEvent.change(screen.getByLabelText(/Name auf der Rechnung/), {
       target: { value: "Geschwister neu" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Regel speichern" }));
     await waitFor(() =>
       expect(saveCareRule).toHaveBeenCalledWith(
         "7",
@@ -83,7 +83,7 @@ describe("CareRuleModal", () => {
     });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     fireEvent.click(toggle);
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Regel speichern" }));
     await waitFor(() =>
       expect(saveCareRule).toHaveBeenCalledWith(
         "7",

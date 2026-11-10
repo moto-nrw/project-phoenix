@@ -89,12 +89,9 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
           {reference ? (
             <span className="block text-sm text-gray-500">{reference}</span>
           ) : null}
-          {/* Payment and due date only while the invoice still asks for
-              something: a cancelled one is due nowhere. */}
-          {document.kind === "invoice" &&
-          document.paymentMethod &&
-          document.status !== "cancelled" &&
-          document.status !== "credited" ? (
+          {/* Payment and due date stay as the invoice set them, also after
+              a Storno or a credit: the history of the invoice. */}
+          {document.kind === "invoice" && document.paymentMethod ? (
             <span className="block text-sm text-gray-500">
               {PAYMENT_METHOD_LABELS[document.paymentMethod]}
               {document.dueOn
@@ -133,7 +130,10 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
         </span>
         {document.childNames.length > 0 ? (
           <span className="block text-sm wrap-break-word text-gray-600">
-            {document.childNames.join(", ")}
+            <span className="text-gray-500">
+              {document.childNames.length === 1 ? "Kind" : "Kinder"}:{" "}
+            </span>
+            <span>{document.childNames.join(", ")}</span>
           </span>
         ) : null}
       </span>
@@ -145,7 +145,9 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
     align: "right",
     sortValue: (document) => document.totalCents,
     render: (document) => (
-      <span className="text-gray-900 tabular-nums">
+      <span
+        className={`tabular-nums ${document.totalCents < 0 ? "text-moto-red-strong" : "text-gray-900"}`}
+      >
         {formatEuro(document.totalCents)}
       </span>
     ),
@@ -220,7 +222,12 @@ export default function TraegerBillingFamilyPage() {
                 value: family.invoiceCount,
                 label: family.invoiceCount === 1 ? "Rechnung" : "Rechnungen",
               },
-              { value: validInvoices, label: "gültig" },
+              // The backend's figure: invoices that still ask for money
+              // after Storno and credit (as the families list counts).
+              {
+                value: family.openInvoiceCount,
+                label: "mit berechnetem Betrag",
+              },
               {
                 value: family.documentCount - family.invoiceCount,
                 label:
@@ -265,8 +272,8 @@ export default function TraegerBillingFamilyPage() {
               <DataField label="Zahlungsweg">
                 {paymentMethodsText(family.paymentMethods) ??
                   (validInvoices > 0
-                    ? "– auf den Rechnungen nicht genannt"
-                    : "– keine gültige Rechnung")}
+                    ? "Auf den Rechnungen nicht genannt"
+                    : "Keine gültige Rechnung")}
               </DataField>
               <DataField label="Wer zahlt" fullWidth>
                 {family.payments.length > 0 ? (
@@ -281,7 +288,7 @@ export default function TraegerBillingFamilyPage() {
                     ))}
                   </span>
                 ) : (
-                  "– keine gültige Rechnung"
+                  "Keine gültige Rechnung"
                 )}
               </DataField>
             </DataGrid>
