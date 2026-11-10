@@ -433,12 +433,13 @@ type HolidayQuoteChild struct {
 	AgeRank  int
 }
 
-// HolidayAllocationBilling keeps allocation-triggered promotions consistent
+// HolidayAllocationBilling keeps direct allocations and promotions consistent
 // with frozen contributions and the invoices of their period.
 type HolidayAllocationBilling interface {
 	// AllocateHolidayPlaces holds the period's invoices before the allocation
-	// command, then refreezes every promoted registration and its siblings.
-	// decide joins the caller's transaction and returns promoted registration IDs.
+	// command, then recomputes the confirmed siblings of every registration
+	// that gained a place. decide joins the caller's transaction and returns
+	// registration IDs for both direct allocations and promotions.
 	// Any error must roll back the complete allocation, outbox and contributions.
 	AllocateHolidayPlaces(ctx context.Context, organizationID, accountID, periodID int64, decide func(context.Context) ([]int64, error)) error
 }

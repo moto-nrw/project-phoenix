@@ -1,11 +1,14 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 func TestHolidayAllocationCriterionScopeStaysAfterTheFirstAnswer(t *testing.T) {
@@ -65,4 +68,43 @@ func TestHolidayAllocationKeepsTheLastWaitlistDecision(t *testing.T) {
 	require.Len(t, places.Waitlist, 1)
 	assert.Equal(t, registration.ID, places.Waitlist[0].RegistrationID)
 	assert.Equal(t, 1, a.mails(t, "holiday_place_granted", registration.ID), "only the office decision notifies the parents")
+}
+
+// A received child with a new direct place participates in its sibling group
+// before confirmation, just like a child that moved up from the waiting list.
+func TestHolidayAllocationDirectPlaceRefreezesSiblings(t *testing.T) {
+	t.Parallel()
+	a := newAllocationFixture(t, "Träger direkte Geschwistervergabe")
+	billing := traegerColleague(t, a.reviewFixture, identityaccess.TraegerRoleBilling)
+	createContributionRule(t, a.reviewFixture, billing, siblingHalf())
+	first := a.submitCriteria(t, "erstes.geschwister@example.org", false, false)
+	rec := a.decide(t, decision(a.board(t).Weeks[0].Pending[0], "placed", ""))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = a.act(t, first.ID, "confirm")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, []int64{4500}, a.contributionVersions(t, first.ID))
+
+	body := placesRegistration(a.reviewFixture, "zweites.geschwister@example.org", map[string][]int{"Ida": {0}})
+	body["criteria"] = map[string]bool{fmt.Sprint(a.working): true}
+	child := body["children"].([]map[string]any)[0]
+	child["criteria"] = map[string]bool{fmt.Sprint(a.sibling): true}
+	child["bookings"].([]map[string]any)[0]["time_model_id"] = a.offer.Weeks[0].TimeModels[1].ID
+	rec = publicJSON(t, a.public, http.MethodPost, registrationPath(a.period.PublicToken), body)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	second := decodeSchoolPortalData[receiptBody](t, rec.Body.Bytes())
+	rec = a.merge(t, a.office.token, first.ID, second.ID)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, []int64{4500}, a.contributionVersions(t, first.ID), "a pending child does not affect the confirmed sibling")
+	a.setCapacity(t, a.offer.Weeks[0].ID, 2)
+	candidate := a.board(t).Weeks[0].Pending[0]
+	require.Equal(t, "placed", candidate.Proposal)
+	rec = a.decide(t, decision(candidate, "placed", ""))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	assert.Equal(t, []int64{4500, 2250}, a.contributionVersions(t, first.ID), "the direct place changes the confirmed sibling's frozen discount before the new child is confirmed")
+	contribution := a.siblingContribution(t, first.ID)
+	assert.Equal(t, int64(2250), contribution.TotalCents)
+	require.Len(t, contribution.Children, 1)
+	assert.Equal(t, []string{"base:4500", "sibling:-2250"}, lineKinds(contribution.Children[0].Lines))
+	assert.Empty(t, a.contributionVersions(t, second.ID), "the received registration does not freeze a contribution yet")
 }

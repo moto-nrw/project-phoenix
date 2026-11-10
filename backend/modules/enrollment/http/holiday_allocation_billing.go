@@ -7,7 +7,8 @@ import (
 )
 
 // HolidayAllocationBilling is the contribution owner's guarded allocation
-// command: it holds invoices before deciding and refreezes all promotions.
+// command: it holds invoices before deciding and recomputes sibling groups
+// for every registration that gains a place, directly or by promotion.
 // It joins the request's Träger transaction; any failure rolls it back.
 type HolidayAllocationBilling interface {
 	AllocateHolidayPlaces(ctx context.Context, organizationID, accountID, periodID int64, decide func(context.Context) ([]int64, error)) error
@@ -33,11 +34,7 @@ func (a holidayBillingAllocation) DecideHolidayAllocation(ctx context.Context, r
 	err := a.billing.AllocateHolidayPlaces(ctx, reviewer.OrganizationID, reviewer.AccountID, periodID, func(ctx context.Context) ([]int64, error) {
 		var err error
 		board, err = a.HolidayAllocation.DecideHolidayAllocation(ctx, reviewer, periodID, choices)
-		var movedUp []int64
-		for _, promotion := range board.Promotions {
-			movedUp = append(movedUp, promotion.RegistrationID)
-		}
-		return movedUp, err
+		return board.PlacedRegistrations, err
 	})
 	return board, err
 }

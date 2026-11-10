@@ -68,8 +68,23 @@ func (a *HolidayAllocation) DecideHolidayAllocation(ctx context.Context, reviewe
 		return enrollment.HolidayAllocationBoard{}, err
 	}
 	board, err := a.board(ctx, reviewer.OrganizationID, period)
-	board.Promotions = promoted
+	board.PlacedRegistrations = holidayPlacedRegistrations(decisions, promoted)
 	return board, err
+}
+
+// holidayPlacedRegistrations identifies every registration whose new place
+// can change its confirmed siblings' contribution, once per command.
+func holidayPlacedRegistrations(decisions []enrollment.HolidayAllocationDecision, promoted []enrollment.HolidayPromotion) []int64 {
+	placed := map[int64]bool{}
+	for _, decision := range decisions {
+		if decision.Placement == enrollment.HolidayPlacementPlaced {
+			placed[decision.RegistrationID] = true
+		}
+	}
+	for _, promotion := range promoted {
+		placed[promotion.RegistrationID] = true
+	}
+	return slices.Sorted(maps.Keys(placed))
 }
 
 // holidayAllocationBatch are the choices of one decision under the locks:

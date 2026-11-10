@@ -238,13 +238,14 @@ type HolidayAllocationDecision struct {
 // criteria by priority, the pending bookings of each week in the order of
 // the proposal and the decisions, newest first.
 type HolidayAllocationBoard struct {
-	// Promotions names older waitlisted bookings that moved up after the last
-	// pending decision. The billing coordinator refreezes them in this transaction.
-	Promotions     []HolidayPromotion          `json:"-"`
-	AllocationMode string                      `json:"allocation_mode"`
-	Criteria       []HolidayCriterionRef       `json:"criteria"`
-	Weeks          []HolidayAllocationWeek     `json:"weeks"`
-	Decisions      []HolidayAllocationDecision `json:"decisions"`
+	// PlacedRegistrations names registrations that gained a place in this
+	// command, directly or by promotion. Billing recomputes their confirmed
+	// sibling groups in the same transaction.
+	PlacedRegistrations []int64                     `json:"-"`
+	AllocationMode      string                      `json:"allocation_mode"`
+	Criteria            []HolidayCriterionRef       `json:"criteria"`
+	Weeks               []HolidayAllocationWeek     `json:"weeks"`
+	Decisions           []HolidayAllocationDecision `json:"decisions"`
 }
 
 // HolidayAllocationChoice is a decision on one pending booking: Placement is
