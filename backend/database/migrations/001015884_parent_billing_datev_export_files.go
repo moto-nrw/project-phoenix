@@ -7,14 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingDatevExportFilesVersion = "1.15.882"
+const parentBillingDatevExportFilesVersion = "1.15.884"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingDatevExportFilesVersion,
 		Description: "Elternabrechnung: DATEV-Buchungsstapel im Exportprotokoll (#4694)",
 		DependsOn: []string{
-			parentBillingExportFilesVersion, // the protocol whose formats this one extends (1.15.875)
+			parentBillingSEPADebitFilesVersion, // the newest migration on development (1.15.880)
+			parentBillingExportFilesVersion,    // the protocol whose formats this one extends (1.15.875)
 		},
 	})
 	Migrations.MustRegister(parentBillingDatevExportFilesUp, parentBillingDatevExportFilesDown)
