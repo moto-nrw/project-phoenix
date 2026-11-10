@@ -481,14 +481,6 @@
       "target_owner": "enrollment"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerCreditorAccounts.CreditorAccount",
-      "binding_digest": "0465291704f2efe6eb58b86733889d3d",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPACreditorAccounts.CreditorAccount",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
-      "target_owner": "organization-tenancy"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
       "binding_digest": "1c729a97a6c1e2e4f37466d64f290c77",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.OnlineMandateSettings.OnlineMandateTerms",
@@ -519,6 +511,14 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractRetention.DeleteEndedContracts",
       "target_owner": "care-contract"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerCreditorAccounts.CreditorAccount",
+      "binding_digest": "0465291704f2efe6eb58b86733889d3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPACreditorAccounts.CreditorAccount",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
