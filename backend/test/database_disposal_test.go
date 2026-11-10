@@ -39,7 +39,22 @@ func TestIsolatedCloneDropFailureFailsTestProcess(t *testing.T) {
 	t.Parallel()
 	const childFlag = "PHX_TEST_DROP_FAILURE_CHILD"
 	if os.Getenv(childFlag) == "1" {
+		// Reuse this already-required child and its clone for the setup-failure
+		// regression: a bad template must not poison the following root setup.
+		setupPackageTestDB(t)
+		func() {
+			good := packageCloneCfg
+			defer func() { packageCloneCfg = good }()
+			packageCloneCfg = good.WithTemplate("phx_missing_s3a_template")
+			expected := &isolatedSetupFailureTest{T: t}
+			require.PanicsWithValue(t, "expected isolated setup failure", func() { SetupIsolatedTestDB(expected) })
+			require.Contains(t, expected.message, "phx_missing_s3a_template")
+		}()
+		require.False(t, t.Failed(), "only the later DROP failure must fail this child")
+		_, cached := isolatedTestDatabases.Load(topLevelTestName(t))
+		require.False(t, cached, "failed setup must remove its own cache entry")
 		db := SetupIsolatedTestDB(t)
+		fmt.Println("S3A_SETUP_RECOVERED")
 		var name string
 		require.NoError(t, db.NewRaw(`SELECT current_database()`).Scan(t.Context(), &name))
 		fmt.Printf("Q7_DROP_FIXTURE=%s\n", name)
@@ -65,6 +80,19 @@ func TestIsolatedCloneDropFailureFailsTestProcess(t *testing.T) {
 	require.NoError(t, testdb.DropClone(cleanupCtx, packageCloneCfg, clone))
 	require.NoError(t, err, "%s", output)
 	assert.Equal(t, 1, exitCode, "%s", output)
+	assert.Contains(t, string(output), "S3A_SETUP_RECOVERED", "setup failure did not poison the following setup")
 	assert.Contains(t, string(output), "drop isolated test database:")
 	assert.Contains(t, string(output), "08P01", "the real PostgreSQL protocol fault reaches test cleanup")
+}
+
+// Intercept only the expected setup Fatalf. The real testing.T remains green
+// until the existing DROP fault, preserving the process-exit regression.
+type isolatedSetupFailureTest struct {
+	*testing.T
+	message string
+}
+
+func (t *isolatedSetupFailureTest) Fatalf(format string, args ...any) {
+	t.message = fmt.Sprintf(format, args...)
+	panic("expected isolated setup failure")
 }
