@@ -73,6 +73,7 @@ type CheckpointDeliveryWorker interface {
 
 // MeasureDeliveryCheckpoint drives the production worker over owned fixture
 // intents. Fixture insertion, inspection and reset are outside timed regions.
+// Intents start already due, independent of PostgreSQL/process clock skew.
 // Enable sampleLocks only for opt-in runtime evidence, not query accounting.
 func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker CheckpointDeliveryWorker, uow tenant.UnitOfWork, counter *QueryCounter, metrics func() string, sampleLocks bool) []RuntimeCheckpointWorkerResult {
 	t.Helper()
@@ -97,7 +98,7 @@ func MeasureDeliveryCheckpoint(t *testing.T, db, fixtureDB *bun.DB, worker Check
 			}
 			var intentID int64
 			if name != "delivery.idle" {
-				require.NoError(t, fixtureDB.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, kind, recipient, payload, status, next_retry_at) VALUES (?, 'guardian_invitation', '{"address":"checkpoint@example.invalid"}'::jsonb, ?::jsonb, 'pending', NOW()) RETURNING id`, Tenant(t), payload).Scan(ctx, &intentID))
+				require.NoError(t, fixtureDB.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, kind, recipient, payload, status, next_retry_at) VALUES (?, 'guardian_invitation', '{"address":"checkpoint@example.invalid"}'::jsonb, ?::jsonb, 'pending', 'epoch'::timestamptz) RETURNING id`, Tenant(t), payload).Scan(ctx, &intentID))
 			}
 			backlogBefore, err := worker.Backlog(ctx)
 			require.NoError(t, err)
