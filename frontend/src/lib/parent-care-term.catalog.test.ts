@@ -22,7 +22,6 @@ const NAMESPACES = [
   "parentFirstSteps",
   "parentMealPlan",
   "parentDeclarationProof",
-  "parentFeedback",
   "parentGroupThreads",
   "parentNews",
   "parentMasterData",

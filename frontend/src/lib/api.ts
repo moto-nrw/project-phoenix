@@ -7,22 +7,11 @@ import {
 import { clearSessionCache, getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 import api from "./api-transport";
-import { resolveApiUrl } from "./api-url";
-import { convertToBackendRoom, fetchWithRetry } from "./api-helpers";
-import {
-  mapSingleGroupResponse,
-  mapGroupResponse, // Used internally in getGroup
-  prepareGroupForBackend,
-  mapGroupsResponse,
-} from "./group-helpers";
+import { fetchWithRetry } from "./api-helpers";
+import { mapGroupsResponse } from "./group-helpers";
 
-export { mapGroupResponse } from "./group-helpers";
 import type { BackendGroup, Group as ImportedGroup } from "./group-helpers";
-import {
-  mapSingleRoomResponse,
-  prepareRoomForBackend,
-  mapRoomsResponse,
-} from "./room-helpers";
+import { mapRoomsResponse } from "./room-helpers";
 
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
@@ -74,17 +63,6 @@ function accessDeniedApiError(status?: 401 | 403, body?: unknown): ApiError {
     accessDeniedStatus,
     body,
   );
-}
-
-/**
- * A failed browser call as an ApiError: status, code, field errors and
- * request ID from the envelope, the `detail` as diagnostic message, and the
- * raw body for callers that read extension members (companion-plan 409).
- */
-function browserApiError(status: number, body: string): Error {
-  const error = apiErrorFromText(`API error: ${status}`, status, body);
-  Object.assign(error, { body });
-  return error;
 }
 
 /**
@@ -142,57 +120,6 @@ function parseRoomsResponse(responseData: unknown): BackendRoom[] {
 }
 
 /**
- * Extract single BackendRoom from various response formats.
- * Handles: wrapped {data: BackendRoom}, direct BackendRoom with id.
- */
-function extractBackendRoom(responseData: unknown): BackendRoom {
-  if (!responseData || typeof responseData !== "object") {
-    throw new Error("Unexpected room response format");
-  }
-
-  const data = responseData as Record<string, unknown>;
-
-  // Format 1: Wrapped { data: BackendRoom }
-  if ("data" in data && data.data) {
-    return data.data as BackendRoom;
-  }
-
-  // Format 2: Direct BackendRoom (has 'id' property)
-  if ("id" in data) {
-    return convertToBackendRoom(data);
-  }
-
-  logger.warn("unexpected room response format", {
-    response_type: typeof responseData,
-  });
-  throw new Error("Unexpected room response format");
-}
-
-/**
- * Validate room data before creation.
- * Throws descriptive error if validation fails.
- */
-function validateRoomForCreation(room: {
-  name?: string;
-  capacity?: number | null;
-  category?: string;
-}): void {
-  if (!room.name) {
-    throw new Error("Missing required field: name");
-  }
-  if (
-    room.capacity !== undefined &&
-    room.capacity !== null &&
-    room.capacity <= 0
-  ) {
-    throw new Error("capacity must be greater than 0");
-  }
-  if (!room.category) {
-    throw new Error("Missing required field: category");
-  }
-}
-
-/**
  * Parse groups response from API.
  * Handles wrapped {data: BackendGroup[]} and direct BackendGroup[] formats.
  */
@@ -215,44 +142,6 @@ function parseGroupsResponse(responseData: unknown): BackendGroup[] {
   }
 
   return [];
-}
-
-/**
- * Parse single group response, extracting BackendGroup from various wrapper formats.
- * Handles: ApiResponse wrapper, data wrapper, double-wrapped, and direct formats.
- */
-function extractBackendGroup(responseData: unknown): BackendGroup {
-  if (!responseData || typeof responseData !== "object") {
-    throw new Error("Invalid response format from API");
-  }
-
-  const data = responseData as Record<string, unknown>;
-
-  // Format 1: ApiResponse { success: true, data: BackendGroup | { data: BackendGroup } }
-  if ("success" in data && "data" in data) {
-    const innerData = data.data;
-    // Check for double-wrapped { data: { data: BackendGroup } }
-    if (
-      innerData &&
-      typeof innerData === "object" &&
-      "data" in (innerData as Record<string, unknown>)
-    ) {
-      return (innerData as { data: BackendGroup }).data;
-    }
-    return innerData as BackendGroup;
-  }
-
-  // Format 2: Simple wrapper { data: BackendGroup }
-  if ("data" in data) {
-    return data.data as BackendGroup;
-  }
-
-  // Format 3: Direct BackendGroup (has 'id' and 'name' properties)
-  if ("id" in data && "name" in data) {
-    return data as unknown as BackendGroup;
-  }
-
-  throw new Error("No group data in response");
 }
 
 // Re-export types for external usage
@@ -294,7 +183,7 @@ export const groupService = {
 
     const useProxyApi = globalThis.window !== undefined;
     const queryString = params.toString();
-    const baseUrl = await resolveApiUrl("/api/groups");
+    const baseUrl = "/api/groups";
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
@@ -329,307 +218,6 @@ export const groupService = {
       throw error;
     }
   },
-
-  // Get a specific group by ID
-  getGroup: async (id: string): Promise<Group> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/groups/${id}`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus, accessDeniedBody } =
-          await fetchWithRetry<unknown>(url, {
-            onAuthFailure: handleAuthFailure,
-            beforeRetry: reloadSession,
-          });
-
-        if (response === null) {
-          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
-        }
-
-        const groupData = extractBackendGroup(data);
-        return mapGroupResponse(groupData);
-      }
-
-      // Server-side: use axios with the API URL directly
-      const response = await api.get(url);
-      return mapGroupResponse(response.data as BackendGroup);
-    } catch (error) {
-      logger.error("failed to fetch group", {
-        group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Create a new group
-  createGroup: async (group: Omit<Group, "id">): Promise<Group> => {
-    // Transform from frontend model to backend model
-    const backendGroup = prepareGroupForBackend(group);
-
-    // Basic validation for group creation
-    if (!backendGroup.name) {
-      throw new Error("Missing required field: name");
-    }
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/groups");
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify(backendGroup),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw browserApiError(response.status, errorText);
-        }
-
-        const data = (await response.json()) as BackendGroup;
-        return mapSingleGroupResponse({ data });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.post(url, backendGroup);
-        return mapSingleGroupResponse({ data: response.data as BackendGroup });
-      }
-    } catch (error) {
-      logger.error("failed to create group", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Update a group
-  updateGroup: async (id: string, group: Partial<Group>): Promise<Group> => {
-    // Transform from frontend model to backend model updates
-    const backendUpdates = prepareGroupForBackend(group);
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/groups/${id}`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          method: "PUT",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify(backendUpdates),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-
-          // Every other refusal keeps code, field errors and request ID for
-          // the shared error path (#2513).
-          throw browserApiError(response.status, errorText);
-        }
-
-        const data = (await response.json()) as BackendGroup;
-        return mapSingleGroupResponse({ data });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.put(url, backendUpdates);
-        return mapSingleGroupResponse({ data: response.data as BackendGroup });
-      }
-    } catch (error) {
-      logger.error("failed to update group", {
-        group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Delete a group
-  deleteGroup: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/groups/${id}`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: JSON_HEADERS,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw browserApiError(response.status, errorText);
-        }
-        return;
-      }
-
-      // Server-side: use axios with the API URL directly
-      await api.delete(url);
-    } catch (error) {
-      logger.error("failed to delete group", {
-        group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Add a supervisor to a group
-  addSupervisor: async (
-    groupId: string,
-    supervisorId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/groups/${groupId}/supervisors`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify({
-            supervisor_id: Number.parseInt(supervisorId, 10),
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw browserApiError(response.status, errorText);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.post(url, {
-          supervisor_id: Number.parseInt(supervisorId, 10),
-        });
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to add supervisor to group", {
-        supervisor_id: supervisorId,
-        group_id: groupId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Remove a supervisor from a group
-  removeSupervisor: async (
-    groupId: string,
-    supervisorId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(
-      `/api/groups/${groupId}/supervisors/${supervisorId}`,
-    );
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: JSON_HEADERS,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw browserApiError(response.status, errorText);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.delete(url);
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to remove supervisor from group", {
-        supervisor_id: supervisorId,
-        group_id: groupId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Set the representative for a group
-  setRepresentative: async (
-    groupId: string,
-    representativeId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/groups/${groupId}/representative`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          method: "PUT",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify({
-            representative_id: Number.parseInt(representativeId, 10),
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw browserApiError(response.status, errorText);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.put(url, {
-          representative_id: Number.parseInt(representativeId, 10),
-        });
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to set representative for group", {
-        representative_id: representativeId,
-        group_id: groupId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
 };
 
 // Room service for API operations
@@ -652,7 +240,7 @@ export const roomService = {
     const queryString = params.toString();
 
     const useProxyApi = globalThis.window !== undefined;
-    const baseUrl = await resolveApiUrl("/api/rooms");
+    const baseUrl = "/api/rooms";
     const url = queryString ? `${baseUrl}?${queryString}` : baseUrl;
 
     try {
@@ -684,135 +272,10 @@ export const roomService = {
     }
   },
 
-  // Get a specific room by ID
-  getRoom: async (id: string): Promise<Room> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/rooms/${id}`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus, accessDeniedBody } =
-          await fetchWithRetry<unknown>(url, {
-            onAuthFailure: handleAuthFailure,
-            beforeRetry: reloadSession,
-          });
-
-        if (response === null) {
-          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
-        }
-
-        const roomData = extractBackendRoom(data);
-        return mapSingleRoomResponse({ data: roomData });
-      }
-
-      // Server-side: use axios with the API URL directly
-      const response = await api.get(url);
-      const roomData = extractBackendRoom(response.data);
-      return mapSingleRoomResponse({ data: roomData });
-    } catch (error) {
-      logger.error("failed to fetch room", {
-        room_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Create a new room
-  createRoom: async (room: Omit<Room, "id" | "isOccupied">): Promise<Room> => {
-    // Validate room data before transformation
-    validateRoomForCreation(room);
-
-    // Transform from frontend model to backend model
-    const backendRoom = prepareRoomForBackend(room);
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/rooms");
-
-    try {
-      if (useProxyApi) {
-        const response = await fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify(backendRoom),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw browserApiError(response.status, errorText);
-        }
-
-        const data = (await response.json()) as BackendRoom;
-        return mapSingleRoomResponse({ data });
-      }
-
-      // Server-side: use axios with the API URL directly
-      const response = await api.post(url, backendRoom);
-      return mapSingleRoomResponse({ data: response.data as BackendRoom });
-    } catch (error) {
-      logger.error("failed to create room", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Update a room
-  updateRoom: async (id: string, room: Partial<Room>): Promise<Room> => {
-    // Transform from frontend model to backend model updates
-    const backendUpdates = prepareRoomForBackend(room);
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/rooms/${id}`);
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          method: "PUT",
-          credentials: "include",
-          headers: JSON_HEADERS,
-          body: JSON.stringify(backendUpdates),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-
-          // Every other refusal keeps code, field errors and request ID for
-          // the shared error path (#2513).
-          throw browserApiError(response.status, errorText);
-        }
-
-        const data = (await response.json()) as BackendRoom;
-        return mapSingleRoomResponse({ data });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.put(url, backendUpdates);
-        return mapSingleRoomResponse({ data: response.data as BackendRoom });
-      }
-    } catch (error) {
-      logger.error("failed to update room", {
-        room_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
   // Delete a room
   deleteRoom: async (id: string): Promise<void> => {
     const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl(`/api/rooms/${id}`);
+    const url = `/api/rooms/${id}`;
 
     try {
       if (useProxyApi) {
@@ -846,58 +309,6 @@ export const roomService = {
     } catch (error) {
       logger.error("failed to delete room", {
         room_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Get rooms grouped by category
-  getRoomsByCategory: async (): Promise<Record<string, Room[]>> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = await resolveApiUrl("/api/rooms/by-category");
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: JSON_HEADERS,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw browserApiError(response.status, errorText);
-        }
-
-        const data = (await response.json()) as Record<string, BackendRoom[]>;
-
-        // Transform each category's room array
-        const result: Record<string, Room[]> = {};
-        for (const [category, rooms] of Object.entries(data)) {
-          result[category] = mapRoomsResponse(rooms);
-        }
-
-        return result;
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        const data = response.data as Record<string, BackendRoom[]>;
-
-        // Transform each category's room array
-        const result: Record<string, Room[]> = {};
-        for (const [category, rooms] of Object.entries(data)) {
-          result[category] = mapRoomsResponse(rooms);
-        }
-
-        return result;
-      }
-    } catch (error) {
-      logger.error("failed to fetch rooms by category", {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;

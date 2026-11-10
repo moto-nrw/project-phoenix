@@ -345,7 +345,7 @@ const noCacheAccess = {
 const keyBaseline = JSON.parse(
   readFileSync(new URL("./swr-key-baseline.json", import.meta.url), "utf8"),
 );
-const KEYED_HOOKS = new Set(["useSWRAuth", "useImmutableSWR", "useSWRWithId"]);
+const KEYED_HOOKS = new Set(["useSWRAuth", "useImmutableSWR"]);
 
 function rootIdentifier(node) {
   let current = node;

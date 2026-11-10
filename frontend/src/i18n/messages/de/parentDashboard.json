@@ -2,7 +2,6 @@
   "eyebrow": "Elternportal",
   "title": "Willkommen",
   "description": "Hier sehen Sie, was heute wichtig ist.",
-  "childrenDescription": "Wählen Sie direkt die passende Aktion.",
   "actions": {
     "sick": "Abwesenheit melden",
     "pickup": "Abholung ändern",
@@ -10,17 +9,7 @@
   },
   "open": "In Bearbeitung",
   "loadError": "Die Übersicht konnte nicht geladen werden. Bitte aktualisieren Sie die Seite oder versuchen Sie es später erneut.",
-  "unknownError": "Unbekannter Fehler",
   "notSet": "Nicht gesetzt",
-  "status": {
-    "submitted": "Eingereicht",
-    "under_review": "In Prüfung",
-    "approved": "Freigeschaltet",
-    "waitlisted": "Warteliste",
-    "rejected": "Abgelehnt",
-    "withdrawn": "Zurückgezogen"
-  },
-  "newsNew": "Neuer Elternbrief",
   "newsOutstanding": "Offen",
   "newsCareCancellation": "Betreuung fällt aus",
   "newsImportant": "Wichtig",

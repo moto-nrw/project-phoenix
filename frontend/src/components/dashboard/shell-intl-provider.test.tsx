@@ -37,7 +37,6 @@ describe("ShellIntlProvider", () => {
         title: "Tagesliste für die Küche",
         child: "Kind",
         class: "Klasse",
-        downloadPdf: "Tagesliste als PDF herunterladen",
       },
     });
   });

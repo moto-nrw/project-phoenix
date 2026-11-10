@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { BackendGroup, Group } from "./group-helpers";
-import {
-  mapGroupResponse,
-  mapGroupsResponse,
-  mapSingleGroupResponse,
-  prepareGroupForBackend,
-} from "./group-helpers";
+import type { BackendGroup } from "./group-helpers";
+import { mapGroupResponse, mapGroupsResponse } from "./group-helpers";
 import { suppressConsole } from "~/test/helpers/console";
 import { buildBackendGroup } from "~/test/fixtures/groups";
 
@@ -200,60 +195,5 @@ describe("mapGroupsResponse", () => {
       "expected array for backendGroups",
       { received: "string" },
     );
-  });
-});
-
-describe("mapSingleGroupResponse", () => {
-  it("extracts and maps group from { data: group } wrapper", () => {
-    const response = { data: sampleBackendGroup };
-
-    const result = mapSingleGroupResponse(response);
-
-    expect(result.id).toBe("1");
-    expect(result.name).toBe("Klasse 3a");
-  });
-});
-
-describe("prepareGroupForBackend", () => {
-  it("converts frontend group to backend format", () => {
-    const frontendGroup: Partial<Group> = {
-      id: "1",
-      name: "Klasse 3a",
-      room_id: "10",
-      representative_id: "5",
-      teacher_ids: ["5", "6"],
-    };
-
-    const result = prepareGroupForBackend(frontendGroup);
-
-    expect(result.id).toBe(1); // string → number
-    expect(result.name).toBe("Klasse 3a");
-    expect(result.room_id).toBe(10);
-    expect(result.representative_id).toBe(5);
-    expect(result.teacher_ids).toEqual([5, 6]); // string[] → number[]
-  });
-
-  it("handles group without optional ids", () => {
-    const frontendGroup: Partial<Group> = {
-      name: "New Group",
-    };
-
-    const result = prepareGroupForBackend(frontendGroup);
-
-    expect(result.id).toBeUndefined();
-    expect(result.name).toBe("New Group");
-    expect(result.room_id).toBeUndefined();
-    expect(result.representative_id).toBeUndefined();
-  });
-
-  it("handles empty teacher_ids", () => {
-    const frontendGroup: Partial<Group> = {
-      name: "Test Group",
-      teacher_ids: [],
-    };
-
-    const result = prepareGroupForBackend(frontendGroup);
-
-    expect(result.teacher_ids).toEqual([]);
   });
 });

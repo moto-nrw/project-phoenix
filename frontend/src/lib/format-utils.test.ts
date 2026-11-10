@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getRelativeTime, getInitial, getInitials } from "./format-utils";
+import { getRelativeTime, getInitials } from "./format-utils";
 
 describe("getRelativeTime", () => {
   it("returns 'gerade eben' for timestamps less than 1 minute ago", () => {
@@ -102,36 +102,6 @@ describe("getRelativeTime", () => {
       Date.now() - 7 * 24 * 60 * 60 * 1000,
     ).toISOString();
     expect(getRelativeTime(sevenDaysAgo)).toBe("vor 1 Woche");
-  });
-});
-
-describe("getInitial", () => {
-  it("returns uppercase first character of non-empty string", () => {
-    expect(getInitial("Alice")).toBe("A");
-  });
-
-  it("returns uppercase letter for lowercase input", () => {
-    expect(getInitial("john")).toBe("J");
-  });
-
-  it("returns '?' for empty string", () => {
-    expect(getInitial("")).toBe("?");
-  });
-
-  it("handles single character string", () => {
-    expect(getInitial("x")).toBe("X");
-  });
-
-  it("handles string with leading space", () => {
-    expect(getInitial(" Bob")).toBe(" "); // First character is space
-  });
-
-  it("handles special characters", () => {
-    expect(getInitial("@user")).toBe("@");
-  });
-
-  it("handles Unicode characters", () => {
-    expect(getInitial("Übermensch")).toBe("Ü");
   });
 });
 
