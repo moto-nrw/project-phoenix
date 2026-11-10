@@ -13,7 +13,11 @@ import {
   setViewportWidth,
 } from "~/test/helpers/viewport";
 import { ToastProvider } from "~/contexts/ToastContext";
-import type { TraegerCalendar } from "~/lib/traeger-closing-days";
+import { ApiError } from "~/lib/api-error";
+import type {
+  HolidayClosureImpact,
+  TraegerCalendar,
+} from "~/lib/traeger-closing-days";
 
 const { api, session } = vi.hoisted(() => ({
   api: {
@@ -21,6 +25,9 @@ const { api, session } = vi.hoisted(() => ({
     createTraegerClosingDay: vi.fn(),
     updateTraegerClosingDay: vi.fn(),
     deleteTraegerClosingDay: vi.fn(),
+    previewTraegerClosingDayHolidayBookings: vi.fn(),
+    fetchPendingHolidayClosures: vi.fn(),
+    notifyPendingHolidayClosures: vi.fn(),
   },
   session: { permissions: ["traeger_overview:read"] as string[] },
 }));
@@ -86,6 +93,34 @@ const calendar: TraegerCalendar = {
   ],
 };
 
+const noImpact: HolidayClosureImpact = {
+  weeks: [],
+  children: 0,
+  families: 0,
+  token: "",
+  keepsContribution: true,
+};
+
+const summerImpact: HolidayClosureImpact = {
+  weeks: [
+    {
+      weekId: "31",
+      periodName: "Sommerferien",
+      startsOn: "2026-11-02",
+      endsOn: "2026-11-06",
+      hostSchoolId: "1",
+      closedDays: [{ date: "2026-11-04", reason: "Betriebsausflug" }],
+      children: 5,
+      waitlisted: 1,
+      families: 3,
+    },
+  ],
+  children: 5,
+  families: 3,
+  token: "abc123",
+  keepsContribution: true,
+};
+
 function render(ui: React.ReactElement) {
   return rtlRender(
     <SWRConfig value={{ provider: () => new Map() }}>
@@ -98,6 +133,12 @@ describe("TraegerClosingDaysPage (#4702)", () => {
   afterEach(() => setViewportWidth(DESKTOP_WIDTH));
   beforeEach(() => {
     api.fetchTraegerCalendar.mockReset().mockResolvedValue(calendar);
+    api.previewTraegerClosingDayHolidayBookings
+      .mockReset()
+      .mockResolvedValue(noImpact);
+    api.fetchPendingHolidayClosures.mockReset().mockResolvedValue(noImpact);
+    api.notifyPendingHolidayClosures.mockReset().mockResolvedValue(3);
+    api.createTraegerClosingDay.mockReset();
     session.permissions = ["traeger_overview:read"];
   });
 
@@ -172,5 +213,101 @@ describe("TraegerClosingDaysPage (#4702)", () => {
     expect(
       await screen.findByRole("dialog", { name: "Schließtag bearbeiten" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the booked holiday weeks before saving and confirms them with the save (#6434)", async () => {
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    api.previewTraegerClosingDayHolidayBookings.mockResolvedValue(summerImpact);
+    api.createTraegerClosingDay.mockResolvedValue({
+      ...calendar.closingDays[0]!,
+      reason: "Betriebsausflug",
+      notifiedFamilies: 3,
+    });
+    render(<TraegerClosingDaysPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schließtag anlegen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schließtag anlegen",
+    });
+    expect(
+      await within(dialog).findByText(
+        "3 Familien bekommen nach dem Speichern eine E-Mail",
+      ),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Sommerferien")).toBeInTheDocument();
+    expect(within(dialog).getByText("5 Kinder")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        "Der Beitrag bleibt gleich. Er gilt für die ganze Woche.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText("Grund"), {
+      target: { value: "Betriebsausflug" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Speichern und Eltern informieren",
+      }),
+    );
+    await screen.findByText(
+      "Der Schließtag „Betriebsausflug“ ist gespeichert. 3 Familien bekommen eine E-Mail.",
+    );
+    expect(api.createTraegerClosingDay).toHaveBeenCalledWith(
+      expect.objectContaining({ holidayBookingsToken: "abc123" }),
+    );
+  });
+
+  it("loads the preview again when the bookings changed before the save (#6434)", async () => {
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    api.previewTraegerClosingDayHolidayBookings.mockResolvedValue(summerImpact);
+    api.createTraegerClosingDay.mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "traeger.closing_day_bookings_changed",
+      }),
+    );
+    render(<TraegerClosingDaysPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schließtag anlegen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Schließtag anlegen",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Grund"), {
+      target: { value: "Betriebsausflug" },
+    });
+    const save = await within(dialog).findByRole("button", {
+      name: "Speichern und Eltern informieren",
+    });
+    const calls = api.previewTraegerClosingDayHolidayBookings.mock.calls.length;
+    fireEvent.click(save);
+    await vi.waitFor(() =>
+      expect(
+        api.previewTraegerClosingDayHolidayBookings.mock.calls.length,
+      ).toBeGreaterThan(calls),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Schließtag anlegen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("lists closed days nobody told the parents about and tells them on confirmation (#6434)", async () => {
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    api.fetchPendingHolidayClosures.mockResolvedValue(summerImpact);
+    render(<TraegerClosingDaysPage />);
+
+    expect(
+      await screen.findByText("Eltern noch nicht informiert"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Sommerferien")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Eltern informieren" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "E-Mails senden" }),
+    );
+    await screen.findByText("3 Familien bekommen eine E-Mail.");
+    expect(api.notifyPendingHolidayClosures).toHaveBeenCalledWith("abc123");
   });
 });
