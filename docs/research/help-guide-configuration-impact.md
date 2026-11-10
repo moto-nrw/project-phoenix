@@ -338,11 +338,10 @@ Die Registry kennt **keine** Umgebungsvariablen; ein `Resolve*` liefert bei fehl
 
 | Einstellung | Env-Fallback | Beleg |
 |---|---|---|
-| `operations.student_daily_checkout_time` | `STUDENT_DAILY_CHECKOUT_TIME` | `backend/services/iot/checkin/checkout_gate.go:28-31` |
 | `security.ogs_device_pin` | Kein Env-Fallback; Lesefehler und leere Werte lehnen ab (3841-b). | `backend/modules/devicefleet/internal/adapters/deviceauth/device_auth.go`, `validateDevicePIN` |
 | `enrollment.require_captcha`, `…captcha_secret_key`, `…captcha_site_key` | `ENROLLMENT_REQUIRE_CAPTCHA`, `ENROLLMENT_CAPTCHA_SECRET_KEY`, `ENROLLMENT_CAPTCHA_SITE_KEY` | `backend/services/enrollment/captcha_service.go:83,141,151` |
 | `invitations.guardian_token_expiry_hours` | eigene Variable | `backend/services/auth/guardian_invitation_service.go:139` |
-| Scheduler-Einstellungen | `CLEANUP_SCHEDULER_ENABLED`, `SESSION_END_SCHEDULER_ENABLED`, `SESSION_CLEANUP_*`, `STATUS_FLAG_CLEAR_ENABLED` u. a. | `backend/services/scheduler/scheduler.go:733-738,1160-1165,1272-1290,1696` |
+| Scheduler-Einstellungen | `CLEANUP_SCHEDULER_ENABLED`, `SESSION_END_SCHEDULER_ENABLED`, `SESSION_CLEANUP_*` u. a. | `backend/services/scheduler/scheduler.go:733-738,1160-1165,1272-1290,1696` |
 
 **Nicht verwechseln:** Registry-Standard ≠ API-Fallback. `GET /api/iot/config` antwortet bei einem Auflösungsfehler mit `raumwechsel/schulhof/wc = true`, obwohl die Registry-Standards `true/false/false` lauten (`backend/api/iot/config.go:58-73` gegen `backend/services/config/defaults/devices.go:8-63`). Für die Anleitung ist der **Registry-Standard** maßgeblich. Dasselbe Muster bei `checkout.daily_checkout_from_all_rooms_enabled`: Registry `true`, Code-Fallback bei Lesefehler `false` (`backend/services/iot/checkin/checkout_gate.go:191-205`).
 

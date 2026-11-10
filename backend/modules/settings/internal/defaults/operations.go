@@ -22,8 +22,8 @@ func init() {
 // --- Sichtbereich für Gruppen und laufende Betreuungen (#2801) ---
 // --- Abweichende Ankunftszeit für eine Klasse (#2962) ---
 // --- Zeiterfassung ---
-// Break auto-end interval is NOT registered here. It controls a global ticker
-// and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
+// Break auto-end interval is NOT registered here. It is one global ticker,
+// fixed at 60 seconds in the scheduler runtime (#6463).
 // --- Status flag auto-clear (Krank / Entschuldigt badge lifecycle) ---
 // --- Anwesenheits-Modus (presence tracking model, operator-only) ---
 // --- Bundesland (public-holiday calendar, operator-only, #1418 3a) ---
