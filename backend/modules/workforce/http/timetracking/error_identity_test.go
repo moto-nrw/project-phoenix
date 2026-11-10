@@ -66,6 +66,11 @@ func TestSessionDayRejectionsAreInputErrors(t *testing.T) {
 		kind     error
 		code     string
 	}{
+		{"combined breaks", classifyServiceError, workforce.ErrTimeTrackingInvalid, `"status":400`},
+		{"admin combined breaks", classifyAdminEditError, workforce.ErrTimeTrackingInvalid, `"status":400`},
+		{"admin negative break", classifyAdminEditError, workforce.ErrBreakMinutesNegative, `"status":400`},
+		{"admin negative duration", classifyAdminEditError, workforce.ErrBreakDurationNegative, `"status":400`},
+		{"admin active duration", classifyAdminEditError, workforce.ErrActiveBreakDurationEdit, `"status":400`},
 		{"future check-in", classifyServiceError, workforce.ErrSessionCheckInInFuture, `"code":"workforce.session_check_in_in_future"`},
 		{"check-in after day", classifyServiceError, workforce.ErrSessionCheckInAfterDate, `"status":400`},
 		{"admin check-in after day", classifyAdminEditError, workforce.ErrSessionCheckInAfterDate, `"status":400`},

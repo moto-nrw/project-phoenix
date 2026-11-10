@@ -22,6 +22,27 @@ func classifyAbsenceError(err error) render.Renderer {
 	return common.RenderWithRules(err, absenceErrorRules, common.ErrorInternalServer)
 }
 
+// classifyAdminEditError maps service errors to HTTP responses. Validation
+// problems (notes missing, range invalid) land as 400; ownership mismatches
+// and "not found" as 404 to avoid leaking session existence.
+func classifyAdminEditError(err error) render.Renderer {
+	switch {
+	case isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired,
+		workforce.ErrAdminSessionNoteRequired, workforce.ErrAdminSessionCreateNoteRequired,
+		workforce.ErrTargetStaffRequired, workforce.ErrSessionCheckinRequired, workforce.ErrSessionStaffRequired,
+		workforce.ErrSessionCreatorRequired, workforce.ErrSessionStatusInvalid, workforce.ErrSessionTimeOrder,
+		workforce.ErrSessionCheckoutOrder, workforce.ErrAdminBreakMinutesNegative, workforce.ErrSessionCheckInAfterDate,
+		workforce.ErrTimeTrackingInvalid, workforce.ErrBreakMinutesNegative, workforce.ErrBreakDurationNegative, workforce.ErrActiveBreakDurationEdit)(err):
+		return common.ErrorInvalidRequest(err)
+	case isAny(workforce.ErrSessionNotFound, workforce.ErrAdminSessionNotOwned, workforce.ErrBreakNotOwned)(err):
+		return common.ErrorNotFound(err)
+	case errors.Is(err, workforce.ErrWorkSessionOverlap):
+		return common.ErrorConflictWithCode(err, common.CodeWorkforceWorkSessionOverlap)
+	default:
+		return common.ErrorInternalServer(err)
+	}
+}
+
 var serviceErrorRules = []common.ErrorRule{
 	{Match: isPlannedStartNotReached, Render: renderPlannedStartNotReached},
 	// Typed F9 deviation gate: 409 with a stable code plus the deviation
@@ -52,6 +73,7 @@ var serviceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrPlannedBreakDurationInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrBreakNotOwned, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrActiveBreakDurationEdit, Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrTimeTrackingInvalid, Render: common.ErrorInvalidRequest},
 }
 
 var absenceErrorRules = []common.ErrorRule{

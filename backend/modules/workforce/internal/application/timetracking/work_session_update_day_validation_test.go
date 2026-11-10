@@ -2,6 +2,8 @@ package timetracking
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -136,5 +138,127 @@ func TestCheckInWithinSessionDay_IsExactAtTheDayBoundary(t *testing.T) {
 		assert.NoError(t, checkInWithinSessionDay(day, day.BerlinMidnight()), "%s: midnight starts the day", day)
 		assert.ErrorIs(t, checkInWithinSessionDay(day, nextMidnight), workforce.ErrSessionCheckInAfterDate,
 			"%s: the next midnight belongs to the next day", day)
+	}
+}
+
+// Both entry points must validate the entire proposed state before writing any
+// pause, session, cache or audit row, including the second item of a batch.
+func TestSessionCorrections_RejectInvalidCombinedState(t *testing.T) {
+	t.Parallel()
+	for _, admin := range []bool{false, true} {
+		for _, scenario := range []string{"active_pause", "pause_after_checkout", "overlap", "checkin_after_pause", "checkout_before_pause_end", "scalar_mismatch", "second_edit_invalid", "negative_legacy_scalar", "duplicate_edit", "duration_overflow"} {
+			t.Run(fmt.Sprintf("admin=%t/%s", admin, scenario), func(t *testing.T) {
+				t.Parallel()
+				svc, sessions, pauses, audit, _ := wsCreateTestService()
+				start := calendar.NewDate(2026, 9, 9).BerlinMidnight().Add(8 * time.Hour)
+				end := start.Add(8 * time.Hour)
+				stored := &WorkSession{Model: Model{ID: 7}, StaffID: 100, CreatedBy: 100, Date: calendar.DateFromTime(start), Status: WorkSessionStatusPresent, CheckInTime: start, CheckOutTime: &end, BreakMinutes: 30}
+				pauseEnd := start.Add(4*time.Hour + 15*time.Minute)
+				secondEnd := start.Add(5*time.Hour + 15*time.Minute)
+				rows := []*WorkSessionBreak{
+					{Model: Model{ID: 8}, SessionID: stored.ID, StartedAt: start.Add(4 * time.Hour), EndedAt: &pauseEnd, DurationMinutes: 15},
+					{Model: Model{ID: 9}, SessionID: stored.ID, StartedAt: start.Add(5 * time.Hour), EndedAt: &secondEnd, DurationMinutes: 15},
+				}
+				updates := SessionUpdateRequest{Notes: wsStrPtr("Korrektur")}
+				switch scenario {
+				case "active_pause":
+					stored.CheckOutTime = nil
+					rows[1].EndedAt = nil
+					updates.CheckOutTime = &end
+				case "pause_after_checkout":
+					updates.Breaks = []BreakDurationUpdate{{ID: rows[1].ID, DurationMinutes: 240}}
+				case "overlap":
+					updates.Breaks = []BreakDurationUpdate{{ID: rows[0].ID, DurationMinutes: 90}}
+				case "checkin_after_pause":
+					later := start.Add(4*time.Hour + time.Minute)
+					updates.CheckInTime = &later
+				case "checkout_before_pause_end":
+					earlier := secondEnd.Add(-time.Minute)
+					updates.CheckOutTime = &earlier
+				case "scalar_mismatch":
+					minutes := 60
+					updates.BreakMinutes = &minutes
+				case "second_edit_invalid":
+					updates.Breaks = []BreakDurationUpdate{{ID: rows[0].ID, DurationMinutes: 20}, {ID: rows[1].ID, DurationMinutes: -1}}
+				case "duplicate_edit":
+					updates.Breaks = []BreakDurationUpdate{{ID: rows[0].ID, DurationMinutes: 20}, {ID: rows[0].ID, DurationMinutes: 25}}
+				case "duration_overflow":
+					updates.Breaks = []BreakDurationUpdate{{ID: rows[0].ID, DurationMinutes: 1 << 62}}
+				case "negative_legacy_scalar":
+					rows = nil
+					minutes := -1
+					updates.BreakMinutes = &minutes
+				}
+				sessions.findByIDFunc = func(context.Context, any) (*WorkSession, error) { copied := *stored; return &copied, nil }
+				pauses.getBySessionIDFunc = func(context.Context, int64) ([]*WorkSessionBreak, error) { return rows, nil }
+				writes := 0
+				sessions.updateFunc = func(context.Context, *WorkSession) error { writes++; return nil }
+				sessions.updateBreakMinutesFunc = func(context.Context, int64, int) error { writes++; return nil }
+				pauses.updateDurationFunc = func(context.Context, int64, int, time.Time) error { writes++; return nil }
+				audit.createBatchFunc = func(context.Context, []*WorkSessionEdit) error { writes++; return nil }
+				var err error
+				if admin {
+					_, err = svc.UpdateSessionAsAdmin(context.Background(), stored.CreatedBy, stored.StaffID, stored.ID, updates)
+				} else {
+					_, err = svc.UpdateSession(context.Background(), stored.StaffID, stored.ID, updates)
+				}
+				assert.Error(t, err)
+				assert.Zero(t, writes, "rejection must leave session, pauses, cache and audit unchanged")
+			})
+		}
+	}
+}
+
+func TestSessionCorrections_ConsistentTotals(t *testing.T) {
+	t.Parallel()
+	for _, day := range []calendar.Date{calendar.NewDate(2026, 9, 9), calendar.NewDate(2026, 3, 29), calendar.NewDate(2026, 10, 25)} {
+		for _, legacy := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/legacy=%t", day, legacy), func(t *testing.T) {
+				t.Parallel()
+				svc, sessions, pauses, audit, _ := wsCreateTestService()
+				start := day.BerlinMidnight().Add(-time.Hour)
+				end := day.BerlinMidnight().Add(4 * time.Hour)
+				stored := &WorkSession{Model: Model{ID: 7}, StaffID: 100, CreatedBy: 100, Date: calendar.DateFromTime(start), Status: WorkSessionStatusPresent, CheckInTime: start, CheckOutTime: &end, BreakMinutes: 99}
+				breakEnd := start.Add(75 * time.Minute)
+				rows := []*WorkSessionBreak{{Model: Model{ID: 8}, SessionID: stored.ID, StartedAt: start.Add(45 * time.Minute), EndedAt: &breakEnd, DurationMinutes: 30}}
+				zeroEnd := start.Add(time.Hour)
+				rows = append(rows, &WorkSessionBreak{Model: Model{ID: 9}, SessionID: stored.ID, StartedAt: start.Add(time.Hour), EndedAt: &zeroEnd})
+				updates := SessionUpdateRequest{Notes: wsStrPtr("Korrektur")}
+				want := 30
+				if legacy {
+					rows = nil
+					want = 45
+					updates.BreakMinutes = &want
+				}
+				sessions.findByIDFunc = func(context.Context, any) (*WorkSession, error) { copy := *stored; return &copy, nil }
+				pauses.getBySessionIDFunc = func(context.Context, int64) ([]*WorkSessionBreak, error) { return rows, nil }
+				var saved *WorkSession
+				sessions.updateFunc = func(_ context.Context, value *WorkSession) error { saved = value; return nil }
+				var edits []*WorkSessionEdit
+				audit.createBatchFunc = func(_ context.Context, value []*WorkSessionEdit) error { edits = value; return nil }
+				result, err := svc.UpdateSession(context.Background(), stored.StaffID, stored.ID, updates)
+				require.NoError(t, err)
+				require.NotNil(t, saved)
+				assert.Equal(t, want, result.BreakMinutes)
+				assert.Equal(t, want, saved.BreakMinutes)
+				net := netMinutesWithBreaks(result, rows, end)
+				assert.Equal(t, 300-want, net)
+				split := netMinutesByDate(result, rows, end, calendar.DateFromTime(start), day)
+				sum := 0
+				for _, minutes := range split {
+					sum += minutes
+				}
+				assert.Equal(t, net, sum, "history, month and export must agree with the Berlin day split")
+				found := false
+				for _, edit := range edits {
+					if edit.FieldName == "break_minutes" {
+						found = true
+						assert.Equal(t, "99", *edit.OldValue)
+						assert.Equal(t, strconv.Itoa(want), *edit.NewValue)
+					}
+				}
+				assert.True(t, found, "cache reconciliation is audited")
+			})
+		}
 	}
 }

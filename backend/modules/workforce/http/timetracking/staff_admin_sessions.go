@@ -477,26 +477,6 @@ func (rs *StaffAdminResource) adminCreateStaffSession(w http.ResponseWriter, r *
 	common.Respond(w, r, http.StatusCreated, workforce.WorkSessionWire{WorkSession: session}, "Session created")
 }
 
-// classifyAdminEditError maps service errors to HTTP responses. Validation
-// problems (notes missing, range invalid) land as 400; ownership mismatches
-// and "not found" as 404 to avoid leaking session existence.
-func classifyAdminEditError(err error) render.Renderer {
-	switch {
-	case isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired,
-		workforce.ErrAdminSessionNoteRequired, workforce.ErrAdminSessionCreateNoteRequired,
-		workforce.ErrTargetStaffRequired, workforce.ErrSessionCheckinRequired, workforce.ErrSessionStaffRequired,
-		workforce.ErrSessionCreatorRequired, workforce.ErrSessionStatusInvalid, workforce.ErrSessionTimeOrder,
-		workforce.ErrSessionCheckoutOrder, workforce.ErrAdminBreakMinutesNegative, workforce.ErrSessionCheckInAfterDate)(err):
-		return common.ErrorInvalidRequest(err)
-	case isAny(workforce.ErrSessionNotFound, workforce.ErrAdminSessionNotOwned, workforce.ErrBreakNotOwned)(err):
-		return common.ErrorNotFound(err)
-	case errors.Is(err, workforce.ErrWorkSessionOverlap):
-		return common.ErrorConflictWithCode(err, common.CodeWorkforceWorkSessionOverlap)
-	default:
-		return common.ErrorInternalServer(err)
-	}
-}
-
 // getStaffSessionEdits handles GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 // Admin-facing counterpart to /api/time-tracking/{id}/edits. The MA endpoint
 // verifies the session belongs to the JWT subject; here we verify it belongs
