@@ -1,7 +1,6 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
@@ -12,15 +11,7 @@ func NewTraegerClosingDays(schools traegercalendar.Schools, notices traegercalen
 	return application.NewTraegerClosingDays(postgres.NewTraegerClosingDayStore(), schools, notices)
 }
 
-// HolidayClosureEvents is the proposal and worker side of the notices after
-// a school closing day changed (ADR 0196).
-type HolidayClosureEvents interface {
-	schoolcalendar.HolidayClosureProposals
-	schoolcalendar.HolidayClosureEventQueue
-}
-
-// NewHolidayClosureEvents composes the proposals and commands over the
-// caller's school or Träger transaction.
-func NewHolidayClosureEvents() HolidayClosureEvents {
+// NewHolidayClosureEvents composes the notices of ADR 0196 over the caller's school or Träger transaction.
+func NewHolidayClosureEvents() *postgres.HolidayClosureEventStore {
 	return postgres.NewHolidayClosureEventStore(postgres.NewCompositionDatabase(), nil)
 }

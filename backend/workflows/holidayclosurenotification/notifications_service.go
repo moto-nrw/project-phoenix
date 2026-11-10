@@ -1,6 +1,4 @@
-// Package application holds the protocol of the holiday closure
-// notification (ADR 0196): which unit of which owner runs when.
-package application
+package holidayclosurenotification
 
 import (
 	"context"
@@ -15,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
 	"github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/ports"
 )
 
@@ -29,14 +26,15 @@ type Dependencies struct {
 	Logger    *slog.Logger
 }
 
-// Service serves notification.Notifications.
+// Service is the protocol of the workflow (ADR 0196): which unit of which
+// owner runs when.
 type Service struct {
 	Dependencies
 }
 
-var _ notification.Notifications = (*Service)(nil)
+var _ Notifications = (*Service)(nil)
 
-// New builds the workflow.
+// New builds the workflow over the ports the root binds.
 func New(dependencies Dependencies) *Service {
 	if dependencies.Proposals == nil || dependencies.Queue == nil || dependencies.Closures == nil ||
 		dependencies.Schools == nil || dependencies.Units == nil {
@@ -67,17 +65,17 @@ func (s *Service) plan(ctx context.Context, notice schoolcalendar.HolidayClosure
 	return impact, err
 }
 
-func view(notice schoolcalendar.HolidayClosureNotice) notification.Notice {
-	result := notification.Notice{
+func view(notice schoolcalendar.HolidayClosureNotice) Notice {
+	result := Notice{
 		ID: notice.ProposalID, SchoolID: notice.SchoolID, ClosingDayID: notice.ClosingDayID, Reason: notice.Reason,
 		Revision: notice.Revision, Status: string(notice.Status), Changed: notice.Changed, CanNotify: notice.CanNotify(),
 		ConfirmedAt: notice.ConfirmedAt, UpdatedAt: notice.UpdatedAt,
 	}
 	if notice.Previous != nil {
-		result.Previous = &notification.Range{StartDate: notice.Previous.StartsOn, EndDate: notice.Previous.EndsOn}
+		result.Previous = &Range{StartDate: notice.Previous.StartsOn, EndDate: notice.Previous.EndsOn}
 	}
 	if notice.Current != nil {
-		result.Current = &notification.Range{StartDate: notice.Current.StartsOn, EndDate: notice.Current.EndsOn}
+		result.Current = &Range{StartDate: notice.Current.StartsOn, EndDate: notice.Current.EndsOn}
 	}
 	return result
 }
@@ -86,7 +84,7 @@ func view(notice schoolcalendar.HolidayClosureNotice) notification.Notice {
 // in its own transaction; the count of a notice that waits for a click
 // comes from Enrollment in a separate Träger transaction, as a number only.
 // A proposal no family would be told about is no proposal for the school.
-func (s *Service) SchoolNotices(ctx context.Context, schoolID int64) ([]notification.Notice, error) {
+func (s *Service) SchoolNotices(ctx context.Context, schoolID int64) ([]Notice, error) {
 	var notices []schoolcalendar.HolidayClosureNotice
 	if err := s.Units.WithinSchool(ctx, schoolID, func(ctx context.Context) error {
 		var err error
@@ -95,6 +93,25 @@ func (s *Service) SchoolNotices(ctx context.Context, schoolID int64) ([]notifica
 	}); err != nil {
 		return nil, err
 	}
+	families, err := s.waitingFamilies(ctx, notices)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Notice, 0, len(notices))
+	for _, notice := range notices {
+		if notice.Status == schoolcalendar.HolidayClosureSuggested && families[notice.ProposalID] == 0 {
+			continue
+		}
+		item := view(notice)
+		item.Families = families[notice.ProposalID]
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+// waitingFamilies counts, per notice that waits for a click, the families a
+// click would tell, in a Träger transaction of each Träger of its own.
+func (s *Service) waitingFamilies(ctx context.Context, notices []schoolcalendar.HolidayClosureNotice) (map[int64]int, error) {
 	families := make(map[int64]int, len(notices))
 	for _, organizationID := range organizationsOf(notices, true) {
 		if err := s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
@@ -113,16 +130,7 @@ func (s *Service) SchoolNotices(ctx context.Context, schoolID int64) ([]notifica
 			return nil, err
 		}
 	}
-	result := make([]notification.Notice, 0, len(notices))
-	for _, notice := range notices {
-		if notice.Status == schoolcalendar.HolidayClosureSuggested && families[notice.ProposalID] == 0 {
-			continue
-		}
-		item := view(notice)
-		item.Families = families[notice.ProposalID]
-		result = append(result, item)
-	}
-	return result, nil
+	return families, nil
 }
 
 // organizationsOf names the Träger of the notices that wait for a click.
@@ -139,7 +147,7 @@ func organizationsOf(notices []schoolcalendar.HolidayClosureNotice, suggestedOnl
 // NotifyFromSchool confirms the notice in the school's transaction and then
 // processes the Träger's due commands: a failure there leaves the
 // committed command for the worker.
-func (s *Service) NotifyFromSchool(ctx context.Context, schoolID, accountID, noticeID, revision int64) (notification.Notice, error) {
+func (s *Service) NotifyFromSchool(ctx context.Context, schoolID, accountID, noticeID, revision int64) (Notice, error) {
 	return s.confirm(ctx, schoolID, noticeID, revision, schoolcalendar.HolidayClosureActor{
 		AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelSchool,
 	})
@@ -148,10 +156,10 @@ func (s *Service) NotifyFromSchool(ctx context.Context, schoolID, accountID, not
 // NotifyFromTraeger checks in a Träger transaction that the notice belongs
 // to a current school of the Träger, then confirms it in the school's own
 // transaction: never a school transaction inside the Träger's.
-func (s *Service) NotifyFromTraeger(ctx context.Context, organizationID, accountID, noticeID, revision int64) (notification.Notice, error) {
+func (s *Service) NotifyFromTraeger(ctx context.Context, organizationID, accountID, noticeID, revision int64) (Notice, error) {
 	notice, err := s.traegerNotice(ctx, organizationID, noticeID)
 	if err != nil {
-		return notification.Notice{}, err
+		return Notice{}, err
 	}
 	return s.confirm(ctx, notice.SchoolID, noticeID, revision, schoolcalendar.HolidayClosureActor{
 		AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelTraeger, OrganizationID: organizationID,
@@ -175,7 +183,7 @@ func (s *Service) traegerNotice(ctx context.Context, organizationID, noticeID in
 		return schoolcalendar.HolidayClosureNotice{}, err
 	}
 	if found == nil {
-		return schoolcalendar.HolidayClosureNotice{}, notification.ErrNoticeNotFound
+		return schoolcalendar.HolidayClosureNotice{}, ErrNoticeNotFound
 	}
 	return *found, nil
 }
@@ -218,7 +226,7 @@ func (s *Service) currentSchools(ctx context.Context, organizationID int64) (map
 	return names, nil
 }
 
-func (s *Service) confirm(ctx context.Context, schoolID, noticeID, revision int64, actor schoolcalendar.HolidayClosureActor) (notification.Notice, error) {
+func (s *Service) confirm(ctx context.Context, schoolID, noticeID, revision int64, actor schoolcalendar.HolidayClosureActor) (Notice, error) {
 	var confirmed schoolcalendar.HolidayClosureNotice
 	err := s.Units.WithinSchool(ctx, schoolID, func(ctx context.Context) error {
 		var err error
@@ -227,11 +235,11 @@ func (s *Service) confirm(ctx context.Context, schoolID, noticeID, revision int6
 	})
 	switch {
 	case errors.Is(err, schoolcalendar.ErrHolidayClosureNoticeNotFound):
-		return notification.Notice{}, notification.ErrNoticeNotFound
+		return Notice{}, ErrNoticeNotFound
 	case errors.Is(err, schoolcalendar.ErrHolidayClosureNoticeChanged):
-		return notification.Notice{}, notification.ErrNoticeChanged
+		return Notice{}, ErrNoticeChanged
 	case err != nil:
-		return notification.Notice{}, err
+		return Notice{}, err
 	}
 	s.Logger.Info("holiday closure notice confirmed",
 		"proposal_id", noticeID,
@@ -273,17 +281,17 @@ func (s *Service) reread(ctx context.Context, schoolID, noticeID int64) (schoolc
 		return schoolcalendar.HolidayClosureNotice{}, err
 	}
 	if found == nil {
-		return schoolcalendar.HolidayClosureNotice{}, notification.ErrNoticeNotFound
+		return schoolcalendar.HolidayClosureNotice{}, ErrNoticeNotFound
 	}
 	return *found, nil
 }
 
 // PendingHolidayClosures lists the notices of the Träger's schools with the
 // affected bookings of every notice that waits for a click.
-func (s *Service) PendingHolidayClosures(ctx context.Context, organizationID int64) (notification.Pending, error) {
-	pending := notification.Pending{
+func (s *Service) PendingHolidayClosures(ctx context.Context, organizationID int64) (Pending, error) {
+	pending := Pending{
 		HolidayClosureImpact: enrollment.HolidayClosureImpact{Weeks: []enrollment.HolidayClosureWeek{}, KeepsContribution: enrollment.HolidayClosureKeepsContribution},
-		Notices:              []notification.TraegerNotice{},
+		Notices:              []TraegerNotice{},
 	}
 	err := s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
 		schools, err := s.currentSchools(ctx, organizationID)
@@ -296,33 +304,42 @@ func (s *Service) PendingHolidayClosures(ctx context.Context, organizationID int
 		}
 		notices = currentNotices(notices, organizationID, schools)
 		var tokens []string
-		families := map[int64]int{}
 		for _, notice := range notices {
-			item := notification.TraegerNotice{Notice: view(notice), Weeks: []enrollment.HolidayClosureWeek{}}
-			item.SchoolName = schools[notice.SchoolID]
+			item, impact, keep, err := s.traegerItem(ctx, notice, schools)
+			if err != nil {
+				return err
+			}
+			if !keep {
+				continue
+			}
 			if notice.Status == schoolcalendar.HolidayClosureSuggested {
-				impact, err := s.plan(ctx, notice)
-				if err != nil {
-					return err
-				}
-				if impact.Families == 0 {
-					continue
-				}
-				item.Families, item.Children, item.Weeks = impact.Families, impact.Children, impact.Weeks
 				pending.Weeks = append(pending.Weeks, impact.Weeks...)
 				pending.Children += impact.Children
-				families[notice.SchoolID] += impact.Families
+				pending.Families += impact.Families
 				tokens = append(tokens, fmt.Sprintf("%d:%d:%s", notice.ProposalID, notice.Revision, impact.Token))
 			}
 			pending.Notices = append(pending.Notices, item)
-		}
-		for _, n := range families {
-			pending.Families += n
 		}
 		pending.Token = pendingToken(tokens)
 		return nil
 	})
 	return pending, err
+}
+
+// traegerItem is the Büro's view of a notice; one that waits for a click
+// carries its plan and is left out when no family would be told.
+func (s *Service) traegerItem(ctx context.Context, notice schoolcalendar.HolidayClosureNotice, schools map[int64]string) (TraegerNotice, enrollment.HolidayClosureImpact, bool, error) {
+	item := TraegerNotice{Notice: view(notice), Weeks: []enrollment.HolidayClosureWeek{}}
+	item.SchoolName = schools[notice.SchoolID]
+	if notice.Status != schoolcalendar.HolidayClosureSuggested {
+		return item, enrollment.HolidayClosureImpact{}, true, nil
+	}
+	impact, err := s.plan(ctx, notice)
+	if err != nil || impact.Families == 0 {
+		return item, impact, false, err
+	}
+	item.Families, item.Children, item.Weeks = impact.Families, impact.Children, impact.Weeks
+	return item, impact, true, nil
 }
 
 // pendingToken fingerprints the notices that wait for a click with their
@@ -337,15 +354,15 @@ func pendingToken(lines []string) string {
 // NotifyPendingHolidayClosures confirms every notice of the list the Büro
 // saw; each keeps its own operation, so a second click of the school finds
 // the same command.
-func (s *Service) NotifyPendingHolidayClosures(ctx context.Context, organizationID, accountID int64, token string) (notification.NotifiedPending, error) {
+func (s *Service) NotifyPendingHolidayClosures(ctx context.Context, organizationID, accountID int64, token string) (NotifiedPending, error) {
 	pending, err := s.PendingHolidayClosures(ctx, organizationID)
 	if err != nil {
-		return notification.NotifiedPending{}, err
+		return NotifiedPending{}, err
 	}
 	if pending.Token != token {
-		return notification.NotifiedPending{}, notification.ErrNoticeChanged
+		return NotifiedPending{}, ErrNoticeChanged
 	}
-	var result notification.NotifiedPending
+	var result NotifiedPending
 	for _, notice := range pending.Notices {
 		if notice.Status != string(schoolcalendar.HolidayClosureSuggested) {
 			continue

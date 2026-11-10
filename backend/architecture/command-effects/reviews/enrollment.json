@@ -1809,16 +1809,6 @@
       "target_owner": "school-calendar"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "reason": "ADR 0196 section 3.4: reads one current school of the calling Träger through the read-only SECURITY DEFINER channel in the caller's Träger transaction; no write, lock or scope change.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose.HolidayClosureEvents.HolidayClosureCalendar",
-      "target_owner": "school-calendar"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosure",
       "classification": "query",
       "effect": "query",

@@ -1337,14 +1337,6 @@
       "target_owner": "school-calendar"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "a031eb01161879ee22a2f2ac239dfd77",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose.HolidayClosureEvents.HolidayClosureCalendar",
-      "target_owner": "school-calendar"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosure",
       "binding_digest": "0ac7424650fda397b2d9a6134e2dd810",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",

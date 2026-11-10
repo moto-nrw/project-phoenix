@@ -15,23 +15,9 @@
       "external_test_role": "workflow-integration-test"
     },
     {
-      "path": "workflows/holidayclosurenotification/internal/application",
-      "owner": "holiday-closure-notification",
-      "role": "application",
-      "internal_test_role": "workflow-decision-test",
-      "external_test_role": "workflow-integration-test"
-    },
-    {
       "path": "workflows/holidayclosurenotification/http",
       "owner": "holiday-closure-notification",
       "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "workflows/holidayclosurenotification/compose",
-      "owner": "holiday-closure-notification",
-      "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     }
@@ -71,47 +57,25 @@
       "target_role": "public"
     },
     {
-      "id": "holiday-closure-notification.application.ports",
+      "id": "holiday-closure-notification.public.ports",
       "description": "ADR 0196: the protocol uses its own consumer-owned ports.",
       "scopes": [
         "production"
       ],
       "source_owner": "holiday-closure-notification",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "holiday-closure-notification",
       "target_role": "port"
     },
     {
-      "id": "holiday-closure-notification.application.public",
-      "description": "ADR 0196: the protocol serves its public workflow contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "holiday-closure-notification",
-      "source_role": "application",
-      "target_owner": "holiday-closure-notification",
-      "target_role": "public"
-    },
-    {
-      "id": "holiday-closure-notification.application.school-calendar",
+      "id": "holiday-closure-notification.public.school-calendar",
       "description": "ADR 0196: the protocol reads School Calendar's notice states and errors.",
       "scopes": [
         "production"
       ],
       "source_owner": "holiday-closure-notification",
-      "source_role": "application",
+      "source_role": "public",
       "target_owner": "school-calendar",
-      "target_role": "public"
-    },
-    {
-      "id": "holiday-closure-notification.application.enrollment",
-      "description": "ADR 0196: the protocol builds Enrollment's closure operation.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "holiday-closure-notification",
-      "source_role": "application",
-      "target_owner": "enrollment",
       "target_role": "public"
     },
     {

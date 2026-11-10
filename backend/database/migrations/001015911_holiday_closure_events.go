@@ -17,6 +17,7 @@ func init() {
 			offboardingTraegerMembershipVersion, // the newest migration on development
 			holidayClosureNoticesVersion,        // the notices this one versions
 			traegerClosingDaysVersion,           // the Träger closing days the read channel names
+			mealBillingMonthsVersion,            // the school erasure this one extends
 		},
 	})
 	Migrations.MustRegister(holidayClosureEventsUp, holidayClosureEventsDown)
@@ -114,10 +115,8 @@ CREATE TABLE calendar.holiday_closure_events (
 	attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
 	error_code TEXT CHECK (error_code IS NULL OR char_length(error_code) <= 80),
 	next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	confirmed_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	confirmed_channel TEXT NOT NULL CHECK (confirmed_channel IN ('school', 'traeger')),
 	confirmed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	requested_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	requested_channel TEXT CHECK (requested_channel IN ('school', 'traeger')),
 	requested_at TIMESTAMPTZ,
 	processed_at TIMESTAMPTZ,
@@ -155,8 +154,7 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 			OR NEW.source_kind IS DISTINCT FROM OLD.source_kind OR NEW.source_id IS DISTINCT FROM OLD.source_id
 			OR NEW.revision IS DISTINCT FROM OLD.revision OR NEW.span_from IS DISTINCT FROM OLD.span_from
 			OR NEW.span_to IS DISTINCT FROM OLD.span_to OR NEW.confirmed_channel IS DISTINCT FROM OLD.confirmed_channel
-			OR NEW.confirmed_at IS DISTINCT FROM OLD.confirmed_at OR NEW.created_at IS DISTINCT FROM OLD.created_at
-			OR (NEW.confirmed_by_account_id IS DISTINCT FROM OLD.confirmed_by_account_id AND NEW.confirmed_by_account_id IS NOT NULL) THEN
+			OR NEW.confirmed_at IS DISTINCT FROM OLD.confirmed_at OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
 			RAISE EXCEPTION 'the command fields of a holiday closure event never change'
 				USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_holiday_closure_events_immutable';
 		END IF;
@@ -168,8 +166,7 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 					USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_holiday_closure_events_school_fields';
 			END IF;
 		ELSIF v_traeger IS NOT NULL AND v_school IS NULL THEN
-			IF (NEW.requested_by_account_id IS DISTINCT FROM OLD.requested_by_account_id AND NEW.requested_by_account_id IS NOT NULL)
-				OR NEW.requested_channel IS DISTINCT FROM OLD.requested_channel OR NEW.requested_at IS DISTINCT FROM OLD.requested_at THEN
+			IF NEW.requested_channel IS DISTINCT FROM OLD.requested_channel OR NEW.requested_at IS DISTINCT FROM OLD.requested_at THEN
 				RAISE EXCEPTION 'the Träger unit processes a holiday closure event, it does not request it'
 					USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_holiday_closure_events_traeger_fields';
 			END IF;
@@ -225,7 +222,7 @@ CREATE POLICY traeger_process_holiday_closure_events ON calendar.holiday_closure
 				AND school.organization_id = holiday_closure_events.organization_id AND school.deleted_at IS NULL))
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 CREATE POLICY traeger_retire_holiday_closure_proposals ON calendar.holiday_closure_proposals FOR DELETE
-	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint AND state = 'confirmed');
+	USING (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 
 GRANT SELECT, INSERT, UPDATE ON calendar.holiday_closure_revisions TO phoenix_tenant;
 GRANT SELECT, INSERT, UPDATE, DELETE ON calendar.holiday_closure_proposals TO phoenix_tenant;
@@ -249,6 +246,9 @@ CREATE FUNCTION calendar.holiday_closure_due_traeger_ids()
 			OR event.state IN ('prepared', 'unknown')
 			OR (event.state IN ('completed', 'no_mail', 'needs_confirmation')
 				AND COALESCE(event.completed_at, event.processed_at) < clock_timestamp() - interval '30 days')
+		UNION
+		SELECT proposal.organization_id FROM calendar.holiday_closure_proposals AS proposal
+		WHERE proposal.state = 'open' AND proposal.span_to < (clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 30
 		ORDER BY 1
 	$$;
 REVOKE ALL ON FUNCTION calendar.holiday_closure_due_traeger_ids() FROM PUBLIC;
@@ -438,7 +438,12 @@ REVOKE ALL ON platform.schools, schedule.closing_days, schedule.traeger_closing_
 REVOKE USAGE ON SCHEMA calendar, schedule, platform, config FROM phoenix_holiday_closure_reader;
 DROP TABLE IF EXISTS enrollment.holiday_closure_sends;
 DROP TABLE IF EXISTS enrollment.holiday_closure_family_keys;
-DELETE FROM enrollment.holiday_closure_notices WHERE state = 'open';
+DO $notices$ BEGIN
+	IF EXISTS (SELECT FROM information_schema.columns
+		WHERE table_schema = 'enrollment' AND table_name = 'holiday_closure_notices' AND column_name = 'state') THEN
+		DELETE FROM enrollment.holiday_closure_notices WHERE state = 'open';
+	END IF;
+END $notices$;
 ALTER TABLE enrollment.holiday_closure_notices DROP COLUMN IF EXISTS state, DROP COLUMN IF EXISTS operation_id,
 	DROP COLUMN IF EXISTS changed_at;
 `
@@ -456,10 +461,17 @@ func holidayClosureEventsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, holidayClosureCarryOverSQL); err != nil {
 		return fmt.Errorf("carry the open holiday closure cases over as proposals: %w", err)
 	}
-	return nil
+	return installSchoolErasureSteps(ctx, db, "add the holiday closure notices to the school erasure",
+		installHolidayClosureErasurePlan, installHolidayClosureErasurePreflight, installHolidayClosureErasureResidual,
+		installHolidayClosureErasureDelete, installHolidayClosureErasurePreview)
 }
 
 func holidayClosureEventsDown(ctx context.Context, db *bun.DB) error {
+	if err := installSchoolErasureSteps(ctx, db, "remove the holiday closure notices from the school erasure",
+		installAttendanceRetentionMarkErasurePlan, installEmailDeliveryEventErasurePreflight, installAttendanceRetentionMarkErasureResidual,
+		installAttendanceRetentionMarkErasureDelete, installAttendanceRetentionMarkErasurePreview); err != nil {
+		return err
+	}
 	if _, err := db.ExecContext(ctx, holidayClosureEventsDownSQL); err != nil {
 		return fmt.Errorf("drop the holiday closure proposals and events: %w", err)
 	}

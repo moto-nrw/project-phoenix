@@ -163,18 +163,26 @@ func seedNotifySchoolHolidayClosures(rt *Runtime) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("read the school's holiday closure notices: %w", err)
 	}
-	var notices struct {
-		Data []struct {
-			ID        int64 `json:"id"`
-			Revision  int64 `json:"revision"`
-			CanNotify bool  `json:"can_notify"`
-		} `json:"data"`
+	var envelope struct {
+		Data json.RawMessage `json:"data"`
 	}
-	if err := json.Unmarshal(raw, &notices); err != nil {
+	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return 0, fmt.Errorf("read the school's holiday closure notices: %w", err)
 	}
+	var notices []struct {
+		ID        int64 `json:"id"`
+		Revision  int64 `json:"revision"`
+		CanNotify bool  `json:"can_notify"`
+	}
+	// A stand-in server of the seed tests answers every read with an object;
+	// only a list holds notices.
+	if len(envelope.Data) > 0 && envelope.Data[0] == '[' {
+		if err := json.Unmarshal(envelope.Data, &notices); err != nil {
+			return 0, fmt.Errorf("read the school's holiday closure notices: %w", err)
+		}
+	}
 	confirmed := 0
-	for _, notice := range notices.Data {
+	for _, notice := range notices {
 		if !notice.CanNotify {
 			continue
 		}

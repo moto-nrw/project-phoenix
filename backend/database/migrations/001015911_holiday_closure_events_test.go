@@ -157,4 +157,8 @@ func TestHolidayClosureEventFieldGuard(t *testing.T) {
 	require.NoError(t, scoped("app.current_org_id", traeger, `UPDATE calendar.holiday_closure_events SET state = 'failed' WHERE id = ?`))
 	require.NoError(t, scoped("app.current_tenant_id", school, `UPDATE calendar.holiday_closure_events
 		SET state = 'pending', requested_channel = 'school', requested_at = NOW() WHERE id = ?`), "a failed command is the school's to take up")
+	var accountColumns int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM information_schema.columns WHERE table_schema = 'calendar'
+		AND table_name IN ('holiday_closure_events', 'holiday_closure_proposals') AND column_name LIKE '%account%'`).Scan(ctx, &accountColumns))
+	assert.Zero(t, accountColumns, "neither proposal nor command names a person")
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
-	notificationCompose "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/compose"
 	notificationPorts "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/ports"
 )
 
@@ -32,7 +31,7 @@ func NewHolidayClosureNotifications(closures enrollment.HolidayClosures, schools
 		panic("holiday closure notification: Enrollment's closures and the Träger's schools are required")
 	}
 	events := schoolCalendarCompose.NewHolidayClosureEvents()
-	return notificationCompose.New(notificationCompose.Dependencies{
+	return notification.New(notification.Dependencies{
 		Proposals: events, Queue: events, Closures: closures,
 		Schools: schools, Units: holidayClosureUnits{}, Logger: logger,
 	})

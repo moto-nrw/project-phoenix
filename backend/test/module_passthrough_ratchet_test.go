@@ -263,7 +263,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0184: the suspensions of the Beleg retention of
 // modules/parentbilling, which validate and evaluate the Träger again (+2).
 // ADR 0198: the transaction-bound account-retention read adds one floor hit.
-const modulePassthroughOwnerBudgetTotal = 1406
+const modulePassthroughOwnerBudgetTotal = 1404
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -317,7 +317,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
-	"modules/schoolcalendar":   16,
+	"modules/schoolcalendar":   14,
 	"modules/schoolmembership": 15,
 	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,

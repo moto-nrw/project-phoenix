@@ -1,4 +1,4 @@
-package application
+package holidayclosurenotification
 
 import (
 	"context"
