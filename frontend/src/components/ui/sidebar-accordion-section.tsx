@@ -141,7 +141,7 @@ export function SidebarAccordionSection({
                 Für die Dauer der Blende steht er neben dem Zähler im
                 Streifen; der ausblendende ist `aria-hidden`, sonst läse ein
                 Vorleseprogramm die Zahl zweimal (#2923). */}
-            {!bodyExpanded && (
+            {!bodyExpanded && badgeCount > 0 && (
               <span
                 aria-hidden={!labelsVisible}
                 className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
@@ -169,7 +169,8 @@ export function SidebarAccordionSection({
             </svg>
           </>
         )}
-        {/* Im Streifen wandert der Zähler als Punkt auf die Ecke des Icons —
+        {/* Im Streifen wandert der Zähler als Punkt auf die Ecke des Icons,
+            in Größe und Lage wie an der Zeile (#6566) —
             eingeblendet, während die Bezeichnung ausblendet, damit sich
             nichts überlagert. */}
         {collapsed && badgeCount > 0 && (
@@ -180,6 +181,7 @@ export function SidebarAccordionSection({
             <NotificationBadge
               count={badgeCount}
               tone={badgeTone}
+              size="sm"
               ariaLabel={`${badgeCount} ${badgeNoun}`}
             />
           </span>

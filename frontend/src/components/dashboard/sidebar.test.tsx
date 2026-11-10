@@ -3779,6 +3779,32 @@ describe("Sidebar", () => {
       ).toBeGreaterThan(0);
     });
 
+    // Die Gruppe zählt Nachrichten und Anmeldungen zusammen; vorgelesen
+    // wurde bisher die Summe als „ungelesene Nachrichten“ (#6566).
+    it("liest an der zugeklappten Gruppe jeden gezählten Teil vor", () => {
+      // Elternnachrichten verlangen users:read.
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage" ||
+          permission === "config:read" ||
+          permission === "users:update" ||
+          permission === "users:read",
+      );
+      vi.mocked(useMessagesUnread).mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const header = screen.getByRole("button", { name: /^Eltern/ });
+      expect(header).toHaveAttribute("aria-expanded", "false");
+      expect(within(header).getByText("5")).toHaveAccessibleName(
+        "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
+      );
+    });
+
     it("zeigt ohne config:manage keinen Zähler", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) => permission === "users:read",

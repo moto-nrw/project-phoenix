@@ -76,6 +76,7 @@ import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/ui/sidebar-accordion-section";
 import { SidebarGroup } from "~/components/ui/sidebar-group";
 import {
+  combineSidebarRowBadges,
   SidebarRowLink,
   SidebarRowPlaceholder,
   SidebarSectionHeading,
@@ -1744,15 +1745,19 @@ function SidebarContent({
     }
   };
 
-  const entryBadgeCount = (entry: StaffNavEntry) => {
+  // Was eine Zeile der Gruppe zählt; die Kopfzeile der Gruppe nennt jeden
+  // Teil (#6566).
+  const entryBadge = (entry: StaffNavEntry): SidebarRowBadge | null => {
     if (entry.kind === "page") {
-      return visibleItemsByHref.has(entry.href)
-        ? (rowBadgeCounts[entry.href] ?? 0)
-        : 0;
+      return visibleItemsByHref.has(entry.href) ? rowBadge(entry.href) : null;
     }
     return entry.section === "enrollments" && showEnrollments
-      ? enrollmentsUnreadCount
-      : 0;
+      ? {
+          count: enrollmentsUnreadCount,
+          tone: "staff",
+          ariaLabel: `${enrollmentsUnreadCount} ${ENROLLMENTS_UNREAD_NOUN}`,
+        }
+      : null;
   };
 
   return (
@@ -1824,11 +1829,10 @@ function SidebarContent({
                     isOpen={isGroupOpen(group.key)}
                     onToggle={() => toggleGroup(group.key)}
                     containsActive={group.entries.some(isEntryActive)}
-                    badgeCount={group.entries.reduce(
-                      (sum, entry) => sum + entryBadgeCount(entry),
-                      0,
+                    badge={combineSidebarRowBadges(
+                      group.entries.map(entryBadge),
+                      group.key === "eltern" ? "parents" : "staff",
                     )}
-                    badgeTone={group.key === "eltern" ? "parents" : "staff"}
                     collapsed={collapsed}
                     labelsMounted={labelsMounted}
                     labelsVisible={labelsVisible}
