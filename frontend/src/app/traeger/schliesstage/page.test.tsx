@@ -240,9 +240,7 @@ describe("TraegerClosingDaysPage (#4702)", () => {
     expect(within(dialog).getByText("Sommerferien")).toBeInTheDocument();
     expect(within(dialog).getByText("5 Kinder")).toBeInTheDocument();
     expect(
-      within(dialog).getByText(
-        "Der Beitrag bleibt gleich. Er gilt für die ganze Woche.",
-      ),
+      within(dialog).getByText("Der Beitrag bleibt gleich."),
     ).toBeInTheDocument();
 
     fireEvent.change(within(dialog).getByLabelText("Grund"), {

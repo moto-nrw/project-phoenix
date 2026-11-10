@@ -80,6 +80,8 @@ type HolidayWaitlistEntry struct {
 	ChildFirstName     string    `json:"child_first_name"`
 	ChildLastName      string    `json:"child_last_name"`
 	TimeModelName      string    `json:"time_model_name"`
+	// Days are the wanted days of a booking of a week by days (#4701).
+	Days []calendar.Date `json:"days,omitempty"`
 }
 
 // HolidayWeekPlaces are the places of one week: its capacity, nil for
@@ -93,6 +95,10 @@ type HolidayWeekPlaces struct {
 	Capacity     *int                   `json:"capacity"`
 	Placed       int                    `json:"placed"`
 	Waitlist     []HolidayWaitlistEntry `json:"waitlist"`
+	// BookingUnit is how the week is booked; Days are the placed bookings
+	// of each care day of a week by days, empty for a whole week (#4701).
+	BookingUnit string             `json:"booking_unit"`
+	Days        []HolidayDayPlaces `json:"days"`
 }
 
 // HolidayCapacityChange is a week after its capacity changed, with the

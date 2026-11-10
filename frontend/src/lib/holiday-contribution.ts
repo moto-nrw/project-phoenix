@@ -21,6 +21,8 @@ export interface ContributionLine {
   readonly note: string;
   /** Cost takeover (#5627): the copied name of the cost bearer. */
   readonly costBearerName?: string;
+  /** Days a base line of a week by days prices (#4701); null for a week. */
+  readonly bookedDays?: number | null;
 }
 
 interface ChildContribution {
@@ -83,6 +85,7 @@ interface BackendLine {
   discount_cents: number | null;
   note: string;
   cost_bearer_name?: string;
+  booked_days?: number | null;
 }
 
 export interface BackendContribution {
@@ -135,6 +138,7 @@ export function contributionFromBackend(
         discountCents: line.discount_cents,
         note: line.note,
         costBearerName: line.cost_bearer_name ?? "",
+        bookedDays: line.booked_days ?? null,
       })),
     })),
     totalCents: contribution.total_cents,

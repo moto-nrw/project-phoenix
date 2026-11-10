@@ -612,3 +612,66 @@ describe("order of the children by age for the quote (#5664)", () => {
     ).toEqual([1, 1, 0]);
   });
 });
+
+describe("booking of days (#4701)", () => {
+  const byDays: HolidayRegistrationOffer = {
+    ...offer,
+    maxDaysPerChild: 3,
+    weeks: [
+      {
+        ...offer.weeks[0]!,
+        bookingUnit: "day",
+        careDays: [
+          "2027-01-04",
+          "2027-01-05",
+          "2027-01-06",
+          "2027-01-07",
+          "2027-01-08",
+        ],
+        fullDays: [],
+      },
+      offer.weeks[1]!,
+    ],
+  };
+  const child = (patch: Partial<ChildDraft>): ChildDraft => ({
+    ...emptyChild(),
+    firstName: "Tom",
+    lastName: "Tag",
+    birthDate: "2017-05-04",
+    school: "1",
+    ...patch,
+  });
+  const errorsOf = (draftChild: ChildDraft) =>
+    validateRegistration(
+      { ...emptyRegistration(), children: [draftChild] },
+      byDays,
+    )["children.0.bookings"];
+
+  it("needs a day in a week by days and sends the chosen days", () => {
+    expect(errorsOf(child({ bookings: { "11": "21" } }))).toBe("days");
+    const chosen = child({
+      bookings: { "11": "21" },
+      days: { "11": ["2027-01-05", "2027-01-04", "2027-01-10"] },
+    });
+    expect(errorsOf(chosen)).toBeUndefined();
+    const payload = payloadFromDraft(
+      { ...emptyRegistration(), children: [chosen] },
+      byDays,
+      "token",
+    );
+    expect(payload.children[0]?.bookings).toEqual([
+      { week_id: 11, time_model_id: 21, days: ["2027-01-04", "2027-01-05"] },
+    ]);
+  });
+
+  it("counts a whole week by its five care days against the bound", () => {
+    expect(
+      errorsOf(
+        child({
+          bookings: { "11": "21", "12": "22" },
+          days: { "11": ["2027-01-04"] },
+        }),
+      ),
+    ).toBe("dayLimit");
+  });
+});

@@ -25,7 +25,7 @@ const (
 			period.id AS period_id, period.name AS period_name,
 			week.id AS week_id, week.starts_on, week.ends_on, week.host_school_id,
 			model.name AS time_model_name, to_char(model.starts_at, 'HH24:MI') AS starts_at,
-			to_char(model.ends_at, 'HH24:MI') AS ends_at, booking.placement
+			to_char(model.ends_at, 'HH24:MI') AS ends_at, booking.placement, booking.days::text AS days
 		FROM enrollment.holiday_registration_bookings AS booking
 		JOIN enrollment.holiday_registration_children AS child
 			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
@@ -83,6 +83,7 @@ type holidayClosureBookingRow struct {
 	StartsAt          string        `bun:"starts_at"`
 	EndsAt            string        `bun:"ends_at"`
 	Placement         string        `bun:"placement"`
+	Days              *string       `bun:"days"`
 }
 
 // HolidayClosureBookings reads the bookings that count of the weeks at
@@ -102,7 +103,17 @@ func (s *HolidayRegistrationStore) HolidayClosureBookings(ctx context.Context, o
 	}
 	records := make([]enrollment.HolidayClosureBookingRecord, len(rows))
 	for i, row := range rows {
-		records[i] = enrollment.HolidayClosureBookingRecord(row)
+		days, err := holidayDaysOf(row.Days)
+		if err != nil {
+			return nil, fmt.Errorf("enrollment postgres: read the booked days of a closure: %w", err)
+		}
+		records[i] = enrollment.HolidayClosureBookingRecord{
+			RegistrationID: row.RegistrationID, GuardianEmail: row.GuardianEmail, GuardianFirstName: row.GuardianFirstName,
+			GuardianLastName: row.GuardianLastName, ChildID: row.ChildID, FirstName: row.FirstName, LastName: row.LastName,
+			Guest: row.Guest, PeriodID: row.PeriodID, PeriodName: row.PeriodName, WeekID: row.WeekID, StartsOn: row.StartsOn,
+			EndsOn: row.EndsOn, HostSchoolID: row.HostSchoolID, TimeModelName: row.TimeModelName, StartsAt: row.StartsAt,
+			EndsAt: row.EndsAt, Placement: row.Placement, Days: days,
+		}
 	}
 	return records, nil
 }

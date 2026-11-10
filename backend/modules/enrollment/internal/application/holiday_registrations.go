@@ -142,13 +142,17 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 	if period, err = withHolidayNoCareDays(ctx, h.deps.Calendar, period); err != nil {
 		return enrollment.HolidayRegistrationOffer{}, err
 	}
+	fullDays, err := h.fullHolidayDays(ctx, link.OrganizationID, period)
+	if err != nil {
+		return enrollment.HolidayRegistrationOffer{}, err
+	}
 	today := h.deps.Today()
 	texts, _ := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent)
 	return enrollment.HolidayRegistrationOffer{
 		Name: period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
 		Binding: period.Binding, Notes: period.Notes, Weeks: offeredHolidayWeeks(period.Weeks),
 		Open: !today.Before(period.RegistrationOpensOn) && !today.After(period.RegistrationClosesOn), Form: form,
-		ConsentTexts: texts,
+		ConsentTexts: texts, MaxDaysPerChild: period.MaxDaysPerChild, FullDays: fullDays,
 	}, nil
 }
 
@@ -159,16 +163,19 @@ func offeredHolidayWeeks(weeks []enrollment.HolidayWeek) []enrollment.HolidayWee
 	for i, week := range weeks {
 		week.TimeModels = slices.DeleteFunc(slices.Clone(week.TimeModels),
 			func(model enrollment.HolidayTimeModel) bool { return model.Archived })
+		if week.BookingUnit == enrollment.HolidayBookingUnitDay {
+			week.CareDays = holidayBookableCareDays(week)
+		}
 		offered[i] = week
 	}
 	return offered
 }
 
-func (h *HolidayRegistrations) publishedPeriod(ctx context.Context, link enrollment.HolidayRegistrationLink) (enrollment.HolidayPeriod, error) {
+func (h *HolidayRegistrations) publishedPeriod(ctx context.Context, link enrollment.HolidayRegistrationLink, lock bool) (enrollment.HolidayPeriod, error) {
 	if link.OrganizationID <= 0 || link.PeriodID <= 0 {
 		return enrollment.HolidayPeriod{}, enrollment.ErrHolidayRegistrationNotFound
 	}
-	return published(h.deps.Periods.FindHolidayPeriod(ctx, link.OrganizationID, link.PeriodID, false))
+	return published(h.deps.Periods.FindHolidayPeriod(ctx, link.OrganizationID, link.PeriodID, lock))
 }
 
 // published turns the store's answer into a published period; a draft is
@@ -217,15 +224,15 @@ func (h *HolidayRegistrations) countHolidayAttempt(ctx context.Context, organiza
 
 // SubmitHolidayRegistration checks and stores a registration, gives its
 // bookings their places and enqueues its receipt mail in the same Träger
-// transaction. The registration is inserted before the weeks are locked:
-// the Träger-Büro locks the period before the weeks, and the insert's
-// foreign key waits for that lock, so no lock order runs the other way
-// round (#4699). The answers are checked
+// transaction. It holds the period before reading its weeks and validating
+// the input, so a concurrent change of the booking unit cannot invalidate
+// the checked booking. The registration is inserted before locking weeks,
+// preserving the period-before-week order (#4699). The answers are checked
 // against the current version of the period's form, and the registration
 // keeps that version. A parent who filled in an older version is told the
 // form changed instead of being refused at fields the page did not show.
 func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, link enrollment.HolidayRegistrationLink, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error) {
-	period, err := h.publishedPeriod(ctx, link)
+	period, err := h.publishedPeriod(ctx, link, true)
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
@@ -254,6 +261,11 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	answers := sanitizeHolidayAnswers(form, decodeHolidayAnswers(input))
 	if err := h.validateBookable(ctx, input, period, form, answers, link.Traeger.Schools, today); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	for i, child := range input.Children {
+		if err := refuseHolidayDayLimit(i, child.Bookings, period, 0); err != nil {
+			return enrollment.HolidayRegistrationReceipt{}, err
+		}
 	}
 	if !holidayRegistrationHasHealth(input, form, answers) {
 		input.HealthConsent = false
@@ -421,23 +433,23 @@ func holidayMailDeclaration(period enrollment.HolidayPeriod, form enrollment.Hol
 
 // holidayReceiptChild lists the booked weeks of a child in the order of the
 // period, those with a place apart from those on the waiting list.
-func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.HolidayPeriod, line func(weekID, timeModelID int64) string,
+func holidayReceiptChild(child enrollment.HolidayChildInput, period enrollment.HolidayPeriod, line func(weekID, timeModelID int64, days []calendar.Date) string,
 	waitlisted func(weekID int64) bool) enrollment.HolidayRegistrationMailChild {
 	mailChild := enrollment.HolidayRegistrationMailChild{
 		Name: child.FirstName + " " + child.LastName, Guest: child.HomeSchoolID == 0, Weeks: []string{},
 	}
-	booked := map[int64]int64{}
+	booked := map[int64]enrollment.HolidayBookingInput{}
 	for _, booking := range child.Bookings {
-		booked[booking.WeekID] = booking.TimeModelID
+		booked[booking.WeekID] = booking
 	}
 	for _, week := range period.Weeks {
-		model, ok := booked[week.ID]
+		booking, ok := booked[week.ID]
 		switch {
 		case !ok:
 		case waitlisted(week.ID):
-			mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, model))
+			mailChild.WaitlistWeeks = append(mailChild.WaitlistWeeks, line(week.ID, booking.TimeModelID, booking.Days))
 		default:
-			mailChild.Weeks = append(mailChild.Weeks, line(week.ID, model))
+			mailChild.Weeks = append(mailChild.Weeks, line(week.ID, booking.TimeModelID, booking.Days))
 		}
 	}
 	return mailChild
@@ -461,6 +473,7 @@ func normalizeHolidayRegistration(input enrollment.HolidayRegistrationInput) enr
 		child.Allergies = strings.TrimSpace(child.Allergies)
 		child.Medication = strings.TrimSpace(child.Medication)
 		child.HealthNotes = strings.TrimSpace(child.HealthNotes)
+		child.Bookings = normalizeHolidayBookings(child.Bookings)
 		children[i] = child
 	}
 	input.GuardianAddress = normalizeHolidayAddress(input.GuardianAddress)
@@ -647,56 +660,6 @@ func validateHolidayChildren(children []enrollment.HolidayChildInput, schools []
 		}
 	}
 	return errs
-}
-
-// validateHolidayBookings requires at least one week, each week of the
-// period at most once and a time model of that week. A child takes part in
-// only one of the weeks that share a day (#5689). An archived time model
-// takes no new booking; a booking of kept, the child's bookings so far, may
-// stay on it (#5994).
-func validateHolidayBookings(bookings []enrollment.HolidayBookingInput, period enrollment.HolidayPeriod, kept []enrollment.HolidayBookingInput) error {
-	if len(bookings) == 0 {
-		return errors.New("at least one week is required")
-	}
-	weeks := map[int64]enrollment.HolidayWeek{}
-	for _, week := range period.Weeks {
-		weeks[week.ID] = week
-	}
-	errs := validation.Errors{}
-	seen := map[int64]bool{}
-	for i, booking := range bookings {
-		week, ok := weeks[booking.WeekID]
-		switch {
-		case !ok:
-			errs[fmt.Sprint(i)] = errors.New("the week is not a week of this period")
-		case seen[booking.WeekID]:
-			errs[fmt.Sprint(i)] = errors.New("the week is booked twice")
-		case !holidayWeekOffers(week, booking.TimeModelID, slices.Contains(kept, booking)):
-			errs[fmt.Sprint(i)] = errors.New("the time model is not a bookable time model of this week")
-		case holidayBookingOverlaps(week, bookings[:i], weeks):
-			errs[fmt.Sprint(i)] = errors.New("the week shares a day with another booked week")
-		}
-		seen[booking.WeekID] = true
-	}
-	if len(errs) == 0 {
-		return nil
-	}
-	return errs
-}
-
-func holidayWeekOffers(week enrollment.HolidayWeek, timeModelID int64, kept bool) bool {
-	return slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool {
-		return model.ID == timeModelID && (!model.Archived || kept)
-	})
-}
-
-// holidayBookingOverlaps reports whether week shares a day with a week of the
-// earlier bookings. A booking of an unknown week is refused on its own.
-func holidayBookingOverlaps(week enrollment.HolidayWeek, earlier []enrollment.HolidayBookingInput, weeks map[int64]enrollment.HolidayWeek) bool {
-	return slices.ContainsFunc(earlier, func(booking enrollment.HolidayBookingInput) bool {
-		other, ok := weeks[booking.WeekID]
-		return ok && other.ID != week.ID && holidayDaysOverlap(week.StartsOn, week.EndsOn, other.StartsOn, other.EndsOn)
-	})
 }
 
 func validateHolidayContacts(contacts []enrollment.HolidayContactInput, maxContacts int, phoneRequired bool) error {

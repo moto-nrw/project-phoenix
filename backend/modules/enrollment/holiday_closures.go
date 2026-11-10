@@ -35,9 +35,10 @@ import (
 const MailKindHolidayClosureNotice = "holiday_closure_notice"
 
 // HolidayClosureKeepsContribution says what a closed day does to the holiday
-// contribution. Today every holiday week is priced as a week (a frozen
-// contribution never changes, #4664), so a closed day leaves the
-// contribution as it is and the mail says so. Whether a Träger lowers it is
+// contribution. A contribution is frozen when the registration is confirmed
+// and never changes (#4664), whether its week is priced as a week or by its
+// booked days (#4701), so a closed day leaves the contribution as it is and
+// the mail says so. Whether a Träger lowers it is
 // an open question (#6434); a correction goes through the existing
 // cancellation and credit paths of the contribution.
 const HolidayClosureKeepsContribution = true
@@ -169,6 +170,9 @@ type HolidayClosureBookingRecord struct {
 	StartsAt          string
 	EndsAt            string
 	Placement         string
+	// Days are the booked days of a booking of days (#4701); empty for a
+	// booking of the whole week. A closing day affects only these days.
+	Days []calendar.Date
 }
 
 // HolidayClosureNoticeRecord is a closed day of a week the parents of a

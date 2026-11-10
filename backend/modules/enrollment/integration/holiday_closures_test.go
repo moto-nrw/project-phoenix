@@ -396,3 +396,37 @@ func TestHolidayClosureSerializesOverlappingPendingNotices(t *testing.T) {
 	require.ErrorIs(t, <-secondDone, enrollment.ErrHolidayClosureChanged)
 	assert.EqualValues(t, 1, mail.calls.Load(), "a stale overlapping preview cannot enqueue duplicate mail")
 }
+
+// TestHolidayClosureTellsABookingOfDaysOnlyAboutItsBookedDays pins the join
+// with the booking of days (#4701): a closing day affects a booking of days
+// only on a day it booked, so a closure of other days of the week tells
+// nobody.
+func TestHolidayClosureTellsABookingOfDaysOnlyAboutItsBookedDays(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Schließtag Tage")
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx, `UPDATE enrollment.holiday_period_weeks SET booking_unit = 'day' WHERE id = ?`, w.week)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE enrollment.holiday_registration_bookings SET days = ARRAY['2027-07-05', '2027-07-06']::date[]
+		WHERE holiday_period_week_id = ?`, w.week)
+	require.NoError(t, err)
+	school := hostSchoolOf(t, db, w.week)
+	mail := &capturedMails{}
+	closures := newClosures(mail, nil)
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		other, err := closures.HolidayClosureImpact(ctx, w.organization, enrollment.HolidayClosure{
+			SchoolIDs: []int64{school}, StartsOn: calendar.NewDate(2027, 7, 7), EndsOn: calendar.NewDate(2027, 7, 9), Reason: "Teamtage",
+		})
+		require.NoError(t, err)
+		assert.Empty(t, other.Weeks, "no booked day is closed")
+
+		booked, err := closures.HolidayClosureImpact(ctx, w.organization, enrollment.HolidayClosure{
+			SchoolIDs: []int64{school}, StartsOn: calendar.NewDate(2027, 7, 6), EndsOn: calendar.NewDate(2027, 7, 7), Reason: "Teamtage",
+		})
+		require.NoError(t, err)
+		require.Len(t, booked.Weeks, 1)
+		assert.Equal(t, []enrollment.HolidayClosedDay{{Date: calendar.NewDate(2027, 7, 6), Reason: "Teamtage"}}, booked.Weeks[0].ClosedDays,
+			"only the booked Tuesday, not the unbooked Wednesday")
+	})
+}

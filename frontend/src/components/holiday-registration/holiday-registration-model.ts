@@ -2,6 +2,7 @@
 // Die Feldnamen folgen dem Backend ("children.0.first_name"), damit Fehler
 // vom Server am selben Feld landen wie die eigene Prüfung.
 
+import { holidayCareDays } from "~/lib/holiday-days";
 import { bookedWeeksOverlap } from "~/lib/holiday-week-groups";
 import {
   buildFieldsByKey,
@@ -59,6 +60,11 @@ export interface ChildDraft {
   readonly healthNotes: string;
   /** Week ID → time model ID; a missing week is not booked. */
   readonly bookings: Readonly<Record<string, string>>;
+  /**
+   * Week ID → chosen days ("YYYY-MM-DD") of a week by days (#4701). Only
+   * the days of a booked week count.
+   */
+  readonly days?: Readonly<Record<string, readonly string[]>>;
   /** The child of the parent's account this draft started from (#4662). */
   readonly knownStudentId?: string;
   /** Answers to the Träger's questions per child, by key (#5198). */
@@ -122,6 +128,8 @@ export type FieldErrorKey =
   | "school"
   | "weeks"
   | "weeksOverlap"
+  | "days"
+  | "dayLimit"
   | "privacy"
   | "health"
   | "binding"
@@ -414,15 +422,45 @@ function requireAnswers(
   }
 }
 
-/** The bookings of a child in the order of the period's weeks. */
+/**
+ * The bookings of a child in the order of the period's weeks; a week by days
+ * carries its chosen care days in order (#4701).
+ */
 export function bookedWeeks(
   child: ChildDraft,
   offer: HolidayRegistrationOffer,
-): { weekId: string; timeModelId: string }[] {
+): { weekId: string; timeModelId: string; days: readonly string[] }[] {
   return offer.weeks.flatMap((week) => {
     const timeModelId = child.bookings[week.id];
-    return timeModelId ? [{ weekId: week.id, timeModelId }] : [];
+    if (!timeModelId) return [];
+    const chosen = child.days?.[week.id] ?? [];
+    const days =
+      week.bookingUnit === "day"
+        ? (week.careDays ?? []).filter((day) => chosen.includes(day))
+        : [];
+    return [{ weekId: week.id, timeModelId, days }];
   });
+}
+
+/**
+ * The care days a child books, as the backend counts them against the bound
+ * of the period (#4701): the chosen days of a week by days, every care day
+ * (Monday to Friday) of a whole week.
+ */
+export function bookedDayCount(
+  child: ChildDraft,
+  offer: HolidayRegistrationOffer,
+): number {
+  return bookedWeeks(child, offer).reduce((count, booking) => {
+    const week = offer.weeks.find((w) => w.id === booking.weekId);
+    if (!week) return count;
+    return (
+      count +
+      (week.bookingUnit === "day"
+        ? booking.days.length
+        : holidayCareDays(week.startsOn, week.endsOn).length)
+    );
+  }, 0);
 }
 
 /** Matches the canonical optional contact formats of Enrollment intake. */
@@ -545,6 +583,20 @@ export function validateRegistration(
       )
     ) {
       errors[`${prefix}.bookings`] = "weeksOverlap";
+    } else if (
+      booked.some(
+        (booking) =>
+          booking.days.length === 0 &&
+          offer.weeks.find((w) => w.id === booking.weekId)?.bookingUnit ===
+            "day",
+      )
+    ) {
+      errors[`${prefix}.bookings`] = "days";
+    } else if (
+      offer.maxDaysPerChild != null &&
+      bookedDayCount(child, offer) > offer.maxDaysPerChild
+    ) {
+      errors[`${prefix}.bookings`] = "dayLimit";
     }
     requireAnswers(
       errors,
@@ -617,6 +669,7 @@ export function quoteBookings(
   return bookedWeeks(child, offer).map((booking) => ({
     week_id: Number(booking.weekId),
     time_model_id: Number(booking.timeModelId),
+    ...(booking.days.length > 0 ? { days: booking.days } : {}),
   }));
 }
 

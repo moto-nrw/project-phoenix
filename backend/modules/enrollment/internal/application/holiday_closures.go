@@ -131,7 +131,7 @@ func (h *HolidayClosures) proposed(ctx context.Context, organizationID int64, cl
 	return closedBookings(records, func(record enrollment.HolidayClosureBookingRecord) []enrollment.HolidayClosedDay {
 		var days []enrollment.HolidayClosedDay
 		for day := max(from, record.StartsOn); !day.After(min(closure.EndsOn, record.EndsOn)); day = day.AddDays(1) {
-			if isCareWeekday(day) && !isHoliday(noCare[record.HostSchoolID], day) && !told[noticeKey(record, day)] {
+			if isCareWeekday(day) && bookedDay(record, day) && !isHoliday(noCare[record.HostSchoolID], day) && !told[noticeKey(record, day)] {
 				days = append(days, enrollment.HolidayClosedDay{Date: day, Reason: reason})
 			}
 		}
@@ -169,7 +169,7 @@ func (h *HolidayClosures) pending(ctx context.Context, organizationID int64) ([]
 		var days []enrollment.HolidayClosedDay
 		for _, day := range noCare[record.HostSchoolID] {
 			if day.Kind == enrollment.HolidayNoCareClosingDay && !day.Date.Before(max(record.StartsOn, today)) && !day.Date.After(record.EndsOn) &&
-				isCareWeekday(day.Date) && !told[noticeKey(record, day.Date)] {
+				isCareWeekday(day.Date) && bookedDay(record, day.Date) && !told[noticeKey(record, day.Date)] {
 				days = append(days, enrollment.HolidayClosedDay{Date: day.Date, Reason: day.Name})
 			}
 		}
@@ -213,6 +213,12 @@ func noticeKey(record enrollment.HolidayClosureBookingRecord, day calendar.Date)
 func isCareWeekday(day calendar.Date) bool {
 	weekday := day.Weekday()
 	return weekday != time.Saturday && weekday != time.Sunday
+}
+
+// bookedDay reports whether the booking books day: every care day of a
+// booking of the whole week, only its days for a booking of days (#4701).
+func bookedDay(record enrollment.HolidayClosureBookingRecord, day calendar.Date) bool {
+	return len(record.Days) == 0 || slices.Contains(record.Days, day)
 }
 
 func isHoliday(days []enrollment.HolidayNoCareDay, day calendar.Date) bool {

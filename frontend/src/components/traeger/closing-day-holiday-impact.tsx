@@ -108,9 +108,7 @@ export function HolidayClosureConsequences({
   return (
     <ul className="space-y-1 text-sm text-gray-600">
       <li>Die Buchungen bleiben bestehen. Niemand verliert seinen Platz.</li>
-      {keepsContribution ? (
-        <li>Der Beitrag bleibt gleich. Er gilt für die ganze Woche.</li>
-      ) : null}
+      {keepsContribution ? <li>Der Beitrag bleibt gleich.</li> : null}
     </ul>
   );
 }

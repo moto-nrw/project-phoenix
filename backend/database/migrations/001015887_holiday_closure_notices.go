@@ -15,7 +15,7 @@ func init() {
 		Version:     holidayClosureNoticesVersion,
 		Description: "Ferien: Eltern erfahren von Schließtagen in gebuchten Wochen, je Tag nur einmal (#6434)",
 		DependsOn: []string{
-			parentBillingDatevExportFilesVersion,  // the newest migration on development
+			holidayDayBookingVersion,              // the newest migration on development; the booked days the notices read
 			holidayWeekCapacityVersion,            // the outbox CHECK this one extends
 			parentBillingCareNoticeLettersVersion, // the erasure this one extends
 		},

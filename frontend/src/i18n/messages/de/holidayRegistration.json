@@ -124,7 +124,9 @@
     "emergencyLimit": "Sie können höchstens drei Notfallkontakte angeben.",
     "pickupLimit": "Sie können höchstens fünf Abholpersonen angeben.",
     "contactLimit": "Sie können höchstens acht Personen angeben.",
-    "postalCode": "Bitte geben Sie eine PLZ mit 5 Ziffern ein."
+    "postalCode": "Bitte geben Sie eine PLZ mit 5 Ziffern ein.",
+    "days": "Bitte wählen Sie mindestens einen Tag.",
+    "dayLimit": "Das sind mehr Tage, als in diesen Ferien möglich sind. Bitte wählen Sie weniger Tage."
   },
   "childQuestionsTitle": "Fragen und Infos zum Kind",
   "familyQuestionsTitle": "Allgemeine Fragen und Infos",
@@ -134,5 +136,18 @@
   "contactsTitle": "Kontakte",
   "contactsText": "Tragen Sie jede weitere Person einmal ein. Wählen Sie ihre Aufgaben. Mindestens ein Notfallkontakt mit Telefon ist nötig.",
   "emergencyRole": "Notfallkontakt",
-  "pickupRole": "Darf die Kinder abholen"
+  "pickupRole": "Darf die Kinder abholen",
+  "timeModelDayPrice": "{name} · {price} je Tag ({startsAt} bis {endsAt} Uhr)",
+  "weeksDayPriceText": "Bei Wochen mit einzelnen Tagen gilt der Preis pro Tag.",
+  "daysLabel": "Tage in der Woche {week}",
+  "daysHint": "Wählen Sie die Tage, an denen Ihr Kind kommt.",
+  "fullDaysHint": "Schon voll: {days}",
+  "fullDayAria": "{day}, schon voll",
+  "fullDaysChosen": "{count, plural, one {Dieser Tag ist} other {Diese Tage sind}} schon voll: {days} Damit kommt Ihr Kind für die ganze Woche auf die Warteliste. Ohne {count, plural, one {diesen Tag} other {diese Tage}} bekommt es vielleicht gleich einen Platz.",
+  "dayLimitHint": "In diesen Ferien kann jedes Kind höchstens {limit} Tage kommen. Die Tage dürfen in verschiedenen Wochen liegen.",
+  "dayLimitCount": "Gewählt: {count, plural, one {# Tag} other {# Tage}}.",
+  "dayLimitOver": "Gewählt: {count, plural, one {# Tag} other {# Tage}}. Das sind zu viele. Bitte wählen Sie weniger Tage.",
+  "summaryDays": "Tage: {days}",
+  "contributionDays": "{count, plural, one {# Tag} other {# Tage}}",
+  "dayWithoutCare": "Am {date} ist keine Betreuung ({name})."
 }
