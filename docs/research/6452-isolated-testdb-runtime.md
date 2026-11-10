@@ -128,8 +128,10 @@ Kosten nur für diesen Job: `ceil(Jobsekunden / 60) × 8 vCPU`, dann
 01.11.2026). Der Rest enthält Setup, Cache-Speicherung und Nacharbeit, nicht
 nur DB-Setup. Testarbeit ist der größte Block; Kern-Auslastung wurde nicht
 profilert. Keine Änderung an Runnern, Shards, Slots oder Workflow vorgesehen.
-Die PR-CI ist später mit diesen Zahlen zu vergleichen; zwei warme PR-Läufe
-und `test-perf backend-full` vorher/nachher stehen vor der Umsetzung noch aus.
+Die PR-CI dient später nur als Plausibilitätsvergleich. Das Kostenkriterium
+sind Clone-Lifecycles je Paket (compose: 152) und abwechselnde
+`test-perf`-Läufe vorher/nachher mit identischen Parametern. Zwei warme
+PR-CI-Läufe sowie die abwechselnden Ressourcenläufe stehen noch aus.
 
 ## #6451: bestätigte Minimalreproduktion
 
@@ -167,3 +169,48 @@ Paketlauf allein ausführen. Dann nur für die langsamen Testkörper Pool-Stats,
 Server-Statementzeiten und CPU-/I/O-Profil vergleichen. Die direkten Läufe
 reproduzieren weder 500–535 s noch einen 10-min-Pakettimeout. Timeout-Erhöhung,
 mehr Clone-Slots oder weniger Testisolation wären damit nicht begründet.
+
+## Korrigierter Umfang #6451 nach Tabellenprüfung
+
+Die Tabellenprüfung auf Head `620b69d016` hat die geplante Vererbung und
+Scope-Trennung verworfen. **Routing und Scope bleiben exakt wie auf der
+Messbasis development**, einschließlich aller `topLevelTestName`-Nachschlagen,
+`OwnTenant`/`OwnCtx`, Tenant-Anlage und bisheriger Cleanup-Zuordnung. Ein
+Parent-Clone leitet bestehende Subtests daher nicht auf eine andere DB um.
+Die Minimalreproduktion oben bleibt ein Fehlernachweis, kein Versprechen,
+diese Nutzung durch Clone-Vererbung erfolgreich zu machen.
+
+Nach Freigabe sind ausschließlich vier Änderungen vorgesehen:
+
+1. Slot-Warten bis `t.Deadline()` minus ausdrücklich ausgewiesener Reserve
+   für Öffnen/Cleanup/Fehlermeldung, abbrechbar am Testkontext. Keine feste
+   2-min-Frist für Slot plus Öffnen: die bisherigen 2 min gelten nur für das
+   Öffnen nach dem Slot-Erwerb. Keine verfügbare Testfrist bzw. verbrauchtes
+   Restbudget wird vor dem Warten gemeldet. Slotfehler nennen Besitzer,
+   tatsächliche Wartezeit und Schlangenlänge.
+2. Bei Setupfehlern den zugehörigen Eintrag aus `isolatedTestDatabases`
+   entfernen, ohne einen inzwischen ersetzten Eintrag zu löschen. Slot,
+   Pool und eventuell angelegten Clone wie bisher aufräumen. Kein alter
+   Setupfehler darf Geschwister oder einen späteren `-count`-Durchlauf vergiften.
+3. Das Verklemmungsmuster **statisch** über die Aufrufstellen prüfen:
+   Parent hält einen isolierten Clone, `t.Run`-Kind ruft `t.Parallel`, weitere
+   Top-Level-Tests warten auf den Slot. Relevante lokale Helfer mit erfassen;
+   Analysegrenzen offenlegen. Ergebnis als „0 Treffer“ oder mit Fundorten
+   und Migrationen belegen. Treffer in `backend/modules/dataimport/**` nur
+   melden, nicht migrieren. Kein Laufzeitversprechen, unbekannte parallele
+   Kinder vor deren Scheduling zu erkennen; übersehene Muster bleiben durch
+   die Slotfrist begrenzt.
+4. Die Scheduler-Sättigung ausschließlich in einem kurzen, gezielt
+   ausgewählten `go test`-Subprozess mit kleinem `-parallel`, kontrollierter
+   Frist und äußerer Abbruchgrenze regressionsprüfen. Der normale Testsuite-
+   Prozess darf weder verklemmen noch einen globalen Timeout abwarten müssen.
+
+Clone-Limit 1, Poolgrößen, Paket-/Testparallelität und globale Testtimeouts
+bleiben unverändert. Normalfall-Lifecycles pro unverändertem Paket dürfen
+nicht wachsen; neue Fehlerregressionen werden separat gezählt. Abwechselnde
+`test-perf`-Vorher-/Nachher-Läufe belegen CPU/RAM und Laufzeit; CI ist nur eine
+Plausibilitätskontrolle. Bestehende Scope-/Cleanup-Probleme werden nicht still
+mitrepariert. Bleibt #6451 dadurch teilweise offen, bleibt es `Refs #6451` mit
+konkretem Rest als Issue-Kommentar. #6452 bleibt `Refs #6452`.
+
+Dieser Commit ändert nur den Prüfplan, keinen Test- oder Produktionscode.
