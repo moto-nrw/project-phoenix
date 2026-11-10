@@ -30,11 +30,7 @@ async function fixture(run) {
       join(frontend, "next.config.js"),
       'export default { experimental: { example: true }, turbopack: { resolveAlias: { example: "./src/input.ts" } } };',
     );
-    for (const name of [
-      "postcss.config.mjs",
-      "tailwind.config.ts",
-      "tsconfig.json",
-    ]) {
+    for (const name of ["postcss.config.mjs", "tsconfig.json"]) {
       writeFileSync(join(frontend, name), `original ${name}`);
     }
     writeFileSync(join(frontend, "src", "input.ts"), "shared input");
