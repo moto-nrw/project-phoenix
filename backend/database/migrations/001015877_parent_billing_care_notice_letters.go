@@ -14,7 +14,7 @@ func init() {
 		Version:     parentBillingCareNoticeLettersVersion,
 		Description: "Elternabrechnung: gespeichertes Original, Versand und Elternpostfach der Jahresbescheide (#6347)",
 		DependsOn: []string{
-			demoRetirementRevokesSessionsVersion,      // the newest migration before this one
+			parentBillingExportFilesVersion,           // the newest migration before this one
 			parentBillingCareNoticesVersion,           // the notices whose originals these are
 			parentBillingCareInvoiceExclusionsVersion, // the erasure this one extends
 		},
