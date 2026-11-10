@@ -75,6 +75,10 @@ type HolidayReviewStore interface {
 	// health information; the bookings, the consents and the sealed health
 	// information stay as they are.
 	WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, details enrollment.HolidayRegistrationInput, childIDs []int64, schoolChanged []bool) error
+	// SetHolidayChildWish writes the office's decision on the holiday care
+	// wish of a child of a school of the Träger and reports whether the
+	// registration has such a child (#4703).
+	SetHolidayChildWish(ctx context.Context, organizationID, registrationID, childID int64, wish, source string) (bool, error)
 	// AppendHolidayAudit writes one entry; details travel as JSON.
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }
@@ -90,8 +94,6 @@ type HolidayRegistrationReview struct {
 	// calendar names the host schools' days without care (#4702); a
 	// rebooking is refused without it.
 	calendar enrollment.HolidaySchoolCalendar
-	// wishes writes the office's decision on a holiday care wish (#4703).
-	wishes HolidayWishDecisionStore
 }
 
 var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)

@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -13,16 +12,12 @@ import (
 // that takes the wish into account, and the Träger-Büro decides yes or no.
 // The decision only orders the waiting list; it gives and takes no place.
 
-// errHolidayWishStoreRequired reports a review built without the wish store.
-var errHolidayWishStoreRequired = errors.New("enrollment: the holiday wish decision needs the wish store")
-
-// NewHolidayWishReview gives the review the office's decision on the wish
-// over wishes and answers it as enrollment.HolidayWishReview.
-func NewHolidayWishReview(review *HolidayRegistrationReview, wishes HolidayWishDecisionStore) enrollment.HolidayWishReview {
-	if review == nil || wishes == nil {
-		panic("enrollment: the holiday wish review needs the review and the wish store")
+// NewHolidayWishReview answers the review as the office's decision on the
+// holiday care wish, enrollment.HolidayWishReview.
+func NewHolidayWishReview(review *HolidayRegistrationReview) enrollment.HolidayWishReview {
+	if review == nil {
+		panic("enrollment: the holiday wish review needs the review")
 	}
-	review.wishes = wishes
 	return review
 }
 
@@ -36,9 +31,6 @@ func (h *HolidayRegistrationReview) SetHolidayWish(ctx context.Context, reviewer
 	}
 	if childID <= 0 {
 		return enrollment.HolidayRegistrationDetail{}, enrollment.ErrHolidayRegistrationEntryNotFound
-	}
-	if h.wishes == nil {
-		return enrollment.HolidayRegistrationDetail{}, errHolidayWishStoreRequired
 	}
 	return h.change(ctx, reviewer, periodID, registrationID, func(period enrollment.HolidayPeriod, current holidayRegistrationState) (string, any, error) {
 		if current.Status == enrollment.HolidayRegistrationCancelled {
@@ -66,7 +58,7 @@ func (h *HolidayRegistrationReview) decideWish(ctx context.Context, organization
 	if child.HolidayWish == wish && child.HolidayWishSource == enrollment.HolidayWishSourceOffice {
 		return "", nil, nil
 	}
-	written, err := h.wishes.SetHolidayChildWish(ctx, organizationID, registrationID, childID, wish, enrollment.HolidayWishSourceOffice)
+	written, err := h.store.SetHolidayChildWish(ctx, organizationID, registrationID, childID, wish, enrollment.HolidayWishSourceOffice)
 	if err != nil {
 		return "", nil, fmt.Errorf("enrollment: write holiday wish: %w", err)
 	}

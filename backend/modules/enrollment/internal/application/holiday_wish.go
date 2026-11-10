@@ -37,14 +37,6 @@ type HolidayCareWishStore interface {
 	ApprovedHolidayCareWish(ctx context.Context, studentID int64, on calendar.Date) (*bool, error)
 }
 
-// HolidayWishDecisionStore writes the office's decision in the Träger
-// transaction.
-type HolidayWishDecisionStore interface {
-	// SetHolidayChildWish writes the wish of a child of a school of the
-	// Träger and reports whether such a child of the registration exists.
-	SetHolidayChildWish(ctx context.Context, organizationID, registrationID, childID int64, wish, source string) (bool, error)
-}
-
 // holidayWishProof is the content of the sealed statement.
 type holidayWishProof struct {
 	Version        int           `json:"v"`
