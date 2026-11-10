@@ -73,6 +73,10 @@ type NewContract struct {
 	// EarlyStart is the parents' express wish in the application that care
 	// begins within the withdrawal period (§ 356 Abs. 4 BGB, #4682).
 	EarlyStart bool
+	// FamilyChildren is the registration's number of children the
+	// Elternabrechnung takes over with the contract (#6335); not stored on
+	// the contract.
+	FamilyChildren *carecontract.FamilyStatement
 }
 
 type NewParty struct {

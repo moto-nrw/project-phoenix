@@ -1011,6 +1011,7 @@ function compareByPickupTime(
     sick: a.sick,
     classTrip: a.class_trip,
     excused: a.excused,
+    currentLocation: isToday ? a.current_location : null,
   });
   const statusB = getStudentTimeStatus({
     plannedTime: b.pickup_time,
@@ -1021,6 +1022,7 @@ function compareByPickupTime(
     sick: b.sick,
     classTrip: b.class_trip,
     excused: b.excused,
+    currentLocation: isToday ? b.current_location : null,
   });
   const rankA = getTimeStatusSortRank(statusA);
   const rankB = getTimeStatusSortRank(statusB);
@@ -2775,6 +2777,7 @@ function SearchPageContent() {
         sick: a.sick,
         classTrip: a.class_trip,
         excused: a.excused,
+        currentLocation: isToday ? a.current_location : null,
       });
       const statusB = getStudentTimeStatus({
         plannedTime: b.arrival_time,
@@ -2785,6 +2788,7 @@ function SearchPageContent() {
         sick: b.sick,
         classTrip: b.class_trip,
         excused: b.excused,
+        currentLocation: isToday ? b.current_location : null,
       });
       const rankA = getTimeStatusSortRank(statusA);
       const rankB = getTimeStatusSortRank(statusB);
@@ -3726,6 +3730,9 @@ function SearchPageContent() {
                                 sick: student.sick,
                                 classTrip: student.class_trip,
                                 excused: student.excused,
+                                currentLocation: isToday
+                                  ? student.current_location
+                                  : null,
                               });
                               const absenceWording = isToday
                                 ? undefined

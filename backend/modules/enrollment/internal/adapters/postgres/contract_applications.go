@@ -34,6 +34,7 @@ const acceptedContractApplicationsSQL = `SELECT child.id AS request_child_id,
 	child.date_of_birth AS child_birth_date,
 	request.guardian_first_name, request.guardian_last_name, request.guardian_email, request.guardian_account_id,
 	request.legal_blocks_snapshot, request.submission_source, child.reviewed_at AS accepted_at,
+	request.family_children, request.family_children_stated_at,
  phase.id AS phase_id, phase.name AS phase_name, phase.service_start_date, child.activate_on
 	FROM enrollment.request_children AS child
 	JOIN enrollment.requests AS request ON request.id = child.request_id AND request.tenant_id = child.tenant_id
@@ -83,6 +84,8 @@ type contractApplicationRow struct {
 	PhaseName           string          `bun:"phase_name"`
 	ServiceStartDate    *calendar.Date  `bun:"service_start_date,type:date"`
 	ActivateOn          *calendar.Date  `bun:"activate_on,type:date"`
+	FamilyChildren      *int            `bun:"family_children"`
+	FamilyStatedAt      *time.Time      `bun:"family_children_stated_at"`
 }
 
 // ContractPhases reads the school's phase names and inclusive service bounds.
@@ -119,5 +122,6 @@ func (r contractApplicationRow) application(fingerprint func([]byte) string) enr
 		GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail,
 		GuardianAccountID: r.GuardianAccountID, PhaseID: r.PhaseID, PhaseName: r.PhaseName,
 		ServiceStartDate: r.ServiceStartDate, ActivateOn: r.ActivateOn,
+		FamilyChildren: r.FamilyChildren, FamilyChildrenStatedAt: r.FamilyStatedAt,
 	}
 }

@@ -221,6 +221,12 @@ type IntakeDependencies struct {
 	// Platform (#4786). A form that requires a signature refuses parent
 	// submissions while it is nil; reads then find none.
 	Signatures IntakeSignatures
+	// FamilyChildren stores the number of children the parents state on the
+	// status page of their registration (#6335). Nil refuses the statement.
+	FamilyChildren IntakeFamilyChildrenStore
+	// FamilyChildrenPurpose tells whether the school's Träger counts the
+	// number (#6335). Nil asks nowhere.
+	FamilyChildrenPurpose enrollmentNative.FamilyChildrenPurpose
 	// Random fills the status and late-invite tokens; Fingerprint hashes a
 	// late-invite token into its stored identity.
 	Random      func([]byte) error

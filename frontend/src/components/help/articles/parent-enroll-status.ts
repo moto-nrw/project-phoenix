@@ -33,6 +33,17 @@ export function parentEnrollStatusTopic(): HelpTopic {
         ],
       },
       {
+        title: "Kinder in der Familie angeben",
+        description:
+          "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
+        steps: [
+          "Öffnen Sie die Statusseite.",
+          "Gehen Sie zur Karte `Kinder in Ihrer Familie`.",
+          "Stellen Sie mit Minus und Plus ein, wie viele Kinder Ihre Familie hat.",
+          "Tippen Sie auf `Angabe senden`.",
+        ],
+      },
+      {
         title: "Eine Anmeldung zurückziehen",
         steps: [
           "Öffnen Sie die Statusseite.",
@@ -46,6 +57,7 @@ export function parentEnrollStatusTopic(): HelpTopic {
     notes: [
       "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
       "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
+      "Die Kinderzahl können Sie ändern, bis ein Kind angenommen ist. Sie kommt dann mit in Ihren Betreuungsvertrag. Dort ändern Sie sie später.",
       "Haben Sie die Anmeldung unterschrieben, steht auf der Statusseite der Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie Ihren Anmeldenachweis herunter.",
     ],
     differences: [
@@ -54,6 +66,7 @@ export function parentEnrollStatusTopic(): HelpTopic {
       "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
       "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",
       "Steht dort `Zugang zur Eltern-App nicht möglich`? Dann wenden Sie sich an die OGS.",
+      "Sie sehen keine Karte `Kinder in Ihrer Familie`? Dann braucht Ihr Träger die Zahl nicht.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Status-Link sei ungültig? Prüfen Sie die Adresse aus der E-Mail oder fragen Sie bei der OGS nach.",

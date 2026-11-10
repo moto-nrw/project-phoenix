@@ -113,25 +113,22 @@ export function ContractSigningView({
         <CardGridSkeleton cards={3} className="grid grid-cols-1 gap-5" />
       </SkeletonRegion>
     );
-  const familyChildren =
-    source.kind === "inbox" ? (
-      <ParentFamilyChildrenCard
-        organizationId={source.organizationId}
-        contractId={source.contractId}
-      />
-    ) : null;
   if (view.signature || view.status !== "versendet") {
+    // The mail link closes with the signature (#4679); the number stays
+    // changeable in the parents portal.
     return (
       <div className="space-y-5">
         <SignedConfirmation view={view} />
-        {familyChildren}
+        {source.kind === "inbox" ? (
+          <ParentFamilyChildrenCard source={source} />
+        ) : null}
       </div>
     );
   }
   return (
     <div className="space-y-5">
       <ContractFacts view={view} />
-      {familyChildren}
+      <ParentFamilyChildrenCard source={source} />
       <BookedCare view={view} />
       <ContractDocument source={source} view={view} />
       <WithdrawalNotice view={view} />

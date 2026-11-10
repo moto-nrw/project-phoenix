@@ -330,6 +330,7 @@ func newEnrollmentResource(
 	resource.ListExportService = renderer
 	resource.Uploads = enrollmentUploadUnits{intake: flows.Intake, records: owners.NewEnrollmentBookings(), reads: flows.Uploads}
 	resource.UploadList = flows.Uploads
+	resource.FamilyChildren = flows.Intake
 	resource.UploadFiles = NewEnrollmentUploadStorage(logger.With("handler", "enrollment-uploads"))
 	resource.PhaseExpiryService = newEnrollmentPhaseExpiry(persons, carePlan)
 	return resource
