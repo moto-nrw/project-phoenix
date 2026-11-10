@@ -272,7 +272,7 @@ func TestCareNoticeMailRefusesMissingAddressAndChangedPayer(t *testing.T) {
 				assert.Contains(t, rec.Body.String(), "parent_billing.recipient_email_missing")
 				want = careSeriesBody{WithoutEmail: 1}
 			} else {
-				assert.Contains(t, rec.Body.String(), "parent_billing.care_recipient_changed")
+				assert.Contains(t, rec.Body.String(), "parent_billing.care_notice_recipient_changed")
 			}
 			rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careNoticeRunPath(run.ID, "/letters/mail"), nil)
 			require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())

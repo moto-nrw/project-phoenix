@@ -150,8 +150,7 @@ func (rs *CareNoticeResource) letter(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, letter, "Fee notice retrieved successfully")
 }
 
-// renderNoticeError answers a refused notice run; the refusals it shares
-// with the monthly run keep their codes.
+// renderNoticeError answers a refused notice run with its recovery code.
 func renderNoticeError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	switch {
@@ -166,7 +165,7 @@ func renderNoticeError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, capability.ErrBillingLetterNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBillingLetterNotFound))
 	case errors.Is(err, capability.ErrCareRecipientChanged):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareRecipientChanged))
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareNoticeRecipientChanged))
 	case errors.Is(err, capability.ErrCareVersionsOverlap):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareVersionsOverlap))
 	default:

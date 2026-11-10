@@ -83,6 +83,7 @@
   "care_notice_run_open": "Für dieses Jahr gibt es schon einen offenen Jahreslauf. Öffnen Sie ihn in der Liste und stellen Sie ihn aus.",
   "care_notice_run_invalid": "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
   "care_notice_not_found": "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+  "care_notice_recipient_changed": "Die Person oder ihre E-Mail-Adresse hat sich seit dem Ausstellen geändert. Drucken Sie den gespeicherten Bescheid. Geben Sie ihn der Familie auf Papier.",
   "sepa_creditor_invalid": "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
   "sepa_mandate_invalid": "Das Mandat konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
   "sepa_mandate_not_found": "Dieses Mandat gibt es nicht mehr. Bitte laden Sie die Seite neu.",

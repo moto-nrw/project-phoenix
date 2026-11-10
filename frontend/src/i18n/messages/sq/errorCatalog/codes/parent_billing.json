@@ -83,6 +83,7 @@
   "care_notice_run_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_notice_run_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "care_notice_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "care_notice_recipient_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "sepa_creditor_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sepa_mandate_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "sepa_mandate_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
