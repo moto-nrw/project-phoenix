@@ -47,9 +47,14 @@ interface ResetPasswordPageContentProps {
   readonly testimonialPanelCopy?: AuthTestimonialPanelCopy;
   /**
    * Without a token the page shows only the notice and this way to a new
-   * link, instead of a form that cannot be sent.
+   * link, instead of a form that cannot be sent. `subtitle` replaces the
+   * form's subtitle there, which asks for a password no field takes.
    */
-  readonly noTokenAction?: { readonly label: string; readonly href: string };
+  readonly noTokenAction?: {
+    readonly label: string;
+    readonly href: string;
+    readonly subtitle?: string;
+  };
 }
 
 export interface ResetPasswordPageCopy {
@@ -333,7 +338,7 @@ export function ResetPasswordPageContent({
       <AuthShell
         eyebrow={copy.formEyebrow}
         title={copy.formTitle}
-        subtitle={copy.formSubtitle}
+        subtitle={noTokenAction.subtitle ?? copy.formSubtitle}
         variant="reset"
         brand={brand}
         testimonialPanelCopy={testimonialPanelCopy}

@@ -32,6 +32,7 @@ export default function TraegerResetPasswordPage() {
         noTokenAction={{
           label: "Neuen Link anfordern",
           href: `${loginPath}?${TRAEGER_FORGOT_PASSWORD_PARAM}=1`,
+          subtitle: "Dafür brauchen Sie einen neuen Link.",
         }}
       />
     </Suspense>
