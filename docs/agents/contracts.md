@@ -817,7 +817,11 @@ Backend paths in this section are relative to `backend/`:
   membership. `TraegerScopeMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
-  transaction filtered on the Träger's schools. The Träger's own tables
+  transaction filtered on the Träger's schools. A school outside that set
+  answers 404 `traeger.school_not_found` on the school read and the Absprung
+  alike, whether it belongs to another Träger or does not exist, so no route
+  reveals a school; a missing right stays 403 with its own code (#6461).
+  The Träger's own tables
   (holiday periods, ADR 0105; Träger settings, ADR 0086/0107; master data
   with logo, contact person and bank accounts, ADR 0112) are written in
   the Träger transaction (`tenant.WithinTraeger`: tenant role,
