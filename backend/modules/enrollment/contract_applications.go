@@ -28,6 +28,10 @@ type ContractApplication struct {
 	PhaseName         string
 	ServiceStartDate  *calendar.Date
 	ActivateOn        *calendar.Date
+	// FamilyChildren is the number of children of the family the parents
+	// stated on the registration, with the time; nil when none (#6335).
+	FamilyChildren         *int
+	FamilyChildrenStatedAt *time.Time
 }
 
 // ContractPhase is an offering phase's name and inclusive service window.

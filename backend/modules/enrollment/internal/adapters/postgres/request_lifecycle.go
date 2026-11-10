@@ -149,3 +149,27 @@ func (r *Store) FullyRejectedRequestsBefore(ctx context.Context, cutoff time.Tim
 	}
 	return ids, nil
 }
+
+// SetRequestFamilyChildren stores the number of children the parents state
+// on their registration, with the time of the write (#6335). The request's
+// school names itself in the filter, also below row level security.
+func (r *Store) SetRequestFamilyChildren(ctx context.Context, id int64, children int) error {
+	tenantID, err := r.tenantID(ctx)
+	if err != nil {
+		return err
+	}
+	db, err := r.resolve(ctx)
+	if err != nil {
+		return err
+	}
+	result, err := db.NewUpdate().TableExpr("enrollment.requests").
+		Set("family_children = ?", children).Set("family_children_stated_at = clock_timestamp()").Set("updated_at = NOW()").
+		Where("tenant_id = ? AND id = ?", tenantID, id).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to store the family children of the request: %w", err)
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return enrollment.ErrRequestNotFound
+	}
+	return nil
+}

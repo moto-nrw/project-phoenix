@@ -50,6 +50,7 @@ import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ParentFamilyChildrenCard } from "~/components/parent/parent-family-children-card";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { BackLink } from "~/components/ui/back-link";
@@ -671,6 +672,8 @@ function EnrollmentStatusContent({
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
+      {/* Kinder in der Familie (#6335): only where the school asks. */}
+      <ParentFamilyChildrenCard source={{ kind: "enrollment", token }} />
       <GuardianSection
         allEditable={allEditable}
         canRequestChange={canRequestChange}

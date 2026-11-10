@@ -15,8 +15,8 @@ func init() {
 		Version:     traegerRecordsHandoverVersion,
 		Description: "Löschauftrag eines Trägers: Hinweis auf aufbewahrungspflichtige Unterlagen und Rückgabe oder Wahl der Löschung (#4720)",
 		DependsOn: []string{
-			guardianInvitationAddressBindingVersion, // the newest migration on development
-			traegerErasureOrderVersion,              // the erasure order the hint belongs to
+			familyChildrenLinkAndEnrollmentVersion, // the newest migration on development
+			traegerErasureOrderVersion,             // the erasure order the hint belongs to
 		},
 	})
 	Migrations.MustRegister(traegerRecordsHandoverUp, traegerRecordsHandoverDown)

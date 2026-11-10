@@ -145,5 +145,7 @@
   "holiday_guest_group_invalid": "This group no longer exists. Please choose another group.",
   "holiday_form_field_not_allowed": "{object} could not be saved. Please check your entries.",
   "holiday_registration_form_changed": "The provider has just changed the form. Please check your entries and send the registration again.",
-  "holiday_proof_limit": "{object} could not be changed. Please check its current status."
+  "holiday_proof_limit": "{object} could not be changed. Please check its current status.",
+  "family_children_closed": "The number of children can no longer be changed here. You will find it in your care contract.",
+  "family_children_invalid": "Please enter a number from 1 to 20."
 }
