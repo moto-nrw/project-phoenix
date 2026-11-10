@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -11,8 +12,10 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -102,7 +105,16 @@ type enrollmentPhaseOfferings struct {
 	carePlan interface {
 		ListCareOfferings(context.Context, careplan.CareOfferingFilter) ([]careplan.CareOffering, error)
 		CountCareOfferingsByPhase(context.Context, int64) (int, error)
+		CareOfferingBookingsForPhase(context.Context, int64) ([]careplan.CareOfferingBooking, error)
 	}
+}
+
+func (o enrollmentPhaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentOwner.OfferingBooking, error) {
+	rows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care offering bookings by phase: %w", err)
+	}
+	return enrollmentBookings(rows), nil
 }
 
 func (o enrollmentPhaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {
@@ -235,4 +247,38 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 // EnrollmentMailBranding binds Enrollment's logo port to Delivery.
 func EnrollmentMailBranding(baseURL, schoolImageURL string) (string, string) {
 	return deliveryCompose.SchoolLogoURL(baseURL, schoolImageURL), deliveryCompose.MotoLogoURL(baseURL)
+}
+
+// enrollmentPhaseStudents binds the phase edit's pending-window move to
+// School Membership's guarded command (#6505, ADR 0202). A window the command
+// refuses as inverted is a conflict of the phase edit.
+type enrollmentPhaseStudents struct {
+	membership schoolmembership.PendingWindows
+}
+
+// NewEnrollmentPhaseStudents binds the phase edit to School Membership.
+func NewEnrollmentPhaseStudents(membership schoolmembership.PendingWindows) enrollmentOwner.PhaseStudents {
+	return enrollmentPhaseStudents{membership: membership}
+}
+
+func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentOwner.PendingWindowMove) (bool, error) {
+	moved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{
+		StudentID:  move.StudentID,
+		FromBefore: calendar.Date(move.FromBefore), FromAfter: calendar.Date(move.FromAfter),
+		UntilBefore: calendar.Date(move.UntilBefore), UntilAfter: calendar.Date(move.UntilAfter),
+		OtherStarts: calendarDates(move.OtherStarts), OtherEnds: calendarDates(move.OtherEnds),
+	})
+	var conflict *schoolmembership.PendingWindowConflictError
+	if errors.As(err, &conflict) {
+		return false, fmt.Errorf("%w: student %d", enrollmentOwner.ErrPhasePendingChildWindowConflict, conflict.StudentID)
+	}
+	return moved, err
+}
+
+func calendarDates(days []enrollmentOwner.Date) []calendar.Date {
+	out := make([]calendar.Date, 0, len(days))
+	for _, day := range days {
+		out = append(out, calendar.Date(day))
+	}
+	return out
 }

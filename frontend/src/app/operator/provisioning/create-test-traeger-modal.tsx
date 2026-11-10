@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -35,7 +36,8 @@ export function CreateTestTraegerModal({
   const [slugManual, setSlugManual] = useState(false);
   const [schoolCount, setSchoolCount] = useState<SchoolCount>("3");
   const [contactEmail, setContactEmail] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { show: showError, invalid, clear: clearError } = formErrors;
@@ -67,47 +69,52 @@ export function CreateTestTraegerModal({
         });
         return;
       }
-      setSaving(true);
-      clearError();
-      let created: Awaited<
-        ReturnType<typeof operatorProvisioningService.createTestTraeger>
-      >;
-      try {
-        created = await operatorProvisioningService.createTestTraeger({
-          name: name.trim(),
-          slug: slug.trim(),
-          school_count: Number(schoolCount),
-          contact_email: contactEmail.trim(),
-        });
-      } catch (error) {
-        logger.error("test_traeger_create_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        void showError(error, { object: "das Anlegen des Test-Trägers" });
-        setSaving(false);
-        return;
-      }
-      try {
-        const children = await operatorProvisioningService.createSampleChildren(
-          created.organization.id,
-        );
-        toastSuccess(
-          `Der Test-Träger ist angelegt: ${created.schools.length} Test-Schulen mit ${children.createdCount} Beispielkindern.`,
-        );
-      } catch (error) {
-        // The Träger exists already: say so and point to the retry on its
-        // page instead of offering the same order again.
-        logger.warn("test_traeger_sample_children_failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Träger ist angelegt, der Dialog schließt, die Meldung nennt den Folgeschritt auf der Seite des Trägers.
-        toastWarning(
-          "Der Test-Träger ist angelegt, die Beispielkinder fehlen noch. Legen Sie sie auf der Seite des Trägers an.",
-        );
-      }
-      setSaving(false);
-      handleClose();
-      await onCreated(created.organization.slug);
+      await save.run(async (op) => {
+        clearError();
+        let created: Awaited<
+          ReturnType<typeof operatorProvisioningService.createTestTraeger>
+        >;
+        try {
+          created = await operatorProvisioningService.createTestTraeger({
+            name: name.trim(),
+            slug: slug.trim(),
+            school_count: Number(schoolCount),
+            contact_email: contactEmail.trim(),
+          });
+        } catch (error) {
+          logger.error("test_traeger_create_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          if (op.isCurrent()) {
+            void showError(error, { object: "das Anlegen des Test-Trägers" });
+          }
+          return;
+        }
+        try {
+          const children =
+            await operatorProvisioningService.createSampleChildren(
+              created.organization.id,
+            );
+          toastSuccess(
+            `Der Test-Träger ist angelegt: ${created.schools.length} Test-Schulen mit ${children.createdCount} Beispielkindern.`,
+          );
+        } catch (error) {
+          // The Träger exists already: say so and point to the retry on its
+          // page instead of offering the same order again.
+          logger.warn("test_traeger_sample_children_failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Träger ist angelegt, der Dialog schließt, die Meldung nennt den Folgeschritt auf der Seite des Trägers.
+          toastWarning(
+            "Der Test-Träger ist angelegt, die Beispielkinder fehlen noch. Legen Sie sie auf der Seite des Trägers an.",
+          );
+        }
+        // Eine späte Antwort schließt und navigiert nicht mehr, wenn der Dialog
+        // inzwischen geschlossen oder neu geöffnet ist (#6533).
+        if (!op.isCurrent()) return;
+        handleClose();
+        await onCreated(created.organization.slug);
+      });
     },
     [
       clearError,
@@ -117,6 +124,7 @@ export function CreateTestTraegerModal({
       invalid,
       name,
       onCreated,
+      save,
       schoolCount,
       showError,
       slug,
@@ -131,7 +139,7 @@ export function CreateTestTraegerModal({
       onClose={handleClose}
       title="Test-Träger anlegen"
       size="md"
-      closeDisabled={saving}
+      pending={save}
       footer={
         <>
           <Button

@@ -9,6 +9,7 @@ import {
 import { Button } from "~/components/ui/button";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 
 export interface AddUnplannedStudentModalProps {
   readonly isOpen: boolean;
@@ -42,6 +43,7 @@ export function AddUnplannedStudentModal({
   // stay selectable for even one render.
   const { load, error: loadError } = useStudentChoices(isOpen, instanceId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const add = useFormModalPending(isOpen, instanceId);
   // Ein Termin-Wechsel bei offenem Dialog verwirft die Auswahl: eine alte
   // Auswahl darf nie in den neuen Termin geschrieben werden.
   const [selectionInstanceId, setSelectionInstanceId] = useState(instanceId);
@@ -63,9 +65,12 @@ export function AddUnplannedStudentModal({
   };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (target && !isAddingStudent && (await onAdd(target.id))) {
-      handleClose();
-    }
+    if (!target || isAddingStudent) return;
+    await add.run(async (op) => {
+      // Eine späte Antwort schließt keinen Dialog, der inzwischen für einen
+      // anderen Termin offen ist (#6533).
+      if ((await onAdd(target.id)) && op.isCurrent()) handleClose();
+    });
   };
 
   return (
@@ -75,7 +80,7 @@ export function AddUnplannedStudentModal({
       title="Kind ungeplant hinzufügen"
       size="md"
       error={error}
-      closeDisabled={isAddingStudent}
+      pending={add}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
           <Button

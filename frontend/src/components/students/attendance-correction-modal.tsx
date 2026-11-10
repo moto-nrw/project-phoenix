@@ -17,6 +17,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
@@ -91,7 +92,8 @@ export function AttendanceCorrectionModal({
   const [substatus, setSubstatus] = useState(slot.substatus ?? "");
   const [note, setNote] = useState(slot.note ?? "");
   const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const errors = useApiFormError();
   const clearErrors = errors.clear;
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehler.
@@ -146,34 +148,34 @@ export function AttendanceCorrectionModal({
       return;
     }
 
-    setSaving(true);
-    try {
-      const correction = {
-        reason: trimmedReason,
-        ...(status !== slot.status ? { status } : {}),
-        ...(status === "expected" && status !== slot.status
-          ? { substatus: null }
-          : substatus !== (slot.substatus ?? "")
-            ? { substatus: substatus === "" ? null : substatus }
+    await save.run(async (op) => {
+      try {
+        const correction = {
+          reason: trimmedReason,
+          ...(status !== slot.status ? { status } : {}),
+          ...(status === "expected" && status !== slot.status
+            ? { substatus: null }
+            : substatus !== (slot.substatus ?? "")
+              ? { substatus: substatus === "" ? null : substatus }
+              : {}),
+          ...(note !== (slot.note ?? "")
+            ? { note: note.trim() === "" ? null : note.trim() }
             : {}),
-        ...(note !== (slot.note ?? "")
-          ? { note: note.trim() === "" ? null : note.trim() }
-          : {}),
-      };
-      await correctAttendance(slot.instanceId, studentId, correction);
-      onCorrected();
-      onClose();
-    } catch (err) {
-      logger.error("attendance_correction_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await errors.show(err, {
-        object: "die Korrektur",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+        };
+        await correctAttendance(slot.instanceId, studentId, correction);
+        onCorrected();
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("attendance_correction_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await errors.show(err, {
+          object: "die Korrektur",
+          retry: () => void latestSubmitRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = handleSubmit;
@@ -184,6 +186,7 @@ export function AttendanceCorrectionModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title="Eintrag korrigieren"
       size="md"
       error={errors.error}

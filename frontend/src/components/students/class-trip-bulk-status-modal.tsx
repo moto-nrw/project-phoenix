@@ -8,6 +8,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { isWeekendISO } from "~/components/class-day/routes";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { TimeField } from "~/components/ui/time-field";
 import { Textarea } from "~/components/ui/textarea";
@@ -75,7 +76,8 @@ export function ClassTripBulkStatusModal({
   const [reason, setReason] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [returnTime, setReturnTime] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const [conflicts, setConflicts] = useState<ClassTripConflictDay[]>([]);
   const [conflictTotal, setConflictTotal] = useState(0);
   // Validation and save errors of the form (Bauart 2 Regel 5): shown in the
@@ -136,73 +138,72 @@ export function ClassTripBulkStatusModal({
       return;
     }
 
-    setSaving(true);
-    setConflicts([]);
-    setConflictTotal(0);
-    if (schoolReport) {
+    await save.run(async (op) => {
+      setConflicts([]);
+      setConflictTotal(0);
+      if (schoolReport) {
+        try {
+          await schoolReport.save({
+            studentIds: chosenIds,
+            from,
+            to,
+            reason: reason.trim() || undefined,
+            returnTime: trimmedReturnTime || undefined,
+          });
+          onSuccess?.();
+          if (op.isCurrent()) onClose();
+        } catch (err) {
+          if (!op.isCurrent()) return;
+          const blocked = classTripConflictsFromError(err);
+          if (blocked) {
+            // Wie bei der OGS stehen die betroffenen Kinder und Tage unter
+            // dem Formular; der Satz oben kommt aus dem Katalog.
+            setConflicts(blocked.conflicts);
+            setConflictTotal(blocked.total);
+          } else {
+            logger.error("failed to report class trip", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+          await formErrors.show(err, {
+            object: "die Meldung",
+            retry: () => void latestSubmitRef.current(),
+          });
+        }
+        return;
+      }
       try {
-        await schoolReport.save({
-          studentIds: chosenIds,
+        await bulkCreateStudentStatusDays(
+          students.map((student) => student.id),
+          "class_trip",
           from,
           to,
-          reason: reason.trim() || undefined,
-          returnTime: trimmedReturnTime || undefined,
-        });
+          reason.trim() || undefined,
+        );
+        toastSuccess(
+          `Die Klassenfahrt für ${students.length} Schüler ist gespeichert.`,
+        );
         onSuccess?.();
-        onClose();
+        if (op.isCurrent()) onClose();
       } catch (err) {
-        const blocked = classTripConflictsFromError(err);
-        if (blocked) {
-          // Wie bei der OGS stehen die betroffenen Kinder und Tage unter
-          // dem Formular; der Satz oben kommt aus dem Katalog.
-          setConflicts(blocked.conflicts);
-          setConflictTotal(blocked.total);
+        if (!op.isCurrent()) return;
+        if (err instanceof StudentStatusDayConflictError) {
+          // Die Liste der betroffenen Tage kommt strukturiert mit und steht
+          // unter dem Formular; der Satz oben kommt aus dem Katalog.
+          setConflicts(err.conflicts);
+          setConflictTotal(err.totalCount);
         } else {
-          logger.error("failed to report class trip", {
+          logger.error("failed to bulk create class trip", {
+            targetLabel,
             error: err instanceof Error ? err.message : String(err),
           });
         }
         await formErrors.show(err, {
-          object: "die Meldung",
+          object: "die Klassenfahrt",
           retry: () => void latestSubmitRef.current(),
         });
-      } finally {
-        setSaving(false);
       }
-      return;
-    }
-    try {
-      await bulkCreateStudentStatusDays(
-        students.map((student) => student.id),
-        "class_trip",
-        from,
-        to,
-        reason.trim() || undefined,
-      );
-      toastSuccess(
-        `Die Klassenfahrt für ${students.length} Schüler ist gespeichert.`,
-      );
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      if (err instanceof StudentStatusDayConflictError) {
-        // Die Liste der betroffenen Tage kommt strukturiert mit und steht
-        // unter dem Formular; der Satz oben kommt aus dem Katalog.
-        setConflicts(err.conflicts);
-        setConflictTotal(err.totalCount);
-      } else {
-        logger.error("failed to bulk create class trip", {
-          targetLabel,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-      await formErrors.show(err, {
-        object: "die Klassenfahrt",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = handleSubmit;
@@ -212,6 +213,7 @@ export function ClassTripBulkStatusModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       error={formErrors.error}
       title={
         schoolReport

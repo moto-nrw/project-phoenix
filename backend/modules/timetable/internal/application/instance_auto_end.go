@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -50,6 +51,10 @@ func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace
 	if err != nil {
 		return result, fmt.Errorf("load active activity instances: %w", err)
 	}
+	// Successful completions keep their day locks until the batch commits.
+	slices.SortStableFunc(instances, func(a, b *scheduleModel.ActivityInstance) int {
+		return a.Date.Compare(b.Date)
+	})
 	for _, instance := range instances {
 		result.Checked++
 		err := s.completeIfDueIsolated(ctx, instance, now, grace, result)

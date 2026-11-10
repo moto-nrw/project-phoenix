@@ -56,4 +56,9 @@ type SickCascade interface {
 	// and their stamps must transfer to the surviving primary or the
 	// eventual reversal will miss those rows.
 	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
+	// LockSickReportWrite takes, before Workforce writes an absence, the
+	// absence gate of its subject, the staff-shift gates the cascade will
+	// need and the day locks of every day it may stamp or release, in the
+	// canonical lock order (#6232). absenceID is 0 for a new absence.
+	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error
 }

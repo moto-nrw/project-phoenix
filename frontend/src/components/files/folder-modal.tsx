@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -56,7 +57,8 @@ export function FolderModal({
   const [visibility, setVisibility] = useState<FolderVisibility>("all_staff");
   const [roleIds, setRoleIds] = useState<string[]>([]);
   const [accountIds, setAccountIds] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const clearErrors = formErrors.clear;
@@ -98,34 +100,34 @@ export function FolderModal({
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
-    setSaving(true);
-    formErrors.clear();
-    const input = {
-      name: name.trim(),
-      visibility,
-      roleIds: visibility === "selected" ? roleIds : [],
-      accountIds: visibility === "selected" ? accountIds : [],
-    };
-    try {
-      if (initial) {
-        await filesService.updateFolder(initial.id, input);
-      } else {
-        await filesService.createFolder(input);
+    await save.run(async (op) => {
+      formErrors.clear();
+      const input = {
+        name: name.trim(),
+        visibility,
+        roleIds: visibility === "selected" ? roleIds : [],
+        accountIds: visibility === "selected" ? accountIds : [],
+      };
+      try {
+        if (initial) {
+          await filesService.updateFolder(initial.id, input);
+        } else {
+          await filesService.createFolder(input);
+        }
+        onSaved();
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("folder_save_failed", {
+          folder_id: initial?.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Speichern des Ordners",
+          retry: () => latestSaveRef.current(),
+        });
       }
-      onSaved();
-      onClose();
-    } catch (err) {
-      logger.error("folder_save_failed", {
-        folder_id: initial?.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Speichern des Ordners",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   // „Wiederholen“ sendet den Stand, der dann im Formular steht.
   useLayoutEffect(() => {
@@ -149,7 +151,7 @@ export function FolderModal({
       onClose={onClose}
       title={initial ? "Ordner bearbeiten" : "Neuer Ordner"}
       size="md"
-      closeDisabled={saving}
+      pending={save}
       error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">

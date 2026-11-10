@@ -91,7 +91,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	ctx := testpkg.TenantContext(tenantID)
+	ctx := testpkg.WithTenantRuntime(t, testpkg.TenantContext(tenantID), db)
 	suffix := time.Now().UnixNano()
 
 	// 1. Calendar period — no A/B, wide range, active.

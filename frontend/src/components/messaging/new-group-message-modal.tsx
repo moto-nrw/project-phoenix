@@ -10,6 +10,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -160,7 +161,8 @@ export function NewGroupMessageModal({
   const [targetId, setTargetId] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [sending, setSending] = useState(false);
+  const save = useFormModalPending();
+  const sending = save.pending;
   const formError = useApiFormError();
   const { options, loading, loadError } = useTargetOptions(type);
   const selected = options.find((option) => option.value === targetId);
@@ -186,28 +188,28 @@ export function NewGroupMessageModal({
       JSON.stringify([type, selected.value, title.trim(), body.trim()]),
     );
     formError.clear();
-    setSending(true);
-    try {
-      const detail = await createGroupThread({
-        target: {
-          type,
-          id: selected.value,
-          label: `${TARGET_NOUN[type]} ${selected.label}`,
-        },
-        title: title.trim(),
-        body: body.trim(),
-        client_message_id: clientMessageId,
-      });
-      attempt.complete(clientMessageId);
-      onCreated(detail);
-    } catch (err) {
-      logger.error("group_message_create_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formError.show(err, { object: "die Gruppennachricht" });
-    } finally {
-      setSending(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const detail = await createGroupThread({
+          target: {
+            type,
+            id: selected.value,
+            label: `${TARGET_NOUN[type]} ${selected.label}`,
+          },
+          title: title.trim(),
+          body: body.trim(),
+          client_message_id: clientMessageId,
+        });
+        attempt.complete(clientMessageId);
+        if (op.isCurrent()) onCreated(detail);
+      } catch (err) {
+        logger.error("group_message_create_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formError.show(err, { object: "die Gruppennachricht" });
+      }
+    });
   };
 
   return (
@@ -215,7 +217,7 @@ export function NewGroupMessageModal({
       isOpen
       onClose={onClose}
       title="Neue Gruppennachricht"
-      closeDisabled={sending}
+      pending={save}
       isBackdropDismissDisabled
       error={formError.error}
       footer={

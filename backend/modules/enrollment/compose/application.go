@@ -50,6 +50,7 @@ type PhaseDependencies struct {
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollment.Phase) error
 	// Resyncer keeps the templates sourcing the phase's offerings in step.
 	Resyncer       enrollment.SourcedTemplateResyncer
+	Students       enrollment.PhaseStudents
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
 	CareExits      enrollment.PhaseResponseCareExits
@@ -70,6 +71,7 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		Resyncer:                        deps.Resyncer,
+		Students:                        deps.Students,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),

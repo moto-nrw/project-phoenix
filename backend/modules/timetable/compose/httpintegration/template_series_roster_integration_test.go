@@ -9,7 +9,9 @@
 package httpintegration_test
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // rosterChain is a seriesChain whose middle segment already has materialized
@@ -257,6 +260,48 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 		"the anchor occurrence loses the child")
 	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.earlier), removed,
 		"the occurrence before the anchor keeps them")
+}
+
+func TestSeriesRoster_LocksDaysBeforeRemovingParticipants(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
+	defer c.runCleanup(t)
+	instances := testpkg.ActivityInstancesWhere(t, c.ctx, c.db,
+		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ?`, c.middleID, c.anchor)
+	require.Len(t, instances, 1)
+	removed := c.students[1]
+	require.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), removed)
+	extraStaff := c.addStaff(t, "Concurrent roster edit")
+	in := c.livingUpdateInput(t, []int64{c.students[0]}, []int64{c.staffID, extraStaff}, &c.staffID)
+	in.SeriesRosterFrom = &c.anchor
+	in.SeriesRosterScopeStudentIDs = []int64{removed}
+	in.SeriesRosterScopeStaffIDs = []int64{extraStaff}
+	ctx, cancel := context.WithCancel(c.ctx)
+	var running sync.WaitGroup
+	t.Cleanup(func() { cancel(); running.Wait() })
+	edited := make(chan error, 1)
+	err := testpkg.WithTenantTx(t, ctx, c.db, c.tenantID, func(cancelCtx context.Context, tx bun.Tx) error {
+		// Pause cancellation after its day lock, before LockAttendance. The edit
+		// must wait here before it can lock staff or delete participant rows.
+		_, err := tx.NewRaw("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+			timetable.SubstituteDayLockKey(c.tenantID, c.anchor)).Exec(cancelCtx)
+		if err != nil {
+			return err
+		}
+		var pid int
+		if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(cancelCtx, &pid); err != nil {
+			return err
+		}
+		running.Go(func() {
+			edited <- c.timetableData.Templates.UpdateTemplate(ctx, in)
+		})
+		awaitSplitCancelWaiter(t, cancelCtx, tx, pid, edited)
+		_, err = c.instance.Cancel(cancelCtx, instances[0].ID, nil, nil)
+		return err
+	})
+	require.NoError(t, err, "cancellation must not deadlock against participant reconciliation")
+	require.NoError(t, awaitSplitCancel(t, ctx, edited), "series reconciliation must commit too")
 }
 
 // TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope pins the rule that
