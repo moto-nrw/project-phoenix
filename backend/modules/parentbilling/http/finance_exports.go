@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -49,6 +51,7 @@ func (rs *FinanceExportResource) Router(protectedTraegerRoutes func(chi.Router, 
 		export.Delete("/settings/sollstellung", rs.resetMapping)
 		export.Put("/settings/file-number-start", rs.setStart)
 		export.Get("/runs", rs.runs)
+		export.Get("/datev-runs", rs.datevRuns)
 		export.Get("/files", rs.files)
 		export.Get("/runs/{kind}/{id}/sollstellung", rs.sollstellung)
 		export.Get("/runs/{kind}/{id}/datev", rs.datev)
@@ -217,9 +220,82 @@ func (rs *FinanceExportResource) sollstellung(w http.ResponseWriter, r *http.Req
 	rs.runFile(w, r, rs.exports.SollstellungFile)
 }
 
-// datev answers the DATEV booking batch of a run (#4694).
+// datev answers the DATEV booking batch of a run (#4694): the bookings no
+// DATEV file held yet, or with mode=all every booking again (#6433);
+// fiscal_year (YYYY-MM-DD, the first day) picks the fiscal year.
 func (rs *FinanceExportResource) datev(w http.ResponseWriter, r *http.Request) {
-	rs.runFile(w, r, rs.exports.DatevFile)
+	options, err := datevFileOptions(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	rs.runFile(w, r, func(ctx context.Context, reviewer capability.HolidayReviewer, kind string, id int64) (capability.ExportedFile, error) {
+		return rs.exports.DatevFile(ctx, reviewer, kind, id, options)
+	})
+}
+
+// datevRuns answers the new DATEV bookings and fiscal years of the runs a
+// page of the export page shows (#6433): care and holiday name the IDs of
+// monthly and holiday runs, separated by commas.
+func (rs *FinanceExportResource) datevRuns(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	runs, err := datevRunRefs(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	overviews, err := rs.exports.DatevRunOverviews(r.Context(), reviewer, runs)
+	if err != nil {
+		renderExportError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, overviews, "DATEV bookings of the runs retrieved successfully")
+}
+
+// datevRunRefs reads the runs of the query: care=5,6&holiday=7.
+func datevRunRefs(r *http.Request) ([]capability.ExportRunRef, error) {
+	var runs []capability.ExportRunRef
+	for param, kind := range map[string]string{"care": capability.DebitRunCare, "holiday": capability.DebitRunHoliday} {
+		value := r.URL.Query().Get(param)
+		if value == "" {
+			continue
+		}
+		for _, part := range strings.Split(value, ",") {
+			id, err := strconv.ParseInt(part, 10, 64)
+			if err != nil || id <= 0 {
+				return nil, errors.New(param + " must name run IDs separated by commas")
+			}
+			runs = append(runs, capability.ExportRunRef{RunKind: kind, RunID: id})
+		}
+	}
+	if len(runs) > capability.ExportPageSize {
+		return nil, errors.New("at most one page of runs")
+	}
+	return runs, nil
+}
+
+// datevFileOptions reads mode and fiscal_year of a DATEV download.
+func datevFileOptions(r *http.Request) (capability.DatevFileOptions, error) {
+	query := r.URL.Query()
+	options := capability.DatevFileOptions{}
+	switch query.Get("mode") {
+	case "", "new":
+	case "all":
+		options.All = true
+	default:
+		return options, errors.New("mode must be new or all")
+	}
+	if value := query.Get("fiscal_year"); value != "" {
+		start, err := calendar.ParseDate(value)
+		if err != nil {
+			return options, errors.New("fiscal_year must be a date YYYY-MM-DD")
+		}
+		options.FiscalYearStart = start
+	}
+	return options, nil
 }
 
 // runFile answers a file of a run; it leaves the server only in this answer
@@ -287,6 +363,10 @@ func renderExportError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportMappingInvalid))
 	case errors.Is(err, capability.ErrExportRunNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingExportRunNotFound))
+	case errors.Is(err, capability.ErrDatevNoNewBookings):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingDatevNoNewBookings))
+	case errors.Is(err, capability.ErrDatevBookingsTaken):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingDatevBookingsTaken))
 	case errors.Is(err, capability.ErrExportRunEmpty):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingExportRunEmpty))
 	case errors.Is(err, capability.ErrExportFileNumberStartLocked):

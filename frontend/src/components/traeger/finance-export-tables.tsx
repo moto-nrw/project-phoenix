@@ -5,7 +5,7 @@
 // Protokoll mit ihrer Dateinummer, wer sie wann geholt hat und ob sie eine
 // frühere Datei wiederholt.
 
-import { Download } from "lucide-react";
+import { Download, RotateCcw } from "lucide-react";
 import { DATEV_READINESS_ID } from "~/components/traeger/finance-export-datev";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
@@ -14,13 +14,17 @@ import {
   exportedAtLabel,
 } from "~/components/traeger/finance-export-format";
 import { Button } from "~/components/ui/button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { formatDate } from "~/lib/date-helpers";
-import type {
-  ExportProtocolEntry,
-  ExportRun,
+import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
+import {
+  type DatevRunState,
+  type DatevRunStates,
+  type ExportProtocolEntry,
+  type ExportRun,
+  datevRunKey,
 } from "~/lib/traeger-finance-exports-api";
 
 function euro(cents: number) {
@@ -73,11 +77,137 @@ function LastFile({
   );
 }
 
-function runColumns(
-  downloading: string | null,
-  datevReady: boolean,
-  onDownload: (format: RunFileFormat, run: ExportRun) => void,
-): DataTableColumn<ExportRun>[] {
+/** The id of the line that says why a run has no new DATEV booking. */
+function datevStateId(run: ExportRun): string {
+  return `datev-state-${run.pathKind}-${run.runId}`;
+}
+
+function bookingsLabel(count: number): string {
+  return count === 1 ? "1 neue Buchung" : `${count} neue Buchungen`;
+}
+
+/**
+ * Where the DATEV bookings of a run stand (#6433): how many are new, or that
+ * every one is in a file, with the last DATEV file of the run.
+ */
+function DatevState({
+  run,
+  state,
+  waiting,
+}: Readonly<{
+  run: ExportRun;
+  state: DatevRunState | undefined;
+  waiting: boolean;
+}>) {
+  if (waiting || !state) {
+    return <LastFile entry={run.lastDatev} waiting={waiting} />;
+  }
+  const last = run.lastDatev;
+  let badge = (
+    <StatusBadge label={bookingsLabel(state.newBookings)} tone="blue" />
+  );
+  let line = last
+    ? `Zuletzt Nr. ${last.fileNumber} am ${formatBerlinDate(last.exportedAt)}`
+    : "Noch keine DATEV-Datei";
+  if (state.newBookings === 0 && state.fiscalYears.length === 0) {
+    badge = <StatusBadge label="Keine Buchung" tone="gray" />;
+    line = "Keine Rechnung mit Betrag";
+  } else if (state.newBookings === 0) {
+    badge = <StatusBadge label="Alles exportiert" tone="green" />;
+    line = last
+      ? `Zuletzt Nr. ${last.fileNumber} am ${formatBerlinDate(last.exportedAt)}`
+      : "Alle Buchungen sind in DATEV-Dateien";
+  }
+  return (
+    <span className="min-w-0">
+      <span className="block">{badge}</span>
+      <span
+        id={datevStateId(run)}
+        className="mt-1 block text-sm text-gray-500 md:whitespace-nowrap"
+      >
+        {line}
+      </span>
+    </span>
+  );
+}
+
+/** The DATEV download of a run and its menu with „Alle Buchungen erneut“. */
+function DatevActions({
+  run,
+  state,
+  ready,
+  downloading,
+  onDownload,
+  onRepeat,
+}: Readonly<{
+  run: ExportRun;
+  state: DatevRunState | undefined;
+  ready: boolean;
+  downloading: string | null;
+  onDownload: (format: RunFileFormat, run: ExportRun) => void;
+  onRepeat: (run: ExportRun) => void;
+}>) {
+  const nothingNew = state?.newBookings === 0;
+  let describedBy: string | undefined;
+  if (!ready) describedBy = DATEV_READINESS_ID;
+  else if (nothingNew) describedBy = datevStateId(run);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="surface"
+        size="compact"
+        isLoading={downloading === runFileKey("datev", run)}
+        loadingText="Wird erstellt"
+        disabled={downloading !== null || !ready || nothingNew}
+        aria-describedby={describedBy}
+        aria-label={
+          state && state.newBookings > 0
+            ? `${bookingsLabel(state.newBookings)} von ${run.label} als DATEV-Datei herunterladen`
+            : `DATEV-Datei von ${run.label} herunterladen`
+        }
+        onClick={() => onDownload("datev", run)}
+      >
+        <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
+        DATEV
+      </Button>
+      {ready && state && state.fiscalYears.length > 0 && run.lastDatev ? (
+        <OverflowMenu
+          ariaLabel={`Weitere DATEV-Aktionen für ${run.label}`}
+          disabled={downloading !== null}
+          items={[
+            {
+              label: "Alle Buchungen erneut",
+              description: "Nur für eine verlorene Datei",
+              icon: <RotateCcw className="h-4 w-4" aria-hidden />,
+              onClick: () => onRepeat(run),
+            },
+          ]}
+        />
+      ) : ready ? (
+        // Keeps the DATEV buttons of every row in one column.
+        <span aria-hidden="true" className="w-9 shrink-0 max-sm:hidden" />
+      ) : null}
+    </>
+  );
+}
+
+interface RunTableActions {
+  readonly downloading: string | null;
+  readonly datev: DatevRunStates & { readonly settingsReady: boolean };
+  readonly onDownload: (format: RunFileFormat, run: ExportRun) => void;
+  readonly onRepeat: (run: ExportRun) => void;
+}
+
+function runColumns({
+  downloading,
+  datev,
+  onDownload,
+  onRepeat,
+}: RunTableActions): DataTableColumn<ExportRun>[] {
+  const datevReady = datev.settingsReady;
+  const stateOf = (run: ExportRun) =>
+    datev.ready ? datev.runs.get(datevRunKey(run)) : undefined;
   return [
     {
       key: "run",
@@ -116,9 +246,11 @@ function runColumns(
     },
     {
       key: "datev",
-      header: "Letzte DATEV-Datei",
-      sortValue: (run) => run.lastDatev?.fileNumber ?? null,
-      render: (run) => <LastFile entry={run.lastDatev} waiting={!datevReady} />,
+      header: "DATEV-Datei",
+      sortValue: (run) => stateOf(run)?.newBookings ?? null,
+      render: (run) => (
+        <DatevState run={run} state={stateOf(run)} waiting={!datevReady} />
+      ),
     },
     {
       key: "download",
@@ -141,20 +273,14 @@ function runColumns(
             <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Sollstellung
           </Button>
-          <Button
-            type="button"
-            variant="surface"
-            size="compact"
-            isLoading={downloading === runFileKey("datev", run)}
-            loadingText="Wird erstellt"
-            disabled={downloading !== null || !datevReady}
-            aria-describedby={datevReady ? undefined : DATEV_READINESS_ID}
-            aria-label={`DATEV-Datei von ${run.label} herunterladen`}
-            onClick={() => onDownload("datev", run)}
-          >
-            <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            DATEV
-          </Button>
+          <DatevActions
+            run={run}
+            state={stateOf(run)}
+            ready={datevReady}
+            downloading={downloading}
+            onDownload={onDownload}
+            onRepeat={onRepeat}
+          />
         </span>
       ),
     },
@@ -164,18 +290,11 @@ function runColumns(
 /** The released runs with their last files and their downloads. */
 export function ExportRunsTable({
   runs,
-  downloading,
-  datevReady,
-  onDownload,
-}: Readonly<{
-  runs: readonly ExportRun[];
-  downloading: string | null;
-  datevReady: boolean;
-  onDownload: (format: RunFileFormat, run: ExportRun) => void;
-}>) {
+  ...actions
+}: Readonly<{ runs: readonly ExportRun[] } & RunTableActions>) {
   return (
     <DataTable
-      columns={runColumns(downloading, datevReady, onDownload)}
+      columns={runColumns(actions)}
       rows={[...runs]}
       getRowKey={(run) => `${run.pathKind}/${run.runId}`}
       stackedOnMobile
@@ -191,6 +310,11 @@ export function ExportRunsTable({
 
 function entryNotes(entry: ExportProtocolEntry) {
   const notes = [];
+  if (entry.datevAll) {
+    notes.push(
+      <StatusBadge key="all" label="Alle erneut: Wiederholung" tone="orange" />,
+    );
+  }
   if (entry.repeatOf !== null) {
     notes.push(
       <StatusBadge

@@ -36,6 +36,7 @@ type exportEntryBody struct {
 	TotalCents    int64   `json:"total_cents"`
 	Reference     string  `json:"reference"`
 	RepeatOf      int64   `json:"repeat_of"`
+	DatevAll      bool    `json:"datev_all"`
 	ExportedByYou bool    `json:"exported_by_you"`
 	SubmittedAt   *string `json:"submitted_at"`
 }

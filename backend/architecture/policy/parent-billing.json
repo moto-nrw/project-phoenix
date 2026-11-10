@@ -177,6 +177,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.datev_booked_documents",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.document_letters",
       "write_owner": "parent-billing"
     },
