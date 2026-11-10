@@ -70,6 +70,9 @@ type Config struct {
 	// ChildDataAccess records the reads of the holiday registration prefill
 	// (#4662) in the school's data access log.
 	ChildDataAccess ChildDataAccessLog
+	// HolidayWishes states the holiday care wish of a prefilled child
+	// (#4703) in the school's tenant transaction.
+	HolidayWishes HolidayWishStatements
 
 	// Document inbox (#4671, ADR 0126): the documents of the Elternabrechnung
 	// in the Träger transaction, the Träger of a school, the address of an

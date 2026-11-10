@@ -2873,9 +2873,7 @@ export function useEventForm({
         studentScopeIDs.length > 0 || staffScopeIDs.length > 0;
       await timetableService.updateTemplate(seriesTemplateId, {
         ...body,
-        ...(notesOnly
-          ? { propagate_notes_to_predecessors: true }
-          : {}),
+        ...(notesOnly ? { propagate_notes_to_predecessors: true } : {}),
         ...(rosterChanged
           ? {
               series_roster_from: rosterFrom,

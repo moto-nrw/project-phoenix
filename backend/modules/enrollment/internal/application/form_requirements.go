@@ -29,6 +29,9 @@ func validateRequiredCustomFields(schema *enrollmentNative.FormSchema, req Submi
 			return enrollmentNative.InvalidInput(enrollmentNative.CodeGuardianPhoneRequired, "guardian_phone", fmt.Errorf("%w: guardian phone is required", enrollmentNative.ErrInvalidSubmission))
 		}
 	}
+	if err := validateHolidayCareWish(schema, req.Children); err != nil {
+		return err
+	}
 	byKey := buildFieldsByKey(schema)
 	guardianCtx := fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey}
 	for i := range schema.Fields {

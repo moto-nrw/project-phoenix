@@ -30,9 +30,11 @@ const (
 	updateHolidayChildDetailsQuery = `UPDATE enrollment.holiday_registration_children SET
 			first_name = ?, last_name = ?, birth_date = ?::date, guest_school_name = ?, custom_data = ?::jsonb
 		WHERE organization_id = ? AND holiday_registration_id = ? AND id = ?`
+	// A changed school drops the known holiday care wish (#4703): it was the
+	// wish at the other school, and a holiday guest has none.
 	updateHolidayChildDetailsAndSchoolQuery = `UPDATE enrollment.holiday_registration_children SET
 			first_name = ?, last_name = ?, birth_date = ?::date, guest_school_name = ?, custom_data = ?::jsonb,
-			home_school_id = NULLIF(?::bigint, 0)
+			home_school_id = NULLIF(?::bigint, 0), holiday_wish = NULL, holiday_wish_source = NULL
 		WHERE organization_id = ? AND holiday_registration_id = ? AND id = ?`
 	deleteHolidayContactsQuery = `DELETE FROM enrollment.holiday_registration_contacts
 		WHERE organization_id = ? AND holiday_registration_id = ?`

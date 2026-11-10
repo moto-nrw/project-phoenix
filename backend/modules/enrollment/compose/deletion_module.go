@@ -9,8 +9,7 @@ import (
 	applicationBindings "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
 )
 
-// DeletionOwner is the Enrollment owner slice the admin deletion and the
-// retention cleanup read, lock and delete through.
+// DeletionOwner is the owner slice the admin deletion and the retention cleanup read, lock and delete through.
 type DeletionOwner interface {
 	DeletionQueries
 	DeletionRequests
@@ -25,8 +24,7 @@ type DeletionOwner interface {
 type DeletionModuleDependencies struct {
 	Owner     DeletionOwner
 	Guardians GuardianDirectory
-	// CountAuditAdjustments counts the audited offering adjustments of a
-	// request or one of its children.
+	// CountAuditAdjustments counts the audited offering adjustments of a request or one of its children.
 	CountAuditAdjustments func(context.Context, int64, *int64) (int, error)
 	// CountBookings counts the bookings of the request children.
 	CountBookings func(context.Context, []int64) (int, error)
@@ -38,8 +36,7 @@ type DeletionModuleDependencies struct {
 	Logger            *slog.Logger
 }
 
-// DeletionModule is the admin deletion and the retention cleanup over one
-// shared impact preview.
+// DeletionModule is the admin deletion and the retention cleanup over one shared impact preview.
 type DeletionModule struct {
 	Preview   *DeletionPreview
 	Deletions enrollment.EnrollmentDeletions

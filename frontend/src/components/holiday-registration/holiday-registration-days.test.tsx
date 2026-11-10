@@ -15,6 +15,7 @@ const week = {
 };
 const offer: HolidayRegistrationOffer = {
   traegerName: "Träger Beispiel",
+  holidayWishMode: "off",
   name: "Winterferien",
   registrationOpensOn: "2026-09-01",
   registrationClosesOn: "2026-12-04",
@@ -74,6 +75,37 @@ const child: ChildDraft = {
 };
 
 describe("holiday day selection", () => {
+  it("associates nested day errors with the booked school's selector", () => {
+    render(
+      <NextIntlClientProvider locale="de" messages={deMessages}>
+        <ChildCard
+          index={1}
+          child={{ ...child, days: { "12": ["2027-01-05"] } }}
+          offer={offer}
+          removable={false}
+          questions={[]}
+          questionContext={{ guardianAnswers: {}, fieldsByKey: new Map() }}
+          fieldError={(name) =>
+            name === "children.1.bookings.0.days"
+              ? "Bitte prüfen Sie die Tage."
+              : undefined
+          }
+          onChange={vi.fn()}
+          onRemove={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+    const selector = screen
+      .getByRole("button", { name: "Di 05.01." })
+      .closest("fieldset")!;
+    expect(selector).toHaveAttribute("aria-invalid", "true");
+    const error = screen.getByText("Bitte prüfen Sie die Tage.");
+    expect(selector.getAttribute("aria-describedby")?.split(" ")).toContain(
+      error.id,
+    );
+    expect(error.id).not.toBe("");
+  });
+
   it.each([{ days: [] }, { days: ["2027-01-05"] }])(
     "reads only the currently booked school's days: %j",
     ({ days }) => {

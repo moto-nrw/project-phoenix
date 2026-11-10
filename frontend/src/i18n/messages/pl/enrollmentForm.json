@@ -46,7 +46,9 @@
     "schoolClass": "Klasa",
     "schoolClassOpen": "Klasa jeszcze nieznana",
     "choose": "Proszę wybrać",
-    "grade": "Klasa {grade}"
+    "grade": "Klasa {grade}",
+    "holidayCareWish": "Czy dziecko potrzebuje opieki w czasie ferii?",
+    "holidayCareWishHint": "Organizator planuje na tej podstawie opiekę w czasie ferii. Gdy tydzień ferii jest pełny, dzieci potrzebujące opieki mogą mieć pierwszeństwo."
   },
   "errors": {
     "firstName": "Proszę podać imię.",

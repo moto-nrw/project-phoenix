@@ -77,6 +77,10 @@ type HolidayReviewStore interface {
 	// health information; the bookings, the consents and the sealed health
 	// information stay as they are.
 	WriteHolidayRegistrationDetails(ctx context.Context, organizationID, registrationID int64, details enrollment.HolidayRegistrationInput, childIDs []int64, schoolChanged []bool) error
+	// SetHolidayChildWish writes the office's decision on the holiday care
+	// wish of a child of a school of the Träger and reports whether the
+	// registration has such a child (#4703).
+	SetHolidayChildWish(ctx context.Context, organizationID, registrationID, childID int64, wish, source string) (bool, error)
 	// AppendHolidayAudit writes one entry; details travel as JSON.
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }
@@ -116,13 +120,6 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 		placement: holidayPlacement{store: store, mail: mail}, calendar: schoolCalendar,
 	}
 	return review, NewHolidayPlaces(store, periods, nil, mail), NewHolidayAllocation(review)
-}
-
-// moveUp gives the places of the weeks to their waiting lists after a
-// change of the locked registration.
-func (h *HolidayRegistrationReview) moveUp(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, weekIDs []int64) ([]enrollment.HolidayPromotion, error) {
-	_, promoted, err := h.placement.place(ctx, reviewer.OrganizationID, period, weekIDs, 0, reviewer.AccountID)
-	return promoted, err
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
@@ -650,6 +647,7 @@ func (h *HolidayRegistrationReview) complete(period enrollment.HolidayPeriod, re
 		}
 		for c := range registration.Children {
 			completeHolidayChild(&registration.Children[c], models, cancelled)
+			registration.Children[c].HolidayWishCheck = holidayWishCheck(period, registration.Children[c], cancelled)
 		}
 	}
 }
@@ -710,7 +708,7 @@ func validateHolidayRegistrationFilter(filter enrollment.HolidayRegistrationFilt
 	if filter.WeekID < 0 {
 		return fmt.Errorf("%w: week_id must be a positive ID", enrollment.ErrInvalidHolidayRegistrationFilter)
 	}
-	return nil
+	return validateHolidayWishFilter(filter.Wish)
 }
 
 // holidayExportRows lists one row per child and booking of the filter.
@@ -757,6 +755,9 @@ func holidayRegistrationMatches(registration enrollment.HolidayRegistrationSumma
 }
 
 func holidayChildMatches(child enrollment.HolidayRegistrationChild, filter enrollment.HolidayRegistrationFilter) bool {
+	if !holidayWishMatches(child, filter.Wish) {
+		return false
+	}
 	switch filter.School {
 	case "":
 		return true
@@ -789,6 +790,9 @@ func holidayFilterDetails(filter enrollment.HolidayRegistrationFilter) map[strin
 	}
 	if filter.TimeModel != "" {
 		details["time_model"] = filter.TimeModel
+	}
+	if filter.Wish != "" {
+		details["wish"] = filter.Wish
 	}
 	return details
 }

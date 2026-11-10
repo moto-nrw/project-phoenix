@@ -92,6 +92,7 @@ const CodeEnrollmentHolidayAllocationOff = "enrollment.holiday_allocation_off"
 const CodeEnrollmentHolidayAllocationPending = "enrollment.holiday_allocation_pending"
 const CodeEnrollmentHolidayAllocationReasonRequired = "enrollment.holiday_allocation_reason_required"
 const CodeEnrollmentHolidayBookingUnitBooked = "enrollment.holiday_booking_unit_booked"
+const CodeEnrollmentHolidayCareWishRequired = "enrollment.holiday_care_wish_required"
 const CodeEnrollmentHolidayChildDayLimit = "enrollment.holiday_child_day_limit"
 const CodeEnrollmentHolidayCriteriaInvalid = "enrollment.holiday_criteria_invalid"
 const CodeEnrollmentHolidayFormFieldNotAllowed = "enrollment.holiday_form_field_not_allowed"
@@ -113,6 +114,7 @@ const CodeEnrollmentHolidayWeekBooked = "enrollment.holiday_week_booked"
 const CodeEnrollmentHolidayWeekNoCareDay = "enrollment.holiday_week_no_care_day"
 const CodeEnrollmentHolidayWeekNotFound = "enrollment.holiday_week_not_found"
 const CodeEnrollmentHolidayWeeksBookedTogether = "enrollment.holiday_weeks_booked_together"
+const CodeEnrollmentHolidayWishMissing = "enrollment.holiday_wish_missing"
 const CodeEnrollmentHostedHolidayWeekNotFound = "enrollment.hosted_holiday_week_not_found"
 const CodeEnrollmentInvalidEmail = "enrollment.invalid_email"
 const CodeEnrollmentInvalidPhone = "enrollment.invalid_phone"
@@ -254,6 +256,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayAllocationPending, "business_rejection"},
 	{CodeEnrollmentHolidayAllocationReasonRequired, "input"},
 	{CodeEnrollmentHolidayBookingUnitBooked, "business_rejection"},
+	{CodeEnrollmentHolidayCareWishRequired, "input"},
 	{CodeEnrollmentHolidayChildDayLimit, "input"},
 	{CodeEnrollmentHolidayCriteriaInvalid, "input"},
 	{CodeEnrollmentHolidayFormFieldNotAllowed, "input"},
@@ -275,6 +278,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayWeekNoCareDay, "business_rejection"},
 	{CodeEnrollmentHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayWeeksBookedTogether, "input"},
+	{CodeEnrollmentHolidayWishMissing, "business_rejection"},
 	{CodeEnrollmentHostedHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentInvalidEmail, "input"},
 	{CodeEnrollmentInvalidPhone, "input"},

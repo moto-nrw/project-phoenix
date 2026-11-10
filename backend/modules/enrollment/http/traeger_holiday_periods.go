@@ -24,6 +24,7 @@ import (
 type HolidayPeriodResource struct {
 	periods       capability.HolidayPeriods
 	review        capability.HolidayRegistrationReview
+	wishes        capability.HolidayWishReview
 	places        HolidayPlaceReads
 	allocation    capability.HolidayAllocation
 	schoolNames   capability.HolidaySchoolNames
@@ -40,11 +41,11 @@ type HolidayPeriodResource struct {
 // information of a registration (#4722).
 // places lists the places of the weeks (#4699), allocation names the
 // criteria and decides on the places by them (#4700).
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, places HolidayPlaceReads, allocation capability.HolidayAllocation, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
-	if periods == nil || review == nil || places == nil || allocation == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
-		panic("enrollment http: the holiday periods, the registration review, the places, the allocation, the school names and the right checks are required")
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation capability.HolidayAllocation, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
+	if periods == nil || review == nil || wishes == nil || places == nil || allocation == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
+		panic("enrollment http: the holiday periods, the registration review, the wish review, the places, the allocation, the school names and the right checks are required")
 	}
-	return &HolidayPeriodResource{periods: periods, review: review, places: places, allocation: allocation, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+	return &HolidayPeriodResource{periods: periods, review: review, wishes: wishes, places: places, allocation: allocation, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
 }
 
 // HolidayPlaceReads lists the places of the weeks of a period (#4699).
@@ -105,6 +106,7 @@ type HolidayPeriodRequest struct {
 	RegistrationClosesOn calendar.Date `json:"registration_closes_on"`
 	Binding              bool          `json:"binding"`
 	Notes                string        `json:"notes"`
+	HolidayWishRule      bool          `json:"holiday_wish_rule"`
 	// MaxDaysPerChild bounds the care days per child, null for no bound
 	// (#4701).
 	MaxDaysPerChild *int `json:"max_days_per_child"`
@@ -130,7 +132,7 @@ func (req *HolidayPeriodRequest) input() capability.HolidayPeriodInput {
 	}
 	return capability.HolidayPeriodInput{
 		Name: req.Name, RegistrationOpensOn: req.RegistrationOpensOn, RegistrationClosesOn: req.RegistrationClosesOn,
-		Binding: req.Binding, Notes: req.Notes, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
+		Binding: req.Binding, Notes: req.Notes, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
 		AllocationMode: req.AllocationMode,
 	}
 }

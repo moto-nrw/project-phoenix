@@ -55,6 +55,15 @@ const (
 	HolidayCriterionByOffice = "office"
 )
 
+// HolidayWishCriterionID names the holiday care wish of the online
+// registration (#4703) among the criteria of a period that takes it into
+// account: it comes before the criteria of the Träger, as one criterion of
+// the allocation, and is no row of the Träger's list.
+const (
+	HolidayWishCriterionID   int64 = 0
+	HolidayWishCriterionName       = "Ferienwunsch aus der OGS-Anmeldung"
+)
+
 // Limits of the criteria and the decisions.
 const (
 	HolidayCriteriaMax             = 10
@@ -317,4 +326,9 @@ type HolidayPendingBooking struct {
 	ChildLastName  string
 	TimeModelName  string
 	Days           []calendar.Date
+	// HolidayWish and HolidayWishSource are the child's holiday care wish
+	// (#4703): "yes", "no" or empty when unknown, from the "account" or the
+	// "office".
+	HolidayWish       string
+	HolidayWishSource string
 }

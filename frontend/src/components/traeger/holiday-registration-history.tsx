@@ -36,6 +36,7 @@ const ACTION_LABELS: Readonly<
   promote: "Von der Warteliste nachgerückt",
   allocate: "Vergabe entschieden",
   criteria_check: "Angaben für die Vergabe geprüft",
+  wish: "Ferienwunsch festgelegt",
 };
 
 const CHECK_LABELS = { yes: "trifft zu", no: "trifft nicht zu" } as const;
@@ -148,6 +149,13 @@ function eventDetail(
   if (event.debtorNumber) return debtorNumberText(event.debtorNumber);
   if (event.siblings.length > 0) {
     return `Anmeldung Nr. ${event.siblings.join(", ")}`;
+  }
+  if (event.action === "wish") {
+    const wished = registration.children.find(
+      (entry) => entry.id === event.childId,
+    );
+    const who = wished ? `${wished.firstName} ${wished.lastName}: ` : "";
+    return `${who}${event.wish === "yes" ? "Mit Ferienwunsch" : "Ohne Ferienwunsch"}`;
   }
   if (event.action !== "rebook") return null;
   const child = registration.children.find(

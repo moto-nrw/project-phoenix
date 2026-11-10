@@ -33,6 +33,8 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/freeze"}: notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/reopen"}: notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/details"}: notCaptured,
+	// The office's decision on a holiday care wish (#4703).
+	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/holiday-wish"}: notCaptured,
 	// The allocation of holiday places by criteria (#4700) belongs to the
 	// Träger, not to a school: no school to count it for.
 	{http.MethodPut, "/traeger/holiday-periods/criteria"}:                                     notCaptured,

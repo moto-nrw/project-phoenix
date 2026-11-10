@@ -20,6 +20,23 @@ import (
 // for a place: received and confirmed ones.
 const holidayCountingStatuses = `('received', 'confirmed')`
 
+// holidayWishDeferredChild is true for a child (alias child) that waits
+// behind the others of its week (#4703): its period takes the holiday care
+// wish into account and the wish is known to be "no". An unknown wish and a
+// holiday guest are not deferred. holidayWishDeferredWaitingChild is the
+// same for the alias waiting_child. Both stay constants, so the tables of
+// every statement resolve statically.
+const (
+	holidayWishDeferredChild = `(COALESCE(child.holiday_wish, '') = 'no' AND EXISTS (
+		SELECT 1 FROM enrollment.holiday_periods AS wish_period
+		WHERE wish_period.organization_id = child.organization_id AND wish_period.id = child.holiday_period_id
+			AND wish_period.holiday_wish_rule))`
+	holidayWishDeferredWaitingChild = `(COALESCE(waiting_child.holiday_wish, '') = 'no' AND EXISTS (
+		SELECT 1 FROM enrollment.holiday_periods AS wish_period
+		WHERE wish_period.organization_id = waiting_child.organization_id AND wish_period.id = waiting_child.holiday_period_id
+			AND wish_period.holiday_wish_rule))`
+)
+
 const (
 	// lockHolidayWeeksQuery locks the weeks in ascending ID: the sort runs
 	// below the lock, so two callers never lock the same weeks the other
@@ -30,9 +47,10 @@ const (
 		FOR UPDATE`
 	// holidayWeekQueueQuery reads a locked week and every booking of a
 	// received or confirmed registration in it, in the order of the waiting
-	// list: the time the registration came in, its number, then the position
-	// of the child in the form (#4699), after the criteria in a period by
-	// criteria (#4700). Run in READ COMMITTED after the lock,
+	// list: children deferred by the holiday care wish last (#4703), then the
+	// criteria of a period by criteria (#4700), then the time the
+	// registration came in, its number, then the position of the child in the
+	// form (#4699). Run in READ COMMITTED after the lock,
 	// it sees every placement committed before. Days are those of a booking
 	// of days, NULL for a whole week (#4701).
 	holidayWeekQueueQuery = `SELECT week.capacity, week.starts_on, week.ends_on,
@@ -52,7 +70,7 @@ const (
 		LEFT JOIN enrollment.holiday_registrations AS registration
 			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
 		WHERE week.organization_id = ? AND week.id = ?
-		ORDER BY ` + holidayCriteriaOrderKey + `, registration.submitted_at, registration.id, child.position`
+		ORDER BY ` + holidayPlaceOrderKey + `, registration.submitted_at, registration.id, child.position`
 	// placeHolidayBookingsQuery gives the named waiting bookings of a locked
 	// week their place; initial ones get no promoted_at.
 	placeHolidayBookingsQuery = `UPDATE enrollment.holiday_registration_bookings AS booking
@@ -99,9 +117,10 @@ const (
 		ORDER BY week.starts_on, week.id`
 	holidayWaitlistQuery = `SELECT booking.holiday_period_week_id,
 			row_number() OVER (PARTITION BY booking.holiday_period_week_id
-				ORDER BY ` + holidayCriteriaOrderKey + `, registration.submitted_at, registration.id, child.position) AS position,
+				ORDER BY ` + holidayPlaceOrderKey + `, registration.submitted_at, registration.id, child.position) AS position,
 			registration.id AS registration_id, registration.status, registration.submitted_at,
-			child.id AS child_id, child.first_name, child.last_name, model.name AS time_model_name, booking.days::text AS days
+			child.id AS child_id, child.first_name, child.last_name, model.name AS time_model_name, booking.days::text AS days,
+			` + holidayWishDeferredChild + ` AS deferred
 		FROM enrollment.holiday_registration_bookings AS booking
 		JOIN enrollment.holiday_registration_children AS child
 			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
@@ -243,6 +262,7 @@ type holidayWaitlistRow struct {
 	FirstName      string    `bun:"first_name"`
 	LastName       string    `bun:"last_name"`
 	TimeModelName  string    `bun:"time_model_name"`
+	Deferred       bool      `bun:"deferred"`
 	Days           *string   `bun:"days"`
 }
 
@@ -271,7 +291,7 @@ func (s *HolidayRegistrationStore) ReadHolidayWeekPlaces(ctx context.Context, or
 		byWeek[row.WeekID] = append(byWeek[row.WeekID], enrollment.HolidayWaitlistEntry{
 			Position: row.Position, RegistrationID: row.RegistrationID, RegistrationStatus: row.Status,
 			SubmittedAt: row.SubmittedAt, ChildID: row.ChildID, ChildFirstName: row.FirstName, ChildLastName: row.LastName,
-			TimeModelName: row.TimeModelName, Days: days,
+			TimeModelName: row.TimeModelName, Deferred: row.Deferred, Days: days,
 		})
 	}
 	places := make([]enrollment.HolidayWeekPlaces, len(weeks))

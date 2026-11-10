@@ -218,13 +218,18 @@ func (a *HolidayAllocation) board(ctx context.Context, organizationID int64, per
 		return enrollment.HolidayAllocationBoard{}, fmt.Errorf("enrollment: read holiday allocation decisions: %w", err)
 	}
 	active := activeHolidayCriteria(criteria)
-	values := holidayCriterionValues(active, answers)
+	values := holidayAllocationValues(period, active, answers)
 	board := enrollment.HolidayAllocationBoard{
-		AllocationMode: period.AllocationMode, Criteria: make([]enrollment.HolidayCriterionRef, len(active)),
+		AllocationMode: period.AllocationMode, Criteria: []enrollment.HolidayCriterionRef{},
 		Weeks: make([]enrollment.HolidayAllocationWeek, len(places)), Decisions: decisions,
 	}
-	for i, criterion := range active {
-		board.Criteria[i] = enrollment.HolidayCriterionRef{ID: criterion.ID, Name: criterion.Name, Scope: criterion.Scope, Position: i + 1}
+	if period.HolidayWishRule {
+		board.Criteria = append(board.Criteria, enrollment.HolidayCriterionRef{
+			ID: enrollment.HolidayWishCriterionID, Name: enrollment.HolidayWishCriterionName, Scope: enrollment.HolidayCriterionChild, Position: 1,
+		})
+	}
+	for _, criterion := range active {
+		board.Criteria = append(board.Criteria, enrollment.HolidayCriterionRef{ID: criterion.ID, Name: criterion.Name, Scope: criterion.Scope, Position: len(board.Criteria) + 1})
 	}
 	for i, week := range places {
 		board.Weeks[i] = holidayAllocationWeek(week, pending, values)
@@ -234,7 +239,7 @@ func (a *HolidayAllocation) board(ctx context.Context, organizationID int64, per
 
 // holidayAllocationWeek is a week of the list with its pending bookings in
 // the order of the proposal and the proposal of each.
-func holidayAllocationWeek(week enrollment.HolidayWeekPlaces, pending []enrollment.HolidayPendingBooking, values holidayCriterionLookup) enrollment.HolidayAllocationWeek {
+func holidayAllocationWeek(week enrollment.HolidayWeekPlaces, pending []enrollment.HolidayPendingBooking, values func(enrollment.HolidayPendingBooking) []enrollment.HolidayCriterionValue) enrollment.HolidayAllocationWeek {
 	careDays := holidayAllocationCareDays(week.StartsOn, week.EndsOn)
 	taken := map[calendar.Date]int{}
 	if week.BookingUnit == enrollment.HolidayBookingUnitDay {
@@ -260,7 +265,7 @@ func holidayAllocationWeek(week enrollment.HolidayWeekPlaces, pending []enrollme
 		allocation.Pending = append(allocation.Pending, enrollment.HolidayAllocationCandidate{
 			BookingID: booking.BookingID, Rank: booking.Rank, RegistrationID: booking.RegistrationID, SubmittedAt: booking.SubmittedAt,
 			ChildID: booking.ChildID, ChildFirstName: booking.ChildFirstName, ChildLastName: booking.ChildLastName,
-			TimeModelName: booking.TimeModelName, Days: booking.Days, Criteria: values(booking.RegistrationID, booking.ChildID),
+			TimeModelName: booking.TimeModelName, Days: booking.Days, Criteria: values(booking),
 		})
 	}
 	for i, placed := range holidayProposal(week.Capacity, taken, careDays, days) {
@@ -382,12 +387,36 @@ func holidayYesNo(value bool) string {
 	return enrollment.HolidayCriterionNo
 }
 
-// holidayCriteriaMet names the criteria a booking meets.
-func holidayCriteriaMet(active []enrollment.HolidayCriterion, values []enrollment.HolidayCriterionValue) []string {
+// holidayAllocationValues names the values of a pending booking in the
+// order of the list: the holiday care wish first when the period takes it
+// into account (#4703), then the active criteria of the Träger. A wish of
+// the office counts as checked; an unknown wish is unknown, as in the
+// order of the waiting list, where only a known "no" waits behind.
+func holidayAllocationValues(period enrollment.HolidayPeriod, active []enrollment.HolidayCriterion, answers []enrollment.HolidayCriterionAnswer) func(enrollment.HolidayPendingBooking) []enrollment.HolidayCriterionValue {
+	values := holidayCriterionValues(active, answers)
+	return func(booking enrollment.HolidayPendingBooking) []enrollment.HolidayCriterionValue {
+		criteria := values(booking.RegistrationID, booking.ChildID)
+		if !period.HolidayWishRule {
+			return criteria
+		}
+		wish := enrollment.HolidayCriterionValue{CriterionID: enrollment.HolidayWishCriterionID, Value: enrollment.HolidayCriterionUnknown, Source: enrollment.HolidayCriterionByParent}
+		if booking.HolidayWish == enrollment.HolidayWishYes || booking.HolidayWish == enrollment.HolidayWishNo {
+			wish.Value = booking.HolidayWish
+		}
+		if booking.HolidayWishSource == enrollment.HolidayWishSourceOffice {
+			wish.Source = enrollment.HolidayCriterionByOffice
+		}
+		return append([]enrollment.HolidayCriterionValue{wish}, criteria...)
+	}
+}
+
+// holidayCriteriaMet names the criteria a booking meets, of names in the
+// order of values.
+func holidayCriteriaMet(names []string, values []enrollment.HolidayCriterionValue) []string {
 	met := []string{}
 	for i, value := range values {
 		if value.Value == enrollment.HolidayCriterionYes {
-			met = append(met, active[i].Name)
+			met = append(met, names[i])
 		}
 	}
 	return met

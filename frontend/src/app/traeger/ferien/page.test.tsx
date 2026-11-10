@@ -32,6 +32,7 @@ const period: HolidayPeriod = {
   registrationOpensOn: "2027-01-11",
   registrationClosesOn: "2027-02-26",
   binding: true,
+  holidayWishRule: false,
   notes: "",
   status: "published",
   publishedAt: "2027-01-04T09:00:00Z",

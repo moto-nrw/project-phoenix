@@ -723,6 +723,16 @@ function ChildInformationCard({
             {enrolledClassLabel(child) ? (
               <StatusBadge tone="gray" label={enrolledClassLabel(child)} />
             ) : null}
+            {child.holiday_care_wish === undefined ? null : (
+              <StatusBadge
+                tone="gray"
+                label={
+                  child.holiday_care_wish
+                    ? "Ferienbetreuung: gewünscht"
+                    : "Ferienbetreuung: nicht gewünscht"
+                }
+              />
+            )}
           </div>
         </div>
         {/* Aktionen des Kindes rechts im Kartenkopf statt als eigene

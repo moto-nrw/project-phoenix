@@ -34,6 +34,7 @@ export function traegerHolidayPlacesTopic(): HelpTopic {
         steps: [
           "Unter jeder Woche steht `Warteliste` mit allen Kindern, die auf einen Platz warten.",
           "Die Zahl vorne ist der Rang. Das Kind mit der 1 bekommt den nächsten freien Platz.",
+          "Berücksichtigt der Ferienzeitraum den Ferienwunsch, stehen Kinder mit `Ohne Ferienwunsch` hinter den anderen.",
           "Wählen Sie ein Kind, um seine Anmeldung zu öffnen.",
         ],
       },
@@ -72,6 +73,7 @@ export function traegerHolidayPlacesTopic(): HelpTopic {
       HELP_TOPICS.traegerHolidayRegistrationReview,
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerHolidayWish,
       HELP_TOPICS.traegerHolidayAllocation,
     ],
   };

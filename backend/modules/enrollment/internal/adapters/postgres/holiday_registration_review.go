@@ -55,6 +55,8 @@ type holidayReviewChildRow struct {
 	BirthDate                calendar.Date `bun:"birth_date"`
 	HomeSchoolID             *int64        `bun:"home_school_id"`
 	GuestSchoolName          string        `bun:"guest_school_name"`
+	HolidayWish              string        `bun:"holiday_wish"`
+	HolidayWishSource        string        `bun:"holiday_wish_source"`
 	DuplicateRegistrationIDs []int64       `bun:"duplicate_registration_ids,array"`
 }
 
@@ -86,6 +88,7 @@ const (
 	// cancelled, with a child of the same name and date of birth.
 	reviewChildrenColumns = `child.id, child.holiday_registration_id, child.first_name, child.last_name,
 			child.birth_date, child.home_school_id, child.guest_school_name,
+			COALESCE(child.holiday_wish, '') AS holiday_wish, COALESCE(child.holiday_wish_source, '') AS holiday_wish_source,
 			ARRAY(SELECT DISTINCT other.holiday_registration_id
 				FROM enrollment.holiday_registration_children AS other
 				JOIN enrollment.holiday_registrations AS registration
@@ -114,7 +117,7 @@ const (
 		LEFT JOIN (
 			SELECT waiting_booking.id, row_number() OVER (
 				PARTITION BY waiting_booking.holiday_period_week_id
-				ORDER BY ` + holidayCriteriaOrderHead + "waiting_child" + holidayCriteriaOrderTail + `, registration.submitted_at, registration.id, waiting_child.position) AS position
+				ORDER BY ` + holidayWishDeferredWaitingChild + `, ` + holidayCriteriaOrderHead + "waiting_child" + holidayCriteriaOrderTail + `, registration.submitted_at, registration.id, waiting_child.position) AS position
 			FROM enrollment.holiday_registration_bookings AS waiting_booking
 			JOIN enrollment.holiday_registration_children AS waiting_child
 				ON waiting_child.organization_id = waiting_booking.organization_id AND waiting_child.id = waiting_booking.holiday_registration_child_id
@@ -176,6 +179,7 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			ID: child.ID, FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
 			HomeSchoolID: child.HomeSchoolID, GuestSchoolName: child.GuestSchoolName,
 			Bookings: childBookings[child.ID], DuplicateRegistrationIDs: duplicates,
+			HolidayWish: child.HolidayWish, HolidayWishSource: child.HolidayWishSource,
 		})
 	}
 	details := make([]enrollment.HolidayRegistrationDetail, len(registrations))
@@ -273,7 +277,7 @@ const (
 	reviewHistoryQuery = `SELECT action, occurred_at, actor_account_id, details
 		FROM enrollment.holiday_registration_audit
 		WHERE organization_id = ? AND holiday_registration_id = ?
-			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'edit', 'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel', 'promote',
+			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'edit', 'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel', 'promote', 'wish',
 				'allocate', 'criteria_check')
 		ORDER BY occurred_at, id`
 )

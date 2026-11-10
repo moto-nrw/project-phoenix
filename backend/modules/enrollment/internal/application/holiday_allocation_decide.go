@@ -104,9 +104,16 @@ func (a *HolidayAllocation) lockChoices(ctx context.Context, organizationID int6
 		return holidayAllocationBatch{}, fmt.Errorf("enrollment: read holiday criterion answers: %w", err)
 	}
 	active := activeHolidayCriteria(criteria)
-	values := holidayCriterionValues(active, answers)
+	values := holidayAllocationValues(period, active, answers)
+	names := []string{}
+	if period.HolidayWishRule {
+		names = append(names, enrollment.HolidayWishCriterionName)
+	}
+	for _, criterion := range active {
+		names = append(names, criterion.Name)
+	}
 	batch.met = func(booking enrollment.HolidayPendingBooking) []string {
-		return holidayCriteriaMet(active, values(booking.RegistrationID, booking.ChildID))
+		return holidayCriteriaMet(names, values(booking))
 	}
 	return batch, nil
 }

@@ -17,6 +17,7 @@ import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { formatDate } from "~/lib/date-helpers";
@@ -44,11 +45,13 @@ import type {
 import {
   type AddressDraft,
   bookedDayCount,
+  bookedWeeks,
   type ChildDraft,
   type ContactDraft,
   emptyContact,
   type FieldError,
   hasRoomForKnownChild,
+  knownChildRefused,
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
@@ -100,6 +103,8 @@ function WeekChoice({
   prefix,
   value,
   days,
+  daysName,
+  daysError,
   invalid,
   onChange,
   onDaysChange,
@@ -109,6 +114,8 @@ function WeekChoice({
   value: string;
   /** The chosen days of the booked week, when it is booked by days. */
   days: readonly string[];
+  daysName?: string;
+  daysError?: string;
   invalid: boolean;
   onChange: (timeModelId: string) => void;
   onDaysChange: (weekId: string, days: readonly string[]) => void;
@@ -185,6 +192,8 @@ function WeekChoice({
           week={booked}
           label={labels.range(booked)}
           days={days}
+          name={daysName}
+          error={daysError}
           onChange={(next) => onDaysChange(booked.id, next)}
         />
       ) : null}
@@ -201,11 +210,15 @@ function DayChoice({
   week,
   label,
   days,
+  name,
+  error,
   onChange,
 }: Readonly<{
   week: HolidayRegistrationWeek;
   label: string;
   days: readonly string[];
+  name?: string;
+  error?: string;
   onChange: (days: readonly string[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
@@ -229,6 +242,8 @@ function DayChoice({
   return (
     <InsetPanel padding="sm" className="space-y-2 sm:ml-auto sm:w-1/2">
       <WeekdayToggleGroup
+        name={name}
+        error={error}
         ariaLabel={t("daysLabel", { week: label })}
         days={(week.careDays ?? []).map((day) => ({
           value: day,
@@ -289,6 +304,7 @@ export function ChildCard({
   const prefix = `children.${index}`;
   const guest = child.school === OTHER_SCHOOL;
   const set = (patch: Partial<ChildDraft>) => onChange({ ...child, ...patch });
+  const bookings = bookedWeeks(child, offer);
   // The server names a single booking ("children.0.bookings.1") when a week
   // or time model went away after the page loaded; every booking control of
   // the child carries that hint.
@@ -421,6 +437,13 @@ export function ChildCard({
             const bookedWeek = group.find((week) =>
               week.timeModels.some((model) => model.id === value),
             );
+            const bookingIndex = bookings.findIndex(
+              (booking) => booking.weekId === bookedWeek?.id,
+            );
+            const daysName =
+              bookingIndex >= 0
+                ? `${prefix}.bookings.${bookingIndex}.days`
+                : undefined;
             return (
               <WeekChoice
                 key={group[0]?.id}
@@ -428,6 +451,8 @@ export function ChildCard({
                 prefix={prefix}
                 value={value}
                 days={bookedWeek ? (child.days?.[bookedWeek.id] ?? []) : []}
+                daysName={daysName}
+                daysError={daysName ? fieldError(daysName) : undefined}
                 onDaysChange={(weekId, days) =>
                   set({ days: { ...child.days, [weekId]: days } })
                 }
@@ -655,7 +680,9 @@ export function KnownChildPicker({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {known.map((child) => {
           const selected = picked.has(child.studentId);
-          const disabled = !selected && full;
+          const refused = knownChildRefused(child, offer);
+          const disabled = !selected && (full || refused);
+          const wish = knownChildWish(child, offer);
           return (
             <ChoiceTile
               key={child.studentId}
@@ -681,6 +708,16 @@ export function KnownChildPicker({
                       })
                     : schoolName(child.schoolId)}
                 </span>
+                {wish ? (
+                  <span className="mt-1.5 flex flex-col items-start gap-1">
+                    <StatusBadge tone={wish.tone} label={t(wish.label)} />
+                    {wish.hint ? (
+                      <span className="text-xs font-normal text-gray-600">
+                        {t(wish.hint)}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}
               </span>
             </ChoiceTile>
           );
@@ -800,4 +837,31 @@ export function GuardianAddressCard({
       />
     </SectionCard>
   );
+}
+
+type WishLabel =
+  "wishKnownYes" | "wishKnownNo" | "wishKnownUnknown" | "wishRefused";
+
+/**
+ * What the form tells the parent about a known child's holiday care wish
+ * (#4703), only while the period takes it into account. The wish comes from
+ * the parent's own OGS registration; the school knows nobody else's.
+ */
+function knownChildWish(
+  child: HolidayKnownChild,
+  offer: HolidayRegistrationOffer,
+): {
+  tone: "green" | "gray" | "warning";
+  label: WishLabel;
+  hint?: "wishHintNo" | "wishHintRefused" | "wishHintUnknown";
+} | null {
+  if (offer.holidayWishMode === "off") return null;
+  if (child.holidayWish === "yes")
+    return { tone: "green", label: "wishKnownYes" };
+  if (child.holidayWish === "no") {
+    return knownChildRefused(child, offer)
+      ? { tone: "warning", label: "wishRefused", hint: "wishHintRefused" }
+      : { tone: "gray", label: "wishKnownNo", hint: "wishHintNo" };
+  }
+  return { tone: "gray", label: "wishKnownUnknown", hint: "wishHintUnknown" };
 }

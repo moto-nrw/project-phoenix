@@ -165,6 +165,14 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":3,"registration_ids":[9,11]}}`))
 		case "/traeger/holiday-periods/5/places":
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"week_id":51,"placed":2},{"week_id":52,"placed":3}]}`))
+		case "/traeger/holiday-periods/5/registrations":
+			if r.URL.Query().Get("wish") != "check" {
+				_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
+				return
+			}
+			// The late child waits with a wish the office checks (#4703).
+			_, _ = w.Write([]byte(`{"status":"success","data":{"registrations":[{"id":13,"children":[` +
+				`{"id":131,"first_name":"Jonas","last_name":"Spät","holiday_wish_check":true}]}]}}`))
 		case "/traeger/holiday-contributions/5/weeks/52/capacity":
 			raw, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -218,6 +226,13 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"GET /traeger/holiday-periods/5/places Bearer traeger-token",
 		"PUT /traeger/holiday-contributions/5/weeks/52/capacity Bearer traeger-token",
 		"POST /traeger/holiday-registrations/link-key ",
+		// The period takes the holiday care wish into account; one more
+		// family registers and the office decides the late child (#4703).
+		"GET /traeger/holiday-periods/5 Bearer traeger-token",
+		"PUT /traeger/holiday-periods/5 Bearer traeger-token",
+		"POST /traeger/holiday-registrations/link-key ",
+		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
+		"PUT /traeger/holiday-periods/5/registrations/13/children/131/holiday-wish Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
 		// The Abrechnung chooses the kind of document (#4688).
 		"PUT /traeger/billing-document-kinds/holiday Bearer traeger-token",
@@ -247,7 +262,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
 	assert.Equal(t, float64(31), weeks[1].(map[string]any)["host_school_id"], "the profile's school hosts both weeks, never the manual test school")
 	assert.Equal(t, map[string]any{"capacity": float64(3)}, capacity, "the week holds as many places as it has children with a place")
-	require.Len(t, registrations, 5)
+	require.Len(t, registrations, 6)
 	registration := registrations[0]
 	children, ok := registration["children"].([]any)
 	require.True(t, ok)

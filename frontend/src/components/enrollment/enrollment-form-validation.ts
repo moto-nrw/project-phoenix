@@ -13,9 +13,10 @@ import {
   isFieldVisible,
   type ConditionContext,
 } from "~/lib/enrollment-field-visibility";
-import type {
-  PublicFormSchema,
-  PublicLegalBlock,
+import {
+  holidayCareWishAsked,
+  type PublicFormSchema,
+  type PublicLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
 import type { PublicCareOffering } from "~/lib/enrollment-submission-api";
 import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
@@ -158,6 +159,14 @@ export function validateEnrollmentForm(
   const fieldErrors = rules.restrictToOfferings
     ? {}
     : dataFieldErrors(values, rules, tr);
+  if (holidayCareWishAsked(rules.schema)) {
+    values.children.forEach((child, i) => {
+      if (!child.locked && child.holiday_care_wish === undefined) {
+        fieldErrors[formFieldName.child(i, "holiday_care_wish")] =
+          tr("errors.yesNo");
+      }
+    });
+  }
   if (rules.signatureRequired && values.signature === null) {
     fieldErrors[formFieldName.signature] = tr("signature.required");
   }

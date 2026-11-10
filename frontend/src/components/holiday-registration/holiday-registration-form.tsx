@@ -9,6 +9,7 @@ import { HolidayRegistrationLegal } from "./holiday-registration-legal";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -236,6 +237,18 @@ export function HolidayRegistrationForm({
 
       <SectionCard title={t("childrenTitle")} description={t("childrenText")}>
         <div className="space-y-4">
+          {offer.holidayWishMode === "off" ? null : (
+            <Alert
+              type="info"
+              announce="off"
+              title={t("wishRuleTitle")}
+              message={t(
+                offer.holidayWishMode === "wish_only"
+                  ? "wishRuleWishOnly"
+                  : "wishRulePriority",
+              )}
+            />
+          )}
           {family && family.children.length > 0 ? (
             <KnownChildPicker
               known={family.children}

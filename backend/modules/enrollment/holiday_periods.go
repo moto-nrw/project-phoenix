@@ -124,6 +124,10 @@ type HolidayPeriod struct {
 	// MaxDaysPerChild bounds the care days one child books in the period,
 	// nil for no bound (#4701).
 	MaxDaysPerChild *int `json:"max_days_per_child"`
+	// HolidayWishRule takes the holiday care wish of the online
+	// registration into account (#4703); the Träger setting
+	// holiday_registration.wish_mode says how.
+	HolidayWishRule bool `json:"holiday_wish_rule"`
 	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria
 	// (#4700); AllocationModeLocked reports a period with a registration,
 	// whose mode no longer changes.
@@ -173,6 +177,7 @@ type HolidayPeriodInput struct {
 	RegistrationClosesOn calendar.Date
 	Binding              bool
 	Notes                string
+	HolidayWishRule      bool
 	// MaxDaysPerChild bounds the care days per child, nil for no bound.
 	MaxDaysPerChild *int
 	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria

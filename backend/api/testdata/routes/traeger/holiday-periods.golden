@@ -21,5 +21,6 @@ POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
 PUT /traeger/holiday-periods/criteria
 PUT /traeger/holiday-periods/{id}
 PUT /traeger/holiday-periods/{id}/form
+PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/holiday-wish
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/criteria
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/details

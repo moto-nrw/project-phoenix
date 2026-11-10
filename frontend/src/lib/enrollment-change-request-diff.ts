@@ -85,6 +85,7 @@ export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeReques
       custom_data: "Zusatzangaben",
       date_of_birth: "Geburtsdatum",
       first_name: "Vorname",
+      holiday_care_wish: "Ferienwunsch",
       last_name: "Nachname",
       offering_days: "Betreuungstage",
       offering_ids: "Betreuungsangebote",

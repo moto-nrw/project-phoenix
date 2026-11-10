@@ -14,8 +14,8 @@ func init() {
 		Version:     holidayCriteriaAllocationVersion,
 		Description: "Ferien: Platzvergabe nach Kriterien mit Entscheidung durch das Büro (#4700)",
 		DependsOn: []string{
-			holidayDayBookingVersion,   // the newest migration on development
-			holidayWeekCapacityVersion, // the placement and the audit actions this one extends
+			holidayCareWishVersion,     // the newest migration on development (1.15.886), its audit action 'wish'
+			holidayWeekCapacityVersion, // the placement this one extends
 		},
 	})
 	Migrations.MustRegister(holidayCriteriaAllocationUp, holidayCriteriaAllocationDown)
@@ -182,7 +182,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit',
 		'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel',
-		'promote', 'capacity', 'places', 'allocate', 'allocation', 'criteria_check')),
+		'promote', 'capacity', 'places', 'wish', 'allocate', 'allocation', 'criteria_check')),
 	ADD CONSTRAINT chk_holiday_registration_audit_subject CHECK (
 		(action IN ('list', 'export', 'capacity', 'places', 'allocation')) = (holiday_registration_id IS NULL));
 `
@@ -198,7 +198,7 @@ ALTER TABLE enrollment.holiday_registration_audit
 ALTER TABLE enrollment.holiday_registration_audit
 	ADD CONSTRAINT chk_holiday_registration_audit_action CHECK (action IN ('list', 'read', 'export', 'confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'proof', 'health', 'debtor_number', 'edit',
 		'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel',
-		'promote', 'capacity', 'places')),
+		'promote', 'capacity', 'places', 'wish')),
 	ADD CONSTRAINT chk_holiday_registration_audit_subject CHECK (
 		(action IN ('list', 'export', 'capacity', 'places')) = (holiday_registration_id IS NULL));
 DROP TABLE IF EXISTS enrollment.holiday_allocation_decisions;

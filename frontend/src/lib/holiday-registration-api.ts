@@ -99,6 +99,11 @@ export interface HolidayRegistrationOffer {
   /** The German texts of the declarations the form shows (#5626). */
   readonly consentTexts: HolidayConsentTexts;
   /**
+   * Whether the period takes the holiday care wish of the OGS registration
+   * into account and how (#4703).
+   */
+  readonly holidayWishMode: HolidayWishMode;
+  /**
    * "criteria": the office gives the places after the Träger's criteria;
    * nobody gets a place at once (#4700). Absent reads as arrival.
    */
@@ -106,6 +111,12 @@ export interface HolidayRegistrationOffer {
   /** The active criteria, only by criteria; empty otherwise. */
   readonly criteria?: readonly HolidayRegistrationCriterion[];
 }
+
+/**
+ * "off": the wish does not count; "priority": children without a wish wait
+ * behind; "wish_only": only children with a wish can register (#4703).
+ */
+type HolidayWishMode = "off" | "priority" | "wish_only";
 
 interface BackendOffer {
   traeger_name: string;
@@ -146,6 +157,7 @@ interface BackendOffer {
     address_requirement?: string | null;
   } | null;
   consent_texts?: BackendConsentTexts | null;
+  holiday_wish_mode?: HolidayWishMode;
   allocation_mode?: "arrival" | "criteria";
   criteria?:
     { id: number; question: string; scope: "family" | "child" }[] | null;
@@ -183,6 +195,8 @@ export interface HolidayRegistrationPayload {
     }[];
     /** Answers to the questions per child, by key (#5198). */
     readonly custom_data: Readonly<Record<string, unknown>>;
+    /** The sealed statement of the holiday care wish from the prefill (#4703). */
+    readonly wish_proof?: string;
     /** Answers to the criteria per child, by criterion ID (#4700). */
     readonly criteria?: Readonly<Record<string, boolean>>;
   }[];
@@ -262,6 +276,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       ),
     },
     consentTexts: consentTextsFromBackend(offer.consent_texts),
+    holidayWishMode: offer.holiday_wish_mode ?? "off",
     allocationMode: offer.allocation_mode ?? "arrival",
     criteria:
       offer.allocation_mode === "criteria"
@@ -418,6 +433,14 @@ export interface HolidayKnownChild {
   readonly lastName: string;
   /** "YYYY-MM-DD", or "" when the school knows no date of birth. */
   readonly birthDate: string;
+  /**
+   * The holiday care wish from the OGS registration, when the period takes
+   * it into account (#4703): "yes", "no" or "" when the school does not
+   * know it. Only the parent with the relationship right gets it.
+   */
+  readonly holidayWish: "yes" | "no" | "";
+  /** The sealed statement the form sends back with the child. */
+  readonly holidayWishProof: string;
 }
 
 /** What the schools of the Träger know of a parent with an account. */
@@ -445,6 +468,8 @@ interface BackendFamily {
         first_name: string;
         last_name: string;
         birth_date?: string;
+        holiday_wish?: "yes" | "no";
+        holiday_wish_proof?: string;
       }[]
     | null;
 }
@@ -482,6 +507,8 @@ export async function fetchHolidayRegistrationFamily(
       firstName: child.first_name,
       lastName: child.last_name,
       birthDate: child.birth_date ?? "",
+      holidayWish: child.holiday_wish ?? "",
+      holidayWishProof: child.holiday_wish_proof ?? "",
     })),
   };
 }

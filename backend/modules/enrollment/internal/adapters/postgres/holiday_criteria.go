@@ -43,6 +43,11 @@ const (
 			AND ordered_period.allocation_mode = 'criteria')`
 	// holidayCriteriaOrderKey is the key of a child named "child".
 	holidayCriteriaOrderKey = holidayCriteriaOrderHead + "child" + holidayCriteriaOrderTail
+	// holidayPlaceOrderKey orders the bookings of a week for the waiting
+	// list and the proposal, before the arrival: the holiday care wish of a
+	// period that takes it into account first (#4703), as the criterion of
+	// highest priority, then the criteria of the Träger (#4700).
+	holidayPlaceOrderKey = holidayWishDeferredChild + `, ` + holidayCriteriaOrderKey
 )
 
 const (
@@ -260,9 +265,10 @@ func (s *HolidayRegistrationStore) CheckHolidayCriterion(ctx context.Context, or
 // criteria, then arrival, number and position (#4700).
 const holidayPendingBookingsQuery = `SELECT booking.id AS booking_id, booking.holiday_period_week_id,
 		row_number() OVER (PARTITION BY booking.holiday_period_week_id
-			ORDER BY ` + holidayCriteriaOrderKey + `, registration.submitted_at, registration.id, child.position) AS rank,
+			ORDER BY ` + holidayPlaceOrderKey + `, registration.submitted_at, registration.id, child.position) AS rank,
 		registration.id AS registration_id, registration.submitted_at, child.id AS child_id, child.position,
-		child.first_name, child.last_name, model.name AS time_model_name, booking.days::text AS days
+		child.first_name, child.last_name, model.name AS time_model_name, booking.days::text AS days,
+		COALESCE(child.holiday_wish, '') AS holiday_wish, COALESCE(child.holiday_wish_source, '') AS holiday_wish_source
 	FROM enrollment.holiday_registration_bookings AS booking
 	JOIN enrollment.holiday_registration_children AS child
 		ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
@@ -286,6 +292,8 @@ type holidayPendingBookingRow struct {
 	LastName       string    `bun:"last_name"`
 	TimeModelName  string    `bun:"time_model_name"`
 	Days           *string   `bun:"days"`
+	HolidayWish    string    `bun:"holiday_wish"`
+	WishSource     string    `bun:"holiday_wish_source"`
 }
 
 // ReadHolidayPendingBookings reads the pending bookings of the period by
@@ -309,6 +317,7 @@ func (s *HolidayRegistrationStore) ReadHolidayPendingBookings(ctx context.Contex
 			BookingID: row.BookingID, WeekID: row.WeekID, Rank: row.Rank, RegistrationID: row.RegistrationID,
 			SubmittedAt: row.SubmittedAt, ChildID: row.ChildID, ChildPosition: row.Position,
 			ChildFirstName: row.FirstName, ChildLastName: row.LastName, TimeModelName: row.TimeModelName, Days: days,
+			HolidayWish: row.HolidayWish, HolidayWishSource: row.WishSource,
 		}
 	}
 	return pending, nil

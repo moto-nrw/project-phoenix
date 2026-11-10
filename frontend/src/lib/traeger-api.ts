@@ -522,6 +522,11 @@ export interface HolidayPeriodInput {
   readonly binding: boolean;
   readonly notes: string;
   /**
+   * Children with a holiday care wish from the OGS registration come first
+   * (#4703); the Träger setting decides what happens without one.
+   */
+  readonly holidayWishRule: boolean;
+  /**
    * Care days one child may book in the period; null or absent is no bound
    * (#4701).
    */
@@ -576,6 +581,7 @@ interface BackendHolidayPeriod {
   registration_closes_on: string;
   binding: boolean;
   notes: string;
+  holiday_wish_rule?: boolean;
   status: "draft" | "published";
   published_at: string | null;
   public_token?: string;
@@ -594,6 +600,7 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
     registrationClosesOn: period.registration_closes_on,
     binding: period.binding,
     notes: period.notes,
+    holidayWishRule: period.holiday_wish_rule ?? false,
     status: period.status,
     publishedAt: period.published_at,
     publicToken: period.public_token ?? "",
@@ -628,6 +635,7 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
     registration_closes_on: input.registrationClosesOn,
     binding: input.binding,
     notes: input.notes,
+    holiday_wish_rule: input.holidayWishRule,
     max_days_per_child: input.maxDaysPerChild ?? null,
     allocation_mode: input.allocationMode ?? "arrival",
     weeks: input.weeks.map((week) => ({

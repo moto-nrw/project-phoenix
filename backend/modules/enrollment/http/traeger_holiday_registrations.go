@@ -42,6 +42,7 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
 	review.Post("/{id}/registrations/{registrationId}/reopen", rs.registrationAction(capability.HolidayAuditReopen))
 	review.Get("/{id}/places", rs.listPlaces)
+	review.Put("/{id}/registrations/{registrationId}/children/{childId}/holiday-wish", rs.setHolidayWish)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Put("/{id}/registrations/{registrationId}/details", rs.editRegistration)
 }
 
@@ -56,12 +57,12 @@ func reviewerOf(w http.ResponseWriter, r *http.Request) (capability.HolidayRevie
 	return capability.HolidayReviewer{OrganizationID: principal.OrganizationID(), AccountID: principal.AccountID()}, true
 }
 
-// registrationFilter reads status, school, week_id and time_model.
+// registrationFilter reads status, school, week_id, time_model and wish.
 func registrationFilter(r *http.Request) (capability.HolidayRegistrationFilter, error) {
 	query := r.URL.Query()
 	filter := capability.HolidayRegistrationFilter{
 		Status: strings.TrimSpace(query.Get("status")), School: strings.TrimSpace(query.Get("school")),
-		TimeModel: strings.TrimSpace(query.Get("time_model")),
+		TimeModel: strings.TrimSpace(query.Get("time_model")), Wish: strings.TrimSpace(query.Get("wish")),
 	}
 	if raw := strings.TrimSpace(query.Get("week_id")); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
@@ -191,6 +192,8 @@ func renderHolidayReviewError(w http.ResponseWriter, r *http.Request, err error)
 	}
 	switch {
 	case errors.As(err, &fields):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
+	case errors.Is(err, capability.ErrHolidayWishInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrInvalidHolidayRegistrationFilter):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

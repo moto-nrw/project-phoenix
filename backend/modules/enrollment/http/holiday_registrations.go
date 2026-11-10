@@ -115,6 +115,10 @@ type HolidayRegistrationOfferResponse struct {
 	// ConsentTexts are the German texts of the fixed declarations the form
 	// shows; they bind, a translation only helps reading (#5626).
 	ConsentTexts capability.HolidayConsentTexts `json:"consent_texts"`
+	// HolidayWishMode says whether and how the period takes the holiday
+	// care wish of the online registration into account (#4703): off,
+	// priority or wish_only. It names a rule, no child.
+	HolidayWishMode string `json:"holiday_wish_mode"`
 }
 
 // HolidayRegistrationForm is the current version of the period's form for
@@ -157,6 +161,9 @@ type holidayChildRequest struct {
 	HealthNotes     string                    `json:"health_notes"`
 	Bookings        []holidayBookingRequest   `json:"bookings"`
 	CustomData      capability.HolidayAnswers `json:"custom_data"`
+	// WishProof is the sealed statement of the holiday care wish from the
+	// prefill of a parent with an account (#4703).
+	WishProof string `json:"wish_proof"`
 	// Criteria are the answers to the child criteria by criterion ID (#4700).
 	Criteria map[int64]bool `json:"criteria"`
 }
@@ -215,7 +222,8 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
 			HomeSchoolID: child.HomeSchoolID, GuestSchoolName: child.GuestSchoolName, Allergies: child.Allergies,
 			Medication: child.Medication, HealthNotes: child.HealthNotes, Bookings: bookings, CustomData: child.CustomData,
-			Criteria: child.Criteria,
+			WishProof: child.WishProof,
+			Criteria:  child.Criteria,
 		}
 	}
 	var secondGuardian *capability.HolidayGuardianInput
@@ -331,7 +339,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 			Version: offer.Form.Version, Fields: holidayFormFields(offer.Form.Fields),
 			LegalBlocks: publicHolidayLegalBlocks(offer.Form.LegalBlocks), AddressRequirement: offer.Form.AddressRequirement,
 		},
-		ConsentTexts: offer.ConsentTexts,
+		ConsentTexts: offer.ConsentTexts, HolidayWishMode: offer.HolidayWishMode,
 	}
 }
 
@@ -428,6 +436,8 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationClosed))
 	case errors.Is(err, capability.ErrHolidayRegistrationFormChanged):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFormChanged))
+	case errors.Is(err, capability.ErrHolidayWishMissing):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayWishMissing))
 	case errors.Is(err, capability.ErrRateLimited):
 		setRateLimitRetryAfter(w)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionRateLimited))

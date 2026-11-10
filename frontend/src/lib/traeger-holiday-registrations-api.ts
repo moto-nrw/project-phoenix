@@ -48,6 +48,7 @@ type HolidayRegistrationEventAction =
   | "sibling_split"
   | "sibling_cancel"
   | "promote"
+  | "wish"
   | "allocate"
   | "criteria_check";
 
@@ -59,14 +60,27 @@ export interface HolidayRegistrationFilter {
   readonly weekId: string;
   /** A time model name; time models are per week. */
   readonly timeModel: string;
+  /**
+   * The holiday care wish (#4703): "check" for children the office still
+   * has to check, "yes" or "no", empty for all.
+   */
+  readonly wish: HolidayWishFilter;
 }
+
+export type HolidayWishFilter = "" | "check" | "yes" | "no";
 
 export const EMPTY_HOLIDAY_REGISTRATION_FILTER: HolidayRegistrationFilter = {
   status: "",
   school: "",
   weekId: "",
   timeModel: "",
+  wish: "",
 };
+
+/** What is known about a child's holiday care wish (#4703). */
+type HolidayWish = "yes" | "no" | "";
+/** Where the known wish comes from: the parent's account or the office. */
+type HolidayWishSource = "account" | "office" | "";
 
 /**
  * Whether a booking has a place in its week or waits for one (#4699). In a
@@ -103,6 +117,11 @@ export interface HolidayRegistrationChild {
   readonly bookings: readonly HolidayRegistrationBooking[];
   /** Other registrations of the period with the same child. */
   readonly duplicateRegistrationIds: readonly string[];
+  /** The child's holiday care wish, empty when unknown (#4703). */
+  readonly holidayWish: HolidayWish;
+  readonly holidayWishSource: HolidayWishSource;
+  /** The office still has to check the wish of this child. */
+  readonly holidayWishCheck: boolean;
 }
 
 export interface HolidayRegistrationSummary {
@@ -202,6 +221,8 @@ export interface HolidayRegistrationEvent {
   readonly fields: readonly string[];
   /** The other registrations of a sibling merge or split (#5628). */
   readonly siblings: readonly string[];
+  /** The office's decision on the holiday care wish (#4703). */
+  readonly wish: HolidayWish;
   /** The weeks an allocation decided (#4700). */
   readonly weekIds?: readonly string[];
   /** What an allocation decided; absent for other actions. */
@@ -325,6 +346,9 @@ interface BackendChild {
   guest_school_name: string;
   bookings?: BackendBooking[] | null;
   duplicate_registration_ids?: number[] | null;
+  holiday_wish?: HolidayWish;
+  holiday_wish_source?: HolidayWishSource;
+  holiday_wish_check?: boolean;
 }
 
 interface BackendSummary {
@@ -394,6 +418,7 @@ interface BackendDetail extends BackendSummary {
           debtor_number?: { before: string; after: string } | null;
           fields?: string[] | null;
           siblings?: number[] | null;
+          wish?: HolidayWish;
           week_ids?: number[] | null;
           placement?: "placed" | "waitlisted" | null;
           reason?: string | null;
@@ -472,6 +497,9 @@ function summaryFromBackend(
       duplicateRegistrationIds: (child.duplicate_registration_ids ?? []).map(
         String,
       ),
+      holidayWish: child.holiday_wish ?? "",
+      holidayWishSource: child.holiday_wish_source ?? "",
+      holidayWishCheck: child.holiday_wish_check ?? false,
     })),
   };
 }
@@ -533,6 +561,7 @@ function detailFromBackend(
       debtorNumber: event.details?.debtor_number ?? null,
       fields: event.details?.fields ?? [],
       siblings: (event.details?.siblings ?? []).map(String),
+      wish: event.details?.wish ?? "",
       // Only an allocation and a check carry these (#4700).
       ...(event.details?.week_ids
         ? { weekIds: event.details.week_ids.map(String) }
@@ -628,6 +657,7 @@ function holidayRegistrationQuery(
   if (filter.school) params.set("school", filter.school);
   if (filter.weekId) params.set("week_id", filter.weekId);
   if (filter.timeModel) params.set("time_model", filter.timeModel);
+  if (filter.wish) params.set("wish", filter.wish);
   for (const [key, value] of Object.entries(extra)) params.set(key, value);
   const query = params.toString();
   return query ? `?${query}` : "";
@@ -749,6 +779,24 @@ export async function checkHolidayRegistrationCriteria(
           })),
         },
       },
+    ),
+  );
+}
+
+/**
+ * The office decides the holiday care wish of a child of its schools
+ * (#4703). It only orders the waiting list; no place is given or taken.
+ */
+export async function setHolidayChildWish(
+  periodId: string,
+  registrationId: string,
+  childId: string,
+  wish: "yes" | "no",
+): Promise<HolidayRegistrationDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(
+      `${registrationPath(periodId, registrationId)}/children/${encodeURIComponent(childId)}/holiday-wish`,
+      { method: "PUT", body: { wish } },
     ),
   );
 }
@@ -970,6 +1018,8 @@ interface HolidayWaitlistEntry {
   readonly childFirstName: string;
   readonly childLastName: string;
   readonly timeModelName: string;
+  /** Waits behind the others: no holiday care wish (#4703). */
+  readonly deferred: boolean;
   /** The wanted days of a booking of days (#4701); empty for a whole week. */
   readonly days?: readonly string[];
 }
@@ -1015,6 +1065,7 @@ interface BackendWeekPlaces {
         child_first_name: string;
         child_last_name: string;
         time_model_name: string;
+        deferred?: boolean;
         days?: string[] | null;
       }[]
     | null;
@@ -1046,6 +1097,7 @@ export async function fetchHolidayWeekPlaces(
       childFirstName: entry.child_first_name,
       childLastName: entry.child_last_name,
       timeModelName: entry.time_model_name,
+      deferred: entry.deferred ?? false,
       ...(entry.days?.length ? { days: entry.days } : {}),
     })),
   }));

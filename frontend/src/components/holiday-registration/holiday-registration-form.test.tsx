@@ -92,6 +92,7 @@ const offer: HolidayRegistrationOffer = {
   registrationOpensOn: "2026-09-01",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishMode: "off",
   notes: "",
   open: true,
   weeks: [
@@ -131,6 +132,8 @@ const family: HolidayKnownFamily = {
       firstName: "Felix",
       lastName: "Schneider",
       birthDate: "2018-03-01",
+      holidayWish: "",
+      holidayWishProof: "",
     },
   ],
 };
@@ -169,7 +172,7 @@ function type(input: HTMLElement, value: string) {
 const WEEK_TIME_MODEL = /^bis 13 Uhr · 45,00\s€ \(08:00 bis 13:00 Uhr\)$/;
 
 /** Fills a complete registration of one holiday guest. */
-function fillRegistration() {
+function fillRegistration(timeModel: RegExp = WEEK_TIME_MODEL) {
   const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname");
   const [childLast, guardianLast] = screen.getAllByLabelText("Nachname");
   type(childFirst!, "Ben");
@@ -184,7 +187,7 @@ function fillRegistration() {
   expect(screen.getByText(/Ihr Kind kommt als Feriengast/)).toBeInTheDocument();
   choose(
     screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
-    WEEK_TIME_MODEL,
+    timeModel,
   );
   type(guardianFirst!, "Eva");
   type(guardianLast!, "Muster");
@@ -214,6 +217,41 @@ async function renderFilledForm() {
 }
 
 describe("HolidayRegistrationForm", () => {
+  it("shows a server day error at the selector and focuses its first day", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("refused", 400, {
+        code: "enrollment.holiday_registration_invalid",
+        errors: [{ field: "children.0.bookings.0.days", reason: "invalid" }],
+      }),
+    );
+    renderForm(null, {
+      ...offer,
+      weeks: offer.weeks.map((week) => ({
+        ...week,
+        bookingUnit: "day",
+        careDays: ["2027-01-04", "2027-01-05"],
+      })),
+    });
+    fillRegistration(/^bis 13 Uhr/);
+    fireEvent.click(screen.getByRole("button", { name: "Mo 04.01." }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    const monday = await screen.findByRole("button", { name: "Mo 04.01." });
+    await waitFor(() => expect(monday).toHaveFocus());
+    const selector = monday.closest("fieldset")!;
+    expect(selector).toHaveAttribute("aria-invalid", "true");
+    const descriptions = selector.getAttribute("aria-describedby")!.split(" ");
+    expect(descriptions).toHaveLength(2);
+    expect(document.getElementById(descriptions[1]!)).toHaveTextContent(/\S/);
+  });
+
   it("marks every booking control when the server refuses one booking", async () => {
     mockSubmit.mockRejectedValue(
       new ApiError("refused", 400, {

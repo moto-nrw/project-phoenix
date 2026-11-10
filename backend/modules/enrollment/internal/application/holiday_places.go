@@ -293,6 +293,13 @@ func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.Holid
 	}
 }
 
+// moveUp gives the places of the weeks to their waiting lists after a
+// change of the locked registration.
+func (h *HolidayRegistrationReview) moveUp(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, weekIDs []int64) ([]enrollment.HolidayPromotion, error) {
+	_, promoted, err := h.placement.place(ctx, reviewer.OrganizationID, period, weekIDs, 0, reviewer.AccountID)
+	return promoted, err
+}
+
 // holidayBookedWeeks are the weeks of the bookings of read registrations.
 func holidayBookedWeeks(read []enrollment.HolidayRegistrationDetail) []int64 {
 	var weeks []int64

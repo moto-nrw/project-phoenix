@@ -46,6 +46,7 @@ export interface HolidayPeriodDraft {
   readonly registrationClosesOn: string;
   readonly binding: boolean;
   readonly notes: string;
+  readonly holidayWishRule: boolean;
   /** Care days per child as typed; empty is no bound (#4701). */
   readonly maxDaysPerChild: string;
   /** In the order of arrival or by the office after criteria (#4700). */
@@ -102,6 +103,7 @@ export function emptyHolidayPeriod(): HolidayPeriodDraft {
     registrationClosesOn: "",
     binding: true,
     notes: "",
+    holidayWishRule: false,
     maxDaysPerChild: "",
     allocationMode: "arrival",
     weeks: [emptyWeek()],
@@ -154,6 +156,7 @@ export function draftFromPeriod(period: HolidayPeriod): HolidayPeriodDraft {
     registrationClosesOn: period.registrationClosesOn,
     binding: period.binding,
     notes: period.notes,
+    holidayWishRule: period.holidayWishRule,
     maxDaysPerChild:
       period.maxDaysPerChild == null ? "" : String(period.maxDaysPerChild),
     allocationMode: period.allocationMode ?? "arrival",
@@ -169,6 +172,7 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
     registrationClosesOn: draft.registrationClosesOn,
     binding: draft.binding,
     notes: draft.notes.trim(),
+    holidayWishRule: draft.holidayWishRule,
     maxDaysPerChild: draft.maxDaysPerChild.trim()
       ? Number(draft.maxDaysPerChild.trim())
       : null,

@@ -33,8 +33,7 @@ type (
 
 // Application services the composition root hands to its consumers beyond their public contract.
 type (
-	// Phases is the phase administration; the rollover also uses its
-	// eligibility guard.
+	// Phases is the phase administration; the rollover also uses its eligibility guard.
 	Phases = application.Phases
 	// PhaseExpirySnapshots reads the owner's phase-expiry report for the tenant in context.
 	PhaseExpirySnapshots = application.PhaseExpiryProjection
@@ -42,8 +41,7 @@ type (
 	ApprovedOfferingProjection = application.ApprovedOfferingProjection
 )
 
-// PhaseDependencies bind the phase administration to its owners. Calendar,
-// Settings and the three response ports are optional in focused tests.
+// PhaseDependencies bind the phase administration to its owners; Calendar, Settings and the response ports are optional in tests.
 type PhaseDependencies struct {
 	Records                         PhaseRecords
 	Offerings                       PhaseOfferings
@@ -80,8 +78,7 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 	})
 }
 
-// NewFormSchemas composes form-schema publishing. Every write runs in the
-// caller's tenant transaction, or opens one for a standalone caller.
+// NewFormSchemas composes form-schema publishing; writes join the caller's tenant transaction or open one.
 func NewFormSchemas(records FormSchemaRecords, settings CollectionSettings, logger *slog.Logger) enrollment.FormSchemaAdministration {
 	runtime := tenantRuntime()
 	return application.NewTransactionalFormSchemas(application.NewFormSchemas(application.FormSchemaDependencies{
@@ -99,8 +96,7 @@ func NewPhaseExpiryWarnings(snapshots application.PhaseExpirySnapshots) enrollme
 	return application.NewPhaseExpiryWarnings(snapshots)
 }
 
-// NewCaptcha composes captcha verification against Cloudflare Turnstile. An empty verifyURL
-// uses Turnstile's siteverify endpoint; tests point it at a local provider.
+// NewCaptcha composes Cloudflare Turnstile verification; an empty verifyURL uses siteverify, tests point it at a local provider.
 func NewCaptcha(settings CaptchaSettings, verifyURL string, logger *slog.Logger) enrollment.CaptchaVerifier {
 	return application.NewCaptcha(settings, turnstile.New(nil, verifyURL), logger)
 }

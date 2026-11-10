@@ -29,6 +29,10 @@ import {
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
+import {
+  HOLIDAY_WISH_FILTER_OPTIONS,
+  holidayWishView,
+} from "~/components/traeger/holiday-wish";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -73,6 +77,7 @@ import {
   fetchHolidayRegistrations,
   type HolidayRegistrationFilter,
   type HolidayRegistrationList,
+  type HolidayWishFilter,
   type HolidayRegistrationStatus,
   type HolidayRegistrationSummary,
 } from "~/lib/traeger-holiday-registrations-api";
@@ -164,6 +169,7 @@ function columns(
   names: ReadonlyMap<string, string>,
   debtorNumber: boolean,
   siblings: SiblingView,
+  wishRule: boolean,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
   return [
     {
@@ -210,49 +216,59 @@ function columns(
       header: "Kinder und Wochen",
       render: (registration) => (
         <ul className="space-y-2">
-          {registration.children.map((child) => (
-            <li key={child.id}>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-gray-900">
-                  {child.firstName} {child.lastName}
-                </span>
-                <span className="text-gray-500">
-                  {childSchoolLabel(child, names)}
-                </span>
-                {child.duplicateRegistrationIds.length > 0 ? (
-                  <StatusBadge
-                    tone="warning"
-                    label="Mögliche Doppelanmeldung"
-                    title={`Auch in Anmeldung Nr. ${child.duplicateRegistrationIds.join(", ")}`}
-                  />
-                ) : null}
-              </div>
-              <ul className="text-xs text-gray-500">
-                {child.bookings.map((booking) => (
-                  <li key={booking.weekId}>
-                    {formatHolidayWeek(
-                      booking.weekStartsOn,
-                      booking.weekEndsOn,
-                    )}
-                    ,{" "}
-                    {names.get(booking.hostSchoolId) ??
-                      "Schule nicht mehr vorhanden"}
-                    : {booking.timeModelName}
-                    {booking.placement === "pending" &&
-                    registration.status !== "cancelled" ? (
-                      <>
-                        {" "}
-                        <StatusBadge
-                          {...holidayPlacementStatus(booking)}
-                          size="xs"
-                        />
-                      </>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
+          {registration.children.map((child) => {
+            const wish = holidayWishView(child, wishRule);
+            return (
+              <li key={child.id}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-gray-900">
+                    {child.firstName} {child.lastName}
+                  </span>
+                  <span className="text-gray-500">
+                    {childSchoolLabel(child, names)}
+                  </span>
+                  {wish ? (
+                    <StatusBadge
+                      tone={wish.tone}
+                      label={wish.label}
+                      icon={wish.icon}
+                    />
+                  ) : null}
+                  {child.duplicateRegistrationIds.length > 0 ? (
+                    <StatusBadge
+                      tone="warning"
+                      label="Mögliche Doppelanmeldung"
+                      title={`Auch in Anmeldung Nr. ${child.duplicateRegistrationIds.join(", ")}`}
+                    />
+                  ) : null}
+                </div>
+                <ul className="text-xs text-gray-500">
+                  {child.bookings.map((booking) => (
+                    <li key={booking.weekId}>
+                      {formatHolidayWeek(
+                        booking.weekStartsOn,
+                        booking.weekEndsOn,
+                      )}
+                      ,{" "}
+                      {names.get(booking.hostSchoolId) ??
+                        "Schule nicht mehr vorhanden"}
+                      : {booking.timeModelName}
+                      {booking.placement === "pending" &&
+                      registration.status !== "cancelled" ? (
+                        <>
+                          {" "}
+                          <StatusBadge
+                            {...holidayPlacementStatus(booking)}
+                            size="xs"
+                          />
+                        </>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
         </ul>
       ),
       stacked: "field",
@@ -339,6 +355,7 @@ export default function TraegerHolidayRegistrationsPage() {
   const [school, setSchool] = useState("");
   const [weekId, setWeekId] = useState("");
   const [timeModel, setTimeModel] = useState("");
+  const [wish, setWish] = useState<HolidayWishFilter>("");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
   // Each new filter starts a new list; an answer for an older one is dropped.
@@ -380,8 +397,9 @@ export default function TraegerHolidayRegistrationsPage() {
       school,
       weekId,
       timeModel,
+      wish,
     }),
-    [status, school, weekId, timeModel],
+    [status, school, weekId, timeModel, wish],
   );
 
   const load = useCallback(async () => {
@@ -487,7 +505,11 @@ export default function TraegerHolidayRegistrationsPage() {
       label: name,
     })),
   ];
-  const filtered = Boolean(status !== "all" || school || weekId || timeModel);
+  // The wish (#4703) is a filter only while the period takes it into account.
+  const wishRule = period?.holidayWishRule ?? false;
+  const filtered = Boolean(
+    status !== "all" || school || weekId || timeModel || wish,
+  );
   const duplicates = duplicateCount(list);
   const loadError =
     listLoad.error ??
@@ -531,6 +553,19 @@ export default function TraegerHolidayRegistrationsPage() {
       onChange: (value) => setTimeModel(value as string),
       options: timeModelOptions,
     },
+    ...(wishRule || wish
+      ? [
+          {
+            id: "wish",
+            label: "Ferienwunsch",
+            type: "dropdown" as const,
+            value: wish,
+            onChange: (value: string | string[]) =>
+              setWish(value as HolidayWishFilter),
+            options: [...HOLIDAY_WISH_FILTER_OPTIONS],
+          },
+        ]
+      : []),
   ];
   const optionLabel = (
     options: readonly { value: string; label: string }[],
@@ -573,12 +608,22 @@ export default function TraegerHolidayRegistrationsPage() {
           },
         ]
       : []),
+    ...(wish
+      ? [
+          {
+            id: "wish",
+            label: optionLabel(HOLIDAY_WISH_FILTER_OPTIONS, wish),
+            onRemove: () => setWish(""),
+          },
+        ]
+      : []),
   ];
   const clearFilters = () => {
     setStatus("all");
     setSchool("");
     setWeekId("");
     setTimeModel("");
+    setWish("");
   };
 
   return (
@@ -675,7 +720,13 @@ export default function TraegerHolidayRegistrationsPage() {
         </SectionCard>
       ) : null}
       <DataTable
-        columns={columns(periodId, names, debtorNumberColumn, siblings)}
+        columns={columns(
+          periodId,
+          names,
+          debtorNumberColumn,
+          siblings,
+          wishRule,
+        )}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}
         selection={{

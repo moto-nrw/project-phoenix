@@ -95,6 +95,9 @@ type HolidayRegistrationFilter struct {
 	School    string
 	WeekID    int64
 	TimeModel string
+	// Wish is HolidayWishFilterCheck, HolidayWishFilterYes or
+	// HolidayWishFilterNo: registrations with such a child (#4703).
+	Wish string
 }
 
 // HolidayBookingReplacement identifies a week replaced by a rebooking.
@@ -143,6 +146,15 @@ type HolidayRegistrationChild struct {
 	GuestSchoolName          string                       `json:"guest_school_name"`
 	Bookings                 []HolidayRegistrationBooking `json:"bookings"`
 	DuplicateRegistrationIDs []int64                      `json:"duplicate_registration_ids"`
+	// HolidayWish and HolidayWishSource are what is known of the child's
+	// holiday care wish (#4703): yes or no from the prefill of a parent with
+	// an account or from the office, empty when unknown. HolidayWishCheck
+	// marks a child of a school of the Träger whose wish the office still
+	// has to check in a period that takes the wish into account. Only the
+	// review of the Träger-Büro shows them.
+	HolidayWish       string `json:"holiday_wish"`
+	HolidayWishSource string `json:"holiday_wish_source"`
+	HolidayWishCheck  bool   `json:"holiday_wish_check"`
 }
 
 // HolidayRegistrationSummary is a registration in the list. It carries no
@@ -242,6 +254,9 @@ type HolidayRegistrationEventDetails struct {
 	Proposal  string                  `json:"proposal,omitempty"`
 	Reason    string                  `json:"reason,omitempty"`
 	Checks    []HolidayCriterionCheck `json:"checks,omitempty"`
+	// Wish is the office's decision on a child's holiday care wish, From the
+	// wish before, empty when unknown (#4703).
+	Wish string `json:"wish,omitempty"`
 }
 
 // HolidayRegistrationEvent is one change in the history of a registration.

@@ -228,6 +228,25 @@ describe("EnrollmentStatusView", () => {
     expect(screen.queryByText("1 Eintrag")).not.toBeInTheDocument();
   });
 
+  it("names a changed holiday care wish for parents", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({
+        base_snapshot: { children: [{ holiday_care_wish: true }] },
+        proposed_snapshot: { children: [{ holiday_care_wish: false }] },
+        diff: { changed: ["children"] },
+      }),
+    ]);
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText("Kind 1 · Ferienwunsch"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ja")).toBeInTheDocument();
+    expect(screen.getByText("Nein")).toBeInTheDocument();
+  });
+
   it("names changed answers with the form's questions (#6142)", async () => {
     mockFetchStatus.mockResolvedValueOnce(status());
     mockListEnrollmentChangeRequests.mockResolvedValueOnce([

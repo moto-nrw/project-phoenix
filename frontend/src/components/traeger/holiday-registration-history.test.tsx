@@ -30,6 +30,7 @@ it("distinguishes a change of days within the same week and time model", () => {
             ],
             siblings: [],
             fields: [],
+            wish: "",
           },
         ],
       }}
@@ -70,6 +71,7 @@ it("names an allocation with its reason and a check of the criteria (#4700)", ()
             after: [],
             siblings: [],
             fields: [],
+            wish: "",
             weekIds: ["51"],
             placement: "placed",
             reason: "Härtefall",
@@ -84,6 +86,7 @@ it("names an allocation with its reason and a check of the criteria (#4700)", ()
             after: [],
             siblings: [],
             fields: [],
+            wish: "",
             checks: [{ criterionId: "1", childId: null, checked: "no" }],
           },
         ],

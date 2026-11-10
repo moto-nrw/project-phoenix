@@ -21,5 +21,6 @@ POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen -> basi
 PUT /traeger/holiday-periods/criteria -> basis
 PUT /traeger/holiday-periods/{id} -> basis
 PUT /traeger/holiday-periods/{id}/form -> basis
+PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/holiday-wish -> basis
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/criteria -> basis
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/details -> basis
