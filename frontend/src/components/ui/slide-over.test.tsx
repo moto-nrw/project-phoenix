@@ -140,6 +140,7 @@ import {
   SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
+  SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "./slide-over";
@@ -515,5 +516,19 @@ describe("SlideOver", () => {
       screen.queryByRole("button", { name: /schließen/i }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("Titel")).toBeInTheDocument();
+  });
+
+  // #6567: a slide-over footer spaces its actions like the Modal and
+  // FormModal footers (gap-3), not tighter.
+  it("spaces footer actions like the dialog footers", () => {
+    render(
+      <SlideOverFooter data-testid="footer">
+        <button type="button">Abbrechen</button>
+        <button type="button">Speichern</button>
+      </SlideOverFooter>,
+    );
+    const footer = screen.getByTestId("footer");
+    expect(footer).toHaveClass("gap-3");
+    expect(footer).not.toHaveClass("gap-2");
   });
 });
