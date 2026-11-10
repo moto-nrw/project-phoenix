@@ -148,7 +148,6 @@ vi.mock("~/components/ui/modal", () => ({
 // Mock activeService
 vi.mock("~/lib/active-api", () => ({
   activeService: {
-    getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
     claimActiveGroup: vi.fn(() => Promise.resolve()),
@@ -5101,8 +5100,6 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
   });
 
   it("does not switch when clicking the already-selected room tab", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
     const dashboardData = {
       supervisedGroups: [
         {
@@ -5164,12 +5161,6 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // Click the already-selected first room tab
     const tabA = screen.getByRole("tab", { name: "Raum A" });
     fireEvent.click(tabA);
-
-    // switchToRoom early-returns because roomId === selectedRoomId
-    // loadRoomVisits should NOT be called (only the initial load triggers it via SWR)
-    expect(
-      activeService.getActiveGroupVisitsWithDisplay,
-    ).not.toHaveBeenCalled();
   });
 });
 

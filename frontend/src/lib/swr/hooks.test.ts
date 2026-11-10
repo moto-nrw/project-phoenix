@@ -3,7 +3,6 @@ import { renderHook } from "@testing-library/react";
 import {
   useSWRAuth,
   useImmutableSWR,
-  useSWRWithId,
   useTenantMutate,
   useTenantMutateMatching,
 } from "./hooks";
@@ -296,132 +295,6 @@ describe("SWR Hooks", () => {
     });
   });
 
-  describe("useSWRWithId", () => {
-    const mockIdFetcher = vi.fn((id: string) =>
-      Promise.resolve({ id, name: "test" }),
-    );
-
-    it("generates cache key with id when authenticated", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        "tenant:-:user-1:entity-123",
-        expect.any(Function),
-        expect.any(Object),
-      );
-    });
-
-    it("fetches from a portal layout's server snapshot without a token", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createSnapshotSession() as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        "tenant:-:user-1:entity-123",
-        expect.any(Function),
-        expect.any(Object),
-      );
-    });
-
-    it("does not fetch for a session whose token was stripped", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createSessionWithoutToken() as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        null,
-        expect.any(Function),
-        expect.any(Object),
-      );
-    });
-
-    it("does not fetch when id is null", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRWithId("entity", null, mockIdFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        null,
-        expect.any(Function),
-        expect.any(Object),
-      );
-    });
-
-    it("does not fetch when id is undefined", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRWithId("entity", undefined, mockIdFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        null,
-        expect.any(Function),
-        expect.any(Object),
-      );
-    });
-
-    it("does not fetch when session is loading", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createLoadingSession() as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        null,
-        expect.any(Function),
-        expect.any(Object),
-      );
-    });
-
-    it("merges custom options", () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() =>
-        useSWRWithId("entity", "123", mockIdFetcher, { refreshInterval: 3000 }),
-      );
-
-      expect(useSWR).toHaveBeenCalledWith(
-        "tenant:-:user-1:entity-123",
-        expect.any(Function),
-        expect.objectContaining({
-          refreshInterval: 3000,
-        }),
-      );
-    });
-
-    it("passes id to fetcher when called", async () => {
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
-
-      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
-
-      // Get the wrapped fetcher that was passed to useSWR
-      const wrappedFetcher = vi.mocked(useSWR).mock.calls[0]?.[1];
-      expect(wrappedFetcher).toBeDefined();
-
-      // Call the wrapped fetcher to cover the fetcher(id!) line
-      if (wrappedFetcher) {
-        await wrappedFetcher("tenant:-:user-1:entity-123");
-        expect(mockIdFetcher).toHaveBeenCalledWith("123");
-      }
-    });
-  });
-
   describe("tenant key prefixing", () => {
     it("prefixes useSWRAuth key with tenant slug and account", () => {
       mockUseTenantSlugSafe.mockReturnValue("school-a");
@@ -448,22 +321,6 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "tenant:-:user-1:students-list",
-        expect.any(Function),
-        expect.any(Object),
-      );
-    });
-
-    it("prefixes useSWRWithId key with tenant slug and account", () => {
-      mockUseTenantSlugSafe.mockReturnValue("school-b");
-      vi.mocked(useSession).mockReturnValue(
-        createMockSession("test-token") as ReturnType<typeof useSession>,
-      );
-
-      const idFetcher = vi.fn(() => Promise.resolve({ id: "42" }));
-      renderHook(() => useSWRWithId("student", "42", idFetcher));
-
-      expect(useSWR).toHaveBeenCalledWith(
-        "school-b:user-1:student-42",
         expect.any(Function),
         expect.any(Object),
       );

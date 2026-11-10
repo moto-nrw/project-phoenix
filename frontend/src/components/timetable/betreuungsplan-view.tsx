@@ -1785,11 +1785,13 @@ function TimetablesContent() {
     [todayISO, updateUrlParams, weekendOpen],
   );
 
+  const applyingTemplateRef = useRef(false);
   const latestApplyTemplateRef = useRef<
     (template: TimetableTemplate) => Promise<void>
   >(() => Promise.resolve());
   const handleApplyTemplate = useCallback(
     async (template: TimetableTemplate) => {
+      if (applyingTemplateRef.current) return;
       // Resolve which calendar period the template's schedules belong to.
       // Falls back to the period currently in scope (visiblePeriod).
       // If none is active, ask the admin to create one before continuing.
@@ -1808,6 +1810,7 @@ function TimetablesContent() {
       // Backend caps a single materialize call at 56 days. School-year
       // periods are ~365 days, so split into 56-day windows and aggregate.
       const chunks = chunkDateRange(period.startDate, period.endDate, 56);
+      applyingTemplateRef.current = true;
       try {
         let totalCreated = 0;
         const warningsByCode = new Map<string, MaterializeWarning>();
@@ -1854,6 +1857,8 @@ function TimetablesContent() {
           object: "das Eintragen des Regeltermins",
           retry: () => void latestApplyTemplateRef.current(template),
         });
+      } finally {
+        applyingTemplateRef.current = false;
       }
     },
     [

@@ -1,52 +1,15 @@
 import { describe, expect, it } from "vitest";
-
-import { PLANNING_SUB_PAGES } from "~/lib/planning-navigation";
-import {
-  COMMUNICATION_SUB_PAGES,
-  PARENT_SUB_PAGES,
-  STAFF_FLAT_PAGES,
-} from "~/lib/section-navigation";
+import { STAFF_FLAT_PAGES } from "~/lib/section-navigation";
 import {
   getStaffNavGroupForHref,
   getStaffNavGroupForPathname,
-  listStaffNavPageHrefs,
   STAFF_NAV_BOTTOM,
   STAFF_NAV_DEFAULT_OPEN_GROUPS,
   STAFF_NAV_GROUPS,
   STAFF_NAV_TOP,
 } from "~/lib/staff-navigation";
 
-/**
- * Der Baum der Seitenleiste (#2826) ist die einzige Quelle für Gruppe und
- * Reihenfolge. Diese Tests fangen die zwei stillen Fehler: eine Katalogseite,
- * die nirgends steht (und damit aus Seitenleiste UND Mehr-Menü verschwindet),
- * und eine, die doppelt steht.
- */
 describe("staff navigation tree", () => {
-  const catalogHrefs = [
-    ...Object.values(STAFF_FLAT_PAGES).map((page) => page.href),
-    ...PARENT_SUB_PAGES.map((page) => page.href),
-    ...COMMUNICATION_SUB_PAGES.map((page) => page.href),
-    ...PLANNING_SUB_PAGES.map((page) => page.href),
-  ];
-
-  it("places every catalog page exactly once", () => {
-    const placed = listStaffNavPageHrefs();
-    for (const href of catalogHrefs) {
-      expect(
-        placed.filter((entry) => entry === href),
-        href,
-      ).toHaveLength(1);
-    }
-  });
-
-  it("lists no page the catalogs do not know", () => {
-    const known = new Set(catalogHrefs);
-    for (const href of listStaffNavPageHrefs()) {
-      expect(known.has(href), href).toBe(true);
-    }
-  });
-
   it("puts each accordion section in exactly one group", () => {
     const sections = STAFF_NAV_GROUPS.flatMap((group) =>
       group.entries.flatMap((entry) =>

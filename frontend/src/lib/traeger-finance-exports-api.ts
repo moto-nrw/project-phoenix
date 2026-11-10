@@ -99,6 +99,8 @@ export interface ExportProtocolEntry {
   readonly reference: string;
   /** Number of the earliest file of the run with the same content, else null. */
   readonly repeatOf: number | null;
+  /** A DATEV file of "all bookings again" (#6433). */
+  readonly datevAll: boolean;
   readonly exportedByYou: boolean;
   readonly exportedByAccount: boolean;
   readonly exportedAt: string;
@@ -180,6 +182,7 @@ interface BackendEntry {
   total_cents: number;
   reference?: string;
   repeat_of?: number;
+  datev_all?: boolean;
   exported_by_account_id: number | null;
   exported_by_you: boolean;
   exported_at: string;
@@ -281,6 +284,7 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
     totalCents: entry.total_cents,
     reference: entry.reference ?? "",
     repeatOf: entry.repeat_of ?? null,
+    datevAll: entry.datev_all ?? false,
     exportedByYou: entry.exported_by_you,
     exportedByAccount: entry.exported_by_account_id !== null,
     exportedAt: entry.exported_at,
@@ -402,21 +406,119 @@ export async function downloadSollstellung(
   );
 }
 
+/** What a DATEV download holds (#6433). */
+export interface DatevDownloadOptions {
+  /** Every booking of the run again, also those an earlier file held. */
+  readonly all?: boolean;
+  /** "YYYY-MM-DD", the first day of the fiscal year; the earliest if unset. */
+  readonly fiscalYear?: string;
+}
+
 /**
- * Downloads the DATEV booking batch of a run with the next file number. A
- * refusal keeps its code: `parent_billing.datev_not_ready` while values are
- * missing, `parent_billing.datev_bookings_invalid` with the invoices DATEV
- * would refuse.
+ * Downloads the DATEV booking batch of a run with the next file number:
+ * the bookings no DATEV file held yet, or with `all` every booking again.
+ * A refusal keeps its code: `parent_billing.datev_not_ready` while values
+ * are missing, `parent_billing.datev_bookings_invalid` with the invoices
+ * DATEV would refuse, `parent_billing.datev_no_new_bookings` when every
+ * booking is in a file, `parent_billing.datev_bookings_taken` when another
+ * download took them a moment earlier.
  */
 export async function downloadDatevBatch(
   kind: ExportRunPathKind,
   runId: string,
+  options: DatevDownloadOptions = {},
 ): Promise<BillingFile> {
+  const query = new URLSearchParams();
+  if (options.all) query.set("mode", "all");
+  if (options.fiscalYear) query.set("fiscal_year", options.fiscalYear);
+  const search = query.size > 0 ? `?${query.toString()}` : "";
   return billingFile(
-    `${BASE}/runs/${kind}/${encodeURIComponent(runId)}/datev`,
+    `${BASE}/runs/${kind}/${encodeURIComponent(runId)}/datev${search}`,
     {},
     "EXTF_Buchungsstapel.csv",
   );
+}
+
+/** The DATEV bookings of a run on the export page (#6433). */
+export interface DatevRunState {
+  /** Bookings the next standard files hold, across fiscal years. */
+  readonly newBookings: number;
+  /** First days ("YYYY-MM-DD") of the fiscal years of its bookings. */
+  readonly fiscalYears: readonly string[];
+}
+
+/** The DATEV states of the runs of a page, by `runFileKey`-like key. */
+export interface DatevRunStates {
+  /** False while the DATEV values make no valid file; then no state. */
+  readonly ready: boolean;
+  readonly runs: ReadonlyMap<string, DatevRunState>;
+}
+
+/** The key of a run in `DatevRunStates.runs`. */
+export function datevRunKey(run: Pick<ExportRun, "runKind" | "runId">) {
+  return `${run.runKind}/${run.runId}`;
+}
+
+interface BackendDatevRuns {
+  ready: boolean;
+  runs:
+    | {
+        run_kind: ExportRunKind;
+        run_id: number;
+        new_bookings: number;
+        fiscal_years: string[] | null;
+      }[]
+    | null;
+}
+
+/** Runs one request asks for: the size of a page of the run list. */
+const DATEV_RUNS_PER_REQUEST = 50;
+
+async function fetchDatevRunPage(
+  runs: readonly ExportRun[],
+): Promise<BackendDatevRuns> {
+  const query = new URLSearchParams();
+  for (const kind of ["care", "holiday"] as const) {
+    const ids = runs
+      .filter((run) => run.runKind === kind)
+      .map((run) => run.runId);
+    if (ids.length > 0) query.set(kind, ids.join(","));
+  }
+  if (query.size === 0) return { ready: true, runs: [] };
+  return traegerRequest<BackendDatevRuns>(
+    `${BASE}/datev-runs?${query.toString()}`,
+  );
+}
+
+/**
+ * Reads the new DATEV bookings of the monthly and holiday runs given, one
+ * request per page of runs.
+ */
+export async function fetchDatevRunStates(
+  runs: readonly ExportRun[],
+): Promise<DatevRunStates> {
+  const pages: ExportRun[][] = [];
+  for (let i = 0; i < runs.length; i += DATEV_RUNS_PER_REQUEST) {
+    pages.push(runs.slice(i, i + DATEV_RUNS_PER_REQUEST));
+  }
+  const bodies = await Promise.all(pages.map(fetchDatevRunPage));
+  return {
+    ready: bodies.length > 0 && bodies.every((body) => body.ready),
+    runs: new Map(
+      bodies.flatMap((body) =>
+        (body.runs ?? []).map(
+          (run) =>
+            [
+              datevRunKey({ runKind: run.run_kind, runId: String(run.run_id) }),
+              {
+                newBookings: run.new_bookings,
+                fiscalYears: run.fiscal_years ?? [],
+              },
+            ] as const,
+        ),
+      ),
+    ),
+  };
 }
 
 const DATEV_PROBLEM_FIELDS = new Set<string>([

@@ -98,7 +98,7 @@ The pure `*-keys.ts` modules keep API clients out of always-mounted invalidators
 `portal-keys.ts` contains the smaller portal resource families. There is no
 runtime registry. Direct package imports outside this boundary and new free
 hook keys fail oxlint; both legacy baselines are shrink-only. A free key is
-anything at a `useSWRAuth`, `useImmutableSWR` or `useSWRWithId` call that is
+anything at a `useSWRAuth` or `useImmutableSWR` call that is
 not built by an export of `~/lib/swr` (directly, through a local constant or
 in a branch with `null`).
 

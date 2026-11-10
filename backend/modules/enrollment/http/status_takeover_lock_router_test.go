@@ -39,12 +39,13 @@ type takeoverLockEnv struct {
 	phaseID  int64
 	token    string
 	request  *enrollmentAPI.SubmitResult
+	settings stubTakeoverSettings
 }
 
 // stubTakeoverSettings answers the enrollment settings the public status and
 // change-request paths resolve. Values mirror the registry defaults a tenant
 // with enrollment switched on and offerings switched off would resolve.
-type stubTakeoverSettings struct{}
+type stubTakeoverSettings struct{ boolOverrides map[string]bool }
 
 type staticGuardianInvitationAvailability struct{ redeemable bool }
 
@@ -58,7 +59,10 @@ func (stubTakeoverSettings) HasTenantOverride(_ context.Context, key string) (bo
 	return strings.HasPrefix(key, "enrollment."), nil
 }
 
-func (stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+func (s stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	if value, ok := s.boolOverrides[key]; ok {
+		return value, nil
+	}
 	switch key {
 	case settingKeyEnrollmentEnabled,
 		settingKeyModuleOnlineAnmeldung,
@@ -132,7 +136,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 	reposCare := api.NewEnrollmentCarePlanRows(testpkg.NewDatabase(t, db))
 	reposSchools := api.NewOrganizationTestRows(testpkg.NewDatabase(t, db))
 	require.NoError(t, repoErr)
-	settings := stubTakeoverSettings{}
+	settings := stubTakeoverSettings{boolOverrides: make(map[string]bool)}
 
 	account := testpkg.CreateTestAccount(t, db, "takeover-lock")
 	person := &peopleValues.DirectoryPersonSnapshot{
@@ -239,6 +243,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 		phaseID:  phase.ID,
 		token:    submitted.Request.StatusToken,
 		request:  submitted,
+		settings: settings,
 	}
 	return env
 }
@@ -296,8 +301,9 @@ func (env *takeoverLockEnv) changeRequestBody(gradeLina, gradeTimo int) string {
 
 type statusEnvelope struct {
 	Data struct {
-		EditMode         string `json:"edit_mode"`
-		CareFacilityTerm string `json:"care_facility_term"`
+		EditMode         string  `json:"edit_mode"`
+		CareFacilityTerm string  `json:"care_facility_term"`
+		WithdrawnAt      *string `json:"withdrawn_at"`
 		Children         []struct {
 			ID     string `json:"id"`
 			Status string `json:"status"`
@@ -355,6 +361,7 @@ func TestPublicStatus_TakenOverChildIsLockedAndSiblingStaysChangeable(t *testing
 	withdrawnStatus := decodeStatus(t, env.get(t, "/requests/"+env.token))
 	assert.Equal(t, capability.ChildStatusApproved, withdrawnStatus.Data.Children[0].Status)
 	assert.Equal(t, capability.ChildStatusWithdrawn, withdrawnStatus.Data.Children[1].Status)
+	assert.Nil(t, withdrawnStatus.Data.WithdrawnAt, "an approved child keeps the request available for its care contract")
 }
 
 // #4601: a child_id that does not belong to the request behind the token is
@@ -589,4 +596,71 @@ func TestPublicStatus_ParentAccountFlagIgnoresOtherSchools(t *testing.T) {
 	env.takeOver(t, env.request.Children[0].ID, "Lina")
 
 	assertParentPortalAccess(t, env.statusParentAccount(t), false, "invitation")
+}
+
+func TestPublicChangeRequests_CloseWhenModuleCancelled(t *testing.T) {
+	t.Parallel()
+	env := setupTakeoverLockTest(t)
+	env.takeOver(t, env.request.Children[0].ID, "Lina")
+	created := env.postChangeRequest(t, env.changeRequestBody(1, 2))
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	var change struct {
+		Data struct{ ID string } `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &change))
+	_, err := env.db.NewUpdate().TableExpr("enrollment.change_requests").
+		Set("status = ?", capability.ChangeRequestStatusNeedsParentResponse).
+		Where("id = ?", change.Data.ID).Where("tenant_id = ?", env.tenantID).
+		Exec(testpkg.TenantContext(env.tenantID))
+	require.NoError(t, err)
+	path := "/requests/" + env.token + "/change-requests"
+	before := env.get(t, path)
+	require.Equal(t, http.StatusOK, before.Code, before.Body.String())
+	require.Contains(t, before.Body.String(), `"messages"`)
+	env.settings.boolOverrides[settingKeyModuleOnlineAnmeldung] = false
+	for _, action := range []struct{ method, path, body string }{
+		{http.MethodGet, path, ""},
+		{http.MethodPost, path, env.changeRequestBody(1, 3)},
+		{http.MethodPost, path + "/" + change.Data.ID + "/messages", `{"body":"New reply"}`},
+	} {
+		t.Run(action.method+action.path, func(t *testing.T) {
+			req := httptest.NewRequest(action.method, action.path, strings.NewReader(action.body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+			assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), "enrollment.change_request_not_found")
+		})
+	}
+	env.settings.boolOverrides[settingKeyModuleOnlineAnmeldung] = true
+	after := env.get(t, path)
+	require.Equal(t, http.StatusOK, after.Code, after.Body.String())
+	assert.JSONEq(t, before.Body.String(), after.Body.String(), "cancellation closes access without changing the stored cases or messages")
+}
+
+func TestPublicPatch_RejectsClosedEditGates(t *testing.T) {
+	t.Parallel()
+	for _, gate := range []string{"inactive phase", "enrollment disabled"} {
+		t.Run(gate, func(t *testing.T) {
+			env := setupTakeoverLockTest(t)
+			if gate == "inactive phase" {
+				_, err := env.db.NewUpdate().TableExpr("enrollment.phases").Set("is_active = FALSE").
+					Where("id = ?", env.phaseID).Where("tenant_id = ?", env.tenantID).
+					Exec(testpkg.TenantContext(env.tenantID))
+				require.NoError(t, err)
+			} else {
+				env.settings.boolOverrides[settingKeyEnrollmentEnabled] = false
+			}
+			req := httptest.NewRequest(http.MethodPatch, "/requests/"+env.token,
+				strings.NewReader(`{"guardian_first_name":"Changed"}`))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			env.router.ServeHTTP(rec, req)
+			assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), "enrollment.disabled")
+			status := env.get(t, fmt.Sprintf("/requests/%s", env.token))
+			require.Equal(t, http.StatusOK, status.Code, status.Body.String())
+			assert.Contains(t, status.Body.String(), `"guardian_first_name":"Anna"`)
+		})
+	}
 }

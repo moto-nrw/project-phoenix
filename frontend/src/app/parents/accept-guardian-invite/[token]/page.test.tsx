@@ -77,6 +77,30 @@ describe("AcceptGuardianInvitePage", () => {
     vi.restoreAllMocks();
   });
 
+  it("loads a token through the bounded backend request path", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: {
+          email: "eltern@example.test",
+          expires_at: "2026-11-11T12:00:00Z",
+        },
+      }),
+    );
+    render(
+      await AcceptGuardianInvitePage({
+        params: Promise.resolve({ token: "tok en" }),
+      }),
+    );
+    expect(screen.getByTestId("auth-subtitle")).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "http://server:8080/auth/guardian-invitations/tok%20en",
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
   it("directs parents to their OGS when initial validation returns 410", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(null, { status: 410 }),

@@ -19,6 +19,29 @@ describe("Modal", () => {
     vi.useRealTimers();
   });
 
+  it("dismisses only the top visible modal on Escape", async () => {
+    const parentClose = vi.fn();
+    const childClose = vi.fn();
+    render(
+      <TestWrapper>
+        <Modal isOpen onClose={parentClose} title="Edit">
+          <input defaultValue="draft" />
+        </Modal>
+        <Modal isOpen onClose={childClose} title="Confirm">
+          <p>Confirm deletion</p>
+        </Modal>
+      </TestWrapper>,
+    );
+    expect(screen.getByRole("dialog", { name: "Confirm" })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(childClose).toHaveBeenCalledOnce();
+    expect(parentClose).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("draft")).toBeInTheDocument();
+  });
+
   // #5579: Kopf mit Symbol und Untertitel, ohne eigenen Kopf im Inhalt.
   it("names the dialog by its title and describes it with the subtitle next to the icon", async () => {
     render(

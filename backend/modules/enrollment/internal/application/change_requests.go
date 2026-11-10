@@ -303,16 +303,31 @@ func (s *ChangeRequests) listPublic(ctx context.Context, token string) ([]*chang
 		return nil, err
 	}
 	var rows []*ChangeRequest
+	out := make([]*changeRequestCase, 0)
+	var readMessages publicCaseMessageReader
 	if err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
 		list, listErr := changeRequestsFromOwner(s.deps.Requests.ChangeRequestsForRequest(txCtx, req.ID))
+		if listErr != nil || len(list) == 0 {
+			return listErr
+		}
 		rows = list
-		return listErr
+		readMessages = s.publicCaseMessages(rows)
+		// The first case owns the listing's tenant frame; later cases keep
+		// independent live frames. This funds the module check without an
+		// extra transaction just to enumerate cases.
+		agg, err := s.loadPublicCase(txCtx, rows[0].ID, readMessages)
+		if err != nil {
+			return err
+		}
+		out = append(out, agg)
+		return nil
 	}); err != nil {
 		return nil, err
 	}
-	out := make([]*changeRequestCase, 0, len(rows))
-	readMessages := s.publicCaseMessages(rows)
-	for _, row := range rows {
+	if len(rows) == 0 {
+		return out, nil
+	}
+	for _, row := range rows[1:] {
 		agg, loadErr := s.loadAggregateForTenant(ctx, tenantID, row.ID, false, readMessages)
 		if loadErr != nil {
 			return nil, loadErr
@@ -488,21 +503,11 @@ func (s *ChangeRequests) requestByID(ctx context.Context, id int64, lock bool) (
 // requestByToken resolves the request behind a status token in the
 // administrative transaction.
 func (s *ChangeRequests) requestByToken(ctx context.Context, token string) (*enrollmentNative.Request, int64, error) {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil, 0, enrollmentNative.ErrRequestNotFound
-	}
 	var req *enrollmentNative.Request
 	if err := s.deps.Runtime.AdminTx(ctx, func(adminCtx context.Context) error {
-		loaded, err := s.deps.Requests.RequestByToken(adminCtx, token, false)
+		loaded, err := s.intake.requestByStatusToken(adminCtx, token, false)
 		if err != nil {
-			if !s.deps.Runtime.NotFound(err) {
-				return err
-			}
-			return enrollmentNative.ErrRequestNotFound
-		}
-		if loaded.StatusTokenExpires != nil && time.Now().After(*loaded.StatusTokenExpires) {
-			return enrollmentNative.ErrRequestNotFound
+			return err
 		}
 		req = loaded
 		return nil

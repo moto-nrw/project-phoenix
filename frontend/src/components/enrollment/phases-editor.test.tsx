@@ -19,9 +19,37 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("vaul", async () =>
-  (await import("~/test/enrollment-editors")).vaulMock(),
-);
+vi.mock("vaul", async () => {
+  const original = await (await import("~/test/enrollment-editors")).vaulMock();
+  return {
+    Drawer: {
+      ...original.Drawer,
+      Root: ({
+        children,
+        open,
+        dismissible,
+        onOpenChange,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+        dismissible?: boolean;
+        onOpenChange?: (open: boolean) => void;
+      }) =>
+        open === false ? null : (
+          <div>
+            <button
+              type="button"
+              disabled={dismissible === false}
+              onClick={() => onOpenChange?.(false)}
+            >
+              Dismiss panel
+            </button>
+            {children}
+          </div>
+        ),
+    },
+  };
+});
 
 const mocks = await vi.hoisted(async () =>
   (await import("~/test/enrollment-editors")).createEditorMocks(),
@@ -178,6 +206,38 @@ beforeEach(() => {
 });
 
 describe("PhasesEditor", () => {
+  it("keeps the editor open while saving through outside dismissal", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    let finish!: (value: ReturnType<typeof phase>) => void;
+    mocks.updatePhase.mockImplementation(
+      () =>
+        new Promise<ReturnType<typeof phase>>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(mocks.updatePhase).toHaveBeenCalled());
+    expect(
+      screen.getByRole("button", { name: "Dismiss panel" }),
+    ).toBeDisabled();
+    finish(phase());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Dismiss panel" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("uses the button foreground color for the create action icon", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listSchemas.mockResolvedValue([schema()]);

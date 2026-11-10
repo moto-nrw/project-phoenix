@@ -24,13 +24,6 @@
     "procedure": "Sie unterschreiben als einfache elektronische Signatur mit gezeichneter Unterschrift.",
     "missing": "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“."
   },
-  "statement": {
-    "permissionAll": "Ich erlaube, dass {person} das Kind an allen Tagen von der {careTerm} abholt.",
-    "permissionSome": "Ich erlaube, dass {person} das Kind an diesen Tagen von der {careTerm} abholt: {days}.",
-    "day": "Ich erlaube, dass {person} das Kind am {date} von der {careTerm} abholt.",
-    "aloneDay": "Ich erlaube, dass das Kind am {date} allein nach Hause geht.",
-    "aloneWeekly": "Ich erlaube, dass das Kind an diesen Tagen allein nach Hause geht: {days}."
-  },
   "waitsForOgs": "Die {careTerm} bestätigt die Erlaubnis. Bis dahin gilt sie noch nicht.",
   "pendingBadge": "Wartet auf die {careTerm}",
   "pending": "Wartet auf die {careTerm}: {days}",

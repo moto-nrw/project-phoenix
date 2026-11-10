@@ -2,7 +2,6 @@
   "eyebrow": "Parent portal",
   "title": "Welcome",
   "description": "Here is what matters today.",
-  "childrenDescription": "Choose the action you need.",
   "actions": {
     "sick": "Report an absence",
     "pickup": "Change pickup",
@@ -10,17 +9,7 @@
   },
   "open": "In progress",
   "loadError": "The overview could not be loaded. Please refresh the page or try again later.",
-  "unknownError": "Unknown error",
   "notSet": "Not set",
-  "status": {
-    "submitted": "Submitted",
-    "under_review": "Under review",
-    "approved": "Approved",
-    "waitlisted": "Waitlist",
-    "rejected": "Rejected",
-    "withdrawn": "Withdrawn"
-  },
-  "newsNew": "New letter to parents",
   "newsOutstanding": "Open",
   "newsCareCancellation": "Care cancelled",
   "newsImportant": "Important",

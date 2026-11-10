@@ -29,6 +29,14 @@ import (
 //     download takes no number and leaves no protocol entry.
 //  4. Every document of the file is linked to its protocol entry, so the
 //     history of each invoice names the file.
+//  5. The standard file holds each booking at most once across the DATEV
+//     files of the Träger (#6433, datev_run_selection.go): it leaves out
+//     what an earlier file held, and the store refuses a booking another
+//     download recorded at the same time (ErrDatevBookingsTaken), so the
+//     transaction rolls back with its number. "All again" repeats bookings
+//     on purpose and the protocol marks the file.
+//  6. A run without a new booking makes no file and takes no number
+//     (ErrDatevNoNewBookings).
 
 // datevContentType is the character set of the batch (Windows-1252).
 const datevContentType = "text/csv; charset=windows-1252"
@@ -36,6 +44,7 @@ const datevContentType = "text/csv; charset=windows-1252"
 // DatevFile renders the DATEV booking batch of a released run, gives it the
 // next file number of the Träger and records it.
 func (f *FinanceExports) DatevFile(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64,
+	options parentbilling.DatevFileOptions,
 ) (parentbilling.ExportedFile, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.ExportedFile{}, err
@@ -43,26 +52,22 @@ func (f *FinanceExports) DatevFile(ctx context.Context, reviewer parentbilling.H
 	if runKind != parentbilling.DebitRunCare && runKind != parentbilling.DebitRunHoliday || runID <= 0 {
 		return parentbilling.ExportedFile{}, parentbilling.ErrExportRunNotFound
 	}
-	readiness, err := f.datev.DatevReadiness(ctx, reviewer)
+	// The values the check passed: the settings of the Träger in the same
+	// Träger transaction.
+	settings, readiness, err := f.datev.settingsAndReadiness(ctx, reviewer)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
 	if !readiness.Ready {
 		return parentbilling.ExportedFile{}, &parentbilling.DatevNotReadyError{Readiness: readiness}
 	}
-	// The values the check passed: the settings of the Träger in the same
-	// Träger transaction.
-	settings, err := f.datev.settings.DatevSettings(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.ExportedFile{}, fmt.Errorf("parent billing: read the DATEV settings: %w", err)
-	}
 	content, err := f.store.ExportRunContent(ctx, reviewer.OrganizationID, runKind, runID)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
-	batch := datevRunBatch(content.Invoices, settings)
-	if len(batch.bookings) == 0 {
-		return parentbilling.ExportedFile{}, parentbilling.ErrExportRunEmpty
+	batch, err := datevRunBatch(content.Invoices, settings, options)
+	if err != nil {
+		return parentbilling.ExportedFile{}, err
 	}
 	header := batch.header(settings, runKind, f.datev.now())
 	bookingContent, err := datevBookingsContent(header, batch)
@@ -72,6 +77,7 @@ func (f *FinanceExports) DatevFile(ctx context.Context, reviewer parentbilling.H
 	file := exportFile{format: parentbilling.ExportFormatDatev, runKind: runKind, runID: runID,
 		totalCents: batch.totalCents, careInvoices: batch.careInvoices, documents: batch.documents,
 		documentCount: len(batch.bookings), bookingContent: bookingContent,
+		datevAll: options.All, datevBookings: batch.refs,
 		fileName: datevFileName,
 		render: func(number int64) ([]byte, error) {
 			numbered := header
@@ -107,23 +113,36 @@ func datevBatchLabel(runKind string, number int64) string {
 type datevBatch struct {
 	bookings []DatevBooking
 	// numbers are the document numbers of the bookings, in their order.
-	numbers      []string
+	numbers []string
+	// refs name the booking of each line for the record of what went to
+	// DATEV.
+	refs         []parentbilling.DatevBookingRef
 	careInvoices []int64
 	documents    []int64
 	totalCents   int64
 	first, last  calendar.Date
 }
 
-// datevRunBatch books every document with an amount; a document of 0 €
-// (a full exemption) moves no money and DATEV refuses an amount of 0.
-func datevRunBatch(invoices []parentbilling.ExportInvoice, settings parentbilling.DatevSettings) datevBatch {
-	batch := datevBatch{}
-	for _, invoice := range invoices {
-		if invoice.TotalCents != 0 {
-			batch.add(invoice, settings.RevenueAccount.Value)
-		}
+// datevRunBatch books the documents the selection of the options takes
+// (datev_run_selection.go). A run without any booking is ErrExportRunEmpty;
+// a standard file whose bookings all went to DATEV before is
+// ErrDatevNoNewBookings, as is a chosen fiscal year without a booking.
+func datevRunBatch(invoices []parentbilling.ExportInvoice, settings parentbilling.DatevSettings, options parentbilling.DatevFileOptions,
+) (datevBatch, error) {
+	validDebtor, month := datevSelectionRules(settings)
+	selection := selectDatevDocuments(invoices, validDebtor, month, options.All)
+	if !selection.anyBooking {
+		return datevBatch{}, parentbilling.ErrExportRunEmpty
 	}
-	return batch
+	chosen, _ := selection.inFiscalYear(options.FiscalYearStart, month)
+	if len(chosen) == 0 {
+		return datevBatch{}, parentbilling.ErrDatevNoNewBookings
+	}
+	batch := datevBatch{}
+	for _, invoice := range chosen {
+		batch.add(invoice, settings.RevenueAccount.Value)
+	}
+	return batch, nil
 }
 
 // add books one document: an invoice charges the debtor, a negative
@@ -137,6 +156,11 @@ func (b *datevBatch) add(invoice parentbilling.ExportInvoice, revenueAccount str
 	}
 	b.bookings = append(b.bookings, booking)
 	b.numbers = append(b.numbers, invoice.Number)
+	ref := parentbilling.DatevBookingRef{DocumentID: invoice.DocumentID, CareCancellationID: invoice.CareCancellationID}
+	if invoice.CareCancellationID == 0 {
+		ref.CareInvoiceID = invoice.CareInvoiceID
+	}
+	b.refs = append(b.refs, ref)
 	b.totalCents += invoice.TotalCents
 	if invoice.CareInvoiceID > 0 && !slices.Contains(b.careInvoices, invoice.CareInvoiceID) {
 		b.careInvoices = append(b.careInvoices, invoice.CareInvoiceID)

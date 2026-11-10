@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  handleDomainApiError,
-  isBrowserContext,
-  convertToBackendRoom,
-  authFetch,
-  fetchWithRetry,
-} from "./api-helpers";
+import { handleDomainApiError, authFetch, fetchWithRetry } from "./api-helpers";
 import { ApiError, errorClassCode, problemTitle } from "./api-error";
 import {
   handleApiError,
@@ -574,104 +568,6 @@ describe("handleDomainApiError", () => {
 
     expect(thrown).toMatchObject({ status: 500 });
     expect((thrown as Error).message).toContain("Unknown error");
-  });
-});
-
-describe("isBrowserContext", () => {
-  it("returns true when window is defined", () => {
-    // In happy-dom test environment, window is defined
-    const result = isBrowserContext();
-    // This test is environment-dependent
-    expect(typeof result).toBe("boolean");
-  });
-});
-
-describe("convertToBackendRoom", () => {
-  it("converts raw API response to typed BackendRoom", () => {
-    const rawResponse = {
-      id: 1,
-      name: "Room 101",
-      building: "Building A",
-      floor: 2,
-      capacity: 30,
-      category: "classroom",
-      color: "#FF0000",
-      device_id: "device-123",
-      is_occupied: true,
-      activity_name: "Math Class",
-      group_name: "Class 3A",
-      supervisor_name: "John Smith",
-      student_count: 25,
-      created_at: "2024-01-15T10:00:00Z",
-      updated_at: "2024-01-15T12:00:00Z",
-    };
-
-    const result = convertToBackendRoom(rawResponse);
-
-    expect(result.id).toBe(1);
-    expect(result.name).toBe("Room 101");
-    expect(result.building).toBe("Building A");
-    expect(result.floor).toBe(2);
-    expect(result.capacity).toBe(30);
-    expect(result.category).toBe("classroom");
-    expect(result.color).toBe("#FF0000");
-    expect(result.device_id).toBe("device-123");
-    expect(result.is_occupied).toBe(true);
-    expect(result.activity_name).toBe("Math Class");
-    expect(result.group_name).toBe("Class 3A");
-    expect(result.supervisor_name).toBe("John Smith");
-    expect(result.student_count).toBe(25);
-  });
-
-  it("handles string numeric fields", () => {
-    const rawResponse = {
-      id: "123",
-      floor: "5",
-      capacity: "50",
-    };
-
-    const result = convertToBackendRoom(rawResponse);
-
-    expect(result.id).toBe(123);
-    expect(result.floor).toBe(5);
-    expect(result.capacity).toBe(50);
-  });
-
-  it("uses defaults for missing fields", () => {
-    const rawResponse = {};
-
-    const result = convertToBackendRoom(rawResponse);
-
-    expect(result.id).toBe(0);
-    expect(result.name).toBe("");
-    expect(result.building).toBeUndefined();
-    expect(result.floor).toBe(0);
-    expect(result.capacity).toBe(0);
-    expect(result.category).toBe("");
-    expect(result.is_occupied).toBe(false);
-  });
-
-  it("converts is_occupied to boolean", () => {
-    expect(convertToBackendRoom({ is_occupied: true }).is_occupied).toBe(true);
-    expect(convertToBackendRoom({ is_occupied: false }).is_occupied).toBe(
-      false,
-    );
-    expect(convertToBackendRoom({ is_occupied: undefined }).is_occupied).toBe(
-      false,
-    );
-  });
-
-  it("handles truthy/falsy values for is_occupied from raw API", () => {
-    // Simulate raw API response that might have numeric values
-    const rawWithOne = { is_occupied: 1 } as unknown as {
-      is_occupied?: boolean;
-    };
-    const rawWithZero = { is_occupied: 0 } as unknown as {
-      is_occupied?: boolean;
-    };
-
-    expect(convertToBackendRoom(rawWithOne).is_occupied).toBe(true);
-    expect(convertToBackendRoom(rawWithZero).is_occupied).toBe(false);
   });
 });
 

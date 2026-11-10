@@ -76,7 +76,5 @@
   "registerWeekDone": "Hafta kaydedildi.",
   "registerWeekLocked": "Bu günler için kayıt süresi doldu, kayıtsız kalıyor: {days}.",
   "errorObjectWeekCancel": "haftalık iptal",
-  "errorObjectWeekRegister": "haftalık kayıt",
-  "participationCutoffLead": "Kaydı {days, plural, one {yemekten bir iş günü önce} other {yemekten # iş günü önce}} saat {time} olana kadar değiştirebilirsiniz.",
-  "participationSicknessLead": "{days, plural, one {Yemekten bir iş günü önce} other {Yemekten # iş günü önce}} saat {time} olana kadar onaylanan bir hastalık bildirimi, çocuğunuzun öğle yemeği kaydını iptal eder. Sonrasında kayıt geçerli kalır."
+  "errorObjectWeekRegister": "haftalık kayıt"
 }

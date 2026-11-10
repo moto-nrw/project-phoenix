@@ -23,9 +23,7 @@ func NewEnrollmentRollovers(src EnrollmentRolloverSources) enrollmentOwner.Rollo
 	return enrollmentCompose.NewRollovers(deps)
 }
 
-// enrollmentRolloverSettings resolves the grade collection settings of the
-// rollover. It never locks the class collection pair: the rollover's
-// eligibility check goes through the phase administration.
+// enrollmentRolloverSettings binds grade collection and token lifetimes.
 type enrollmentRolloverSettings struct {
 	settings EnrollmentRolloverSettings
 }
@@ -34,16 +32,12 @@ func (s enrollmentRolloverSettings) CollectGradeLevel(ctx context.Context) (bool
 	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectGradeLevel)
 }
 
-func (s enrollmentRolloverSettings) CollectSchoolClass(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectSchoolClass)
-}
-
 func (s enrollmentRolloverSettings) GradeLevelMax(ctx context.Context) (int, error) {
 	return s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)
 }
 
-func (enrollmentRolloverSettings) LockClassCollectionPair(context.Context) error {
-	return nil
+func (s enrollmentRolloverSettings) StatusTokenTTLDays(ctx context.Context) (int, error) {
+	return s.settings.ResolveInt(ctx, configModels.KeyEnrollmentStatusTokenTTLDays)
 }
 
 // NewEnrollmentOfferingCapacity composes the owner's capacity gate the
@@ -62,8 +56,7 @@ func NewEnrollmentOfferingCapacity(offerings enrollmentCompose.CapacityOfferings
 	return enrollmentCompose.NewOfferingCapacity(offerings, peaks, waitlistEnabled)
 }
 
-// EnrollmentRolloverSettings resolves the grade collection settings the
-// rollover reads.
+// EnrollmentRolloverSettings resolves the settings the rollover reads.
 type EnrollmentRolloverSettings interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveInt(ctx context.Context, key string) (int, error)

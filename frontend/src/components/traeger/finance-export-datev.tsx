@@ -1,15 +1,21 @@
 "use client";
 
-// Der DATEV-Buchungsstapel auf der Seite „Exporte“ (#4694): welche
-// DATEV-Werte noch fehlen, bevor es eine Datei gibt, und welche Rechnungen
-// DATEV ablehnen würde, wenn ein Download sie nennt. Beide Hinweise sagen,
-// was als Nächstes zu tun ist.
+// Der DATEV-Buchungsstapel auf der Seite „Exporte“ (#4694, #6433): welche
+// DATEV-Werte noch fehlen, bevor es eine Datei gibt, welche Rechnungen
+// DATEV ablehnen würde, dass ein Lauf keine neuen Buchungen hat, und die
+// ausdrückliche Wahl „Alle Buchungen erneut“ mit ihrer Warnung. Jeder
+// Hinweis sagt, was als Nächstes zu tun ist.
 
+import { useState } from "react";
 import { ButtonLink } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { SectionLabel } from "~/components/ui/section-label";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import type {
   DatevBookingProblem,
   DatevReadiness,
+  ExportRun,
 } from "~/lib/traeger-finance-exports-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -127,27 +133,152 @@ function datevProblemLines(problems: readonly DatevBookingProblem[]): string[] {
  * number was used.
  */
 export function DatevRefusedNotice({
+  runKind,
   runLabel,
   problems,
   onDismiss,
 }: Readonly<{
+  runKind: ExportRun["runKind"];
   runLabel: string;
   problems: readonly DatevBookingProblem[];
   onDismiss: () => void;
 }>) {
   const debtor = problems.some((problem) => problem.field === "debtor_number");
+  const correction =
+    runKind === "holiday"
+      ? "Bei Rechnungen ohne Gutschrift: Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Danach ist der Lauf wieder frei. Hat die Rechnung schon eine Gutschrift, ist kein Storno möglich. Laden Sie dann die Sollstellung für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt."
+      : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei.";
   return (
     <Alert
       type="warning"
       title={`Keine DATEV-Datei für ${runLabel}`}
       message={
         debtor
-          ? "DATEV nimmt diese Rechnungen so nicht an. Laden Sie für diesen Lauf die Sollstellung herunter. Ihr Steuerbüro kann die Buchungen damit von Hand erfassen. Änderungen bei der Familie gelten nur für künftige Rechnungen. Auch ein Storno hebt diese Sperre nicht auf."
+          ? `DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt. So geht es weiter: ${correction}`
           : "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt."
       }
       details={<BulletList lines={datevProblemLines(problems)} />}
       onDismiss={onDismiss}
       dismissLabel="Hinweis schließen"
     />
+  );
+}
+
+/**
+ * A standard DATEV download found nothing new: every booking of the run is
+ * in a DATEV file, or another download took them a moment earlier. No file
+ * left moto and no number was used.
+ */
+export function DatevNothingNewNotice({
+  runLabel,
+  taken,
+  onDismiss,
+}: Readonly<{
+  runLabel: string;
+  taken: boolean;
+  onDismiss: () => void;
+}>) {
+  return (
+    <Alert
+      type="info"
+      title={`Keine neuen Buchungen für ${runLabel}`}
+      message={
+        taken
+          ? "Jemand hat die neuen Buchungen eben heruntergeladen. Sie stehen im Exportprotokoll. Es wurde keine weitere Datei erstellt und keine Nummer verbraucht."
+          : "Alle Buchungen dieses Laufs sind schon in einer DATEV-Datei. Es wurde keine Datei erstellt und keine Nummer verbraucht."
+      }
+      onDismiss={onDismiss}
+      dismissLabel="Hinweis schließen"
+    />
+  );
+}
+
+/**
+ * The name of a fiscal year by its first day: the year, or both years when
+ * it does not start in January ("2026/27").
+ */
+function fiscalYearLabel(start: string): string {
+  const [year, month] = start.split("-");
+  if (!year || month === "01") return year ?? start;
+  return `${year}/${String(Number(year) + 1).slice(-2)}`;
+}
+
+/**
+ * Asks before a DATEV file of every booking of a run again (#6433). The
+ * standard download never repeats a booking; this one does on purpose, for
+ * a file the tax office lost, so it says what happens if the tax office
+ * reads it in twice. With bookings in several fiscal years the person picks
+ * one: a DATEV file holds one fiscal year.
+ */
+export function DatevRepeatDialog({
+  runLabel,
+  fiscalYears,
+  loading,
+  onConfirm,
+  onClose,
+}: Readonly<{
+  runLabel: string | null;
+  fiscalYears: readonly string[];
+  loading: boolean;
+  onConfirm: (fiscalYear: string | undefined) => void;
+  onClose: () => void;
+}>) {
+  const [chosen, setChosen] = useState<string | null>(null);
+  const year =
+    chosen !== null && fiscalYears.includes(chosen)
+      ? chosen
+      : (fiscalYears[0] ?? null);
+  const close = () => {
+    setChosen(null);
+    onClose();
+  };
+  return (
+    <ConfirmationModal
+      isOpen={runLabel !== null}
+      onClose={close}
+      onConfirm={() => onConfirm(year ?? undefined)}
+      title="Alle Buchungen erneut herunterladen?"
+      confirmText="Erneut herunterladen"
+      confirmVariant="warning"
+      isConfirmLoading={loading}
+      loadingText="Wird erstellt …"
+      mobileSheet
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-700">
+          Die Datei enthält alle Buchungen von {runLabel}, auch die schon
+          exportierten.
+        </p>
+        <Alert
+          type="warning"
+          title="Buchungen können doppelt in DATEV stehen"
+          message="Geben Sie die Datei nur weiter, wenn Ihr Steuerbüro die frühere Datei nicht hat oder nicht einlesen konnte."
+          announce="off"
+        />
+        {fiscalYears.length > 1 && year !== null ? (
+          <div className="space-y-2">
+            <SectionLabel as="p">Wirtschaftsjahr</SectionLabel>
+            <SegmentedControl
+              items={fiscalYears.map((start) => ({
+                value: start,
+                label: fiscalYearLabel(start),
+              }))}
+              value={year}
+              onChange={setChosen}
+              ariaLabel="Wirtschaftsjahr der Datei"
+              fullWidth
+              wrap
+            />
+            <p className="text-sm text-gray-600">
+              Eine DATEV-Datei gilt für ein Wirtschaftsjahr.
+            </p>
+          </div>
+        ) : null}
+        <p className="text-sm text-gray-600">
+          Die Datei bekommt eine neue Nummer. Im Exportprotokoll steht sie als
+          Wiederholung.
+        </p>
+      </div>
+    </ConfirmationModal>
   );
 }

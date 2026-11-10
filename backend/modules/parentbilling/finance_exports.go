@@ -99,7 +99,24 @@ var (
 	ErrExportFileNumberStartLocked = errors.New("the file numbers of the Träger already started")
 	// ErrExportInvoiceNotFound reports an invoice of another Träger or none.
 	ErrExportInvoiceNotFound = errors.New("no invoice of the Träger")
+	// ErrDatevNoNewBookings reports a standard DATEV download of a run whose
+	// bookings are all in an earlier DATEV file (#6433): no file, no number.
+	ErrDatevNoNewBookings = errors.New("every booking of the run is in a DATEV file")
+	// ErrDatevBookingsTaken reports a standard DATEV download whose bookings
+	// another download put into its file at the same time; it rolls back.
+	ErrDatevBookingsTaken = errors.New("another DATEV download took the bookings")
 )
+
+// DatevFileOptions chooses what a DATEV file holds (#6433). The standard
+// download holds the bookings no DATEV file of the Träger held yet. All
+// repeats every booking of the run on purpose, for a file the tax office
+// lost; the protocol marks it. FiscalYearStart picks the fiscal year of the
+// file, the earliest one with bookings when zero: one DATEV file holds one
+// fiscal year.
+type DatevFileOptions struct {
+	All             bool
+	FiscalYearStart calendar.Date
+}
 
 // DatevNotReadyError refuses a DATEV file while the settings of the Träger
 // make no valid batch; it names the keys, never their values.
@@ -232,6 +249,8 @@ type ExportProtocolEntry struct {
 	// RepeatOf is the number of the earliest file of the run with the same
 	// content, 0 when the content is new.
 	RepeatOf int64 `json:"repeat_of,omitempty"`
+	// DatevAll marks a DATEV file of "all bookings again" (#6433).
+	DatevAll bool `json:"datev_all,omitempty"`
 	// ExportedBy is the account that downloaded the file, nil after its
 	// erasure; ExportedByYou marks the reader's own downloads.
 	ExportedBy    *int64     `json:"exported_by_account_id"`
@@ -259,6 +278,25 @@ type ExportRun struct {
 	LastSollstellung *ExportProtocolEntry `json:"last_sollstellung"`
 	LastDatev        *ExportProtocolEntry `json:"last_datev"`
 	Exports          int                  `json:"exports"`
+}
+
+// DatevRunOverview is what the export page shows of the DATEV bookings of a
+// run (#6433): NewBookings counts the bookings the next standard DATEV files
+// hold, across fiscal years; FiscalYears are the starts of the fiscal years
+// the bookings of the run fall in, for the choice of "all again".
+type DatevRunOverview struct {
+	RunKind     string          `json:"run_kind"`
+	RunID       int64           `json:"run_id"`
+	NewBookings int             `json:"new_bookings"`
+	FiscalYears []calendar.Date `json:"fiscal_years"`
+}
+
+// DatevRunOverviews answers the runs of a page of the export page; Runs is
+// empty while the DATEV settings of the Träger make no valid file (Ready
+// false), because no count could be right.
+type DatevRunOverviews struct {
+	Ready bool               `json:"ready"`
+	Runs  []DatevRunOverview `json:"runs"`
 }
 
 // ExportPageSize is the number of runs or protocol entries one page of the
@@ -292,8 +330,15 @@ type ExportProtocolPage struct {
 
 // ExportInvoice is an issued invoice as the Sollstellung writes it.
 type ExportInvoice struct {
-	CareInvoiceID    int64
-	DocumentID       int64
+	CareInvoiceID int64
+	// CareCancellationID is the Storno of the monthly invoice CareInvoiceID
+	// when the row is that Storno.
+	CareCancellationID int64
+	DocumentID         int64
+	// ReferenceDocumentID is the holiday invoice a Storno or credit refers to.
+	ReferenceDocumentID int64
+	// DatevBooked says the booking is in a DATEV file of the Träger (#6433).
+	DatevBooked      bool
 	Number           string
 	Kind             string
 	IssuedOn         calendar.Date
@@ -349,6 +394,26 @@ type ExportFileRecord struct {
 	// SEPADebitIDs are debits of a PAIN.008 file; the store records the
 	// invoice or holiday document each collects.
 	SEPADebitIDs []int64
+	// DatevAll marks a DATEV file of "all bookings again". DatevBookings are
+	// the bookings of a DATEV file; the store records the first file of
+	// each, and a standard file fails with ErrDatevBookingsTaken when a
+	// booking is already recorded.
+	DatevAll      bool
+	DatevBookings []DatevBookingRef
+}
+
+// ExportRunRef names a run of the export page.
+type ExportRunRef struct {
+	RunKind string
+	RunID   int64
+}
+
+// DatevBookingRef names one booking of a DATEV file: a monthly invoice, its
+// Storno, or a holiday document.
+type DatevBookingRef struct {
+	CareInvoiceID      int64
+	CareCancellationID int64
+	DocumentID         int64
 }
 
 // Kinds of an invoice the history is asked for.
@@ -407,7 +472,8 @@ type FinanceExports interface {
 	ExportRuns(ctx context.Context, reviewer HolidayReviewer, page ExportPage) (ExportRunPage, error)
 	ExportProtocol(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64, page ExportPage) (ExportProtocolPage, error)
 	SollstellungFile(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64) (ExportedFile, error)
-	DatevFile(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64) (ExportedFile, error)
+	DatevFile(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64, options DatevFileOptions) (ExportedFile, error)
+	DatevRunOverviews(ctx context.Context, reviewer HolidayReviewer, runs []ExportRunRef) (DatevRunOverviews, error)
 	InvoiceHistory(ctx context.Context, reviewer HolidayReviewer, kind string, id int64) (InvoiceHistory, error)
 }
 
