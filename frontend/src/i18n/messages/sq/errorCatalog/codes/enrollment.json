@@ -101,6 +101,7 @@
   "phase_care_offering_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_has_effective_bookings": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_eligibility_setting_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "phase_pending_child_window_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_name_exists": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "phase_not_eligible": "Ky regjistrim nuk është i hapur për llogarinë tuaj. Hyni në aplikacionin për prindër ose pyesni shkollën.",

@@ -126,6 +126,7 @@ const CodeEnrollmentPhaseNameExists = "enrollment.phase_name_exists"
 const CodeEnrollmentPhaseNameRequired = "enrollment.phase_name_required"
 const CodeEnrollmentPhaseNotEligible = "enrollment.phase_not_eligible"
 const CodeEnrollmentPhaseNotFound = "enrollment.phase_not_found"
+const CodeEnrollmentPhasePendingChildWindowConflict = "enrollment.phase_pending_child_window_conflict"
 const CodeEnrollmentPhaseSchoolClassesInvalid = "enrollment.phase_school_classes_invalid"
 const CodeEnrollmentPhaseServicePeriodInvalid = "enrollment.phase_service_period_invalid"
 const CodeEnrollmentPhaseWindowInvalid = "enrollment.phase_window_invalid"
@@ -284,6 +285,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentPhaseNameRequired, "input"},
 	{CodeEnrollmentPhaseNotEligible, "permission"},
 	{CodeEnrollmentPhaseNotFound, "business_rejection"},
+	{CodeEnrollmentPhasePendingChildWindowConflict, "business_rejection"},
 	{CodeEnrollmentPhaseSchoolClassesInvalid, "input"},
 	{CodeEnrollmentPhaseServicePeriodInvalid, "input"},
 	{CodeEnrollmentPhaseWindowInvalid, "input"},

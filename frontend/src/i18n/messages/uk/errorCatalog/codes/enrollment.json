@@ -101,6 +101,7 @@
   "phase_care_offering_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_has_effective_bookings": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_eligibility_setting_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "phase_pending_child_window_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_name_exists": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_name_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "phase_not_eligible": "Цей запис недоступний для вашого облікового запису. Увійдіть у застосунок для батьків або зверніться до школи.",

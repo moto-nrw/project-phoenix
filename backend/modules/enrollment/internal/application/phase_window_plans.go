@@ -82,49 +82,65 @@ func (s *Phases) pendingActivationPlans(ctx context.Context, phaseID int64, oldS
 	return plans, nil
 }
 
+// followStudentActivation moves the student's activation plans of the phase
+// and then asks School Membership to move the student's window. The request
+// children are locked before the student (ADR 0162); a student that is no
+// longer pending gets its plans back.
 func (s *Phases) followStudentActivation(
 	ctx context.Context, studentID int64, childIDs []int64, others []*enrollment.StudentCarePeriod, before, after *enrollment.Phase,
 ) error {
-	from, until := followedWindow(others, before, after)
-	pending, err := s.deps.Students.MovePendingWindow(ctx, enrollment.PendingWindowMove{
-		StudentID:  studentID,
-		FromBefore: before.ServiceStartDate, FromAfter: from,
-		UntilBefore: before.ServiceEndDate, UntilAfter: until,
-	})
+	startMoves := after.ServiceStartDate != before.ServiceStartDate
+	if startMoves {
+		if err := s.setActivationPlans(ctx, childIDs, after.ServiceStartDate); err != nil {
+			return err
+		}
+	}
+	move := followedWindow(others, before, after)
+	move.StudentID = studentID
+	pending, err := s.deps.Students.MovePendingWindow(ctx, move)
 	if err != nil {
-		if errors.Is(err, enrollment.ErrInvalidPhase) && s.deps.Runtime.MarkRollback != nil {
+		if errors.Is(err, enrollment.ErrPhasePendingChildWindowConflict) && s.deps.Runtime.MarkRollback != nil {
 			s.deps.Runtime.MarkRollback(ctx)
 		}
 		return fmt.Errorf("phase update: move enrollment window of student %d: %w", studentID, err)
 	}
-	if !pending || after.ServiceStartDate == before.ServiceStartDate {
-		return nil
+	if !pending && startMoves {
+		return s.setActivationPlans(ctx, childIDs, before.ServiceStartDate)
 	}
-	newStart := after.ServiceStartDate
+	return nil
+}
+
+func (s *Phases) setActivationPlans(ctx context.Context, childIDs []int64, on enrollment.Date) error {
 	for _, childID := range childIDs {
-		if err := s.deps.Records.UpdateChildActivationPlan(ctx, childID, enrollment.ChildActivationScheduled, &newStart); err != nil {
-			return fmt.Errorf("phase update: move activation plan of request child %d: %w", childID, err)
+		if err := s.deps.Records.UpdateChildActivationPlan(ctx, childID, enrollment.ChildActivationScheduled, &on); err != nil {
+			return fmt.Errorf("phase update: set activation plan of request child %d: %w", childID, err)
 		}
 	}
 	return nil
 }
 
-// followedWindow derives the window the edit proposes for a pending student
-// whose bounds still equal the phase's old ones. Approvals in other phases
-// that lie inside the old window keep their days: the start becomes the
-// earliest, the end the latest of them and the new phase bound.
-func followedWindow(others []*enrollment.StudentCarePeriod, before, after *enrollment.Phase) (enrollment.Date, enrollment.Date) {
-	oldStart, oldEnd := before.ServiceStartDate, before.ServiceEndDate
-	from, until := after.ServiceStartDate, after.ServiceEndDate
+// followedWindow proposes the window of a pending student whose bounds still
+// equal the phase's old ones. Approvals in other phases that lie inside the
+// old window keep their days: the start becomes the earliest, the end the
+// latest of them and the new phase bound. Every other approval's bounds go
+// along, so School Membership can widen a window they shape.
+func followedWindow(others []*enrollment.StudentCarePeriod, before, after *enrollment.Phase) enrollment.PendingWindowMove {
+	oldStart, oldEnd := calendar.Date(before.ServiceStartDate), calendar.Date(before.ServiceEndDate)
+	from, until := calendar.Date(after.ServiceStartDate), calendar.Date(after.ServiceEndDate)
+	move := enrollment.PendingWindowMove{FromBefore: before.ServiceStartDate, UntilBefore: before.ServiceEndDate}
 	for _, other := range others {
-		if other.ServiceStartDate >= oldStart && other.ServiceStartDate < from {
-			from = other.ServiceStartDate
+		start, end := calendar.Date(other.ServiceStartDate), calendar.Date(other.ServiceEndDate)
+		if !start.Before(oldStart) && start.Before(from) {
+			from = start
 		}
-		if other.ServiceEndDate <= oldEnd && other.ServiceEndDate > until {
-			until = other.ServiceEndDate
+		if !end.After(oldEnd) && end.After(until) {
+			until = end
 		}
+		move.OtherStarts = append(move.OtherStarts, other.ServiceStartDate)
+		move.OtherEnds = append(move.OtherEnds, other.ServiceEndDate)
 	}
-	return from, until
+	move.FromAfter, move.UntilAfter = enrollment.Date(from), enrollment.Date(until)
+	return move
 }
 
 // refuseEffectiveBookings rejects deleting a running or future phase while a

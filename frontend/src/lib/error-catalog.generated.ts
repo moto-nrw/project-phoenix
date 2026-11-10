@@ -548,6 +548,8 @@ export const ERROR_CATALOG = {
         "Diese Anmeldung ist für Ihr Konto nicht freigegeben. Bitte melden Sie sich in der Eltern-App an oder fragen Sie die Schule.",
       "enrollment.phase_not_found":
         "Diese Anmeldephase gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.phase_pending_child_window_conflict":
+        "Der neue Zeitraum passt nicht zu einem vorgemerkten Kind. Bitte prüfen Sie zuerst dessen Betreuungszeitraum.",
       "enrollment.phase_school_classes_invalid":
         "Die angebotenen und die zugelassenen Klassen passen nicht zusammen. Bitte prüfen Sie die Klassen.",
       "enrollment.phase_service_period_invalid":

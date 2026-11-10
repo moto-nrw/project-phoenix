@@ -509,6 +509,8 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 		return common.ErrorConflictOnField(enrollmentOwner.ErrPhaseDuplicateName, common.CodeEnrollmentPhaseNameExists, "name")
 	case errors.Is(err, enrollmentOwner.ErrPhaseCareOfferingConflict):
 		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, common.CodeEnrollmentPhaseCareOfferingConflict)
+	case errors.Is(err, enrollmentOwner.ErrPhasePendingChildWindowConflict):
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhasePendingChildWindowConflict, common.CodeEnrollmentPhasePendingChildWindowConflict)
 	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
 		return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound)
 	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):

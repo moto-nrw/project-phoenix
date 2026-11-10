@@ -744,6 +744,12 @@
       "legacy": "enrollment.phase_eligibility_setting_required"
     },
     {
+      "code": "enrollment.phase_pending_child_window_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_pending_child_window_conflict"
+    },
+    {
       "code": "enrollment.phase_name_exists",
       "class": "business_rejection",
       "parameters": [],

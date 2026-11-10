@@ -13,8 +13,9 @@ import (
 // A phase edit moves the window of a still pending child through
 // MovePendingWindow (#6505). A bound moves only while it still equals the
 // phase's old bound; a child that is no longer pending stays as it is, and a
-// window that would end before it starts is refused before any write. The
-// first-care bound follows a start that lies ahead.
+// window that would end before it starts is refused before any write. A
+// bound from another approval of the child moves only to widen the window.
+// The first-care bound follows a start that lies ahead.
 func TestMovePendingWindowMovesOnlyThePhaseBounds(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -52,9 +53,10 @@ func TestMovePendingWindowMovesOnlyThePhaseBounds(t *testing.T) {
 		}
 		return row.Status, text(row.From), text(row.Until), text(row.FirstCare)
 	}
-	move := func(id int64, from, until string) schoolmembership.PendingWindowMove {
+	move := func(id int64, from, until calendar.Date) schoolmembership.PendingWindowMove {
 		return schoolmembership.PendingWindowMove{StudentID: id,
-			FromBefore: "2100-08-01", FromAfter: from, UntilBefore: "2101-07-31", UntilAfter: until}
+			FromBefore: "2100-08-01", FromAfter: from, UntilBefore: "2101-07-31", UntilAfter: until,
+			OtherStarts: []calendar.Date{"2100-07-20"}, OtherEnds: []calendar.Date{"2100-07-31"}}
 	}
 
 	both := enroll("Beide", "pending", "2100-08-01", "2101-07-31")
@@ -79,10 +81,24 @@ func TestMovePendingWindowMovesOnlyThePhaseBounds(t *testing.T) {
 	status, from, until, _ = window(active)
 	assert.Equal(t, []string{"active", "2100-08-01", "2101-07-31"}, []string{status, from, until})
 
+	// A holiday approval from 2100-07-20 shapes the start: a later school
+	// year keeps it, an earlier one widens the window to its own start.
+	holiday := enroll("Ferien", "pending", "2100-07-20", "2101-07-31")
+	moved, err = windows.MovePendingWindow(ctx, move(holiday, "2100-08-08", "2101-07-31"))
+	require.NoError(t, err)
+	assert.True(t, moved)
+	_, from, _, _ = window(holiday)
+	assert.Equal(t, "2100-07-20", from, "a later school year keeps the earlier holiday start")
+	moved, err = windows.MovePendingWindow(ctx, move(holiday, "2100-07-15", "2101-07-31"))
+	require.NoError(t, err)
+	assert.True(t, moved)
+	_, from, _, _ = window(holiday)
+	assert.Equal(t, "2100-07-15", from, "an earlier school year starts the child with it")
+
 	short := enroll("Kurz", "pending", "2100-08-01", "2100-08-05")
 	_, err = windows.MovePendingWindow(ctx, move(short, "2100-08-08", "2101-07-24"))
-	var invalid *schoolmembership.InvalidMembershipError
-	require.ErrorAs(t, err, &invalid, "a window ending before its start is refused")
+	var conflict *schoolmembership.PendingWindowConflictError
+	require.ErrorAs(t, err, &conflict, "a window ending before its start is refused")
 	_, from, until, _ = window(short)
 	assert.Equal(t, []string{"2100-08-01", "2100-08-05"}, []string{from, until}, "nothing was written")
 }

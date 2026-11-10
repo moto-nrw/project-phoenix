@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -250,7 +251,7 @@ func EnrollmentMailBranding(baseURL, schoolImageURL string) (string, string) {
 
 // enrollmentPhaseStudents binds the phase edit's pending-window move to
 // School Membership's guarded command (#6505, ADR 0200). A window the command
-// refuses as inverted is an invalid phase edit.
+// refuses as inverted is a conflict of the phase edit.
 type enrollmentPhaseStudents struct {
 	membership schoolmembership.PendingWindows
 }
@@ -263,12 +264,21 @@ func NewEnrollmentPhaseStudents(membership schoolmembership.PendingWindows) enro
 func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentOwner.PendingWindowMove) (bool, error) {
 	moved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{
 		StudentID:  move.StudentID,
-		FromBefore: string(move.FromBefore), FromAfter: string(move.FromAfter),
-		UntilBefore: string(move.UntilBefore), UntilAfter: string(move.UntilAfter),
+		FromBefore: calendar.Date(move.FromBefore), FromAfter: calendar.Date(move.FromAfter),
+		UntilBefore: calendar.Date(move.UntilBefore), UntilAfter: calendar.Date(move.UntilAfter),
+		OtherStarts: calendarDates(move.OtherStarts), OtherEnds: calendarDates(move.OtherEnds),
 	})
-	var invalid *schoolmembership.InvalidMembershipError
-	if errors.As(err, &invalid) {
-		return false, fmt.Errorf("%w: %v", enrollmentOwner.ErrInvalidPhase, err)
+	var conflict *schoolmembership.PendingWindowConflictError
+	if errors.As(err, &conflict) {
+		return false, fmt.Errorf("%w: student %d", enrollmentOwner.ErrPhasePendingChildWindowConflict, conflict.StudentID)
 	}
 	return moved, err
+}
+
+func calendarDates(days []enrollmentOwner.Date) []calendar.Date {
+	out := make([]calendar.Date, 0, len(days))
+	for _, day := range days {
+		out = append(out, calendar.Date(day))
+	}
+	return out
 }

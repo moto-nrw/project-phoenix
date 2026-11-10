@@ -3,9 +3,11 @@ package application
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) Enroll(ctx context.Context, input schoolmembership.StudentEnrollment) (result int64, err error) {
@@ -96,17 +98,13 @@ func (s *Service) MovePendingWindow(ctx context.Context, move schoolmembership.P
 		}
 		moved = true
 		next := current
-		if current.EnrolledFrom == move.FromBefore {
-			next.EnrolledFrom = move.FromAfter
-		}
-		if current.EnrolledUntil == move.UntilBefore {
-			next.EnrolledUntil = move.UntilAfter
-		}
+		next.EnrolledFrom = movedBound(current.EnrolledFrom, move.FromBefore, move.FromAfter, move.OtherStarts, move.FromAfter.Before)
+		next.EnrolledUntil = movedBound(current.EnrolledUntil, move.UntilBefore, move.UntilAfter, move.OtherEnds, move.UntilAfter.After)
 		if next.EnrolledFrom == current.EnrolledFrom && next.EnrolledUntil == current.EnrolledUntil {
 			return nil
 		}
-		if next.EnrolledFrom != "" && next.EnrolledUntil != "" && next.EnrolledFrom > next.EnrolledUntil {
-			return invalid("the moved enrollment window would end before it starts")
+		if next.EnrolledFrom != "" && next.EnrolledUntil != "" && calendar.Date(next.EnrolledFrom).After(calendar.Date(next.EnrolledUntil)) {
+			return &schoolmembership.PendingWindowConflictError{StudentID: move.StudentID}
 		}
 		_, writeStats, writeErr := s.store.RenewStudentEnrollment(txCtx, next, s.today())
 		stats.Add(writeStats)
@@ -116,4 +114,18 @@ func (s *Service) MovePendingWindow(ctx context.Context, move schoolmembership.P
 		return false, err
 	}
 	return moved, nil
+}
+
+// movedBound is the next value of one window bound: the phase's new bound
+// when the bound still is the phase's old one, or when it comes from another
+// approval and the new bound widens the window (widens reports that).
+func movedBound(current string, before, after calendar.Date, others []calendar.Date, widens func(calendar.Date) bool) string {
+	if current == "" {
+		return current
+	}
+	day := calendar.Date(current)
+	if day == before || (slices.Contains(others, day) && widens(day)) {
+		return after.String()
+	}
+	return current
 }

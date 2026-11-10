@@ -20,6 +20,9 @@ var (
 	// offering bookings still apply today or later (#6505): the delete would
 	// remove a child's care without the care-end or booking process.
 	ErrPhaseHasEffectiveBookings = errors.New("phase still has effective care offering bookings")
+	// ErrPhasePendingChildWindowConflict rejects a service-window edit that
+	// would end a pending child's window before it starts (#6505).
+	ErrPhasePendingChildWindowConflict = errors.New("phase change would end a pending child's window before it starts")
 )
 
 // Storage refusals of a phase write. The owner marks the database error with
@@ -127,12 +130,16 @@ type PhaseStudents interface {
 	MovePendingWindow(ctx context.Context, move PendingWindowMove) (bool, error)
 }
 
-// PendingWindowMove is the window a phase edit proposes for a pending child:
-// each bound moves only while it still equals its Before value.
+// PendingWindowMove is the window a phase edit proposes for a pending child.
+// A bound moves while it still equals its Before value; a bound from one of
+// the child's approvals in another phase (OtherStarts, OtherEnds) moves only
+// when the After value widens the window.
 type PendingWindowMove struct {
 	StudentID   int64
 	FromBefore  Date
 	FromAfter   Date
 	UntilBefore Date
 	UntilAfter  Date
+	OtherStarts []Date
+	OtherEnds   []Date
 }

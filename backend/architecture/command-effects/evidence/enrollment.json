@@ -2386,7 +2386,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
-      "binding_digest": "7466a2c2767fb10d47898bb4c869427a",
+      "binding_digest": "a5f32f0966629d0f95b40a50194dd0bb",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseStudents.MovePendingWindow",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.PendingWindows.MovePendingWindow",

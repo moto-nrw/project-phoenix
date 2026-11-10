@@ -101,6 +101,7 @@
   "phase_care_offering_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "phase_has_effective_bookings": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "phase_eligibility_setting_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "phase_pending_child_window_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "phase_name_exists": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "phase_name_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "phase_not_eligible": "Ten zapis nie jest dostępny dla Twojego konta. Zaloguj się w aplikacji dla rodziców lub zapytaj szkołę.",

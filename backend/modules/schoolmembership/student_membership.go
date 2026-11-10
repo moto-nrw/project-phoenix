@@ -1,6 +1,10 @@
 package schoolmembership
 
-import "context"
+import (
+	"context"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
 
 type StudentEnrollment struct {
 	StudentID     int64
@@ -21,13 +25,17 @@ type PendingWindows interface {
 }
 
 // PendingWindowMove moves the enrollment window of a still pending child with
-// the service window its approval planned (#6505). Each bound moves only
-// while it still equals its Before value: a bound from another enrollment or
-// a manual change stays. Dates are YYYY-MM-DD.
+// the service window its approval planned (#6505). A bound that still equals
+// its Before value takes its After value. A bound that equals the start or
+// end of one of the child's approvals in another phase (OtherStarts,
+// OtherEnds) takes the After value only when that widens the window. Any
+// other bound came from a manual change and stays.
 type PendingWindowMove struct {
 	StudentID   int64
-	FromBefore  string
-	FromAfter   string
-	UntilBefore string
-	UntilAfter  string
+	FromBefore  calendar.Date
+	FromAfter   calendar.Date
+	UntilBefore calendar.Date
+	UntilAfter  calendar.Date
+	OtherStarts []calendar.Date
+	OtherEnds   []calendar.Date
 }

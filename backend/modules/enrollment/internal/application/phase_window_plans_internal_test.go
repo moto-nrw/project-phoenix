@@ -11,9 +11,8 @@ import (
 // followedWindow proposes the window of a pending child whose bounds still
 // equal the phase's old ones. A child with approvals in several phases starts
 // with the earliest and ends with the latest approval inside the old window;
-// an approval the school-year window replaced stays out (#6505). School
-// Membership applies a bound only while it still equals the old one, so a
-// bound from another enrollment or a manual edit stays.
+// an approval the school-year window replaced stays out (#6505). Every other
+// approval goes along, so School Membership can widen a window it shapes.
 func TestFollowedWindow(t *testing.T) {
 	t.Parallel()
 
@@ -63,9 +62,12 @@ func TestFollowedWindow(t *testing.T) {
 			after.ID = schoolYear
 			before := *year
 			before.ID = schoolYear
-			from, until := followedWindow(tt.others, &before, &after)
-			assert.Equal(t, enrollment.Date(tt.wantFrom), from)
-			assert.Equal(t, enrollment.Date(tt.wantUntil), until)
+			move := followedWindow(tt.others, &before, &after)
+			assert.Equal(t, enrollment.Date(tt.wantFrom), move.FromAfter)
+			assert.Equal(t, enrollment.Date(tt.wantUntil), move.UntilAfter)
+			assert.Equal(t, before.ServiceStartDate, move.FromBefore)
+			assert.Equal(t, before.ServiceEndDate, move.UntilBefore)
+			assert.Len(t, move.OtherStarts, len(tt.others), "every other approval goes along")
 		})
 	}
 }

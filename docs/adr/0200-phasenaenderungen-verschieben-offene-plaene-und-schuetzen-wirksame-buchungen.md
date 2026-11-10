@@ -38,17 +38,23 @@ Kindes ohne Betreuungsende und ohne Abschlussaufgabe.
      trifft.
    - School Membership entscheidet mit einem eigenen Befehl
      (`PendingWindows.MovePendingWindow`) unter der Zeilensperre des Kindes:
-     Nur ein vorgemerktes Kind bewegt sich, und nur eine Grenze, die noch der
-     alten Phasengrenze entspricht. Eine Grenze aus einer anderen Anmeldung
-     oder einer Handänderung bleibt. Ein Zeitraum, der vor seinem Beginn
-     enden würde, wird vor dem Schreiben abgelehnt; die Phasenänderung rollt
-     dann ganz zurück.
+     Nur ein vorgemerktes Kind bewegt sich. Eine Grenze, die noch der alten
+     Phasengrenze entspricht, folgt der neuen. Eine Grenze, die von einer
+     Anmeldung in einer anderen Phase stammt, folgt nur, wenn der Zeitraum
+     dadurch größer wird: Zieht die Schule das Schuljahr vor die
+     Ferienbetreuung vor, beginnt das Kind mit dem Schuljahr. Eine Grenze aus
+     einer Handänderung bleibt. Ein Zeitraum, der vor seinem Beginn enden
+     würde, wird vor dem Schreiben abgelehnt
+     (`enrollment.phase_pending_child_window_conflict`, 409); die
+     Phasenänderung rollt dann ganz zurück.
    - Bei Anmeldungen in mehreren Phasen schlägt Enrollment den frühesten
      Start und das späteste Ende der Anmeldungen innerhalb des alten
      Zeitraums vor. Eine Anmeldung, die das Schuljahr schon ersetzt hat,
      zählt nicht.
-   - Nur wenn das Kind noch vorgemerkt war, verschiebt Enrollment danach den
-     eigenen Aktivierungsplan.
+   - Enrollment verschiebt den eigenen Aktivierungsplan vor dem Befehl und
+     setzt ihn zurück, wenn das Kind nicht mehr vorgemerkt war. Der Plan
+     bleibt so der aus der Phase abgeleitete Tag, auch wenn die Leitung den
+     Start des Kindes von Hand geändert hat.
 3. **Löschen.** Eine Phase, deren Angebote noch Buchungen bestätigter
    Kinder haben, die heute oder später gelten, wird nicht gelöscht
    (`enrollment.phase_has_effective_bookings`, 409). Die Prüfung läuft unter
@@ -60,8 +66,9 @@ Kindes ohne Betreuungsende und ohne Abschlussaufgabe.
 ## Sperren
 
 Die Phasenänderung hält wie bisher die Wiederholungssperre, dann die
-Phasenzeile und die offenen Pläne. Der Befehl der Schulzugehörigkeit nimmt
-nur die Zeilensperre des Kindes und **keine** Klassensperre: Ein Weg darf nach
+Phasenzeile, die offenen Pläne und die Anmeldungen des Kindes, dann das Kind
+(Reihenfolge der Zeilen aus ADR 0162). Der Befehl der Schulzugehörigkeit
+nimmt nur die Zeilensperre des Kindes und **keine** Klassensperre: Ein Weg darf nach
 der Wiederholungssperre nicht mehr auf die Klassensperre warten (Reihenfolge
 aus ADR 0162). Ein Jahrgangswechsel hält die Klassensperre exklusiv und nimmt
 danach die Wiederholungssperre; ein Warten in der anderen Richtung schloss
@@ -90,8 +97,14 @@ Feld `Students` und seine Übergabe), `modules/schoolmembership/compose` +5
 ## Folgen
 
 - Anzeige, Aktivierungsplan und tatsächlicher Start eines vorgemerkten
-  Kindes stimmen nach jeder Verschiebung überein. Rückt der Start in die
-  Vergangenheit, aktiviert der nächste stündliche Lauf das Kind.
+  Kindes stimmen nach jeder Verschiebung überein, solange der Start nicht von
+  Hand geändert wurde. Rückt der Start in die Vergangenheit, aktiviert der
+  nächste stündliche Lauf das Kind.
+- Am Starttag selbst, bevor der Lauf das Kind aktiviert hat, gilt die
+  Aktivierung als ausgeführt, Wochenplan und Klassenwechsel verschieben sich
+  dagegen. Dieses Fenster von höchstens einer Stunde nimmt die Entscheidung
+  in Kauf; ohne die Regel könnte der Lauf ein Kind mit verschobenem Start
+  aktivieren.
 - Das bisher kopierte Betreuungsende eines schon betreuten Kindes ändert eine
   Phasenänderung weiterhin nicht; das ist ein Betreuungsende und kein offener
   Plan.
