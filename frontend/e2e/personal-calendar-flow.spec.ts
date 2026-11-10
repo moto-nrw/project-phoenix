@@ -8,7 +8,11 @@ import {
   tenantBase as base,
   waitForAnimations,
 } from "./tenant-session";
-import { toISODate } from "../src/lib/date-helpers";
+import {
+  berlinTodayISO,
+  parseISODate,
+  toISODate,
+} from "../src/lib/date-helpers";
 
 // Login und Tenant-Herkunft: e2e/tenant-session.ts.
 // Relative page.goto-Ziele laufen gegen die Tenant-Herkunft.
@@ -62,7 +66,10 @@ test.describe("Personal calendar flow", () => {
     // Der Kalender blendet Wochenenden zunächst aus. Der Termin liegt daher
     // auch am Wochenende auf einem sichtbaren Wochentag der aktuell
     // angezeigten Woche, damit er nach dem Speichern im Raster erscheint.
-    const start = weekdayInCurrentWeek(new Date());
+    // Die Seite zeigt die Woche des Berliner Schultags; der lokale Tag des
+    // Runners (in CI UTC) ist bis 01:00/02:00 Uhr Berliner Zeit noch der
+    // Vortag und läge montags in der Vorwoche (#6419).
+    const start = weekdayInCurrentWeek(parseISODate(berlinTodayISO()));
     const startDate = toISODate(start);
     const recurrenceEnd = toISODate(addDays(start, 7));
     const title = `Playwright Kalendertermin ${Date.now()}`;

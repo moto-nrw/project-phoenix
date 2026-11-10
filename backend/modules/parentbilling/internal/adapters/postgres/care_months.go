@@ -142,6 +142,7 @@ type careInvoiceRow struct {
 	DebtorIBANMasked    *string        `bun:"debtor_iban_masked"`
 	SequenceType        *string        `bun:"sequence_type"`
 	DebitGap            *string        `bun:"debit_gap"`
+	DebtorNumber        *string        `bun:"debtor_number"`
 	// CostShares are the issued cost bearer shares (#4687), read in the same
 	// statement as the invoice.
 	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
@@ -160,7 +161,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
 			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
 		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents, DocumentKind: row.DocumentKind,
-		FamilyEmail: textOf(row.FamilyEmail), Payment: row.snapshot().payment(),
+		FamilyEmail: textOf(row.FamilyEmail), Payment: row.snapshot().payment(), DebtorNumber: textOf(row.DebtorNumber),
 	}
 	if row.RecipientStreet != nil && row.RecipientPostalCode != nil && row.RecipientCity != nil {
 		invoice.Recipient.Address = &parentbilling.PostalAddress{Street: *row.RecipientStreet,
@@ -516,7 +517,7 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[replacedKey{invoice.ContractID, invoiceService(invoice)}],
 			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
 			RecipientSecondName: textRef(invoice.Recipient.SecondName),
-			DocumentKind:        careDocumentKind(invoice.DocumentKind),
+			DocumentKind:        careDocumentKind(invoice.DocumentKind), DebtorNumber: textRef(invoice.DebtorNumber),
 		}
 		if address := invoice.Recipient.Address; address != nil {
 			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City

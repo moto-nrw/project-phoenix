@@ -1231,3 +1231,71 @@ func writeFile(t *testing.T, path, contents string) {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
+
+// A base migration that only names a table a later migration creates, behind
+// to_regclass (1.15.843 for #6361), does not hold it: the candidate migration
+// that creates the table may assign its owner. A base migration that creates
+// it still holds it, also through Prepare or a call the parser does not know
+// (review of 9d0709ae69: Prepare let an unbacked owner assignment through).
+func TestCheckSeparatesForwardReferencesFromBaseTables(t *testing.T) {
+	t.Parallel()
+	const adopted = "data object ghost.records was newly assigned to owner module"
+	for _, tt := range []struct {
+		name, base, want string
+	}{
+		{name: "guarded forward reference", base: `db.NewRaw(%q)`, want: ""},
+		{name: "base creates the table", base: `db.NewRaw("DO $$ BEGIN CREATE TABLE ghost.records (id bigint); END $$")`, want: adopted},
+		{name: "base prepares the create", base: `db.Prepare("CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+		{name: "base prepares the create with a context", base: `db.PrepareContext(nil, "CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+		{name: "base creates through a helper", base: `run(db, "CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+		{name: "forward reference beside a helper create", base: `db.NewRaw(%q); run(db, "CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := tt.base
+			if strings.Contains(base, "%q") {
+				base = fmt.Sprintf(base, "DO $$ BEGIN IF to_regclass('ghost.records') IS NOT NULL THEN DELETE FROM ghost.records; END IF; END $$")
+			}
+			repo, baseRef, policy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+type rawDB struct{}
+func (rawDB) NewRaw(string) {}
+func (rawDB) Prepare(string) {}
+func (rawDB) PrepareContext(any, string) {}
+func run(rawDB, string) {}
+func base(db rawDB) { `+base+` }
+`)
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, policy, "ghost.records", "module"))
+			writeFile(t, filepath.Join(repo, "database", "migrations", "002_new.go"),
+				"package migrations\nfunc create(db rawDB) { db.NewRaw(\"CREATE TABLE IF NOT EXISTS ghost.records (id bigint)\") }\n")
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if tt.want == "" && err != nil {
+				t.Fatalf("forward reference held the table: %v\n%s", err, output)
+			}
+			if tt.want != "" && (err == nil || !strings.Contains(output, tt.want)) {
+				t.Fatalf("table of the base was adopted: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+// A candidate migration that creates a table through Prepare needs a write
+// owner like any other create (review of 9d0709ae69).
+func TestCheckRequiresAnOwnerForAPreparedCreate(t *testing.T) {
+	t.Parallel()
+	for _, call := range []string{`db.Prepare("CREATE TABLE ghost.records (id bigint)")`,
+		`db.PrepareContext(nil, "CREATE TABLE ghost.records (id bigint)")`} {
+		t.Run(call, func(t *testing.T) {
+			t.Parallel()
+			repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations
+type rawDB struct{}
+func (rawDB) Prepare(string) {}
+func (rawDB) PrepareContext(any, string) {}
+`)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "002_new.go"), "package migrations\nfunc create(db rawDB) { "+call+" }\n")
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if err == nil || !strings.Contains(output, "new writable data object ghost.records has no write owner") {
+				t.Fatalf("a prepared create without an owner was accepted: %v\n%s", err, output)
+			}
+		})
+	}
+}

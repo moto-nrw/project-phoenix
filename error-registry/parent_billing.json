@@ -633,6 +633,36 @@
       "legacy": "parent_billing.sepa_end_to_end_duplicate"
     },
     {
+      "code": "parent_billing.export_run_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_run_not_found"
+    },
+    {
+      "code": "parent_billing.export_run_empty",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_run_empty"
+    },
+    {
+      "code": "parent_billing.export_file_number_start_locked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_file_number_start_locked"
+    },
+    {
+      "code": "parent_billing.export_invoice_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_invoice_not_found"
+    },
+    {
+      "code": "parent_billing.export_mapping_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.export_mapping_invalid"
+    },
+    {
       "code": "parent_billing.beleg_retention_basis_cites_statute",
       "class": "input",
       "parameters": [],

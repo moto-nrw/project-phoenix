@@ -52,7 +52,7 @@ const familyDocumentsSQL = `WITH family_rows AS (
 	SELECT 'care', invoice.id, invoice.run_id, 'invoice', invoice.number, invoice.issued_on, invoice.issued_at, '',
 		invoice.billing_month, (invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date, NULL, NULL, '',
 		invoice.recipient_first_name, invoice.recipient_last_name, invoice.recipient_email, invoice.recipient_kind,
-		invoice.recipient_second_name, NULL, invoice.total_cents, COALESCE(invoice.family_email, LOWER(invoice.recipient_email)),
+		invoice.recipient_second_name, invoice.debtor_number, invoice.total_cents, COALESCE(invoice.family_email, LOWER(invoice.recipient_email)),
 		invoice.payment_method, invoice.due_on, json_build_array(invoice.child_first_name), '[]'::json, false
 	FROM parent_billing.care_invoices AS invoice
 	WHERE invoice.organization_id = ?0
@@ -60,7 +60,7 @@ const familyDocumentsSQL = `WITH family_rows AS (
 	SELECT 'care', cancellation.id, cancellation.run_id, 'cancellation', cancellation.number, cancellation.issued_on,
 		cancellation.issued_at, '', invoice.billing_month, (invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date,
 		invoice.id, invoice.number, cancellation.reason, invoice.recipient_first_name, invoice.recipient_last_name,
-		invoice.recipient_email, invoice.recipient_kind, invoice.recipient_second_name, NULL, cancellation.total_cents,
+		invoice.recipient_email, invoice.recipient_kind, invoice.recipient_second_name, invoice.debtor_number, cancellation.total_cents,
 		COALESCE(invoice.family_email, LOWER(invoice.recipient_email)), NULL, NULL, json_build_array(invoice.child_first_name),
 		'[]'::json, false
 	FROM parent_billing.care_invoice_cancellations AS cancellation

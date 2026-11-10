@@ -1,0 +1,4 @@
+﻿Debitorennummer;Rechnungsnummer;Rechnungsdatum;Fällig am;Betrag;Name;Kind;Leistung von;Leistung bis;Zahlungsweg
+10 4711;MB-2026-0110;30.10.2026;04.11.2026;78,00;Eva Müller;Lia Müller;01.10.2026;31.10.2026;Lastschrift
+10 4711;MB-2026-0111;02.11.2026;;-78,00;Eva Müller;Lia Müller;01.10.2026;31.10.2026;Lastschrift
+;FE-2026-0007;30.10.2026;04.11.2026;1234,56;"'=HYPERLINK(""x"")";"Ben; Ida";26.10.2026;30.10.2026;Überweisung

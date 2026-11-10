@@ -940,6 +940,16 @@ export const ERROR_CATALOG = {
         "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
       "parent_billing.due_dates_invalid":
         "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.export_file_number_start_locked":
+        "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
+      "parent_billing.export_invoice_not_found":
+        "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
+      "parent_billing.export_mapping_invalid":
+        "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.export_run_empty":
+        "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
+      "parent_billing.export_run_not_found":
+        "Diesen Lauf gibt es nicht oder er ist noch nicht ausgestellt. Laden Sie die Seite neu.",
       "parent_billing.family_billing_invalid":
         "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
       "parent_billing.family_billing_not_found":
@@ -2313,6 +2323,16 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.care_amendment_disabled":
         "{object} could not be changed. Please check its current status.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Please enter a whole number from 1 to 20.",
       "parent_billing.holiday_quote_invalid":
@@ -2886,6 +2906,16 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.care_amendment_disabled":
         "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Пожалуйста, укажите целое число от 1 до 20.",
       "parent_billing.holiday_quote_invalid":
@@ -3415,6 +3445,16 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.care_amendment_disabled":
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
       "parent_billing.holiday_quote_invalid":
@@ -3932,6 +3972,16 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.care_amendment_disabled":
         "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Proszę podać liczbę całkowitą od 1 do 20.",
       "parent_billing.holiday_quote_invalid":
@@ -4454,6 +4504,16 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.care_amendment_disabled":
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Lütfen 1 ile 20 arasında bir tam sayı girin.",
       "parent_billing.holiday_quote_invalid":
@@ -4969,6 +5029,16 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.care_amendment_disabled":
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "parent_billing.export_file_number_start_locked":
+        "The file numbers have already started. The first number can no longer be changed.",
+      "parent_billing.export_invoice_not_found":
+        "This invoice does not exist. Please reload the page.",
+      "parent_billing.export_mapping_invalid":
+        "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_run_empty":
+        "This run has no invoice. There is no file to download.",
+      "parent_billing.export_run_not_found":
+        "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Будь ласка, вкажіть ціле число від 1 до 20.",
       "parent_billing.holiday_quote_invalid":

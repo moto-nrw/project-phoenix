@@ -42,6 +42,7 @@ import {
   type SepaDebitRun,
   type SepaDebitRunKind,
   downloadSepaDebitFile,
+  messageIdOfDebitFile,
   fetchSepaDebitRun,
   submitSepaDebits,
 } from "~/lib/traeger-sepa-debits-api";
@@ -183,7 +184,7 @@ export function SepaDebitCard({
       downloadBlob(file.blob, file.filename);
       setDownloaded({
         key: runKey,
-        messageId: file.filename.replace(/\.xml$/i, ""),
+        messageId: messageIdOfDebitFile(file.filename),
       });
     } catch (err) {
       logger.error("traeger_sepa_debit_file_failed", {

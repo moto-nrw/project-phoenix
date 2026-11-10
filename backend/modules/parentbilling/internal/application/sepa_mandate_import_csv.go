@@ -235,6 +235,8 @@ var importHeaderNames = map[string][]string{
 		"erstoderfolgelastschrift", "sequencetype", "status"},
 	parentbilling.ImportFieldLastCollected: {"letztereinzug", "letztelastschrift", "zuletzteingezogen", "letzteeinziehung",
 		"datumletztereinzug", "lastcollection", "lastcollectedon"},
+	parentbilling.ImportFieldDebtorNumber: {"debitorennummer", "kinderdebitorennummer", "debitornummer", "debitor",
+		"debitorennr", "kundennummer", "personenkonto", "debtornumber"},
 }
 
 // importHeaderKey folds a header for the comparison: lower case, umlauts
@@ -266,7 +268,7 @@ func suggestImportMapping(headers []string) parentbilling.SEPAMandateImportMappi
 		IBAN: found[parentbilling.ImportFieldIBAN], BIC: found[parentbilling.ImportFieldBIC],
 		AccountHolder: found[parentbilling.ImportFieldAccountHolder], Payer: found[parentbilling.ImportFieldPayer],
 		CreditorID: found[parentbilling.ImportFieldCreditorID], Sequence: found[parentbilling.ImportFieldSequence],
-		LastCollected: found[parentbilling.ImportFieldLastCollected],
+		LastCollected: found[parentbilling.ImportFieldLastCollected], DebtorNumber: found[parentbilling.ImportFieldDebtorNumber],
 	}, PayerKey: parentbilling.PayerByEmail}
 	if payer := importHeaderKey(mapping.Columns.Payer); payer != "" && !strings.Contains(payer, "mail") {
 		mapping.PayerKey = parentbilling.PayerByContract

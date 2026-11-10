@@ -74,6 +74,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["traeger/care-billing-runs/[id]/cost-shares/[costBearerId]/export", "GET"],
   ["traeger/care-billing-runs/[id]/review-export", "GET"],
   ["traeger/sepa-debits/[kind]/[id]/file", "GET"],
+  ["traeger/finance-exports/runs/[kind]/[id]/sollstellung", "GET"],
   ["traeger/contracts/[id]/document", "GET"],
   ["traeger/contracts/[id]/paper-signature", "GET"],
   ["traeger/contracts/[id]/versions/[number]/document", "GET"],

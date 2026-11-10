@@ -53,6 +53,7 @@ export interface FamilyBillingDraft {
   city: string;
   paymentMethod: PaymentMethod | "";
   dueDay: string;
+  debtorNumber: string;
 }
 
 export const EMPTY_FAMILY_BILLING: FamilyBillingDraft = {
@@ -67,6 +68,7 @@ export const EMPTY_FAMILY_BILLING: FamilyBillingDraft = {
   city: "",
   paymentMethod: "",
   dueDay: "",
+  debtorNumber: "",
 };
 
 function draftOf(existing: FamilyBilling | null): FamilyBillingDraft {
@@ -83,6 +85,7 @@ function draftOf(existing: FamilyBilling | null): FamilyBillingDraft {
     city: existing.payerAddress?.city ?? "",
     paymentMethod: existing.paymentMethod,
     dueDay: existing.dueDay === null ? "" : String(existing.dueDay),
+    debtorNumber: existing.debtorNumber,
   };
 }
 
@@ -163,6 +166,7 @@ export function familyBillingInput(
         : null,
     paymentMethod: draft.paymentMethod,
     dueDay: draft.dueDay === "" ? null : Number(draft.dueDay),
+    debtorNumber: draft.debtorNumber,
   };
 }
 
@@ -238,7 +242,8 @@ export function FamilyBillingForm({
   const deviates =
     draft.recipientKind !== "applicant" ||
     draft.paymentMethod !== "" ||
-    draft.dueDay !== "";
+    draft.dueDay !== "" ||
+    draft.debtorNumber.trim() !== "";
 
   return (
     <form
@@ -419,6 +424,18 @@ export function FamilyBillingForm({
         hint="Die Rechnung ist am nächsten dieser Tage fällig. „Wie der Lauf“ nimmt das Datum des Laufs."
         error={fieldError("due_day")}
         onChange={(dueDay) => set({ dueDay })}
+      />
+      <Input
+        controlSize="compact"
+        id={id("debtor-number")}
+        name="debtor_number"
+        label="Debitorennummer"
+        value={draft.debtorNumber}
+        maxLength={35}
+        autoComplete="off"
+        hint="Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Rechnung und in der Sollstellung."
+        error={fieldError("debtor_number")}
+        onChange={(event) => set({ debtorNumber: event.target.value })}
       />
       {deviates ? (
         <Button

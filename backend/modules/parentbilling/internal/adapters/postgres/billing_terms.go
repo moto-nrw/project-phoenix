@@ -55,6 +55,7 @@ type familyBillingRow struct {
 	PayerCity          string    `bun:"payer_city" json:"payer_city"`
 	PaymentMethod      *string   `bun:"payment_method" json:"payment_method"`
 	DueDay             *int      `bun:"due_day" json:"due_day"`
+	DebtorNumber       *string   `bun:"debtor_number" json:"debtor_number"`
 	UpdatedByAccountID *int64    `bun:"updated_by_account_id" json:"-"`
 	UpdatedAt          time.Time `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
 }
@@ -64,6 +65,7 @@ func (r familyBillingRow) family() parentbilling.FamilyBilling {
 		ID: r.ID, FamilyEmail: r.FamilyEmail, ContractID: r.CareContractID, RecipientKind: r.RecipientKind,
 		SecondFirstName: r.SecondFirstName, SecondLastName: r.SecondLastName, PayerFirstName: r.PayerFirstName,
 		PayerLastName: r.PayerLastName, PayerEmail: r.PayerEmail, DueDay: r.DueDay, UpdatedAt: r.UpdatedAt,
+		DebtorNumber: textOf(r.DebtorNumber),
 	}
 	if r.PaymentMethod != nil {
 		family.PaymentMethod = *r.PaymentMethod
@@ -162,7 +164,7 @@ func (s *Store) SaveFamilyBilling(ctx context.Context, organizationID, accountID
 		OrganizationID: organizationID, FamilyEmail: family.FamilyEmail, CareContractID: family.ContractID,
 		RecipientKind: family.RecipientKind, SecondFirstName: family.SecondFirstName, SecondLastName: family.SecondLastName,
 		PayerFirstName: family.PayerFirstName, PayerLastName: family.PayerLastName, PayerEmail: family.PayerEmail,
-		DueDay: family.DueDay, UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now(),
+		DueDay: family.DueDay, DebtorNumber: textRef(family.DebtorNumber), UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now(),
 	}
 	if family.PaymentMethod != "" {
 		row.PaymentMethod = &family.PaymentMethod
@@ -178,6 +180,7 @@ func (s *Store) SaveFamilyBilling(ctx context.Context, organizationID, accountID
 		Set("payer_email = EXCLUDED.payer_email").Set("payer_street = EXCLUDED.payer_street").
 		Set("payer_postal_code = EXCLUDED.payer_postal_code").Set("payer_city = EXCLUDED.payer_city").
 		Set("payment_method = EXCLUDED.payment_method").Set("due_day = EXCLUDED.due_day").
+		Set("debtor_number = EXCLUDED.debtor_number").
 		Set("updated_by_account_id = EXCLUDED.updated_by_account_id").Set("updated_at = CURRENT_TIMESTAMP").
 		Returning("*").Scan(ctx); err != nil {
 		return parentbilling.FamilyBilling{}, fmt.Errorf("save family billing: %w", err)
@@ -273,7 +276,7 @@ const invoicePaymentTermsSQL = `SELECT
 	(SELECT COALESCE(jsonb_agg(to_jsonb(family) ORDER BY family.family_email), '[]'::jsonb)
 		FROM (SELECT id, family_email, care_contract_id, recipient_kind, second_first_name, second_last_name,
 				payer_first_name, payer_last_name, payer_email, payer_street, payer_postal_code, payer_city,
-				payment_method, due_day, updated_at
+				payment_method, due_day, debtor_number, updated_at
 			FROM parent_billing.family_billing WHERE organization_id = ?0) AS family) AS families,
 	(SELECT COALESCE(jsonb_object_agg(payment_method, due_on), '{}'::jsonb)
 		FROM parent_billing.run_due_dates
@@ -390,4 +393,57 @@ func (s paymentSnapshot) payment() *parentbilling.InvoicePayment {
 			SequenceType: textOf(s.SequenceType)}
 	}
 	return payment
+}
+
+// FamilyDebtorNumbers reads the debtor number of each family that has one
+// (#4693).
+func (s *Store) FamilyDebtorNumbers(ctx context.Context, organizationID int64) (map[string]string, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []familyBillingRow
+	if err := db.NewSelect().Model(&rows).Column("family_email", "debtor_number").Where("organization_id = ?", organizationID).
+		Where("debtor_number IS NOT NULL").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("read the debtor numbers of the families: %w", err)
+	}
+	numbers := make(map[string]string, len(rows))
+	for _, row := range rows {
+		numbers[row.FamilyEmail] = textOf(row.DebtorNumber)
+	}
+	return numbers, nil
+}
+
+// SetFamilyDebtorNumbers gives each family its debtor number where it has
+// none: a family without a deviation gets one that keeps the registration as
+// recipient. A family that got a number since keeps it. Each change is a
+// "save" in the family's trail.
+func (s *Store) SetFamilyDebtorNumbers(ctx context.Context, organizationID, accountID int64, numbers []parentbilling.FamilyDebtorNumber) error {
+	if len(numbers) == 0 {
+		return nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	rows := make([]familyBillingRow, len(numbers))
+	for i, number := range numbers {
+		rows[i] = familyBillingRow{OrganizationID: organizationID, FamilyEmail: number.FamilyEmail, CareContractID: number.ContractID,
+			RecipientKind: parentbilling.RecipientApplicant, DebtorNumber: textRef(number.DebtorNumber),
+			UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now()}
+	}
+	var saved []familyBillingRow
+	if err := db.NewInsert().Model(&rows).
+		On("CONFLICT (organization_id, family_email) DO UPDATE").
+		Set("debtor_number = EXCLUDED.debtor_number").Set("updated_by_account_id = EXCLUDED.updated_by_account_id").
+		Set("updated_at = CURRENT_TIMESTAMP").
+		Where("family_billing_row.debtor_number IS NULL").
+		Returning("id, care_contract_id").Scan(ctx, &saved); err != nil {
+		return fmt.Errorf("set the debtor numbers of the families: %w", err)
+	}
+	families := make([]parentbilling.FamilyBilling, len(saved))
+	for i, row := range saved {
+		families[i] = parentbilling.FamilyBilling{ID: row.ID, ContractID: row.CareContractID}
+	}
+	return s.InsertFamilyBillingEvents(ctx, organizationID, accountID, "save", families)
 }
