@@ -448,6 +448,36 @@ describe("FormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps focus in the busy dialog and hands it back after a failure", async () => {
+    const save = deferred();
+    render(
+      <TestWrapper>
+        <PendingHarness
+          onClose={vi.fn()}
+          task={async () => {
+            await save.promise.catch(() => undefined);
+          }}
+        />
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    const saveButton = screen.getByRole("button", { name: "Speichern" });
+    saveButton.focus();
+
+    fireEvent.click(saveButton);
+    // The disabled button would drop focus to the page; the dialog keeps it.
+    expect(saveButton).toBeDisabled();
+    expect(screen.getByRole("dialog", { name: "Test" })).toHaveFocus();
+
+    await act(async () => {
+      save.reject(new Error("offline"));
+    });
+    expect(saveButton).toBeEnabled();
+    expect(saveButton).toHaveFocus();
+  });
+
   it("cancels a queued close when a save starts during the exit delay", async () => {
     const onClose = vi.fn();
     const save = deferred();

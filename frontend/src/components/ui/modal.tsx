@@ -19,6 +19,14 @@ import { SpinnerIcon } from "./icons";
 
 const visibleModals: string[] = [];
 
+/** Disabled itself or inside a disabled fieldset (the busy footer). */
+function isDisabledControl(element: HTMLElement): boolean {
+  return (
+    element.matches(":disabled") ||
+    element.closest("fieldset:disabled") !== null
+  );
+}
+
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
   role: "dialog" as const,
@@ -132,6 +140,7 @@ export function Modal({
   const descriptionId = React.useId();
   const visible = isOpen && !suspended;
   const titleRef = React.useRef<HTMLHeadingElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
@@ -196,6 +205,38 @@ export function Modal({
       }
     };
   }, []);
+
+  // A busy dialog disables the control that started the operation (Speichern)
+  // and the footer around it; browsers then drop focus to the page. Keep it in
+  // the dialog while busy and hand it back once the control is usable again,
+  // unless the dialog moved it on meanwhile (first invalid field, #6533).
+  const busyFocusRef = React.useRef<HTMLElement | null>(null);
+  React.useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    if (busy) {
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        panel.contains(active) &&
+        isDisabledControl(active)
+      ) {
+        busyFocusRef.current = active;
+        panel.focus({ preventScroll: true });
+      }
+      return;
+    }
+    const previous = busyFocusRef.current;
+    busyFocusRef.current = null;
+    if (
+      previous &&
+      document.activeElement === panel &&
+      previous.isConnected &&
+      !isDisabledControl(previous)
+    ) {
+      previous.focus({ preventScroll: true });
+    }
+  }, [busy]);
 
   // Handle modal context state for blur overlay
   useEffect(() => {
@@ -340,12 +381,15 @@ export function Modal({
         />
         {/* Dialog container */}
         <div
-          className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl ${
+          className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl outline-none ${
             mobileSheet
               ? `max-h-[calc(100dvh-3rem-env(safe-area-inset-top))] w-full rounded-t-2xl max-sm:max-w-none sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-2xl ${MODAL_MAX_WIDTH[size]}`
               : `${widthClass ?? `mx-4 w-[calc(100%-2rem)] ${MODAL_MAX_WIDTH[size]}`} max-h-[calc(100dvh-2rem)] rounded-2xl`
           } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
+          ref={panelRef}
+          // Focus target while a busy dialog has disabled its own controls.
+          tabIndex={-1}
           aria-labelledby={title ? titleId : undefined}
           aria-describedby={title && description ? descriptionId : undefined}
           aria-busy={busy || undefined}
