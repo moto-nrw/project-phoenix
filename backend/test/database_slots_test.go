@@ -17,6 +17,26 @@ import (
 func TestIsolatedDatabaseSlotsBoundWaitAndRelease(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, 1, maxConcurrentIsolatedTestDatabases, "the production clone cap stays one")
+	t.Run("free_slot_ignores_expired_context", func(t *testing.T) {
+		ctx, cancel := context.WithDeadline(context.Background(), time.Unix(1, 0))
+		defer cancel()
+		require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded, "the wait budget is already exhausted")
+		limiter := newIsolatedTestDatabaseLimiter(1)
+		release, err := limiter.acquire(ctx, "free holder")
+		require.NoError(t, err, "an immediately available slot needs no wait budget")
+		defer release()
+		require.Equal(t, 1, limiter.owners["free holder"])
+		_, err = limiter.acquire(ctx, "blocked")
+		require.ErrorIs(t, err, context.DeadlineExceeded, "the same expired context must bound real waiting")
+		require.Contains(t, err.Error(), `owner="free holder"`)
+		release()
+		next, err := limiter.acquire(ctx, "next free holder")
+		require.NoError(t, err)
+		next()
+		require.Empty(t, limiter.slots)
+		require.Empty(t, limiter.owners)
+		require.Zero(t, limiter.queued)
+	})
 	synctest.Test(t, func(t *testing.T) {
 		limiter := newIsolatedTestDatabaseLimiter(1)
 		release, err := limiter.acquire(context.Background(), "holder")
@@ -52,9 +72,8 @@ func TestIsolatedDatabaseSlotsBoundWaitAndRelease(t *testing.T) {
 
 func TestIsolatedDatabaseSlotDeadlineLeavesOpenAndDropBudgets(t *testing.T) {
 	t.Parallel()
-	deadline, ok := t.Deadline()
-	require.True(t, ok)
-	ctx, cancel, err := isolatedTestDatabaseSlotContext(t)
+	deadline := time.Now().Add(10 * time.Minute)
+	ctx, cancel, err := isolatedTestDatabaseSlotContext(isolatedFixedDeadlineTest{TB: t, deadline: deadline})
 	require.NoError(t, err)
 	defer cancel()
 	actual, ok := ctx.Deadline()
@@ -64,11 +83,47 @@ func TestIsolatedDatabaseSlotDeadlineLeavesOpenAndDropBudgets(t *testing.T) {
 	require.Equal(t, 30*time.Second, isolatedTestDatabaseDropTimeout)
 	_, _, err = isolatedTestDatabaseSlotContext(isolatedNoDeadlineTest{t})
 	require.ErrorContains(t, err, "requires a finite test deadline")
+	t.Run("late_package_deadline", func(t *testing.T) {
+		// Still inside the package timeout, but its 155-second wait reserve
+		// has expired. No sleeping or dependence on the actual package clock.
+		tb := isolatedFixedDeadlineTest{TB: t, deadline: time.Now().Add(154 * time.Second)}
+		limiter := newIsolatedTestDatabaseLimiter(1)
+		release, err := limiter.acquireForTest(tb, "late holder")
+		require.NoError(t, err)
+		defer release()
+		_, err = limiter.acquireForTest(tb, "blocked late caller")
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.Contains(t, err.Error(), `owner="late holder"`)
+		release()
+		next, err := limiter.acquireForTest(tb, "next late holder")
+		require.NoError(t, err)
+		next()
+	})
+	t.Run("no_package_deadline", func(t *testing.T) {
+		tb := isolatedNoDeadlineTest{t}
+		limiter := newIsolatedTestDatabaseLimiter(1)
+		release, err := limiter.acquireForTest(tb, "debugger holder")
+		require.NoError(t, err)
+		defer release()
+		_, err = limiter.acquireForTest(tb, "blocked debugger caller")
+		require.ErrorContains(t, err, "requires a finite test deadline")
+		release()
+		next, err := limiter.acquireForTest(tb, "next debugger holder")
+		require.NoError(t, err)
+		next()
+	})
 }
 
 type isolatedNoDeadlineTest struct{ testing.TB }
 
 func (isolatedNoDeadlineTest) Deadline() (time.Time, bool) { return time.Time{}, false }
+
+type isolatedFixedDeadlineTest struct {
+	testing.TB
+	deadline time.Time
+}
+
+func (t isolatedFixedDeadlineTest) Deadline() (time.Time, bool) { return t.deadline, true }
 
 // Compile the actual dependency-free limiter in a tiny test module. No ORM,
 // package fixture or extra clone is needed to reproduce Go's scheduler cycle.
@@ -114,12 +169,7 @@ var waiterStarted = make(chan struct{}, 2)
 
 func claim(t *testing.T) {
 	t.Helper()
-	ctx, cancel, err := isolatedTestDatabaseSlotContext(fixtureTest{t})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cancel()
-	release, err := fixtureSlots.acquire(ctx, t.Name())
+	release, err := fixtureSlots.acquireForTest(fixtureTest{t}, t.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

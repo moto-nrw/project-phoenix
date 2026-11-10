@@ -42,7 +42,33 @@ func newIsolatedTestDatabaseLimiter(limit int) *isolatedTestDatabaseLimiter {
 	return &isolatedTestDatabaseLimiter{slots: make(chan struct{}, limit), owners: make(map[string]int)}
 }
 
+func (l *isolatedTestDatabaseLimiter) acquireForTest(tb testing.TB, owner string) (func(), error) {
+	if release, ok := l.tryAcquire(owner); ok {
+		return release, nil
+	}
+	// A deadline is required only for waiting. Free slots remain usable late
+	// in a package run and in debugger/IDE runs without a package timeout.
+	ctx, cancel, err := isolatedTestDatabaseSlotContext(tb)
+	if err != nil {
+		return nil, err
+	}
+	defer cancel()
+	return l.acquire(ctx, owner)
+}
+
+func (l *isolatedTestDatabaseLimiter) tryAcquire(owner string) (func(), bool) {
+	select {
+	case l.slots <- struct{}{}:
+		return l.acquired(owner), true
+	default:
+		return nil, false
+	}
+}
+
 func (l *isolatedTestDatabaseLimiter) acquire(ctx context.Context, owner string) (func(), error) {
+	if release, ok := l.tryAcquire(owner); ok {
+		return release, nil
+	}
 	started := time.Now()
 	l.mu.Lock()
 	l.queued++
@@ -56,11 +82,15 @@ func (l *isolatedTestDatabaseLimiter) acquire(ctx context.Context, owner string)
 		return nil, l.waitError(owner, started, ctx.Err())
 	case l.slots <- struct{}{}:
 	}
+	return l.acquired(owner), nil
+}
+
+func (l *isolatedTestDatabaseLimiter) acquired(owner string) func() {
 	l.mu.Lock()
 	l.owners[owner]++
 	l.mu.Unlock()
 	var once sync.Once
-	release := func() {
+	return func() {
 		once.Do(func() {
 			l.mu.Lock()
 			defer l.mu.Unlock()
@@ -71,11 +101,6 @@ func (l *isolatedTestDatabaseLimiter) acquire(ctx context.Context, owner string)
 			}
 		})
 	}
-	if err := ctx.Err(); err != nil {
-		release()
-		return nil, l.waitError(owner, started, err)
-	}
-	return release, nil
 }
 
 func (l *isolatedTestDatabaseLimiter) waitError(requester string, started time.Time, err error) error {

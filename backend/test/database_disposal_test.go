@@ -53,7 +53,9 @@ func TestIsolatedCloneDropFailureFailsTestProcess(t *testing.T) {
 		require.False(t, t.Failed(), "only the later DROP failure must fail this child")
 		_, cached := isolatedTestDatabases.Load(topLevelTestName(t))
 		require.False(t, cached, "failed setup must remove its own cache entry")
-		db := SetupIsolatedTestDB(t)
+		// A free slot also works without a package deadline (debugger/-timeout 0).
+		// Reuse this clone so the regression adds no successful DB lifecycle.
+		db := SetupIsolatedTestDB(isolatedNoDeadlineTest{t})
 		fmt.Println("S3A_SETUP_RECOVERED")
 		var name string
 		require.NoError(t, db.NewRaw(`SELECT current_database()`).Scan(t.Context(), &name))

@@ -27,6 +27,57 @@ separat mit einer absichtlich abbrechenden Minimalreproduktion bestätigt.
   Das Original und die Assertions bleiben unverändert. JSON-Testereignisse
   liefern die Paketzeit und die ausgeführten Testnamen.
 
+### Verwendeter Overlay-Diff
+
+Der folgende Diff ist das vollständige Mess-Overlay gegen die oben benannte
+development-Basis. Er wird nur auf eine temporäre Kopie angewendet, nicht auf
+den Checkout. Go-Befehl und Overlay-Erzeugung setzen einen Checkout dieser
+Basis voraus; das Overlay ist nicht für den PR-Head bestimmt. Zum Wiederholen
+den Diff als `tmp/s3a-measure/overlay.diff` speichern:
+
+```sh
+mkdir -p tmp/s3a-measure
+git show 4f43c72524b9b45c10e99330de74c0946ec0870f:backend/test/database_scope.go > tmp/s3a-measure/database_scope.go
+git apply --unidiff-zero --directory=tmp/s3a-measure -p3 tmp/s3a-measure/overlay.diff
+python3 - <<'PYOVERLAY'
+from pathlib import Path
+import json
+root = Path.cwd()
+Path("tmp/s3a-measure/overlay.json").write_text(json.dumps({"Replace": {
+    str(root / "backend/test/database_scope.go"):
+        str(root / "tmp/s3a-measure/database_scope.go")
+}}))
+PYOVERLAY
+```
+
+```diff
+--- a/backend/test/database_scope.go
++++ b/backend/test/database_scope.go
+@@ -7,0 +8 @@
++"os"
+@@ -62,0 +64,2 @@
++measureName string
++bodyStart time.Time
+@@ -87 +90,3 @@
+-	if !perTestDatabases {
++	entry.measureName = name
++measureStart := time.Now()
++if !perTestDatabases {
+@@ -90,0 +96,2 @@
++fmt.Fprintf(os.Stderr, "[DEBUG-S3A] %s slot %.9f\n", name, time.Since(measureStart).Seconds())
++measureStart = time.Now()
+@@ -103,0 +111,2 @@
++fmt.Fprintf(os.Stderr, "[DEBUG-S3A] %s create %.9f\n", name, time.Since(measureStart).Seconds())
++measureStart = time.Now()
+@@ -126,0 +136,2 @@
++fmt.Fprintf(os.Stderr, "[DEBUG-S3A] %s bootstrap %.9f\n", name, time.Since(measureStart).Seconds())
++entry.bodyStart = time.Now()
+@@ -169,0 +181,3 @@
++if !entry.bodyStart.IsZero() { fmt.Fprintf(os.Stderr, "[DEBUG-S3A] %s body %.9f\n", entry.measureName, time.Since(entry.bodyStart).Seconds()) }
++measureStart := time.Now()
++defer func() { fmt.Fprintf(os.Stderr, "[DEBUG-S3A] %s drop %.9f\n", entry.measureName, time.Since(measureStart).Seconds()) }()
+```
+
 Die Grenzen der Phasen:
 
 | Phase | Messgrenzen |
@@ -130,8 +181,8 @@ nur DB-Setup. Testarbeit ist der größte Block; Kern-Auslastung wurde nicht
 profilert. Keine Änderung an Runnern, Shards, Slots oder Workflow vorgesehen.
 Die PR-CI dient später nur als Plausibilitätsvergleich. Das Kostenkriterium
 sind Clone-Lifecycles je Paket (compose: 152) und abwechselnde
-`test-perf`-Läufe vorher/nachher mit identischen Parametern. Die abwechselnden Ressourcenläufe stehen unten; PR-CI-Vergleiche
-werden im PR-Body geführt.
+`test-perf`-Läufe vorher/nachher mit identischen Parametern. Die abwechselnden Ressourcenläufe, Implementierungsnachweise und
+PR-CI-Vergleiche werden im PR-Body geführt.
 
 ## #6451: bestätigte Minimalreproduktion
 
@@ -169,142 +220,3 @@ Paketlauf allein ausführen. Dann nur für die langsamen Testkörper Pool-Stats,
 Server-Statementzeiten und CPU-/I/O-Profil vergleichen. Die direkten Läufe
 reproduzieren weder 500–535 s noch einen 10-min-Pakettimeout. Timeout-Erhöhung,
 mehr Clone-Slots oder weniger Testisolation wären damit nicht begründet.
-
-## Umsetzung #6451 und unabhängige Fehler-Gegenproben
-
-Routing, `topLevelTestName`, `OwnTenant`/`OwnCtx`, Tenant-Anlage und die bisherige
-Cleanup-Zuordnung bleiben unverändert. Die DB-/DSN-/Runtime-Lookups sowie
-Tenant-Anlage/Cleanup wurden gegen `4f43c72524` byteweise verglichen; die drei
-übrigen Routing-Helferdateien haben keinen Diff. Kein dataimport-Diff.
-
-Umgesetzt sind nur die vier freigegebenen Einheiten:
-
-1. Slot-Frist aus `t.Deadline()` minus **155 s** Reserve (2 min Öffnen, 30 s
-   Drop, 5 s Meldung), abbrechbar am Testkontext. Fehlende Deadline wird vor
-   dem Warten gemeldet. Die Öffnung erhält erst nach dem Slot ihre eigenen
-   unveränderten 2 min. Diagnosen nennen Requester, Besitzer, Wartezeit und
-   Schlangenlänge einschließlich des fehlgeschlagenen Requesters.
-2. `CompareAndDelete` entfernt nur den eigenen fehlgeschlagenen Cache-Eintrag.
-   Realer Setupfehler: fehlender PostgreSQL-Template. Der bestehende
-   Disposal-Kindprozess prüft danach erfolgreichen Neuaufbau und den bisherigen
-   DROP-Fehler. Das erwartete Setup-`Fatalf` wird abgefangen, ohne die echte T
-   rot zu markieren; nur der spätere Cleanupfehler darf den Prozess scheitern
-   lassen. Keine zusätzlichen erfolgreichen Clones; ein zusätzlicher erfolgloser
-   CREATE-Versuch als Fehlerprobe.
-3. Statischer Check in `TestHermeticTestPatterns`: **0 Treffer**, auch in
-   dataimport. Er folgt benannten lokalen Funktionen über Dateien sowie
-   Inline-/benannten Run-Callbacks und den expliziten Clone-Einstiegen,
-   einschließlich verschachtelter Clone-haltender Parent-Callbacks.
-   Direktes `PerTestDatabases()` in TestMain ist slotfrei und deshalb kein
-   Slot-/Scheduler-Zyklus; dieser bestehende Modus wird nicht beanstandet.
-   Nicht aufgelöst: dynamische Funktionswerte, Interface-/Methodendispatch und
-   fremde Helfergraphen; die endliche Slotfrist begrenzt übersehene Muster.
-4. Scheduler-Regression: dieselbe echte, dependency-freie Slot-Implementierung
-   in einem kleinen `go test`-Modul, `-parallel 2`, äußerer Go-Testtimeout 5 s.
-   Besitzer und zwei Waiter sind mit Kanälen synchronisiert. Nur die eingespeiste
-   Fixture-Deadline skaliert die Reserve auf einen 1-s-Wartepfad. Erwartet sind
-   Exit 1, die konkrete Deadline-Diagnose und das beendete Parent-Kind, **kein**
-   Go-Testalarm. Null DB-Clones. Direkte Testbinary-Kinder erhalten den üblichen
-   endlichen `go test`-Default 10 min statt implizit Timeout 0.
-
-### Befundklasse 17: Fehlerfähigkeit der Tests
-
-Keine neutralen Ausgangsdaten: belegter Slot, Besitzer und zwei wartende Tests;
-reale SQL-Setup-/DROP-Fehler. Unabhängige Sollwerte: Produktionscap 1, Reserve
-155 s, Öffnung 2 min, Drop 30 s und eine nichtnullige virtuelle Wartezeit 20 ms.
-Synchronisation über Kanäle bzw. `synctest.Wait`, kein hinzugefügter Sleep.
-
-| Kernaussage | Gegenprobe/Mutation | Beobachtetes Ergebnis |
-| --- | --- | --- |
-| Entwicklung hängt, Fix terminiert diagnostisch | Bytegleicher Limiter aus development-Basis `4f43c72524`, derselbe Scheduler-Graph; nur alter API-Aufruf angepasst | Go-Testalarm nach 5 s; mit Fix erwarteter Deadlinefehler und beendetes Kind |
-| Kein unbegrenztes Warten | Context-Select durch alten blockierenden Kanal-Send ersetzt | Go-Testalarm nach 5 s |
-| Statische Prüfung erkennt eingeschleuste Muster | Positive AST-Fixtures mit Parent-Clone/Parallel-Kind, auch verschachtelt; Finder auf `nil` mutiert | Positive Fälle werden gefunden; Mutation scheitert an erwartetem nichtleerem Befund |
-| Reserve ist fachlich unabhängig fixiert | Reserve auf 0 mutiert | Golden-Deadline minus 155 s wird verfehlt, Test rot |
-| Produktionslimit bleibt 1 | Produktionscap auf 2 mutiert | Unabhängiger Sollwert 1 schlägt fehl |
-| Wartezeit ist tatsächlich gemessen | Gemeldete Wartezeit auf 0 mutiert | Virtuell synchronisierter 20-ms-Fall rot |
-| Fehlercache wird entfernt | `CompareAndDelete` entfernt | Reale Fehlprobe hinterlässt Eintrag, Test rot |
-| DROP muss unabhängig den Prozess scheitern lassen | Cleanup-`Errorf` auf `Logf` mutiert | Kind endet Exit 0 statt 1, bisheriger Prozess-Guard bleibt rot |
-
-Normaler Stand: gezielte Tests einschließlich kompletter Hermetic-/Komplexitäts-
-Gates mit `-count=2` grün. Keine Assertions, Skips oder Baselines gelockert.
-
-### Bestätigter Rest, deshalb Refs #6451
-
-Synchronisierter Real-DB-Gegentest: parallele Geschwister ohne OwnTenant teilen
-nach wie vor den zuerst geöffneten Scope. Nach dem Cleanup des ersten bekommt
-das noch aktive zweite `sql: database is closed` (Paketlauf 1,271 s). Dieses
-vorhandene Lebenszyklusproblem wird nicht durch Vererbung oder Scope-Wechsel
-verdeckt. Es braucht einen gesonderten Vertrag und koordinierte Migrationen,
-insbesondere mit S1. Der statische Parent-Clone-Check deckt diese Geschwister-
-Konstellation nicht ab. Rest und nächste Schritte werden in #6451 festgehalten.
-
-## Abwechselnde Ressourcenmessung auf derselben Implementierungsbasis
-
-Reihenfolge alt 1 → neu 1 → alt 2 → neu 2, identische Parameter über
-`test-perf backend-export`. Je Variante vorab derselbe Wrapper mit `-run '^$'`
-zum Warm-Linken. Alt ist der originale Scope-/Prozesshelfer aus `4f43c72524`;
-der neue separate Slot-Quelltext wird dort durch eine leere Go-Datei ersetzt.
-Neu ist die Implementierung dieses PRs. Beide tragen dasselbe reine Timing-
-Overlay. Identische 198 bestandene Test-/Subtest-Inventare, je 152 isolierte
-Clones. Spätere Verschärfung der unabhängigen Assert-Sollwerte ändert den in
-compose verwendeten Bibliothekscode nicht; sie ist im finalen Vollauf enthalten.
-
-Sekunden; Phasen summiert, Slotwartezeit überlappt Testarbeit. Host-Peak in MB.
-
-| Variante | Paket | Slot Σ / Max | Create Σ | Bootstrap Σ | Testkörper Σ | Drop Σ | Host-CPU-s | Peak |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| alt 1 | 177,484 | 954,481 / 62,954 | 12,810 | 4,604 | 151,766 | 7,684 | 17,600 | 144 |
-| neu 1 | 164,202 | 861,279 / 68,310 | 9,976 | 4,370 | 144,119 | 5,272 | 15,200 | 150 |
-| alt 2 | 170,247 | 910,256 / 62,758 | 12,175 | 5,503 | 145,183 | 6,873 | 16,800 | 156 |
-| neu 2 | 173,763 | 930,167 / 65,007 | 12,942 | 5,535 | 147,720 | 6,929 | 15,600 | 153 |
-
-Die Maschinenlast schwankte (unter anderem 46,26 vor alt 1, 22,39 vor neu 1,
-13,04 vor alt 2 und 18,31 vor neu 2). Daher keine kausale Latenzbehauptung aus
-Suite-Wall-Zeiten. Summierte Teardown-Zeiten sind oben getrennt; CPU/Peak der
-warmen compose-Läufe zeigen keine zusätzliche DB-Kopierarbeit. 500–535 s und
-ein 10-min-Pakettimeout sind weiterhin nicht reproduziert. Refs #6452.
-
-## Vollsuite: Ressourcen und Clone-Kosten
-
-`test-perf backend-full`, je `-count=1`, gleicher eigener Postgres und dieselben
-Wrapper. Ergebnis- und Testinventar validiert. Bestehende 30 Environment-Skips
-unverändert; zwölf zusätzliche Test-/Subtest-Ergebnisse im Messlauf. Kein neuer
-Skip. Danach wurden verschachtelte und slotfreie Scanner-Fixtures ergänzt; diese
-DB-freien Fälle werden im abschließenden Changed-Gate geprüft und verändern
-keinen Clone-Lifecycle.
-
-| Stand | Wall s | Gate-Queue s | Host-CPU-s | Peak MB | Pakete | bestanden / Skips |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| development-Code | 1105,600 | 0,000 | 1358,600 | 2863 | 523 | 41023 / 30 |
-| Fix einschließlich Klasse 17, vor den abschließenden Scanner-Fixtures | 623,400 | 141,900 | 499,100 | 2442 | 523 | 41035 / 30 |
-
-Erhaltene Caches, aber unterschiedliche Link-/Cachezustände und Hostlast:
-keine behauptete Vollsuite-Beschleunigung. Ein Peak-Unterschied ist ausgewiesen,
-nicht als isolierter Effekt des Limiters identifiziert. Zusätzliche Arbeit ist
-begrenzt auf den AST-Check (warm im gemeinsamen Parsercache etwa 0,14 s) und
-den 5-s-begrenzten, DB-freien Go-Subprozess. Postgres-CPU/RAM bleiben vom
-Host-Prozessbaummesser ausgeschlossen.
-
-Clone-Nachweis aus serverseitigen `COMMENT ON DATABASE … phx-pkg:`-Ereignissen:
-**alle 161 Pakete identisch, insgesamt 1785 → 1785 erfolgreiche Clones**.
-compose: 153 → 153 einschließlich Paket-Clone, also isoliert **152 → 152**.
-`backend/test`: **13 → 13** durch Wiederverwendung des bestehenden Fehler-
-Kindprozesses. Der zusätzliche fehlgeschlagene CREATE-Versuch erzeugt keinen
-Clone. CI ist nur Plausibilitätsvergleich, kein Ersatz für diese Kostenkriterien.
-
-## CI-Integrationskorrektur
-
-Der erste CI-Lauf meldete vier nicht inventarisierte neue Testfunktionen.
-Die drei Slot-Tests sind nun mit ihrer kopierten Quelltextabhängigkeit im
-Source-Input-Inventar registriert; der Scanner-Unitfall ist als synthetischer
-Fixture-Test ausgewiesen. Kein realer Befund wird ausgenommen. Lokal: der
-Inventartest vorher rot, anschließend alle neun Script-Unitprüfungen grün.
-
-Der Merge-Testbaum enthielt außerdem den inzwischen gemergten
-`TestBackfillBatchRetry`: ein Parent mit parallelen Nachfahren im bestehenden
-`PerTestDatabases()`-Modus. Dieser Modus umgeht den Limiter, auch für explizite
-Clones. Der Scanner beanstandete deshalb irrtümlich einen nicht vorhandenen
-Slot-Zyklus. Zwei unabhängig mit Sollwert 0 definierte Fixtures sind vor der
-Korrektur rot und danach grün; normale und verschachtelte slotbegrenzte
-Positivfälle bleiben erkannt. Keine Migration, kein DB-Routing und kein
-Clone-Lifecycle verändert.

@@ -117,12 +117,8 @@ func (entry *isolatedTestDatabase) acquireSlot(tb testing.TB, name string) error
 	if perTestDatabases {
 		return nil
 	}
-	ctx, cancel, err := isolatedTestDatabaseSlotContext(tb)
-	if err != nil {
-		return err
-	}
-	defer cancel()
-	entry.releaseSlot, err = isolatedTestDatabaseSlots.acquire(ctx, name)
+	var err error
+	entry.releaseSlot, err = isolatedTestDatabaseSlots.acquireForTest(tb, name)
 	return err
 }
 
