@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 
@@ -38,6 +39,13 @@ func (f DatabaseFailures) savepointControlFailed(r *http.Request, err error) boo
 // it got (#6316). Business refusals keep their answer.
 func (f DatabaseFailures) requestEnded(r *http.Request, err error) render.Renderer {
 	ended := r.Context().Err()
+	if ended == nil {
+		// The driver's socket deadline can fire before the context timer's
+		// goroutine runs. The request has expired in either ordering.
+		if deadline, ok := r.Context().Deadline(); ok && !time.Now().Before(deadline) {
+			ended = context.DeadlineExceeded
+		}
+	}
 	if ended == nil || !f.infrastructure(err) {
 		return nil
 	}
