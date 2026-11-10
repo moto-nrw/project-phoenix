@@ -36,9 +36,16 @@ export function familiesLabel(count: number): string {
   return count === 1 ? "1 Familie" : `${count} Familien`;
 }
 
-/** Die geschlossenen Tage einer Woche: „Di, 07.07.2027 und Mi, 08.07.2027“. */
+/**
+ * Die geschlossenen Tage einer Woche mit Grund, wenn einer bekannt ist:
+ * „Di, 07.07.2027 (Pädagogischer Tag) und Mi, 08.07.2027 (Pädagogischer Tag)“.
+ */
 function closedDaysLabel(week: HolidayClosureWeek): string {
-  const days = week.closedDays.map((day) => formatDayWithWeekday(day.date));
+  const days = week.closedDays.map((day) =>
+    day.reason
+      ? `${formatDayWithWeekday(day.date)} (${day.reason})`
+      : formatDayWithWeekday(day.date),
+  );
   if (days.length <= 1) return days.join("");
   return `${days.slice(0, -1).join(", ")} und ${days.at(-1)}`;
 }
