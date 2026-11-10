@@ -116,9 +116,6 @@ type Dependencies struct {
 	Devices DeviceDirectory
 	// BindTenant establishes the tenant boundary. Required.
 	BindTenant TenantBinder
-	// Schools rejects devices of inactive and deleted schools. A nil lookup skips the
-	// check.
-	Schools SchoolLookup
 	// PIN resolves the tenant device PIN. Required.
 	PIN PINResolver
 	// LastSeen debounces last_seen writes. Authenticators built from one
@@ -269,9 +266,6 @@ func (a *Authenticator) resolveDevice(ctx context.Context, authorization string)
 	if errResp != nil {
 		return nil, errResp
 	}
-	if errResp := a.rejectClosedSchool(ctx, device); errResp != nil {
-		return nil, errResp
-	}
 	return device, nil
 }
 
@@ -318,19 +312,6 @@ func (a *Authenticator) extractAndValidateAPIKey(ctx context.Context, authorizat
 		}
 	}
 	return device, nil
-}
-
-// rejectClosedSchool blocks devices whose school is gone, switched inactive
-// or soft-deleted, the schools staff login and refresh refuse as well. It
-// runs before any tenant transaction exists. Only a transient lookup
-// failure fails open, so a brief outage does not take every kiosk offline;
-// every other failure fails closed so the guard cannot be bypassed.
-func (a *Authenticator) rejectClosedSchool(ctx context.Context, device *AuthenticatedDevice) *ErrResponse {
-	if a.deps.Schools == nil || device.TenantID <= 0 {
-		return nil
-	}
-	closed, err := a.deps.Schools.IsSchoolClosed(ctx, device.TenantID)
-	return rejectSchoolResult(device, closed, err)
 }
 
 func rejectSchoolResult(device *AuthenticatedDevice, closed bool, err error) *ErrResponse {

@@ -78,14 +78,15 @@ func (s *service) prepareVisitCheckIn(ctx context.Context, visit *studentpresenc
 	deviceID, staffID := s.extractContextIDs(ctx)
 
 	// Ensure no existing active visit for this student
-	if err := s.ensureStudentHasNoActiveVisit(ctx, visit.StudentID); err != nil {
+	occupancy, err := s.visitAdmissionOccupancy(ctx, visit.StudentID, targetGroup.ID)
+	if err != nil {
 		return createVisitError(err)
 	}
 	if visit.ExitTime == nil {
 		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
 			return err
 		}
-		if err := s.ensureActivityParticipantLimit(ctx, targetGroup, 1); err != nil {
+		if err := s.ensureActivityParticipantLimit(ctx, targetGroup, 1, occupancy); err != nil {
 			return err
 		}
 	}
@@ -362,7 +363,7 @@ func (s *service) ensureVisitTransferCapacity(ctx context.Context, existing, upd
 		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
 			return err
 		}
-		return s.ensureActivityParticipantLimit(ctx, targetGroup, 1)
+		return s.ensureActivityParticipantLimit(ctx, targetGroup, 1, nil)
 	}
 	sourceGroup, err := s.GroupRepo.FindByID(ctx, existing.ActiveGroupID)
 	if err != nil || sourceGroup == nil {
@@ -376,7 +377,7 @@ func (s *service) ensureVisitTransferCapacity(ctx context.Context, existing, upd
 			return err
 		}
 	}
-	return s.ensureActivityParticipantLimit(ctx, targetGroup, 1)
+	return s.ensureActivityParticipantLimit(ctx, targetGroup, 1, nil)
 }
 
 // syncMovedVisitAttendance mirrors a transfer independently of SSE. The

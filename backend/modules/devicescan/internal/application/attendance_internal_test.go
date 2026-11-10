@@ -297,3 +297,36 @@ type mapped struct {
 func (e mapped) Error() string        { return e.err.Error() }
 func (e mapped) Unwrap() error        { return e.err }
 func (e mapped) Is(target error) bool { return target == e.sentinel }
+
+func TestKioskStudentLookupFailuresAreInternal(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	routes := map[string]func(*Service) error{
+		"open room": func(s *Service) error {
+			_, err := s.BookOpenRoom(ctx, devicescan.OpenRoomCommand{RFIDTag: testTag, RoomID: testRoomID})
+			return err
+		},
+		"status": func(s *Service) error { _, err := s.AttendanceStatus(ctx, testTag); return err },
+		"toggle": func(s *Service) error {
+			_, err := s.ToggleAttendance(ctx, devicescan.AttendanceToggleCommand{RFIDTag: testTag, Action: devicescan.AttendanceActionConfirm})
+			return err
+		},
+		"checkout": func(s *Service) error {
+			_, err := s.ToggleAttendance(ctx, devicescan.AttendanceToggleCommand{RFIDTag: testTag, Action: devicescan.AttendanceActionDailyCheckout, Destination: devicescan.DestinationHome})
+			return err
+		},
+	}
+	for name, call := range routes {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.people.studentErr = errBoom
+			err := call(h.service())
+			failure := classifiedFailure(t, err, devicescan.FailureInternal, devicescan.MessageInternalServerError)
+			require.ErrorIs(t, failure.Cause, errBoom)
+			assert.Empty(t, h.fleet.scans, "a database failure is not an unknown card")
+			assert.Empty(t, h.attendance.toggles)
+			assert.Empty(t, h.attendance.dailyCalls)
+		})
+	}
+}

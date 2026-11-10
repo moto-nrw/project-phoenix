@@ -9,32 +9,34 @@ import (
 
 const opEnsureActivityParticipantLimit = "EnsureActivityParticipantLimit"
 
-// ensureActivityParticipantLimit refuses a web assignment that would put more
+// ensureActivityParticipantLimit refuses an admission that would put more
 // children into the session than its activity's participant limit allows
 // (#3632): open visits of the session + incoming <= max_participants, the
-// terminal's rule. It runs only when the school turned off exceeding the
-// limit on the web; the registry default allows it.
-//
-// Terminal requests are left alone: the kiosk check-in enforces the limit
-// itself, before its visit reaches this service, so its behavior and error
-// contract stay unchanged.
+// terminal's rule. Device requests always enforce it. Web writes enforce it
+// when the school turned off exceeding the limit on the web.
 //
 // Callers hold the target session's row lock, the lock every visit admission
 // into that session takes first. Two concurrent assignments into one session
 // therefore count one after the other and cannot overshoot the limit
 // together.
-func (s *service) ensureActivityParticipantLimit(ctx context.Context, targetGroup *ports.ActiveGroup, incoming int) error {
+func (s *service) ensureActivityParticipantLimit(ctx context.Context, targetGroup *ports.ActiveGroup, incoming int, lockedOccupancy *int) error {
 	if incoming <= 0 || targetGroup == nil || targetGroup.GroupID == nil {
 		return nil
 	}
-	activity, err := s.limitedActivityForWeb(ctx, *targetGroup.GroupID)
+	activity, err := s.limitedActivity(ctx, *targetGroup.GroupID)
 	if err != nil || activity == nil {
 		return err
 	}
-	currentOccupancy, err := s.SchoolPresence.CountOpenVisitsInGroup(ctx, targetGroup.ID)
-	if err != nil {
-		return &ActiveError{Op: opEnsureActivityParticipantLimit, Err: errors.Join(ErrDatabaseOperation, err)}
+	var currentOccupancy int
+	if lockedOccupancy != nil {
+		currentOccupancy = *lockedOccupancy
+	} else {
+		currentOccupancy, err = s.SchoolPresence.CountOpenVisitsInGroup(ctx, targetGroup.ID)
+		if err != nil {
+			return &ActiveError{Op: opEnsureActivityParticipantLimit, Err: errors.Join(ErrDatabaseOperation, err)}
+		}
 	}
+
 	return participantLimitRefusal(activity, currentOccupancy, incoming)
 }
 
@@ -46,7 +48,7 @@ func (s *service) ensureSessionFitsNewActivity(ctx context.Context, existing, re
 	if revised.GroupID == nil || (existing.GroupID != nil && *existing.GroupID == *revised.GroupID) {
 		return nil
 	}
-	activity, err := s.limitedActivityForWeb(ctx, *revised.GroupID)
+	activity, err := s.limitedActivity(ctx, *revised.GroupID)
 	if err != nil || activity == nil {
 		return err
 	}
@@ -57,19 +59,17 @@ func (s *service) ensureSessionFitsNewActivity(ctx context.Context, existing, re
 	return participantLimitRefusal(activity, 0, incoming)
 }
 
-// limitedActivityForWeb loads the activity whose limit a web write must
-// respect. nil means there is nothing to check: a kiosk request, a school that
-// allows exceeding the limit on the web, or an activity without a limit.
-func (s *service) limitedActivityForWeb(ctx context.Context, activityID int64) (*ports.SessionActivity, error) {
-	if s.isDeviceRequest(ctx) {
-		return nil, nil
-	}
-	enforced, err := s.webParticipantLimitEnforced(ctx)
-	if err != nil {
-		return nil, &ActiveError{Op: opEnsureActivityParticipantLimit, Err: errors.Join(ErrDatabaseOperation, err)}
-	}
-	if !enforced {
-		return nil, nil
+// limitedActivity loads the activity whose limit this admission must respect.
+// Device requests never consult the setting that allows web overflow.
+func (s *service) limitedActivity(ctx context.Context, activityID int64) (*ports.SessionActivity, error) {
+	if !s.isDeviceRequest(ctx) {
+		enforced, err := s.webParticipantLimitEnforced(ctx)
+		if err != nil {
+			return nil, &ActiveError{Op: opEnsureActivityParticipantLimit, Err: errors.Join(ErrDatabaseOperation, err)}
+		}
+		if !enforced {
+			return nil, nil
+		}
 	}
 	if s.ActivityGroupRepo == nil {
 		return nil, &ActiveError{Op: opEnsureActivityParticipantLimit, Err: errors.Join(ErrDatabaseOperation, errors.New("activity reader is not configured"))}
@@ -85,6 +85,7 @@ func (s *service) limitedActivityForWeb(ctx context.Context, activityID int64) (
 		return nil, nil
 	}
 	return activity, nil
+
 }
 
 func participantLimitRefusal(activity *ports.SessionActivity, currentOccupancy, incoming int) error {

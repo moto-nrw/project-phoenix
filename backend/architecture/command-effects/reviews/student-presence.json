@@ -18824,6 +18824,16 @@
       "target_owner": "device-fleet"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.AdmitVisit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.AdmitVisit",
+      "reason": "Retrieves the caller's existing tenant transaction for the owner-private ReadVisitAdmission query after the session lock. The resolver opens no unit, acquires no lock, changes no role or scope and performs no write. The SQL reads only Student Presence's tenant-filtered active.visits. This classifies the runtime lookup, not the enclosing admission command (ADR 0067).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.AdmitVisit",
@@ -21761,6 +21771,16 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
       "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.service.CreateVisit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.Service.CreateVisit",
+      "reason": "Retrieves the caller's existing tenant transaction for the owner-private ReadVisitAdmission query after the session lock. The resolver opens no unit, acquires no lock, changes no role or scope and performs no write. The SQL reads only Student Presence's tenant-filtered active.visits. This classifies the runtime lookup, not the enclosing admission command (ADR 0067).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
