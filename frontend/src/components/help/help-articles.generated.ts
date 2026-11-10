@@ -11295,6 +11295,7 @@ export const traegerDatevExportTopic =
         "Die Debitorennummer tragen Sie bei `Empfänger und Zahlung` der Familie ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
         "Jeder Download ist eine neue Datei mit neuer Nummer. Geben Sie Ihrem Steuerbüro einen Lauf nur einmal, sonst stehen die Buchungen doppelt in DATEV.",
         "Die DATEV-Datei und die Sollstellung zählen in derselben Reihe von Dateinummern.",
+        "Eine Rechnung über 0 € steht nicht in der DATEV-Datei. Sie bewegt kein Geld.",
       ],
       differences: [
         "Über der Liste steht `Die DATEV-Datei fehlt noch`? Es fehlen DATEV-Werte. Der Hinweis nennt sie. Bis dahin lässt sich `DATEV` nicht wählen.",
@@ -11499,7 +11500,8 @@ export const traegerFinanceExportsTopic =
         "Die Datei steht im `Exportprotokoll` mit Nummer, Datum und wer sie geholt hat. Beim Lauf steht die letzte Sollstellung. In jeder Monatsrechnung zeigt `Verlauf`, in welchen Dateien sie war.",
       notes: [
         "Jeder Download ist eine neue Datei mit neuer Nummer. Steht im Protokoll `Gleicher Inhalt wie Nr. …`, enthält die Datei nichts Neues.",
-        "Auch jede Lastschriftdatei bekommt eine Nummer aus derselben Reihe. So nennt jede Nummer genau eine Datei.",
+        "Auch jede Lastschriftdatei und jede DATEV-Datei bekommt eine Nummer aus derselben Reihe. So nennt jede Nummer genau eine Datei.",
+        "Für Ihr Steuerbüro gibt es beim Lauf auch `DATEV`. Wie das geht, steht unter „DATEV-Werte eintragen“.",
         "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
         "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
       ],
@@ -11514,6 +11516,7 @@ export const traegerFinanceExportsTopic =
         "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
       ],
       related: [
+        HELP_TOPICS.traegerDatevExport,
         HELP_TOPICS.traegerCareMonths,
         HELP_TOPICS.traegerSepaDebitFile,
         HELP_TOPICS.traegerBillingTerms,
