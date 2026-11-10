@@ -8,6 +8,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
@@ -122,7 +123,8 @@ export function StaffNoticeModal({
   readonly onSubmit: (input: StaffNoticeInput) => Promise<void>;
 }) {
   const [form, setForm] = useState<FormState>(() => initialState(notice));
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const clearErrors = formErrors.clear;
@@ -153,31 +155,31 @@ export function StaffNoticeModal({
       return;
     }
 
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await onSubmit({
-        title: form.title.trim(),
-        body: form.body.trim(),
-        priority: form.priority,
-        audience: form.audience,
-        valid_from: form.validFrom,
-        valid_until: form.validUntil || null,
-        weekdays: form.weekdays,
-        week_pattern: form.weekPattern,
-        requires_acknowledgement: form.requiresAcknowledgement,
-        active: form.active,
-      });
-      onClose();
-    } catch (err) {
-      // Protokolliert hat die Seite schon. Der Fehler bleibt im Dialog.
-      await formErrors.show(err, {
-        object: "das Speichern der Tagesinformation",
-        retry: () => latestSubmitRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await onSubmit({
+          title: form.title.trim(),
+          body: form.body.trim(),
+          priority: form.priority,
+          audience: form.audience,
+          valid_from: form.validFrom,
+          valid_until: form.validUntil || null,
+          weekdays: form.weekdays,
+          week_pattern: form.weekPattern,
+          requires_acknowledgement: form.requiresAcknowledgement,
+          active: form.active,
+        });
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        // Protokolliert hat die Seite schon. Der Fehler bleibt im Dialog.
+        await formErrors.show(err, {
+          object: "das Speichern der Tagesinformation",
+          retry: () => latestSubmitRef.current(),
+        });
+      }
+    });
   };
   // „Wiederholen“ sendet den Stand, der dann im Formular steht.
   useLayoutEffect(() => {
@@ -188,6 +190,7 @@ export function StaffNoticeModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title={notice ? "Tagesinformation bearbeiten" : "Neue Tagesinformation"}
       error={formErrors.error}
       footer={

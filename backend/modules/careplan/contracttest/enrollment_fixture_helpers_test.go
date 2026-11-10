@@ -143,6 +143,21 @@ func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int6
 	return o.carePlan.CountCareOfferingsByPhase(ctx, phaseID)
 }
 
+func (o phaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentTest.PhaseBooking, error) {
+	rows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)
+	if err != nil {
+		return nil, err
+	}
+	bookings := make([]enrollmentTest.PhaseBooking, 0, len(rows))
+	for _, row := range rows {
+		bookings = append(bookings, enrollmentTest.PhaseBooking{
+			ID: row.ID, RequestChildID: row.RequestChildID, CareOfferingID: row.CareOfferingID,
+			ValidFrom: (*enrollmentTest.PhaseBookingDate)(row.ValidFrom), ValidUntil: (*enrollmentTest.PhaseBookingDate)(row.ValidUntil),
+		})
+	}
+	return bookings, nil
+}
+
 // These are fixture roots, not owner persistence fallbacks. Tests that inspect
 // the ambient-only contract call the native owner directly.
 func fixtureEnrollmentCommand(ctx context.Context, call func(context.Context) error) error {

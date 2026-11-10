@@ -1344,7 +1344,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "PhasenLoeschQuelle", nil)
-	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "phase-delete@example.com", "Phia", 2)
+	studentID, requestChildID := submitAndApproveOfferingChild(t, env, offering.ID, "phase-delete@example.com", "Phia", 2)
 	template := createSourcedTemplate(t, env, "PhasenLoeschTermin", offering.ID, nil, period.ID)
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
 		timetable.OfferingRosterResyncInput{
@@ -1365,6 +1365,13 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, env.db))
+	// A phase with effective bookings is not deleted (#6505): the child's
+	// booking ends first, through the booking capability that leaves the
+	// derived roster rows to the delete.
+	_, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), repoFactory.CarePlan().EndCareOfferingBookings,
+		[]int64{requestChildID}, careplan.Date(offeringResyncToday))
+	require.NoError(t, err)
+	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 1, "ending the booking leaves the roster rows to the delete")
 	repoFactoryEnrollment := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db))
 	timetableRepos := testTimetableRepositories(env.db)
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)

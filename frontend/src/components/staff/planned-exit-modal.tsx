@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -44,7 +45,8 @@ export function PlannedExitModal({
   const suggestion =
     contractEndDate && contractEndDate >= today ? contractEndDate : undefined;
   const [day, setDay] = useState(plannedDay ?? suggestion ?? "");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formErrors = useApiFormError();
   const clearFormErrors = formErrors.clear;
   const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
@@ -61,7 +63,6 @@ export function PlannedExitModal({
     // suggestion, but must not replace a day the Leitung already chose.
     if (isOpen && (opened || plannedDayChanged)) {
       setDay(plannedDay ?? suggestion ?? "");
-      setSaving(false);
       clearFormErrors();
     } else if (isOpen && suggestion) {
       setDay((currentDay) => (currentDay === "" ? suggestion : currentDay));
@@ -69,23 +70,23 @@ export function PlannedExitModal({
   }, [isOpen, plannedDay, suggestion, clearFormErrors]);
 
   const handleSave = async () => {
-    setSaving(true);
-    formErrors.clear();
-    try {
-      const saved = await staffPlannedExitService.plan(staffId, day);
-      onSaved(saved);
-    } catch (err) {
-      logger.error("planned_exit_save_failed", {
-        staff_id: staffId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "den Austritt",
-        retry: () => void latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        const saved = await staffPlannedExitService.plan(staffId, day);
+        if (op.isCurrent()) onSaved(saved);
+      } catch (err) {
+        logger.error("planned_exit_save_failed", {
+          staff_id: staffId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "den Austritt",
+          retry: () => void latestSaveRef.current(),
+        });
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -124,7 +125,7 @@ export function PlannedExitModal({
       title={plannedDay ? "Austritt ändern" : "Austritt planen"}
       size="md"
       footer={footer}
-      closeDisabled={saving}
+      pending={save}
       error={formErrors.error}
     >
       <div className="space-y-4 text-sm text-gray-700">

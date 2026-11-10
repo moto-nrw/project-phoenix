@@ -142,6 +142,16 @@ describe("authConfig", () => {
     expect(authConfig).toHaveProperty("session");
   });
 
+  // Auth.js reads AUTH_TRUST_HOST only when trustHost is unset, so the
+  // deployments carry no such variable: every portal trusts the forwarded
+  // host through its own configuration.
+  it.each(Object.values(PORTALS))(
+    "trusts the forwarded host in the $key portal configuration",
+    (portal) => {
+      expect(createPortalAuthConfig(portal).trustHost).toBe(true);
+    },
+  );
+
   it("should have correct session strategy", () => {
     expect(authConfig.session).toBeDefined();
     expect(authConfig.session?.strategy).toBe("jwt");

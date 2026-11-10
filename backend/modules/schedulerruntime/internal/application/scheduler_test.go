@@ -450,7 +450,6 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 		s.getenv = testEnv(
 			"CLEANUP_SCHEDULER_ENABLED", "false",
 			"SESSION_END_SCHEDULER_ENABLED", "false",
-			"STATUS_FLAG_CLEAR_ENABLED", "false",
 		)
 		s.Start()
 
@@ -1696,19 +1695,22 @@ func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
 	assert.Empty(t, s.tasks, "should not register task without break auto-ender")
 }
 
-func TestScheduleBreakAutoEndTask_CustomInterval(t *testing.T) {
+// The break auto-end interval is fixed at 60 seconds (#6463): no deployment
+// ever set an interval, so an environment value must not change it.
+func TestScheduleBreakAutoEndTask_FixedInterval(t *testing.T) {
 	t.Parallel()
 	s := unitScheduler(&unitSchedulerDependencies{
 		done:           make(chan struct{}),
 		logger:         slog.Default(),
 		tasks:          make(map[string]*ScheduledTask),
 		breakAutoEnder: &mockBreakAutoEnder{}})
-	s.getenv = testEnv("BREAK_AUTO_END_INTERVAL_SECONDS", "30")
+	s.getenv = envEverywhere("30")
 
 	s.scheduleBreakAutoEndTask()
 	defer close(s.done)
 	require.Contains(t, s.tasks, "break-auto-end")
-	assert.Equal(t, "30s-poll", s.tasks["break-auto-end"].Schedule)
+	assert.Equal(t, "60s-poll", s.tasks["break-auto-end"].Schedule)
+	assert.Equal(t, 60*time.Second, breakAutoEndInterval)
 }
 
 // =============================================================================

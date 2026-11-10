@@ -16,6 +16,7 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -118,7 +119,8 @@ export function CareContractCreateModal({
     [candidates],
   );
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -159,17 +161,18 @@ export function CareContractCreateModal({
       formErrors.invalid("Bitte wählen Sie mindestens ein Kind aus.", {});
       return;
     }
-    setSaving(true);
-    try {
-      onCreated(await createCareContracts(keys));
-    } catch (err) {
-      logger.error("care_contract_create_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Verträge" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const result = await createCareContracts(keys);
+        if (op.isCurrent()) onCreated(result);
+      } catch (err) {
+        logger.error("care_contract_create_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Verträge" });
+      }
+    });
   };
 
   const count = selected.size;
@@ -177,7 +180,7 @@ export function CareContractCreateModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Verträge erstellen"
       size="lg"

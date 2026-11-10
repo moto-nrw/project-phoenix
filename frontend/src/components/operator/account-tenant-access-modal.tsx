@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -94,7 +95,8 @@ export function AccountTenantAccessModal({
     >
   >({});
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen, accountId);
+  const saving = save.pending;
   // #2519: load errors stay where the data is missing, the grant error in
   // its section, the revoke error in its confirmation, a role change as toast.
   const accessLoad = useApiLoadError();
@@ -310,22 +312,25 @@ export function AccountTenantAccessModal({
     logEvent: string,
     report: (error: unknown) => void,
   ) {
-    try {
-      setSaving(true);
-      setAccess(await action());
-      toastSuccess(successMessage);
-      await onUpdated?.();
-      return true;
-    } catch (error) {
-      logger.error(logEvent, {
-        error: error instanceof Error ? error.message : String(error),
-        accountId,
-      });
-      report(error);
-      return false;
-    } finally {
-      setSaving(false);
-    }
+    const ok = await save.run(async (op) => {
+      try {
+        const next = await action();
+        // Eine späte Antwort ändert keinen inzwischen neu geöffneten Dialog
+        // (#6533); Erfolgsmeldung und Nachladen beim Aufrufer laufen weiter.
+        if (op.isCurrent()) setAccess(next);
+        toastSuccess(successMessage);
+        await onUpdated?.();
+        return op.isCurrent();
+      } catch (error) {
+        logger.error(logEvent, {
+          error: error instanceof Error ? error.message : String(error),
+          accountId,
+        });
+        if (op.isCurrent()) report(error);
+        return false;
+      }
+    });
+    return ok === true;
   }
 
   async function handleGrant() {
@@ -412,6 +417,7 @@ export function AccountTenantAccessModal({
         // eigenständige Dialoge übereinander (#2774).
         isOpen={isOpen && revokeTarget === null}
         onClose={onClose}
+        pending={save}
         title={`Schulzugänge: ${accountLabel}`}
         size="xl"
         footer={

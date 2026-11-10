@@ -11,6 +11,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -60,7 +61,8 @@ export function TraegerDocumentUploadModal({
 }>) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -100,17 +102,18 @@ export function TraegerDocumentUploadModal({
       });
       return;
     }
-    setSaving(true);
-    try {
-      onUploaded(await uploadTraegerDocument(trimmed, file));
-    } catch (err) {
-      logger.error("traeger_document_upload_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "das Dokument" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const result = await uploadTraegerDocument(trimmed, file);
+        if (op.isCurrent()) onUploaded(result);
+      } catch (err) {
+        logger.error("traeger_document_upload_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "das Dokument" });
+      }
+    });
   };
 
   const fileError = formErrors.fieldError("file");
@@ -118,7 +121,7 @@ export function TraegerDocumentUploadModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Dokument hochladen"
       size="md"

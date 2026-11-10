@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -52,7 +53,8 @@ export function NumberRangeCard({
   const copy = SERVICES[service];
   const [open, setOpen] = useState(false);
   const [pattern, setPattern] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(open);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -72,20 +74,20 @@ export function NumberRangeCard({
       });
       return;
     }
-    setSaving(true);
-    try {
-      await copy.save(pattern.trim());
-      success("Das Muster ist gespeichert.");
-      setOpen(false);
-      await onChanged();
-    } catch (err) {
-      logger.error("number_range_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "das Muster" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await copy.save(pattern.trim());
+        success("Das Muster ist gespeichert.");
+        if (op.isCurrent()) setOpen(false);
+        await onChanged();
+      } catch (err) {
+        logger.error("number_range_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "das Muster" });
+      }
+    });
   };
 
   const set = Boolean(numberRange.pattern);
@@ -121,7 +123,7 @@ export function NumberRangeCard({
       <FormModal
         isOpen={open}
         onClose={() => setOpen(false)}
-        closeDisabled={saving}
+        pending={save}
         isBackdropDismissDisabled
         title={set ? "Muster ändern" : "Muster festlegen"}
         size="md"

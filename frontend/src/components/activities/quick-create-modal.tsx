@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import {
   parseParticipantLimit,
@@ -17,6 +17,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { createLogger } from "~/lib/logger";
@@ -45,17 +46,8 @@ export function QuickCreateActivityModal({
   onSuccess,
 }: QuickCreateActivityModalProps) {
   const { success: toastSuccess } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  // Track mount state to avoid setState on unmounted component
-  const isMountedRef = useRef(true);
-
-  // Track unmount
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  const save = useFormModalPending(isOpen);
+  const isSubmitting = save.pending;
 
   // Use activity form hook for form state and validation
   const {
@@ -102,67 +94,60 @@ export function QuickCreateActivityModal({
     if (isSubmitting || loading) {
       return;
     }
-    setIsSubmitting(true);
-
     formErrors.clear();
     const problem = validateForm();
     if (problem) {
       formErrors.invalid(problem.message, { [problem.field]: problem.message });
-      if (isMountedRef.current) {
-        setIsSubmitting(false);
-      }
       return;
     }
+    await save.run(async (op) => {
+      try {
+        // Prepare the request data
+        const requestData = {
+          name: form.name.trim(),
+          category_id: Number.parseInt(form.category_id, 10),
+          max_participants: parseParticipantLimit(form.max_participants),
+        };
 
-    try {
-      // Prepare the request data
-      const requestData = {
-        name: form.name.trim(),
-        category_id: Number.parseInt(form.category_id, 10),
-        max_participants: parseParticipantLimit(form.max_participants),
-      };
+        // Call the quick-create API endpoint
+        const response = await transportFetch("/api/activities/quick-create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(requestData),
+        });
 
-      // Call the quick-create API endpoint
-      const response = await transportFetch("/api/activities/quick-create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify(requestData),
-      });
+        if (!response.ok) {
+          throw await apiErrorFromResponse(
+            response,
+            `activity quick-create failed (${response.status})`,
+          );
+        }
 
-      if (!response.ok) {
-        throw await apiErrorFromResponse(
-          response,
-          `activity quick-create failed (${response.status})`,
-        );
+        await response.json();
+
+        toastSuccess(`Die Aktivität „${form.name.trim()}“ ist angelegt.`);
+
+        // Handle success
+        if (onSuccess) {
+          onSuccess();
+        }
+
+        // Close modal immediately - success alert will persist independently
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("activity creation failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: "die Aktivität",
+          retry: () => retrySubmitRef.current(),
+        });
       }
-
-      await response.json();
-
-      toastSuccess(`Die Aktivität „${form.name.trim()}“ ist angelegt.`);
-
-      // Handle success
-      if (onSuccess) {
-        onSuccess();
-      }
-
-      // Close modal immediately - success alert will persist independently
-      onClose();
-    } catch (err) {
-      logger.error("activity creation failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, {
-        object: "die Aktivität",
-        retry: () => retrySubmitRef.current(),
-      });
-    } finally {
-      if (isMountedRef.current) {
-        setIsSubmitting(false);
-      }
-    }
+    });
   };
   useLayoutEffect(() => {
     retrySubmitRef.current = () => void submit();
@@ -211,6 +196,7 @@ export function QuickCreateActivityModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title="Aktivität erstellen"
       size="sm"
       mobilePosition="center"
