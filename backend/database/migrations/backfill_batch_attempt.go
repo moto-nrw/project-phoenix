@@ -110,6 +110,9 @@ func runMonitoredBatch(ctx context.Context, db *bun.DB, txOptions *sql.TxOptions
 	if err != nil {
 		return monitor.failed(&batchStepError{err: err})
 	}
+	// Like RunInTx: a panicking body rolls back here, because conn.Close
+	// waits for an open transaction until its context ends.
+	defer func() { _ = tx.Rollback() }()
 	if err := body(ctx, tx, monitor.observe); err != nil {
 		return monitor.failed(&batchStepError{err: err, rollbackErr: rollbackDiagnostic(tx)})
 	}
