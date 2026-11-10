@@ -248,6 +248,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/invite",
   "/login",
   "/reset-password",
+  "/schliesstage",
   "/schulen/:id",
   "/stichtagszahlen",
   "/uebersicht",

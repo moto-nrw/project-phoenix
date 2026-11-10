@@ -308,6 +308,10 @@
     {
       "id": "traeger-view",
       "kind": "projection"
+    },
+    {
+      "id": "school-closing-days-view",
+      "kind": "projection"
     }
   ],
   "roles": [

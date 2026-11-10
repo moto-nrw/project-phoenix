@@ -30,7 +30,7 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 	t.Parallel()
 	f := newRBACBudgetFixture(t)
 	operator := testpkg.CreateTestOperator(t, f.db)
-	token, refresh, err := f.module.Auth.IssueTokensForAuthenticatedOperator(context.Background(), operator.ID, "", "")
+	token, refresh, err := f.module.Auth.IssueTokensForAuthenticatedOperator(context.Background(), operator.ID, nil, "", "")
 	require.NoError(t, err)
 	family := rbacPlatformClaims(t, token, operator.ID)
 	stored, err := f.module.Auth.FindOperator(context.Background(), operator.ID)

@@ -224,6 +224,16 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 	})
 }
 
+// OwnTraegerClosingDays removes the closing days a test plans for the Träger
+// (#4702) when the test ends.
+func OwnTraegerClosingDays(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM schedule.traeger_closing_days WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger closing days")
+	})
+}
+
 // OwnTraegerContributionRules removes the contribution rules, the billing
 // runs with their invoices, the cost bearers and the number ranges a test
 // creates for the Träger (#4664, #4668, #5627) when the test ends. The frozen contributions go with

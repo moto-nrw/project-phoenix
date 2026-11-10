@@ -55,7 +55,7 @@ func (m *invitationMockService) FindOperatorByEmail(context.Context, string) (id
 	return identityaccess.Operator{}, identityaccess.ErrOperatorNotFound
 }
 
-func (m *invitationMockService) IssueTokensForAuthenticatedOperator(context.Context, int64, string, string) (string, string, error) {
+func (m *invitationMockService) IssueTokensForAuthenticatedOperator(context.Context, int64, *int64, string, string) (string, string, error) {
 	return "", "", nil
 }
 

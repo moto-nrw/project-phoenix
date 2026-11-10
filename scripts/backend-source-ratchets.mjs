@@ -25,6 +25,7 @@ export const sourceRatchets = [
   entry('wall_clock_verification', 'TestActivityInstanceWallClockRatchet', go),
   entry('test_skip_ratchet', 'TestTestSkipRatchet', go),
   entry('account_credential_writer', 'TestAccountCredentialHasOneWriter', production),
+  entry('operator_credential_writer', 'TestOperatorCredentialHasOneWriter TestOperatorCredentialStatementRecognizesWriters', production),
   entry('gdpr_log_pii_ratchet', 'TestGDPRLogPIIRatchet', production),
   entry('realtime_scope_ratchet', 'TestRealtimeProducersRequireSchool', production),
   entry('tenant_filters', 'TestTenantFiltersRequireExplicitScope', production),

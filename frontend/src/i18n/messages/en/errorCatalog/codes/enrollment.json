@@ -80,6 +80,7 @@
   "guardian_email_required": "Please enter an email address.",
   "guardian_name_required": "Please enter the first and last name.",
   "guardian_phone_required": "Please enter a phone number.",
+  "holiday_week_no_care_day": "There is no care on {date} ({name}). This week cannot be booked.",
   "invalid_email": "Please enter a valid email address.",
   "invalid_phone": "Please enter a valid phone number.",
   "late_invite_invalid": "This link is invalid, has expired or was already used. Please contact the school.",

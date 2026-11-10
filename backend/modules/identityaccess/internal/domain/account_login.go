@@ -378,3 +378,12 @@ type CredentialWrite struct {
 	ExpectedPasswordHash string
 	ExpectedGeneration   *int64
 }
+
+// CredentialStillHolds reports whether an artifact bound to the credential
+// generation checked still belongs to the credential state current: a
+// password write since the check moved current on (#6289, #6308). An artifact
+// no password check led to (checked nil) is bound to nothing. Accounts and
+// operators compare their generation with it under their row lock.
+func CredentialStillHolds(checked *int64, current int64) bool {
+	return checked == nil || *checked == current
+}

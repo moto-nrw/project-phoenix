@@ -33,7 +33,7 @@ type federalStateResolver interface {
 // compose the module themselves.
 func NewSchoolCalendarWithAdministration(db transactionruntime.Database, settings federalStateResolver, lockRecurrence func(context.Context) error, careOfferings careplan.CareOfferingGuards) (schoolcalendar.Calendar, error) {
 	observe := func(schoolCalendarCompose.Observation) {}
-	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{
+	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{ClosingDayReads: owners.NewSchoolClosingDayReads(),
 		DB: db.Pool(), Observe: observe,
 		FederalState: func(ctx context.Context) (string, error) {
 			region, err := settings.ResolveString(ctx, configModel.KeyFederalState)

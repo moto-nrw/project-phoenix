@@ -30,9 +30,10 @@ import (
 //   - a BUN row field mapped to a credential column of auth.accounts that a
 //     model insert or update could write (without scanonly).
 //
-// Operators keep their own credential in platform.operators (#6308) and are
-// not in scope. There is no register: a second writer routes through the one
-// below instead.
+// Operators keep their own credential in platform.operators (#6308);
+// TestOperatorCredentialHasOneWriter holds them to one writer as well, and a
+// BUN Set or Value naming password_hash is a finding here whatever its table.
+// There is no register: a second writer routes through the one below instead.
 //
 // This is the early, static warning. The rule itself is enforced at run time
 // by the database for every writer, raw SQL in any quoting and ORM model

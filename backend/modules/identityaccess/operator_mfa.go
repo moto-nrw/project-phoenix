@@ -49,6 +49,9 @@ type OperatorMFAChallenge struct {
 	IPAddress  net.IP
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	// CredentialGeneration is the operator's credential generation the code
+	// was issued under; it redeems only while that is current (#6308).
+	CredentialGeneration int64
 }
 
 // OperatorTrustedDevice is the server-side record of a remember-device
@@ -64,4 +67,8 @@ type OperatorTrustedDevice struct {
 	RevokedAt  *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+	// CredentialGeneration is the operator's credential generation the
+	// device was remembered under; it verifies only while that is current
+	// (#6308).
+	CredentialGeneration int64
 }

@@ -9,12 +9,12 @@ import (
 // NewFeedHistory binds feed retention to School Calendar's tenant runtime.
 func NewFeedHistory(db *bun.DB) schoolcalendar.FeedHistory {
 	runtime := PersistenceRuntimeFor(db)
-	return postgres.NewNativeFeedHistory(postgres.New(postgres.NewFeedHistoryDatabase(runtime.Database, runtime.TenantID)))
+	return postgres.NewNativeFeedHistory(postgres.New(postgres.NewFeedHistoryDatabase(runtime.Database, runtime.TenantID), nil))
 }
 
 // NewParentConferences binds the Elternsprechtag days and bookings (#4801,
 // ADR 0142) to the same runtime.
 func NewParentConferences(db *bun.DB) schoolcalendar.ParentConferences {
 	runtime := PersistenceRuntimeFor(db)
-	return postgres.ParentConferences{Store: postgres.New(postgres.NewFeedHistoryDatabase(runtime.Database, runtime.TenantID))}
+	return postgres.ParentConferences{Store: postgres.New(postgres.NewFeedHistoryDatabase(runtime.Database, runtime.TenantID), nil)}
 }

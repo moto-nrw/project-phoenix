@@ -107,7 +107,15 @@ func (f *OperatorMFAFlows) OperatorTrustedDeviceDays() int {
 // it named. The row is stored consumed and only activated once the transport
 // accepted the message, so a failed send never leaves a redeemable code
 // behind.
-func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (_ string, err error) {
+//
+// credentialGeneration is the credential generation of the password check
+// the code stems from: the sign-in, the enrollment token it handed out or the
+// challenge a resend renews. Under the operator lock nothing is issued unless
+// the operator still holds it, so no code goes out for a password a change
+// replaced in the meantime (#6308). An in-session start (passkey
+// registration) checked no password and passes none. Either way the row and
+// the JWT carry the generation the operator held when the code was issued.
+func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP, credentialGeneration *int64) (_ string, err error) {
 	if f == nil {
 		return "", identityaccess.ErrOperatorMFAUnavailable
 	}
@@ -139,7 +147,7 @@ func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operat
 	}, domain.MFACodeMailFor(
 		operator.Email, operator.DisplayName, operator.ID, true, plainCode,
 		domain.OperatorMFAChallengeTTL, ip, true, f.OperatorTrustedDeviceDays(),
-	))
+	), credentialGeneration)
 	if err != nil {
 		return "", fmt.Errorf("prepare operator email challenge: %w", err)
 	}
@@ -157,15 +165,17 @@ func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operat
 		)
 		return "", identityaccess.ErrMFAStatusUnavailable
 	}
-	return f.issueChallengeToken(operatorID)
+	return f.issueChallengeToken(operatorID, challenge.CredentialGeneration)
 }
 
 // issueChallengeToken mints the challenge JWT. The operator id reuses the
-// account slot; the scope distinguishes the two id spaces.
-func (f *OperatorMFAFlows) issueChallengeToken(operatorID int64) (string, error) {
+// account slot; the scope distinguishes the two id spaces. The generation is
+// the one the code was issued under (#6308).
+func (f *OperatorMFAFlows) issueChallengeToken(operatorID, credentialGeneration int64) (string, error) {
 	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
-		AccountID: operatorID,
-		Scope:     domain.PortalPlatform.Name,
+		AccountID:            operatorID,
+		Scope:                domain.PortalPlatform.Name,
+		CredentialGeneration: credentialGeneration,
 	}, domain.OperatorMFAChallengeTTL)
 	if err != nil {
 		return "", fmt.Errorf("mint operator challenge jwt: %w", err)
@@ -174,65 +184,80 @@ func (f *OperatorMFAFlows) issueChallengeToken(operatorID int64) (string, error)
 }
 
 // VerifyOperatorMFAChallenge redeems a code against the challenge JWT that
-// carried it and returns the operator, so the login mints its token pair
-// without re-reading the JWT.
-func (f *OperatorMFAFlows) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (_ int64, err error) {
+// carried it and returns the proof the exchange mints its token pair and
+// remembered device from, without re-reading the JWT. A code mailed before a
+// password write redeems nothing (#6308).
+func (f *OperatorMFAFlows) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (_ identityaccess.OperatorMFAProof, err error) {
 	if f == nil {
-		return 0, identityaccess.ErrOperatorMFAUnavailable
+		return identityaccess.OperatorMFAProof{}, identityaccess.ErrOperatorMFAUnavailable
 	}
 	defer func() { err = operatorError(err) }()
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil || claims.Scope != domain.PortalPlatform.Name {
-		return 0, identityaccess.ErrMFAChallengeTokenInvalid
+		return identityaccess.OperatorMFAProof{}, identityaccess.ErrMFAChallengeTokenInvalid
 	}
-	challenge, err := f.verifyActiveCode(ctx, claims.AccountID, code, identityaccess.ErrMFAChallengeTokenInvalid)
+	challenge, err := f.verifyActiveCode(ctx, claims.AccountID, code, identityaccess.ErrMFAChallengeTokenInvalid, &claims.CredentialGeneration)
 	if err != nil {
-		return 0, err
+		return identityaccess.OperatorMFAProof{}, err
 	}
 	credential, found, credErr := f.findCredential(ctx, claims.AccountID)
 	if credErr == nil && found && credential.ID > 0 {
 		_ = f.records.TouchCredential(ctx, credential.ID, challenge.consumedAt)
 	}
-	return claims.AccountID, nil
+	return identityaccess.OperatorMFAProof{OperatorID: claims.AccountID, CredentialGeneration: challenge.credentialGeneration}, nil
 }
 
 // ResendChallenge re-issues a code for the challenge the token names and
 // returns the renewed JWT, so the frontend can replace the in-flight token.
+// The renewed code is bound to the generation of the challenge it renews: a
+// code mailed before a password change renews into nothing (#6308).
 func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := f.codec.ParseChallengeToken(challengeToken)
 	if err != nil || claims.Scope != domain.PortalPlatform.Name {
 		return "", identityaccess.ErrMFAChallengeTokenInvalid
 	}
-	return f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip)
+	return f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip, &claims.CredentialGeneration)
 }
 
 // VerifyOperatorMFACode is the JWT-less sibling of VerifyOperatorMFAChallenge: the
 // enrollment confirmation and the passkey registration have already
-// authenticated the operator out of band.
-func (f *OperatorMFAFlows) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) (err error) {
+// authenticated the operator out of band. credentialGeneration is the
+// generation the enrollment token names; the passkey registration runs in a
+// session and passes none.
+func (f *OperatorMFAFlows) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string, credentialGeneration *int64) (err error) {
 	if f == nil {
 		return identityaccess.ErrOperatorMFAUnavailable
 	}
 	defer func() { err = operatorError(err) }()
-	_, err = f.verifyActiveCode(ctx, operatorID, code, identityaccess.ErrMFACodeInvalid)
+	_, err = f.verifyActiveCode(ctx, operatorID, code, identityaccess.ErrMFACodeInvalid, credentialGeneration)
 	return err
 }
 
-// redeemed names the row a verification consumed and when.
+// redeemed names the row a verification consumed, when, and the credential
+// generation it was issued under.
 type redeemed struct {
-	id         int64
-	consumedAt time.Time
+	id                   int64
+	consumedAt           time.Time
+	credentialGeneration int64
 }
 
 // verifyActiveCode resolves the operator's active code, compares it and
 // consumes it exactly once. The loser of two concurrent verifications is
 // refused rather than allowed to mint a second session from one code.
-func (f *OperatorMFAFlows) verifyActiveCode(ctx context.Context, operatorID int64, code string, lookupError error) (redeemed, error) {
+//
+// It holds the operator lock a password write takes: a code bound to a
+// generation the operator no longer holds is refused before any code is
+// compared or consumed, and only a code of the current generation is
+// redeemable at all (#6308).
+func (f *OperatorMFAFlows) verifyActiveCode(ctx context.Context, operatorID int64, code string, lookupError error, credentialGeneration *int64) (redeemed, error) {
 	var result redeemed
 	var verificationErr error
 	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		operator, err := f.operators.findOperatorByID(txCtx, operatorID)
+		operator, err := f.operators.findOperatorForUpdate(txCtx, operatorID)
 		if err != nil {
+			return lookupError
+		}
+		if !domain.CredentialStillHolds(credentialGeneration, operator.CredentialGeneration) {
 			return lookupError
 		}
 		if domain.MFALocked(operator.MFALockedUntil, f.now()) {
@@ -290,7 +315,7 @@ func (f *OperatorMFAFlows) verifyActiveCodeInTx(ctx context.Context, operator do
 	if err := f.recordAudit(ctx, operator.ID, domain.OperatorAuditActionMFAVerified, nil, &active.ID, nil); err != nil {
 		return redeemed{}, err
 	}
-	return redeemed{id: active.ID, consumedAt: now}, nil
+	return redeemed{id: active.ID, consumedAt: now, credentialGeneration: active.CredentialGeneration}, nil
 }
 
 // handleFailedAttempt bumps the lockout counter atomically and records the
@@ -355,8 +380,13 @@ func (f *OperatorMFAFlows) Disable(ctx context.Context, operatorID int64) error 
 // ===== Trusted devices =====
 
 // IssueTrustedDevice mints a remember-device cookie and notifies the
-// operator by mail that a device was added.
-func (f *OperatorMFAFlows) IssueTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+// operator by mail that a device was added. The device is bound to the
+// credential generation of the proof it follows: under the operator lock a
+// password write takes, it is stored only while the operator still holds
+// that generation, so an exchange racing a password change remembers no
+// device (#6308).
+func (f *OperatorMFAFlows) IssueTrustedDevice(ctx context.Context, proof identityaccess.OperatorMFAProof, userAgent string, ip net.IP) (string, time.Time, error) {
+	operatorID := proof.OperatorID
 	expiresAt := f.now().Add(domain.OperatorMFATrustedDeviceDuration)
 	rawToken, err := domain.GenerateTrustedDeviceToken()
 	if err != nil {
@@ -367,12 +397,21 @@ func (f *OperatorMFAFlows) IssueTrustedDevice(ctx context.Context, operatorID in
 		TokenHash:  domain.HashTrustedDeviceToken(rawToken),
 		IPAddress:  ip,
 		ExpiresAt:  expiresAt,
+
+		CredentialGeneration: proof.CredentialGeneration,
 	}
 	if userAgent != "" {
 		label := userAgent
 		device.UserAgent = &label
 	}
 	err = f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		operator, err := f.operators.findOperatorForUpdate(txCtx, operatorID)
+		if err != nil {
+			return err
+		}
+		if !domain.CredentialStillHolds(&proof.CredentialGeneration, operator.CredentialGeneration) {
+			return identityaccess.ErrOperatorInvalidCredentials
+		}
 		stored, err := f.records.CreateTrustedDevice(txCtx, device)
 		if err != nil {
 			return fmt.Errorf("persist operator trusted device: %w", err)
@@ -461,17 +500,23 @@ func (f *OperatorMFAFlows) recordAudit(ctx context.Context, operatorID int64, ac
 	})
 }
 
-func (f *OperatorMFAFlows) enqueueChallenge(ctx context.Context, input domain.OperatorMFAChallenge, message domain.MFACodeMail) (domain.OperatorMFAChallenge, func(context.Context) error, error) {
+func (f *OperatorMFAFlows) enqueueChallenge(ctx context.Context, input domain.OperatorMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.OperatorMFAChallenge, func(context.Context) error, error) {
 	var challenge domain.OperatorMFAChallenge
 	var send func(context.Context) error
 	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
-		if _, err := f.operators.findOperatorForUpdate(txCtx, input.OperatorID); err != nil {
+		operator, err := f.operators.findOperatorForUpdate(txCtx, input.OperatorID)
+		if err != nil {
 			return err
 		}
+		// A password written since the check refuses like a wrong password,
+		// as on the account portals.
+		if !domain.CredentialStillHolds(credentialGeneration, operator.CredentialGeneration) {
+			return identityaccess.ErrOperatorInvalidCredentials
+		}
+		input.CredentialGeneration = operator.CredentialGeneration
 		if err := f.requireChallengeRateLimit(txCtx, input.OperatorID); err != nil {
 			return err
 		}
-		var err error
 		challenge, err = f.records.CreateChallenge(txCtx, input)
 		if err != nil {
 			return fmt.Errorf("persist email challenge: %w", err)
@@ -533,11 +578,11 @@ func (f *OperatorMFAFlows) DisableOperatorMFA(ctx context.Context, operatorID in
 	return operatorError(f.Disable(ctx, operatorID))
 }
 
-func (f *OperatorMFAFlows) IssueOperatorTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
+func (f *OperatorMFAFlows) IssueOperatorTrustedDevice(ctx context.Context, proof identityaccess.OperatorMFAProof, userAgent string, ip net.IP) (string, time.Time, error) {
 	if f == nil {
 		return "", time.Time{}, identityaccess.ErrOperatorMFAUnavailable
 	}
-	cookie, expiresAt, err := f.IssueTrustedDevice(ctx, operatorID, userAgent, ip)
+	cookie, expiresAt, err := f.IssueTrustedDevice(ctx, proof, userAgent, ip)
 	return cookie, expiresAt, operatorError(err)
 }
 

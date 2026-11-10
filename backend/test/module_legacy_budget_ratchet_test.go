@@ -265,7 +265,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // downloads (+5) of modules/parentbilling/compose.
 // ADR 0191: the constructor of the stored originals of the Jahresbescheide
 // of modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13244
+const moduleComposeBudgetTotal = 13237
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -373,7 +373,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schedulerruntime/compose":   45,
 	// Raised by ADR 0142: the Elternsprechtag constructor (+7) and by
 	// ADR 0144: the school vacation constructor (+11).
-	"modules/schoolcalendar/compose":        166,
+	"modules/schoolcalendar/compose":        159,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).
