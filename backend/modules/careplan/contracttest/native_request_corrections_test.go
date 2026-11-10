@@ -79,7 +79,7 @@ func TestNativeCorrectionReauthorizesAndRollsBackExactExceptionDeletion(t *testi
 	require.ErrorIs(t, correct(version), careplan.ErrParentRequestCorrectionUnsupported)
 	b.history = []compose.RequestCorrectionEvent{
 		{Type: "decided", Payload: map[string]any{"pickup_exception_id": float64(exception.ID)}},
-		{Type: "corrected", Payload: map[string]any{"pickup_exception_id": parent.ID}},
+		{Type: "corrected", Payload: map[string]any{"pickup_exception_id": exception.ID}},
 	}
 	for _, failNotice := range []bool{false, true} {
 		failure := errors.New("correction effect unavailable")
