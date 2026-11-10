@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
@@ -36,13 +35,14 @@ func TestParentHolidayRegistrationLinksNameTheLinksTraegerOnly(t *testing.T) {
 	require.NoError(t, err)
 	links := newParentHolidayRegistrationLinks(organizations, delivery.Module, testHealthCipher(), nil, slog.Default())
 	resolve := func(token string) (int64, []int64, error) {
-		var scope parentportal.HolidayRegistrationScope
+		var organizationID int64
+		var schoolIDs []int64
 		err := tenant.WithinAdmin(tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db)), func(ctx context.Context) error {
-			var resolveErr error
-			scope, resolveErr = links.ResolveHolidayRegistrationSchools(ctx, token)
+			scope, resolveErr := links.ResolveHolidayRegistrationSchools(ctx, token)
+			organizationID, schoolIDs = scope.OrganizationID, scope.SchoolIDs
 			return resolveErr
 		})
-		return scope.OrganizationID, scope.SchoolIDs, err
+		return organizationID, schoolIDs, err
 	}
 
 	period := openHolidays(t, f, office)

@@ -70,7 +70,7 @@ type holidayReviewBookingRow struct {
 	PromotedAt       *time.Time `bun:"promoted_at"`
 }
 
-var (
+const (
 	reviewRegistrationsQuery = `SELECT id, status, freeze_override, submitted_at,
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
@@ -116,7 +116,7 @@ var (
 		LEFT JOIN (
 			SELECT waiting_booking.id, row_number() OVER (
 				PARTITION BY waiting_booking.holiday_period_week_id
-				ORDER BY ` + holidayWaitlistOrder("registration", "waiting_child") + `) AS position
+				ORDER BY ` + holidayWishDeferredWaitingChild + `, registration.submitted_at, registration.id, waiting_child.position) AS position
 			FROM enrollment.holiday_registration_bookings AS waiting_booking
 			JOIN enrollment.holiday_registration_children AS waiting_child
 				ON waiting_child.organization_id = waiting_booking.organization_id AND waiting_child.id = waiting_booking.holiday_registration_child_id

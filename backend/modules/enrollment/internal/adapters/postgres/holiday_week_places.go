@@ -20,24 +20,24 @@ import (
 // for a place: received and confirmed ones.
 const holidayCountingStatuses = `('received', 'confirmed')`
 
-// holidayWishDeferredOf is true for a child that waits behind the others of
-// its week (#4703): its period takes the holiday care wish into account and
-// the wish is known to be "no". An unknown wish and a holiday guest are not
-// deferred. %s is the alias of holiday_registration_children.
-const holidayWishDeferredOf = `(%[1]s.holiday_wish IS NOT DISTINCT FROM 'no' AND EXISTS (
+// holidayWishDeferredChild is true for a child (alias child) that waits
+// behind the others of its week (#4703): its period takes the holiday care
+// wish into account and the wish is known to be "no". An unknown wish and a
+// holiday guest are not deferred. holidayWishDeferredWaitingChild is the
+// same for the alias waiting_child. Both stay constants, so the tables of
+// every statement resolve statically.
+const (
+	holidayWishDeferredChild = `(COALESCE(child.holiday_wish, '') = 'no' AND EXISTS (
 		SELECT 1 FROM enrollment.holiday_periods AS wish_period
-		WHERE wish_period.organization_id = %[1]s.organization_id AND wish_period.id = %[1]s.holiday_period_id
+		WHERE wish_period.organization_id = child.organization_id AND wish_period.id = child.holiday_period_id
 			AND wish_period.holiday_wish_rule))`
+	holidayWishDeferredWaitingChild = `(COALESCE(waiting_child.holiday_wish, '') = 'no' AND EXISTS (
+		SELECT 1 FROM enrollment.holiday_periods AS wish_period
+		WHERE wish_period.organization_id = waiting_child.organization_id AND wish_period.id = waiting_child.holiday_period_id
+			AND wish_period.holiday_wish_rule))`
+)
 
-// holidayWaitlistOrder is the order of a waiting list (#4699, #4703):
-// deferred children last, then the time the registration came in, its
-// number and the position of the child in the form. The aliases name the
-// registration and the child.
-func holidayWaitlistOrder(registration, child string) string {
-	return fmt.Sprintf(holidayWishDeferredOf, child) + ", " + registration + ".submitted_at, " + registration + ".id, " + child + ".position"
-}
-
-var (
+const (
 	// lockHolidayWeeksQuery locks the weeks in ascending ID: the sort runs
 	// below the lock, so two callers never lock the same weeks the other
 	// way round.
@@ -46,7 +46,9 @@ var (
 		ORDER BY id
 		FOR UPDATE`
 	// placeHolidayWaitlistQuery gives the free places of a locked week to
-	// its waiting list in its order (holidayWaitlistOrder). It counts the
+	// its waiting list in its order: children deferred by the holiday care
+	// wish last (#4703), then the time the registration came in, its number,
+	// then the position of the child in the form. It counts the
 	// placed bookings of received and confirmed registrations. Run in READ
 	// COMMITTED after the lock, the statement sees every placement committed
 	// before; a NULL capacity places every booking. submitted names the
@@ -57,7 +59,7 @@ var (
 			WHERE organization_id = ? AND id = ?
 		), counted AS (
 			SELECT booking.id, booking.placement, registration.id AS registration_id, registration.submitted_at,
-				child.id AS child_id, child.position, ` + fmt.Sprintf(holidayWishDeferredOf, "child") + ` AS deferred
+				child.id AS child_id, child.position, ` + holidayWishDeferredChild + ` AS deferred
 			FROM enrollment.holiday_registration_bookings AS booking
 			JOIN enrollment.holiday_registration_children AS child
 				ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
@@ -96,10 +98,10 @@ var (
 		ORDER BY week.starts_on, week.id`
 	holidayWaitlistQuery = `SELECT booking.holiday_period_week_id,
 			row_number() OVER (PARTITION BY booking.holiday_period_week_id
-				ORDER BY ` + holidayWaitlistOrder("registration", "child") + `) AS position,
+				ORDER BY ` + holidayWishDeferredChild + `, registration.submitted_at, registration.id, child.position) AS position,
 			registration.id AS registration_id, registration.status, registration.submitted_at,
 			child.id AS child_id, child.first_name, child.last_name, model.name AS time_model_name,
-			` + fmt.Sprintf(holidayWishDeferredOf, "child") + ` AS deferred
+			` + holidayWishDeferredChild + ` AS deferred
 		FROM enrollment.holiday_registration_bookings AS booking
 		JOIN enrollment.holiday_registration_children AS child
 			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
