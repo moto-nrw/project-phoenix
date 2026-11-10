@@ -942,7 +942,7 @@ func guardedWrites() []guardedWrite {
 
 func TestParentChildWritesHoldTheGuardUntilCommit(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	for _, w := range guardedWrites() {
 		w.run(t, db)
 	}

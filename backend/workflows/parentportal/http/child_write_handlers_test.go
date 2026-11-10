@@ -513,7 +513,7 @@ func careProfiles(t *testing.T, db *bun.DB) careplan.StudentProfileCommands {
 	return commands
 }
 
-// parentMemberships, guardStudentGuardians, guardProfiles and guardStudents
+// parentMemberships, guardStudentGuardians and guardProfiles
 // bind the real ports the child write guard locks through, as the root does.
 func parentMemberships(t testing.TB, db *bun.DB) parentService.SchoolMembershipLock {
 	t.Helper()
@@ -528,9 +528,4 @@ func guardStudentGuardians(t testing.TB, db *bun.DB) parentService.StudentGuardi
 func guardProfiles(t testing.TB, db *bun.DB) parentService.GuardianProfiles {
 	t.Helper()
 	return owners.NewParentGuardianProfileReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile)
-}
-
-func guardStudents(t testing.TB, db *bun.DB) parentService.StudentReads {
-	t.Helper()
-	return owners.NewParentStudentReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student)
 }
