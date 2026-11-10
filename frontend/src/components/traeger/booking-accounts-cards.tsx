@@ -422,11 +422,27 @@ function CostCenterRow({
             <p className="text-sm font-semibold text-gray-900">{title}</p>
             <p className="mt-0.5 text-sm text-gray-600">{hint}</p>
           </div>
-          <CostCenterState
-            timeline={timeline}
-            today={today}
-            required={required}
-          />
+          <div className="flex flex-col items-start gap-1">
+            <CostCenterState
+              timeline={timeline}
+              today={today}
+              required={required}
+            />
+            {timeline.length > 0 ? (
+              <Button
+                type="button"
+                variant="link"
+                size="compact"
+                aria-expanded={history}
+                aria-label={`Verlauf der Kostenstellen für ${title}`}
+                onClick={() => setHistory((shown) => !shown)}
+              >
+                {history
+                  ? "Verlauf ausblenden"
+                  : `Verlauf ansehen (${timeline.length})`}
+              </Button>
+            ) : null}
+          </div>
         </div>
         <div className={ACTIONS}>
           <Button
@@ -439,18 +455,6 @@ function CostCenterRow({
           >
             Neue Kostenstelle
           </Button>
-          {timeline.length > 0 ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              aria-expanded={history}
-              aria-label={`Verlauf der Kostenstellen für ${title}`}
-              onClick={() => setHistory((shown) => !shown)}
-            >
-              {history ? "Verlauf ausblenden" : `Verlauf (${timeline.length})`}
-            </Button>
-          ) : null}
         </div>
       </div>
       {adding ? (
