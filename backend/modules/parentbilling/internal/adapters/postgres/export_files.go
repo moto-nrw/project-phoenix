@@ -197,6 +197,16 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 	return row.entry(), nil
 }
 
+// The inserts of insertDatevBookings, one per kind of booking.
+const (
+	insertDatevBookedInvoices = `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_invoice_id)
+		SELECT ?, ?, unnest(?::bigint[]) ON CONFLICT DO NOTHING`
+	insertDatevBookedCancellations = `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_cancellation_id)
+		SELECT ?, ?, unnest(?::bigint[]) ON CONFLICT DO NOTHING`
+	insertDatevBookedDocuments = `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, document_id)
+		SELECT ?, ?, unnest(?::bigint[]) ON CONFLICT DO NOTHING`
+)
+
 // insertDatevBookings records the first DATEV file of each booking of a
 // DATEV file (#6433). A booking an earlier or a concurrent file recorded
 // keeps its row: the unique index makes the insert wait for the other
@@ -219,15 +229,7 @@ func insertDatevBookings(ctx context.Context, db bun.IDB, organizationID, fileID
 		}
 	}
 	var recorded int64
-	for _, column := range []struct {
-		name string
-		ids  []int64
-	}{{"care_invoice_id", invoices}, {"care_cancellation_id", cancellations}, {"document_id", documents}} {
-		if len(column.ids) == 0 {
-			continue
-		}
-		result, err := db.ExecContext(ctx, `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, `+column.name+`)
-			SELECT ?, ?, unnest(?::bigint[]) ON CONFLICT DO NOTHING`, organizationID, fileID, pgdialect.Array(column.ids))
+	count := func(result sql.Result, err error) error {
 		if err != nil {
 			return fmt.Errorf("record the DATEV bookings of the file: %w", err)
 		}
@@ -236,6 +238,22 @@ func insertDatevBookings(ctx context.Context, db bun.IDB, organizationID, fileID
 			return fmt.Errorf("count the DATEV bookings of the file: %w", err)
 		}
 		recorded += affected
+		return nil
+	}
+	if len(invoices) > 0 {
+		if err := count(db.ExecContext(ctx, insertDatevBookedInvoices, organizationID, fileID, pgdialect.Array(invoices))); err != nil {
+			return err
+		}
+	}
+	if len(cancellations) > 0 {
+		if err := count(db.ExecContext(ctx, insertDatevBookedCancellations, organizationID, fileID, pgdialect.Array(cancellations))); err != nil {
+			return err
+		}
+	}
+	if len(documents) > 0 {
+		if err := count(db.ExecContext(ctx, insertDatevBookedDocuments, organizationID, fileID, pgdialect.Array(documents))); err != nil {
+			return err
+		}
 	}
 	if !record.DatevAll && recorded != int64(len(record.DatevBookings)) {
 		return parentbilling.ErrDatevBookingsTaken

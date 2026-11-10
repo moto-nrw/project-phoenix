@@ -1,4 +1,5 @@
 DELETE /traeger/finance-exports/settings/sollstellung -> basis
+GET /traeger/finance-exports/datev-runs -> basis
 GET /traeger/finance-exports/files -> basis
 GET /traeger/finance-exports/invoice-history/{kind}/{id} -> basis
 GET /traeger/finance-exports/runs -> basis
