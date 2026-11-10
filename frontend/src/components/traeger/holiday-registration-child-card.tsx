@@ -184,7 +184,8 @@ export function HolidayRegistrationChildCard({
             }
             actionLayout="stacked"
             action={
-              <span className="flex flex-wrap gap-3">
+              // No row gap: by finger each link is 44 px high already.
+              <span className="flex flex-wrap gap-x-3">
                 {child.duplicateRegistrationIds.map((id) => (
                   // A kit link button: 44 px by finger, in the notice's colour.
                   <ButtonLink

@@ -391,12 +391,9 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <div className="col-span-2 lg:col-span-1">
         <StatCard
           label="Zusätzliche Zeit"
-          // Hours and minutes stay one value on one line.
-          value={
-            noData
-              ? "–"
-              : formatExtraTime(total.extraMinutes).replace(/ /g, "\u00a0")
-          }
+          // Each number keeps its unit; a narrow tile breaks only between
+          // hours and minutes instead of running into the symbol.
+          value={noData ? "–" : formatExtraTime(total.extraMinutes)}
           tone={!noData && total.extraMinutes > 0 ? "red" : "neutral"}
           hint={`Zählt ab ${evaluation.toleranceMinutes || 15} Minuten früher oder später.`}
           icon={<MotoConceptIcon concept={careTimesConcept} />}

@@ -339,7 +339,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       }),
     );
 
-    const [field] = screen.getAllByPlaceholderText("Eltern, Kind oder Nummer");
+    const [field] = screen.getAllByPlaceholderText("Eltern, Kind, Nummer");
     fireEvent.change(field!, { target: { value: "ute" } });
 
     const row = (id: string, name: string) =>

@@ -177,7 +177,9 @@ export function TraegerDocumentUploadModal({
             dragLabel="Datei hier ablegen"
             buttonLabel="Datei auswählen"
             inputLabel="Dokument auswählen"
-            hint="PDF, Word, Excel, PowerPoint oder Bild, höchstens 10 MB"
+            hint={
+              "PDF, Word, Excel, PowerPoint oder Bild, höchstens 10\u00A0MB"
+            }
             disabled={saving}
             onFile={choose}
           />

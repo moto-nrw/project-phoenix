@@ -644,7 +644,7 @@ export default function TraegerHolidayRegistrationsPage() {
             return kept.length === selection.size ? selection : new Set(kept);
           });
         },
-        placeholder: "Eltern, Kind oder Nummer",
+        placeholder: "Eltern, Kind, Nummer",
       }}
       tabs={holidayPeriodTabs(
         periodId,

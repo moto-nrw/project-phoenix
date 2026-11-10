@@ -47,10 +47,13 @@ function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
             <span className="block truncate font-medium text-gray-900">
               {document.title}
             </span>
-            {/* Only the file name shortens; type and size stay whole. */}
-            <span className="flex min-w-0 text-sm text-gray-500">
-              <span className="truncate">{document.fileName}</span>
-              <span className="shrink-0 whitespace-nowrap">
+            {/* On a phone the file name wraps and stays whole; from sm on
+                only the name shortens. Type and size never break. */}
+            <span className="block text-sm text-gray-500 sm:flex sm:min-w-0">
+              <span className="wrap-anywhere sm:truncate">
+                {document.fileName}
+              </span>
+              <span className="whitespace-nowrap sm:shrink-0">
                 &nbsp;· {documentFileFacts(document)}
               </span>
             </span>
