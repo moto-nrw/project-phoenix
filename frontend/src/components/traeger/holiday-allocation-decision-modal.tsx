@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { FormModal } from "~/components/ui/form-modal";
 import { Textarea } from "~/components/ui/textarea";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import {
@@ -86,7 +87,9 @@ function DecisionForm({
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
+  // The form is mounted only while open: one dialog session per target.
+  const save = useFormModalPending();
+  const saving = save.pending;
   const { entry, week, placement } = target;
   const deviates = deviatesFromProposal(entry, placement);
   const name = `${entry.childFirstName} ${entry.childLastName}`;
@@ -104,33 +107,33 @@ function DecisionForm({
       return;
     }
     formErrors.clear();
-    setSaving(true);
-    try {
-      await onConfirm(deviates ? reason.trim() : "");
-    } catch (err) {
-      setSaving(false);
-      if (isStaleAllocationError(err)) {
-        onStale(err);
-        return;
+    await save.run(async (op) => {
+      try {
+        await onConfirm(deviates ? reason.trim() : "");
+      } catch (err) {
+        // A late refusal after the dialog closed belongs to no form.
+        if (!op.isCurrent()) return;
+        if (isStaleAllocationError(err)) {
+          onStale(err);
+          return;
+        }
+        // The backend names the field of the first decision; here it is the one field.
+        if (err instanceof ApiError && err.errors) {
+          err.errors = err.errors.map((error) => ({
+            ...error,
+            field: error.field.endsWith(".reason") ? "reason" : error.field,
+          }));
+        }
+        void formErrors.show(err, { object: "die Entscheidung" });
       }
-      // The backend names the field of the first decision; here it is the one field.
-      if (err instanceof ApiError && err.errors) {
-        err.errors = err.errors.map((error) => ({
-          ...error,
-          field: error.field.endsWith(".reason") ? "reason" : error.field,
-        }));
-      }
-      void formErrors.show(err, { object: "die Entscheidung" });
-      return;
-    }
-    setSaving(false);
+    });
   };
 
   return (
     <FormModal
       isOpen
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled={reason !== ""}
       title={
         placement === "placed"
