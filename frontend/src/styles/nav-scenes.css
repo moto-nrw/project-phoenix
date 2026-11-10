@@ -70,9 +70,6 @@
 @keyframes ns-roll{0%{transform:none}45%{transform:translateY(-130px)}46%{transform:translateY(130px)}100%{transform:none}}
 .ns-play[data-nav-scene="CalendarIcon"] .ns-rings2{animation:ns-hop14 320ms var(--ns-o) calc(var(--ns-i,0)*80ms) both}
 
-/* CalendarSlashIcon: der Kalender wird durchgestrichen */
-.ns-play[data-nav-scene="CalendarSlashIcon"] .ns-draw{animation:ns-draw 320ms var(--ns-o) both}
-
 /* ClockIcon: Zeiger drehen eine Runde */
 [data-nav-scene="ClockIcon"] .ns-min,[data-nav-scene="ClockIcon"] .ns-hour{transform-origin:128px 128px}
 .ns-play[data-nav-scene="ClockIcon"] .ns-min{animation:ns-spin 620ms cubic-bezier(.4,0,.2,1) both}
