@@ -42,7 +42,7 @@ func acceptedRenewalTerms(t *testing.T, ctx context.Context, svc enrollmentAPI.R
 	for _, block := range terms.Blocks {
 		flags[block.Key] = true
 	}
-	return capability.RenewalConfirmation{ConsentFlags: testFormValues(flags), DisplayedFormSchemaID: terms.FormSchemaID}
+	return capability.RenewalConfirmation{ConsentFlags: testFormValues(flags), DisplayedFormSchemaID: terms.FormSchemaID, TermsFingerprint: terms.TermsFingerprint}
 }
 
 // rolledRequest rolls the source phase over and returns the one carried
@@ -115,16 +115,21 @@ func TestConfirmRenewalRefusesMissingTicksAndAnOutdatedForm(t *testing.T) {
 				ticks[other] = true
 			}
 		}
-		missing := capability.RenewalConfirmation{ConsentFlags: testFormValues(ticks), DisplayedFormSchemaID: accepted.DisplayedFormSchemaID}
+		missing := capability.RenewalConfirmation{ConsentFlags: testFormValues(ticks), DisplayedFormSchemaID: accepted.DisplayedFormSchemaID, TermsFingerprint: accepted.TermsFingerprint}
 		_, err := env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, missing)
 		requireInputCode(t, err, capability.CodeRenewalTermsRequired, "consent_flags."+key)
 	}
 
 	// The school publishes a new form version while the page is open: the
 	// ticks for the old version accept nothing.
+	missingFingerprint := accepted
+	missingFingerprint.TermsFingerprint = ""
+	_, err := env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, missingFingerprint)
+	requireInputCode(t, err, capability.CodeRenewalTermsChanged, "terms_fingerprint")
+
 	outdated := accepted
 	outdated.DisplayedFormSchemaID = accepted.DisplayedFormSchemaID + 1
-	_, err := env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, outdated)
+	_, err = env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, outdated)
 	requireInputCode(t, err, capability.CodeRenewalTermsChanged, "form_schema_id")
 
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
@@ -169,6 +174,11 @@ func TestConfirmRenewalRecordsTheAcceptanceOfAnOptOutRenewal(t *testing.T) {
 	require.NotNil(t, terms)
 	require.NotNil(t, terms.ConfirmedAt, "the page shows the acceptance")
 	assert.True(t, terms.ConfirmedAt.Equal(entry.SnapshotAt))
+	_, err = env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, confirmation)
+	require.NoError(t, err)
+	stored, err = enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
+	require.NoError(t, err)
+	assert.Len(t, stored.LegalBlocksSnapshot, 1, "a repeat confirmation records no duplicate evidence")
 }
 
 // An acceptance after the school's decision proves nothing for the
@@ -189,4 +199,44 @@ func TestConfirmRenewalAfterTheDecisionRecordsNothing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stored.LegalBlocksSnapshot)
 	assert.Nil(t, renewalTerms(t, ctx, env.requestSvc, request.StatusToken), "no child waits for its renewal")
+}
+
+func TestConfirmRenewalRefusesChangedTenantTerms(t *testing.T) {
+	t.Parallel()
+	env := setupRolloverTest(t)
+	ctx := testpkg.Ctx(t)
+	_ = seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Text", "anna.text@example.com", "Lina", "Text", 1)
+	request, child := rolledRequest(t, env, capability.PhaseRolloverModeOptIn)
+	confirmation := acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken)
+	env.settings.stringValues[settingKeyLegalAGBText] = "Geänderte Bedingungen"
+	_, err := env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, confirmation)
+	requireInputCode(t, err, capability.CodeRenewalTermsChanged, "terms_fingerprint")
+	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
+	require.NoError(t, err)
+	assert.Empty(t, stored.LegalBlocksSnapshot)
+	unchanged, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), child.ID)
+	require.NoError(t, err)
+	assert.Equal(t, capability.ChildStatusPendingRenewal, unchanged.Status)
+	_, err = env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken))
+	require.NoError(t, err)
+}
+
+func TestConfirmRenewalRecordsSubmittedRenewalBeforeDecision(t *testing.T) {
+	t.Parallel()
+	env := setupRolloverTest(t)
+	ctx := testpkg.Ctx(t)
+	_ = seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Offen", "anna.offen@example.com", "Lina", "Offen", 1)
+	request, child := rolledRequest(t, env, capability.PhaseRolloverModeOptOut)
+	confirmation := acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken)
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, child.ID, capability.ChildStatusSubmitted, nil, env.creatorID))
+	require.NotNil(t, renewalTerms(t, ctx, env.requestSvc, request.StatusToken), "the school has not decided yet")
+	confirmed, err := env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, confirmation)
+	require.NoError(t, err)
+	assert.Zero(t, confirmed)
+	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
+	require.NoError(t, err)
+	require.Len(t, stored.LegalBlocksSnapshot, 1)
+	kept, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), child.ID)
+	require.NoError(t, err)
+	assert.Equal(t, capability.ChildStatusSubmitted, kept.Status)
 }

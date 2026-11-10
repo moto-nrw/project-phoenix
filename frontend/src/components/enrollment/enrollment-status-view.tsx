@@ -572,7 +572,10 @@ function EnrollmentStatusContent({
       ? "opt_in"
       : autoRenewedCount > 0
         ? "opt_out"
-        : null;
+        : status.renewal_terms &&
+            status.children.some((child) => child.status === "submitted")
+          ? "submitted"
+          : null;
   const editHref = pathname?.startsWith("/parents")
     ? `/parents/anmeldung/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
@@ -676,6 +679,7 @@ function EnrollmentStatusContent({
       ) : null}
 
       <RenewalBanners
+        key={status.renewal_terms?.terms_fingerprint}
         adjustHref={canRequestChange ? adjustHref : null}
         confirmingRenewal={confirmingRenewal}
         mode={renewalMode}

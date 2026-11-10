@@ -399,7 +399,11 @@ describe("enrollment-submission-api", () => {
   });
 
   it("confirms renewals and defaults missing counters to zero", async () => {
-    const accepted = { consentFlags: { terms: true }, formSchemaId: "81" };
+    const accepted = {
+      consentFlags: { terms: true },
+      formSchemaId: "81",
+      termsFingerprint: "shown-terms",
+    };
     mockFetch.mockResolvedValueOnce(jsonResponse({ confirmed: 3 }));
     await expect(confirmRenewal("tok", accepted)).resolves.toBe(3);
     // The ticks travel with the form version the page showed (#6456).
@@ -407,6 +411,7 @@ describe("enrollment-submission-api", () => {
     expect(JSON.parse(init.body as string)).toEqual({
       consent_flags: { terms: true },
       form_schema_id: "81",
+      terms_fingerprint: "shown-terms",
     });
 
     mockFetch.mockResolvedValueOnce(jsonResponse({}));
@@ -458,7 +463,11 @@ describe("enrollment-submission-api", () => {
       jsonResponse({ error: "Abgelaufen" }, { status: 410 }),
     );
     await expect(
-      confirmRenewal("tok", { consentFlags: {}, formSchemaId: "0" }),
+      confirmRenewal("tok", {
+        consentFlags: {},
+        formSchemaId: "0",
+        termsFingerprint: "empty-terms",
+      }),
     ).rejects.toMatchObject({
       message: "Bestätigung nicht möglich (HTTP 410)",
       code: "general.business_rejection",

@@ -66,9 +66,10 @@ type StatusResponse struct {
 // page sends back with the ticks, the blocks, and when the parents last
 // accepted exactly these.
 type StatusRenewalTermsResponse struct {
-	FormSchemaID string       `json:"form_schema_id"`
-	Blocks       []LegalBlock `json:"blocks"`
-	ConfirmedAt  *time.Time   `json:"confirmed_at,omitempty"`
+	FormSchemaID     string       `json:"form_schema_id"`
+	TermsFingerprint string       `json:"terms_fingerprint"`
+	Blocks           []LegalBlock `json:"blocks"`
+	ConfirmedAt      *time.Time   `json:"confirmed_at,omitempty"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -320,9 +321,10 @@ func newStatusRenewalTerms(terms *capability.RenewalTerms) *StatusRenewalTermsRe
 		blocks = []LegalBlock{}
 	}
 	return &StatusRenewalTermsResponse{
-		FormSchemaID: strconv.FormatInt(terms.FormSchemaID, 10),
-		Blocks:       blocks,
-		ConfirmedAt:  terms.ConfirmedAt,
+		FormSchemaID:     strconv.FormatInt(terms.FormSchemaID, 10),
+		TermsFingerprint: terms.TermsFingerprint,
+		Blocks:           blocks,
+		ConfirmedAt:      terms.ConfirmedAt,
 	}
 }
 
@@ -671,12 +673,13 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // ConfirmRenewalRequest carries the parents' ticks of the renewal terms and
-// the form version the page showed (#6456).
+// the form version and content fingerprint the page showed (#6456).
 type ConfirmRenewalRequest struct {
 	ConsentFlags map[string]any `json:"consent_flags"`
 	// FormSchemaID is the renewal_terms.form_schema_id the page showed; "0"
 	// for the tenant-wide blocks.
-	FormSchemaID string `json:"form_schema_id"`
+	FormSchemaID     string `json:"form_schema_id"`
+	TermsFingerprint string `json:"terms_fingerprint"`
 }
 
 // ConfirmRenewalResponse reports how many child rows were transitioned
@@ -696,7 +699,7 @@ func renewalConfirmation(r *http.Request) (capability.RenewalConfirmation, error
 	if err != nil || formSchemaID < 0 {
 		return capability.RenewalConfirmation{}, errors.New("form_schema_id is required")
 	}
-	return capability.RenewalConfirmation{ConsentFlags: formValues(body.ConsentFlags), DisplayedFormSchemaID: formSchemaID}, nil
+	return capability.RenewalConfirmation{ConsentFlags: formValues(body.ConsentFlags), DisplayedFormSchemaID: formSchemaID, TermsFingerprint: body.TermsFingerprint}, nil
 }
 
 // confirmRenewal handles POST /requests/{statusToken}/confirm-renewal: the

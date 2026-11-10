@@ -789,6 +789,7 @@ describe("EnrollmentStatusView", () => {
       expect(mockConfirmRenewal).toHaveBeenCalledWith("tok", {
         consentFlags: {},
         formSchemaId: "0",
+        termsFingerprint: "",
       });
     });
     await waitFor(() => {
@@ -1036,6 +1037,7 @@ describe("EnrollmentStatusView", () => {
 
 const RENEWAL_TERMS = {
   form_schema_id: "81",
+  terms_fingerprint: "shown-terms",
   blocks: [
     {
       key: "terms",
@@ -1103,8 +1105,116 @@ describe("EnrollmentStatusView renewal terms (#6456)", () => {
       expect(mockConfirmRenewal).toHaveBeenCalledWith("tok", {
         consentFlags: { terms: true },
         formSchemaId: "81",
+        termsFingerprint: "shown-terms",
       });
     });
+  });
+
+  it("shows the PDFs included in the renewal terms even without inline text", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      renewal("auto_renewed", {
+        ...RENEWAL_TERMS,
+        blocks: [
+          {
+            ...RENEWAL_TERMS.blocks[0]!,
+            text: "",
+            attachments: [
+              {
+                label: "Vertragsbedingungen PDF",
+                document_url:
+                  "/uploads/enrollment-form-legal-documents/terms.pdf",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    render(<EnrollmentStatusView token="tok" />);
+    expect(
+      await screen.findByRole("checkbox", {
+        name: /Ich stimme den Vertragsbedingungen zu/,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Vertragsbedingungen PDF öffnen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Vertragsbedingungen PDF herunterladen",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the terms available for submitted renewals awaiting the school decision", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        renewal_terms: RENEWAL_TERMS,
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "submitted",
+          },
+        ],
+      }),
+    );
+    render(<EnrollmentStatusView token="tok" />);
+    expect(
+      await screen.findByRole("button", {
+        name: "Vertragsbedingungen bestätigen",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Ich stimme den Vertragsbedingungen zu/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("requires new ticks after reloading changed terms", async () => {
+    mockFetchStatus
+      .mockResolvedValueOnce(renewal("auto_renewed"))
+      .mockResolvedValueOnce(
+        renewal("auto_renewed", {
+          ...RENEWAL_TERMS,
+          terms_fingerprint: "changed-terms",
+          blocks: [
+            {
+              ...RENEWAL_TERMS.blocks[0]!,
+              label: "Ich stimme den neuen Bedingungen zu.",
+            },
+          ],
+        }),
+      );
+    mockConfirmRenewal.mockRejectedValueOnce(
+      new ApiError("Changed terms", 409, {
+        code: "enrollment.renewal_terms_changed",
+      }),
+    );
+    render(<EnrollmentStatusView token="tok" />);
+    fireEvent.click(
+      await screen.findByRole("checkbox", {
+        name: /Ich stimme den Vertragsbedingungen zu/,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vertragsbedingungen bestätigen" }),
+    );
+    const changed = await screen.findByRole("checkbox", {
+      name: /Ich stimme den neuen Bedingungen zu/,
+    });
+    expect(changed).not.toBeChecked();
+    const confirm = screen.getByRole("button", {
+      name: "Vertragsbedingungen bestätigen",
+    });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    fireEvent.click(confirm);
+    expect(
+      await screen.findByText("Bitte stimmen Sie hier zu."),
+    ).toBeInTheDocument();
+    expect(mockConfirmRenewal).toHaveBeenCalledTimes(1);
   });
 
   it("asks an opt-out renewal for the terms while care runs on", async () => {
@@ -1152,7 +1262,11 @@ describe("EnrollmentStatusView renewal terms (#6456)", () => {
 
   it("tells an opt-out renewal without terms that nothing is to do", async () => {
     mockFetchStatus.mockResolvedValueOnce(
-      renewal("auto_renewed", { form_schema_id: "0", blocks: [] }),
+      renewal("auto_renewed", {
+        form_schema_id: "0",
+        terms_fingerprint: "empty-terms",
+        blocks: [],
+      }),
     );
 
     render(<EnrollmentStatusView token="tok" />);

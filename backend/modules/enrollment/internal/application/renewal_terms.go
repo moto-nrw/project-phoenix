@@ -22,8 +22,9 @@ import (
 // renewalForm is the form in force for the phase of a renewal with the blocks
 // the parents must tick.
 type renewalForm struct {
-	schema *enrollmentNative.FormSchema
-	blocks []enrollmentNative.LegalBlock
+	schema      *enrollmentNative.FormSchema
+	blocks      []enrollmentNative.LegalBlock
+	fingerprint string
 }
 
 // id is the form version, 0 for the tenant-wide blocks.
@@ -64,7 +65,8 @@ func renewalBlocks(schema *enrollmentNative.FormSchema, tenant func() (enrollmen
 // school's decision on its renewal.
 func awaitsRenewal(children []*enrollmentNative.RequestChild) bool {
 	return slices.ContainsFunc(children, func(child *enrollmentNative.RequestChild) bool {
-		return child.Status == enrollmentNative.ChildStatusPendingRenewal || child.Status == enrollmentNative.ChildStatusAutoRenewed
+		return child.Status == enrollmentNative.ChildStatusPendingRenewal || child.Status == enrollmentNative.ChildStatusAutoRenewed ||
+			(child.Status == enrollmentNative.ChildStatusSubmitted && child.RolloverSourceChildID != nil)
 	})
 }
 
@@ -84,7 +86,14 @@ func (s *Intake) renewalFormFor(ctx context.Context, phaseID int64) (renewalForm
 	if err != nil {
 		return renewalForm{}, fmt.Errorf("renewal terms: resolve legal blocks: %w", err)
 	}
-	return renewalForm{schema: schema, blocks: blocks}, nil
+	if s.deps.Fingerprint == nil {
+		return renewalForm{}, fmt.Errorf("renewal terms: fingerprint not configured")
+	}
+	encoded, err := json.Marshal(blocks)
+	if err != nil {
+		return renewalForm{}, fmt.Errorf("renewal terms: encode legal blocks: %w", err)
+	}
+	return renewalForm{schema: schema, blocks: blocks, fingerprint: s.deps.Fingerprint(encoded)}, nil
 }
 
 // renewalTerms are the terms the status page asks the parents to accept;
@@ -98,9 +107,10 @@ func (s *Intake) renewalTerms(ctx context.Context, req *enrollmentNative.Request
 		return nil, err
 	}
 	return &enrollmentNative.RenewalTerms{
-		FormSchemaID: form.id(),
-		Blocks:       form.blocks,
-		ConfirmedAt:  renewalConfirmedAt(req.LegalBlocksSnapshot, form, s.deps.Fingerprint),
+		FormSchemaID:     form.id(),
+		TermsFingerprint: form.fingerprint,
+		Blocks:           form.blocks,
+		ConfirmedAt:      renewalConfirmedAt(req.LegalBlocksSnapshot, form, s.deps.Fingerprint),
 	}, nil
 }
 
@@ -124,7 +134,8 @@ func renewalConfirmedAt(entries []enrollmentNative.LegalBlocksSnapshotEntry, for
 			return nil
 		}
 		if !slices.ContainsFunc(entry.Blocks, func(shown enrollmentNative.LegalBlockSnapshot) bool {
-			return shown.Key == block.Key && sameLegalText(shown, block.Text, fingerprint)
+			return shown.Key == block.Key && shown.Label == block.Label && shown.Title == block.Title &&
+				slices.Equal(shown.Attachments, block.Attachments) && sameLegalText(shown, block.Text, fingerprint)
 		}) {
 			return nil
 		}
@@ -153,6 +164,9 @@ func (s *Intake) acceptRenewalTerms(ctx context.Context, req *enrollmentNative.R
 	if confirmation.DisplayedFormSchemaID != form.id() {
 		return enrollmentNative.InvalidInput(enrollmentNative.CodeRenewalTermsChanged, "form_schema_id", enrollmentNative.ErrRenewalTermsChanged)
 	}
+	if confirmation.TermsFingerprint != form.fingerprint {
+		return enrollmentNative.InvalidInput(enrollmentNative.CodeRenewalTermsChanged, "terms_fingerprint", enrollmentNative.ErrRenewalTermsChanged)
+	}
 	flags := make(map[string]any, len(form.blocks))
 	for _, block := range form.blocks {
 		accepted, ok := formValue(confirmation.ConsentFlags, block.Key).(bool)
@@ -161,6 +175,9 @@ func (s *Intake) acceptRenewalTerms(ctx context.Context, req *enrollmentNative.R
 				fmt.Errorf("%w: %s", enrollmentNative.ErrRenewalTermsRequired, block.Key))
 		}
 		flags[block.Key] = true
+	}
+	if renewalConfirmedAt(req.LegalBlocksSnapshot, form, s.deps.Fingerprint) != nil {
+		return nil
 	}
 	entry, err := legalBlocksSnapshotEntry(form.blocks, flags, formsOf(form.schema, confirmation.DisplayedFormSchemaID), time.Now(), s.deps.Fingerprint)
 	if err != nil {

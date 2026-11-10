@@ -276,7 +276,7 @@ func TestUnreadEnrollments_RenewalConfirmationResets(t *testing.T) {
 	for _, block := range status.Data.RenewalTerms.Blocks {
 		flags[block.Key] = true
 	}
-	body, err := json.Marshal(map[string]any{"consent_flags": flags, "form_schema_id": status.Data.RenewalTerms.FormSchemaID})
+	body, err := json.Marshal(map[string]any{"consent_flags": flags, "form_schema_id": status.Data.RenewalTerms.FormSchemaID, "terms_fingerprint": status.Data.RenewalTerms.TermsFingerprint})
 	require.NoError(t, err)
 
 	rec = env.do(t, http.MethodPost, "/requests/"+submitted.Request.StatusToken+"/confirm-renewal", "", string(body))

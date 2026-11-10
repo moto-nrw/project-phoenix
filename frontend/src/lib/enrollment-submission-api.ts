@@ -511,6 +511,8 @@ export interface StatusResponse {
 export interface StatusRenewalTerms {
   /** The form version; "0" for the school-wide texts. Sent back on confirm. */
   form_schema_id: string;
+  /** Server fingerprint of the displayed blocks, including PDF references. */
+  terms_fingerprint: string;
   blocks: PublicLegalBlock[];
   /** When the parents last accepted exactly these blocks. */
   confirmed_at?: string | null;
@@ -731,6 +733,7 @@ export interface RenewalConfirmation {
   consentFlags: Record<string, boolean>;
   /** `renewal_terms.form_schema_id` of the status the page showed. */
   formSchemaId: string;
+  termsFingerprint: string;
 }
 
 /**
@@ -751,6 +754,7 @@ export async function confirmRenewal(
       body: JSON.stringify({
         consent_flags: confirmation.consentFlags,
         form_schema_id: confirmation.formSchemaId,
+        terms_fingerprint: confirmation.termsFingerprint,
       }),
     },
   );

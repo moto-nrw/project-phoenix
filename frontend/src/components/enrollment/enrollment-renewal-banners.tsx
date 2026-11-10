@@ -13,6 +13,7 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { Modal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
 import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
 import { formatDate } from "~/lib/date-helpers";
@@ -23,7 +24,7 @@ import type {
 } from "~/lib/enrollment-submission-api";
 import { localizeLegalBlocks } from "~/lib/enrollment-translations";
 
-export type RenewalMode = "opt_in" | "opt_out";
+export type RenewalMode = "opt_in" | "opt_out" | "submitted";
 
 interface RenewalBannersProps {
   /** Link to the reduced offerings/weekdays flow; null while a change request is already open (#2251). */
@@ -76,6 +77,7 @@ export function RenewalBanners({
         blocks.map((block) => [block.key, true]),
       ),
       formSchemaId: terms?.form_schema_id ?? "0",
+      termsFingerprint: terms?.terms_fingerprint ?? "",
     });
   };
 
@@ -83,36 +85,38 @@ export function RenewalBanners({
     <div className="mt-4 space-y-3">
       <p className="text-sm text-gray-700">{t("renewalTermsIntro")}</p>
       {blocks.map((block) => (
-        <ConsentCheckbox
-          key={block.key}
-          name={fieldName(block.key)}
-          label={block.label}
-          checked={ticks[block.key] === true}
-          onChange={(checked) =>
-            setTicks((previous) => ({ ...previous, [block.key]: checked }))
-          }
-          required
-          error={
-            showMissing && ticks[block.key] !== true
-              ? t("renewalTermsMissing")
-              : undefined
-          }
-          action={
-            block.text ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                aria-label={t("renewalTermsReadAria", { title: block.title })}
-                onClick={() => setOpenBlock(block)}
-                className="shrink-0"
-              >
-                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{t("renewalTermsRead")}</span>
-              </Button>
-            ) : undefined
-          }
-        />
+        <div key={block.key}>
+          <ConsentCheckbox
+            name={fieldName(block.key)}
+            label={block.label}
+            checked={ticks[block.key] === true}
+            onChange={(checked) =>
+              setTicks((previous) => ({ ...previous, [block.key]: checked }))
+            }
+            required
+            error={
+              showMissing && ticks[block.key] !== true
+                ? t("renewalTermsMissing")
+                : undefined
+            }
+            action={
+              block.text ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  aria-label={t("renewalTermsReadAria", { title: block.title })}
+                  onClick={() => setOpenBlock(block)}
+                  className="shrink-0"
+                >
+                  <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{t("renewalTermsRead")}</span>
+                </Button>
+              ) : undefined
+            }
+          />
+          <DocumentAttachmentList attachments={block.attachments} />
+        </div>
       ))}
     </div>
   ) : null;
@@ -152,15 +156,19 @@ export function RenewalBanners({
           <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
         </SectionCard>
       ) : (
-        <SectionCard title={t("autoRenewedTitle")}>
+        <SectionCard
+          title={t(mode === "submitted" ? "confirmTerms" : "autoRenewedTitle")}
+        >
           <p className="text-sm text-gray-700">
-            {blocks.length === 0
-              ? t("autoRenewedText")
-              : confirmedAt === null
-                ? t("autoRenewedTermsText")
-                : t("autoRenewedTermsConfirmedText", {
-                    date: formatDate(confirmedAt),
-                  })}
+            {mode === "submitted"
+              ? t(confirmedAt === null ? "childPendingText" : "termsConfirmed")
+              : blocks.length === 0
+                ? t("autoRenewedText")
+                : confirmedAt === null
+                  ? t("autoRenewedTermsText")
+                  : t("autoRenewedTermsConfirmedText", {
+                      date: formatDate(confirmedAt),
+                    })}
           </p>
           {termsFields}
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -185,7 +193,11 @@ export function RenewalBanners({
               {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
             </Button>
           </div>
-          <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
+          {mode !== "submitted" ? (
+            <p className="mt-3 text-xs text-gray-500">
+              {t("renewalAdjustHint")}
+            </p>
+          ) : null}
         </SectionCard>
       )}
       <Modal

@@ -324,17 +324,20 @@ type RenewalTerms struct {
 	// FormSchemaID is the form version the blocks come from; 0 when the
 	// phase has no form and the tenant-wide blocks apply.
 	FormSchemaID int64
-	Blocks       []LegalBlock
+	// TermsFingerprint binds the answer to the displayed wording and PDF references.
+	TermsFingerprint string
+	Blocks           []LegalBlock
 	// ConfirmedAt is when the parents last accepted exactly these blocks;
 	// nil while they have not.
 	ConfirmedAt *time.Time
 }
 
 // RenewalConfirmation is the parents' answer to the renewal terms: the
-// ticked blocks and the form version the page showed.
+// ticked blocks, the form version and the content fingerprint the page showed.
 type RenewalConfirmation struct {
 	ConsentFlags          FormValues
 	DisplayedFormSchemaID int64
+	TermsFingerprint      string
 }
 
 // EditDraft is the persisted request that reopens the public form.

@@ -479,8 +479,14 @@ func (s *Intake) confirmRenewalInTenant(ctx context.Context, token string, confi
 	if !awaitsRenewal(children) {
 		return 0, false, nil
 	}
+	entriesBefore := len(lockedReq.LegalBlocksSnapshot)
 	if err := s.acceptRenewalTerms(ctx, lockedReq, confirmation); err != nil {
 		return 0, false, err
+	}
+	if len(lockedReq.LegalBlocksSnapshot) == entriesBefore && !slices.ContainsFunc(children, func(child *enrollmentNative.RequestChild) bool {
+		return child.Status == enrollmentNative.ChildStatusPendingRenewal
+	}) {
+		return 0, false, nil
 	}
 	if err := s.deps.Requests.UpdateRequestGuardian(ctx, lockedReq, false); err != nil {
 		return 0, false, fmt.Errorf("renewal: record accepted terms: %w", err)

@@ -209,7 +209,7 @@ func confirmRenewalTerms(t *testing.T, f careContractFixture, intake renewalInta
 	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		var confirmErr error
 		confirmed, confirmErr = intake.ConfirmRenewal(adminCtx, token, enrollment.RenewalConfirmation{
-			ConsentFlags: enrollment.CollectFormValues(maps.All(flags)), DisplayedFormSchemaID: terms.FormSchemaID,
+			ConsentFlags: enrollment.CollectFormValues(maps.All(flags)), DisplayedFormSchemaID: terms.FormSchemaID, TermsFingerprint: terms.TermsFingerprint,
 		})
 		return confirmErr
 	})
