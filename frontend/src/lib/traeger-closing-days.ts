@@ -35,7 +35,7 @@ export interface SavedTraegerClosingDay extends TraegerClosingDay {
 }
 
 /** Ein geschlossener Tag in einer gebuchten Ferienwoche. */
-export interface HolidayClosedDay {
+interface HolidayClosedDay {
   readonly date: string;
   readonly reason: string;
 }
