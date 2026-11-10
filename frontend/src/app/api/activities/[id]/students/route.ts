@@ -1,14 +1,10 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut, bffError } from "~/lib/api-helpers.server";
+import { apiGet, apiPut, bffError } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivityStudentsRoute" });
-import {
-  createGetHandler,
-  createPostHandler,
-  createPutHandler,
-} from "~/lib/route-wrapper.server";
+import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
 import {
   mapStudentEnrollmentsResponse,
   type BackendStudentEnrollment,
@@ -180,59 +176,6 @@ export const GET = createGetHandler(
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
-    }
-  },
-);
-
-/**
- * Handler for POST /api/activities/[id]/students
- * Supports two modes:
- * 1. Regular: Enrolls a single student - expects { student_id: string }
- * 2. Batch: Updates multiple students at once - expects { student_ids: string[] }
- */
-export const POST = createPostHandler(
-  async (
-    request: NextRequest,
-    body: { student_ids?: string[]; student_id?: string },
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    const id = params.id as string;
-
-    // Check if this is a batch update operation
-    if (body.student_ids && Array.isArray(body.student_ids)) {
-      await apiPut(
-        `/api/activities/${encodeURIComponent(id)}/students`,
-        token,
-        {
-          student_ids: body.student_ids.map((studentId) =>
-            Number.parseInt(studentId, 10),
-          ),
-        },
-      );
-      const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-        `/api/activities/${encodeURIComponent(id)}/students`,
-        token,
-      );
-      return mapStudentEnrollmentsResponse(response.data ?? []);
-    }
-    // Regular single student enrollment
-    else if (body.student_id) {
-      const studentId = String(body.student_id);
-      await apiPost(
-        `/api/activities/${encodeURIComponent(id)}/enroll/${encodeURIComponent(studentId)}`,
-        token,
-        {},
-      );
-      const response = await apiGet<{ data: BackendStudentEnrollment[] }>(
-        `/api/activities/${encodeURIComponent(id)}/students`,
-        token,
-      );
-      return mapStudentEnrollmentsResponse(response.data ?? []);
-    } else {
-      throw new Error(
-        "Invalid request: must provide student_id or student_ids",
-      );
     }
   },
 );

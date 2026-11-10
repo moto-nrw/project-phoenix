@@ -303,7 +303,7 @@ func TestOperatorMFAHasEnrollmentMissingRowIsNotEnrolled(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, enrolled)
 
-	require.NoError(t, fixture.flows.Enroll(context.Background(), operator.ID))
+	require.NoError(t, fixture.flows.Enroll(context.Background(), identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	enrolled, err = fixture.flows.HasOperatorMFAEnrollment(context.Background(), operator.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled)
@@ -480,7 +480,7 @@ func TestOperatorMFADisableRollsBackOnPartialFailure(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{revokeAllErr: revokeErr})
 
 	ctx := context.Background()
-	require.NoError(t, fixture.flows.Enroll(ctx, operator.ID))
+	require.NoError(t, fixture.flows.Enroll(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	cookie, _, err := fixture.flows.IssueTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID}, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.20"))
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
@@ -513,7 +513,7 @@ func TestOperatorMFADisableClearsEverything(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
 	ctx := context.Background()
-	require.NoError(t, fixture.flows.Enroll(ctx, operator.ID))
+	require.NoError(t, fixture.flows.Enroll(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	cookie, _, err := fixture.flows.IssueTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID}, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
 

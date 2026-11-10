@@ -7,7 +7,6 @@ import type {
   BackendActivitySupervisor,
   BackendTimeframe,
   Activity,
-  ActivitySchedule,
   ActivitySupervisor,
 } from "./activity-helpers";
 import {
@@ -20,7 +19,6 @@ import {
   isActivityCreator,
   mapSupervisorResponse,
   mapTimeframeResponse,
-  prepareActivityScheduleForBackend,
   isSystemActivity,
 } from "./activity-helpers";
 
@@ -502,32 +500,6 @@ describe("mapTimeframeResponse", () => {
     expect(result.display_name).toBe("8:00 - 12:00");
   });
 });
-
-describe("prepareActivityScheduleForBackend", () => {
-  it("converts frontend schedule to backend format", () => {
-    const schedule: Partial<ActivitySchedule> = {
-      id: "1",
-      activity_id: "5",
-      weekday: "3",
-      timeframe_id: "10",
-    };
-
-    const result = prepareActivityScheduleForBackend(schedule);
-
-    expect(result.id).toBe(1);
-    expect(result.activity_group_id).toBe(5);
-    expect(result.weekday).toBe(3);
-    expect(result.timeframe_id).toBe(10);
-  });
-});
-
-// ===== WEEKDAY FORMATTING =====
-
-// ===== TIME FORMATTING =====
-
-// ===== PARTICIPANT STATUS =====
-
-// ===== AVAILABILITY CHECKS =====
 
 describe("isSystemActivity", () => {
   const makeActivity = (name: string): Activity => ({
