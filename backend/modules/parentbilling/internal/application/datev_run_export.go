@@ -43,16 +43,18 @@ func (f *FinanceExports) DatevFile(ctx context.Context, reviewer parentbilling.H
 	if runKind != parentbilling.DebitRunCare && runKind != parentbilling.DebitRunHoliday || runID <= 0 {
 		return parentbilling.ExportedFile{}, parentbilling.ErrExportRunNotFound
 	}
-	settings, err := f.datev.settings.DatevSettings(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.ExportedFile{}, fmt.Errorf("parent billing: read the DATEV settings: %w", err)
-	}
-	readiness, err := f.datev.readinessOf(settings)
+	readiness, err := f.datev.DatevReadiness(ctx, reviewer)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
 	if !readiness.Ready {
 		return parentbilling.ExportedFile{}, &parentbilling.DatevNotReadyError{Readiness: readiness}
+	}
+	// The values the check passed: the settings of the Träger in the same
+	// Träger transaction.
+	settings, err := f.datev.settings.DatevSettings(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportedFile{}, fmt.Errorf("parent billing: read the DATEV settings: %w", err)
 	}
 	content, err := f.store.ExportRunContent(ctx, reviewer.OrganizationID, runKind, runID)
 	if err != nil {

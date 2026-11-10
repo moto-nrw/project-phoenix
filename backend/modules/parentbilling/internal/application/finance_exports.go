@@ -196,7 +196,16 @@ func (f *FinanceExports) ResetSollstellungMapping(ctx context.Context, reviewer 
 	if err := f.store.DeleteExportMapping(ctx, reviewer.OrganizationID, parentbilling.ExportFormatSollstellung); err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	return f.ExportSettings(ctx, reviewer)
+	numbers, err := f.store.ExportFileNumbers(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	datev, err := f.datev.DatevReadiness(ctx, reviewer)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	return parentbilling.ExportSettings{Sollstellung: parentbilling.SollstellungSettings{Mapping: parentbilling.DefaultSollstellungMapping()},
+		FileNumbers: numbers, Datev: datev}, nil
 }
 
 // SetExportFileNumberStart sets the number of the first file once, so the
@@ -212,7 +221,19 @@ func (f *FinanceExports) SetExportFileNumberStart(ctx context.Context, reviewer 
 	if err := f.store.StartExportFileNumbers(ctx, reviewer.OrganizationID, start); err != nil {
 		return parentbilling.ExportSettings{}, err
 	}
-	return f.ExportSettings(ctx, reviewer)
+	soll, err := f.sollstellung(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	numbers, err := f.store.ExportFileNumbers(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	datev, err := f.datev.DatevReadiness(ctx, reviewer)
+	if err != nil {
+		return parentbilling.ExportSettings{}, err
+	}
+	return parentbilling.ExportSettings{Sollstellung: soll, FileNumbers: numbers, Datev: datev}, nil
 }
 
 // ExportRuns reads one page of the released runs with their exports.

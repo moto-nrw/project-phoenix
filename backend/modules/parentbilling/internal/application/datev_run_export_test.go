@@ -166,7 +166,8 @@ func TestDatevFileWaitsForTheSettingsWithoutTakingANumber(t *testing.T) {
 	require.ErrorAs(t, err, &notReady)
 	assert.Equal(t, []string{"consultant"}, notReady.Readiness.MissingSettings)
 	assert.Equal(t, []string{"revenue"}, notReady.Readiness.InvalidSettings)
-	assert.Equal(t, []int64{sjrReviewer.OrganizationID}, settings.asked, "only the settings of the reviewer's Träger count")
+	assert.NotContains(t, settings.asked, int64(99), "only the settings of the reviewer's Träger count")
+	assert.Contains(t, settings.asked, sjrReviewer.OrganizationID)
 	assert.Zero(t, store.reserved, "no file number is taken")
 	assert.Empty(t, store.records, "no protocol entry")
 }

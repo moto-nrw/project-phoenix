@@ -43,11 +43,6 @@ func (d *datevExport) DatevReadiness(ctx context.Context, reviewer parentbilling
 	if err != nil {
 		return parentbilling.DatevReadiness{}, fmt.Errorf("read DATEV settings: %w", err)
 	}
-	return d.readinessOf(settings)
-}
-
-// readinessOf checks settings already read.
-func (d *datevExport) readinessOf(settings parentbilling.DatevSettings) (parentbilling.DatevReadiness, error) {
 	readiness := datevReadiness{}
 	header := DatevBatchHeader{
 		ConsultantNumber: readiness.number(settings.ConsultantNumber),
@@ -67,7 +62,7 @@ func (d *datevExport) readinessOf(settings parentbilling.DatevSettings) (parentb
 	}
 	probe := DatevBooking{AmountCents: 1, Side: DatevDebit, Account: datevProbeDebtor(header.AccountLength),
 		CounterAccount: settings.RevenueAccount.Value, DocumentDate: header.From, DocumentNumber: datevProbeDocument}
-	_, err := FormatDatevBookingBatch(header, []DatevBooking{probe})
+	_, err = FormatDatevBookingBatch(header, []DatevBooking{probe})
 	var formatErr *DatevFormatError
 	if err != nil && !errors.As(err, &formatErr) {
 		return parentbilling.DatevReadiness{}, err
