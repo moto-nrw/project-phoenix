@@ -434,7 +434,7 @@ export default function TraegerKeyDateCountsPage() {
                   <SharedSearchBar
                     value={search}
                     onChange={setSearch}
-                    placeholder="Schule oder Ort"
+                    placeholder="Schule oder Ort suchen…"
                     inputProps={{ "aria-label": "Schule oder Ort suchen" }}
                     className="min-w-0 md:w-64"
                   />

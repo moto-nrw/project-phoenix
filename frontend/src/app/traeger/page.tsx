@@ -47,8 +47,6 @@ const COLUMNS: DataTableColumn<TraegerSchool>[] = [
     key: "city",
     header: "Ort",
     render: (school) => school.city || "–",
-    // On a phone a missing place stays out of the line instead of „Ort –“.
-    stackedRender: (school) => school.city || null,
     sortValue: (school) => school.city || null,
     stacked: "meta",
   },

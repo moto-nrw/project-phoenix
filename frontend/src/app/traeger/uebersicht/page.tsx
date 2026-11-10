@@ -559,7 +559,7 @@ export default function TraegerDashboardPage() {
           ? {
               value: search,
               onChange: setSearch,
-              placeholder: "Schule oder Ort",
+              placeholder: "Schule oder Ort suchen…",
             }
           : undefined
       }

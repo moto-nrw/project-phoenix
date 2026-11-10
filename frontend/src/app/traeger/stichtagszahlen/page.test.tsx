@@ -224,7 +224,7 @@ describe("TraegerKeyDateCountsPage", () => {
     renderPage();
     await screen.findByText("84 mehr als im September 2026.");
 
-    const search = screen.getByPlaceholderText("Schule oder Ort");
+    const search = screen.getByPlaceholderText("Schule oder Ort suchen…");
     fireEvent.change(search, { target: { value: "bach" } });
     expect(
       within(schoolTable()).getByRole("link", { name: "OGS Am Bach" }),
@@ -290,7 +290,7 @@ describe("TraegerKeyDateCountsPage", () => {
 
     const months = screen.getAllByRole("table")[1] as HTMLElement;
     expect(within(months).getByText("15.10.2026, 20.10.2026")).toBeVisible();
-    fireEvent.change(screen.getByPlaceholderText("Schule oder Ort"), {
+    fireEvent.change(screen.getByPlaceholderText("Schule oder Ort suchen…"), {
       target: { value: "melle" },
     });
     expect(within(months).getByText("15.10.2026, 20.10.2026")).toBeVisible();

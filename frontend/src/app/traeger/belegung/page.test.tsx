@@ -387,7 +387,9 @@ describe("TraegerOccupancyPage", () => {
     await screen.findByText("14 von 16");
 
     fireEvent.change(
-      screen.getAllByPlaceholderText("Schule oder Ort")[0] as HTMLElement,
+      screen.getAllByPlaceholderText(
+        "Schule oder Ort suchen…",
+      )[0] as HTMLElement,
       {
         target: { value: "melle" },
       },
@@ -493,7 +495,7 @@ describe("TraegerOccupancyPage", () => {
       expect(screen.queryByText("Füchse")).not.toBeInTheDocument();
       // No export of the old answer, and no search over its schools.
       expect(
-        screen.queryByPlaceholderText("Schule oder Ort"),
+        screen.queryByPlaceholderText("Schule oder Ort suchen…"),
       ).not.toBeInTheDocument();
       fireEvent.click(
         screen.getByRole("button", { name: "Belegung herunterladen" }),

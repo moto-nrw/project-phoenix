@@ -224,7 +224,7 @@ describe("TraegerDashboardPage", () => {
     const table = await screen.findByRole("table");
 
     // Die Kopfkarte hat ein Suchfeld je Breite; beide teilen den Wert.
-    const [field] = screen.getAllByPlaceholderText("Schule oder Ort");
+    const [field] = screen.getAllByPlaceholderText("Schule oder Ort suchen…");
     fireEvent.change(field as HTMLElement, { target: { value: "melle" } });
 
     expect(
@@ -417,7 +417,7 @@ describe("TraegerDashboardPage", () => {
     expect(screen.getByText("1 : 16,7")).toBeInTheDocument();
     expect(screen.getByText("Stand 11:59 Uhr")).toBeInTheDocument();
 
-    const [field] = screen.getAllByPlaceholderText("Schule oder Ort");
+    const [field] = screen.getAllByPlaceholderText("Schule oder Ort suchen…");
     fireEvent.change(field!, { target: { value: "melle" } });
     expect(screen.getByText("50")).toBeInTheDocument();
   });
