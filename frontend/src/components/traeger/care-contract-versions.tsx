@@ -256,36 +256,32 @@ export function CareContractVersions({
                     ? ` · ${changed.size === 1 ? "1 Tag" : `${changed.size} Tage`} geändert`
                     : null}
                 </p>
-                {/* With a single version the card „Gebuchte Betreuung“
-                    above shows the same days; the list names it only. */}
-                {ordered.length > 1 ? (
-                  <div className="mt-3">
-                    <DataGrid>
-                      {serviceDays(version.services, [...changed]).map(
-                        (day) => (
-                          <DataField key={day.weekday} label={day.label}>
-                            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
-                              {day.services.length === 0 ? (
-                                <span className="font-normal text-gray-500">
-                                  Keine Betreuung
-                                </span>
-                              ) : (
-                                <span>{dayText(day.services)}</span>
-                              )}
-                              {changed.has(day.weekday) ? (
-                                <StatusBadge
-                                  label="Geändert"
-                                  tone="orange"
-                                  size="xs"
-                                />
-                              ) : null}
+                {/* Every version lists its days, also the only one: the
+                    card is the contract's history, read on its own. */}
+                <div className="mt-3">
+                  <DataGrid>
+                    {serviceDays(version.services, [...changed]).map((day) => (
+                      <DataField key={day.weekday} label={day.label}>
+                        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                          {day.services.length === 0 ? (
+                            <span className="font-normal text-gray-500">
+                              Keine Betreuung
                             </span>
-                          </DataField>
-                        ),
-                      )}
-                    </DataGrid>
-                  </div>
-                ) : null}
+                          ) : (
+                            <span>{dayText(day.services)}</span>
+                          )}
+                          {changed.has(day.weekday) ? (
+                            <StatusBadge
+                              label="Geändert"
+                              tone="orange"
+                              size="xs"
+                            />
+                          ) : null}
+                        </span>
+                      </DataField>
+                    ))}
+                  </DataGrid>
+                </div>
               </div>
               <div className="mt-3 flex sm:mt-0 sm:justify-end">
                 <Button

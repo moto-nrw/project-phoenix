@@ -455,9 +455,9 @@ describe("TraegerVertragPage", () => {
     expect(
       screen.getByText(/Die Mail wartet auf den Versand/),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    // Checking the delivery sits with the mail history in „Versand“.
     fireEvent.click(
-      await screen.findByRole("menuitem", { name: "Versand aktualisieren" }),
+      screen.getByRole("button", { name: "Versand aktualisieren" }),
     );
     await waitFor(() =>
       expect(
@@ -588,15 +588,14 @@ describe("TraegerVertragPage", () => {
       screen.getByText("So steht es im abgeschlossenen Vertrag."),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Aktiv")[0]).toBeInTheDocument();
-    // An active contract shows its download; resending waits in the head
-    // menu (one visible action per head). A concluded contract offers no
-    // discarding there.
+    // An active contract shows its download in the head; resending sits
+    // with the mail history in „Versand“. A concluded contract offers no
+    // discarding.
     expect(
       screen.getByRole("button", { name: "PDF herunterladen" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     expect(
-      await screen.findByRole("menuitem", { name: /Erneut senden/ }),
+      screen.getByRole("button", { name: /Erneut senden/ }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("menuitem", { name: /Entwurf verwerfen/ }),
@@ -605,7 +604,7 @@ describe("TraegerVertragPage", () => {
       screen.queryByRole("button", { name: /Entwurf verwerfen/ }),
     ).not.toBeInTheDocument();
     // Resending asks first and names the recipient.
-    fireEvent.click(screen.getByRole("menuitem", { name: /Erneut senden/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Erneut senden/ }));
     const dialog = await screen.findByRole("dialog", {
       name: "Vertrag noch einmal senden?",
     });

@@ -255,9 +255,11 @@ export default function TraegerVertragPage() {
     lastMail?.state === "queued" ||
     (!isDraft && !!lastMail?.sendBlock);
   // An active contract is mostly looked up, not mailed again: its PDF is
-  // the visible action and a new mail waits in the menu.
-  const resendFromMenu = contract?.status === "aktiv";
-  const sendInHead = canSend && !resendFromMenu;
+  // the visible action, and a new mail sits with the mail history in the
+  // card „Versand“, as does checking the delivery.
+  const resendInCard = contract?.status === "aktiv";
+  const sendInHead = canSend && !resendInCard;
+  const refreshInCard = !!contract && !isDraft && contract.mailings.length > 0;
 
   const headMenu: OverflowMenuItem[] = [];
   if (contract && sendInHead) {
@@ -265,21 +267,6 @@ export default function TraegerVertragPage() {
       label: "PDF herunterladen",
       icon: <Download className="h-4 w-4" aria-hidden="true" />,
       onClick: () => void download(),
-    });
-  }
-  if (contract && resendFromMenu && !sendBlocked) {
-    headMenu.push({
-      label: "Erneut senden",
-      icon: <Send className="h-4 w-4" aria-hidden="true" />,
-      onClick: () => setConfirmingSend(true),
-    });
-  }
-  if (contract && !isDraft && contract.mailings.length > 0 && !refreshing) {
-    headMenu.push({
-      label: "Versand aktualisieren",
-      description: "Holt den neuesten Stand der Mail.",
-      icon: <RotateCw className="h-4 w-4" aria-hidden="true" />,
-      onClick: () => void refreshDelivery(),
     });
   }
   if (isDraft) {
@@ -305,9 +292,12 @@ export default function TraegerVertragPage() {
               tone={contractStatusTone(contract)}
             />
             <span>
-              {contract.modulesText || "–"} · {contract.schoolName} · ab{" "}
-              {formatDate(contract.effectiveFrom)}
-              {contract.endsOn ? ` bis ${formatDate(contract.endsOn)}` : ""}
+              {contract.modulesText || "–"} · {contract.schoolName} ·{" "}
+              {/* A date keeps its word: „ab 01.08.2026“ never parts. */}
+              {`ab\u00A0${formatDate(contract.effectiveFrom)}`}
+              {contract.endsOn
+                ? ` bis\u00A0${formatDate(contract.endsOn)}`
+                : ""}
             </span>
           </span>
         ) : null
@@ -524,6 +514,41 @@ export default function TraegerVertragPage() {
               ) : null}
               <SectionCard
                 title="Versand"
+                actions={
+                  resendInCard || refreshInCard ? (
+                    <div className="flex flex-wrap gap-2">
+                      {refreshInCard ? (
+                        <Button
+                          type="button"
+                          variant="surface"
+                          size="compact"
+                          disabled={refreshing}
+                          onClick={() => void refreshDelivery()}
+                        >
+                          <RotateCw
+                            className="mr-1.5 h-4 w-4"
+                            aria-hidden="true"
+                          />
+                          {refreshing
+                            ? "Wird aktualisiert …"
+                            : "Versand aktualisieren"}
+                        </Button>
+                      ) : null}
+                      {resendInCard ? (
+                        <Button
+                          type="button"
+                          variant="surface"
+                          size="compact"
+                          disabled={sendBlocked}
+                          onClick={() => setConfirmingSend(true)}
+                        >
+                          <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                          {sending ? "Wird gesendet …" : "Erneut senden"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : undefined
+                }
                 description={
                   contract.mailings.length > 0
                     ? undefined
@@ -773,7 +798,7 @@ function StatusNotice({
     return (
       <Alert
         type="info"
-        message="Die Mail wartet auf den Versand. Mit „Versand aktualisieren“ im Menü oben prüfen Sie den Stand."
+        message="Die Mail wartet auf den Versand. Mit „Versand aktualisieren“ unter „Versand“ prüfen Sie den Stand."
       />
     );
   }
@@ -781,7 +806,7 @@ function StatusNotice({
     return (
       <Alert
         type="warning"
-        message="Das Ergebnis des Mail-Versands ist unbekannt. Mit „Versand aktualisieren“ im Menü oben prüfen Sie den Stand."
+        message="Das Ergebnis des Mail-Versands ist unbekannt. Mit „Versand aktualisieren“ unter „Versand“ prüfen Sie den Stand."
       />
     );
   }
