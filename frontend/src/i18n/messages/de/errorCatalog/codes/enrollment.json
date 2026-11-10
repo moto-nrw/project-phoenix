@@ -80,7 +80,7 @@
   "guardian_email_required": "Bitte geben Sie eine E-Mail-Adresse ein.",
   "guardian_name_required": "Bitte geben Sie Vor- und Nachnamen ein.",
   "guardian_phone_required": "Bitte geben Sie eine Telefonnummer ein.",
-  "holiday_week_no_care_day": "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen.",
+  "holiday_week_no_care_day": "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen. Wählen Sie eine andere Woche.",
   "invalid_email": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
   "invalid_phone": "Bitte geben Sie eine gültige Telefonnummer ein.",
   "late_invite_invalid": "Dieser Link ist ungültig, abgelaufen oder schon benutzt. Bitte wenden Sie sich an die Schule.",
