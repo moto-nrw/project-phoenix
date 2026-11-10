@@ -51,7 +51,7 @@ type MFARuntime struct {
 	// StartChallenge mails the enrollment code and names its row; it is bound
 	// to the credential generation the enrollment token names (#6289).
 	StartChallenge       func(ctx context.Context, accountID, tenantID int64, ip net.IP, credentialGeneration int64) (string, error)
-	Enroll               func(ctx context.Context, accountID int64) error
+	Enroll               func(ctx context.Context, proof VerifiedChallenge) error
 	PrepareTrustedDevice func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error)
 }
 

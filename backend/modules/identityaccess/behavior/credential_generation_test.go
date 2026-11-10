@@ -56,7 +56,7 @@ func newCredentialFixture(t *testing.T, prefix string) credentialFixture {
 	email := fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
-	require.NoError(t, module.MFA.EnrollMFA(context.Background(), account.ID))
+	require.NoError(t, enrollMFA(context.Background(), t, db, module.MFA, account.ID))
 	return credentialFixture{db: db, module: module, tokenAuth: challengeTokenAuth(t, module), accountID: account.ID, tenantID: tenantID, email: email}
 }
 
