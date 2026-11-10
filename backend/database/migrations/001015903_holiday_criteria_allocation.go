@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayCriteriaAllocationVersion = "1.15.897"
+const holidayCriteriaAllocationVersion = "1.15.903"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayCriteriaAllocationVersion,
 		Description: "Ferien: Platzvergabe nach Kriterien mit Entscheidung durch das Büro (#4700)",
 		DependsOn: []string{
-			"1.15.895",                 // the newest migration on development
+			"1.15.895",                 // the newest migration this branch carries
 			holidayCareWishVersion,     // the audit action 'wish' this one keeps
 			holidayWeekCapacityVersion, // the placement this one extends
 		},
