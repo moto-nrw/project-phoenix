@@ -194,6 +194,7 @@ export function HolidayRegistrationChildCard({
           <RebookingEditor
             period={period}
             draft={draft}
+            savedBookings={child.bookings}
             names={names}
             onChange={setDraft}
             error={saveErrors.error}
@@ -283,12 +284,14 @@ function weeksOverlap(
 function RebookingEditor({
   period,
   draft,
+  savedBookings,
   names,
   onChange,
   error,
 }: Readonly<{
   period: HolidayPeriod;
   draft: HolidayRebookingDraft;
+  savedBookings: HolidayRegistrationChild["bookings"];
   names: ReadonlyMap<string, string>;
   onChange: (draft: HolidayRebookingDraft) => void;
   error: Parameters<typeof FormErrorAlert>[0]["message"];
@@ -338,15 +341,18 @@ function RebookingEditor({
                     // A week with a day without care at its host school
                     // takes no new booking (#4702); a booked one stays.
                     (week.noCareDays?.length &&
-                    !(week.id !== undefined && draft[week.id])
+                    !savedBookings.some((booking) => booking.weekId === week.id)
                       ? []
                       : week.timeModels
                     )
                       .filter(
                         (model) =>
                           !model.archived ||
-                          (week.id !== undefined &&
-                            draft[week.id] === model.id),
+                          savedBookings.some(
+                            (booking) =>
+                              booking.weekId === week.id &&
+                              booking.timeModelId === model.id,
+                          ),
                       )
                       .map((model) => ({
                         value: model.id ?? "",

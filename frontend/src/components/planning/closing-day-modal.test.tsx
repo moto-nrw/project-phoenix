@@ -361,4 +361,56 @@ describe("ClosingDayModal", () => {
     );
     expect(screen.queryByText(/too long/)).not.toBeInTheDocument();
   });
+  it("keeps a draft across school and record revalidation, then resets on reopening", async () => {
+    const schools = [
+      { id: "1", name: "OGS Nord" },
+      { id: "2", name: "OGS Süd" },
+    ];
+    const initial = { ...existingClosingDay, schoolIds: ["1", "2"] };
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const props = {
+      isOpen: true,
+      onClose: vi.fn(),
+      onSaved: vi.fn(),
+      initial,
+      schools,
+      onSave,
+    };
+    const { rerender } = render(<ClosingDayModal {...props} />);
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Entwurf" },
+    });
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-12-25" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-12-30" },
+    });
+    fireEvent.click(screen.getAllByRole("checkbox")[2]!);
+    rerender(
+      <ClosingDayModal
+        {...props}
+        initial={{ ...initial }}
+        schools={schools.map((school) => ({ ...school }))}
+      />,
+    );
+    expect(screen.getByLabelText("Grund")).toHaveValue("Entwurf");
+    expect(screen.getByLabelText("Von")).toHaveValue("2026-12-25");
+    expect(screen.getByLabelText("Bis")).toHaveValue("2026-12-30");
+    expect(screen.getAllByRole("checkbox")[2]).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        reason: "Entwurf",
+        startDate: "2026-12-25",
+        endDate: "2026-12-30",
+        schoolIds: ["1"],
+      }),
+    );
+    expect(mockUpdate).not.toHaveBeenCalled();
+    rerender(<ClosingDayModal {...props} isOpen={false} />);
+    rerender(<ClosingDayModal {...props} />);
+    expect(screen.getByLabelText("Grund")).toHaveValue(initial.reason);
+    expect(screen.getAllByRole("checkbox")[2]).toBeChecked();
+  });
 });

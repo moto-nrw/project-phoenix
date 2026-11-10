@@ -6,7 +6,12 @@ import {
   screen,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { TraegerCalendar } from "~/lib/traeger-closing-days";
 
@@ -90,6 +95,7 @@ function render(ui: React.ReactElement) {
 }
 
 describe("TraegerClosingDaysPage (#4702)", () => {
+  afterEach(() => setViewportWidth(DESKTOP_WIDTH));
   beforeEach(() => {
     api.fetchTraegerCalendar.mockReset().mockResolvedValue(calendar);
     session.permissions = ["traeger_overview:read"];
@@ -141,5 +147,30 @@ describe("TraegerClosingDaysPage (#4702)", () => {
     expect(
       screen.getByRole("checkbox", { name: "Alle Schulen" }),
     ).toBeChecked();
+  });
+  it("keeps school scope and edit/delete actions on phones", async () => {
+    setViewportWidth(PHONE_WIDTH);
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    api.fetchTraegerCalendar.mockResolvedValue({
+      ...calendar,
+      closingDays: [{ ...calendar.closingDays[0]!, schoolIds: ["1"] }],
+    });
+    render(<TraegerClosingDaysPage />);
+    const actions = await screen.findByRole("button", {
+      name: "Aktionen für Brückentag",
+    });
+    const row = actions.closest("li")!;
+    expect(within(row).getByText("OGS Pforzheim")).toBeInTheDocument();
+    fireEvent.click(actions);
+    expect(
+      await screen.findByRole("menuitem", { name: "Ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Löschen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ändern" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Schließtag bearbeiten" }),
+    ).toBeInTheDocument();
   });
 });

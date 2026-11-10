@@ -120,7 +120,8 @@ describe("ClosingDaysEditor", () => {
     });
   });
 
-  it("zeigt Schließtage des Trägers nur lesend mit „Vom Träger“ (#4702)", async () => {
+  it("allows appointment cancellation but no changes to Träger closures (#4702)", async () => {
+    mockBulkCancel.mockResolvedValue({ count: 0, days: [] });
     mockList.mockResolvedValue([
       makeClosingDay({ id: "3", reason: "Pädagogischer Tag" }),
       makeClosingDay({ id: "3", reason: "Brückentag", traeger: true }),
@@ -134,12 +135,26 @@ describe("ClosingDaysEditor", () => {
         name: "Aktionen für Pädagogischer Tag",
       }),
     ).toBeInTheDocument();
-    // Gleiche ID aus zwei Tabellen: beide Zeilen stehen da, nur die eigene
-    // hat Aktionen.
+    // Gleiche ID aus zwei Tabellen: nur eigene Schließtage sind änderbar.
     expect(within(table).getByText("Brückentag")).toBeInTheDocument();
+    fireEvent.click(
+      within(table).getByRole("button", { name: "Aktionen für Brückentag" }),
+    );
     expect(
-      within(table).queryByRole("button", { name: "Aktionen für Brückentag" }),
+      await screen.findByRole("menuitem", { name: "Termine absagen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Löschen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Termine absagen" }));
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Termine im Zeitraum absagen",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("sagt die Termine eines Schließtags nach Bestätigung ab (#3594)", async () => {
