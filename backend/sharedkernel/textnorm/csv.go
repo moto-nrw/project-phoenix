@@ -36,7 +36,7 @@ func DecodeCSVText(content []byte) (string, string, error) {
 }
 
 // CSVDelimiter is the chosen delimiter or, when none is chosen, the one
-// of semicolon, comma and tab the header line holds most often outside
+// of semicolon, comma and tab the first nonempty line holds most often outside
 // quotes; a tie takes the semicolon German spreadsheets write.
 func CSVDelimiter(text, chosen string) (rune, error) {
 	switch chosen {
@@ -46,7 +46,10 @@ func CSVDelimiter(text, chosen string) (rune, error) {
 	default:
 		return 0, errors.New("invalid CSV delimiter")
 	}
-	header, _, _ := strings.Cut(text, "\n")
+	header, rest, _ := strings.Cut(text, "\n")
+	for (header == "" || header == "\r") && rest != "" {
+		header, rest, _ = strings.Cut(rest, "\n")
+	}
 	counts := map[rune]int{}
 	quoted := false
 	for _, r := range header {
