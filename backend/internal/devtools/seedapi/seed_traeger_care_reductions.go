@@ -73,22 +73,22 @@ var seedCareRules = []map[string]any{
 	{"kind": "cap", "name": "Höchstbetrag je Familie (Platzhalter)", "cap_cents": 25000},
 }
 
-// seedCareReductions keeps the placeholder rules of the Träger from month on
-// and an income level and a single-parent evidence for the first two
-// contracts of the seeded school.
+// seedCareReductions keeps the placeholder rules of the Träger from month on,
+// an income level and a single-parent evidence for the first two contracts
+// of the seeded school, its cost bearer shares and its family numbers.
 func seedCareReductions(client *Client, auth AuthRef, schoolID int64, month calendar.Date) (int, int, error) {
 	rules, err := seedCareRuleChain(client, auth, schoolID, month)
 	if err != nil {
 		return 0, 0, err
 	}
-	evidences, err := seedCareEvidences(client, auth, schoolID, month)
+	evidences, own, err := seedCareEvidences(client, auth, schoolID, month)
 	if err != nil {
 		return rules, evidences, err
 	}
-	if err := seedCareCostShares(client, auth, month); err != nil {
+	if err := seedCareCostShares(client, auth, schoolID, month); err != nil {
 		return rules, evidences, err
 	}
-	families, err := seedFamilyChildren(client, auth, month)
+	families, err := seedFamilyChildren(client, auth, own, month)
 	fmt.Printf("  Träger family numbers: %d confirmed\n", families)
 	return rules, evidences, err
 }
@@ -175,15 +175,22 @@ func seedCareRuleCovers(rules []seedCareRule, kind string, schoolID int64, month
 // seedCareEvidences gives the first contract of the seeded school without
 // an evidence an income level of that school and the next one the
 // single-parent status. Contracts of the Träger's other schools belong to
-// other demo visitors and stay untouched.
-func seedCareEvidences(client *Client, auth AuthRef, schoolID int64, month calendar.Date) (int, error) {
+// other demo visitors and stay untouched. It also answers the contracts of
+// the seeded school in force.
+func seedCareEvidences(client *Client, auth AuthRef, schoolID int64, month calendar.Date) (int, []int64, error) {
 	raw, err := client.GetWithAuth(auth, "/traeger/care-evidences/")
 	if err != nil {
-		return 0, fmt.Errorf("read the care evidences: %w", err)
+		return 0, nil, fmt.Errorf("read the care evidences: %w", err)
 	}
 	set, err := seedReadData[seedCareEvidenceSet](raw, "care evidences")
 	if err != nil {
-		return 0, err
+		return 0, nil, err
+	}
+	var own []int64
+	for _, contract := range set.Contracts {
+		if contract.SchoolID == schoolID {
+			own = append(own, contract.ContractID)
+		}
 	}
 	var kinds []map[string]any
 	if level := slices.IndexFunc(set.Levels, func(rule seedCareRule) bool {
@@ -203,9 +210,9 @@ func seedCareEvidences(client *Client, auth AuthRef, schoolID int64, month calen
 		body := kinds[added]
 		body["contract_id"], body["valid_from"], body["checked_on"] = contract.ContractID, month.String(), calendar.TodayDate().String()
 		if _, err := client.PostWithAuth(auth, "/traeger/care-evidences/", body); err != nil && !seedConflictCode(err, seedCareEvidenceOverlap) {
-			return added, fmt.Errorf("keep a care evidence: %w", err)
+			return added, own, fmt.Errorf("keep a care evidence: %w", err)
 		}
 		added++
 	}
-	return added, nil
+	return added, own, nil
 }
