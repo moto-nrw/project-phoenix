@@ -572,11 +572,16 @@ function EnrollmentStatusContent({
       ? "opt_in"
       : autoRenewedCount > 0
         ? "opt_out"
-        : // A renewal past its deadline still waits for the school; its
+        : // A submitted, reviewed or waitlisted renewal still awaits a decision; its
           // terms stay open until the parents accept them (#6456).
           (status.renewal_terms?.blocks.length ?? 0) > 0 &&
             !status.renewal_terms?.confirmed_at &&
-            status.children.some((child) => child.status === "submitted")
+            status.children.some(
+              (child) =>
+                child.status === "submitted" ||
+                child.status === "under_review" ||
+                child.status === "waitlisted",
+            )
           ? "submitted"
           : null;
   const editHref = pathname?.startsWith("/parents")

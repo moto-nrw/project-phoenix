@@ -65,8 +65,14 @@ func renewalBlocks(schema *enrollmentNative.FormSchema, tenant func() (enrollmen
 // school's decision on its renewal.
 func awaitsRenewal(children []*enrollmentNative.RequestChild) bool {
 	return slices.ContainsFunc(children, func(child *enrollmentNative.RequestChild) bool {
-		return child.Status == enrollmentNative.ChildStatusPendingRenewal || child.Status == enrollmentNative.ChildStatusAutoRenewed ||
-			(child.Status == enrollmentNative.ChildStatusSubmitted && child.RolloverSourceChildID != nil)
+		switch child.Status {
+		case enrollmentNative.ChildStatusPendingRenewal, enrollmentNative.ChildStatusAutoRenewed:
+			return true
+		case enrollmentNative.ChildStatusSubmitted, enrollmentNative.ChildStatusUnderReview, enrollmentNative.ChildStatusWaitlisted:
+			return child.RolloverSourceChildID != nil
+		default:
+			return false
+		}
 	})
 }
 

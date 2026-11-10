@@ -1163,9 +1163,10 @@ describe("EnrollmentStatusView renewal terms (#6456)", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps the terms available for submitted renewals awaiting the school decision", async () => {
-    mockFetchStatus.mockResolvedValueOnce(
-      status({
+  it.each(["submitted", "under_review", "waitlisted"] as const)(
+    "keeps the terms available for %s renewals awaiting the school decision",
+    async (childStatus) => {
+      const page = status({
         edit_mode: "change_request",
         renewal_terms: RENEWAL_TERMS,
         children: [
@@ -1173,53 +1174,86 @@ describe("EnrollmentStatusView renewal terms (#6456)", () => {
             id: "7",
             first_name: "Lina",
             last_name: "Muster",
-            status: "submitted",
+            status: childStatus,
           },
         ],
-      }),
-    );
-    render(<EnrollmentStatusView token="tok" />);
-    expect(
-      await screen.findByRole("button", {
-        name: "Vertragsbedingungen bestätigen",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("checkbox", {
-        name: /Ich stimme den Vertragsbedingungen zu/,
-      }),
-    ).toBeInTheDocument();
-  });
-
-  it("shows no terms card for a submitted renewal the parents already accepted", async () => {
-    mockFetchStatus.mockResolvedValueOnce(
-      status({
-        edit_mode: "change_request",
+      });
+      mockFetchStatus.mockResolvedValueOnce(page).mockResolvedValueOnce({
+        ...page,
         renewal_terms: {
           ...RENEWAL_TERMS,
           confirmed_at: "2026-09-08T10:00:00Z",
         },
-        children: [
-          {
-            id: "7",
-            first_name: "Lina",
-            last_name: "Muster",
-            status: "submitted",
+      });
+      mockConfirmRenewal.mockResolvedValueOnce(0);
+      render(<EnrollmentStatusView token="tok" />);
+      expect(
+        await screen.findByRole("button", {
+          name: "Vertragsbedingungen bestätigen",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", {
+          name: /Ich stimme den Vertragsbedingungen zu/,
+        }),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("checkbox", {
+          name: /Ich stimme den Vertragsbedingungen zu/,
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Vertragsbedingungen bestätigen" }),
+      );
+      await waitFor(() => {
+        expect(mockConfirmRenewal).toHaveBeenCalledWith("tok", {
+          consentFlags: { terms: true },
+          formSchemaId: "81",
+          termsFingerprint: "shown-terms",
+        });
+        expect(
+          screen.queryByRole("button", {
+            name: "Vertragsbedingungen bestätigen",
+          }),
+        ).not.toBeInTheDocument();
+      });
+    },
+  );
+
+  it.each(["submitted", "under_review", "waitlisted"] as const)(
+    "shows no terms card for a %s renewal the parents already accepted",
+    async (childStatus) => {
+      mockFetchStatus.mockResolvedValueOnce(
+        status({
+          edit_mode: "change_request",
+          renewal_terms: {
+            ...RENEWAL_TERMS,
+            confirmed_at: "2026-09-08T10:00:00Z",
           },
-        ],
-      }),
-    );
-    render(<EnrollmentStatusView token="tok" />);
-    expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", {
-        name: "Zustimmung für den neuen Zeitraum",
-      }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Vertragsbedingungen bestätigen" }),
-    ).not.toBeInTheDocument();
-  });
+          children: [
+            {
+              id: "7",
+              first_name: "Lina",
+              last_name: "Muster",
+              status: childStatus,
+            },
+          ],
+        }),
+      );
+      render(<EnrollmentStatusView token="tok" />);
+      expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", {
+          name: "Zustimmung für den neuen Zeitraum",
+        }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: "Vertragsbedingungen bestätigen",
+        }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("requires new ticks after reloading changed terms", async () => {
     mockFetchStatus

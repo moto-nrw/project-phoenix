@@ -221,24 +221,30 @@ func TestConfirmRenewalRefusesChangedTenantTerms(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestConfirmRenewalRecordsSubmittedRenewalBeforeDecision(t *testing.T) {
+func TestConfirmRenewalRecordsUndecidedRenewalBeforeDecision(t *testing.T) {
 	t.Parallel()
-	env := setupRolloverTest(t)
-	ctx := testpkg.Ctx(t)
-	_ = seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Offen", "anna.offen@example.com", "Lina", "Offen", 1)
-	request, child := rolledRequest(t, env, capability.PhaseRolloverModeOptOut)
-	confirmation := acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken)
-	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, child.ID, capability.ChildStatusSubmitted, nil, env.creatorID))
-	require.NotNil(t, renewalTerms(t, ctx, env.requestSvc, request.StatusToken), "the school has not decided yet")
-	confirmed, err := env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, confirmation)
-	require.NoError(t, err)
-	assert.Zero(t, confirmed)
-	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
-	require.NoError(t, err)
-	require.Len(t, stored.LegalBlocksSnapshot, 1)
-	kept, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), child.ID)
-	require.NoError(t, err)
-	assert.Equal(t, capability.ChildStatusSubmitted, kept.Status)
+	for _, childStatus := range []string{capability.ChildStatusSubmitted, capability.ChildStatusUnderReview, capability.ChildStatusWaitlisted} {
+		t.Run(childStatus, func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			env := setupRolloverTest(t)
+			ctx := testpkg.Ctx(t)
+			_ = seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Offen", "anna.offen@example.com", "Lina", "Offen", 1)
+			request, child := rolledRequest(t, env, capability.PhaseRolloverModeOptOut)
+			confirmation := acceptedRenewalTerms(t, ctx, env.requestSvc, request.StatusToken)
+			require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, child.ID, childStatus, nil, env.creatorID))
+			require.NotNil(t, renewalTerms(t, ctx, env.requestSvc, request.StatusToken), "the school has not decided yet")
+			confirmed, err := env.requestSvc.ConfirmRenewal(ctx, request.StatusToken, confirmation)
+			require.NoError(t, err)
+			assert.Zero(t, confirmed)
+			stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), request.ID)
+			require.NoError(t, err)
+			require.Len(t, stored.LegalBlocksSnapshot, 1)
+			kept, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), child.ID)
+			require.NoError(t, err)
+			assert.Equal(t, childStatus, kept.Status)
+		})
+	}
 }
 
 // A renewal confirmation must not hide other concurrent edits, including
