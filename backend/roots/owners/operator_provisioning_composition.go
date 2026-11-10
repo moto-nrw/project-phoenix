@@ -27,10 +27,12 @@ import (
 func newOperatorProvisioning(
 	organizations organizationtenancy.Capability, identity identityaccess.Owner, accounts OperatorAccountDirectory,
 	adapters OperatorProvisioningAdapters, settings settingsCompose.SettingsService, logger *slog.Logger,
-) (organizationtenancy.Provisioning, error) {
+) (organizationtenancy.OperatorProvisioning, error) {
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
 		PWAUsageWindowDays: deliveryCompose.PWAUsageWindowDays,
 		Organizations:      organizations,
+		// The observer of the owner's records command (#4720).
+		Observe: observeOrganizationTenancy,
 		Identity: ProvisioningIdentity{
 			Sessions: identity, Invitations: identity, Provisioning: identity,
 			Administration: identity, SchoolIdentity: identity, Roles: identity, Accounts: accounts,

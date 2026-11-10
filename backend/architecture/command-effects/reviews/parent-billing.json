@@ -697,6 +697,17 @@
       "target_owner": "care-contract"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerCreditorAccounts.CreditorAccount",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPACreditorAccounts.CreditorAccount",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: reads the master data of the Träger in its Träger transaction and records the read (no account: the CLI) for the default creditor account of the regenerated PAIN.008 files (#6314, ADR 0112).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
       "classification": "query",
       "effect": "query",

@@ -261,6 +261,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.sepa_debit_files",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.sepa_debits",
       "write_owner": "parent-billing"
     },

@@ -92,6 +92,39 @@ func (s *Service) WithdrawTraegerErasureOrder(ctx context.Context, organizationI
 	return order, err
 }
 
+var _ organizationtenancy.TraegerErasureOrderRecords = (*Service)(nil)
+
+// RecordTraegerErasureOrderRecords records the hint and the customer's
+// choice on the open order of the Träger, for an order recorded before the
+// hint existed (#4720). A started order cannot be withdrawn, so this is its
+// only way forward; a recorded choice never changes.
+func (s *Service) RecordTraegerErasureOrderRecords(ctx context.Context, organizationID int64, records organizationtenancy.RecordsHandover) (order organizationtenancy.TraegerErasureOrder, err error) {
+	if err := validateRecordsHandover(records, calendar.TodayDate()); err != nil {
+		return organizationtenancy.TraegerErasureOrder{}, err
+	}
+	err = s.run(ctx, "record_traeger_erasure_order_records", func(txCtx context.Context, stats *domain.OperationStats) error {
+		open, found, findStats, findErr := s.store.FindOpenTraegerErasureOrder(txCtx, organizationID, "UPDATE")
+		stats.Add(findStats)
+		switch {
+		case findErr != nil:
+			return findErr
+		case !found:
+			return organizationtenancy.ErrTraegerErasureOrderNotFound
+		case open.RecordsChoice != "":
+			return organizationtenancy.ErrTraegerErasureRecordsRecorded
+		}
+		var updated bool
+		var updateStats domain.OperationStats
+		order, updated, updateStats, findErr = s.store.UpdateTraegerErasureOrderRecords(txCtx, open.ID, records)
+		stats.Add(updateStats)
+		if findErr == nil && !updated {
+			return organizationtenancy.ErrTraegerErasureRecordsRecorded
+		}
+		return findErr
+	})
+	return order, err
+}
+
 // validateTraegerErasureOrder checks the order against today's calendar day.
 func validateTraegerErasureOrder(input organizationtenancy.NewTraegerErasureOrder, today calendar.Date) error {
 	switch {
@@ -105,6 +138,34 @@ func validateTraegerErasureOrder(input organizationtenancy.NewTraegerErasureOrde
 		return invalid("the written confirmation cannot lie in the future")
 	case !input.EraseNotBefore.After(today):
 		return invalid("the erasure date must lie after today")
+	}
+	return validateRecordsHandover(input.Records, today)
+}
+
+// validateRecordsHandover requires the hint on the records subject to
+// retention and the customer's choice (#4720, AVV Ziff. 8.4). A handover has
+// its day, not in the future; lawful erasure needs neither day nor export.
+func validateRecordsHandover(records organizationtenancy.RecordsHandover, today calendar.Date) error {
+	switch {
+	case !records.NoticeAcknowledged:
+		return invalid("the hint on records subject to retention must be shown and confirmed")
+	case records.ExportSHA256 != "" && !exportChecksumPattern.MatchString(records.ExportSHA256):
+		return invalid("the export checksum must be the SHA-256 of the COMPLETE file")
+	}
+	switch records.Choice {
+	case organizationtenancy.RecordsHandedOver:
+		if records.HandedOverOn == nil || records.HandedOverOn.IsZero() {
+			return invalid("the handover needs its day")
+		}
+		if records.HandedOverOn.After(today) {
+			return invalid("the handover cannot lie in the future")
+		}
+	case organizationtenancy.RecordsErasureChosen:
+		if records.HandedOverOn != nil || records.ExportSHA256 != "" {
+			return invalid("the choice of erasure has no handover")
+		}
+	default:
+		return invalid("the customer's choice is required: handed_over or erasure_chosen")
 	}
 	return nil
 }

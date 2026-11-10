@@ -4896,6 +4896,28 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.Service.FindOperator",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.FindOperator",
+      "reason": "Platform protocol participation (scope): identity-access reads one platform operator row in the administrative unit (tenant.WithinAdmin). The Träger export CLI composes this directory alone to refuse an unknown or inactive operator before anything is read (ADR 0187). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.Service.ListOperators",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.ListOperators",
+      "reason": "Platform protocol participation (scope): identity-access lists the platform operator rows in the administrative unit (tenant.WithinAdmin), the same read the operator dashboard uses; the narrow directory of the Träger export exposes it unchanged (ADR 0187). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.OperatorTokens.RecordOperatorEmailChangeDelivery",
       "classification": "platform",
       "effect": "scope",

@@ -257,7 +257,13 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 5 LOC.
 // ADR 0193: the export openers of health information (+5) and setting
 // values (+3).
-const moduleComposeBudgetTotal = 13193
+// ADR 0187: the Träger package constructor with its PAIN.008 files and
+// operator audit of modules/organizationtenancy/compose (+13), its records
+// command injected into the operator provisioning (+10), the operator
+// directory of modules/identityaccess/compose (+11), the PAIN.008 files of
+// the Träger package (+7) and the expiry of the unsubmitted PAIN.008
+// downloads (+5) of modules/parentbilling/compose.
+const moduleComposeBudgetTotal = 13239
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -269,6 +275,9 @@ const moduleComposeBudgetTotal = 13193
 // workflows/parentportal/compose for the meal ordering rules.
 // ADR 0168 raised modules/mealplan/compose for the Mensa-Monatsfreigabe and
 // modules/parentbilling/compose for the Mensa of the monthly run.
+// ADR 0187 raised modules/identityaccess/compose,
+// modules/organizationtenancy/compose and modules/parentbilling/compose for
+// the audit and the PAIN.008 files of the Träger package.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
 	// ADR 0103: the signature ledger constructor, construction only.
@@ -312,7 +321,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/grouplive/compose":                    14,
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
-	"modules/identityaccess/compose": 1365, // raised by ADR 0077
+	// Raised by ADR 0187: the operator directory of the Träger export CLI (+11).
+	"modules/identityaccess/compose": 1376, // raised by ADR 0077
 	"modules/mealplan/compose":       102,  // raised by ADR 0078 and ADR 0168
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
@@ -320,7 +330,10 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0152: the document template constructor (+6).
 	// Raised by ADR 0157: the shared document constructors (+10).
 	// Raised by ADR 0184: the operator audit of the Beleg retention (+11).
-	"modules/organizationtenancy/compose": 320,
+	// Raised by ADR 0187: the Träger package constructor with its PAIN.008
+	// files and operator audit (+13) and the records command injected into
+	// the operator provisioning (+10).
+	"modules/organizationtenancy/compose": 343,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
@@ -344,7 +357,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0183: rekey constructor (+5);
 	// ADR 0184: the Beleg retention constructor (+6).
 	// ADR 0192: the export opener of the sealed bank data (+5).
-	"modules/parentbilling/compose":               107,
+	// ADR 0187: the PAIN.008 files of the Träger package (+7), the expiry of
+	// the unsubmitted PAIN.008 downloads (+5).
+	"modules/parentbilling/compose":               119,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
