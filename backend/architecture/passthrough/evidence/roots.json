@@ -5539,6 +5539,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (o enrollmentPhaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentOwner.OfferingBooking, error) {\n\trows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offering bookings by phase: %w\", err)\n\t}\n\treturn enrollmentBookings(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (o enrollmentPhaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error) {\n\tcount, err := o.carePlan.CountCareOfferingsByPhase(ctx, phaseID)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to count care offerings by phase: %w\", err)\n\t}\n\treturn count, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.CountOfferingsForPhase",
@@ -5549,6 +5556,13 @@
       "evidence": "func (o enrollmentPhaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {\n\tofferings, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{phaseID}, Order: careplan.OfferingOrderCatalog})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offerings by phase: %w\", err)\n\t}\n\tids := make([]int64, 0, len(offerings))\n\tfor _, offering := range offerings {\n\t\tids = append(ids, offering.ID)\n\t}\n\treturn ids, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.OfferingIDsForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentOwner.PendingWindowMove) (bool, error) {\n\tmoved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{StudentID: move.StudentID, FromBefore: calendar.Date(move.FromBefore), FromAfter: calendar.Date(move.FromAfter), UntilBefore: calendar.Date(move.UntilBefore), UntilAfter: calendar.Date(move.UntilAfter), OtherStarts: calendarDates(move.OtherStarts), OtherEnds: calendarDates(move.OtherEnds)})\n\tvar conflict *schoolmembership.PendingWindowConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn false, fmt.Errorf(\"%w: student %d\", enrollmentOwner.ErrPhasePendingChildWindowConflict, conflict.StudentID)\n\t}\n\treturn moved, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseStudents.MovePendingWindow",
       "owner": "roots"
     },
     {

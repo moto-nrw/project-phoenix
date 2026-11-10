@@ -19,6 +19,10 @@ type (
 	PhaseRecords               = compose.PhaseRecords
 	Mail                       = compose.Mail
 	ApprovedOfferingProjection = compose.ApprovedOfferingProjection
+	// PhaseBooking and PhaseBookingDate are the booking rows a phase delete
+	// reads through PhaseOfferings.
+	PhaseBooking     = enrollment.OfferingBooking
+	PhaseBookingDate = enrollment.Date
 )
 
 // NewApprovedOfferingProjection composes the approved-offering projection.

@@ -45,6 +45,23 @@ func newCareOfferingFixtures(carePlan careplan.Capability) careOfferingFixtures 
 	return careOfferingFixtures{carePlan: carePlan}
 }
 
+// CareOfferingBookingsForPhase reads the phase's bookings the way the root
+// binds them for the phase delete.
+func (r careOfferingFixtures) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentNative.OfferingBooking, error) {
+	rows, err := r.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)
+	if err != nil {
+		return nil, err
+	}
+	bookings := make([]enrollmentNative.OfferingBooking, 0, len(rows))
+	for _, row := range rows {
+		bookings = append(bookings, enrollmentNative.OfferingBooking{
+			ID: row.ID, RequestChildID: row.RequestChildID, CareOfferingID: row.CareOfferingID,
+			ValidFrom: (*enrollmentNative.Date)(row.ValidFrom), ValidUntil: (*enrollmentNative.Date)(row.ValidUntil),
+		})
+	}
+	return bookings, nil
+}
+
 func (r careOfferingFixtures) Create(ctx context.Context, offering *offeringContract.CareOfferingRecord) error {
 	if offering == nil {
 		return errors.New("CareOffering cannot be nil or zero value")

@@ -269,7 +269,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0197: the export openers of the sealed guardian bank data of
 // modules/peopledirectory/compose (+5) and of the sealed staff bank and tax
 // data of modules/workforce/compose (+5).
-const moduleComposeBudgetTotal = 13253
+// ADR 0202: the pending-window command of a phase edit, the Students field of
+// modules/enrollment/compose (+2) and the NewPendingWindows constructor of
+// modules/schoolmembership/compose (+5).
+const moduleComposeBudgetTotal = 13260
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -320,7 +323,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0193: the export opener of the holiday health information (+5).
 	// #4703 added the holiday care wish constructor and shortened comments
 	// of the package by more than it added (-2).
-	"modules/enrollment/compose":                   604,
+	// ADR 0202: the Students field of the phase administration (+2).
+	"modules/enrollment/compose":                   606,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -385,7 +389,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).
-	"modules/schoolmembership/compose": 202,
+	// ADR 0202: the pending-window constructor (+5).
+	"modules/schoolmembership/compose": 207,
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;
 	// the 7 LOC come out of modules/enrollment/compose, the total stays.
