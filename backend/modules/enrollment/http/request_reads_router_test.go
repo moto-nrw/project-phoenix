@@ -258,7 +258,28 @@ func TestUnreadEnrollments_RenewalConfirmationResets(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, env.do(t, http.MethodPut, idPath(submitted.Request.ID, "/read"), anna, "").Code)
 	require.Equal(t, 0, env.count(t, anna))
 
-	rec := env.do(t, http.MethodPost, "/requests/"+submitted.Request.StatusToken+"/confirm-renewal", "", "")
+	// A confirmation without the shown form version accepts nothing.
+	rec := env.do(t, http.MethodPost, "/requests/"+submitted.Request.StatusToken+"/confirm-renewal", "", `{"consent_flags":{}}`)
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Equal(t, 0, env.count(t, anna))
+
+	// The status page shows the terms of the renewal; the confirmation sends
+	// their ticks and the form version back (#6456).
+	rec = env.do(t, http.MethodGet, "/requests/"+submitted.Request.StatusToken, "", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var status struct {
+		Data enrollmentAPI.StatusResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+	require.NotNil(t, status.Data.RenewalTerms)
+	flags := map[string]bool{}
+	for _, block := range status.Data.RenewalTerms.Blocks {
+		flags[block.Key] = true
+	}
+	body, err := json.Marshal(map[string]any{"consent_flags": flags, "form_schema_id": status.Data.RenewalTerms.FormSchemaID})
+	require.NoError(t, err)
+
+	rec = env.do(t, http.MethodPost, "/requests/"+submitted.Request.StatusToken+"/confirm-renewal", "", string(body))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, 1, env.count(t, anna), "a confirmed renewal makes it unread again")
 }

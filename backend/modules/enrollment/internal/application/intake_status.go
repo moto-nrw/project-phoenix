@@ -113,7 +113,11 @@ func (s *Intake) StatusPage(ctx context.Context, status *enrollmentNative.Reques
 	if err != nil {
 		return none, fmt.Errorf("status: resolve care facility term: %w", err)
 	}
-	return enrollmentNative.StatusPage{EditMode: editMode, CareFacilityTerm: term}, nil
+	terms, err := s.renewalTerms(tenantCtx, req, children)
+	if err != nil {
+		return none, err
+	}
+	return enrollmentNative.StatusPage{EditMode: editMode, CareFacilityTerm: term, RenewalTerms: terms}, nil
 }
 
 // tenantContext scopes ctx to the tenant of a request the caller handed in.
@@ -430,11 +434,14 @@ func (s *Intake) enqueueWithdrawDecision(ctx context.Context, request *enrollmen
 	return nil
 }
 
-// ConfirmRenewal moves every pending_renewal child of the request to
-// submitted. Idempotent: other rows are skipped, so a double click is no
-// error. The statuses come from the locked re-read in the tenant
-// transaction, so a staff decision in between is never overwritten.
-func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) {
+// ConfirmRenewal records the parents' acceptance of the renewal terms and
+// moves every pending_renewal child of the request to submitted; an
+// auto_renewed child keeps its status, its care runs on anyway (#6456).
+// Without a child waiting for its renewal it records nothing: an acceptance
+// after the school's decision proves nothing for the contract, so a double
+// click is no error either. The statuses come from the locked re-read in the
+// tenant transaction, so a staff decision in between is never overwritten.
+func (s *Intake) ConfirmRenewal(ctx context.Context, token string, confirmation enrollmentNative.RenewalConfirmation) (int, error) {
 	req, err := s.requestByStatusToken(ctx, token, false)
 	if err != nil {
 		return 0, err
@@ -445,16 +452,16 @@ func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) 
 		ctx = s.deps.Runtime.DetachTransaction(ctx)
 	}
 	tenantCtx := s.deps.Runtime.WithTenant(ctx, req.TenantID)
-	var confirmed int
+	confirmed, recorded := 0, false
 	if err := s.deps.Runtime.TenantTx(tenantCtx, req.TenantID, func(txCtx context.Context) error {
 		var confirmErr error
-		confirmed, confirmErr = s.confirmRenewalInTenant(txCtx, token)
+		confirmed, recorded, confirmErr = s.confirmRenewalInTenant(txCtx, token, confirmation)
 		return confirmErr
 	}); err != nil {
 		return 0, err
 	}
-	if confirmed > 0 {
-		s.logger().Info("renewal confirmed by parent",
+	if recorded {
+		s.logger().Info("renewal terms accepted by parent",
 			slog.Int64("request_id", req.ID),
 			slog.Int("children_confirmed", confirmed),
 		)
@@ -462,10 +469,21 @@ func (s *Intake) ConfirmRenewal(ctx context.Context, token string) (int, error) 
 	return confirmed, nil
 }
 
-func (s *Intake) confirmRenewalInTenant(ctx context.Context, token string) (int, error) {
+// confirmRenewalInTenant reports the children it moved and whether it
+// recorded an acceptance.
+func (s *Intake) confirmRenewalInTenant(ctx context.Context, token string, confirmation enrollmentNative.RenewalConfirmation) (int, bool, error) {
 	lockedReq, children, err := s.lockedStatusByToken(ctx, token)
 	if err != nil {
-		return 0, err
+		return 0, false, err
+	}
+	if !awaitsRenewal(children) {
+		return 0, false, nil
+	}
+	if err := s.acceptRenewalTerms(ctx, lockedReq, confirmation); err != nil {
+		return 0, false, err
+	}
+	if err := s.deps.Requests.UpdateRequestGuardian(ctx, lockedReq, false); err != nil {
+		return 0, false, fmt.Errorf("renewal: record accepted terms: %w", err)
 	}
 	confirmed := 0
 	for _, c := range children {
@@ -473,14 +491,11 @@ func (s *Intake) confirmRenewalInTenant(ctx context.Context, token string) (int,
 			continue
 		}
 		if err := s.deps.Children.UpdateChildStatus(ctx, c.ID, enrollmentNative.ChildStatusSubmitted, nil, 0); err != nil {
-			return 0, err
+			return 0, false, err
 		}
 		confirmed++
 	}
-	if confirmed == 0 {
-		return 0, nil
-	}
-	return confirmed, s.markParentChanged(ctx, lockedReq.ID)
+	return confirmed, true, s.markParentChanged(ctx, lockedReq.ID)
 }
 
 // markParentChanged makes the request unread for the staff again (#3778).

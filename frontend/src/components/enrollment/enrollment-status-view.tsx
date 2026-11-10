@@ -23,6 +23,7 @@ import { useLocale } from "next-intl";
 import {
   confirmRenewal,
   fetchStatus,
+  type RenewalConfirmation,
   getEnrollmentFormLabels,
   listEnrollmentChangeRequests,
   patchStatus,
@@ -64,6 +65,11 @@ import {
   translatedText,
 } from "~/lib/enrollment-translations";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  RenewalBanners,
+  type RenewalMode,
+} from "~/components/enrollment/enrollment-renewal-banners";
+import { ApiError } from "~/lib/api-error";
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
@@ -283,25 +289,37 @@ function EnrollmentStatusViewContent({
     setEditing(false);
   };
 
-  const handleConfirmRenewal = async () => {
+  const handleConfirmRenewal = async (confirmation: RenewalConfirmation) => {
     if (!status) return;
     setConfirmingRenewal(true);
     try {
-      const confirmed = await confirmRenewal(token);
-      toast.success(
-        confirmed === 1
-          ? t("renewalConfirmedOne")
-          : t("renewalConfirmedMany", { count: confirmed }),
-      );
+      const confirmed = await confirmRenewal(token, confirmation);
+      if (confirmed === 0) {
+        toast.success(t("termsConfirmed"));
+      } else {
+        toast.success(
+          confirmed === 1
+            ? t("renewalConfirmedOne")
+            : t("renewalConfirmedMany", { count: confirmed }),
+        );
+      }
       await load();
     } catch (err) {
       logger.error("status_confirm_renewal_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // The school published new terms while the page was open: the page
+      // loads them, the parents read and tick them again (#6456).
+      const changed =
+        err instanceof ApiError &&
+        err.code === "enrollment.renewal_terms_changed";
       void showActionError(err, {
         object: t("errorObject"),
-        retry: () => void confirmRenewalRef.current(),
+        retry: changed
+          ? undefined
+          : () => void confirmRenewalRef.current(confirmation),
       });
+      if (changed) await load();
     } finally {
       setConfirmingRenewal(false);
     }
@@ -472,7 +490,9 @@ interface EnrollmentStatusContentProps {
   readonly token: string;
   readonly withdrawingChild: string | null;
   readonly onChangeRequestReply: (changeRequestId: string) => Promise<void>;
-  readonly onConfirmRenewal: () => Promise<void>;
+  readonly onConfirmRenewal: (
+    confirmation: RenewalConfirmation,
+  ) => Promise<void>;
   readonly onEdit: (event: React.FormEvent) => Promise<void>;
   readonly onCancelEdit: () => void;
   readonly onWithdraw: (childId?: string) => void;
@@ -547,8 +567,12 @@ function EnrollmentStatusContent({
   const autoRenewedCount = status.children.filter(
     (child) => child.status === "auto_renewed",
   ).length;
-  const showOptInBanner = pendingRenewalCount > 0;
-  const showOptOutBanner = !showOptInBanner && autoRenewedCount > 0;
+  const renewalMode: RenewalMode | null =
+    pendingRenewalCount > 0
+      ? "opt_in"
+      : autoRenewedCount > 0
+        ? "opt_out"
+        : null;
   const editHref = pathname?.startsWith("/parents")
     ? `/parents/anmeldung/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
@@ -654,8 +678,8 @@ function EnrollmentStatusContent({
       <RenewalBanners
         adjustHref={canRequestChange ? adjustHref : null}
         confirmingRenewal={confirmingRenewal}
-        showOptInBanner={showOptInBanner}
-        showOptOutBanner={showOptOutBanner}
+        mode={renewalMode}
+        terms={status.renewal_terms}
         withdrawingAll={withdrawingChild === "__all__"}
         onConfirmRenewal={onConfirmRenewal}
         onWithdraw={onWithdraw}
@@ -835,100 +859,6 @@ function EnrollmentStatusSummary({
         }
       />
     </section>
-  );
-}
-
-interface RenewalBannersProps {
-  /** Link to the reduced offerings/weekdays flow; null while a change request is already open (#2251). */
-  readonly adjustHref: string | null;
-  readonly confirmingRenewal: boolean;
-  readonly showOptInBanner: boolean;
-  readonly showOptOutBanner: boolean;
-  readonly withdrawingAll: boolean;
-  readonly onConfirmRenewal: () => Promise<void>;
-  readonly onWithdraw: (childId?: string) => void;
-}
-
-function RenewalBanners({
-  adjustHref,
-  confirmingRenewal,
-  showOptInBanner,
-  showOptOutBanner,
-  withdrawingAll,
-  onConfirmRenewal,
-  onWithdraw,
-}: RenewalBannersProps) {
-  const t = useCareTermTranslations("enrollmentStatus");
-  const handleConfirmRenewal = async () => {
-    await onConfirmRenewal();
-  };
-  const handleWithdraw = () => {
-    onWithdraw();
-  };
-
-  return (
-    <>
-      {showOptInBanner ? (
-        <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("renewalRequiredTitle")}
-          </h2>
-          <p className="mt-2 text-sm text-gray-700">
-            {t("renewalRequiredText")}
-          </p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Button
-              type="button"
-              onClick={handleConfirmRenewal}
-              disabled={confirmingRenewal}
-              size="md"
-            >
-              {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
-            </Button>
-            {adjustHref && (
-              <ButtonLink href={adjustHref} variant="surface" size="md">
-                {t("renewalAdjust")}
-              </ButtonLink>
-            )}
-            <Button
-              type="button"
-              onClick={handleWithdraw}
-              disabled={withdrawingAll}
-              variant="surface"
-              size="md"
-            >
-              {withdrawingAll ? t("declining") : t("declineEnrollment")}
-            </Button>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
-        </section>
-      ) : null}
-      {showOptOutBanner ? (
-        <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("autoRenewedTitle")}
-          </h2>
-          <p className="mt-2 text-sm text-gray-700">{t("autoRenewedText")}</p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            {adjustHref && (
-              <ButtonLink href={adjustHref} variant="surface" size="md">
-                {t("renewalAdjust")}
-              </ButtonLink>
-            )}
-            <Button
-              type="button"
-              onClick={handleWithdraw}
-              disabled={withdrawingAll}
-              variant="surface"
-              size="md"
-            >
-              {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
-            </Button>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
-        </section>
-      ) : null}
-    </>
   );
 }
 

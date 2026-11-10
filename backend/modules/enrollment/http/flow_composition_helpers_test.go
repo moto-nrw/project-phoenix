@@ -222,9 +222,9 @@ func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) 
 func (r requestFixtureRoot) Edit(ctx context.Context, token string, patch enrollmentAPI.EditPatch) error {
 	return fixturePublicTokenRoot(ctx, func(txCtx context.Context) error { return r.RequestService.Edit(txCtx, token, patch) })
 }
-func (r requestFixtureRoot) ConfirmRenewal(ctx context.Context, token string) (value int, err error) {
+func (r requestFixtureRoot) ConfirmRenewal(ctx context.Context, token string, confirmation enrollmentNative.RenewalConfirmation) (value int, err error) {
 	err = fixturePublicTokenRoot(ctx, func(txCtx context.Context) error {
-		value, err = r.RequestService.ConfirmRenewal(txCtx, token)
+		value, err = r.RequestService.ConfirmRenewal(txCtx, token, confirmation)
 		return err
 	})
 	return value, err

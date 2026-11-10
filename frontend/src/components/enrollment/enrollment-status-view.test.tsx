@@ -786,7 +786,10 @@ describe("EnrollmentStatusView", () => {
     );
 
     await waitFor(() => {
-      expect(mockConfirmRenewal).toHaveBeenCalledWith("tok");
+      expect(mockConfirmRenewal).toHaveBeenCalledWith("tok", {
+        consentFlags: {},
+        formSchemaId: "0",
+      });
     });
     await waitFor(() => {
       expect(toastSuccess).toHaveBeenCalledWith(
@@ -1028,6 +1031,138 @@ describe("EnrollmentStatusView", () => {
     expect(
       screen.queryByText("Noch keine Änderungsanfrage gesendet."),
     ).not.toBeInTheDocument();
+  });
+});
+
+const RENEWAL_TERMS = {
+  form_schema_id: "81",
+  blocks: [
+    {
+      key: "terms",
+      kind: "terms" as const,
+      title: "Betreuungsvertrag",
+      label: "Ich stimme den Vertragsbedingungen zu.",
+      text: "Vertragsbedingungen für die Betreuung",
+      required: true,
+    },
+  ],
+};
+
+describe("EnrollmentStatusView renewal terms (#6456)", () => {
+  beforeEach(() => {
+    mockPathname.value = "/anmeldung/status/tok";
+    mockFetchStatus.mockReset();
+    mockListEnrollmentChangeRequests.mockReset();
+    mockListEnrollmentChangeRequests.mockResolvedValue([]);
+    mockConfirmRenewal.mockReset();
+    toastSuccess.mockReset();
+  });
+
+  function renewal(
+    childStatus: "pending_renewal" | "auto_renewed",
+    terms: StatusResponse["renewal_terms"] = RENEWAL_TERMS,
+  ) {
+    return status({
+      edit_mode: "change_request",
+      renewal_terms: terms,
+      children: [
+        {
+          id: "7",
+          first_name: "Lina",
+          last_name: "Muster",
+          status: childStatus,
+        },
+      ],
+    });
+  }
+
+  it("confirms an opt-in renewal only with the ticked terms of the shown form", async () => {
+    mockFetchStatus
+      .mockResolvedValueOnce(renewal("pending_renewal"))
+      .mockResolvedValueOnce(status());
+    mockConfirmRenewal.mockResolvedValueOnce(1);
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    const confirm = await screen.findByRole("button", {
+      name: "Anmeldung bestätigen",
+    });
+    fireEvent.click(confirm);
+    expect(
+      await screen.findByText("Bitte stimmen Sie hier zu."),
+    ).toBeInTheDocument();
+    expect(mockConfirmRenewal).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ich stimme den Vertragsbedingungen zu\./,
+      }),
+    );
+    fireEvent.click(confirm);
+    await waitFor(() => {
+      expect(mockConfirmRenewal).toHaveBeenCalledWith("tok", {
+        consentFlags: { terms: true },
+        formSchemaId: "81",
+      });
+    });
+  });
+
+  it("asks an opt-out renewal for the terms while care runs on", async () => {
+    mockFetchStatus
+      .mockResolvedValueOnce(renewal("auto_renewed"))
+      .mockResolvedValueOnce(
+        renewal("auto_renewed", {
+          ...RENEWAL_TERMS,
+          confirmed_at: "2026-09-08T10:00:00Z",
+        }),
+      );
+    mockConfirmRenewal.mockResolvedValueOnce(0);
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText(/Die Betreuung läuft weiter\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Sie müssen nichts weiter tun/)).toBeNull();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ich stimme den Vertragsbedingungen zu\./,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vertragsbedingungen bestätigen" }),
+    );
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "Ihre Zustimmung ist gespeichert.",
+      );
+    });
+    expect(
+      await screen.findByText(
+        /Den Bedingungen haben Sie am 08\.09\.2026 zugestimmt\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abmelden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Vertragsbedingungen bestätigen" }),
+    ).toBeNull();
+  });
+
+  it("tells an opt-out renewal without terms that nothing is to do", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      renewal("auto_renewed", { form_schema_id: "0", blocks: [] }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText(/Sie müssen nichts weiter tun\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Vertragsbedingungen bestätigen" }),
+    ).toBeNull();
   });
 });
 

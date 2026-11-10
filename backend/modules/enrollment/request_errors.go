@@ -16,6 +16,11 @@ var (
 	ErrEditNotAllowed         = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed     = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment    = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// ErrRenewalTermsRequired refuses a renewal confirmation without the tick
+	// of a required block; ErrRenewalTermsChanged one whose page showed a
+	// form version no longer in force (#6456).
+	ErrRenewalTermsRequired = errors.New("renewal terms must be accepted")
+	ErrRenewalTermsChanged  = errors.New("renewal terms changed since the page was loaded")
 	// ErrRequestChildNotFound refuses a child ID that does not belong to the
 	// request the status token resolves to.
 	ErrRequestChildNotFound = errors.New("child does not belong to this enrollment request")

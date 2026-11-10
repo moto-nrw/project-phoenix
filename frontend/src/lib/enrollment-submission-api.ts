@@ -4,6 +4,7 @@ import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import type {
   PublicCaptchaConfig,
   PublicFormSchema,
+  PublicLegalBlock,
   PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
 import type { CareOfferingAvailabilityRule } from "~/lib/care-offering-api";
@@ -498,6 +499,21 @@ export interface StatusResponse {
    * host has no school context of its own.
    */
   care_facility_term?: string;
+  /**
+   * The required blocks of the form in force for a renewal, which the
+   * parents accept for the new phase (#6456). Sent only while a child waits
+   * for its renewal.
+   */
+  renewal_terms?: StatusRenewalTerms;
+}
+
+/** The terms a renewal asks the parents to accept (#6456). */
+export interface StatusRenewalTerms {
+  /** The form version; "0" for the school-wide texts. Sent back on confirm. */
+  form_schema_id: string;
+  blocks: PublicLegalBlock[];
+  /** When the parents last accepted exactly these blocks. */
+  confirmed_at?: string | null;
 }
 
 /**
@@ -709,15 +725,34 @@ export async function withdrawStatus(
   }
 }
 
+/** The parents' answer to the renewal terms (#6456). */
+export interface RenewalConfirmation {
+  /** Key of every block the parents ticked. */
+  consentFlags: Record<string, boolean>;
+  /** `renewal_terms.form_schema_id` of the status the page showed. */
+  formSchemaId: string;
+}
+
 /**
- * Confirms an opt_in rollover: every pending_renewal child under the
- * request transitions to submitted, where the admin's review queue
- * picks them up. Returns the number of children promoted.
+ * Accepts the renewal terms. An opt_in renewal also moves every
+ * pending_renewal child to submitted, where the admin's review queue picks
+ * them up; an opt_out renewal keeps its status. Returns the number of
+ * children promoted.
  */
-export async function confirmRenewal(token: string): Promise<number> {
+export async function confirmRenewal(
+  token: string,
+  confirmation: RenewalConfirmation,
+): Promise<number> {
   const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}/confirm-renewal`,
-    { method: "POST", headers: { "Content-Type": "application/json" } },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        consent_flags: confirmation.consentFlags,
+        form_schema_id: confirmation.formSchemaId,
+      }),
+    },
   );
   if (!response.ok) {
     throw await readError(response, "Bestätigung nicht möglich");

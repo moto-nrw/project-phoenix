@@ -12,8 +12,10 @@ const path = (
   return `/api/enrollment/requests/${encodeURIComponent(token)}/confirm-renewal`;
 };
 
+// The body carries the ticked renewal terms and the form version the page
+// showed (#6456).
 export const POST = createPublicJsonProxy({
   method: "POST",
   path,
-  body: "none",
+  body: "json",
 });

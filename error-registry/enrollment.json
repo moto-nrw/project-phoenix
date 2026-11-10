@@ -321,6 +321,18 @@
       "legacy": "enrollment.consent_required"
     },
     {
+      "code": "enrollment.renewal_terms_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.renewal_terms_changed"
+    },
+    {
+      "code": "enrollment.renewal_terms_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.renewal_terms_required"
+    },
+    {
       "code": "enrollment.correction_reason_required",
       "class": "input",
       "parameters": [],
