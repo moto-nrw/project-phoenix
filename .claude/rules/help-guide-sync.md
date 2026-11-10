@@ -45,7 +45,7 @@ Five optional URL parameters carry context; none of them is an access check:
 | `frontend/src/components/help/context-help-link.tsx` | The `?` in the app header; builds the URL with role and settings |
 | `frontend/src/app/help/[[...topic]]/page.tsx` | The single route behind all three address shapes above |
 | `frontend/src/app/help/nfc/erste-schritte/page.tsx` | The printed onepager (+ `onepager-header.tsx`) |
-| `frontend/public/help/screens/*.webp` | App screenshots, kept from the old guide. Articles currently set no `image`; the files are also the visual reference named in `frontend-ui-kit.md` |
+| `frontend/public/help/screens/*.webp` | App screenshots, kept from the old guide. Only some articles set an `image`; the files are also the visual reference named in `frontend-ui-kit.md` |
 | `frontend/public/help/pdfs/` | **Generated** (gitignored). Only `nfc-erste-schritte.pdf`, built in CI |
 
 ## Data Model

@@ -33,7 +33,7 @@ export const POST = parent.route(async (request, _token, params) => {
   if (file instanceof File) outgoing.append("file", file, file.name);
   return parent.forwardToBackend(
     request,
-    `/api/parent/enrollments/${requirePathSegmentParam(params, "tenantSlug")}/uploads`,
+    `/parent/enrollments/${requirePathSegmentParam(params, "tenantSlug")}/uploads`,
     { method: "POST", body: outgoing },
   );
 });
