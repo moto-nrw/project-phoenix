@@ -296,7 +296,8 @@ function ConditionsForm({
       <form
         ref={formRef}
         noValidate
-        className="space-y-6"
+        // Room under the last „Text kopieren“: the save bar sticks below it.
+        className="space-y-6 pb-4"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();

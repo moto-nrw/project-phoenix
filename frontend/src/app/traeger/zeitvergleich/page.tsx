@@ -153,7 +153,7 @@ function DaysCell({
     <span className="inline-flex flex-col items-end">
       <OverrunFigure value={total} />
       {unbookedDays > 0 ? (
-        <span className="text-sm text-gray-500">
+        <span className="text-sm whitespace-nowrap text-gray-500">
           davon {unbookedDays} ohne Buchung
         </span>
       ) : null}
