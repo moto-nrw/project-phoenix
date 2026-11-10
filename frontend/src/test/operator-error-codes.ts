@@ -67,6 +67,8 @@ export const OPERATOR_PORTAL_ERROR_CODES = [
   "provisioning.traeger_erasure_order_open",
   "provisioning.traeger_erasure_order_not_found",
   "provisioning.traeger_erasure_started",
+  // The hint and the choice recorded afterwards on an older order (#4720).
+  "provisioning.traeger_erasure_records_recorded",
   // Test-Träger and their sample children (#4658,
   // `modules/dataimport/http/sample_children.go`).
   "import.not_test_traeger",

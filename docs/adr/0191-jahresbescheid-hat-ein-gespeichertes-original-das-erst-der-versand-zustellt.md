@@ -96,8 +96,8 @@ Eintrag im Elternpostfach fehlten (#6243, „Risiken“).
   `POST /notices/{contractID}/mail`; die schreibenden in der Nutzungsanalyse als
   `notCaptured` (Träger, keine Schule). Query-Budget
   `api.traeger.care_notice_run_letters` (8, exact).
-- Compose-Budget: `modules/parentbilling/compose` 107 → 112 Zeilen
-  (`moduleComposeBudgetTotal` 13193 → 13198) für den Konstruktor
+- Compose-Budget: `modules/parentbilling/compose` 119 → 124 Zeilen
+  (`moduleComposeBudgetTotal` 13239 → 13244) für den Konstruktor
   `NewCareNoticeLetters`.
 - Mail-Vorlage `billing-care-change-notice-letter.html` für den
   Änderungsbescheid; der Jahresbescheid nutzt `billing-notice-letter.html`.

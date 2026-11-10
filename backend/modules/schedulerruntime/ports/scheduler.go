@@ -139,6 +139,12 @@ type BelegRetention interface {
 	ApplyBelegRetention(ctx context.Context) (int, error)
 }
 
+// SEPADebitDownloadRetention deletes the unsubmitted PAIN.008 downloads of
+// every Träger 30 days after the download in the hourly cleanup (ADR 0187).
+type SEPADebitDownloadRetention interface {
+	DeleteExpiredSEPADebitDownloads(ctx context.Context) (int, error)
+}
+
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in
 // data Identity & Access owns (#3954): invitations for parents and caterers, e-mail codes
 // and passkey ceremonies of accounts and operators, and expired operator

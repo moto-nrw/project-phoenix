@@ -39,12 +39,12 @@ import (
 
 // BuildServeOrganizations composes Organisation & Tenancy.
 func BuildServeOrganizations(db transactionruntime.Database) (organizationtenancy.Capability, error) {
-	return organizationCompose.New(organizationCompose.Dependencies{
-		DB: db.Pool(),
-		Observe: func(observation organizationCompose.Observation) {
-			observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationtenancy.ErrorCode(observation.Err), observation.Err)
-		},
-	})
+	return organizationCompose.New(organizationCompose.Dependencies{DB: db.Pool(), Observe: observeOrganizationTenancy})
+}
+
+// observeOrganizationTenancy records one Organisation & Tenancy operation.
+func observeOrganizationTenancy(observation organizationCompose.Observation) {
+	observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationtenancy.ErrorCode(observation.Err), observation.Err)
 }
 
 // BuildServeSchoolStructure composes School Structure.

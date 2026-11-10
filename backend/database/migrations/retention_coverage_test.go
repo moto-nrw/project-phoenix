@@ -341,6 +341,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.run_due_dates":                          notPersonal("due date of a run per payment method (#4689), no person"),
 	"parent_billing.runs":                                   notPersonal("billing run of a Träger (#4668): period, status, issue date and sums, no person"),
 	"parent_billing.sepa_creditors":                         notPersonal("SEPA creditor identifier of a Träger, its pre-notification days and its choice for a direct debit without a mandate (#4695), no person"),
+	"parent_billing.sepa_debit_files":                       own("the stored PAIN.008 file of a SEPA message (ADR 0187) goes by trigger (drop_sepa_debit_files_with_their_members): an unsubmitted download with the first of its debits, installment notices or mandates (with its contract or any other path) and 30 days after the download (delete_expired_sepa_debit_downloads, hourly cleanup), a submitted original with the last of its debits and notices, and with platform.organizations when the Träger is erased after its Rückgabe (#4657); account IDs SET NULL on account delete"),
 	"parent_billing.sepa_debits":                            parent("care_contract.contracts"),
 	"parent_billing.sepa_mandate_consents":                  parent("care_contract.contracts"),
 	"parent_billing.sepa_mandate_events":                    parent("care_contract.contracts"),
