@@ -2,7 +2,10 @@
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-/** One running save of a `FormModal`, bound to the dialog session it started in. */
+/**
+ * One running save of a `FormModal` or `SlideOver`, bound to the dialog
+ * session it started in.
+ */
 export interface FormModalOperation {
   /**
    * True while the dialog that started this operation is still the same:
@@ -15,17 +18,19 @@ export interface FormModalOperation {
 }
 
 /**
- * The pending contract of `FormModal` (#6533). Pass it as `pending` and run
- * every save through `run`: while it runs, `FormModal` locks the close X,
- * Escape, the backdrop and every footer action, and marks the dialog
- * `aria-busy`.
+ * The pending contract of `FormModal` (#6533) and `SlideOver` (#6593). Pass
+ * it as `pending` and run every save through `run`: while it runs, the
+ * dialog locks the close X, Escape, the backdrop (on a phone also the swipe)
+ * and every footer action, and marks itself `aria-busy`.
  */
 export interface FormModalPending {
   readonly pending: boolean;
   /**
    * Runs one save. A second call while one is running in the same session
-   * is ignored. Closing or unmounting the dialog ends the session: the lock
-   * lifts for the next session, and `op.isCurrent()` turns false.
+   * is ignored, and so is a call while the dialog is closed (a click during
+   * its closing animation). Closing or unmounting the dialog ends the
+   * session: the lock lifts for the next session, and `op.isCurrent()`
+   * turns false.
    */
   readonly run: <T>(
     task: (op: FormModalOperation) => Promise<T>,
@@ -33,8 +38,8 @@ export interface FormModalPending {
 }
 
 /**
- * Creates the pending contract for one `FormModal`. `isOpen` is the dialog's
- * own `isOpen`; a dialog that is only mounted while open passes nothing.
+ * Creates the pending contract for one `FormModal` or `SlideOver`. `isOpen`
+ * is the dialog's own `isOpen` / `open`; a dialog that is only mounted while open passes nothing.
  * `context` names what the open dialog works on, as a stable primitive (an
  * id); when it changes while the dialog stays open, a new session starts as
  * on reopening.
@@ -46,6 +51,7 @@ export function useFormModalPending(
   const sessionRef = useRef(0);
   const runningSessionRef = useRef<number | null>(null);
   const contextRef = useRef(context);
+  const openRef = useRef(isOpen);
   const [pending, setPending] = useState(false);
 
   // A layout effect, so a session ends in the commit that closes the dialog
@@ -53,6 +59,7 @@ export function useFormModalPending(
   useLayoutEffect(() => {
     const switched = !Object.is(contextRef.current, context);
     contextRef.current = context;
+    openRef.current = isOpen;
     if (isOpen && !switched) return;
     sessionRef.current += 1;
     runningSessionRef.current = null;
@@ -74,6 +81,10 @@ export function useFormModalPending(
     async <T>(
       task: (op: FormModalOperation) => Promise<T>,
     ): Promise<T | undefined> => {
+      // A closed dialog has no session to save in: a click that lands
+      // during the closing animation must not start a request that the next
+      // opening would count as its own.
+      if (!openRef.current) return undefined;
       const session = sessionRef.current;
       if (runningSessionRef.current === session) return undefined;
       runningSessionRef.current = session;

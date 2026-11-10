@@ -140,9 +140,14 @@ import {
   SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
+  SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "./slide-over";
+import {
+  useFormModalPending,
+  type FormModalOperation,
+} from "./use-form-modal-pending";
 
 function StatefulContent() {
   const [value, setValue] = useState("");
@@ -464,25 +469,261 @@ describe("SlideOver", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables every dismissal path while saving", () => {
-    const onOpenChange = vi.fn();
+  describe("pending (#6593)", () => {
+    function deferred() {
+      let resolve!: () => void;
+      let reject!: (error: unknown) => void;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
 
-    render(
-      <SlideOver open isDismissDisabled onOpenChange={onOpenChange}>
-        <SlideOverContent>
-          <SlideOverHeader>
-            <SlideOverTitle>Titel</SlideOverTitle>
-          </SlideOverHeader>
-        </SlideOverContent>
-      </SlideOver>,
+    // Lets a second trigger reach the running contract, as Enter in a form would.
+    let lastRun: (() => void) | null = null;
+
+    function PendingPanel({
+      open = true,
+      context,
+      onOpenChange,
+      task,
+    }: {
+      open?: boolean;
+      context?: string;
+      onOpenChange: (open: boolean) => void;
+      task: (op: FormModalOperation) => Promise<void>;
+    }) {
+      const save = useFormModalPending(open, context);
+      const [note, setNote] = useState("");
+      lastRun = () => void save.run(task);
+      return (
+        <SlideOver open={open} onOpenChange={onOpenChange} pending={save}>
+          <SlideOverContent data-testid="panel">
+            <SlideOverHeader>
+              <SlideOverTitle>Titel</SlideOverTitle>
+            </SlideOverHeader>
+            <SlideOverBody>
+              <textarea
+                aria-label="Notiz"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </SlideOverBody>
+            <SlideOverFooter>
+              <button type="button" onClick={() => onOpenChange(false)}>
+                Abbrechen
+              </button>
+              <button type="button" onClick={() => void save.run(task)}>
+                Speichern
+              </button>
+            </SlideOverFooter>
+          </SlideOverContent>
+        </SlideOver>
+      );
+    }
+
+    function expectLocked(onOpenChange: ReturnType<typeof vi.fn>) {
+      const panel = screen.getByTestId("panel");
+      expect(panel).toHaveAttribute("aria-busy", "true");
+      expect(screen.getByRole("button", { name: "Schließen" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+      // Vaul drags (swipe on a phone) only while dismissible.
+      expect(panel.closest("[data-direction]")).toHaveAttribute(
+        "data-dismissible",
+        "false",
+      );
+      fireEvent.click(screen.getByTestId("vaul-dismiss"));
+      fireEvent.click(screen.getByTestId("vaul-outside"));
+      fireEvent.keyDown(panel, { key: "Escape" });
+      expect(onOpenChange).not.toHaveBeenCalled();
+    }
+
+    it("sperrt X, Escape, Hintergrund, Wischen und Fußleiste, solange gespeichert wird", () => {
+      const onOpenChange = vi.fn();
+      const save = deferred();
+      render(
+        <PendingPanel onOpenChange={onOpenChange} task={() => save.promise} />,
+      );
+      expect(screen.getByTestId("panel")).not.toHaveAttribute("aria-busy");
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expectLocked(onOpenChange);
+    });
+
+    it("gibt nach einem Fehler alle Wege frei und behält die Eingabe", async () => {
+      const onOpenChange = vi.fn();
+      const save = deferred();
+      render(
+        <PendingPanel
+          onOpenChange={onOpenChange}
+          task={() => save.promise.catch(() => undefined)}
+        />,
+      );
+      fireEvent.change(screen.getByRole("textbox", { name: "Notiz" }), {
+        target: { value: "Entwurf" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      expectLocked(onOpenChange);
+
+      await act(async () => {
+        save.reject(new Error("offline"));
+      });
+
+      const panel = screen.getByTestId("panel");
+      expect(panel).not.toHaveAttribute("aria-busy");
+      expect(screen.getByRole("textbox", { name: "Notiz" })).toHaveValue(
+        "Entwurf",
+      );
+      expect(screen.getByRole("button", { name: "Schließen" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
+      expect(panel.closest("[data-direction]")).toHaveAttribute(
+        "data-dismissible",
+        "true",
+      );
+      fireEvent.keyDown(panel, { key: "Escape" });
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("hält den Fokus im Panel und gibt ihn nach einem Fehler zurück", async () => {
+      const save = deferred();
+      render(
+        <PendingPanel
+          onOpenChange={vi.fn()}
+          task={() => save.promise.catch(() => undefined)}
+        />,
+      );
+      const saveButton = screen.getByRole("button", { name: "Speichern" });
+      saveButton.focus();
+
+      fireEvent.click(saveButton);
+      // The disabled button would drop focus to the page; the panel keeps it.
+      expect(saveButton).toBeDisabled();
+      expect(screen.getByTestId("panel")).toHaveFocus();
+
+      await act(async () => {
+        save.reject(new Error("offline"));
+      });
+      expect(saveButton).toBeEnabled();
+      expect(saveButton).toHaveFocus();
+    });
+
+    it("startet nur einen Speichervorgang und schließt nach aktuellem Erfolg", async () => {
+      const onOpenChange = vi.fn();
+      const save = deferred();
+      const task = vi.fn(async (op: FormModalOperation) => {
+        await save.promise;
+        if (op.isCurrent()) onOpenChange(false);
+      });
+      render(<PendingPanel onOpenChange={onOpenChange} task={task} />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      // A second trigger that bypasses the disabled button (Enter in a form).
+      act(() => lastRun?.());
+      await act(async () => {
+        save.resolve();
+      });
+
+      expect(task).toHaveBeenCalledTimes(1);
+      expect(onOpenChange).toHaveBeenCalledTimes(1);
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("startet während der Schließanimation nichts", () => {
+      const task = vi.fn(() => Promise.resolve());
+      const { rerender } = render(
+        <PendingPanel onOpenChange={vi.fn()} task={task} />,
+      );
+      // Vaul keeps the closed panel on screen while it slides out.
+      rerender(
+        <PendingPanel open={false} onOpenChange={vi.fn()} task={task} />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(task).not.toHaveBeenCalled();
+      expect(screen.getByTestId("panel")).not.toHaveAttribute("aria-busy");
+    });
+
+    it.each([
+      ["geschlossen und wieder geöffnet", { open: true }],
+      ["auf ein anderes Objekt gewechselt", { open: true, context: "b" }],
+    ])(
+      "lässt eine späte Antwort in Ruhe, nachdem das Panel %s wurde",
+      async (_label, next) => {
+        const onOpenChange = vi.fn();
+        const save = deferred();
+        const answers: boolean[] = [];
+        const task = async (op: FormModalOperation) => {
+          await save.promise;
+          answers.push(op.isCurrent());
+          if (op.isCurrent()) onOpenChange(false);
+        };
+        const { rerender } = render(
+          <PendingPanel context="a" onOpenChange={onOpenChange} task={task} />,
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+        expect(screen.getByTestId("panel")).toHaveAttribute(
+          "aria-busy",
+          "true",
+        );
+
+        if (next.context === undefined) {
+          rerender(
+            <PendingPanel
+              open={false}
+              context="a"
+              onOpenChange={onOpenChange}
+              task={task}
+            />,
+          );
+        }
+        rerender(
+          <PendingPanel
+            open={next.open}
+            context={next.context ?? "a"}
+            onOpenChange={onOpenChange}
+            task={task}
+          />,
+        );
+        expect(screen.getByTestId("panel")).not.toHaveAttribute("aria-busy");
+        expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
+
+        await act(async () => {
+          save.resolve();
+        });
+
+        expect(answers).toEqual([false]);
+        expect(onOpenChange).not.toHaveBeenCalled();
+      },
     );
 
-    expect(screen.getByRole("button", { name: "Schließen" })).toBeDisabled();
-    expect(
-      screen.getByText("Titel").closest("[data-direction]"),
-    ).toHaveAttribute("data-dismissible", "false");
-    fireEvent.click(screen.getByTestId("vaul-dismiss"));
-    expect(onOpenChange).not.toHaveBeenCalled();
+    it("lässt eine späte Antwort nach dem Aushängen nichts schließen", async () => {
+      const onOpenChange = vi.fn();
+      const save = deferred();
+      const answers: boolean[] = [];
+      const { unmount } = render(
+        <PendingPanel
+          onOpenChange={onOpenChange}
+          task={async (op) => {
+            await save.promise;
+            answers.push(op.isCurrent());
+            if (op.isCurrent()) onOpenChange(false);
+          }}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      unmount();
+      await act(async () => {
+        save.resolve();
+      });
+
+      expect(answers).toEqual([false]);
+      expect(onOpenChange).not.toHaveBeenCalled();
+    });
   });
 
   it("takes its own close control and can go without one", () => {
