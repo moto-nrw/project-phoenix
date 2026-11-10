@@ -43,7 +43,7 @@ func newOperatorCredentialFixture(t *testing.T, prefix string, enrolled bool) op
 	email := operatorLoginEmail(prefix)
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, email, testPassword)
 	if enrolled {
-		require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(context.Background(), operator.ID))
+		require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(context.Background(), identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	}
 	return operatorCredentialFixture{db: db, module: module, operatorID: operator.ID, email: email}
 }

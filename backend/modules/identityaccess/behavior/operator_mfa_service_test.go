@@ -25,14 +25,14 @@ func TestOperatorMFAService_EnrollDisableLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, enrolled)
 
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
 	enrolled, err = svc.HasOperatorMFAEnrollment(ctx, op.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled)
 
 	// Idempotency: a second enrol on the same operator must be rejected.
-	require.ErrorIs(t, svc.EnrollOperatorMFA(ctx, op.ID), identityaccess.ErrMFAAlreadyEnrolled)
+	require.ErrorIs(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}), identityaccess.ErrMFAAlreadyEnrolled)
 
 	require.NoError(t, svc.DisableOperatorMFA(ctx, op.ID))
 
@@ -48,7 +48,7 @@ func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
 
 	op := testpkg.CreateTestOperator(t, db)
 
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
 	cookie, expiresAt, err := svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, op.ID), "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {
 
 	op := testpkg.CreateTestOperator(t, db)
 
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
 	tokenString, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("203.0.113.42"), nil)
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestOperatorMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 
 	op := testpkg.CreateTestOperator(t, db)
 
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
 	devices, err := svc.ListOperatorTrustedDevices(ctx, op.ID)
 	require.NoError(t, err)
@@ -128,7 +128,7 @@ func TestOperatorMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 	owner := testpkg.CreateTestOperator(t, db)
 	attacker := testpkg.CreateTestOperator(t, db)
 
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, owner.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: owner.ID, CredentialGeneration: owner.CredentialGeneration}))
 	_, _, err := svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, owner.ID), "UA", net.ParseIP("203.0.113.20"))
 	require.NoError(t, err)
 

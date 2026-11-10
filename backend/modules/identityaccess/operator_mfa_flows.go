@@ -32,9 +32,10 @@ const (
 
 // OperatorMFAProof is what a redeemed operator code hands the exchange: the
 // operator and the credential generation of the password check the code
-// stems from (#6308). The session mint and the remembered device hold it to
-// the operator's current generation under the operator lock a password write
-// takes, so a proof from before a password change earns neither.
+// stems from (#6308). The enrollment, the session mint and the remembered
+// device hold it to the operator's current generation under the operator lock
+// a password write takes, so a proof from before a password change earns none
+// of them (#6459).
 type OperatorMFAProof struct {
 	OperatorID           int64
 	CredentialGeneration int64
@@ -63,7 +64,10 @@ type OperatorMFAFlows interface {
 	// StartOperatorMFAChallenge.
 	VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string, credentialGeneration *int64) error
 
-	EnrollOperatorMFA(ctx context.Context, operatorID int64) error
+	// EnrollOperatorMFA records the e-mail enrollment the proof's redeemed
+	// code confirms, only while the operator still holds the proof's
+	// credential generation; otherwise ErrOperatorInvalidCredentials.
+	EnrollOperatorMFA(ctx context.Context, proof OperatorMFAProof) error
 	// DisableOperatorMFA removes the enrollment, revokes every trusted
 	// device and resets the lockout counter in one transaction.
 	DisableOperatorMFA(ctx context.Context, operatorID int64) error

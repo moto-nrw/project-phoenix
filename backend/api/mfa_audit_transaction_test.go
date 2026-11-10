@@ -25,7 +25,7 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 			require.NoError(t, err)
 			operator := testpkg.CreateTestOperator(t, db)
 			if action == "mfa_disabled" {
-				require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, operator.ID))
+				require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 			}
 			var targetID int64
 			if action == "mfa_admin_override" {
@@ -57,7 +57,7 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 					var err error
 					switch action {
 					case "mfa_enrolled":
-						err = module.OperatorMFA.EnrollOperatorMFA(txCtx, operator.ID)
+						err = module.OperatorMFA.EnrollOperatorMFA(txCtx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration})
 					case "mfa_disabled":
 						err = module.OperatorMFA.DisableOperatorMFA(txCtx, operator.ID)
 					case "mfa_admin_override":
@@ -94,7 +94,7 @@ func TestOperatorMFAAuditFailureRollsBackEnrollment(t *testing.T) {
 	operator := testpkg.CreateTestOperator(t, db)
 	_, err = db.NewRaw(`ALTER TABLE platform.operator_audit_log ADD CONSTRAINT reject_mfa_audit_test CHECK (action <> 'mfa_enrolled')`).Exec(ctx)
 	require.NoError(t, err)
-	require.Error(t, module.OperatorMFA.EnrollOperatorMFA(ctx, operator.ID))
+	require.Error(t, module.OperatorMFA.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	var n int64
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_mfa_credentials WHERE operator_id = ?`, operator.ID).Scan(ctx, &n))
 	assert.Zero(t, n, "the credential cannot commit without its audit evidence")
