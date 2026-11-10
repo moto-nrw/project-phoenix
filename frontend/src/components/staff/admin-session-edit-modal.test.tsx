@@ -40,6 +40,30 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 
+const recordedSession: StaffHistorySession = {
+  id: "42",
+  date: "2026-09-07",
+  status: "present" as const,
+  net_minutes: 450,
+  check_in_time: "2026-09-07T06:00:00Z",
+  check_out_time: "2026-09-07T14:00:00Z",
+  break_minutes: 30,
+  breaks: [
+    {
+      id: "9007199254740993",
+      started_at: "2026-09-07T10:00:00Z",
+      ended_at: "2026-09-07T10:15:00Z",
+      duration_minutes: 15,
+    },
+    {
+      id: "82",
+      started_at: "2026-09-07T12:00:00Z",
+      ended_at: "2026-09-07T12:15:00Z",
+      duration_minutes: 15,
+    },
+  ],
+};
+
 function renderBackfill() {
   const onClose = vi.fn();
   const onSaved = vi.fn();
@@ -105,6 +129,98 @@ describe("AdminSessionEditModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(mocks.createSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("corrects recorded breaks individually and derives the total", async () => {
+    mocks.updateSession.mockResolvedValueOnce(undefined);
+    const session = recordedSession;
+    render(
+      <AdminSessionEditModal
+        isOpen
+        mode="edit"
+        staffId="7"
+        date={new Date(2026, 8, 7)}
+        session={session}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Pause ab 12:00 (Minuten)" }),
+      { target: { value: "30" } },
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "z. B. Mitarbeiter hatte vergessen einzustempeln",
+      ),
+      { target: { value: "Pause korrigiert" } },
+    );
+    const save = screen.getByRole("button", { name: "Änderungen speichern" });
+    await waitFor(() => expect(save).toBeEnabled());
+    const secondPause = screen.getByRole("spinbutton", {
+      name: "Pause ab 14:00 (Minuten)",
+    });
+    fireEvent.change(secondPause, { target: { value: "" } });
+    expect(secondPause).toHaveAttribute("aria-invalid", "true");
+    expect(save).toBeDisabled();
+    expect(
+      screen.getByText("Bitte geben Sie volle Minuten von 0 bis 300 ein."),
+    ).toBeInTheDocument();
+    fireEvent.change(secondPause, { target: { value: "15" } });
+    await waitFor(() => expect(save).toBeEnabled());
+    fireEvent.click(save);
+    await waitFor(() =>
+      expect(mocks.updateSession).toHaveBeenCalledWith(
+        "7",
+        "42",
+        expect.objectContaining({
+          break_minutes: 45,
+          breaks: [{ id: "9007199254740993", duration_minutes: 30 }],
+        }),
+      ),
+    );
+  });
+
+  it("explains why a running pause must end before correction", async () => {
+    const session = {
+      ...recordedSession,
+      check_out_time: null,
+      breaks: [
+        ...(recordedSession.breaks ?? []),
+        {
+          id: "83",
+          started_at: "2026-09-07T12:30:00Z",
+          ended_at: null,
+          duration_minutes: 0,
+        },
+      ],
+    };
+    render(
+      <AdminSessionEditModal
+        isOpen
+        mode="edit"
+        staffId="7"
+        date={new Date(2026, 8, 7)}
+        session={session}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "z. B. Mitarbeiter hatte vergessen einzustempeln",
+      ),
+      { target: { value: "Korrektur" } },
+    );
+    expect(
+      await screen.findByText(
+        "Die Pause läuft noch. Die Person muss sie zuerst beenden.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    ).toBeDisabled();
+    expect(mocks.updateSession).not.toHaveBeenCalled();
   });
 
   describe("edit across a daylight saving switch (#6293)", () => {

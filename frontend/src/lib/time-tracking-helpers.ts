@@ -34,8 +34,8 @@ export interface BackendWorkSession {
 }
 
 export interface BackendWorkSessionBreak {
-  id: number;
-  session_id: number;
+  id: number | string;
+  session_id: number | string;
   started_at: string;
   ended_at: string | null;
   duration_minutes: number;
