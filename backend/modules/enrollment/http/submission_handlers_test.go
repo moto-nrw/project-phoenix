@@ -663,6 +663,31 @@ func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testi
 	assert.Contains(t, childFields, lists.Field{Label: "Abholzeit", Value: "Mo 15:00"})
 }
 
+func TestSignatureProofDocument_IncludesHolidayCareWish(t *testing.T) {
+	t.Parallel()
+	for _, wish := range []*bool{new(true), new(false), nil} {
+		doc, err := signatureProofDocument(signatureProof{
+			Request: &capability.Request{}, Signature: &capability.RequestSignature{},
+			Children: []*capability.RequestChild{{FirstName: "Lina", LastName: "Beispiel",
+				DateOfBirth: calendar.NewDate(2018, 4, 15), HolidayCareWish: wish}},
+		}, time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC))
+		require.NoError(t, err)
+		require.Len(t, doc.Groups[1].Records, 2)
+		fields := doc.Groups[1].Records[1].Fields
+		if wish == nil {
+			for _, field := range fields {
+				assert.NotEqual(t, "Ferienwunsch", field.Label, "unknown must not read as no")
+			}
+			continue
+		}
+		answer := "Nein"
+		if *wish {
+			answer = "Ja"
+		}
+		assert.Contains(t, fields, lists.Field{Label: "Ferienwunsch", Value: answer})
+	}
+}
+
 // TestSubmitCarriesTheShownFormVersion: the form version the page showed
 // reaches the owner (#4680), so the snapshot proves which legal texts the
 // parent ticked.

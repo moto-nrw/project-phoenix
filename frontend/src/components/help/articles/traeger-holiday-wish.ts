@@ -41,7 +41,7 @@ export function traegerHolidayWishTopic(): HelpTopic {
       {
         title: "Ferienwunsch prüfen",
         description:
-          "Eltern ohne Elternkonto melden ohne Prüfung an. Dann steht beim Kind `Ferienwunsch prüfen`.",
+          "Ist der Ferienwunsch nicht bekannt, steht beim Kind `Ferienwunsch prüfen`.",
         steps: [
           "Wählen Sie im Reiter `Anmeldungen` beim Filter `Ferienwunsch` den Eintrag `Ferienwunsch prüfen`.",
           "Öffnen Sie eine Anmeldung.",
@@ -63,7 +63,7 @@ export function traegerHolidayWishTopic(): HelpTopic {
       "Beim Kind steht nichts zum Ferienwunsch? Der Ferienzeitraum berücksichtigt ihn nicht, oder das Kind ist ein Feriengast.",
     ],
     troubleshootingDetails: [
-      "Bei einem Kind mit Elternkonto steht trotzdem `Ferienwunsch prüfen`? Die Eltern haben Name, Geburtsdatum oder Schule im Formular geändert. Dann prüft moto den Ferienwunsch nicht selbst.",
+      "Auch mit Elternkonto kann der Ferienwunsch fehlen. Dann steht beim Kind `Ferienwunsch prüfen`. Bitte fragen Sie bei der OGS nach.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayPlaces,

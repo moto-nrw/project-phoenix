@@ -230,6 +230,43 @@ func TestApprovedHolidayCareWishCountsOnlyTheApprovedSchoolYear(t *testing.T) {
 	assert.Nil(t, read(submitted, today), "an undecided enrollment does not count")
 }
 
+func TestApprovedHolidayCareWishIgnoresOfficeMatchedFamilies(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	student := approvedWithWish(t, db, true)
+	foreign := approvedWithWish(t, db, false)
+	ctx := testpkg.Ctx(t)
+	_, err := db.ExecContext(ctx, `UPDATE enrollment.request_children
+		SET matched_student_id = ?, created_student_id = NULL, matched_by_office = TRUE, reviewed_at = NOW()
+		WHERE created_student_id = ?`, student, foreign)
+	require.NoError(t, err)
+	store := postgres.NewStore(postgres.NewDatabase(), func(ctx context.Context) (int64, error) { return tenant.FromContext(ctx), nil })
+	read := func() *bool {
+		t.Helper()
+		var wish *bool
+		id, err := tenant.NewTenantID(testpkg.Tenant(t))
+		require.NoError(t, err)
+		require.NoError(t, tenant.WithinTenant(tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, db)), id, func(txCtx context.Context) error {
+			wish, err = store.ApprovedHolidayCareWish(txCtx, student, calendar.NewDate(2027, 1, 4))
+			return err
+		}))
+		return wish
+	}
+	wish := read()
+	require.NotNil(t, wish)
+	assert.True(t, *wish, "a newer office match must not override the authorized family's answer")
+
+	_, err = db.ExecContext(ctx, `UPDATE enrollment.request_children SET status = 'rejected' WHERE created_student_id = ?`, student)
+	require.NoError(t, err)
+	assert.Nil(t, read(), "an office match alone provides no trusted answer")
+
+	_, err = db.ExecContext(ctx, `UPDATE enrollment.request_children SET matched_by_office = FALSE WHERE matched_student_id = ?`, student)
+	require.NoError(t, err)
+	wish = read()
+	require.NotNil(t, wish, "an authorized re-enrollment still provides an answer")
+	assert.False(t, *wish)
+}
+
 // approvedWithWish approves a child of the test tenant in a school-year
 // phase around 04.01.2027 with the holiday care wish and returns its student.
 func approvedWithWish(t *testing.T, db *bun.DB, wish bool) int64 {

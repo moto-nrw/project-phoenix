@@ -22,7 +22,7 @@ const approvedHolidayCareWishQuery = `SELECT child.holiday_care_wish
 	FROM enrollment.request_children AS child
 	JOIN enrollment.requests AS request ON request.tenant_id = child.tenant_id AND request.id = child.request_id
 	JOIN enrollment.phases AS phase ON phase.tenant_id = request.tenant_id AND phase.id = request.phase_id
-	WHERE child.tenant_id = ? AND child.status = ?
+	WHERE child.tenant_id = ? AND child.status = ? AND NOT child.matched_by_office
 		AND (child.created_student_id = ? OR child.matched_student_id = ?)
 		AND phase.kind = ? AND phase.service_start_date <= ?::date AND phase.service_end_date >= ?::date
 		AND child.holiday_care_wish IS NOT NULL

@@ -56,7 +56,7 @@ export function holidayWishView(
 /** Woher der bekannte Ferienwunsch stammt, in einem Satz. */
 function holidayWishSourceText(child: HolidayRegistrationChild): string {
   if (child.holidayWishCheck) {
-    return "Die Eltern haben ohne Elternkonto angemeldet. Bitte prüfen Sie den Ferienwunsch, zum Beispiel bei der OGS.";
+    return "Der Ferienwunsch ist nicht bekannt. Bitte prüfen Sie ihn, zum Beispiel bei der OGS.";
   }
   if (child.holidayWishSource === "account") {
     return "Aus der OGS-Anmeldung, geprüft über das Elternkonto.";

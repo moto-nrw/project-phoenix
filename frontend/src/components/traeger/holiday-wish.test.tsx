@@ -55,7 +55,9 @@ describe("holiday care wish (#4703)", () => {
     const onChanged = renderSection(unknown);
 
     expect(screen.getByText("Ferienwunsch prüfen")).toBeInTheDocument();
-    expect(screen.getByText(/ohne Elternkonto angemeldet/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Der Ferienwunsch ist nicht bekannt/),
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Lia Muster: Mit Ferienwunsch" }),
     );
