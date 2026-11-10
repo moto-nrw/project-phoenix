@@ -42,22 +42,31 @@ func bookingPartsAfterFunding(invoice parentbilling.ExportInvoice) []parentbilli
 	return slices.DeleteFunc(parts, func(part parentbilling.ExportBookingPart) bool { return part.Removed })
 }
 
-// applyBookingFunding apportions a service's remaining amount over its
-// positions, keeping each rounding cent within that service.
+// applyBookingFunding deducts removals in full after funding and apportions
+// the service's remaining amount over its surviving positions, keeping the
+// funding and each rounding cent within that service.
 func applyBookingFunding(parts []parentbilling.ExportBookingPart, kind string, before, after int64) {
 	if before <= 0 || before == after {
 		return
 	}
 	var weights []int64
 	for _, part := range parts {
-		if part.Kind == kind && part.AmountCents > 0 {
-			weights = append(weights, part.AmountCents)
+		if part.Kind != kind || part.AmountCents <= 0 {
+			continue
 		}
+		if part.Removed {
+			after -= part.AmountCents
+			continue
+		}
+		weights = append(weights, part.AmountCents)
 	}
-	amounts := splitCents(after, weights)
+	if len(weights) == 0 {
+		return
+	}
+	amounts := splitCents(max(0, after), weights)
 	i := 0
 	for j := range parts {
-		if parts[j].Kind == kind && parts[j].AmountCents > 0 {
+		if parts[j].Kind == kind && parts[j].AmountCents > 0 && !parts[j].Removed {
 			parts[j].AmountCents = amounts[i]
 			i++
 		}
