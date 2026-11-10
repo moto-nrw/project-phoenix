@@ -267,6 +267,8 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 			"parent_billing.sepa_creditors",
 			// The stored PAIN.008 files of the downloads (ADR 0187).
 			"parent_billing.sepa_debit_files",
+			// The revenue accounts and cost centers (#4821).
+			"parent_billing.revenue_accounts", "parent_billing.cost_centers",
 		} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
 			require.NoError(tb, err, "Failed to clean up test Elternabrechnung rows")

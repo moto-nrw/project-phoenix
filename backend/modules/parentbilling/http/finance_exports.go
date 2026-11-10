@@ -28,16 +28,19 @@ import (
 // committed with it.
 type FinanceExportResource struct {
 	exports        capability.FinanceExports
+	accounts       capability.BookingAccountService
 	requireExport  common.Middleware
 	requireBilling common.Middleware
 }
 
 // NewFinanceExportResource builds the resource.
-func NewFinanceExportResource(exports capability.FinanceExports, requireExport, requireBilling common.Middleware) *FinanceExportResource {
-	if exports == nil || requireExport == nil || requireBilling == nil {
-		panic("parent billing http: the finance exports and the right checks are required")
+func NewFinanceExportResource(exports capability.FinanceExports, accounts capability.BookingAccountService,
+	requireExport, requireBilling common.Middleware,
+) *FinanceExportResource {
+	if exports == nil || accounts == nil || requireExport == nil || requireBilling == nil {
+		panic("parent billing http: the finance exports, the booking accounts and the right checks are required")
 	}
-	return &FinanceExportResource{exports: exports, requireExport: requireExport, requireBilling: requireBilling}
+	return &FinanceExportResource{exports: exports, accounts: accounts, requireExport: requireExport, requireBilling: requireBilling}
 }
 
 // Router returns the routes mounted at /traeger/finance-exports.
@@ -55,6 +58,10 @@ func (rs *FinanceExportResource) Router(protectedTraegerRoutes func(chi.Router, 
 		export.Get("/files", rs.files)
 		export.Get("/runs/{kind}/{id}/sollstellung", rs.sollstellung)
 		export.Get("/runs/{kind}/{id}/datev", rs.datev)
+		export.Get("/booking-accounts", rs.bookingAccounts)
+		export.Put("/booking-accounts/revenue-accounts", rs.setRevenueAccount)
+		export.Post("/booking-accounts/cost-centers", rs.addCostCenter)
+		export.Delete("/booking-accounts/cost-centers/{id}", rs.deleteCostCenter)
 		r.With(rs.requireBilling, withTx).Get("/invoice-history/{kind}/{id}", rs.history)
 	})
 	return r
@@ -352,7 +359,11 @@ func renderExportError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	var notReady *capability.DatevNotReadyError
 	var bookings *capability.DatevBookingsError
+	var sollAccounts *capability.SollRevenueAccountError
 	switch {
+	case errors.As(err, &sollAccounts):
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingSollstellungRevenueAccountMissing, map[string]any{
+			"count": len(sollAccounts.DocumentNumbers), "documents": sollAccounts.DocumentNumbers}))
 	case errors.As(err, &notReady):
 		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingDatevNotReady, map[string]any{
 			"missing_settings": notReady.Readiness.MissingSettings, "invalid_settings": notReady.Readiness.InvalidSettings}))

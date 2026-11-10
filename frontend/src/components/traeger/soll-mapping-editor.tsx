@@ -16,8 +16,11 @@ import {
   SOLL_FIELD_LABELS,
   sollFileName,
   sollPreview,
+  sollSplitsLines,
 } from "~/components/traeger/finance-export-format";
-import { Button } from "~/components/ui/button";
+import { BOOKING_ACCOUNTS_PATH } from "~/components/traeger/finance-export-datev";
+import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
@@ -31,6 +34,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { SwitchRow } from "~/components/ui/switch";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   type ExportSettings,
   type SollColumn,
@@ -284,6 +288,22 @@ export function SollMappingEditor({
             />
           ))}
         </ol>
+        {sollSplitsLines(draft) ? (
+          <Alert
+            type="info"
+            className="mt-4"
+            message="Mit Erlöskonto oder Kostenstelle hat die Datei eine Zeile je Konto einer Rechnung. Der Betrag ist dann der Teil der Rechnung auf diesem Konto."
+            action={
+              <ButtonLink
+                href={traegerPath(BOOKING_ACCOUNTS_PATH)}
+                variant="ghost_tone"
+                size="compact"
+              >
+                Konten ansehen
+              </ButtonLink>
+            }
+          />
+        ) : null}
       </SectionCard>
 
       <SectionCard

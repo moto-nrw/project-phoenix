@@ -43,6 +43,30 @@ describe("finance export format", () => {
     ]);
   });
 
+  it("previews one row per account line once the mapping names an account", () => {
+    expect(
+      sollPreview(
+        {
+          ...MAPPING,
+          columns: [
+            { field: "invoice_number", header: "Nr", value: "" },
+            { field: "amount", header: "Betrag", value: "" },
+            { field: "revenue_account", header: "Konto", value: "" },
+            { field: "cost_center", header: "KOST1", value: "" },
+            { field: "cost_center_2", header: "KOST2", value: "" },
+          ],
+        },
+        110,
+      ),
+    ).toEqual([
+      "Nr;Betrag;Konto;KOST1;KOST2",
+      "MB-2026-0110;32,50;4410;KST100;FRUEH",
+      "MB-2026-0110;45,50;4400;KST100;",
+      "MB-2026-0111;-32,50;4410;KST100;FRUEH",
+      "MB-2026-0111;-45,50;4400;KST100;",
+    ]);
+  });
+
   it("names the file and who downloaded it", () => {
     expect(sollFileName(MAPPING.fileNamePattern, 110)).toBe(
       "csv-export-bewegungsdaten-110.csv",

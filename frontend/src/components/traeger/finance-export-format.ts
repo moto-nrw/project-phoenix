@@ -5,15 +5,16 @@
  */
 
 import { formatBerlinDate, formatBerlinTime } from "~/lib/date-helpers";
-import type {
-  ExportFormat,
-  SollColumn,
-  SollDateFormat,
-  SollDecimal,
-  SollDelimiter,
-  SollEncoding,
-  SollField,
-  SollMapping,
+import {
+  type ExportFormat,
+  type SollColumn,
+  type SollDateFormat,
+  type SollDecimal,
+  type SollDelimiter,
+  type SollEncoding,
+  type SollField,
+  type SollMapping,
+  SOLL_BOOKING_FIELDS,
 } from "~/lib/traeger-finance-exports-api";
 
 /** What a column of the Sollstellung shows, in the order of the choice. */
@@ -35,6 +36,9 @@ export const SOLL_FIELD_LABELS: Record<SollField, string> = {
   mandate_reference: "Mandatsreferenz",
   document_kind: "Belegart",
   file_number: "Dateinummer",
+  revenue_account: "Erlöskonto",
+  cost_center: "Kostenstelle (KOST1)",
+  cost_center_2: "Zweite Kostenstelle (KOST2)",
   constant: "Fester Wert",
 };
 
@@ -104,8 +108,74 @@ const SAMPLE_ROWS: Record<SollField, readonly [string, string]> = {
   mandate_reference: ["SJR-0001", "SJR-0001"],
   document_kind: ["Rechnung", "Storno"],
   file_number: ["", ""],
+  revenue_account: ["4400", "4400"],
+  cost_center: ["KST100", "KST100"],
+  cost_center_2: ["", ""],
   constant: ["", ""],
 };
+
+/** A sample row: the invoice or its Storno, and the line of where it books. */
+interface SampleRow {
+  readonly document: 0 | 1;
+  readonly line?: {
+    readonly cents: number;
+    readonly account: string;
+    readonly kost1: string;
+    readonly kost2: string;
+  };
+}
+
+/**
+ * With an account field, a document writes one row per revenue account and
+ * cost centers: the sample invoice books the Frühbetreuung on its own
+ * account and the rest on the account of the monthly contributions.
+ */
+function sampleRows(mapping: SollMapping): SampleRow[] {
+  if (!sollSplitsLines(mapping)) return [{ document: 0 }, { document: 1 }];
+  const lines = [
+    { cents: 3250, account: "4410", kost1: "KST100", kost2: "FRUEH" },
+    { cents: 4550, account: "4400", kost1: "KST100", kost2: "" },
+  ];
+  return [
+    ...lines.map((line) => ({ document: 0 as const, line })),
+    ...lines.map((line) => ({
+      document: 1 as const,
+      line: { ...line, cents: -line.cents },
+    })),
+  ];
+}
+
+/** Whether the mapping writes one row per account line (#4821). */
+export function sollSplitsLines(mapping: SollMapping): boolean {
+  return mapping.columns.some((column) =>
+    SOLL_BOOKING_FIELDS.includes(column.field),
+  );
+}
+
+function formatCents(cents: number, decimal: SollDecimal): string {
+  const sign = cents < 0 ? "-" : "";
+  const abs = Math.abs(cents);
+  return `${sign}${Math.floor(abs / 100)}${decimal}${String(abs % 100).padStart(2, "0")}`;
+}
+
+function lineValue(
+  column: SollColumn,
+  line: NonNullable<SampleRow["line"]>,
+  decimal: SollDecimal,
+): string | null {
+  switch (column.field) {
+    case "amount":
+      return formatCents(line.cents, decimal);
+    case "revenue_account":
+      return line.account;
+    case "cost_center":
+      return line.kost1;
+    case "cost_center_2":
+      return line.kost2;
+    default:
+      return null;
+  }
+}
 
 const DATE_FIELDS: readonly SollField[] = [
   "invoice_date",
@@ -117,12 +187,16 @@ const DATE_FIELDS: readonly SollField[] = [
 function sampleValue(
   mapping: SollMapping,
   column: SollColumn,
-  row: 0 | 1,
+  sample: SampleRow,
   fileNumber: number,
 ): string {
   if (column.field === "constant") return column.value;
   if (column.field === "file_number") return String(fileNumber);
-  const raw = SAMPLE_ROWS[column.field][row];
+  if (sample.line) {
+    const value = lineValue(column, sample.line, mapping.decimalSeparator);
+    if (value !== null) return value;
+  }
+  const raw = SAMPLE_ROWS[column.field][sample.document];
   if (raw === "") return "";
   if (
     DATE_FIELDS.includes(column.field) &&
@@ -132,10 +206,7 @@ function sampleValue(
     return `${day}.${month}.${year}`;
   }
   if (column.field === "amount") {
-    const cents = Number(raw);
-    const sign = cents < 0 ? "-" : "";
-    const abs = Math.abs(cents);
-    return `${sign}${Math.floor(abs / 100)}${mapping.decimalSeparator}${String(abs % 100).padStart(2, "0")}`;
+    return formatCents(Number(raw), mapping.decimalSeparator);
   }
   return raw;
 }
@@ -148,7 +219,8 @@ function quoted(value: string, delimiter: SollDelimiter): string {
 
 /**
  * The first lines of the file as the mapping writes them, with an invented
- * invoice and its Storno; the tabulator shows as „→“ so it can be seen.
+ * invoice and its Storno, one row per account line when the mapping names
+ * an account field; the tabulator shows as „→“ so it can be seen.
  */
 export function sollPreview(
   mapping: SollMapping,
@@ -161,11 +233,11 @@ export function sollPreview(
   if (mapping.headerRow) {
     lines.push(line(mapping.columns.map((column) => column.header)));
   }
-  for (const row of [0, 1] as const) {
+  for (const sample of sampleRows(mapping)) {
     lines.push(
       line(
         mapping.columns.map((column) =>
-          sampleValue(mapping, column, row, fileNumber),
+          sampleValue(mapping, column, sample, fileNumber),
         ),
       ),
     );

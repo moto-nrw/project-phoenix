@@ -32,7 +32,7 @@ const DATEV_SETTING_LABELS: Record<string, string> = {
   "parent_billing.datev_account_length": "Länge der Sachkonten",
   "parent_billing.datev_chart_of_accounts": "Kontenrahmen",
   "parent_billing.datev_fiscal_year_start": "Beginn des Wirtschaftsjahres",
-  "parent_billing.datev_revenue_account": "Erlöskonto für Elternbeiträge",
+  "parent_billing.datev_revenue_account": "Standard-Erlöskonto",
 };
 
 function settingLabel(key: string): string {
@@ -106,8 +106,21 @@ function datevProblemText(problem: DatevBookingProblem): string {
       return "Rechnungsnummer passt nicht zu DATEV";
     case "amount":
       return "Betrag passt nicht zu DATEV";
+    case "revenue_account":
+      return problem.reason === "missing"
+        ? "Erlöskonto fehlt"
+        : "Erlöskonto ist länger als Ihre Sachkonten";
+    case "cost_center":
+      return problem.reason === "missing"
+        ? "Kostenstelle fehlt"
+        : "Kostenstelle passt nicht zu DATEV";
+    case "cost_center_2":
+      return "Zweite Kostenstelle passt nicht zu DATEV";
   }
 }
+
+/** Where the Träger keeps its revenue accounts and cost centers (#4821). */
+export const BOOKING_ACCOUNTS_PATH = "/traeger/abrechnung/exporte/konten";
 
 /**
  * One line per reason with the invoices it names, so a reason that applies
@@ -144,8 +157,12 @@ export function DatevRefusedNotice({
   onDismiss: () => void;
 }>) {
   const debtor = problems.some((problem) => problem.field === "debtor_number");
-  const correction =
-    runKind === "holiday"
+  const accounts = problems.some((problem) =>
+    ["revenue_account", "cost_center", "cost_center_2"].includes(problem.field),
+  );
+  const correction = accounts
+    ? "Schon festgehaltene Konten und Kostenstellen bleiben unverändert. Auch ein Storno übernimmt diese Werte. Laden Sie dann die Sollstellung dieses Laufs herunter. Geben Sie die Datei und diesen Hinweis an Ihr Steuerbüro. Es kann die genannten Werte berichtigen und manuell in DATEV buchen. Der DATEV-Download dieses Laufs bleibt dann gesperrt. Korrigieren Sie unter „Konten und Kostenstellen“ die Werte für neue Rechnungen."
+    : runKind === "holiday"
       ? "Bei Rechnungen ohne Gutschrift: Stornieren Sie die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Danach ist der Lauf wieder frei. Hat die Rechnung schon eine Gutschrift, ist kein Storno möglich. Laden Sie dann die Sollstellung für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt."
       : "Tragen Sie bei der Familie die richtige Debitorennummer ein. Stornieren Sie dann die Rechnung und stellen Sie sie neu aus. Danach ist der Lauf wieder frei.";
   return (
@@ -153,9 +170,20 @@ export function DatevRefusedNotice({
       type="warning"
       title={`Keine DATEV-Datei für ${runLabel}`}
       message={
-        debtor
+        accounts || debtor
           ? `DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt. So geht es weiter: ${correction}`
           : "DATEV nimmt diese Rechnungen so nicht an. Es wurde keine Datei erstellt."
+      }
+      action={
+        accounts ? (
+          <ButtonLink
+            href={traegerPath(BOOKING_ACCOUNTS_PATH)}
+            variant="ghost_tone"
+            size="compact"
+          >
+            Konten und Kostenstellen
+          </ButtonLink>
+        ) : undefined
       }
       details={<BulletList lines={datevProblemLines(problems)} />}
       onDismiss={onDismiss}

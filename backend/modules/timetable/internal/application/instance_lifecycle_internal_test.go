@@ -395,9 +395,20 @@ func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *dele
 	return &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:  fakeInstanceRows(instanceRepo),
 		ExceptionRepo: exceptionRepo,
+		Database:      deleteUnitDatabase{},
 		Logger:        slog.New(slog.DiscardHandler),
 	}}
 }
+
+// deleteUnitDatabase grants the day lock the delete takes; the real lock is
+// exercised by the delete races in compose/httpintegration.
+type deleteUnitDatabase struct{}
+
+func (deleteUnitDatabase) InTenant(ctx context.Context, _ int64, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
+func (deleteUnitDatabase) AcquireTransactionLock(context.Context, string) error { return nil }
 
 func deleteUnitInstance(id int64, groupID *int64, date calendar.Date, status string, spontaneous bool) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{

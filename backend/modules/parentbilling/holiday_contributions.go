@@ -389,6 +389,9 @@ type HolidayBillingSettings interface {
 	// takes over: its values of parent_billing.sibling_rank and
 	// parent_billing.cost_takeover_order or the defaults (#5664).
 	HolidayChain(ctx context.Context, organizationID int64) (HolidayChainSettings, error)
+	// DatevBillingSettings names the standard revenue account the release
+	// copies onto a position without an account of its own (#4821).
+	DatevBillingSettings
 }
 
 // HolidayConfirmationSettings is what the Träger-Büro needs to know before

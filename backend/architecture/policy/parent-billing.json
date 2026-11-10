@@ -177,6 +177,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.cost_centers",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.datev_booked_documents",
       "write_owner": "parent-billing"
     },
@@ -266,6 +270,10 @@
     },
     {
       "name": "parent_billing.service_terms",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.revenue_accounts",
       "write_owner": "parent-billing"
     },
     {
