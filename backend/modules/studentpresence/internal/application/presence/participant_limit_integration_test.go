@@ -240,13 +240,11 @@ func TestWebParticipantLimit_ManualCheckIn(t *testing.T) {
 	assert.Equal(t, 1, openVisitsIn(t, service, fixture.session.ID))
 }
 
-// TestWebParticipantLimit_TerminalUnchanged pins that the web setting never
-// reaches a kiosk request: the terminal enforces the limit in its own scan
-// path before the visit gets here, with its own error contract.
-func TestWebParticipantLimit_TerminalUnchanged(t *testing.T) {
+// Device admissions enforce the same locked limit even while web overflow
+// remains enabled. The kiosk binding preserves its own error contract.
+func TestParticipantLimit_DeviceAdmissionRefusesFullSession(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	forbidWebOverbooking(t, db)
 	service := setupActiveService(t, db)
 	ctx := testpkg.Ctx(t)
 	fixture := newLimitFixture(t, db, "limit-terminal", 1, 1, 1)
@@ -254,8 +252,11 @@ func TestWebParticipantLimit_TerminalUnchanged(t *testing.T) {
 	deviceCtx := api.WithAttendanceDevice(staffCtx, fixture.device, testpkg.Tenant(t))
 
 	visit := &studentpresence.Visit{StudentID: fixture.inTransit[0], ActiveGroupID: fixture.session.ID, EntryTime: time.Now()}
-	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-	assert.NotZero(t, visit.ID)
+	err := service.CreateVisit(deviceCtx, visit)
+
+	requireLimitRefusal(t, err, 1, 1, 1)
+	assert.Zero(t, visit.ID)
+	assert.Equal(t, 1, openVisitsIn(t, service, fixture.session.ID))
 }
 
 func TestWebParticipantLimit_VisitTransfer(t *testing.T) {
