@@ -5,6 +5,8 @@
 export function emptySearchText(
   search: string,
   filterLabels: readonly string[],
+  /** The page's own next step for a search alone, e.g. what else to try. */
+  searchHint = "Prüfen Sie die Schreibweise.",
 ): { readonly description: string; readonly actionLabel: string } {
   const term = search.trim();
   const filtered = filterLabels.length > 0;
@@ -12,7 +14,7 @@ export function emptySearchText(
   const next = term
     ? filtered
       ? "Ändern Sie die Suche oder den Filter."
-      : "Prüfen Sie die Schreibweise."
+      : searchHint
     : filtered
       ? "Ändern Sie den Filter."
       : "";

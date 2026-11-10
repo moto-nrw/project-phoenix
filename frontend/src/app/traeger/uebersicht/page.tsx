@@ -227,8 +227,9 @@ function figureColumns(
       // Bedienelemente und wird deshalb selbst kein Knopf.
       render: (school) => (
         // Room for a hyphenated word („Demo-Schule“): the name breaks at its
-        // spaces, not at the hyphen, beside six figure columns.
-        <div className="min-w-28">
+        // spaces, not at the hyphen, beside six figure columns. On a laptop
+        // a usual name keeps one line.
+        <div className="min-w-28 xl:min-w-40">
           <NavigationLink
             href={schoolPath(school)}
             className="font-medium text-gray-900 hover:underline"
@@ -795,7 +796,13 @@ export default function TraegerDashboardPage() {
             <EmptyState
               icon={<School className="h-12 w-12" aria-hidden="true" />}
               title="Keine Schule passt zu Ihrer Suche."
-              description={`${emptySearchText(search, []).description} Prüfen Sie den Namen oder suchen Sie nach dem Ort.`}
+              description={
+                emptySearchText(
+                  search,
+                  [],
+                  "Prüfen Sie den Namen oder suchen Sie nach dem Ort.",
+                ).description
+              }
               action={
                 <Button
                   type="button"
