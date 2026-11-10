@@ -34,8 +34,13 @@ func init() {
 //     file repeats bookings that were already in a DATEV file.
 //
 // The DATEV files of #6427 held every booking of their run. The backfill
-// marks those bookings with the earliest such file; a Storno counts when it
-// was issued before that file was made.
+// marks those bookings with the earliest such file. A monthly Storno shares
+// the link of its invoice, so the file's recorded booking count says how
+// many of its Stornos it held: the bookings beyond its nonzero invoices.
+// Those are the Stornos issued first (an export reads what committed before
+// it); a transaction timestamp alone cannot prove that. The backfill never
+// stops the migration: a file whose count leaves no room marks none of its
+// Stornos, and the next standard file books them.
 const parentBillingDatevBookedDocumentsUpSQL = `
 ALTER TABLE parent_billing.export_files
 	ADD COLUMN datev_all BOOLEAN NOT NULL DEFAULT false,
@@ -76,13 +81,24 @@ WHERE file.format = 'datev' AND invoice.total_cents <> 0
 ORDER BY link.organization_id, link.care_invoice_id, file.file_number;
 
 INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_cancellation_id)
-SELECT DISTINCT ON (cancellation.id) cancellation.organization_id, file.id, cancellation.id
-FROM parent_billing.care_invoice_cancellations AS cancellation
-JOIN parent_billing.export_file_invoices AS link
-	ON link.organization_id = cancellation.organization_id AND link.care_invoice_id = cancellation.invoice_id
-JOIN parent_billing.export_files AS file ON file.organization_id = link.organization_id AND file.id = link.export_file_id
-WHERE file.format = 'datev' AND cancellation.total_cents <> 0 AND cancellation.issued_at <= file.exported_at
-ORDER BY cancellation.id, file.file_number;
+SELECT DISTINCT ON (ranked.cancellation_id) ranked.organization_id, ranked.file_id, ranked.cancellation_id
+FROM (
+	SELECT file.organization_id, file.id AS file_id, file.file_number, cancellation.id AS cancellation_id,
+		ROW_NUMBER() OVER (PARTITION BY file.id ORDER BY cancellation.issued_at, cancellation.id) AS position,
+		file.invoice_count - (
+			SELECT COUNT(*) FROM parent_billing.export_file_invoices AS held
+			JOIN parent_billing.care_invoices AS invoice
+				ON invoice.organization_id = held.organization_id AND invoice.id = held.care_invoice_id
+			WHERE held.organization_id = file.organization_id AND held.export_file_id = file.id AND invoice.total_cents <> 0
+		) AS cancellations_held
+	FROM parent_billing.export_files AS file
+	JOIN parent_billing.export_file_invoices AS link ON link.organization_id = file.organization_id AND link.export_file_id = file.id
+	JOIN parent_billing.care_invoice_cancellations AS cancellation
+		ON cancellation.organization_id = link.organization_id AND cancellation.invoice_id = link.care_invoice_id
+	WHERE file.format = 'datev' AND file.run_kind = 'care' AND cancellation.total_cents <> 0
+) AS ranked
+WHERE ranked.position <= ranked.cancellations_held
+ORDER BY ranked.cancellation_id, ranked.file_number;
 
 INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, document_id)
 SELECT DISTINCT ON (link.organization_id, link.document_id) link.organization_id, link.export_file_id, link.document_id
