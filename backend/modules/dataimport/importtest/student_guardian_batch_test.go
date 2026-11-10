@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -197,8 +198,12 @@ func TestStudentGuardianBatchAddsNoWait(t *testing.T) {
 // read with a 1 s timeout and no bound. Neither the batch nor the row path
 // waits for those guardians, so both end with 200. A bundled statement that
 // locked them, as a batch over existing guardians would, waits for all three
-// in one read, 1.8 s without a byte, and fails with an i/o timeout: the
-// mutation in the PR turns this test red.
+// in one read and fails with an i/o timeout: the mutation in the PR turns
+// this test red. The release chain starts on an event, never on a timer:
+// either the upload's own session waits for a holder (pg_blocking_pids of
+// its named pool), then the holders release 0.6 s apart, so the waiting read
+// lasts at least 1.8 s; or the upload ends while every holder still holds,
+// which proves it waited for none of them.
 func TestStudentGuardianBatchWaitsAddUpNowhere(t *testing.T) {
 	t.Parallel()
 	const readTimeout, gap = time.Second, 600 * time.Millisecond
@@ -212,13 +217,13 @@ func TestStudentGuardianBatchWaitsAddUpNowhere(t *testing.T) {
 	} {
 		t.Run(run.name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			pool, _ := namedImportPool(t, testpkg.PackageTestDSN(t), readTimeout)
+			pool, name := namedImportPool(t, testpkg.PackageTestDSN(t), readTimeout)
 			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), run.options)
 			require.NoError(t, err)
 			actor := newImporter(t, db)
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			holders := make([]bun.Tx, 3)
+			holders, pids := make([]bun.Tx, 3), make([]int, 3)
 			for i := range holders {
 				held := testpkg.CreateTestGuardianProfileWithExactEmail(t, db, testpkg.Tenant(t), testpkg.GuardianProfileWithEmail{
 					FirstName: "Eltern", LastName: fmt.Sprintf("Gehalten%d", i), Email: fmt.Sprintf("gehalten%d.%d@example.test", i, testpkg.Tenant(t))})
@@ -227,15 +232,34 @@ func TestStudentGuardianBatchWaitsAddUpNowhere(t *testing.T) {
 				t.Cleanup(func() { _ = tx.Rollback() })
 				var id int64
 				require.NoError(t, tx.NewRaw(`SELECT id FROM users.guardian_profiles WHERE id = ? FOR UPDATE`, held.ID).Scan(ctx, &id))
-				holders[i] = tx
+				holders[i], pids[i] = tx, sessionPID(t, ctx, tx)
 			}
 			done := uploadStudents(t, module, pool, actor, guardianBatchFile("Kette"), "chain.csv")
-			// The staggered hold times are the subject of the test.
-			for _, holder := range holders {
-				time.Sleep(gap)
-				require.NoError(t, holder.Rollback())
+			var upload studentUpload
+			finished := false
+			deadline := time.Now().Add(20 * time.Second)
+			for !finished && !uploadWaitsForAny(t, db, name, pids) {
+				require.True(t, time.Now().Before(deadline), "the upload neither ended nor waited for a holder")
+				select {
+				case upload = <-done:
+					finished = true
+				case <-time.After(5 * time.Millisecond):
+				}
 			}
-			upload := awaitStudents(t, done)
+			if finished {
+				// Ended while every holder still held: it waited for none.
+				for _, holder := range holders {
+					require.NoError(t, holder.Rollback())
+				}
+			} else {
+				// A statement waits for the holders: release them one after
+				// another; the staggered hold times are the subject here.
+				for _, holder := range holders {
+					time.Sleep(gap)
+					require.NoError(t, holder.Rollback())
+				}
+				upload = awaitStudents(t, done)
+			}
 			require.NoError(t, upload.err)
 			require.Equal(t, studentChunkRows, upload.result.CreatedCount)
 			observation := (*module.Observations)[0]
@@ -243,6 +267,18 @@ func TestStudentGuardianBatchWaitsAddUpNowhere(t *testing.T) {
 			require.Zero(t, observation.BatchesRetried)
 		})
 	}
+}
+
+// uploadWaitsForAny reports whether a session of the upload's own pool
+// (application name upload) waits for a lock one of the holder sessions
+// holds.
+func uploadWaitsForAny(t *testing.T, db *bun.DB, upload string, holders []int) bool {
+	t.Helper()
+	var blocked int
+	err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity WHERE application_name = ? AND pg_blocking_pids(pid) && ?::int[]`, upload, pgdialect.Array(holders)).
+		Scan(context.Background(), &blocked)
+	require.NoError(t, err)
+	return blocked > 0
 }
 
 // guardianBatchFile is namedStudentBatch without guardian e-mails.
