@@ -66,7 +66,7 @@ export function traegerHolidayAllocationTopic(): HelpTopic {
       "moto schlägt nur vor. Jede Entscheidung trifft Ihr Büro. Unter `Verlauf der Entscheidungen` steht jede Entscheidung mit Vorschlag und Begründung.",
       "Bei gleichen Kriterien zählt, wer sich zuerst angemeldet hat.",
       "Sobald Antworten vorliegen, bleibt `Gilt für` beim Kriterium fest.",
-      "Solange eine Woche offene Entscheidungen hat, rückt dort niemand nach. Nach der letzten Entscheidung rückt die Warteliste bei freien Plätzen nach.",
+      "Solange eine Woche offene Entscheidungen hat, rückt dort niemand nach. Nach der letzten Entscheidung können ältere Wartelisteneinträge nachrücken. Gerade auf die Warteliste gesetzte Kinder bleiben zunächst dort.",
       "Eine Prüfung des Büros zählt vor der Angabe der Eltern. Sie ändert den Vorschlag für offene Plätze.",
       "Fragen Sie nur, was Sie für die Vergabe brauchen. Fragen Sie nicht nach Gesundheit oder Förderbedarf.",
       "Ein Kind mit offenem Platz zahlt nichts. Es steht auch nicht auf der Teilnehmerliste der OGS.",

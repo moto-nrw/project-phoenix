@@ -179,3 +179,21 @@ func movedUpOrEmpty(ids []int64) []int64 {
 	}
 	return slices.Compact(slices.Sorted(slices.Values(ids)))
 }
+
+// AllocateHolidayPlaces uses the same invoice-before-period order as a
+// cancellation or capacity change. Enrollment decides and reports promotions;
+// this owner freezes their contributions before the outer transaction commits.
+func (h *HolidayContributions) AllocateHolidayPlaces(ctx context.Context, organizationID, accountID, periodID int64, decide func(context.Context) ([]int64, error)) error {
+	reviewer := parentbilling.HolidayReviewer{OrganizationID: organizationID, AccountID: accountID}
+	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
+		return errTraegerRequired
+	}
+	if _, _, err := h.lockSiblings(ctx, reviewer, periodID); err != nil {
+		return err
+	}
+	movedUp, err := decide(ctx)
+	if err != nil {
+		return err
+	}
+	return h.refreezeMovedUp(ctx, reviewer, periodID, movedUp)
+}

@@ -330,7 +330,7 @@ describe("holiday allocation page (#4700)", () => {
       await screen.findByRole("button", { name: "Vorschlag übernehmen" }),
     );
     await screen.findByText(
-      "Die Liste hat sich gerade geändert. Wir haben sie neu geladen. Bitte prüfen Sie Ihre Entscheidung noch einmal.",
+      "Die Liste hat sich geändert. Bitte prüfen Sie Ihre Entscheidung neu.",
     );
     expect(decide).toHaveBeenCalledTimes(2);
     expect(decide.mock.calls[1]?.[1]).toEqual([

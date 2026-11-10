@@ -262,6 +262,7 @@ func TestHolidayAllocationByCriteriaWaitsForTheOfficeDecision(t *testing.T) {
 // waiting booking moves up.
 func TestHolidayAllocationHoldsFreePlacesForThePendingBookings(t *testing.T) {
 	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	a := newAllocationFixture(t, "Träger Vergabe Halten")
 	week := a.offer.Weeks[0]
 	first := a.submitCriteria(t, "erste@example.org", false, false)
@@ -269,6 +270,9 @@ func TestHolidayAllocationHoldsFreePlacesForThePendingBookings(t *testing.T) {
 	pending := a.board(t).Weeks[0].Pending
 	rec := a.decide(t, decision(pending[0], "placed", ""), decision(pending[1], "waitlisted", ""))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	confirmed := a.act(t, second.ID, "confirm")
+	require.Equal(t, http.StatusOK, confirmed.Code, confirmed.Body.String())
+	assert.Zero(t, a.contributionTotal(t, second.ID), "a confirmed waiting booking costs nothing")
 	third := a.submitCriteria(t, "dritte@example.org", false, false)
 
 	rec = a.act(t, first.ID, "cancel")
@@ -287,6 +291,22 @@ func TestHolidayAllocationHoldsFreePlacesForThePendingBookings(t *testing.T) {
 	rec = traegerJSON(t, a.traeger, a.office.token, http.MethodPut, a.registrationPath(second.ID, "/criteria"),
 		map[string]any{"checks": []map[string]any{{"criterion_id": a.working, "checked": "yes"}}})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	// A billing failure after promotion must roll back the decision, the
+	// placement, both mails and the contribution in the same transaction.
+	_, err := a.db.ExecContext(t.Context(), `CREATE FUNCTION parent_billing.reject_allocation_contribution() RETURNS trigger LANGUAGE plpgsql AS $$
+ BEGIN RAISE EXCEPTION 'injected contribution failure'; END $$;
+ CREATE TRIGGER reject_allocation_contribution BEFORE INSERT ON parent_billing.holiday_contributions
+ FOR EACH ROW EXECUTE FUNCTION parent_billing.reject_allocation_contribution()`)
+	require.NoError(t, err)
+	refused := a.decide(t, decision(board.Weeks[0].Pending[0], "waitlisted", "Familie benötigt vorerst keinen Platz"))
+	require.Equal(t, http.StatusInternalServerError, refused.Code, refused.Body.String())
+	assert.Zero(t, a.places(t)[week.ID].Placed, "a failed contribution rolls back the promotion")
+	assert.Len(t, a.board(t).Weeks[0].Pending, 1, "the decision rolls back with billing")
+	assert.Equal(t, 1, a.mails(t, "holiday_place_granted", second.ID), "a failed promotion queues no mail")
+	assert.Zero(t, a.mails(t, "holiday_place_granted", third.ID), "a failed decision queues no mail")
+	_, err = a.db.ExecContext(t.Context(), `DROP TRIGGER reject_allocation_contribution ON parent_billing.holiday_contributions;
+ DROP FUNCTION parent_billing.reject_allocation_contribution()`)
+	require.NoError(t, err)
 	rec = a.decide(t, decision(board.Weeks[0].Pending[0], "waitlisted", "Familie benötigt vorerst keinen Platz"))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	places = a.places(t)[week.ID]
@@ -294,6 +314,7 @@ func TestHolidayAllocationHoldsFreePlacesForThePendingBookings(t *testing.T) {
 	require.Len(t, places.Waitlist, 1)
 	assert.Equal(t, third.ID, places.Waitlist[0].RegistrationID)
 	assert.Equal(t, 2, a.mails(t, "holiday_place_granted", second.ID), "decision and later promotion each notify the parents")
+	assert.Equal(t, week.TimeModels[0].PriceCents, a.contributionTotal(t, second.ID), "an allocation-triggered promotion refreezes the confirmed contribution")
 }
 
 // TestHolidayAllocationOfficeCheckCountsBeforeTheStatement: the Büro's check

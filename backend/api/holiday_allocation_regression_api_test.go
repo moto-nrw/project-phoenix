@@ -52,3 +52,17 @@ func TestHolidayAllocationNotifiesAgainAfterAddingDays(t *testing.T) {
 	require.Len(t, payloads, 2)
 	assert.NotEqual(t, payloads[0], payloads[1], "the second mail includes the added day")
 }
+
+func TestHolidayAllocationKeepsTheLastWaitlistDecision(t *testing.T) {
+	t.Parallel()
+	a := newAllocationFixture(t, "Träger letzte Wartelistenentscheidung")
+	registration := a.submitCriteria(t, "wartend@example.org", true, false)
+	candidate := a.board(t).Weeks[0].Pending[0]
+	rec := a.decide(t, decision(candidate, "waitlisted", "Familie benötigt vorerst keinen Platz"))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	places := a.places(t)[a.offer.Weeks[0].ID]
+	assert.Zero(t, places.Placed, "the decision must not immediately promote its own booking")
+	require.Len(t, places.Waitlist, 1)
+	assert.Equal(t, registration.ID, places.Waitlist[0].RegistrationID)
+	assert.Equal(t, 1, a.mails(t, "holiday_place_granted", registration.ID), "only the office decision notifies the parents")
+}

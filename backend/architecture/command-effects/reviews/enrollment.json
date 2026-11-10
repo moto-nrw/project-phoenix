@@ -4278,6 +4278,17 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "reason": "The Enrollment HTTP adapter binds Parent Billing's guarded allocation command to Enrollment's decision. Parent Billing retains its invoice-before-period lock order and refreezeMovedUp, including sibling groups; Enrollment retains validation, criteria/week locks, placement, audit and transactional mail. The root only wires the two capabilities. The command joins the request's Träger transaction and propagates all failures to its rollback. TestHolidayAllocationHoldsFreePlacesForThePendingBookings covers promotion charges and rollback of decisions, placements and both mails on a rejected contribution.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "target_owner": "parent-billing"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
       "classification": "query",
       "effect": "query",

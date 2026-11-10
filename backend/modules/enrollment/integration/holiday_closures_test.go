@@ -433,8 +433,8 @@ func TestHolidayClosureTellsABookingOfDaysOnlyAboutItsBookedDays(t *testing.T) {
 
 // TestHolidayClosureCountsAPendingBookingWithoutAPlace: a booking that waits
 // for the decision of the Büro by criteria (#4700) has no place, so the
-// preview counts it with the waiting ones and its mail says so, like a
-// waitlisted one. Counted as placed, it would promise the family a place.
+// preview counts it with the waiting ones, but its mail preserves the
+// pending decision. Counted as placed, it would promise the family a place.
 func TestHolidayClosureCountsAPendingBookingWithoutAPlace(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -452,18 +452,29 @@ func TestHolidayClosureCountsAPendingBookingWithoutAPlace(t *testing.T) {
 		assert.Equal(t, 2, impact.Weeks[0].Waitlisted, "the waitlisted and the pending booking have no place")
 		_, err = closures.NotifyHolidayClosure(ctx, w.organization, closure, impact.Token)
 		require.NoError(t, err)
-		waiting := 0
+		waiting, pending := 0, 0
 		for _, sent := range mail.mails {
-			var payload enrollment.HolidayClosureMail
+			var payload struct {
+				Children []struct {
+					Weeks []struct {
+						Waitlisted bool
+						Pending    bool
+					}
+				}
+			}
 			require.NoError(t, json.Unmarshal(sent.Payload, &payload))
 			for _, child := range payload.Children {
 				for _, week := range child.Weeks {
 					if week.Waitlisted {
 						waiting++
 					}
+					if week.Pending {
+						pending++
+					}
 				}
 			}
 		}
-		assert.Equal(t, 2, waiting, "the mail does not promise the pending child a place")
+		assert.Equal(t, 1, waiting, "only the waitlisted child is called waitlisted")
+		assert.Equal(t, 1, pending, "the mail keeps the office decision pending")
 	})
 }

@@ -68,13 +68,16 @@ export function allocationChips(
 /**
  * Where the line between place and waiting list goes: the index of the
  * first entry the proposal puts on the waiting list. Null when the proposal
- * gives every entry a place or none.
+ * gives every entry a place, none, or places a later day booking.
  */
 export function capacityBoundary(
   entries: readonly HolidayAllocationEntry[],
 ): number | null {
   const index = entries.findIndex((entry) => entry.proposal === "waitlisted");
-  return index > 0 ? index : null;
+  return index > 0 &&
+    entries.slice(index).every((entry) => entry.proposal === "waitlisted")
+    ? index
+    : null;
 }
 
 /** A decision differs from the proposal and needs a reason. */

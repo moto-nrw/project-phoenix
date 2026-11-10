@@ -58,6 +58,9 @@ type holidayPlacement struct {
 	// initialChildID restricts an initial placement to the rebooked child.
 	// Zero places every child of a newly submitted registration initially.
 	initialChildID int64
+	// excludedBookingIDs are decisions made in the current allocation. They
+	// may move up after a later capacity change, cancellation or rebooking.
+	excludedBookingIDs map[int64]bool
 }
 
 // holidayPromotionDetails is the audit entry of a booking that moved up.
@@ -112,6 +115,9 @@ func (p holidayPlacement) placeWeek(ctx context.Context, organizationID, weekID,
 	if slices.ContainsFunc(queue.Bookings, func(booking enrollment.HolidayQueuedBooking) bool { return booking.Pending }) {
 		return nil, nil
 	}
+	queue.Bookings = slices.DeleteFunc(slices.Clone(queue.Bookings), func(booking enrollment.HolidayQueuedBooking) bool {
+		return !booking.Placed && p.excludedBookingIDs[booking.ID]
+	})
 	var place, initial []int64
 	for _, booking := range holidayFirstFit(queue) {
 		place = append(place, booking.ID)

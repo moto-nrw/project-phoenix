@@ -14,8 +14,8 @@ func NewContributionRules() parentbilling.ContributionRules {
 	return application.NewRules(postgres.NewStore())
 }
 
-// NewHolidayContributions builds the holiday contribution (#4664, ADR 0115) over the registrations the root binds.
-func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) parentbilling.HolidayContributions {
+// NewHolidayContributions builds the holiday contribution and allocation billing over the root-bound registrations (ADR 0115).
+func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
 	return application.NewHolidayContributions(postgres.NewStore(), registrations, settings)
 }
 

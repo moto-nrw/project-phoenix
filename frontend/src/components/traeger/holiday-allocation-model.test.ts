@@ -61,6 +61,16 @@ describe("holiday allocation model (#4700)", () => {
     expect(capacityBoundary([allocationEntry()])).toBeNull();
   });
 
+  it("hides the capacity line when a later day booking still gets a place", () => {
+    expect(
+      capacityBoundary([
+        allocationEntry({ proposal: "placed" }),
+        allocationEntry({ proposal: "waitlisted" }),
+        allocationEntry({ proposal: "placed" }),
+      ]),
+    ).toBeNull();
+  });
+
   it("asks for a reason only when the decision differs from the proposal", () => {
     const entry = allocationEntry({ proposal: "placed" });
     expect(deviatesFromProposal(entry, "placed")).toBe(false);

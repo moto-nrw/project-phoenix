@@ -143,6 +143,19 @@ func (s *HolidayRegistrationStore) ReadHolidayCriteria(ctx context.Context, orga
 	return criteria, nil
 }
 
+// LockHolidayCriteriaCatalog shares the catalog replacement lock with an
+// allocation decision so every queue and its audit use the same criteria.
+func (s *HolidayRegistrationStore) LockHolidayCriteriaCatalog(ctx context.Context, organizationID int64) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(lockHolidayCriteriaCatalogQuery, organizationID).Exec(ctx); err != nil {
+		return fmt.Errorf("enrollment postgres: lock holiday criteria catalog: %w", err)
+	}
+	return nil
+}
+
 // WriteHolidayCriteria makes criteria the criteria of the Träger in their
 // order: a known ID is changed, a zero ID added, every other one archived.
 // An ID of another Träger or an archived one changes nothing.
@@ -151,8 +164,8 @@ func (s *HolidayRegistrationStore) WriteHolidayCriteria(ctx context.Context, org
 	if err != nil {
 		return err
 	}
-	if _, err := db.NewRaw(lockHolidayCriteriaCatalogQuery, organizationID).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: lock holiday criteria catalog: %w", err)
+	if err := s.LockHolidayCriteriaCatalog(ctx, organizationID); err != nil {
+		return err
 	}
 	var locked []int64
 	if err := db.NewRaw(lockHolidayCriteriaQuery, organizationID).Scan(ctx, &locked); err != nil {

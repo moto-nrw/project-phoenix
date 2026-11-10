@@ -26,6 +26,9 @@ import (
 // HolidayAllocationStore persists the criteria, the answers and the
 // decisions of the allocation.
 type HolidayAllocationStore interface {
+	// LockHolidayCriteriaCatalog keeps ranking and decision snapshots on the
+	// same catalog until the transaction ends, including an empty catalog.
+	LockHolidayCriteriaCatalog(ctx context.Context, organizationID int64) error
 	ReadHolidayCriteria(ctx context.Context, organizationID int64) ([]enrollment.HolidayCriterion, error)
 	// WriteHolidayCriteria makes criteria the criteria of the Träger in
 	// their order; one left out is archived.

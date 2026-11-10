@@ -56,10 +56,20 @@ func (a *HolidayAllocation) DecideHolidayAllocation(ctx context.Context, reviewe
 	if err := a.record(ctx, reviewer, period, decisions); err != nil {
 		return enrollment.HolidayAllocationBoard{}, err
 	}
-	if _, err := a.review.moveUp(ctx, reviewer, period, batch.weeks); err != nil {
+	// The office's new waitlist decisions stay waiting during this command.
+	// Older waitlisted bookings may move up when the last pending hold ends.
+	placement := a.review.placement
+	placement.excludedBookingIDs = make(map[int64]bool, len(choices))
+	for _, choice := range choices {
+		placement.excludedBookingIDs[choice.BookingID] = true
+	}
+	_, promoted, err := placement.place(ctx, reviewer.OrganizationID, period, batch.weeks, 0, reviewer.AccountID)
+	if err != nil {
 		return enrollment.HolidayAllocationBoard{}, err
 	}
-	return a.board(ctx, reviewer.OrganizationID, period)
+	board, err := a.board(ctx, reviewer.OrganizationID, period)
+	board.Promotions = promoted
+	return board, err
 }
 
 // holidayAllocationBatch are the choices of one decision under the locks:
@@ -77,6 +87,9 @@ type holidayAllocationBatch struct {
 // pending is refused.
 func (a *HolidayAllocation) lockChoices(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, choices []enrollment.HolidayAllocationChoice) (holidayAllocationBatch, error) {
 	store := a.review.store
+	if err := store.LockHolidayCriteriaCatalog(ctx, organizationID); err != nil {
+		return holidayAllocationBatch{}, err
+	}
 	pending, err := store.ReadHolidayPendingBookings(ctx, organizationID, period.ID)
 	if err != nil {
 		return holidayAllocationBatch{}, fmt.Errorf("enrollment: read pending holiday bookings: %w", err)

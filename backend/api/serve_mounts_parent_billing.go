@@ -551,7 +551,8 @@ func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBr
 	}
 	rules := parentBillingHTTP.NewRuleResource(parentBillingCompose.NewContributionRules(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
-	holiday := parentBillingHTTP.NewHolidayResource(parentBillingCompose.NewHolidayContributions(registrations, parentBillingSettings{settings: settings}),
+	contributions, _ := parentBillingCompose.NewHolidayContributions(registrations, parentBillingSettings{settings: settings})
+	holiday := parentBillingHTTP.NewHolidayResource(contributions,
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
 	return rules, holiday
 }

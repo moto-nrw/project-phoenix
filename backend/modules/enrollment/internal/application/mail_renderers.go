@@ -141,12 +141,13 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
 	children := make([]map[string]any, 0, len(payload.Children))
-	waitlisted := false
+	waitlisted, pending := false, false
 	for _, child := range payload.Children {
 		weeks := make([]map[string]any, 0, len(child.Weeks))
 		for _, week := range child.Weeks {
-			weeks = append(weeks, map[string]any{"Week": week.Week, "ClosedDays": week.ClosedDays, "Waitlisted": week.Waitlisted})
+			weeks = append(weeks, map[string]any{"Week": week.Week, "ClosedDays": week.ClosedDays, "Waitlisted": week.Waitlisted, "Pending": week.Pending})
 			waitlisted = waitlisted || week.Waitlisted
+			pending = pending || week.Pending
 		}
 		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": weeks})
 	}
@@ -161,6 +162,7 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 			"Reasons":           payload.Reasons,
 			"Children":          children,
 			"Waitlisted":        waitlisted,
+			"Pending":           pending,
 			"KeepsContribution": payload.KeepsContribution,
 		},
 	}, nil
