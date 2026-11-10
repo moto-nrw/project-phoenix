@@ -349,6 +349,7 @@ export function SpontaneousActivityStart({
         </button>
       </SectionCard>
 
+      {/* oxlint-disable-next-line ui-kit/form-modal-pending -- übergibt die Auswahl synchron an onStart und schließt; gespeichert wird danach außerhalb des Dialogs. */}
       <FormModal
         isOpen={isOpen}
         onClose={resetAndClose}

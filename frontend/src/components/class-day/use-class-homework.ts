@@ -6,6 +6,7 @@
 // Kit-Bausteinen.
 
 import { useState } from "react";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import type { ClassDayHomework } from "~/lib/class-day-api";
 import { createLogger } from "~/lib/logger";
@@ -47,7 +48,8 @@ export function useClassHomework({
   readonly onChanged: () => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState<HomeworkDraft | null>(null);
-  const [saving, setSaving] = useState(false);
+  const submission = useFormModalPending(draft !== null);
+  const saving = submission.pending;
   const [deleting, setDeleting] = useState<ClassDayHomework | null>(null);
   const [removing, setRemoving] = useState(false);
   const formErrors = useApiFormError();
@@ -86,26 +88,27 @@ export function useClassHomework({
       description,
     };
     formErrors.clear();
-    setSaving(true);
-    try {
-      if (draft.editing) {
-        await api.change(schoolClass, draft.editing.id, input);
-      } else {
-        await api.add(schoolClass, dateISO, input);
+    await submission.run(async (op) => {
+      try {
+        if (draft.editing) {
+          await api.change(schoolClass, draft.editing.id, input);
+        } else {
+          await api.add(schoolClass, dateISO, input);
+        }
+        await onChanged();
+        // Eine späte Antwort schließt keinen inzwischen neuen Entwurf (#6533).
+        if (op.isCurrent()) setDraft(null);
+      } catch (cause) {
+        logger.error("class_day_homework_save_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(cause, {
+          object: "die Hausaufgabe",
+          retry: () => void save(),
+        });
       }
-      await onChanged();
-      setDraft(null);
-    } catch (cause) {
-      logger.error("class_day_homework_save_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void formErrors.show(cause, {
-        object: "die Hausaufgabe",
-        retry: () => void save(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const askDelete = (entry: ClassDayHomework) => {
@@ -139,6 +142,8 @@ export function useClassHomework({
   return {
     draft,
     saving,
+    /** Der Speicher-Vertrag für den Dialog (`FormModal pending`). */
+    pending: submission,
     formError: formErrors.error,
     fieldError: formErrors.fieldError,
     openNew,

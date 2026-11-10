@@ -80,6 +80,8 @@ interface ModalProps {
   readonly isDismissDisabled?: boolean;
   /** Keep backdrop taps from discarding in-progress form input. */
   readonly isBackdropDismissDisabled?: boolean;
+  /** Marks the dialog `aria-busy` while an operation runs inside it. */
+  readonly busy?: boolean;
   /**
    * Auf schmalen Schirmen unten angeheftet und in voller Breite statt als
    * mittiges Fenster, mit Fussleiste über dem Sicherheitsbereich. Ab `sm`
@@ -119,6 +121,7 @@ export function Modal({
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
+  busy = false,
   mobileSheet = false,
   focusTitleOnOpen = false,
   suspended = false,
@@ -345,6 +348,7 @@ export function Modal({
           {...dialogAriaProps}
           aria-labelledby={title ? titleId : undefined}
           aria-describedby={title && description ? descriptionId : undefined}
+          aria-busy={busy || undefined}
           style={{ ...OVERLAY_PANEL_STYLE, pointerEvents: "auto" }}
         >
           {/* Header with close button - only show border if title exists */}

@@ -15,6 +15,10 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import {
+  useFormModalPending,
+  type FormModalPending,
+} from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
@@ -47,16 +51,19 @@ type FormErrors = ReturnType<typeof useApiFormError>;
 
 /**
  * Saves a cost bearer from a draft: a new one for a null id. The name is
- * required; the backend checks the rest. Returns whether it was saved.
+ * required; the backend checks the rest. Returns whether it was saved in the
+ * still open form; a late answer of a closed or reopened dialog returns
+ * false, so it closes nothing (#6533).
  */
 function useCostBearerSave(
   formRef: RefObject<HTMLFormElement | null>,
+  isOpen = true,
 ): readonly [
   (id: string | null, draft: CostBearerInput) => Promise<boolean>,
-  boolean,
+  FormModalPending,
   FormErrors,
 ] {
-  const [saving, setSaving] = useState(false);
+  const pending = useFormModalPending(isOpen);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
   const save = async (id: string | null, draft: CostBearerInput) => {
@@ -67,22 +74,24 @@ function useCostBearerSave(
       });
       return false;
     }
-    setSaving(true);
-    try {
-      await saveCostBearer(id, draft);
-      success("Der Kostenträger ist gespeichert.");
-      return true;
-    } catch (err) {
-      logger.error("cost_bearer_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "der Kostenträger" });
-      return false;
-    } finally {
-      setSaving(false);
-    }
+    const saved = await pending.run(async (op) => {
+      try {
+        await saveCostBearer(id, draft);
+        success("Der Kostenträger ist gespeichert.");
+        return op.isCurrent();
+      } catch (err) {
+        logger.error("cost_bearer_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (op.isCurrent()) {
+          void formErrors.show(err, { object: "der Kostenträger" });
+        }
+        return false;
+      }
+    });
+    return saved === true;
   };
-  return [save, saving, formErrors] as const;
+  return [save, pending, formErrors] as const;
 }
 
 /** The fields of a cost bearer, in the dialog and in the row. */
@@ -146,7 +155,8 @@ function CostBearerCreateModal({
 }>) {
   const [draft, setDraft] = useState<CostBearerInput>(EMPTY);
   const formRef = useRef<HTMLFormElement>(null);
-  const [save, saving, formErrors] = useCostBearerSave(formRef);
+  const [save, pending, formErrors] = useCostBearerSave(formRef, isOpen);
+  const saving = pending.pending;
   const { clear: clearErrors } = formErrors;
 
   useEffect(() => {
@@ -165,7 +175,7 @@ function CostBearerCreateModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={pending}
       isBackdropDismissDisabled
       title="Kostenträger hinzufügen"
       size="md"
@@ -216,7 +226,8 @@ function CostBearerEditRow({
 }>) {
   const [draft, setDraft] = useState<CostBearerInput>(bearer);
   const formRef = useRef<HTMLFormElement>(null);
-  const [save, saving, formErrors] = useCostBearerSave(formRef);
+  const [save, pending, formErrors] = useCostBearerSave(formRef);
+  const saving = pending.pending;
   const idPrefix = `cost-bearer-${bearer.id}`;
 
   useEffect(() => {

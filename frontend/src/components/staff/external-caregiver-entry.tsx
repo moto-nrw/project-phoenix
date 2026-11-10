@@ -5,6 +5,7 @@ import type { KeyboardEvent, RefObject } from "react";
 import { useId, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -123,18 +124,23 @@ export function useExternalCaregiverForm({
   onAdded,
   containerRef,
   canGrantView = false,
+  isOpen = true,
 }: {
   readonly onAdded: (staff: Staff) => void;
   readonly containerRef?: RefObject<HTMLElement | null>;
   /** Offer „Nur ansehen“ (`canGrantExternalViewAccess`). */
   readonly canGrantView?: boolean;
+  /** Whether the dialog around the fields is open (`FormModal isOpen`). */
+  readonly isOpen?: boolean;
 }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [organization, setOrganization] = useState("");
   const [access, setAccess] = useState<ExternalAccess>("none");
-  const [isSaving, setIsSaving] = useState(false);
+  // The pending contract of the dialog that shows the fields (#6533).
+  const pending = useFormModalPending(isOpen);
+  const isSaving = pending.pending;
   const formErrors = useApiFormError(containerRef);
 
   function reset() {
@@ -155,30 +161,34 @@ export function useExternalCaregiverForm({
       return false;
     }
     formErrors.clear();
-    setIsSaving(true);
-    try {
-      const staff = await staffService.createExternal({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        organization,
-        access,
-        ...(access === "none" ? {} : { email }),
-      });
-      onAdded(staff);
-      reset();
-      return true;
-    } catch (cause) {
-      logger.error("external_caregiver_create_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void formErrors.show(cause, {
-        object: "das Eintragen der externen Person",
-        retry: () => void submit(),
-      });
-      return false;
-    } finally {
-      setIsSaving(false);
-    }
+    const recorded = await pending.run(async (op) => {
+      try {
+        const staff = await staffService.createExternal({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          organization,
+          access,
+          ...(access === "none" ? {} : { email }),
+        });
+        onAdded(staff);
+        // A late answer leaves a dialog opened since then alone.
+        if (!op.isCurrent()) return false;
+        reset();
+        return true;
+      } catch (cause) {
+        logger.error("external_caregiver_create_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        if (op.isCurrent()) {
+          void formErrors.show(cause, {
+            object: "das Eintragen der externen Person",
+            retry: () => void submit(),
+          });
+        }
+        return false;
+      }
+    });
+    return recorded === true;
   }
 
   return {
@@ -190,6 +200,7 @@ export function useExternalCaregiverForm({
     setOrganization,
     setAccess,
     isSaving,
+    pending,
     error: formErrors.error,
     fieldError: formErrors.fieldError,
     submit,
