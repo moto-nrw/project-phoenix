@@ -401,7 +401,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) ConfirmRenewal(ctx context.Context, token string) (int, error) {\n\treturn s.owner.ConfirmRenewal(ctx, token)\n}",
+      "evidence": "func (s intakeService) ConfirmRenewal(ctx context.Context, token string, confirmation capability.RenewalConfirmation) (int, error) {\n\treturn s.owner.ConfirmRenewal(ctx, token, confirmation)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/intakeService.ConfirmRenewal",
       "owner": "modules/enrollment"
