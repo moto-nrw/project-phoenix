@@ -294,7 +294,6 @@ const env = {
   TMPDIR: process.env.TMPDIR,
   NODE_ENV: "development",
   NEXT_TELEMETRY_DISABLED: "1",
-  AUTH_TRUST_HOST: "true",
   API_URL: `http://127.0.0.1:${apiPort}`,
   NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
   NEXTAUTH_URL: `http://localhost:${frontendPort}`,
