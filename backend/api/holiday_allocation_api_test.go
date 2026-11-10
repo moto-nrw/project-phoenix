@@ -408,3 +408,33 @@ func TestHolidayAllocationQueryBudgetIsFlat(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_criteria", smallCriteria)
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_criteria", largeCriteria)
 }
+
+// TestHolidayAllocationTakesTheHolidayWishAsTheFirstCriterion: in a period
+// by criteria that takes the holiday care wish into account (#4703), the
+// wish is the criterion of highest priority: a child with a known "no"
+// waits behind every other, even one that meets a criterion of the Träger,
+// and the list names the wish first. Without the wish in the order key the
+// child that meets "Berufstätig" would come first.
+func TestHolidayAllocationTakesTheHolidayWishAsTheFirstCriterion(t *testing.T) {
+	t.Parallel()
+	a := newAllocationFixture(t, "Träger Vergabe Ferienwunsch")
+	without := a.submitCriteria(t, "ohne.wunsch@example.org", true, true)
+	plain := a.submitCriteria(t, "ohne.kriterium@example.org", false, false)
+	ctx := context.Background()
+	_, err := a.db.ExecContext(ctx, `UPDATE enrollment.holiday_periods SET holiday_wish_rule = true WHERE id = ?`, a.period.ID)
+	require.NoError(t, err)
+	_, err = a.db.ExecContext(ctx, `UPDATE enrollment.holiday_registration_children SET holiday_wish = 'no', holiday_wish_source = 'office'
+		WHERE holiday_registration_id = ?`, without.ID)
+	require.NoError(t, err)
+
+	board := a.board(t)
+	require.NotEmpty(t, board.Criteria)
+	assert.Equal(t, "Ferienwunsch aus der OGS-Anmeldung", board.Criteria[0].Name, "the wish is the first criterion")
+	pending := board.Weeks[0].Pending
+	require.Len(t, pending, 2)
+	assert.Equal(t, []int64{plain.ID, without.ID}, []int64{pending[0].RegistrationID, pending[1].RegistrationID},
+		"a known no waits behind every other child")
+	assert.Equal(t, "no", pending[1].Criteria[0].Value)
+	assert.Equal(t, "office", pending[1].Criteria[0].Source)
+	assert.Equal(t, "placed", pending[0].Proposal)
+}
