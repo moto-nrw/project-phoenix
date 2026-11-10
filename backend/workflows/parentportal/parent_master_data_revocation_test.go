@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"strconv"
 	"sync"
 	"testing"
@@ -15,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -70,12 +69,12 @@ func (c trackAEditCase) run(ctx context.Context, svc *parentService.Portal, chai
 // edit right of the chain's relationship.
 type relationshipChange struct {
 	name    string
-	apply   func(t *testing.T, ctx context.Context, db *bun.DB, people peoplePorts.GuardianService, chain testpkg.ParentChain) error
+	apply   func(t *testing.T, ctx context.Context, db *bun.DB, people peopledirectory.GuardianRelationshipCommand, chain testpkg.ParentChain) error
 	refusal error
 }
 
-func revokePermission(permission string) func(*testing.T, context.Context, *bun.DB, peoplePorts.GuardianService, testpkg.ParentChain) error {
-	return func(t *testing.T, ctx context.Context, db *bun.DB, _ peoplePorts.GuardianService, chain testpkg.ParentChain) error {
+func revokePermission(permission string) func(*testing.T, context.Context, *bun.DB, peopledirectory.GuardianRelationshipCommand, testpkg.ParentChain) error {
+	return func(t *testing.T, ctx context.Context, db *bun.DB, _ peopledirectory.GuardianRelationshipCommand, chain testpkg.ParentChain) error {
 		return prepareRevocation(t, ctx, db, chain, permission)()
 	}
 }
@@ -102,15 +101,17 @@ func prepareRevocation(t *testing.T, ctx context.Context, db *bun.DB, chain test
 var relationshipChanges = []relationshipChange{
 	{name: "Schreibrecht entzogen", apply: revokePermission(permMasterDataEdit), refusal: parentService.ErrGuardianPermissionDenied},
 	{name: "Portalzugang entzogen", apply: revokePermission(permPortalAccess), refusal: parentService.ErrChildNotLinked},
-	{name: "Rolle geändert", apply: func(t *testing.T, ctx context.Context, db *bun.DB, people peoplePorts.GuardianService, chain testpkg.ParentChain) error {
+	{name: "Rolle geändert", apply: func(t *testing.T, ctx context.Context, db *bun.DB, people peopledirectory.GuardianRelationshipCommand, chain testpkg.ParentChain) error {
 		role := "pickup_only"
 		id := relationshipID(t, db, chain)
 		return inSchoolTx(t, ctx, db, chain.TenantID, func(txCtx context.Context) error {
-			return people.UpdateStudentGuardianRelationship(txCtx, id, peoplePorts.StudentGuardianUpdateRequest{GuardianRole: &role})
+			return people.UpdateGuardianLink(txCtx, id, peopledirectory.GuardianLinkUpdate{GuardianRole: &role})
 		})
 	}, refusal: parentService.ErrChildNotLinked},
-	{name: "Beziehung entfernt", apply: func(_ *testing.T, ctx context.Context, _ *bun.DB, people peoplePorts.GuardianService, chain testpkg.ParentChain) error {
-		return people.RemoveGuardianFromStudent(ctx, chain.StudentID, chain.GuardianProfileID, chain.AccountID, false)
+	{name: "Beziehung entfernt", apply: func(_ *testing.T, ctx context.Context, _ *bun.DB, people peopledirectory.GuardianRelationshipCommand, chain testpkg.ParentChain) error {
+		return people.RemoveGuardianFromStudent(ctx, peopledirectory.RemoveGuardian{
+			StudentID: chain.StudentID, GuardianProfileID: chain.GuardianProfileID, ActorAccountID: chain.AccountID,
+		})
 	}, refusal: parentService.ErrChildNotLinked},
 }
 
@@ -163,9 +164,9 @@ func editorContext(chain testpkg.ParentChain) context.Context {
 func TestUpdateMasterDataField_RevocationBeforeWriteRefusesStaleCheck(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	services, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
+	guardians, err := api.NewGuardianTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	people := services.Guardian
+	var people peopledirectory.GuardianRelationshipCommand = guardians.PeopleDirectory
 
 	type scenario struct {
 		change relationshipChange
@@ -294,16 +295,16 @@ func TestUpdateMasterDataField_LockedEditCommitsBeforeWaitingRevocation(t *testi
 func TestUpdateMasterDataField_RightsStayPerRelationship(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	services, _, err := api.NewTestPeopleServices(testpkg.NewDatabase(t, db), slog.Default())
+	guardians, err := api.NewGuardianTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	people := services.Guardian
+	var people peopledirectory.GuardianRelationshipCommand = guardians.PeopleDirectory
 	svc := parentportalcompose.New(masterDataServiceDependencies(t, db, true))
 
 	first := testpkg.CreateTestParentGuardianChain(t, db)
 	second := testpkg.CreateTestParentGuardianChain(t, db)
 	// The second parent is also legal guardian of the first child.
 	require.NoError(t, inSchoolTx(t, testpkg.Ctx(t), db, first.TenantID, func(txCtx context.Context) error {
-		_, err := people.LinkGuardianToStudent(txCtx, peoplePorts.StudentGuardianCreateRequest{
+		_, err := people.LinkGuardianToStudent(txCtx, peopledirectory.LinkGuardian{
 			StudentID: first.StudentID, GuardianProfileID: second.GuardianProfileID,
 			RelationshipType: "parent", GuardianRole: "legal_guardian",
 		})
