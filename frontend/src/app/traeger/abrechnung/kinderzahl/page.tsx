@@ -134,13 +134,15 @@ function checkCardText(
       ? "Bei geänderten oder bald ablaufenden Zahlen zählt der Monatslauf bis zu Ihrer Prüfung die bisher bestätigte Zahl."
       : null,
     expired
-      ? "Eine abgelaufene Kinderzahl gilt nicht mehr: Bis Sie neu prüfen, zählt der Monatslauf nur die Kinder mit Vertrag."
+      ? "Eine abgelaufene Kinderzahl gilt nicht mehr. Bis Sie neu prüfen, zählen nur die Kinder mit Vertrag."
       : null,
     toCheck.some((family) => family.status === "stated")
       ? "Eine neue Angabe der Eltern zählt erst, wenn Sie sie bestätigen."
       : null,
     missing > 0
-      ? `Ohne Angabe (${missing === 1 ? "1 Familie" : `${missing} Familien`}) zählen ebenfalls nur die Kinder mit Vertrag.`
+      ? expired
+        ? `Das gilt auch für ${missing === 1 ? "die Familie" : `die ${missing} Familien`} ohne Angabe.`
+        : `Bei ${missing === 1 ? "der Familie" : `den ${missing} Familien`} ohne Angabe zählen nur die Kinder mit Vertrag.`
       : null,
   ]
     .filter(Boolean)
@@ -311,12 +313,18 @@ export default function TraegerKinderzahlPage() {
       stats={
         families.length > 0 ? (
           <TenantPageStats
-            // How many families, then one figure per pill of the table.
+            // How many families, then one figure per pill of the table. The
+            // line holds three figures: with expired numbers the total gives
+            // way, so „ohne Angabe“ stays in view.
             items={[
-              {
-                value: families.length,
-                label: families.length === 1 ? "Familie" : "Familien",
-              },
+              ...(expired > 0
+                ? []
+                : [
+                    {
+                      value: families.length,
+                      label: families.length === 1 ? "Familie" : "Familien",
+                    },
+                  ]),
               { value: countStatus("confirmed"), label: "bestätigt" },
               ...(expired > 0 ? [{ value: expired, label: "abgelaufen" }] : []),
               { value: missing, label: "ohne Angabe" },
@@ -455,6 +463,9 @@ export default function TraegerKinderzahlPage() {
           columns={columns}
           rows={rows}
           getRowKey={(family) => family.recipientEmail}
+          // Six columns on a tablet: narrower cells keep the state pills
+          // whole beside the row menu.
+          dense
           stackedOnMobile
           emptyState={
             <EmptyState
