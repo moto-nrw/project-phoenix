@@ -313,32 +313,58 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 	if err := seedBillingTerms(client, auth, runID, month); err != nil {
 		return 0, err
 	}
+	if release {
+		return seedReleaseCareRun(client, auth, runID)
+	}
+	run, err := seedReadCareRun(client, auth, runID)
+	if err != nil {
+		return 0, err
+	}
+	return 0, seedCareReview(client, auth, month, run)
+}
+
+func seedReadCareRun(client *Client, auth AuthRef, runID int64) (seedCareRunDetail, error) {
 	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
 	if err != nil {
-		return 0, fmt.Errorf("check the monthly run: %w", err)
+		return seedCareRunDetail{}, fmt.Errorf("check the monthly run: %w", err)
 	}
 	var envelope struct {
 		Data seedCareRunDetail `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return 0, fmt.Errorf("check the monthly run: %w", err)
+		return seedCareRunDetail{}, fmt.Errorf("check the monthly run: %w", err)
 	}
-	run := envelope.Data
-	if !release {
-		return 0, seedCareReview(client, auth, month, run)
-	}
-	if run.PreviewCount == 0 {
-		return 0, nil
-	}
-	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/release", runID), map[string]any{
-		"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
-	}); err != nil {
+	return envelope.Data, nil
+}
+
+// The contract-conclusion worker can change the preview even while this
+// process serializes the Träger's seed steps (#6438). Like the office after
+// a conflict, read the current preview before trying its release again.
+// Keep payment/mandate setup outside this loop and stop after three attempts
+// if the state keeps changing; every release still checks its fingerprint.
+func seedReleaseCareRun(client *Client, auth AuthRef, runID int64) (int, error) {
+	for attempt := 0; ; attempt++ {
+		run, err := seedReadCareRun(client, auth, runID)
+		if err != nil {
+			return 0, err
+		}
+		if run.PreviewCount == 0 {
+			return 0, nil
+		}
+		_, err = client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/release", runID), map[string]any{
+			"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
+		})
+		if seedConflictCode(err, seedCareRunChanged) && attempt < 2 {
+			continue
+		}
 		if seedConflictCode(err, seedCareRunReleased) {
 			return 0, nil
 		}
-		return 0, fmt.Errorf("release the monthly run: %w", err)
+		if err != nil {
+			return 0, fmt.Errorf("release the monthly run: %w", err)
+		}
+		return run.PreviewCount, nil
 	}
-	return run.PreviewCount, nil
 }
 
 // The registered codes of a run another seed of the same Träger started or
@@ -347,6 +373,7 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 const (
 	seedCareRunOpen     = "parent_billing.care_run_open"
 	seedCareRunReleased = "parent_billing.billing_run_released"
+	seedCareRunChanged  = "parent_billing.billing_run_changed"
 )
 
 // seedStartCareRun takes the open run of a month or starts one. When another

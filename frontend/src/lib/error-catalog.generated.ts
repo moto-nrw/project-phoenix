@@ -502,7 +502,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
       "enrollment.holiday_week_no_care_day":
-        "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen.",
+        "Am {date} gibt es keine Betreuung ({name}). Diese Woche kann man nicht buchen. Wählen Sie eine andere Woche.",
       "enrollment.holiday_week_not_found":
         "Diese Woche gehört nicht zu diesem Ferienzeitraum. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_weeks_booked_together":
