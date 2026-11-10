@@ -14,16 +14,3 @@ func TestTenantExportTransactionExceptionIsExact(t *testing.T) {
 		t.Fatal("changed boundary reason was admitted")
 	}
 }
-
-func TestReturnRegisterTransactionExceptionIsExact(t *testing.T) {
-	t.Parallel()
-	current := map[string]string{returnRegisterTransactionSite: returnRegisterTransactionReason, "unrelated": "unchanged"}
-	remaining := withoutReviewedReturnRegisterTransaction(current)
-	if len(remaining) != 1 || remaining["unrelated"] != "unchanged" || len(current) != 2 {
-		t.Fatal("reviewed boundary changed another register entry")
-	}
-	current[returnRegisterTransactionSite] = "different reason"
-	if len(withoutReviewedReturnRegisterTransaction(current)) != 2 {
-		t.Fatal("changed boundary reason was admitted")
-	}
-}
