@@ -144,18 +144,6 @@ function OverrunFigure({
   );
 }
 
-/**
- * A count beside the extra time, in the text colour: only the extra time
- * itself is red, so it stands out (red means a deviation, not a count).
- */
-function PlainFigure({ value }: Readonly<{ value: number }>) {
-  return (
-    <span className="text-sm font-semibold text-gray-900 tabular-nums">
-      {value}
-    </span>
-  );
-}
-
 function DaysCell({
   overrunDays,
   unbookedDays,
@@ -163,7 +151,7 @@ function DaysCell({
   const total = overrunDays + unbookedDays;
   return (
     <span className="inline-flex flex-col items-end">
-      <PlainFigure value={total} />
+      <OverrunFigure value={total} />
       {unbookedDays > 0 ? (
         <span className="text-sm text-gray-500">
           davon {unbookedDays} ohne Buchung
@@ -224,7 +212,7 @@ function schoolColumns(
       align: "right",
       render: (school) =>
         schoolHasFigures(school, to) ? (
-          <PlainFigure value={school.figures.children} />
+          <OverrunFigure value={school.figures.children} />
         ) : (
           <NoData />
         ),
@@ -262,7 +250,7 @@ function schoolColumns(
             <ProgressBar
               value={school.figures.extraMinutes}
               max={Math.max(maxMinutes, 1)}
-              color={LOCATION_COLORS.HOME}
+              color={LOCATION_COLORS.DANGER}
               size="sm"
               className="w-full"
               label={`${formatExtraTime(school.figures.extraMinutes)} zusätzliche Zeit an ${school.schoolName}`}
@@ -377,7 +365,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Kinder"
         value={noData ? "–" : total.children}
-        tone="neutral"
+        tone={!noData && total.children > 0 ? "red" : "neutral"}
         hint={
           noData
             ? noDataTitle(evaluation)
@@ -390,7 +378,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Tage"
         value={noData ? "–" : days}
-        tone="neutral"
+        tone={!noData && days > 0 ? "red" : "neutral"}
         hint={
           noData
             ? "Ohne verglichene Check-ins zählt moto keine Tage."
@@ -409,7 +397,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
               ? "–"
               : formatExtraTime(total.extraMinutes).replace(/ /g, "\u00a0")
           }
-          tone="neutral"
+          tone={!noData && total.extraMinutes > 0 ? "red" : "neutral"}
           hint={`Zählt ab ${evaluation.toleranceMinutes || 15} Minuten früher oder später.`}
           icon={<MotoConceptIcon concept={careTimesConcept} />}
         />
@@ -596,10 +584,6 @@ export default function TraegerZeitvergleichPage() {
           getRowKey={(child) => `${child.schoolId}-${child.studentId}`}
           defaultSortKey="extra"
           defaultSortDirection="desc"
-          // The longest overruns first, 25 at a time: the list grows with
-          // the Träger, „Weitere Kinder laden“ brings the next ones.
-          pageSize={25}
-          pageNoun="Kinder"
           isLoading={!evaluation && !pageLoad.error}
           loadingRowCount={3}
           stackedOnMobile

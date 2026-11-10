@@ -197,6 +197,7 @@ export function CareAmendedInvoiceCard({
                 title={reduction.name}
                 detail="Ermäßigung"
                 amount={formatEuro(reduction.amountCents)}
+                amountClassName="text-moto-green-strong"
               />
             </SlotLine>
           ))}
@@ -262,6 +263,7 @@ export function CareAmendedInvoiceCard({
                 title={share.costBearerName}
                 detail={`übernimmt · ${COST_SHARE_KIND_LABELS[share.kind]}`}
                 amount={formatEuro(-share.amountCents)}
+                amountClassName="text-moto-blue-strong"
               />
             </SlotLine>
           ))}

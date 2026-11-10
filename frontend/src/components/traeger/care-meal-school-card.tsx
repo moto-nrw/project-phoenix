@@ -116,6 +116,12 @@ export function CareMealSchoolCard({
   return (
     <SectionCard
       title={school.name}
+      // The mode that counts this month, in green beside the school.
+      titleBadge={
+        current ? (
+          <StatusBadge tone="green" label={MEAL_MODE_LABELS[current.mode]} />
+        ) : undefined
+      }
       description={
         [
           description,
