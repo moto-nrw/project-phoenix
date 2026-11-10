@@ -9,7 +9,7 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.889",
+		Version:     "1.15.896",
 		Description: "Distinguish deliberate shift-series deviations from sickness-only detachments",
 		DependsOn:   []string{holidayClosureNoticesVersion},
 	})
