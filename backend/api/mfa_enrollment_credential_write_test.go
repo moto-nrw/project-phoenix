@@ -87,12 +87,13 @@ func (m writeAfterEnrollmentCode) VerifyMFAChallengeForOwner(ctx context.Context
 }
 
 // TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing runs the
-// Träger sign-in, enrollment start and confirm against the database; a
-// password change or MFA reset commits between the redeemed code and the
-// enrollment write.
+// Träger sign-in, enrollment start and confirm against the database on an
+// account past generation 0; a password change or MFA reset commits between
+// the redeemed code and the enrollment write. Without a write the confirm
+// enrolls, so the root's binding hands the code's generation on.
 func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.T) {
 	t.Parallel()
-	for _, write := range []string{"password_change", "mfa_reset"} {
+	for _, write := range []string{"none", "password_change", "mfa_reset"} {
 		t.Run(write, func(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
@@ -104,7 +105,10 @@ func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.
 			organization := traegerOrganization(t, db, fmt.Sprintf("Träger Einrichtung %s", write), true)
 			account := traegerAccount(t, db, password)
 			testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
+			_, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = 3 WHERE id = ?`, account.ID).Exec(context.Background())
+			require.NoError(t, err)
 			writes := map[string]func() error{
+				"none": func() error { return nil },
 				"password_change": func() error {
 					return module.Auth.ChangeAccountPassword(context.Background(), identityaccess.OwnPasswordChange{
 						AccountID: account.ID, CurrentPassword: password, NewPassword: testpkg.NewTestPassword(),
@@ -124,14 +128,21 @@ func TestTraegerEnrollmentConfirmAfterACredentialWriteRecordsNothing(t *testing.
 				"challenge_token": start.ChallengeToken, "code": lastTraegerCode(t, portal, account.Email), "organization_id": organization,
 			})
 
+			enrolled, err := module.Auth.HasMFAEnrollment(context.Background(), account.ID)
+			require.NoError(t, err)
+			var tokens int
+			require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(t.Context(), &tokens))
+			if write == "none" {
+				require.Equal(t, http.StatusOK, code, "the code of the current credential enrolls")
+				assert.NotEmpty(t, answer.AccessToken)
+				assert.True(t, enrolled)
+				assert.Equal(t, 1, tokens)
+				return
+			}
 			assert.Equal(t, http.StatusUnauthorized, code)
 			assert.Equal(t, "identity.invalid_credentials", answer.Code)
 			assert.Empty(t, answer.AccessToken)
-			enrolled, err := module.Auth.HasMFAEnrollment(context.Background(), account.ID)
-			require.NoError(t, err)
 			assert.False(t, enrolled, "the code of the old credential records no enrollment")
-			var tokens int
-			require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(t.Context(), &tokens))
 			assert.Zero(t, tokens, "and mints no session")
 		})
 	}
