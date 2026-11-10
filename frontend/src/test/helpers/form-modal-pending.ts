@@ -34,7 +34,8 @@ export function expectSaveLocksDialog(
   for (const action of footerActions) {
     expect(within(dialog).getByRole("button", { name: action })).toBeDisabled();
   }
-  fireEvent.keyDown(document, { key: "Escape" });
+  // Bubbles to the dialog's document listener.
+  fireEvent.keyDown(dialog, { key: "Escape" });
   expect(dialog).not.toHaveClass("animate-modalExit");
   return dialog;
 }
