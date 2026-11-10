@@ -519,7 +519,21 @@ func groupByFamily(bookings []changedBooking) ([]string, map[string][]changedBoo
 		notices = append(notices, dayNotices(booking, booking.closed, enrollment.HolidayClosureDayClosed)...)
 		notices = append(notices, dayNotices(booking, booking.reopened, enrollment.HolidayClosureDayOpen)...)
 	}
-	return order, byFamily, notices, len(children)
+	return order, byFamily, uniqueNotices(notices), len(children)
+}
+
+// uniqueNotices keeps one state per registration, week and day: two
+// children of a registration in one week share it.
+func uniqueNotices(notices []enrollment.HolidayClosureNoticeRecord) []enrollment.HolidayClosureNoticeRecord {
+	seen := make(map[enrollment.HolidayClosureNoticeRecord]bool, len(notices))
+	result := notices[:0]
+	for _, notice := range notices {
+		if !seen[notice] {
+			seen[notice] = true
+			result = append(result, notice)
+		}
+	}
+	return result
 }
 
 func dayNotices(booking changedBooking, days []enrollment.HolidayClosedDay, state string) []enrollment.HolidayClosureNoticeRecord {

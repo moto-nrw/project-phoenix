@@ -530,3 +530,34 @@ func TestHolidayClosureTellsABookingOfDaysOnlyAboutItsBookedDays(t *testing.T) {
 			"only the booked Tuesday, not the unbooked Wednesday")
 	})
 }
+
+// TestHolidayClosureTellsARegistrationWithTwoChildrenInOneWeek pins the
+// told days of a registration whose two children booked the same week: the
+// day is one state of the registration and week, written once, and the
+// family gets one mail.
+func TestHolidayClosureTellsARegistrationWithTwoChildrenInOneWeek(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Schließtag Geschwister")
+	ctx := context.Background()
+	var child int64
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id,
+			holiday_registration_id, position, first_name, last_name, birth_date)
+		VALUES (?, ?, ?, 2, 'Zweites', 'Platz', '2020-05-06') RETURNING id`, w.organization, w.period, w.waiting).Scan(ctx, &child))
+	_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_bookings (organization_id, holiday_period_id,
+			holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement)
+		SELECT organization_id, holiday_period_id, ?, holiday_period_week_id, holiday_week_time_model_id, 'placed'
+		FROM enrollment.holiday_registration_bookings WHERE holiday_period_week_id = ? LIMIT 1`, child, w.week)
+	require.NoError(t, err)
+	mail := &capturedMails{}
+	closures := newClosures(mail, nil)
+	closure := enrollment.HolidayClosure{SchoolIDs: []int64{hostSchoolOf(t, db, w.week)}, StartsOn: calendar.NewDate(2027, 7, 7), EndsOn: calendar.NewDate(2027, 7, 7), Reason: "Teamtag"}
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		impact, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
+		require.NoError(t, err)
+		notice, err := closures.NotifyHolidayClosure(ctx, w.organization, closure, impact.Token)
+		require.NoError(t, err)
+		assert.Equal(t, 1, notice.Families)
+	})
+	assert.Len(t, mail.mails, 1)
+}
