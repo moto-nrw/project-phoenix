@@ -357,11 +357,10 @@ func TestSeedBreakClockingCarriesDeviationReasonsAtMidnight(t *testing.T) {
 				_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":42}}`)
 			})
 			defer srv.Close()
-			created, err := seedSessionViaAPI(newTestClient(srv.URL, false), rand.New(rand.NewPCG(1, 2)), time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC), seedBerlinLocation(), true)
-			require.NoError(t, err)
-			require.True(t, created)
+			require.NoError(t, seedSessionWithBreakViaAPI(newTestClient(srv.URL, false), rand.New(rand.NewPCG(1, 2))))
+			require.NoError(t, seedHistorySession(newTestClient(srv.URL, false), rand.New(rand.NewPCG(1, 2)), 11, time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC), seedBerlinLocation()))
 			assert.Equal(t, []bool{tc.wantDeviation, false}, deviations)
-			assert.Equal(t, []string{"/api/time-tracking/check-in", "/api/time-tracking/break/start", "/api/time-tracking/break/end", "/api/time-tracking/check-out", "/api/time-tracking/42"}, paths)
+			assert.Equal(t, []string{"/api/time-tracking/check-in", "/api/time-tracking/break/start", "/api/time-tracking/break/end", "/api/time-tracking/check-out", "/api/staff/11/time-tracking/sessions"}, paths)
 		})
 	}
 }

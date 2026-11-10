@@ -157,7 +157,6 @@ services:
       - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
-      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts
       - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
       # Preserve Next.js incremental build artifacts across container rebuilds
       - next_cache:/app/.next/cache

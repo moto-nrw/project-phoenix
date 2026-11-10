@@ -24,12 +24,7 @@ export function createAppWorkspace(frontendDirectory) {
   const directory = mkdtempSync(join(parent, "run-"));
   const cleanup = () => rmSync(directory, { recursive: true, force: true });
   try {
-    for (const name of [
-      "package.json",
-      "postcss.config.mjs",
-      "tailwind.config.ts",
-      "tsconfig.json",
-    ]) {
+    for (const name of ["package.json", "postcss.config.mjs", "tsconfig.json"]) {
       copyFileSync(join(frontendDirectory, name), join(directory, name));
     }
     // Reuse the real config and its plugins. The explicit workspace boundary

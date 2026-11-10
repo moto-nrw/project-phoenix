@@ -1,8 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Zusammengesetzte Fassaden werden an ihrer Methodenmenge gemessen
+
+Freigegeben von Yannick Wenger am 10.11.2026 (#6468).
 
 Entscheidung vom 08.11.2026 für Punkt 3 von
 [#6178](https://github.com/moto-nrw/project-phoenix/issues/6178), unter
@@ -49,7 +51,8 @@ deklariert.
    größten sind `identityaccess.Owner` (262), `careplan.Owner` (159),
    `careplan.Capability` (158), `peopledirectory.Owner` (146),
    `peopledirectory.Capability` (143) und `enrollment.Owner` (141). Diese Zahlen
-   sind Schulden, kein Ziel.
+   sind Schulden, kein Ziel. Das ist der historische Startwert. Das Register
+   darf seitdem nur schrumpfen (Punkt 4); den aktuellen Stand führt der Test.
 4. **Es gilt die Ratchet-Semantik des bestehenden Registers.** Ein Eintrag darf
    fallen und muss dann gesenkt oder gelöscht werden. Steigen darf er nicht.
    Eine neue Composite über 12 Methoden schlägt fehl. Erhöhen oder ergänzen
