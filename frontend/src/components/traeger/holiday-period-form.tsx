@@ -4,7 +4,7 @@
 // die buchbaren Wochen mit ausrichtender OGS und Zeitmodellen.
 
 import { Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ISODateInput } from "~/components/ui/date-picker";
@@ -32,6 +32,8 @@ import {
   type WeekDraft,
 } from "./holiday-period-model";
 import { HolidayWeekEditor } from "./holiday-week-editor";
+import { weekNoCareDays } from "./use-week-no-care-days";
+import type { TraegerCalendar } from "~/lib/traeger-closing-days";
 
 const logger = createLogger({ component: "HolidayPeriodForm" });
 
@@ -68,6 +70,7 @@ export function HolidayPeriodForm({
   onSaved,
   onCancel,
   onDirtyChange,
+  calendar,
 }: Readonly<{
   /** The stored period; without it the form creates a new one. */
   period?: HolidayPeriod;
@@ -76,6 +79,8 @@ export function HolidayPeriodForm({
   onCancel: () => void;
   /** Reports whether the form holds unsaved changes. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Holidays and Träger closing days for the hints at each week (#4702). */
+  calendar?: TraegerCalendar;
 }>) {
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraftState] = useState<HolidayPeriodDraft>(() =>
@@ -130,6 +135,10 @@ export function HolidayPeriodForm({
   );
   const errorPath = useApiFormError(formRef);
   const fieldError = (name: string) => errorPath.fieldError(name);
+  const noCareDays = useMemo(
+    () => weekNoCareDays(draft.weeks, calendar, period),
+    [draft.weeks, calendar, period],
+  );
 
   const setDraft = (next: HolidayPeriodDraft) => {
     setDraftState(next);
@@ -281,6 +290,7 @@ export function HolidayPeriodForm({
                     index={index}
                     week={week}
                     schools={schools}
+                    noCareDays={noCareDays.get(week.key)}
                     fieldError={fieldError}
                     onChange={(next) => setWeek(index, next)}
                     onDateValidity={weekDateValidity}

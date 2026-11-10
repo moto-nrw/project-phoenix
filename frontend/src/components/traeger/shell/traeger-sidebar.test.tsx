@@ -89,6 +89,7 @@ describe("TraegerSidebar", () => {
       "Stichtagszahlen",
       "Belegung",
       "Ferienbetreuung",
+      "Schließtage",
       "Dokumente",
       "Abrechnung",
     ]);
@@ -120,6 +121,7 @@ describe("TraegerSidebar", () => {
       "Schulen",
       "Stichtagszahlen",
       "Belegung",
+      "Schließtage",
       "Dokumente",
     ]);
     expect(mainNav().queryByText("Ferienbetreuung")).toBeNull();

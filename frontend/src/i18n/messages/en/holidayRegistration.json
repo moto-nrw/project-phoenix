@@ -39,6 +39,7 @@
   "weeksText": "For each week, choose how long your child stays.",
   "notBooked": "Not registered",
   "parallelWeeksHint": "This week is offered at several schools. Choose one school and the time.",
+  "weekWithoutCare": "Not bookable: there is no care on {date} ({name}).",
   "weekRange": "{starts} to {ends}",
   "timeModel": "{name} ({startsAt} to {endsAt})",
   "timeModelPrice": "{name} · {price} ({startsAt} to {endsAt})",

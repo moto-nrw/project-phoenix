@@ -8,6 +8,9 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
@@ -27,10 +30,16 @@ export function ClosingDayModal({
   onSaved,
   initial,
   onOfferCancel,
+  onSave,
+  schools,
+  defaultDate = "",
+  reasonMaxLength = 255,
 }: ClosingDayModalProps) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
+  const [schoolIds, setSchoolIds] = useState<readonly string[]>([]);
+  const initializedRecord = useRef<string | null>(null);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -38,15 +47,34 @@ export function ClosingDayModal({
   const latestSaveRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
-    if (!isOpen) return;
-    setStartDate(initial?.startDate ?? "");
-    setEndDate(initial?.endDate ?? "");
+    if (!isOpen) {
+      initializedRecord.current = null;
+      return;
+    }
+    const record = initial?.id ?? "new";
+    if (initializedRecord.current === record) return;
+    initializedRecord.current = record;
+    setStartDate(initial?.startDate ?? defaultDate);
+    setEndDate(initial?.endDate ?? defaultDate);
     setReason(initial?.reason ?? "");
+    setSchoolIds(
+      initial?.schoolIds ?? schools?.map((school) => school.id) ?? [],
+    );
     clearErrors();
-  }, [isOpen, initial, clearErrors]);
+  }, [isOpen, initial, schools, defaultDate, clearErrors]);
+
+  const allSelected =
+    (schools?.length ?? 0) > 0 &&
+    (schools?.every((s) => schoolIds.includes(s.id)) ?? false);
+  const toggleSchool = (id: string, checked: boolean) =>
+    setSchoolIds((current) =>
+      checked ? [...current, id] : current.filter((value) => value !== id),
+    );
 
   const handleSave = async () => {
     const fields = closingDayFieldErrors(reason, startDate, endDate);
+    if (schools && schoolIds.length === 0)
+      fields.school_ids = "Bitte wählen Sie mindestens eine Schule.";
     if (Object.keys(fields).length > 0) {
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
@@ -59,7 +87,9 @@ export function ClosingDayModal({
       reason: reason.trim(),
     };
     try {
-      if (initial) {
+      if (onSave) {
+        await onSave({ startDate, endDate, reason: reason.trim(), schoolIds });
+      } else if (initial) {
         await closingDayService.update(initial.id, body);
       } else {
         await closingDayService.create(body);
@@ -117,7 +147,7 @@ export function ClosingDayModal({
           type="text"
           label="Grund"
           value={reason}
-          maxLength={255}
+          maxLength={reasonMaxLength}
           onChange={(e) => setReason(e.target.value)}
           error={formErrors.fieldError("reason")}
           placeholder="z. B. Pädagogischer Tag, Sommerschließung"
@@ -130,7 +160,10 @@ export function ClosingDayModal({
             label="Von"
             controlSize="lg"
             value={startDate}
-            onChange={setStartDate}
+            onChange={(value) => {
+              setStartDate(value);
+              if (schools && (!endDate || endDate < value)) setEndDate(value);
+            }}
             error={formErrors.fieldError("start_date")}
             calendarLayout="popover"
           />
@@ -148,9 +181,53 @@ export function ClosingDayModal({
           />
         </div>
 
+        {schools ? (
+          <FormFieldset
+            legend="Gilt für"
+            required
+            error={formErrors.fieldError("school_ids")}
+          >
+            <div className="space-y-2">
+              <ChoiceTile selected={allSelected} className="px-3 py-2.5">
+                <Checkbox
+                  checked={allSelected}
+                  onChange={(event) =>
+                    setSchoolIds(
+                      event.target.checked ? schools.map((s) => s.id) : [],
+                    )
+                  }
+                />
+                <span className="text-sm font-semibold text-gray-900">
+                  Alle Schulen
+                </span>
+              </ChoiceTile>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {schools.map((school) => (
+                  <ChoiceTile
+                    key={school.id}
+                    selected={schoolIds.includes(school.id)}
+                    className="px-3 py-2.5"
+                  >
+                    <Checkbox
+                      checked={schoolIds.includes(school.id)}
+                      onChange={(event) =>
+                        toggleSchool(school.id, event.target.checked)
+                      }
+                    />
+                    <span className="min-w-0 text-sm wrap-anywhere text-gray-900">
+                      {school.name}
+                    </span>
+                  </ChoiceTile>
+                ))}
+              </div>
+            </div>
+          </FormFieldset>
+        ) : null}
+
         <p className="text-xs text-gray-500">
-          Für einen einzelnen Tag dasselbe Datum in beide Felder eintragen. An
-          Schließtagen fallen Termine aus und Mitarbeitende haben kein Soll.
+          {schools
+            ? "An diesem Tag ist die OGS zu. Es gibt keine Ferienbetreuung, Termine fallen aus und Mitarbeitende haben kein Soll."
+            : "Für einen einzelnen Tag dasselbe Datum in beide Felder eintragen. An Schließtagen fallen Termine aus und Mitarbeitende haben kein Soll."}
         </p>
       </div>
     </FormModal>
@@ -161,7 +238,18 @@ interface ClosingDayModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly onSaved: () => void;
-  readonly initial: ClosingDay | null;
+  readonly initial:
+    (ClosingDay & { readonly schoolIds?: readonly string[] }) | null;
+  readonly schools?: readonly { readonly id: string; readonly name: string }[];
+  readonly defaultDate?: string;
+  readonly reasonMaxLength?: number;
+  /** Persists a range outside the school's closing-day service. */
+  readonly onSave?: (input: {
+    startDate: string;
+    endDate: string;
+    reason: string;
+    schoolIds: readonly string[];
+  }) => Promise<void>;
   /** Opens „Termine absagen“ for the saved range when appointments remain. */
   readonly onOfferCancel?: (range: {
     startDate: string;

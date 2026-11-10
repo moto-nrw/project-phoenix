@@ -344,6 +344,8 @@ import type { traegerCareReductionsTopic as authored_traegerCareReductionsTopic 
 
 import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
 
+import type { traegerClosingDaysTopic as authored_traegerClosingDaysTopic } from "./articles/traeger-closing-days";
+
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
 import type { traegerDatevExportTopic as authored_traegerDatevExportTopic } from "./articles/traeger-datev-export";
@@ -1144,7 +1146,8 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       },
       {
         title: "Termine an Schließtagen absagen",
-        description: "Für Termine, die schon vor dem Schließtag geplant waren.",
+        description:
+          "Für Termine, die schon vor dem Schließtag geplant waren. Das geht auch bei Schließtagen mit `Vom Träger`.",
         steps: [
           "Wählen Sie beim Schließtag die drei Punkte.",
           "Wählen Sie `Termine absagen`.",
@@ -1160,6 +1163,7 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
+      "Ein Schließtag mit `Vom Träger` hat Ihr Träger geplant. Er gilt wie Ihre eigenen Schließtage. Ändern kann ihn nur das Träger-Büro.",
       "Mit `Auch in den Ferien und an Schließtagen planen` planen Sie auch dann Schichten.",
       "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
       "Schichten, die schon geplant waren, bleiben stehen.",
@@ -11201,6 +11205,63 @@ export const traegerCareTimeOverrunsTopic =
     };
   } satisfies typeof authored_traegerCareTimeOverrunsTopic;
 
+/** `/traeger/schliesstage` (#4702): Schließtage des Trägers und Feiertage je Bundesland. */
+export const traegerClosingDaysTopic =
+  function traegerClosingDaysTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerClosingDays,
+      title: "Schließtage für Schulen planen",
+      question: "Wie plane ich einen Brückentag für mehrere Schulen?",
+      summary:
+        "Ein Schließtag gilt für die Schulen, die Sie wählen. An diesem Tag ist die OGS zu. Die Feiertage kommen aus dem Bundesland der Schule.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CalendarSlash",
+      requirements: [
+        "Sehen kann die Seite jede Rolle im Träger-Büro.",
+        "Schließtage anlegen darf Ihre Rolle, wenn sie Einstellungen verwalten darf. Das gilt für die Rolle Verwaltung.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Schließtag anlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Schließtage`.",
+            "Wählen Sie `Schließtag anlegen`.",
+            "Tragen Sie den `Grund` ein, zum Beispiel Brückentag.",
+            "Tragen Sie `Von` und `Bis` ein. Für einen Tag tragen Sie zweimal dasselbe Datum ein.",
+            "Wählen Sie bei `Gilt für` die Schulen. `Alle Schulen` wählt alle auf einmal.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Feiertage prüfen",
+          steps: [
+            "Wählen Sie in der Navigation `Schließtage`.",
+            "Oben wählen Sie das Jahr.",
+            "In der `Jahresübersicht` sind Feiertage blau und Schließtage orange.",
+            "Unter `Feiertage nach Bundesland` stehen die Feiertage und die Schulen dazu.",
+          ],
+        },
+      ],
+      result:
+        "Die gewählten Schulen haben an diesem Tag zu. Ferienwochen mit diesem Tag sind nicht mehr buchbar. Termine fallen aus, und Mitarbeitende haben kein Soll.",
+      notes: [
+        "Die Schulen sehen den Schließtag in ihrem Kalender mit `Vom Träger`. Ändern kann ihn nur das Träger-Büro.",
+        "Der Elternbeitrag ändert sich durch einen Schließtag nicht.",
+        "Das Bundesland einer Schule legt das moto-Team fest. Stimmt es nicht, schreiben Sie dem moto-Team.",
+        "Bisherige Buchungen einer Ferienwoche bleiben, auch wenn Sie später einen Schließtag in die Woche legen. Neue Buchungen der Woche sind dann nicht möglich.",
+      ],
+      differences: [
+        "Sie sehen keinen Knopf `Schließtag anlegen`? Ihre Rolle darf keine Einstellungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerSchoolView,
+      ],
+    };
+  } satisfies typeof authored_traegerClosingDaysTopic;
+
 /** `/traeger/uebersicht` (#4674), in der Navigation „Dashboard": die Zahlen von jetzt für alle Schulen und ihre Auffälligkeiten (#4675). */
 export const traegerDashboardTopic =
   function traegerDashboardTopic(): HelpTopic {
@@ -11767,6 +11828,7 @@ export const traegerHolidayPeriodTopic =
           steps: [
             "Tragen Sie bei jeder Woche `Erster Tag` und `Letzter Tag` ein.",
             "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
+            "Liegt ein Feiertag oder Schließtag der Schule in der Woche, zeigt moto einen Hinweis. Wählen Sie dann andere Tage, zum Beispiel Dienstag bis Freitag.",
             "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
             "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
             "Dieselben Tage an mehreren Schulen? Legen Sie je Schule eine Woche mit denselben Tagen an. Eltern wählen dann für ihr Kind eine Schule. An derselben Schule dürfen sich Wochen nicht überschneiden.",
@@ -11797,11 +11859,13 @@ export const traegerHolidayPeriodTopic =
       troubleshootingDetails: [
         "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
         "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
+        "Die Woche lässt sich nicht speichern, weil keine Betreuung ist? An einem Feiertag oder Schließtag der Schule kann niemand buchen. Lassen Sie diesen Tag aus der Woche.",
       ],
       related: [
         HELP_TOPICS.traegerLogin,
         HELP_TOPICS.traegerHolidayForm,
         HELP_TOPICS.traegerHolidayContribution,
+        HELP_TOPICS.traegerClosingDays,
       ],
     };
   } satisfies typeof authored_traegerHolidayPeriodTopic;

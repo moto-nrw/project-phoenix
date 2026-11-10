@@ -17,7 +17,8 @@ import (
 
 // Holiday periods of a Träger (#4659). The caller runs every operation in the
 // Träger transaction of organizationID; the store refuses any other unit. The
-// database decides whether a host school belongs to the Träger.
+// calendar binding authorizes host schools before reading their calendars;
+// the database also enforces membership on writes.
 
 // Limits of one period. They bound the request, not the business: a holiday
 // season has a handful of weeks with two or three time models each.
@@ -55,20 +56,24 @@ type HolidayPeriods struct {
 	store HolidayPeriodStore
 	forms HolidayFormStore
 	today func() calendar.Date
+	// calendar names the host schools' days without care (#4702). Without
+	// it the periods are read unmarked and no week is written.
+	calendar enrollment.HolidaySchoolCalendar
 }
 
 var _ enrollment.HolidayPeriods = (*HolidayPeriods)(nil)
 
 // NewHolidayPeriods builds the holiday period commands over store; forms
-// receives the first version of a new period's form (#5198).
-func NewHolidayPeriods(store HolidayPeriodStore, forms HolidayFormStore, today func() calendar.Date) *HolidayPeriods {
+// receives the first version of a new period's form (#5198), schoolCalendar
+// names the days without care of the host schools (#4702).
+func NewHolidayPeriods(store HolidayPeriodStore, forms HolidayFormStore, today func() calendar.Date, schoolCalendar enrollment.HolidaySchoolCalendar) *HolidayPeriods {
 	if store == nil || forms == nil {
 		panic("enrollment: the holiday period store and the form store are required")
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayPeriods{store: store, forms: forms, today: today}
+	return &HolidayPeriods{store: store, forms: forms, today: today, calendar: schoolCalendar}
 }
 
 // ListHolidayPeriods returns every period of the Träger, newest first.
@@ -88,7 +93,16 @@ func (h *HolidayPeriods) HolidayPeriod(ctx context.Context, organizationID, peri
 	if err := holidayPeriodKey(organizationID, periodID); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
+}
+
+// markedPeriod reads the stored period with its days without care.
+func (h *HolidayPeriods) markedPeriod(ctx context.Context, organizationID, periodID int64) (enrollment.HolidayPeriod, error) {
+	period, err := foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	if err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
+	return withHolidayNoCareDays(ctx, h.calendar, period)
 }
 
 // CreateHolidayPeriod adds a draft period with version 1 of its form, the
@@ -101,6 +115,9 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	if err := validateHolidayPeriod(input, enrollment.HolidayPeriod{}); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
+	if err := refuseHolidayWeeksWithoutCare(ctx, h.calendar, input.Weeks, enrollment.HolidayPeriod{}); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	periodID, err := h.store.InsertHolidayPeriod(ctx, organizationID, input)
 	if err != nil {
 		return enrollment.HolidayPeriod{}, err
@@ -108,7 +125,7 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil, enrollment.HolidayAddressOff); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
 }
 
 // UpdateHolidayPeriod replaces the period's fields, weeks and time models
@@ -132,10 +149,13 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 	if err := h.refuseBookedTogether(ctx, organizationID, periodID, input.Weeks); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
+	if err := refuseHolidayWeeksWithoutCare(ctx, h.calendar, input.Weeks, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input, h.today()); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
 }
 
 // refuseBookedTogether keeps a child from ending up in two weeks that share a
@@ -188,7 +208,7 @@ func (h *HolidayPeriods) PublishHolidayPeriod(ctx context.Context, organizationI
 	if err := h.store.PublishHolidayPeriod(ctx, organizationID, periodID); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
 }
 
 // holidayPeriodKey checks the Träger and the period a caller names.

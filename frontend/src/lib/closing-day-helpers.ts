@@ -18,6 +18,8 @@ export interface BackendClosingDay {
   reason: string;
   created_at: string;
   updated_at: string;
+  /** Planned by the school's Träger (#4702); only the Träger-Büro changes it. */
+  traeger?: boolean;
 }
 
 export interface ClosingDay {
@@ -25,6 +27,8 @@ export interface ClosingDay {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   reason: string;
+  /** Planned by the school's Träger (#4702): it counts, but the school cannot change it. */
+  traeger?: boolean;
 }
 
 /** Create/update payload — matches ClosingDayRequest on the backend. */
@@ -40,6 +44,7 @@ export function mapClosingDay(data: BackendClosingDay): ClosingDay {
     startDate: data.start_date.slice(0, 10),
     endDate: data.end_date.slice(0, 10),
     reason: data.reason,
+    ...(data.traeger ? { traeger: true } : {}),
   };
 }
 

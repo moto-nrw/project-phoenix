@@ -87,14 +87,18 @@ type HolidayRegistrationReview struct {
 	health    enrollment.HolidayHealthCipher
 	today     func() calendar.Date
 	placement holidayPlacement
+	// calendar names the host schools' days without care (#4702); a
+	// rebooking is refused without it.
+	calendar enrollment.HolidaySchoolCalendar
 }
 
 var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 
 // NewHolidayRegistrationReview builds the review; forms reads the form
 // versions the answers belong to (#5198), health opens the health
-// information (#4722). A nil today uses the Berlin calendar day.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox) (*HolidayRegistrationReview, *HolidayPlaces) {
+// information (#4722), schoolCalendar names the host schools' days without
+// care (#4702). A nil today uses the Berlin calendar day.
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces) {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
@@ -106,7 +110,7 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 	}
 	review := &HolidayRegistrationReview{
 		store: store, periods: periods, forms: forms, health: health, today: today,
-		placement: holidayPlacement{store: store, mail: mail},
+		placement: holidayPlacement{store: store, mail: mail}, calendar: schoolCalendar,
 	}
 	return review, NewHolidayPlaces(store, periods, nil, mail)
 }
@@ -422,6 +426,13 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	}
 	if err := validateHolidayBookings(bookings, period, kept); err != nil {
 		return nil, nil, validation.Errors{"bookings": err}
+	}
+	marked, err := markHolidayNoCareDays(ctx, h.calendar, period)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := refuseHolidayBookingsWithoutCare(bookings, marked, kept); err != nil {
+		return nil, nil, err
 	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
 	for i, booking := range bookings {
