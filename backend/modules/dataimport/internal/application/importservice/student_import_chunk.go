@@ -16,9 +16,11 @@ import (
 // on the row path; their e-mail joins the keys once a batch command writes
 // them.
 
-// ChunkWriterReady reports whether People Directory's person batch slice is
-// bound.
-func (c *StudentImportConfig) ChunkWriterReady() bool { return c.PersonBatches != nil }
+// ChunkWriterReady reports whether the batch slices of People Directory,
+// Student Presence and the Audit consent recorder are bound.
+func (c *StudentImportConfig) ChunkWriterReady() bool {
+	return c.PersonBatches != nil && c.PrivacyConsentBatches != nil && c.ConsentHistoryBatches != nil
+}
 
 // ChunkMinRows: a batch segment costs six to seven statements (bound set and
 // reset, the protected name read with its savepoint, one person statement)
@@ -77,8 +79,11 @@ func (c *StudentImportConfig) RefusesChunk(context.Context, []importModels.Stude
 }
 
 // CreateChunk creates the persons of one segment in one bundled statement
-// under the bound and then, row by row in processing order and without the
-// bound, everything the row path creates after the person.
+// under the bound, then, row by row in processing order and without the
+// bound, everything the row path creates after the person except the
+// retention consent and the consent history. Those it collects with each
+// row's own instant and writes after the rows, each kind in one bundled
+// statement under a second bound (#5552, step 5b).
 func (c *StudentImportConfig) CreateChunk(ctx context.Context, rows []importModels.StudentImportRow, bounded ports.BatchStatement) error {
 	inputs := make([]ports.CreatePerson, len(rows))
 	for i, row := range rows {
@@ -92,10 +97,50 @@ func (c *StudentImportConfig) CreateChunk(ctx context.Context, rows []importMode
 	}); err != nil {
 		return fmt.Errorf("create persons: %w", err)
 	}
+	leafs := &studentLeafWrites{}
 	for i, row := range rows {
-		if _, err := c.createStudentEntities(ctx, persons[i].ID, row); err != nil {
+		if _, err := c.createStudentEntities(ctx, persons[i].ID, row, leafs); err != nil {
 			return err
 		}
 	}
-	return nil
+	return c.writeLeafs(ctx, leafs, bounded)
+}
+
+// writeLeafs writes the collected consents and consent history, each in one
+// bundled statement, under one bound. Both touch only the new children and
+// the school row the persons statement already holds, so no wait moves
+// (PR #6408, tables C and D). An empty kind issues no statement, and with
+// neither the bound is not set.
+func (c *StudentImportConfig) writeLeafs(ctx context.Context, leafs *studentLeafWrites, bounded ports.BatchStatement) error {
+	if len(leafs.consents) == 0 && !hasConsentEvents(leafs.transitions) {
+		return nil
+	}
+	return bounded(ctx, func(ctx context.Context) error {
+		if len(leafs.consents) > 0 {
+			if err := ports.ObserveCommand(ctx, "student-presence", "record_privacy_consents", func() error {
+				return c.PrivacyConsentBatches.RecordPrivacyConsents(ctx, leafs.consents)
+			}); err != nil {
+				return fmt.Errorf("create privacy consents: %w", err)
+			}
+		}
+		if err := ports.ObserveCommand(ctx, "audit-platform", "record_consent_transitions_all", func() error {
+			return c.ConsentHistoryBatches.RecordTransitionsAll(ctx, leafs.transitions)
+		}); err != nil {
+			return fmt.Errorf("create student consent history: %w", err)
+		}
+		return nil
+	})
+}
+
+// hasConsentEvents reports whether a transition of a new child records an
+// event: one per consent date the row carries (a new child has no "before").
+func hasConsentEvents(transitions []ports.ConsentTransition) bool {
+	for _, transition := range transitions {
+		after := transition.After
+		if after != nil && (after.AGBAcceptedAt != nil || after.DataProcessingAcceptedAt != nil ||
+			after.EmailContactAcceptedAt != nil || after.PhotoConsentGivenAt != nil) {
+			return true
+		}
+	}
+	return false
 }
