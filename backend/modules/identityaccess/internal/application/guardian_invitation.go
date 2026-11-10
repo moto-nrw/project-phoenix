@@ -353,12 +353,17 @@ func (l *AccountLifecycle) grantGuardianAccess(ctx context.Context, invitation d
 	if err := l.guardians.LinkGuardianProfileToAccount(ctx, profile.ID, account.ID); err != nil {
 		return failed(opGuardianInviteAccept, fmt.Errorf("link guardian profile to account: %w", err))
 	}
-	accepted, err := l.invitations.AcceptGuardianInvitation(ctx, invitation.ID, time.Now())
+	accepted, err := l.invitations.AcceptGuardianInvitation(ctx, invitation.ID, invitation.Token, time.Now())
 	if err != nil {
 		return failed(opGuardianInviteAccept, err)
 	}
 	if !accepted {
-		// Another acceptance spent the token between the read and this write.
+		// The link changed between the read and this write: another
+		// acceptance spent it, or a resend, approval or new invitation
+		// replaced it (#6495). A fresh lookup names the reason.
+		if _, reason := l.redeemableGuardianInvitation(ctx, invitation.Token); reason != nil {
+			return reason
+		}
 		return failed(opGuardianInviteAccept, domain.ErrInvitationUsed)
 	}
 	return nil

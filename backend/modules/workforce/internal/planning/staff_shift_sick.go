@@ -66,6 +66,7 @@ func (s *staffShiftService) applyEditedSickState(ctx context.Context, shift, exi
 		if ordinaryEdit && existing.SickAbsenceID != nil && editChangesNothing(shift, existing) {
 			shift.SickAbsenceID = existing.SickAbsenceID
 			shift.ChangeReason = existing.ChangeReason
+			shift.SeriesOverride = existing.SeriesOverride
 		}
 		return nil
 	}

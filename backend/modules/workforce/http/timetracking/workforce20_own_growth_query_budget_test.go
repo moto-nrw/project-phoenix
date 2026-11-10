@@ -127,7 +127,7 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 					rows := body.Data.([]any)
 					require.Len(t, rows, n)
 					for i, row := range rows {
-						require.Equal(t, float64(breaks[i]), row.(map[string]any)["id"])
+						require.Equal(t, fmt.Sprintf("%d", breaks[i]), row.(map[string]any)["id"])
 					}
 				case "absences":
 					rows := body.Data.([]any)

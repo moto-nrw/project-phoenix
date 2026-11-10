@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
@@ -57,6 +58,24 @@ export function AdminSessionEditModal({
   onClose,
   onSaved,
 }: AdminSessionEditModalProps) {
+  const breaks = useMemo(
+    () =>
+      mode === "edit"
+        ? (session?.breaks ?? []).filter(
+            (
+              brk,
+            ): brk is typeof brk & { id: string; duration_minutes: number } =>
+              typeof brk.id === "string" &&
+              typeof brk.duration_minutes === "number",
+          )
+        : [],
+    [mode, session],
+  );
+  const hasIndividualBreaks = breaks.length > 0;
+  const hasActiveBreak = breaks.some((brk) => brk.ended_at == null);
+  const [breakDurations, setBreakDurations] = useState<Record<string, string>>(
+    {},
+  );
   // Initial values come from the session in edit mode, sensible defaults in
   // nachtragen mode (08:00–16:00, 30min Pause, vor Ort).
   const initial = useMemo(() => {
@@ -101,10 +120,15 @@ export function AdminSessionEditModal({
     setCheckIn(initial.checkIn);
     setCheckOut(initial.checkOut);
     setBreakMinutesStr(String(initial.breakMinutes));
+    setBreakDurations(
+      Object.fromEntries(
+        breaks.map((brk) => [brk.id, String(brk.duration_minutes)]),
+      ),
+    );
     setStatus(initial.status);
     setNotes("");
     clearErrors();
-  }, [isOpen, initial, clearErrors]);
+  }, [isOpen, initial, breaks, clearErrors]);
 
   // A time is sent only when it differs from the stored one, so saving a
   // reason does not rewrite the stamps or cut off their seconds (#6293). A
@@ -131,8 +155,18 @@ export function AdminSessionEditModal({
 
   const notesValid = notes.trim().length > 0;
   const timesValid = checkInProblem === null && checkOutProblem === null;
-  const breakMinutes = parseBreakMinutes(breakMinutesStr);
-  const breakValid = breakMinutes !== null;
+  const parsedBreaks = breaks.map((brk) => ({
+    ...brk,
+    minutes: parseBreakMinutes(
+      breakDurations[brk.id] ?? String(brk.duration_minutes),
+    ),
+  }));
+  const breakMinutes = hasIndividualBreaks
+    ? parsedBreaks.every((brk) => brk.minutes !== null)
+      ? parsedBreaks.reduce((sum, brk) => sum + (brk.minutes ?? 0), 0)
+      : null
+    : parseBreakMinutes(breakMinutesStr);
+  const breakValid = breakMinutes !== null && !hasActiveBreak;
 
   const handleSubmit = async () => {
     formErrors.clear();
@@ -164,6 +198,11 @@ export function AdminSessionEditModal({
       // the autumn switch still saves.
       if (mode === "edit" && session?.id != null) {
         // The update ignores `date`; a block keeps its day.
+        const changedBreaks = parsedBreaks.flatMap((brk) =>
+          brk.minutes !== null && brk.minutes !== brk.duration_minutes
+            ? [{ id: brk.id, duration_minutes: brk.minutes }]
+            : [],
+        );
         await staffSessionService.updateSession(staffId, session.id, {
           check_in_time: checkInChanged
             ? berlinDateTimeISO(date, checkIn)
@@ -172,6 +211,7 @@ export function AdminSessionEditModal({
             ? berlinDateTimeISO(date, checkOut)
             : undefined,
           break_minutes: breakMinutes,
+          ...(hasIndividualBreaks ? { breaks: changedBreaks } : {}),
           status,
           notes: notes.trim(),
         });
@@ -303,30 +343,86 @@ export function AdminSessionEditModal({
             />
           </Field>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field
-            label="Pause (Minuten)"
-            error={formErrors.fieldError("break_minutes")}
-          >
-            <Input
-              controlSize="compact"
-              type="number"
-              name="break_minutes"
-              aria-invalid={
-                formErrors.fieldError("break_minutes") ? true : undefined
-              }
-              aria-describedby={describedBy(
-                formErrors.fieldError("break_minutes"),
-                "break_minutes",
+        {hasIndividualBreaks && (
+          <FormFieldset legend="Pausen">
+            <div className="space-y-3">
+              {hasActiveBreak && (
+                <Alert
+                  type="info"
+                  size="compact"
+                  message="Die Pause läuft noch. Die Person muss sie zuerst beenden."
+                />
               )}
-              min={0}
-              max={300}
-              inputMode="numeric"
-              value={breakMinutesStr}
-              onChange={(e) => setBreakMinutesStr(e.target.value)}
-              className="tabular-nums"
-            />
-          </Field>
+              {parsedBreaks
+                .filter((brk) => brk.ended_at != null)
+                .map((brk) => (
+                  <Input
+                    key={brk.id}
+                    label={`Pause ab ${extractTime(brk.started_at) ?? "–"} (Minuten)`}
+                    controlSize="compact"
+                    type="number"
+                    name={`break_${brk.id}`}
+                    min={0}
+                    max={300}
+                    inputMode="numeric"
+                    value={
+                      breakDurations[brk.id] ?? String(brk.duration_minutes)
+                    }
+                    disabled={hasActiveBreak || isSaving}
+                    errorLive
+                    error={
+                      brk.minutes === null
+                        ? "Bitte geben Sie volle Minuten von 0 bis 300 ein."
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      setBreakDurations((current) => ({
+                        ...current,
+                        [brk.id]: event.target.value,
+                      }))
+                    }
+                  />
+                ))}
+              {!hasActiveBreak && breakMinutes !== null && (
+                <p className="font-medium tabular-nums">
+                  Gesamt: {breakMinutes} Minuten
+                </p>
+              )}
+            </div>
+          </FormFieldset>
+        )}
+        <div
+          className={
+            hasIndividualBreaks
+              ? "space-y-3"
+              : "grid grid-cols-1 gap-3 sm:grid-cols-2"
+          }
+        >
+          {!hasIndividualBreaks && (
+            <Field
+              label="Pause (Minuten)"
+              error={formErrors.fieldError("break_minutes")}
+            >
+              <Input
+                controlSize="compact"
+                type="number"
+                name="break_minutes"
+                aria-invalid={
+                  formErrors.fieldError("break_minutes") ? true : undefined
+                }
+                aria-describedby={describedBy(
+                  formErrors.fieldError("break_minutes"),
+                  "break_minutes",
+                )}
+                min={0}
+                max={300}
+                inputMode="numeric"
+                value={breakMinutesStr}
+                onChange={(e) => setBreakMinutesStr(e.target.value)}
+                className="tabular-nums"
+              />
+            </Field>
+          )}
           <Field label="Status">
             <CustomSelect
               ariaLabel="Status"

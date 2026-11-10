@@ -125,6 +125,7 @@ func (r *exportRun) writePersonReview() error {
 		RequiredChecks: []string{
 			"school-order-identity-authority-and-subject-ids",
 			"article-9-health-data-only-for-the-requesting-subject-and-recipient",
+			"tax-and-social-security-ids-only-for-the-staff-member-concerned",
 			"all-items-redacted-or-lawfully-released-by-school",
 			"indirect-references-in-unselected-school-rows-and-unassigned-originals",
 			"catalog-excluded-columns-and-tables-lawful-context-without-credentials",
@@ -137,12 +138,7 @@ func (r *exportRun) writePersonReview() error {
 
 func (r *exportRun) personReviewItems() []personReviewItem {
 	var items []personReviewItem
-	health := make(map[string]bool)
-	for _, table := range r.catalog.Tables {
-		if _, ok := table.OpenSealedColumns["health_data"]; ok {
-			health[table.Name] = true
-		}
-	}
+	opened := openedValueReviewRules(r.catalog)
 	for _, model := range r.models {
 		var row int64
 		for _, node := range r.person.rows[model.Name] {
@@ -150,17 +146,34 @@ func (r *exportRun) personReviewItems() []personReviewItem {
 				continue
 			}
 			row++
-			rules := personReviewRules(model, node)
-			if health[model.Name] {
-				// Opened health information is a special category (Art. 9
-				// GDPR, #6328): a row of a sibling or another guest must not
-				// reach the requester with it.
-				rules = append(rules, "special-category-health-data")
-			}
+			rules := append(personReviewRules(model, node), opened[model.Name]...)
 			items = append(items, personReviewItem{Table: model.Name, Row: row, Rules: rules})
 		}
 	}
 	return items
+}
+
+// openedValueReviewRules marks the tables whose opened values need a review
+// of their own before a person export leaves the school.
+func openedValueReviewRules(catalog organizationtenancy.DataLifecycleCatalog) map[string][]string {
+	rules := make(map[string][]string)
+	for _, table := range catalog.Tables {
+		if _, ok := table.OpenSealedColumns["health_data"]; ok {
+			// Opened health information is a special category (Art. 9
+			// GDPR, #6328): a row of a sibling or another guest must not
+			// reach the requester with it.
+			rules[table.Name] = append(rules[table.Name], "special-category-health-data")
+		}
+		_, taxID := table.OpenSealedColumns["tax_id_sealed"]
+		_, social := table.OpenSealedColumns["social_security_number_sealed"]
+		if taxID || social {
+			// An opened tax ID or social security number is a lifelong
+			// identifier open to misuse (#6412): it goes only to its own
+			// staff member, never as context of another person.
+			rules[table.Name] = append(rules[table.Name], "especially-sensitive-tax-and-social-security-ids")
+		}
+	}
+	return rules
 }
 
 func personReviewRules(model organizationtenancy.ExportModelTable, node *personNode) []string {

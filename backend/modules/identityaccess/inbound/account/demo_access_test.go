@@ -203,6 +203,10 @@ func TestDemoAccessRequestRejectsInvalidFields(t *testing.T) {
 		"no last name":       {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim"},
 		"blank last name":    {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": " \t "},
 		"last name too long": {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": strings.Repeat("x", 121)},
+		"phone too long": {
+			"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": "Beispiel",
+			"contact_opt_in": true, "phone": strings.Repeat("1", 51),
+		},
 		// The website sends person_name alongside while it moves over; the
 		// backend no longer reads it, so it cannot stand in for the names.
 		"only person name": {"email": "kim@ogs.de", "school_name": "OGS", "person_name": "Kim Beispiel"},

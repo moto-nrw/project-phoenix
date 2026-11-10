@@ -51,7 +51,18 @@ export function SelectionBulkPickupModal({
     [times],
   );
 
+  // Ein Speichern, das erst nach dem Aushängen fertig wird, schließt nicht
+  // mehr: Der Eltern-Schalter gehört dann schon dem nächsten Dialog (#6503).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const handleClose = () => {
+    if (!mountedRef.current) return;
     errors.clear();
     setNeedsExceptionConfirmation(false);
     setExceptionConfirmed(false);
@@ -112,6 +123,9 @@ export function SelectionBulkPickupModal({
     <FormModal
       isOpen={isOpen}
       onClose={handleClose}
+      // X, Escape und Hintergrund bleiben gesperrt, solange gespeichert wird:
+      // Ein scheinbarer Abbruch würde trotzdem speichern (#6503).
+      closeDisabled={saving}
       title="Gehzeiten für Auswahl"
       error={errors.error}
       size="md"

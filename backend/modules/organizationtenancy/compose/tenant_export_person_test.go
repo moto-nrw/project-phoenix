@@ -65,6 +65,10 @@ func newPersonExportFixture(t *testing.T) personExportFixture {
 	_, err = db.NewRaw(`INSERT INTO audit.data_access_log (tenant_id, actor_account_id, actor_role, resource_type, range_start, range_end, metadata)
 		VALUES (?, ?, 'admin', 'staff_financial_view', NOW(), NOW(), jsonb_build_object('staff_id', ?::bigint))`, a, guardianAccount.ID, s.ID).Exec(t.Context())
 	require.NoError(t, err)
+	// The bank and tax record of the staff member (#6412); only its mask, so
+	// the stand-in opener has nothing to open.
+	_, err = db.NewRaw(`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban_masked) VALUES (?, ?, '****2051')`, a, s.ID).Exec(t.Context())
+	require.NoError(t, err)
 	group := testpkg.CreateTestEducationGroup(t, db, "SyntheticSubstitution")
 	today := calendar.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, s.ID, today, today)
@@ -85,10 +89,10 @@ func newPersonExportFixture(t *testing.T) personExportFixture {
 
 func personExport(t *testing.T, fixture personExportFixture, subject string) string {
 	t.Helper()
-	exporter, err := compose.NewTenantExporter(fixture.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(fixture.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "person")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: fixture.school, Person: subject, Output: out, Uploads: fixture.uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: fixture.school, OperatorID: 42, Person: subject, Output: out, Uploads: fixture.uploads}))
 	manifest := readExportManifest(t, out)
 	require.True(t, manifest.ReviewRequired)
 	assertExportArtifacts(t, out, manifest)
@@ -151,6 +155,7 @@ func TestPersonExportGuardianAndSharedStaffStayInSchool(t *testing.T) {
 	require.Len(t, personTable(t, staff, "audit.staff_master_data_changes"), 1)
 	require.Len(t, personTable(t, staff, "audit.substitution_changes"), 1)
 	require.Len(t, personTable(t, staff, "audit.data_access_log"), 1)
+	require.Len(t, personTable(t, staff, "users.staff_financial_data"), 1)
 	for _, out := range []string{guardian, staff} {
 		for _, table := range readExportManifest(t, out).Tables {
 			if table.Classification != "include" {
@@ -192,12 +197,16 @@ func assertPersonReview(t *testing.T, out string, hasUnassigned bool) {
 	require.NotEmpty(t, review.Items)
 	marked := map[string]map[int64]bool{}
 	require.Contains(t, review.Checks, "article-9-health-data-only-for-the-requesting-subject-and-recipient")
+	require.Contains(t, review.Checks, "tax-and-social-security-ids-only-for-the-staff-member-concerned")
 	for _, item := range review.Items {
 		require.Contains(t, item.Rules, "third-party-review")
 		switch item.Table {
 		case "users.student_care_profiles", "enrollment.holiday_guests", "enrollment.holiday_registrations", "enrollment.holiday_registration_children":
 			// Opened health information is marked as a special category (#6328).
 			require.Contains(t, item.Rules, "special-category-health-data", item.Table)
+		case "users.staff_financial_data":
+			// Opened tax ID and social security number are marked (#6412).
+			require.Contains(t, item.Rules, "especially-sensitive-tax-and-social-security-ids", item.Table)
 		}
 		if marked[item.Table] == nil {
 			marked[item.Table] = map[int64]bool{}
@@ -216,17 +225,17 @@ func assertPersonReview(t *testing.T, out string, hasUnassigned bool) {
 func TestPersonExportRejectsForeignSubjectAndMissingOriginal(t *testing.T) {
 	t.Parallel()
 	f := newPersonExportFixture(t)
-	exporter, err := compose.NewTenantExporter(f.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(f.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	for _, subject := range []string{"kind:" + strconv.FormatInt(f.foreignChild, 10), "staff:" + strconv.FormatInt(f.otherStaff, 10), "student:1", "kind:0", "kind:01"} {
 		out := filepath.Join(t.TempDir(), "failed")
-		err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, Person: subject, Output: out, Uploads: f.uploads})
+		err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, OperatorID: 42, Person: subject, Output: out, Uploads: f.uploads})
 		require.Error(t, err)
 		require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 	}
 	require.NoError(t, os.Remove(filepath.Join(f.uploads, fmt.Sprintf("student-photos/%d_%d.bin", f.school, f.child))))
 	out := filepath.Join(t.TempDir(), "missing")
-	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, Person: "kind:" + strconv.FormatInt(f.child, 10), Output: out, Uploads: f.uploads})
+	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, OperatorID: 42, Person: "kind:" + strconv.FormatInt(f.child, 10), Output: out, Uploads: f.uploads})
 	require.Error(t, err)
 	require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 	require.NotContains(t, err.Error(), f.uploads)

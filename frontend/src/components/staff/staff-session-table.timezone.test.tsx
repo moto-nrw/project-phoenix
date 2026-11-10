@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 
-import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
+import type {
+  StaffAbsenceRow,
+  StaffHistorySession,
+  StaffSchedule,
+} from "~/lib/staff-api";
 import { setTestClock } from "~/test/clock";
 
 import { StaffSessionTable } from "./staff-session-table";
@@ -63,5 +67,42 @@ describe("StaffSessionTable in a browser outside Germany (#6293)", () => {
     expect(within(row).getByText("08:00")).toBeInTheDocument();
     expect(within(row).getByText("16:30")).toBeInTheDocument();
     expect(within(row).queryByText("06:00")).not.toBeInTheDocument();
+  });
+});
+
+describe("StaffSessionTable across the March clock change", () => {
+  // 29.03.2026 has 23 hours: 1.–31. March is an hour short of 30 full days.
+  it("shows the last day of March and of an absence spanning the change", () => {
+    setTestClock("2026-04-15T12:00:00+02:00");
+    const absence = {
+      id: 5,
+      staff_id: 7,
+      absence_type: "sick",
+      date_start: "2026-03-27",
+      date_end: "2026-03-30",
+      half_day: false,
+      status: "approved",
+      note: "",
+    } as StaffAbsenceRow;
+
+    render(
+      <StaffSessionTable
+        staffId="7"
+        from={new Date(2026, 2, 1)}
+        to={new Date(2026, 2, 31)}
+        sessions={[]}
+        absences={[absence]}
+        schedule={schedule}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={new Date(2026, 3, 15)}
+        isAdminView
+      />,
+    );
+
+    expect(screen.getByText("31.03.")).toBeInTheDocument();
+    const lastSickDay = screen.getByText("30.03.").closest("tr")!;
+    expect(within(lastSickDay).getByText("Krank")).toBeInTheDocument();
   });
 });

@@ -87,6 +87,9 @@ type StaffShift struct {
 	// edited for one week only, which re-plans leave alone.
 	SeriesID *int64
 	Detached bool
+	// SeriesOverride keeps a deliberate single-occurrence edit independent
+	// of series validity. Unknown legacy detachments are retained too.
+	SeriesOverride bool
 	// SeriesOccurrenceDate is the immutable recurrence slot a series row
 	// materialized for; it does not follow Date when the row is moved.
 	// Empty for standalone rows.

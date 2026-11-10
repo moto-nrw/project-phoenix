@@ -24,8 +24,8 @@ no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 `status` as the HTTP status number, the diagnostic text in `detail` and the
 identity in `code` (#2520). Coordinate endpoint, code and auth-header changes
 across repos. Changing a code the kiosk branches on is a two-repo change.
-PyrePortal's `CODE_MESSAGES` maps 35 codes; the backend pins them in two
-places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
+PyrePortal's `CODE_MESSAGES` maps 36 codes. `module.not_booked` is pinned
+under Booked modules below; the backend pins the other 35 in two places. `backend/api/testdata/iot_error_codes.golden` pins the 15 check-in
 conflict, staff-clock and open-room codes to the declaration that emits them
 (`TestFullProductionRouterGolden/contracts/IoT_error_code_declarations`). The
 21 codes of the table below are pinned on the wire (see after the table);
@@ -817,7 +817,11 @@ Backend paths in this section are relative to `backend/`:
   membership. `TraegerScopeMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
-  transaction filtered on the Träger's schools. The Träger's own tables
+  transaction filtered on the Träger's schools. A school outside that set
+  answers 404 `traeger.school_not_found` on the school read and the Absprung
+  alike, whether it belongs to another Träger or does not exist, so no route
+  reveals a school; a missing right stays 403 with its own code (#6461).
+  The Träger's own tables
   (holiday periods, ADR 0105; Träger settings, ADR 0086/0107; master data
   with logo, contact person and bank accounts, ADR 0112) are written in
   the Träger transaction (`tenant.WithinTraeger`: tenant role,
@@ -875,7 +879,7 @@ Backend paths in this section are relative to `backend/`:
   portal (empty or legacy `tenant` claim) and `platform`. The portal facts
   live in `tokenprimitives.AllPortalClaims()` and `internal/domain/portal.go`,
   pinned to each other by `TestPortalTableMatchesTheTokenGates`.
-  `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
+  `TestFullProductionRouterGolden/contracts/school_scope_matrix` checks school-token rejection under `/api`.
 - Every account portal answers a refused sign-in, MFA step, exchange, switch,
   refresh or passkey sign-in through the owner's rule tables in
   `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
@@ -945,12 +949,13 @@ credential generation (`platform.operators.credential_generation`, migration
 trigger `platform.operator_credential_moves_generation`, and the sign-in's
 generation in the enrollment and challenge tokens, the code rows and the
 remembered devices, compared under the operator lock at issue, redemption,
-the exchange's session mint and the device it remembers. The exchange takes
-the redeemed code's `OperatorMFAProof`; a passkey sign-in checks no password
-and binds nothing. Operators start at generation 1: codes, devices and tokens
-from before the binding stand at 0 and are refused. A refused mint, resend or
-enrollment start answers 401 `identity.invalid_credentials`, as on the account
-portals; a code of an older password 401 `identity.mfa_code_invalid`.
+the enrollment confirm's enrollment write (#6459), the exchange's session mint
+and the device it remembers. The exchange takes the redeemed code's
+`OperatorMFAProof`; a passkey sign-in checks no password and binds nothing.
+Operators start at generation 1: codes, devices and tokens from before the
+binding stand at 0 and are refused. A refused mint, resend, enrollment start
+or enrollment confirm answers 401 `identity.invalid_credentials`, as on the
+account portals; a code of an older password 401 `identity.mfa_code_invalid`.
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
@@ -1061,10 +1066,16 @@ not composed. The backend routes are public, take no cookies, and rely on
 
 | Route | Contract |
 |---|---|
-| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
+| `POST /demo/access-requests` | `email`, `school_name`, `first_name`, `last_name` (both required, at most 120 bytes each, whitespace runs collapsed; the demo school's caregiver and parent carry exactly these names), `contact_opt_in`, optional `phone` (callback number, free text; whitespace runs collapsed, at most 50 bytes; dropped without `contact_opt_in`; not stored, it reaches only the team's lead mail), optional `src` and `role` (a demo role, appended to the mailed link as `&role=`) → always `202 {link_sent: true}`, never the link itself; `422 demo_access_invalid`; `429 demo_access_rate_limited` with `Retry-After` (seconds); `503 demo_capacity_reached` |
 | `GET /demo/access/status` | token in `Authorization: Bearer` → `{status: preparing\|ready\|failed, school_name}` (the OGS name the prospect gave, shown while waiting, #3464), plus `school_url` (origin of the demo school) when `ready` |
 | `POST /demo/access/sessions` | `{token, role?}` → `{access_token, refresh_token, demo: {access_id, role, src, fixed_role}}` (tenant session; parents portal session for `role: parent`, #3468); `409 demo_school_preparing`; `422 demo_access_invalid` for an unknown role |
 | `POST /demo/access/reset` | `{token}` → `202 {status: "preparing", entry_url}` (#3470): a fresh demo school is queued for the same access with the same names, the old one is soft-deleted and its sessions are revoked; `entry_url` is the waiting room with the token in the fragment, as in the mailed link. `409 demo_school_preparing` while the current school is still being seeded; `422 demo_access_invalid` for the shared standing school; `429 demo_access_rate_limited` with `Retry-After`, because a restart counts against the same per-address and per-IP windows as a request; `503 demo_capacity_reached` never for a restart, because the old school gives its place back first |
+
+The 10-minute per-address cooldown also applies to requests with a phone
+number. Requests during the cooldown still answer `202 {link_sent: true}`
+but send neither the access link nor the lead mail; the submitted number is
+discarded. Outside the cooldown, a request with a number and `contact_opt_in`
+sends the lead mail even for a known address with unchanged contact consent.
 
 Demo roles (#3467): `caregiver`, `lead`, `all`. A role first becomes the only
 role of the visitor's own caregiver in its school (`user` for `caregiver`,

@@ -203,10 +203,11 @@ func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickRe
 			continue
 		}
 		result, err := s.shifts.ApplyCancellation(ctx, workforce.CancelStaffShift{
-			ShiftID:      shift.ID,
-			Cancelled:    true,
-			ChangeReason: &reason,
-			ActorStaffID: report.actorStaffID,
+			PreserveSeriesOverride: true,
+			ShiftID:                shift.ID,
+			Cancelled:              true,
+			ChangeReason:           &reason,
+			ActorStaffID:           report.actorStaffID,
 		})
 		if err != nil {
 			return fmt.Errorf("sick cascade: cancel shift %d: %w", shift.ID, err)
@@ -449,27 +450,6 @@ func (s *sickCascade) reactivateStampedShifts(ctx context.Context, report sickRe
 		if err := s.reactivateStampedShift(ctx, report, shift); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (s *sickCascade) reactivateStampedShift(ctx context.Context, report sickReport, shift workforce.StaffShift) error {
-	covers, err := s.shifts.ListStaffShifts(ctx, workforce.StaffShiftFilter{
-		OriginShiftID: shift.ID,
-		Order:         []workforce.StaffShiftOrder{{Field: workforce.StaffShiftOrderStartTime}},
-	})
-	if err != nil {
-		return fmt.Errorf("sick clear: load covers of shift %d: %w", shift.ID, err)
-	}
-	if !shift.Cancelled || len(covers) > 0 {
-		return s.releaseStampedShift(ctx, shift, len(covers))
-	}
-	// Reactivation clears sick_absence_id and change_reason via the ordinary
-	// update path and re-checks overlap against the freed window.
-	if _, err := s.shifts.ApplyCancellation(ctx, workforce.CancelStaffShift{
-		ShiftID: shift.ID, Cancelled: false, ActorStaffID: report.actorStaffID,
-	}); err != nil {
-		return fmt.Errorf("sick clear: reactivate shift %d: %w", shift.ID, err)
 	}
 	return nil
 }

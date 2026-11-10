@@ -280,11 +280,11 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	datum := sess.Date.Format("02.01.2006")
 	wochentag := germanWeekdays[sess.Date.Weekday()]
 
-	start := sess.CheckInTime.Format("15:04")
+	start := sess.CheckInTime.In(calendar.Berlin).Format("15:04")
 
 	ende := ""
 	if sess.CheckOutTime != nil {
-		ende = sess.CheckOutTime.Format("15:04")
+		ende = sess.CheckOutTime.In(calendar.Berlin).Format("15:04")
 	}
 
 	// Read the pause from the response-level total, not the model cache: for an

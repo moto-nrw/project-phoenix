@@ -290,14 +290,17 @@ func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.
 }
 
 // AcceptGuardianInvitation stamps accepted_at on an unaccepted invitation
-// and reports whether such a row existed.
-func (s *Store) AcceptGuardianInvitation(ctx context.Context, id int64, acceptedAt time.Time) (bool, error) {
+// that still carries the link token the acceptance looked it up by, and
+// reports whether such a row existed. A resend, approval or new invitation
+// that replaced the link after the lookup leaves no matching row (#6495).
+func (s *Store) AcceptGuardianInvitation(ctx context.Context, id int64, token string, acceptedAt time.Time) (bool, error) {
 	scope := s.scope(ctx)
 	rows, _, err := s.exec(ctx, "accept guardian invitation", func(db bun.IDB) executor {
 		return guardianTenantFilter(scope, db.NewUpdate().Model((*guardianInvitationRow)(nil)).
 			Set("accepted_at = ?", acceptedAt).
 			Set("updated_at = NOW()").
 			Where(`"guardian_invitation".id = ?`, id).
+			Where(`"guardian_invitation".token = ?`, domain.HashToken(token)).
 			Where(`"guardian_invitation".accepted_at IS NULL`).
 			Where(`"guardian_invitation".expires_at >= ?`, acceptedAt).
 			Where(`"guardian_invitation".approval_status IN (?, ?)`, domain.GuardianInvitationApprovalNotRequired, domain.GuardianInvitationApprovalApproved))

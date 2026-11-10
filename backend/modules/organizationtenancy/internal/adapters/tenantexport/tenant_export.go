@@ -48,16 +48,12 @@ func (e *tenantExporter) Export(ctx context.Context, options organizationtenancy
 	if err != nil {
 		return err
 	}
-	if options.OrganizationID > 0 {
-		return e.exportOrganization(ctx, options)
-	}
-	_, _, err = e.run(ctx, options, nil)
-	return err
+	return e.exportAudited(ctx, options)
 }
 
 // run exports into the new output directory. step names what failed,
 // created whether this run created the output directory. complete records
-// a Träger package in the operator audit before its COMPLETE marker.
+// the package in the operator audit before its COMPLETE marker.
 func (e *tenantExporter) run(ctx context.Context, options organizationtenancy.TenantExportOptions,
 	complete func(organizationtenancy.TenantExportRecord) error,
 ) (step string, created bool, err error) {
@@ -237,9 +233,9 @@ func (r *exportRun) writeArtifact(name string, data []byte) error {
 	return nil
 }
 
-// finish writes the manifest and, last, the COMPLETE marker. A Träger
-// package is in the operator audit before it is complete: a run whose record
-// fails can never be handed over (ADR 0187).
+// finish writes the manifest and, last, the COMPLETE marker. Every package
+// is in the operator audit before it is complete: a run whose record fails
+// can never be handed over (ADR 0187, #6326).
 func (r *exportRun) finish(complete func(organizationtenancy.TenantExportRecord) error) (string, error) {
 	data, err := json.MarshalIndent(r.manifest, "", "  ")
 	if err != nil {
@@ -250,10 +246,8 @@ func (r *exportRun) finish(complete func(organizationtenancy.TenantExportRecord)
 		return "manifest", err
 	}
 	checksum := r.fingerprints.Bytes(data)
-	if complete != nil {
-		if err := complete(r.auditRecord(checksum)); err != nil {
-			return "audit", err
-		}
+	if err := complete(r.auditRecord(checksum)); err != nil {
+		return "audit", err
 	}
 	return "complete_marker", privateExportFile(filepath.Join(r.options.Output, "COMPLETE"), []byte(checksum+"\n"))
 }

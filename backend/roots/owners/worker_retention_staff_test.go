@@ -31,7 +31,7 @@ func (s retentionSuite) staffWithRecords(t *testing.T, tenantID int64, name stri
 	ctx := context.Background()
 	for _, query := range []string{
 		`INSERT INTO users.staff_master_data (tenant_id, staff_id, address_city) VALUES (?0, ?1, 'Münster')`,
-		`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban) VALUES (?0, ?1, 'DE02120300000000202051')`,
+		`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban_sealed, iban_masked) VALUES (?0, ?1, '\x01', '•••• 2051')`,
 		`INSERT INTO users.staff_qualifications (tenant_id, staff_id, name, sort_order) VALUES (?0, ?1, 'Erzieherin', 0)`,
 		`INSERT INTO users.teachers (tenant_id, staff_id, specialization) VALUES (?0, ?1, 'Musik')`,
 		`INSERT INTO active.work_sessions (tenant_id, staff_id, date, check_in_time, created_by)

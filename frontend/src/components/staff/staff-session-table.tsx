@@ -1,5 +1,6 @@
 "use client";
 
+import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
 import { CalendarPlus, SquarePen, Thermometer } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInvalidateMatching } from "~/lib/swr";
@@ -158,7 +159,7 @@ function splitSessionByBerlinDate(
       id: index.toString(),
       sessionId: session.id ?? "",
       startedAt: workBreak.started_at,
-      endedAt: workBreak.ended_at,
+      endedAt: workBreak.ended_at ?? null,
       durationMinutes: 0,
       plannedEndTime: null,
     })),
@@ -437,8 +438,9 @@ export function StaffSessionTable({
       const end = absence.date_end.slice(0, 10);
       const startDate = new Date(`${start}T00:00:00`);
       const endDate = new Date(`${end}T00:00:00`);
-      const dayCount =
-        Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+      // Calendar days, not elapsed 24-hour blocks: a range across the March
+      // clock change is an hour short and lost its last day.
+      const dayCount = differenceInCalendarDays(endDate, startDate) + 1;
       for (let offset = 0; offset < dayCount; offset++) {
         const cursor = new Date(startDate);
         cursor.setDate(cursor.getDate() + offset);
@@ -530,8 +532,7 @@ export function StaffSessionTable({
   const days = useMemo(() => {
     const result: Date[] = [];
     const start = new Date(from);
-    const dayCount =
-      Math.floor((to.getTime() - start.getTime()) / 86_400_000) + 1;
+    const dayCount = differenceInCalendarDays(to, start) + 1;
     for (let i = 0; i < dayCount; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);

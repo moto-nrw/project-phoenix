@@ -464,3 +464,150 @@ func TestGuardianInvitationAcceptanceCannotOutrunInvalidation(t *testing.T) {
 	require.Error(t, awaitResult(t, done), "an invalidated link cannot commit an account from its earlier snapshot")
 	require.Zero(t, accountCountByEmail(t, db, *profile.Email), "the provisional account rolls back too")
 }
+
+// A resend replaces the link while an acceptance of the old link is between
+// its token lookup and the grant (#6495). The barrier is the guardian's
+// account-address lock, the first lock the acceptance takes after the lookup.
+// Once the resend committed the new link, the paused acceptance must not
+// commit: no account with its password, no school access, no profile link,
+// and the new link stays unspent and redeemable.
+func TestGuardianInvitationAcceptance_ReplacedLinkCannotCommit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	outbox := api.NewCapturingOutbox()
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{Outbox: outbox})
+	require.NoError(t, err)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "replaced-link-race")
+	creator := testpkg.CreateTestAccount(t, db, "replaced-link-creator")
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{GuardianProfileID: profile.ID, CreatedBy: creator.ID})
+	require.NoError(t, err)
+	email := *profile.Email
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	barrier, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = barrier.Rollback() }()
+	_, err = barrier.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('guardian_account:' || LOWER(BTRIM(?)), 0))`, email)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		account, acceptErr := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{Password: strongTestPassword, ConfirmPassword: strongTestPassword})
+		if acceptErr == nil {
+			testpkg.OwnTestAccount(t, db, account.ID)
+		}
+		done <- acceptErr
+	}()
+	waitForLockWaiters(t, db, 1)
+	require.NoError(t, service.ResendGuardianInvitation(testpkg.Ctx(t), invitation.ID, creator.ID))
+	replacement := mailedToken(t, outbox, email)
+	require.NotEqual(t, invitation.Token, replacement)
+	require.NoError(t, barrier.Rollback())
+
+	require.ErrorIs(t, awaitResult(t, done), identityaccess.ErrInvitationNotFound, "the replaced link is refused like a fresh lookup of it")
+	assert.Zero(t, accountCountByEmail(t, db, email), "no account with the replaced link's password")
+	var linkedAccount *int64
+	require.NoError(t, db.NewRaw(`SELECT account_id FROM users.guardian_profiles WHERE id = ?`, profile.ID).Scan(context.Background(), &linkedAccount))
+	assert.Nil(t, linkedAccount, "the profile stays without an account")
+	assert.Nil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt, "the new link is not spent")
+
+	account, err := service.AcceptGuardianInvitation(context.Background(), replacement, identityaccess.GuardianRegistration{Password: strongTestPassword, ConfirmPassword: strongTestPassword})
+	require.NoError(t, err, "the new link still works")
+	testpkg.OwnTestAccount(t, db, account.ID)
+	active, err := testpkg.ActiveAccountTenantExists(context.Background(), db, account.ID, testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.True(t, active)
+	assert.NotNil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+}
+
+// Two acceptances of the current link pass the lookup before either commits
+// (#6495). They queue on the guardian's account-address lock; exactly one
+// spends the link, the other is refused as already used.
+func TestGuardianInvitationAcceptance_SameLinkSucceedsOnce(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{Outbox: api.NewCapturingOutbox()})
+	require.NoError(t, err)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "same-link-twice")
+	creator := testpkg.CreateTestAccount(t, db, "same-link-creator")
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{GuardianProfileID: profile.ID, CreatedBy: creator.ID})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	barrier, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = barrier.Rollback() }()
+	_, err = barrier.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('guardian_account:' || LOWER(BTRIM(?)), 0))`, *profile.Email)
+	require.NoError(t, err)
+	done := make(chan error, 2)
+	for range 2 {
+		go func() {
+			account, acceptErr := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{Password: strongTestPassword, ConfirmPassword: strongTestPassword})
+			if acceptErr == nil {
+				testpkg.OwnTestAccount(t, db, account.ID)
+			}
+			done <- acceptErr
+		}()
+	}
+	waitForLockWaiters(t, db, 2)
+	require.NoError(t, barrier.Rollback())
+
+	var succeeded int
+	for range 2 {
+		if acceptErr := awaitResult(t, done); acceptErr == nil {
+			succeeded++
+		} else {
+			require.ErrorIs(t, acceptErr, identityaccess.ErrInvitationUsed)
+		}
+	}
+	assert.Equal(t, 1, succeeded, "one link grants access once")
+	assert.Equal(t, 1, accountCountByEmail(t, db, *profile.Email))
+}
+
+// An acceptance that reached its final write before a resend keeps the
+// access it granted: the resend waits for the invitation row, then finds it
+// spent and replaces no link and mails nothing (#6495).
+func TestGuardianInvitationResend_AfterAcceptanceReplacesNothing(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	outbox := api.NewCapturingOutbox()
+	gate := &guardianAcceptanceGate{entered: make(chan int64, 1), release: make(chan struct{})}
+	defer gate.unblock()
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{Outbox: outbox, Enrollments: gate})
+	require.NoError(t, err)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "accept-before-resend")
+	creator := testpkg.CreateTestAccount(t, db, "accept-before-resend-creator")
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{GuardianProfileID: profile.ID, CreatedBy: creator.ID})
+	require.NoError(t, err)
+	mails := len(outbox.Requests())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	accepted := make(chan error, 1)
+	go func() {
+		account, acceptErr := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{Password: strongTestPassword, ConfirmPassword: strongTestPassword})
+		if acceptErr == nil {
+			testpkg.OwnTestAccount(t, db, account.ID)
+		}
+		accepted <- acceptErr
+	}()
+	select {
+	case <-gate.entered:
+	case acceptErr := <-accepted:
+		t.Fatalf("the acceptance did not reach its commit gate: %v", acceptErr)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	resent := make(chan error, 1)
+	go func() { resent <- service.ResendGuardianInvitation(testpkg.Ctx(t), invitation.ID, creator.ID) }()
+	waitForLockWaiters(t, db, 1)
+	gate.unblock()
+
+	require.NoError(t, awaitResult(t, accepted))
+	require.Error(t, awaitResult(t, resent), "a spent invitation gets no new link")
+	assert.Len(t, outbox.Requests(), mails, "the resend mails nothing")
+	assert.NotNil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+	_, err = service.ValidateGuardianInvitation(context.Background(), invitation.Token)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed, "the accepted link keeps its token")
+}

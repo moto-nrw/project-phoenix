@@ -1,10 +1,11 @@
 # Interne Auskunft und Datenrückgabe
 
-Stand: 09.11.2026, Refs #3838, Teil von #3846.
+Stand: 10.11.2026, Refs #3838, #6412, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
 [ADR 0192](../adr/0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
-[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
+[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md),
+[ADR 0197](../adr/0197-mandantenrueckgabe-oeffnet-bankdaten-von-eltern-und-personal-und-den-mandatstext.md)
 und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
 Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
 und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)
@@ -31,9 +32,11 @@ automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
 Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
 Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
-**Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten
-(Bankring) und alle Gesundheitsangaben (Gesundheitsring) stehen geöffnet im
-Paket, nie als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
+**Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten, der
+bestätigte Text eines Online-Mandats, IBAN und Kontoinhaber der Eltern sowie
+IBAN, Steuer-ID und Sozialversicherungsnummer des Personals (alle Bankring)
+und alle Gesundheitsangaben (Gesundheitsring) stehen geöffnet im Paket, nie
+als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
 `password`-Definitionen und unbekannte Schlüssel als `null`. Zustellprotokolle
 (Sperrliste, Zustellereignisse, Push-Inhalte) gehen mit. Ein Wert, der nicht
 öffnet, oder ein Container ohne Besitzer bricht den Export ab.
@@ -113,7 +116,8 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    und den Gesundheitsring `HEALTH_DATA_KEYS` derselben Installation
    ([ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
    Der Export öffnet damit IBAN und Kontoinhaber der SEPA-Mandate und
-   -Lastschriften sowie die Gesundheitsangaben; ohne passende Ringe bricht er
+   -Lastschriften, den Mandatstext, die Bankdaten der Eltern, Bank- und
+   Steuerdaten des Personals sowie die Gesundheitsangaben; ohne passende Ringe bricht er
    ab, statt Chiffrat oder eine Lücke zu übergeben, auch für Schulen ohne
    solche Daten. Die Werte nur per SOPS in die Umgebung des Exportprozesses
    geben, nie als Datei, Shell-Literal oder CLI-Argument.
@@ -125,13 +129,19 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
 ## 3. Ausführen und prüfen
 
 Aus dem Repository-Root im vorbereiteten lokalen Dev-Loop, Variablen vorab
-auf die autorisierte Schul-ID und lokale Verzeichnisse setzen:
+auf die autorisierte Schul-ID, die eigene Operator-ID und lokale
+Verzeichnisse setzen:
 
 ```bash
 umask 077
 scripts/dev-native.sh backend go run . tenant export \
-  --school "$SCHOOL_ID" --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
+  --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+  --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
 ```
+
+Jeder Lauf verlangt `--operator` und steht im Operator-Protokoll, beim
+Schulpaket mit Ressource `school` statt `organization` (#6326, siehe
+**Operator-Protokoll** unten).
 
 Für das Trägerpaket statt `--school "$SCHOOL_ID"` den Parameter
 `--organization "$ORGANIZATION_ID"` setzen. Es enthält die Trägertabellen
@@ -143,8 +153,8 @@ Trägerbestand; bei einer Trägerrückgabe ist das Trägerpaket desselben Auftra
 für diese Tabellen maßgeblich. Wechselt nur eine Schule, enthält ihr Schulpaket
 die Trägerdaten aller Schulen des Trägers: Umfang mit dem Träger abstimmen.
 
-Das Trägerpaket verlangt zusätzlich `--operator "$OPERATOR_ID"` und legt die
-gespeicherten Dokumente und die PAIN.008-Dateien als Dateien bei (ADR 0187):
+Das Trägerpaket legt zusätzlich die gespeicherten Dokumente und die
+PAIN.008-Dateien als Dateien bei (ADR 0187):
 
 ```bash
 umask 077
@@ -159,20 +169,26 @@ scripts/dev-native.sh backend go run . tenant export \
   einer eigenen Transaktion **nach** dem Katalog-Snapshot; nur ohne Schreiber
   passen Tabellen-Dateien und Dateien zusammen. Der deaktivierte Träger allein
   reicht nicht.
-- **Operator-Protokoll:** `--operator` muss ein bestehender, **aktiver**
-  Operator sein (wie beim Löschverfahren); sonst liest und schreibt der Lauf
-  nichts. Jeder Lauf steht zweimal in `platform.operator_audit_log` (Aktion
-  `export`, Ressource `organization`), ohne Personendaten und ohne lokalen
-  Pfad: vor dem ersten Lesen der Versuch (`outcome: started`), danach das
-  Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`, die Anzahlen, die
-  Dokumente je Spalte und die Herkunft jeder PAIN.008-Datei; erst danach
-  entsteht `COMPLETE`.
+- **Operator-Protokoll (Schul- und Trägerpaket):** `--operator` muss ein
+  bestehender, **aktiver** Operator sein (wie beim Löschverfahren); sonst
+  liest und schreibt der Lauf nichts. Jeder Lauf steht zweimal in
+  `platform.operator_audit_log` (Aktion `export`, Ressource `school` mit der
+  Schul-ID bzw. `organization` mit der Träger-ID), ohne Personendaten und
+  ohne lokalen Pfad: vor dem ersten Lesen der Versuch (`outcome: started`,
+  `operator_id`, `school_id` bzw. `organization_id`, `started_at`), danach
+  das Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`
+  (`manifest_sha256`), `exported_at`, die Anzahl der Tabellen und Dateien,
+  beim Trägerpaket zusätzlich die Dokumente je Spalte und die Herkunft jeder
+  PAIN.008-Datei, beim internen Prüfpaket `person_review: true` ohne die
+  Person; erst danach entsteht `COMPLETE`. Schlägt dieser Eintrag fehl,
+  entsteht kein `COMPLETE`.
   `failed` nennt die Fehlerklasse (`snapshot`, `filesystem`,
   `document_files`, `sepa_debit_files`, `manifest`, `audit`,
-  `complete_marker`) und
-  `partial_files_removed`: Der Lauf löscht sein unvollständiges Verzeichnis.
-  Steht dort `false`, das Verzeichnis von Hand löschen. Ein Schulpaket
-  schreibt (noch) keinen Eintrag (#6326).
+  `complete_marker`). Das Trägerpaket löscht sein unvollständiges
+  Verzeichnis und meldet das in `partial_files_removed`; steht dort `false`,
+  das Verzeichnis von Hand löschen. Ein fehlgeschlagenes Schulpaket lässt
+  seine Teilstände liegen (kein `partial_files_removed`): sperren und nach
+  Abschnitt 4 entfernen.
 - **Dokumente:** `DOKUMENTE/<Tabelle>/<Zeilen-ID>-<Spalte>.<Endung>` je
   gespeichertem Dokument der Trägertabellen: Schreiben und Bestätigungen,
   Bescheide, alle Vertragsfassungen, Papierverträge, Unterschriftsbilder,
@@ -224,9 +240,15 @@ Exportformat, Version 1:
   einschließlich vorhandener Soft-Delete-Daten; keine Roh-Geheimnisspalten.
   Feldverschlüsselte Werte, die der Katalog unter `openSealedColumns` führt,
   stehen geöffnet in eigenen Spalten (`iban`, `account_holder` bei SEPA-
-  Mandaten und -Lastschriften, `health_info` bei Betreuungsprofilen, `health`
-  als JSON-Text bei Ferienanmeldungen, -kindern und -gästen), ihr Chiffrat
-  nicht. Container unter `projectedColumns` stehen projiziert in eigenen
+  Mandaten und -Lastschriften, `text` beim bestätigten Mandatstext,
+  `iban_opened`, `account_holder_opened` bei Bankdaten der Eltern,
+  `iban_opened`, `tax_id_opened`, `social_security_number_opened` bei Bank-
+  und Steuerdaten des Personals, `health_info` bei Betreuungsprofilen,
+  `health` als JSON-Text bei Ferienanmeldungen, -kindern und -gästen), ihr
+  Chiffrat nicht. Bei Eltern und Personal tragen `iban`, `account_holder`,
+  `tax_id` und `social_security_number` nur noch Klartext von Zeilen, die der
+  Backfill (#6332) nicht versiegelt hat; maßgeblich ist der geöffnete Wert,
+  sonst dieser Klartext. Container unter `projectedColumns` stehen projiziert in eigenen
   Spalten (`exported_value`, `exported_old_value`/`exported_new_value` bei
   Einstellungen, `exported_settings` bei Schulen), ihr Rohwert nicht.
   PostgreSQL-JSON stellt Zahlen numerisch dar. Empfänger müssen `bigint`
@@ -310,7 +332,8 @@ Es gibt keinen Modus zum stillen Überspringen.
 Im zugriffsbeschränkten Auftrag festhalten: Auftragsreferenz, geprüfte
 Berechtigung, interne Schulreferenz, verantwortliche Person/Vertretung,
 Commit, Verfahrens-/Katalogversion, Zeitpunkte, Prüfschritte mit Anzahlen,
-Manifest-Prüfsumme, Fehler/Wiederholungen, begründete Ausschlüsse und offene
+Manifest-Prüfsumme, Fehler/Wiederholungen, Verweis auf die Einträge im
+Operator-Protokoll (Aktion `export`, Ressource `school` bzw. `organization`), begründete Ausschlüsse und offene
 Ergänzungen, bestätigten Übergabekanal/Empfang sowie Entfernung lokaler Kopien.
 Keine Namen aus dem Export, Inhalte, Originaldateinamen, Passwörter, Tokens
 oder Schlüssel aufnehmen. Nachweisfristen und Zugriff organisatorisch
@@ -348,7 +371,8 @@ Gesamterfolg erhalten.
 ```bash
 umask 077
 scripts/dev-native.sh backend go run . tenant export \
-  --school "$SCHOOL_ID" --person "${PERSON_SELECTOR:?Personenauswahl erforderlich}" \
+  --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+  --person "${PERSON_SELECTOR:?Personenauswahl erforderlich}" \
   --uploads "$UPLOADS_SNAPSHOT" --out "$PERSON_REVIEW_DIR"
 ```
 
@@ -400,6 +424,7 @@ im gefilterten JSONL) mit `third-party-review`. Zusätzlich gelten:
 | `free-text-snapshots-and-embedded-persons` | Freitexte, Nachrichten, frühere/neue Werte, JSON und Formulare auf eingebettete Drittpersonen und Geheimnisse prüfen. Keine bloße Suche nach Spaltennamen. |
 | `audit-actors-and-historical-values` | Akteure und historische Werte prüfen; den erforderlichen Auskunftskontext nicht pauschal als „intern“ zurückhalten. |
 | `special-category-health-data` | Geöffnete Gesundheitsangaben (Art. 9 DSGVO): nur die der betroffenen Person und nur an den von der Schule bestätigten Empfänger. Zeilen von Geschwistern oder anderen Gästen entfernen. |
+| `especially-sensitive-tax-and-social-security-ids` | Geöffnete Steuer-ID und Sozialversicherungsnummer: lebenslange Kennungen mit hohem Missbrauchsrisiko. Nur die der betroffenen Beschäftigten, nur an den von der Schule bestätigten Empfänger, verschlüsselt übergeben; Zeilen anderer Beschäftigter entfernen. |
 | `original-content-and-group-photos` | Jede markierte Originaldatei ansehen. Gruppenfotos und Mehrpersonen-Dokumente redigieren oder begründet zurückhalten; das Original bleibt nur im internen Paket. |
 
 Die Markierungen sind bewusst konservativ, keine automatische juristische

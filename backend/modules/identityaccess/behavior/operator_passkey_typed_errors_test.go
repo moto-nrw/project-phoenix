@@ -24,7 +24,7 @@ func TestOperatorPasskeyCeremoniesReportTheOperatorOutcomes(t *testing.T) {
 	require.NotNil(t, module.OperatorPasskeys)
 
 	operator := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, operator.ID))
+	require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	_, err := module.OperatorMFA.StartOperatorMFAChallenge(ctx, operator.ID, net.ParseIP("203.0.113.40"), nil)
 	require.NoError(t, err)
 	active := activeOperatorChallenge(t, db, operator.ID)

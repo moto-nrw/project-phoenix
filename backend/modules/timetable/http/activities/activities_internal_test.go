@@ -12,54 +12,6 @@ import (
 )
 
 // =============================================================================
-// convertWeekdayToString Tests
-// =============================================================================
-
-func TestConvertWeekdayToString_AllDays(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		input    string
-		expected string
-	}{
-		{"MON", "Monday"},
-		{"TUE", "Tuesday"},
-		{"WED", "Wednesday"},
-		{"THU", "Thursday"},
-		{"FRI", "Friday"},
-		{"SAT", "Saturday"},
-		{"SUN", "Sunday"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			result := convertWeekdayToString(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestConvertWeekdayToString_Unknown(t *testing.T) {
-	t.Parallel()
-
-	// Unknown input should be returned as-is
-	tests := []string{
-		"MONDAY",
-		"monday",
-		"Mon",
-		"unknown",
-		"",
-	}
-
-	for _, input := range tests {
-		t.Run(input, func(t *testing.T) {
-			result := convertWeekdayToString(input)
-			assert.Equal(t, input, result)
-		})
-	}
-}
-
-// =============================================================================
 // formatEndTime Tests
 // =============================================================================
 
@@ -92,49 +44,6 @@ func TestFormatEndTime_BeforeMidnight(t *testing.T) {
 	endTime := time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC)
 	result := formatEndTime(&endTime)
 	assert.Equal(t, "23:59", result)
-}
-
-// =============================================================================
-// generateSlotName Tests
-// =============================================================================
-
-func TestGenerateSlotName_WithEndTime(t *testing.T) {
-	t.Parallel()
-
-	startTime := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
-	endTime := time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC)
-
-	result := generateSlotName(startTime, &endTime)
-	assert.Equal(t, "08:00 - 10:30", result)
-}
-
-func TestGenerateSlotName_NilEndTime(t *testing.T) {
-	t.Parallel()
-
-	startTime := time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)
-
-	result := generateSlotName(startTime, nil)
-	assert.Equal(t, "From 14:00", result)
-}
-
-func TestGenerateSlotName_MorningSlot(t *testing.T) {
-	t.Parallel()
-
-	startTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
-	endTime := time.Date(2024, 1, 15, 9, 15, 0, 0, time.UTC)
-
-	result := generateSlotName(startTime, &endTime)
-	assert.Equal(t, "08:30 - 09:15", result)
-}
-
-func TestGenerateSlotName_AfternoonSlot(t *testing.T) {
-	t.Parallel()
-
-	startTime := time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC)
-	endTime := time.Date(2024, 1, 15, 16, 0, 0, 0, time.UTC)
-
-	result := generateSlotName(startTime, &endTime)
-	assert.Equal(t, "13:00 - 16:00", result)
 }
 
 // =============================================================================

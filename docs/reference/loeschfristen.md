@@ -85,7 +85,7 @@ diesen Slice nicht maskiert.
 **Nicht erfasst:** Elternportal-Direktänderungen speichern `health_info` weiter
 als Alt-/Neuwerte in `users.student_data_change_requests`. Diese Tabelle folgt
 der Kinderlöschung, nicht der oben genannten Protokollfrist. Befund, Leser und
-offene Abhilfe: [Risikobewertung gespeicherter Daten](schutz-gespeicherter-daten.md#bestätigter-befund-gesundheitskopien-im-elternportal).
+offene Abhilfe: [Risikobewertung gespeicherter Daten](schutz-gespeicherter-daten.md#historischer-befund-gesundheitskopien-im-elternportal).
 
 ## Technische Daten und Protokolle (fest für alle Schulen)
 
