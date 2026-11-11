@@ -1,6 +1,7 @@
 "use client";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
-import { Z_LAYER } from "./overlay-styles";
+import { Z_LAYER, zLayerValue } from "./overlay-styles";
+import { MODAL_SCOPE_SELECTOR, OVERLAY_SCOPE_SELECTOR } from "./overlay-stack";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
@@ -69,8 +70,9 @@ const RANGE_PILL_CLASS =
 // Escape belongs to. Keep opening order separately for Safari, which leaves a
 // clicked trigger unfocused and dispatches the key event from document.body.
 const openRangePickers = new Set<HTMLElement>();
-const ACTIVE_OVERLAY_SELECTOR =
-  '[data-modal-focus-scope="true"]:not([aria-hidden="true"]), [data-date-picker-focus-trap="true"]';
+// A lower dialog may carry `aria-hidden` from a slide-over opened later; it is
+// still open, and its level decides whether it lies above.
+const ACTIVE_OVERLAY_SELECTOR = OVERLAY_SCOPE_SELECTOR;
 
 function isLastOpenedRangePicker(picker: HTMLElement | null): boolean {
   let lastOpenedPicker: HTMLElement | undefined;
@@ -78,20 +80,30 @@ function isLastOpenedRangePicker(picker: HTMLElement | null): boolean {
   return lastOpenedPicker === picker;
 }
 
-// Overlays portal to the end of body as they open, so one that follows the
-// picker in document order lies above it; one before it (a slide-over under
-// the picker's modal) lies below.
+// The overlay stack's order: a higher `Z_LAYER` level wins (a dialog lies
+// above a slide-over), on the same level the overlay opened later, which
+// portals to the end of body. A picker on the page lies below every overlay.
+function overlayLevel(overlay: Element | null): number {
+  if (!overlay) return -1;
+  return zLayerValue(overlay.matches(MODAL_SCOPE_SELECTOR) ? "modal" : "sheet");
+}
+
 function isBehindActiveOverlay(picker: HTMLElement | null): boolean {
   if (!picker) return false;
+  const host = picker.parentElement?.closest(ACTIVE_OVERLAY_SELECTOR) ?? null;
+  const hostLevel = overlayLevel(host);
   return Array.from(
     document.querySelectorAll<HTMLElement>(ACTIVE_OVERLAY_SELECTOR),
-  ).some(
-    (overlay) =>
-      !overlay.contains(picker) &&
+  ).some((overlay) => {
+    if (overlay.contains(picker)) return false;
+    const level = overlayLevel(overlay);
+    if (level !== hostLevel) return level > hostLevel;
+    return (
       (picker.compareDocumentPosition(overlay) &
         Node.DOCUMENT_POSITION_FOLLOWING) !==
-        0,
-  );
+      0
+    );
+  });
 }
 
 /**
@@ -183,6 +195,17 @@ export function DateRangePicker({
         target.closest(
           '[role="combobox"][aria-expanded="true"], [role="listbox"], [data-listbox-panel]',
         )
+      ) {
+        return;
+      }
+      // Escape inside another dialog surface (an `AnchoredPopover`, a dialog
+      // that does not hold this picker) belongs to that surface.
+      const surface =
+        target instanceof Element ? target.closest('[role="dialog"]') : null;
+      if (
+        surface &&
+        surface !== panelRef.current &&
+        !surface.contains(containerRef.current)
       ) {
         return;
       }

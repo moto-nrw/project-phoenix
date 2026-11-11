@@ -18,6 +18,7 @@ import { DateRangePicker, RangeCalendarInline } from "./date-range-picker";
 import { CustomSelect } from "./custom-select";
 import { Modal } from "./modal";
 import { SlideOver, SlideOverContent } from "./slide-over";
+import { AnchoredPopover } from "./anchored-popover";
 
 describe("DateRangePicker", () => {
   it("collapses the label when both dates share month and year", () => {
@@ -515,6 +516,70 @@ describe("DateRangePicker in a dialog", () => {
 
     expect(document.querySelector("[data-range-panel]")).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("leaves a body Escape to a higher modal that lies earlier in the document", async () => {
+    const onClose = vi.fn();
+    render(
+      <>
+        <Modal isOpen onClose={onClose} title="Bestätigung">
+          <p>Wirklich?</p>
+        </Modal>
+        <SlideOver defaultOpen>
+          <SlideOverContent>
+            <DateRangePicker value={undefined} onChange={vi.fn()} />
+          </SlideOverContent>
+        </SlideOver>
+      </>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Zeitraum wählen",
+        hidden: true,
+      }),
+    );
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+  });
+
+  it("leaves Escape from an open anchored popover to that popover", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <>
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <AnchoredPopover
+          open
+          onOpenChange={onOpenChange}
+          ariaLabel="Hinweise"
+          renderTrigger={({ ref }) => (
+            <button ref={ref} type="button">
+              Hinweise
+            </button>
+          )}
+        >
+          {() => <button type="button">Im Popover</button>}
+        </AnchoredPopover>
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Im Popover" }), {
+      key: "Escape",
+    });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
 });
 
