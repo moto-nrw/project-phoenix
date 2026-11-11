@@ -102,8 +102,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => ({ breadcrumb: {}, setBreadcrumb: vi.fn() }),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: (props: { filters?: FilterConfig[] }) =>
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: (props: { filters?: FilterConfig[] }) =>
     mockPageHeader(props),
 }));
 

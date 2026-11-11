@@ -1,147 +1,45 @@
-// Types for the PageHeaderWithSearch component system
+// Typen des Seitenkopfs (`TenantPage`) und seiner Bausteine. Sie stehen hier
+// genau einmal; die Bausteine importieren sie, nicht umgekehrt.
 
-import type { OverflowMenuItem } from "./OverflowMenu";
-import type { MotoConcept } from "~/lib/moto-concepts";
+import type { ReactNode } from "react";
 
-export type { OverflowMenuItem } from "./OverflowMenu";
+/**
+ * Zähler-Plakette in der Such- und Filterzeile, z. B. die Zahl der gefundenen
+ * Kinder.
+ */
+export interface PageHeaderBadge {
+  readonly icon?: ReactNode;
+  readonly count: number;
+  readonly label?: string;
+}
 
-export interface PageHeaderWithSearchProps {
-  // Header configuration
-  readonly title: string;
+/** Suchfeld der Such- und Filterzeile. */
+export interface PageHeaderSearch {
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly placeholder?: string;
+  /** Attribute des zugrunde liegenden Suchfelds, etwa `disabled` oder ARIA. */
+  readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+  /** See `SearchBarProps.debounceMs` — keeps typing out of the page's state. */
+  readonly debounceMs?: number;
+  /** See `SearchBarProps.resetKey` — cancels a draft when a filter reset keeps the same value. */
+  readonly resetKey?: string | number;
+}
+
+/**
+ * Sammelt viele Filter hinter einer Filter-Schaltfläche, statt sie in die
+ * Zeile zu legen: auf jeder Breite eine Schaltfläche mit Filterfläche, die
+ * Zahl der aktiven Filter steht auf ihr statt als Chip-Reihe, und die
+ * Desktop-Anordnung beginnt erst ab `xl` (1280 px). Ab etwa drei Filtern die
+ * richtige Wahl — eine Zeile, die umbricht, ist keine Zeile mehr.
+ */
+export interface PageHeaderFilterPanel {
   /**
-   * Optional fachliches Konzept fuer die Titelzeile. Wenn gesetzt, rendert
-   * der Titelbereich links eine graue Icon-Kachel (Header-Muster) mit dem
-   * passenden {@link MotoConceptIcon}. Ohne Prop unveraendertes Verhalten.
+   * Überschriften der Filterfläche. Jede Gruppe nimmt die Filter, deren `id`
+   * sie nennt; was keine Gruppe nimmt, steht unter „Weitere“. Ohne Angabe eine
+   * flache Liste.
    */
-  readonly concept?: MotoConcept;
-  readonly badge?: {
-    readonly icon?: React.ReactNode;
-    readonly count: number;
-    readonly label?: string;
-  };
-  readonly statusIndicator?: {
-    readonly color: "green" | "yellow" | "red" | "gray";
-    readonly tooltip?: string;
-  };
-
-  // Optional navigation tabs (like in OGS groups or MyRoom)
-  readonly tabs?: {
-    readonly items: TabItem[];
-    readonly activeTab: string;
-    readonly onTabChange: (tabId: string) => void;
-  };
-
-  // Search configuration
-  readonly search?: {
-    readonly value: string;
-    readonly onChange: (value: string) => void;
-    readonly placeholder?: string;
-    readonly className?: string;
-    /** Forwarded to the underlying `<input>` (combobox role, ARIA wiring, disabled state, etc.). */
-    readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
-    /** See `SearchBarProps.debounceMs` — keeps typing out of the page's state. */
-    readonly debounceMs?: number;
-    /** See `SearchBarProps.resetKey` — cancels a draft when a filter reset keeps the same value. */
-    readonly resetKey?: string | number;
-  };
-
-  // Filter configuration
-  readonly filters?: FilterConfig[];
-
-  // Active filters for display
-  readonly activeFilters?: ActiveFilter[];
-  readonly onClearAllFilters?: () => void;
-
-  // Custom action buttons
-  readonly actionButton?: React.ReactNode; // Desktop action button (shown in tab row with full styling)
-  readonly mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
-
-  /**
-   * Bedienelement, das auf JEDER Breite in der Reiterzeile bleibt, rechts
-   * neben den Reitern bzw. neben deren mobilem Dropdown.
-   *
-   * Der Unterschied zu `actionButton`/`mobileActionButton`: die beiden wandern
-   * auf Mobil in die Titelzeile, sobald `title` gesetzt ist. Das passt für
-   * einen Knopf, der zur Seite gehört, nicht aber für eine zweite Auswahl, die
-   * neben den Reitern stehen soll (Anfragen: Reiter + Offen/Historie).
-   * Erfordert `tabs`; ohne Reiter gibt es keine Reiterzeile.
-   */
-  readonly tabsRowAction?: React.ReactNode;
-
-  /**
-   * Optional kebab-menu (⋮) items rendered right of the tabs/title row.
-   * Empty or undefined → no menu rendered. Used for rarely-touched actions
-   * (export, "Gruppe übergeben", etc.) so the visible header stays calm.
-   */
-  readonly overflowMenu?: readonly OverflowMenuItem[];
-
-  /**
-   * Page-level primary action (e.g. a check-in mode trigger). When set, the
-   * desktop search row splits into two rows: row 1 carries search +
-   * primaryAction, row 2 carries filters + actionButton + kebab. Mobile is
-   * unaffected — primary actions on mobile typically render as a floating
-   * FAB at the page level, not inside this header.
-   */
-  readonly primaryAction?: React.ReactNode;
-
-  /**
-   * Viewport at which the desktop layout (inline filter dropdowns) takes
-   * over from the mobile sheet pattern (search + filter button).
-   *
-   * - `"lg"` (default, 1024px): existing behaviour. Suitable for pages with
-   *   ≤4 filters that fit comfortably on a tablet.
-   * - `"xl"` (1280px): pages with 5+ filters where the inline row would
-   *   overflow on iPad-class viewports. The `FilterPanel` covers
-   *   tablet too — matches Stripe / Airbnb / Slack / Spotify pattern.
-   *
-   * Pages that opt into `"xl"` should also bump their tablet-only floating
-   * FAB wrapper from `lg:hidden` to `xl:hidden` so the FAB and filter
-   * sheet stay aligned to the same breakpoint.
-   */
-  readonly desktopFiltersFrom?: "lg" | "xl";
-
-  /**
-   * When true, the search row shrinks (transform-only) and gains a
-   * backdrop-blur background once the page is scrolled past ~40px. Default
-   * `false` so existing consumers are unaffected.
-   */
-  readonly compactOnScroll?: boolean;
-
-  /**
-   * How active filters are surfaced.
-   *
-   * - `"chips"` (default): the existing chip row below the search row.
-   * - `"count"`: chip row is suppressed and the active count is shown as a
-   *   numeric badge on the filter pill (mobile) and on a small inline pill
-   *   in the desktop search row.
-   */
-  readonly activeFilterDisplay?: "chips" | "count";
-
-  /**
-   * Filter presentation. A single opt-in that swaps the whole filter
-   * experience — there is no use case for mixing the two axes independently.
-   *
-   * - `"default"` (default): legacy inline desktop filter row + black-pill
-   *   mobile sheet.
-   * - `"quiet"`: one Filter button opens a shared popover (desktop *and*
-   *   mobile) styled in the calm detail-modal language — softer controls and,
-   *   when {@link filterSections} is supplied, `InfoSection` cards.
-   */
-  readonly filterVariant?: "default" | "quiet";
-
-  /**
-   * Optional grouping for the quiet filter panel. Each section claims the
-   * filters whose `id` it lists; any filter not claimed lands in a trailing
-   * "Weitere" section. Omit to render a flat list. The grouping is the
-   * consumer's domain knowledge (which student/room/etc. filters belong
-   * together), so it lives here — not baked into the shared panel.
-   */
-  readonly filterSections?: readonly FilterSection[];
-
-  // Layout options
-  readonly className?: string;
-  /** Innerhalb einer Kopfkarte (PageIntro): kein eigener Außenabstand unten. */
-  readonly embedded?: boolean;
+  readonly sections?: readonly FilterSection[];
 }
 
 /**
@@ -153,12 +51,6 @@ export interface FilterSection {
   readonly title: string;
   readonly icon?: React.ReactNode;
   readonly filterIds: readonly string[];
-}
-
-interface TabItem {
-  readonly id: string;
-  readonly label: string;
-  readonly count?: number;
 }
 
 export interface FilterConfig {
@@ -210,26 +102,6 @@ export interface ActiveFilter {
   readonly onRemove: () => void;
 }
 
-// Props for individual components
-export interface PageHeaderProps {
-  readonly title: string;
-  /** See {@link PageHeaderWithSearchProps.concept}. */
-  readonly concept?: MotoConcept;
-  readonly badge?: {
-    readonly icon?: React.ReactNode;
-    readonly count: number;
-    readonly label?: string;
-  };
-  readonly statusIndicator?: {
-    readonly color: "green" | "yellow" | "red" | "gray";
-    readonly tooltip?: string;
-  };
-  readonly actionButton?: React.ReactNode;
-  /** Optional kebab-menu rendered after the action button on mobile. */
-  readonly overflowMenu?: readonly OverflowMenuItem[];
-  readonly className?: string;
-}
-
 export interface SearchBarProps {
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -258,7 +130,7 @@ export interface SearchBarProps {
 export interface FilterPanelProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly filters: FilterConfig[];
+  readonly filters: readonly FilterConfig[];
   readonly onApply?: () => void;
   readonly onReset?: () => void;
   readonly applyLabel?: string;
@@ -295,15 +167,8 @@ export interface FilterPanelAnchor {
 }
 
 export interface ActiveFilterChipsProps {
-  readonly filters: ActiveFilter[];
+  readonly filters: readonly ActiveFilter[];
   readonly onClearAll?: () => void;
-  readonly className?: string;
-}
-
-export interface NavigationTabsProps {
-  readonly items: TabItem[];
-  readonly activeTab: string;
-  readonly onTabChange: (tabId: string) => void;
   readonly className?: string;
 }
 
@@ -318,3 +183,80 @@ export function normalizeFilterValues(
   if (value) return [value];
   return [];
 }
+
+export interface OverflowMenuItem {
+  /** Visible label. */
+  readonly label: string;
+  /** One short line under the label that says what the entry does. */
+  readonly description?: string;
+  /** Optional left icon. */
+  readonly icon?: ReactNode;
+  /** Click handler. The menu closes automatically before this fires. */
+  readonly onClick: () => void;
+  /** Optional right-side hint, typically a count (e.g. "3"). */
+  readonly badge?: string | number;
+  /** Renders the item with a destructive (red) text colour. */
+  readonly destructive?: boolean;
+  /** When true, the item renders disabled and its onClick is suppressed. */
+  readonly disabled?: boolean;
+  /**
+   * When set, the item renders as a link (next/link, or a plain anchor with
+   * `target="_blank"` when `external` is true) instead of a button, keeping
+   * native link semantics (middle-click, cmd-click). `onClick` still fires
+   * after the menu closes — pass a no-op when only navigation is needed.
+   */
+  readonly href?: string;
+  /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
+  readonly external?: boolean;
+  /** Marks the current item in a navigational overflow menu, with a checkmark. */
+  readonly selected?: boolean;
+  /** Target of a guided tour (`data-setup-tour`), for an entry a tour points at. */
+  readonly tourTarget?: string;
+}
+
+/** Non-interactive thin divider between item groups. */
+export interface OverflowMenuSeparator {
+  readonly kind: "separator";
+}
+
+/** Non-interactive uppercase label grouping the entries below it. */
+export interface OverflowMenuHeader {
+  readonly kind: "header";
+  readonly label: string;
+}
+
+/** Single-select row with a checkmark shown when active (role="menuitemradio"). */
+export interface OverflowMenuRadioItem {
+  readonly kind: "radio";
+  readonly label: string;
+  /** One short line under the label that says what the choice means. */
+  readonly description?: string;
+  readonly checked: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+}
+
+/**
+ * On/off row with a checkmark shown while on (role="menuitemcheckbox"), for a
+ * personal switch that belongs to the page, e.g. an e-mail on new entries.
+ */
+export interface OverflowMenuCheckboxItem {
+  readonly kind: "checkbox";
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+  /**
+   * Leaves the menu open after the toggle. For a list of switches that are
+   * set together (which table columns to show): closing after every row
+   * would make the user reopen the menu once per column.
+   */
+  readonly keepOpen?: boolean;
+}
+
+export type OverflowMenuEntry =
+  | OverflowMenuItem
+  | OverflowMenuHeader
+  | OverflowMenuRadioItem
+  | OverflowMenuCheckboxItem
+  | OverflowMenuSeparator;

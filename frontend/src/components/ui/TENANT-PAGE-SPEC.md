@@ -82,9 +82,18 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit
    `render`, und den aktiven Zustand über `activeFilters` melden. Ab etwa
-   drei Filtern sammelt `filterVariant="quiet"` sie hinter einer
-   Schaltfläche; darunter stehen sie in der Zeile. Beides sind Einstellungen
-   des Gerüsts — keine Seite konfiguriert `PageHeaderWithSearch` selbst.
+   drei Filtern sammelt `filterPanel` sie hinter einer Schaltfläche mit
+   Zahl (`filterPanel={{ sections }}` gibt der Fläche Überschriften);
+   darunter stehen sie in der Zeile. `badge` zeigt eine Zahl, die sich mit
+   der Filterung ändert. Alles das sind Props des Gerüsts — `TenantPage`
+   ist der einzige Seitenkopf, und keine Seite rendert die Suchzeile
+   (`TenantPageSearchRow`) selbst. Auch ein Layout-Adapter reicht nur Daten
+   weiter: `DatabasePageLayout` nimmt sie als `searchRow`, `searchSlot`
+   bleibt Bedienbändern vorbehalten, die keine Suchzeile sind (Planung,
+   Kindakte). Ein Seitentest, der die Suchzeile ersetzt, mockt
+   `~/components/ui/tenant-page-search-row`: der Mock bekommt genau die
+   Such-Props der Seite. Eine Suche außerhalb der Kopfkarte (Bedienband,
+   Karte) nimmt `SearchBar` aus `ui/page-header/SearchBar`.
    Ein Filter mit Mehrfachauswahl (`type: "buttons"`, `multiSelect`) rendert
    als Chip-Reihe, ein Einfachfilter als `SegmentedControl`: eine
    Filterreihe darf nie aussehen wie eine zweite Reiterleiste.

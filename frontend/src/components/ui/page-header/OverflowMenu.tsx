@@ -16,83 +16,16 @@ import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
+import type {
+  OverflowMenuCheckboxItem,
+  OverflowMenuEntry,
+  OverflowMenuItem,
+  OverflowMenuRadioItem,
+} from "./types";
 
-export interface OverflowMenuItem {
-  /** Visible label. */
-  readonly label: string;
-  /** One short line under the label that says what the entry does. */
-  readonly description?: string;
-  /** Optional left icon. */
-  readonly icon?: ReactNode;
-  /** Click handler. The menu closes automatically before this fires. */
-  readonly onClick: () => void;
-  /** Optional right-side hint, typically a count (e.g. "3"). */
-  readonly badge?: string | number;
-  /** Renders the item with a destructive (red) text colour. */
-  readonly destructive?: boolean;
-  /** When true, the item renders disabled and its onClick is suppressed. */
-  readonly disabled?: boolean;
-  /**
-   * When set, the item renders as a link (next/link, or a plain anchor with
-   * `target="_blank"` when `external` is true) instead of a button, keeping
-   * native link semantics (middle-click, cmd-click). `onClick` still fires
-   * after the menu closes — pass a no-op when only navigation is needed.
-   */
-  readonly href?: string;
-  /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
-  readonly external?: boolean;
-  /** Marks the current item in a navigational overflow menu, with a checkmark. */
-  readonly selected?: boolean;
-  /** Target of a guided tour (`data-setup-tour`), for an entry a tour points at. */
-  readonly tourTarget?: string;
-}
-
-/** Non-interactive thin divider between item groups. */
-interface OverflowMenuSeparator {
-  readonly kind: "separator";
-}
-
-/** Non-interactive uppercase label grouping the entries below it. */
-interface OverflowMenuHeader {
-  readonly kind: "header";
-  readonly label: string;
-}
-
-/** Single-select row with a checkmark shown when active (role="menuitemradio"). */
-interface OverflowMenuRadioItem {
-  readonly kind: "radio";
-  readonly label: string;
-  /** One short line under the label that says what the choice means. */
-  readonly description?: string;
-  readonly checked: boolean;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-}
-
-/**
- * On/off row with a checkmark shown while on (role="menuitemcheckbox"), for a
- * personal switch that belongs to the page, e.g. an e-mail on new entries.
- */
-interface OverflowMenuCheckboxItem {
-  readonly kind: "checkbox";
-  readonly label: string;
-  readonly checked: boolean;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-  /**
-   * Leaves the menu open after the toggle. For a list of switches that are
-   * set together (which table columns to show): closing after every row
-   * would make the user reopen the menu once per column.
-   */
-  readonly keepOpen?: boolean;
-}
-
-export type OverflowMenuEntry =
-  | OverflowMenuItem
-  | OverflowMenuHeader
-  | OverflowMenuRadioItem
-  | OverflowMenuCheckboxItem
-  | OverflowMenuSeparator;
+// Die Typen stehen in `./types`; der Re-Export erspart Aufrufern, die das Menü
+// rendern, einen zweiten Import.
+export type { OverflowMenuEntry, OverflowMenuItem } from "./types";
 
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */

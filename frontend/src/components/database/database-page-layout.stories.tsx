@@ -3,7 +3,6 @@ import { fn } from "storybook/test";
 
 import { Button } from "~/components/ui/button";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { roomsConcept } from "~/lib/concepts/rooms";
 
 import { DatabasePageLayout } from "./database-page-layout";
@@ -66,42 +65,36 @@ export const WithSearch: Story = {
         </Button>
       ),
     },
-    search: (
-      <PageHeaderWithSearch
-        embedded
-        title=""
-        badge={{
-          icon: (
-            <MotoDuotoneIcon
-              icon={roomsConcept.icon}
-              tone={roomsConcept.tone}
-              size={20}
-            />
-          ),
-          count: 12,
-          label: "Räume",
-        }}
-        search={{ value: "", onChange: fn(), placeholder: "Räume suchen…" }}
-        filters={[
-          {
-            id: "category",
-            label: "Kategorie",
-            type: "dropdown",
-            value: "gruppenraum",
-            onChange: fn(),
-            options: [
-              { value: "all", label: "Alle Kategorien" },
-              { value: "gruppenraum", label: "Gruppenraum" },
-              { value: "mensa", label: "Mensa" },
-            ],
-          },
-        ]}
-        activeFilters={[
-          { id: "category", label: "Gruppenraum", onRemove: fn() },
-        ]}
-        onClearAllFilters={fn()}
-      />
-    ),
+    searchRow: {
+      badge: {
+        icon: (
+          <MotoDuotoneIcon
+            icon={roomsConcept.icon}
+            tone={roomsConcept.tone}
+            size={20}
+          />
+        ),
+        count: 12,
+        label: "Räume",
+      },
+      search: { value: "", onChange: fn(), placeholder: "Räume suchen…" },
+      filters: [
+        {
+          id: "category",
+          label: "Kategorie",
+          type: "dropdown",
+          value: "gruppenraum",
+          onChange: fn(),
+          options: [
+            { value: "all", label: "Alle Kategorien" },
+            { value: "gruppenraum", label: "Gruppenraum" },
+            { value: "mensa", label: "Mensa" },
+          ],
+        },
+      ],
+      activeFilters: [{ id: "category", label: "Gruppenraum", onRemove: fn() }],
+      onClearAllFilters: fn(),
+    },
     children: <div className="p-8 text-sm text-gray-600">Liste der Räume</div>,
   },
 };

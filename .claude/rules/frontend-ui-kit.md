@@ -16,7 +16,7 @@ This kit is the MOTO design system.
 | Concern | Location |
 |---|---|
 | UI components | `frontend/src/components/ui/` |
-| Header / list-page kit | `frontend/src/components/ui/page-header/` |
+| Search row parts, kebab menu | `frontend/src/components/ui/page-header/` |
 | Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
@@ -62,7 +62,7 @@ The full conversion spec, including what to do when a page's head lives in a vie
 
 | Pattern | File | Why it's canonical |
 | --- | --- | --- |
-| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational |
+| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `TenantPage` `search`/`filters` + filter chips + `DataTable`; compact and operational |
 | Detail page | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx` | `ui/Tabs` + `detail-modal-components` field layout |
 | Dense dashboard | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative |
 | Page scaffold | `frontend/src/components/ui/tenant-page.tsx` | the root every tenant page renders |
@@ -157,8 +157,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Sticky save bar | `StickyActionBar summary?` | `~/components/ui/sticky-action-bar` |
 | Selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
-| List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
-| Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
+| List search, filters, count; page tabs | `TenantPage` `search`, `filters`, `badge`, `filterPanel`, `tabs` (the only page head; tests mock `TenantPageSearchRow`); search elsewhere: `SearchBar` | `~/components/ui/tenant-page` |
 | Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…); menu behind a text button | `OverflowMenu` — entry `description`, `selected`; `triggerButton` + `triggerContent` for a kit button, `wrapperClassName` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
@@ -294,7 +293,6 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
 - **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. `size="sm"` is the same height as `base` (`px-5 py-3`), not a small button; the normal action size is `md` ([Buttons](#buttons)).
 - **The last surface of a `TenantPage` grows to the bottom of the screen.** The unlayered `.moto-tenant-body` rule in `globals.css` sets `flex: 1 0 auto` on it and its wrappers, which beats any `flex-1 min-h-0` utility. A surface whose height comes from a wrapper and that scrolls inside must carry `moto-scroll-surface`, the documented exit from the rule. Otherwise it grows to its full content height and the fixed-height wrapper clips it or it spills past the wrapper (#3328, #3330). Current users: the chats (`useChatViewportLock`), and `MasterDetailLayout` and `DatabaseListLayout` on desktop (`useFillHeight`). Surfaces nested inside a scroll surface do not count for the rule, so its wrappers keep their own `flex-direction`. On a phone, prefer page scrolling: no fixed height, no exit, the card grows with its list (both database layouts do this below `md`). Do not work around the rule with inline `flex` styles. Browser check: `pnpm run test:layout` (`frontend/e2e/layout/`); add a case there for every new user of the exit.
-- **`NavigationTabs` collapses to a dropdown on mobile**: page navigation only; value switcher: `SegmentedControl`.
 
 ## UI skills: this rule outranks all of them
 

@@ -15,7 +15,6 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { formatCount } from "~/lib/format-utils";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type {
   ActiveFilter,
@@ -328,34 +327,30 @@ function GroupsPageContent() {
           />
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={groupsConcept.icon}
-                tone={groupsConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredGroups.length,
-            label: "Gruppen",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Gruppen suchen…",
-          }}
-          filters={filters}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setRoomFilter("all");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={groupsConcept.icon}
+              tone={groupsConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredGroups.length,
+          label: "Gruppen",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Gruppen suchen…",
+        },
+        filters,
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+          setRoomFilter("all");
+        },
+      }}
     >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">

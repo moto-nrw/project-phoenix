@@ -83,7 +83,7 @@ function selectOption(
 // Map the consumer's sections onto the actual filters. Any filter no section
 // claims falls into a trailing "Weitere" group so nothing is silently dropped.
 function groupFiltersIntoSections(
-  filters: FilterConfig[],
+  filters: readonly FilterConfig[],
   sections: readonly FilterSection[],
 ) {
   const remaining = new Set(filters);
@@ -202,8 +202,8 @@ export function FilterPanel({
   // Die Spur trägt das Grau, nicht der einzelne Knopf: ungewählte Felder
   // bleiben ohne eigene Füllung (#5574).
   // Selected-pill treatment. Quiet mode swaps the near-black fill for the
-  // app's calm blue-accent pill (same tokens as the active-filter badge in
-  // PageHeaderWithSearch) so the panel matches the detail-modal language.
+  // app's calm blue-accent pill (the `moto-blue` soft tokens) so the panel
+  // matches the detail-modal language.
   // Dieselbe Bauart wie ui/SegmentedControl: helle Spur, das gewählte Feld
   // hell abgehoben. Vorher war es hier schwarz gefüllt und dort weiß — zwei
   // Fassungen desselben Bedienelements, die sich beim Blättern widersprechen.

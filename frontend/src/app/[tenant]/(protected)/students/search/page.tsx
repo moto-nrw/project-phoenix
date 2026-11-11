@@ -2007,7 +2007,7 @@ function SearchPageContent() {
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for search-students-* keys automatically.
 
-  // Prepare filter configurations for PageHeaderWithSearch
+  // Prepare filter configurations for the TenantPage search row
   const orderedRoomOptions = useMemo(
     () => orderedRooms(rooms, myGroupRooms, mySupervisedRooms),
     [rooms, myGroupRooms, mySupervisedRooms],
@@ -3266,9 +3266,6 @@ function SearchPageContent() {
             />
           ) : undefined
         }
-        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten;
-        // darunter sammelt die Filterschaltfläche sie hinter einer Fläche.
-        desktopFiltersFrom="xl"
         search={{
           value: searchTerm,
           onChange: updateSearchTerm,
@@ -3278,9 +3275,9 @@ function SearchPageContent() {
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
-        activeFilterDisplay="count"
-        filterVariant="quiet"
-        filterSections={filterSections}
+        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten; die
+        // Filterschaltfläche sammelt sie hinter einer Fläche mit Abschnitten.
+        filterPanel={{ sections: filterSections }}
         onClearAllFilters={clearAllFilters}
         // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
         // stehen als eingebetteter Standardzustand im Inhalt.
@@ -3870,8 +3867,8 @@ function SearchPageContent() {
       </TenantPage>
 
       {/* Tablet (md..xl) check-in mode trigger, floating FAB. Tablet
-          range is bumped to `xl` here to stay aligned with the header's
-          desktopFiltersFrom="xl". Both the filter sheet and the FAB
+          range is bumped to `xl` here to stay aligned with the header,
+          whose filter panel switches to desktop at `xl`. Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
       {checkinModeAvailable && !schoolCheckin.isActive && !showTable && (

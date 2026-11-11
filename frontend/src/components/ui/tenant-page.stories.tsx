@@ -143,13 +143,12 @@ const quietFilterArgs = {
   activeFilters: activeStatusFilter,
   onClearAllFilters: fn(),
   badge: { icon: <Users className="h-5 w-5" />, count: 42, label: "Kinder" },
-  filterVariant: "quiet" as const,
-  filterSections: [
-    { title: "Anwesenheit", filterIds: ["status"] },
-    { title: "Gruppe", filterIds: ["group"] },
-  ],
-  activeFilterDisplay: "count" as const,
-  desktopFiltersFrom: "xl" as const,
+  filterPanel: {
+    sections: [
+      { title: "Anwesenheit", filterIds: ["status"] },
+      { title: "Gruppe", filterIds: ["group"] },
+    ],
+  },
   primaryAction: (
     <Button type="button" size="md">
       Anmelden
