@@ -16,6 +16,9 @@ type SessionRecords interface {
 	// and active. The existing joined adapter also owns the tenant identity.
 	CreateMirroredSessionInstance(context.Context, ScheduledInstance) (int64, error)
 	AddSessionInstanceStaff(context.Context, int64, int64) error
+	// LockSessionInstanceStaff takes the staff rows of a mirrored session's
+	// people, ascending, before its first assignment (#6702).
+	LockSessionInstanceStaff(context.Context, []int64) error
 }
 
 // TemplateCatalog reads templates with their categories using the established listing.

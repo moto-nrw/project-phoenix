@@ -33,6 +33,9 @@ import {
   HOLIDAY_REGISTRATION_STATUS_TONES,
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
+import { Alert } from "~/components/ui/alert";
+import { useHolidayRegistrationPdf } from "~/components/traeger/use-holiday-registration-pdf";
+import { holidayRegistrationDeletionNotice } from "~/components/traeger/holiday-registration-retention";
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
@@ -48,6 +51,7 @@ import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
 import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ExportMenu } from "~/components/ui/export-menu";
 import { ConfirmationModal } from "~/components/ui/modal";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
@@ -143,6 +147,11 @@ export default function TraegerHolidayRegistrationPage() {
   const registrationId = params?.registrationId ?? "";
   const { data: session } = useSession();
   const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
+  const pdf = useHolidayRegistrationPdf({
+    periodId,
+    registrationId,
+    canSeeHealth,
+  });
   const canManageBillingSettings = hasPermission(
     session,
     TRAEGER_BILLING_RIGHT,
@@ -394,6 +403,10 @@ export default function TraegerHolidayRegistrationPage() {
     ? `Anmeldung von ${registration.guardianFirstName} ${registration.guardianLastName}`
     : "Anmeldung";
 
+  const deletionNotice = registration
+    ? holidayRegistrationDeletionNotice(registration)
+    : null;
+
   return (
     <TenantPage
       title={title}
@@ -419,6 +432,16 @@ export default function TraegerHolidayRegistrationPage() {
         ) : null
       }
       statsLoading={!registration && !loadError}
+      actions={
+        registration ? (
+          <ExportMenu
+            ariaLabel="Anmeldung herunterladen"
+            options={pdf.options}
+            busyKey={pdf.busyKey}
+            onSelect={(option) => void pdf.download(option.key)}
+          />
+        ) : null
+      }
       error={loadError}
       loading={!loadError && !(registration && period && schools)}
     >
@@ -426,6 +449,9 @@ export default function TraegerHolidayRegistrationPage() {
         <>
           <LoadErrorAlert error={registrationLoad.error} />
           <LoadErrorAlert error={afterWrite.error} className="mb-4" />
+          {deletionNotice ? (
+            <Alert type="info" message={deletionNotice} />
+          ) : null}
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}

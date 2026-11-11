@@ -52,6 +52,9 @@ type Resource struct {
 	Reports ReportRenderer
 	// SupportedLocale is bound to the shared language catalog by the root.
 	SupportedLocale func(string) bool
+	// MessageAttachmentFiles moves the bytes of the photos and files in
+	// messages (#6685); nil answers 500 on their routes.
+	MessageAttachmentFiles common.MessageAttachmentFileStorage
 }
 
 // ResourceConfig lists the parent-portal collaborators. The composition root
@@ -87,6 +90,9 @@ type ResourceConfig struct {
 	Reports ReportRenderer
 	// SupportedLocale is bound to the shared language catalog by the root.
 	SupportedLocale func(string) bool
+	// MessageAttachmentFiles moves the bytes of the photos and files in
+	// messages (#6685).
+	MessageAttachmentFiles common.MessageAttachmentFileStorage
 }
 
 // NewResource builds the parent-portal resource.
@@ -100,21 +106,22 @@ func NewResource(cfg ResourceConfig) *Resource {
 		}
 	}
 	return &Resource{
-		Auth:                  cfg.Auth,
-		Resets:                cfg.Resets,
-		ParentService:         cfg.Parent,
-		RequestSharing:        sharing,
-		CalendarService:       cfg.Calendar,
-		Conferences:           cfg.Conferences,
-		EnrollmentForms:       cfg.Enrollment,
-		GuardianProfileLoader: cfg.GuardianProfileLoader,
-		SchoolService:         cfg.Schools,
-		HolidayLinks:          cfg.HolidayLinks,
-		PushService:           cfg.Push,
-		PreferenceService:     cfg.Preferences,
-		PWAUsageService:       cfg.PWAUsage,
-		Reports:               cfg.Reports,
-		SupportedLocale:       cfg.SupportedLocale,
+		Auth:                   cfg.Auth,
+		Resets:                 cfg.Resets,
+		ParentService:          cfg.Parent,
+		RequestSharing:         sharing,
+		CalendarService:        cfg.Calendar,
+		Conferences:            cfg.Conferences,
+		EnrollmentForms:        cfg.Enrollment,
+		GuardianProfileLoader:  cfg.GuardianProfileLoader,
+		SchoolService:          cfg.Schools,
+		HolidayLinks:           cfg.HolidayLinks,
+		PushService:            cfg.Push,
+		PreferenceService:      cfg.Preferences,
+		PWAUsageService:        cfg.PWAUsage,
+		Reports:                cfg.Reports,
+		SupportedLocale:        cfg.SupportedLocale,
+		MessageAttachmentFiles: cfg.MessageAttachmentFiles,
 	}
 }
 

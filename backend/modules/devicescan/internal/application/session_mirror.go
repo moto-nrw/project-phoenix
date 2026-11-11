@@ -23,6 +23,7 @@ type MirrorTimetable interface {
 	HasInstance(context.Context, int64) (bool, error)
 	CreateInstance(context.Context, MirroredSession) (MirroredSession, error)
 	AddSessionInstanceStaff(context.Context, int64, int64) error
+	LockSessionInstanceStaff(context.Context, []int64) error
 	ActivityTitle(context.Context, int64) (string, error)
 	CalendarParts(time.Time) (date string, minutes int)
 }
@@ -74,6 +75,15 @@ func (s *sessionMirror) MirrorSession(ctx context.Context, group ports.Lifecycle
 			startedBy = &id
 			break
 		}
+	}
+	// Every supervisor's staff row, ascending, before the block and its first
+	// assignment (#6702). A failed lock leaves the people to the per-person
+	// writes below, which report their own failures.
+	if err := s.timetable.LockSessionInstanceStaff(ctx, supervisorIDs); err != nil {
+		s.logger.WarnContext(ctx, "failed to lock mirrored IoT session staff",
+			slog.Int64("active_group_id", group.ID),
+			slog.String("error", err.Error()),
+		)
 	}
 	instance, err := s.timetable.CreateInstance(ctx, MirroredSession{
 		Date: date, ActivityGroupID: group.ActivityID, Title: title,

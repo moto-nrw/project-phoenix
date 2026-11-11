@@ -897,6 +897,54 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.ActivateByFilename",
+      "binding_digest": "15c8b68daf7db3025a4a871efe746b5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.ActivateByFilename",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.ListQueued",
+      "binding_digest": "15c8b68daf7db3025a4a871efe746b5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.ListQueued",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.MarkComplete",
+      "binding_digest": "15c8b68daf7db3025a4a871efe746b5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.MarkComplete",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.MarkCompleteByFilename",
+      "binding_digest": "15c8b68daf7db3025a4a871efe746b5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.MarkCompleteByFilename",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.Queue",
+      "binding_digest": "15c8b68daf7db3025a4a871efe746b5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.Queue",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.QueueAll",
+      "binding_digest": "15c8b68daf7db3025a4a871efe746b5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.QueueAll",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.AnnouncementEditable",
       "binding_digest": "16c4e2e454c9132a7ae69e9194fa228f",
       "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports.Announcements.AnnouncementEditable",

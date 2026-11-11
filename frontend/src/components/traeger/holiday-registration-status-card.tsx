@@ -587,7 +587,17 @@ export function HolidayRegistrationStatusCard({
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
         {registration.status === "received" ? (
-          <p>Eltern bekommen beim Bestätigen noch keine Nachricht von moto.</p>
+          <p>
+            Beim Bestätigen bekommen die Eltern eine E-Mail mit den gebuchten
+            Wochen und dem{" "}
+            <NavigationLink
+              href={traegerPath(`/traeger/ferien/${periodId}`)}
+              className="font-medium underline"
+            >
+              Text der Annahme-Mail
+            </NavigationLink>
+            .
+          </p>
         ) : null}
         {registration.status === "received" &&
         registration.children.some((child) =>

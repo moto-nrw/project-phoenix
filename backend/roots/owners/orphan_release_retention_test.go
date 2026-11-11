@@ -62,7 +62,7 @@ func TestOrphanReleaseAccountPushStartsRetentionWhenWorkerMarksSent(t *testing.T
 		}}, DeliveryNotifications{}, runtime.Module)
 	transport := &documentPushTransport{}
 	worker, err := buildDeliveryWorker(database, RootEnvironment{Logger: slog.Default()}, nil,
-		mail.Email{}, nil, DeliveryRuntime{Runtime: runtime}, nil, nil, nil, cancelledModules{}, notices, transport)
+		mail.Email{}, nil, DeliveryRuntime{Runtime: runtime}, nil, nil, nil, cancelledModules{}, notices, transport, nil)
 	require.NoError(t, err)
 	for _, release := range releases {
 		require.NoError(t, (ParentPortalRuntime{}).WithinTraeger(ctx, org, func(txCtx context.Context) error {

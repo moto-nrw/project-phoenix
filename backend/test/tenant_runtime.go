@@ -260,6 +260,9 @@ func (r SettingsRuntimeAdapter) LockStaffBalance(ctx context.Context, staffID in
 	if tenantID <= 0 {
 		return fmt.Errorf("tenant id is required")
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, false)); err != nil {
+		return err
+	}
 	return r.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID), false)
 }
 

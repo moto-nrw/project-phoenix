@@ -147,7 +147,7 @@ func (s *GuardianPickupExceptions) apply(ctx context.Context, change careplan.Gu
 	if err != nil {
 		return err
 	}
-	if existing != nil && existing.Source == careplan.ExceptionSourceStaff {
+	if existing != nil && careplan.SchoolOwnedException(existing.Source) {
 		return careplan.ErrPickupExceptionStaffOwned
 	}
 	if err := s.writeLeg(ctx, existing, change); err != nil {

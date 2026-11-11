@@ -42,6 +42,11 @@ import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { foldForSearch } from "~/lib/search-fold";
+import {
+  fetchHolidayGuestGroups,
+  type HolidayGuestGroup,
+} from "~/lib/holiday-host-api";
+import { holidayKeys } from "~/lib/swr/portal-keys";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
 
@@ -99,6 +104,23 @@ function GroupsPageContent() {
   } = useSWRAuth(groupsKeys.key({ page: 1, pageSize: 500 }), () =>
     groupsKeys.fetcher({ page: 1, pageSize: 500 }),
   );
+
+  // Feriengruppen erklären eine Gruppe, die vor ihrer Woche leer dasteht
+  // (ADR 0120, Nachtrag 2026-11-11). Der Hinweis ergänzt die Liste nur:
+  // scheitert das Laden, bleibt die Liste wie sie ist, ohne eigene Meldung.
+  const { data: holidayGroupList } = useSWRAuth(
+    holidayKeys.guestGroups,
+    fetchHolidayGuestGroups,
+    { revalidateOnFocus: false },
+  );
+  const holidayGroups = useMemo(() => {
+    const byGroup = new Map<string, HolidayGuestGroup>();
+    for (const week of holidayGroupList ?? []) {
+      // Die Liste kommt nach dem ersten Tag geordnet: die nächste Woche zählt.
+      if (!byGroup.has(week.groupId)) byGroup.set(week.groupId, week);
+    }
+    return byGroup;
+  }, [holidayGroupList]);
 
   const accessRefused =
     groupsError instanceof ApiError &&
@@ -407,6 +429,7 @@ function GroupsPageContent() {
             onSelect={handleSelectGroup}
             onSaveGroup={handleUpdateGroup}
             onDeleteClick={handleDeleteClick}
+            holidayGroups={holidayGroups}
           />
         </div>
       ) : null}

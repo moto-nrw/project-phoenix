@@ -1,0 +1,7 @@
+{
+  "scenario": "api.holiday_weeks.student_registration",
+  "max": 4,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-weeks/students/{studentId}/registration\n(#6678): the tenant binding, one statement over the hosted weeks and the\nschool's own confirmed children, one over their contacts and one read of the\nschool's children born on their dates of birth. The access log entry writes\nbut selects nothing. Flat in the number of weeks and children.",
+  "route": "GET /api/holiday-weeks/students/{studentId}/registration"
+}

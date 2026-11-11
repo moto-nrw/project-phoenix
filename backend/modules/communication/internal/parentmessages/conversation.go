@@ -53,7 +53,7 @@ func AppendMessage(
 	if msg.SendReplayed {
 		return nil
 	}
-	return threadRepo.TouchLastMessage(ctx, msg.ThreadID, msg.CreatedAt, msg.ID, msg.SenderKind, msg.Body)
+	return threadRepo.TouchLastMessage(ctx, msg.ThreadID, msg.CreatedAt, msg.ID, msg.SenderKind, deliveryPorts.MessagePreview(msg.Body, msg.Attachments))
 }
 
 // MarkReadToNewest advances the reader's read cursor to the newest COUNTERPART

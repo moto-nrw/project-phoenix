@@ -30,6 +30,8 @@ func (s *Intake) ReplaceEditable(ctx context.Context, token string, incoming enr
 
 // replacePlan is the state of one replacement edit inside its transaction.
 type replacePlan struct {
+	renewalHolds    renewalHolds
+	renewalMatches  [][]int64
 	req             *enrollmentNative.Request
 	children        []*enrollmentNative.RequestChild
 	phase           *enrollmentNative.Phase
@@ -257,6 +259,9 @@ func mergeReplacementAnswers(schema *enrollmentNative.FormSchema, editReq *Submi
 // the capacity gate.
 func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
 	plan.matchedExisting = matchExistingChildrenBySubmittedIdentity(plan.children, editReq.Children)
+	if err := s.holdReplacementCandidates(ctx, editReq, plan); err != nil {
+		return err
+	}
 	emailLC := guardianEmailKey(plan.req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
@@ -283,6 +288,23 @@ func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitReq
 	if plan.capabilities.CareOfferingsEnabled {
 		plan.overrides, err = s.applyCapacityOverflow(ctx, plan.phase, editReq.Children, preservedClaims(activeLinks), nil)
 	}
+	return err
+}
+
+// holdReplacementCandidates holds the children an edit may renew before
+// its phase locks (holdRenewalCandidates): the pins it carries over and the
+// children its identities match, as the stored request's identity.
+func (s *Intake) holdReplacementCandidates(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
+	carried := make([]*int64, len(editReq.Children))
+	for i, child := range editReq.Children {
+		if matched := plan.matchedExisting[i]; matched != nil && matched.RolloverSourceChildID == nil && sameSubmittedIdentity(matched, child) {
+			carried[i] = matched.MatchedStudentID
+		}
+	}
+	var err error
+	plan.renewalHolds, err = s.holdRenewalCandidates(ctx, plan.req.TenantID, plan.phase, editReq.Children, carried, func() (reEnrollmentSubmitter, error) {
+		return reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, plan.req)
+	})
 	return err
 }
 
@@ -384,6 +406,11 @@ func (s *Intake) checkReplacementDuplicates(ctx context.Context, plan *replacePl
 }
 
 func (s *Intake) createReplacementChildren(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) ([]*enrollmentNative.RequestChild, error) {
+	var err error
+	plan.renewalMatches, err = s.finalRenewalMatches(ctx, plan.req.TenantID, plan.phase, editReq.Children)
+	if err != nil {
+		return nil, err
+	}
 	created := make([]*enrollmentNative.RequestChild, 0, len(editReq.Children))
 	for i, child := range editReq.Children {
 		row := newSubmittedChild(plan.req.ID, i, child, plan.overrides)
@@ -425,7 +452,7 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		pin = matched.MatchedStudentID
 	}
 	if plan.phase.Audience == enrollmentNative.PhaseAudienceExistingStudents {
-		resolved, err := s.resolveMatchedStudentID(ctx, req.TenantID, plan.phase, i, child)
+		resolved, err := matchedRenewalStudent(plan.phase, plan.renewalMatches[i], i)
 		if err != nil {
 			return nil, err
 		}
@@ -437,18 +464,17 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		return nil, err
 	}
 	submitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
-	pin, err := s.enrolledChildPinUnlessPinned(ctx, req.TenantID, plan.phase, child, submitter, pin)
-	if err != nil {
-		return nil, err
-	}
-	if pin != nil {
-		resolvedSubmitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, req)
+	if pin == nil {
+		resolved, err := matchedRenewalStudent(plan.phase, plan.renewalMatches[i], i)
 		if err != nil {
-			return nil, fmt.Errorf("edit replace: resolve re-enrollment identity: %w", err)
+			return nil, err
 		}
-		submitter = resolvedSubmitter
+		pin, err = s.resolveEnrolledChildPin(ctx, plan.phase, resolved, submitter, plan.renewalHolds, i)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, pin, req.TenantID, i); err != nil {
+	if err := s.holdGuardianReEnrollment(plan.renewalHolds, pin, i); err != nil {
 		return nil, err
 	}
 	if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, pin, 0, i); err != nil {

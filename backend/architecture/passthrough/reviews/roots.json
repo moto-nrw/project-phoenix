@@ -636,6 +636,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0120",
+      "id": "api/groupLiveDirectory.SupervisedGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "api/groupLiveDirectory.SupervisedGroups",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
@@ -681,6 +686,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0110",
+      "id": "api/holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "reason": "ADR 0110 (#6691): Consumer-port adapter of Enrollment's holiday retention port; it reads the Träger's holiday_registration.retention_days through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed number into the port's answer."
+    },
+    {
       "decision": "0114",
       "id": "api/holidaySchoolNames.HolidaySchoolNames",
       "reason": "ADR 0114 (#4663): Consumer-port adapter of Enrollment's school names; it translates the Träger projection's school list into the names the export of the holiday registrations prints, read before the route opens the Träger transaction."
@@ -698,6 +708,21 @@
     {
       "decision": "0090",
       "id": "api/iotStatusWriter.Write",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0212",
+      "id": "api/messageAttachmentUnits.DiscardMessageAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0212",
+      "id": "api/messageAttachmentUnits.OpenMessageAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0212",
+      "id": "api/messageAttachmentUnits.PrepareMessageAttachment",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -3587,11 +3612,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/communicationAnnouncementAudience.HoldAnswerPermission",
-      "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/communicationAnnouncementAudience.HoldDeclarationSigner",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -3866,6 +3886,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638); the graph students reach Care Plan's companion lock in the children slot for the change-request approval."
+    },
+    {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638); the graph students reach Care Plan's companion lock in the children slot for the change-request approval."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4074,6 +4104,11 @@
       "decision": "0090",
       "id": "roots/owners/enrollmentStudentGuardians.UpdateGuardianLinkRole",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0210",
+      "id": "roots/owners/enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "reason": "Root binding converts Enrollment identity values to People Directory values and preserves all index-aligned matches; no business decision or SQL."
     },
     {
       "decision": "0090",
@@ -4309,6 +4344,21 @@
       "decision": "0120",
       "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
       "reason": "ADR 0120 addendum (#4722): Consumer-port adapter of Enrollment's holiday guest people; it translates the health information of a guest into the People Directory's enrollment profile patch for the health field of its child, in the hosting school's tenant transaction."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildArrivals",
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildPickups",
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
     },
     {
       "decision": "0116",
@@ -4664,6 +4714,21 @@
       "decision": "0171",
       "id": "roots/owners/parentMandateParties.Recipients",
       "reason": "Consumer-port adapter of the parents' SEPA mandate (#4696): it reads the billing party of the checked contract from the Betreuungsvertrag and translates it into the Elternabrechnung's recipient, the proposal for the account holder."
+    },
+    {
+      "decision": "0212",
+      "id": "roots/owners/parentMessageAttachments.DiscardGuardianAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0212",
+      "id": "roots/owners/parentMessageAttachments.OpenGuardianAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0212",
+      "id": "roots/owners/parentMessageAttachments.PrepareGuardianAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0132",

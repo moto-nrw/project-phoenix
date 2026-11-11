@@ -51,18 +51,15 @@ type Dependencies struct {
 	// CarePlan supplies native day locks, absence reports and pickup commands.
 	CarePlan parentportal.CarePlanCommands
 	// CareExceptions overrides the day-exception reads and locks (nil: CarePlan).
-	CareExceptions care.CareExceptions
-
+	CareExceptions   care.CareExceptions
 	CarePeriods      care.CarePeriodReads
 	OfferingHistory  care.OfferingHistoryReads
 	CareOfferingRepo care.CareOfferingReads
 	OfferingChanges  care.OfferingChangeRequests
-
 	// CareProfiles writes the child's care profile (health information, live absence flags).
 	CareProfiles careplan.StudentProfileCommands
 	// People writes guardian rows and the child's photo consent.
-	People PeopleDirectory
-
+	People               PeopleDirectory
 	StudentAudit         care.StudentChangeRecorder
 	StudentConsents      care.StudentConsentService
 	StudentPhotos        care.StudentPhotoUnlinker
@@ -70,29 +67,28 @@ type Dependencies struct {
 	HolidayWishes        care.HolidayWishStatements
 	HolidayAnnouncements care.HolidayRegistrationAnnouncements
 	ParentRequestEvents  messaging.RequestEvents
-
 	// Document inbox (#4671, ADR 0126).
-	BillingDocuments    care.BillingDocuments
-	ContractDocuments   care.ContractDocuments
-	ContractNotices     care.ContractNotices
-	SharedDocuments     care.TraegerSharedDocuments
-	SEPAMandates        care.SEPAMandates
-	TraegerRuntime      care.TraegerRuntime
-	SchoolTraeger       care.SchoolTraeger
-	ParentAccounts      care.ParentAccounts
-	DocumentNotifier    care.BillingDocumentNotifier
-	Memberships         care.SchoolMembershipLock
-	InvitationAccounts  care.InvitationAccountLock
-	GuardianInvites     care.GuardianAccess
-	GuardianInvitations care.GuardianInvitationReads
-	InvalidateInvites   func(context.Context, int64) error
-
+	BillingDocuments          care.BillingDocuments
+	ContractDocuments         care.ContractDocuments
+	ContractNotices           care.ContractNotices
+	SharedDocuments           care.TraegerSharedDocuments
+	SEPAMandates              care.SEPAMandates
+	TraegerRuntime            care.TraegerRuntime
+	SchoolTraeger             care.SchoolTraeger
+	ParentAccounts            care.ParentAccounts
+	DocumentNotifier          care.BillingDocumentNotifier
+	Memberships               care.SchoolMembershipLock
+	InvitationAccounts        care.InvitationAccountLock
+	GuardianInvites           care.GuardianAccess
+	GuardianInvitations       care.GuardianInvitationReads
+	InvalidateInvites         func(context.Context, int64) error
 	MessageThreadRepo         messaging.MessageThreadAccess
 	MessageRepo               messaging.MessageReads
 	MessageReadRepo           messaging.MessageInboxReads
 	Conversations             messaging.ConversationCore
 	MessagingEnabled          messaging.MessagingGate
 	GroupThreads              messaging.GroupThreads
+	MessageAttachments        messaging.MessageAttachments
 	Surveys                   messaging.Surveys
 	AnnouncementRepo          messaging.AnnouncementAccess
 	CareRequestRepo           messaging.CareRequestReads
@@ -100,7 +96,6 @@ type Dependencies struct {
 	OfferingChangeRequestRepo messaging.OfferingChangeRequestReads
 	FamilyProtectionEvents    messaging.FamilyProtectionReads
 	ParentRequestShares       messaging.RequestShareRecords
-
 	// Platform: the meal plan, live events and notifiers.
 	MealPlan              MealPlanProvider
 	StudentUpdates        care.StudentUpdates
@@ -139,7 +134,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		BillingDocuments: deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, SEPAMandates: deps.SEPAMandates, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
-		Memberships: deps.Memberships, InvitationAccounts: deps.InvitationAccounts, GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
+		Memberships: deps.Memberships, InvitationAccounts: deps.InvitationAccounts, GuardianHold: GuardianHold, GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		InvalidateInvites: deps.InvalidateInvites,
 		Locales:           deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
@@ -158,7 +153,7 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo, AnnouncementRepo: deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, Surveys: deps.Surveys, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, MessageAttachments: deps.MessageAttachments, Surveys: deps.Surveys, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,

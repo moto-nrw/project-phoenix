@@ -7,3 +7,11 @@ package records
 // online registration. Only the Träger sets it (LevelTraeger). Enrollment
 // refuses any other value.
 const KeyHolidayRegistrationWishMode = "holiday_registration.wish_mode"
+
+// KeyHolidayRegistrationRetentionDays says how many days after the last
+// week of a holiday period the Träger keeps its registrations (#6691, ADR
+// 0118 addendum). The privacy text of the public registration names the
+// value; a registration keeps the days it was submitted with, so a change
+// reaches only later registrations. Only the Träger sets it (LevelTraeger).
+// Enrollment refuses a value outside 92 to 1095.
+const KeyHolidayRegistrationRetentionDays = "holiday_registration.retention_days"

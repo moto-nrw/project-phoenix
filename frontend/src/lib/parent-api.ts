@@ -1,4 +1,5 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { MessageAttachment } from "~/lib/message-attachments";
 import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
@@ -1675,6 +1676,7 @@ export async function postChildMessage(
   groupThreadId?: string,
   audience: MessageAudience = "team",
   clientMessageId?: string,
+  attachmentIds?: readonly string[],
 ): Promise<ThreadView> {
   // An answer to a group thread always goes to the team conversation.
   return postJson<ThreadView>(
@@ -1684,6 +1686,7 @@ export async function postChildMessage(
       body,
       client_message_id: clientMessageId,
       group_thread_id: groupThreadId,
+      attachment_ids: attachmentIds?.length ? attachmentIds : undefined,
       audience: groupThreadId || audience === "team" ? undefined : audience,
     },
   );
@@ -1721,6 +1724,8 @@ interface GroupThreadMessage {
   readonly id: string;
   readonly body: string;
   readonly created_at: string; // ISO timestamp
+  /** Fotos und Dateien der Nachricht (#6685). */
+  readonly attachments?: readonly MessageAttachment[];
 }
 
 /** An opened group thread. */

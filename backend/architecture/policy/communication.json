@@ -153,6 +153,20 @@
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/http/messageattachments",
+      "owner": "communication",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/attachmentpostgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -266,6 +280,14 @@
     },
     {
       "name": "users.surveys",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.message_attachment_cleanup",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.message_attachments",
       "write_owner": "communication"
     }
   ],

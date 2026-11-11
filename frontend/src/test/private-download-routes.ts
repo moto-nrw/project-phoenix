@@ -24,6 +24,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["meal-plan/orders/month/export", "GET"],
   ["meal-plan/participants/export", "GET"],
   ["meal-plan/participants/week/export", "GET"],
+  ["messages/attachments/[attachmentId]/download", "GET"],
   ["operator/billing/key-date-counts/export", "GET"],
   ["parent-announcements/[announcementId]/declaration-export", "GET"],
   ["parent/calendar/appointments/[appointmentId]/ics", "GET"],
@@ -35,6 +36,10 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["parent/me/documents/[organizationId]/contracts/[contractId]/pdf", "GET"],
   ["parent/me/documents/[organizationId]/shared/[documentId]/file", "GET"],
   [
+    "parent/me/messages/children/[studentId]/attachments/[attachmentId]/download",
+    "GET",
+  ],
+  [
     "parent/me/news/[announcementId]/attachments/[attachmentId]/download",
     "GET",
   ],
@@ -44,6 +49,8 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["rooms/export", "POST"],
   ["school/class-day/absence-list/export", "GET"],
   ["school/parent-letters/[announcementId]/declaration-export", "GET"],
+  ["school/staff-messages/attachments/[attachmentId]/download", "GET"],
+  ["staff-messages/attachments/[attachmentId]/download", "GET"],
   ["staff-shifts/export", "POST"],
   ["staff/[id]/documents/[documentId]/download", "GET"],
   ["staff/[id]/time-tracking/export", "GET"],
@@ -82,6 +89,8 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["traeger/documents/[id]/file", "GET"],
   ["traeger/holiday-periods/[id]/form/documents/[documentId]", "GET"],
   ["traeger/holiday-periods/[id]/registrations/export", "GET"],
+  ["traeger/holiday-periods/[id]/registrations/pdf", "GET"],
+  ["traeger/holiday-periods/[id]/registrations/[registrationId]/pdf", "GET"],
   [
     "traeger/holiday-periods/[id]/registrations/[registrationId]/proofs/[proofId]",
     "GET",

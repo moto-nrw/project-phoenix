@@ -107,7 +107,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) LockGroupAssignments(ctx context.Context) error {\n\treturn s.runWrite(ctx, \"lock_group_assignments\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.LockGroupAssignments(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "evidence": "func (s *Service) LockGroupAssignments(ctx context.Context) error {\n\treturn s.runWrite(ctx, \"lock_group_assignments\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif err := admitLeaf(txCtx, true, \"education.group_teacher\"); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tqueryStats, err := s.store.LockGroupAssignments(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/schoolmembership/internal/application/Service.LockGroupAssignments",
       "owner": "modules/schoolmembership"

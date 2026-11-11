@@ -17,7 +17,7 @@ func TestNewSickCascadeRejectsAnIncompleteComposition(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, cascade)
 	assert.EqualError(t, err, "shift plan sync compose: sick cascade needs "+
-		"Deviations, InstanceStaff, LockStaffShifts, Planning, TimetableData, Workforce")
+		"Deviations, InstanceStaff, LockStaff, LockStaffShifts, Planning, TimetableData, Workforce")
 }
 
 func TestNewSubstitutionRejectsAnIncompleteComposition(t *testing.T) {

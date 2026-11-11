@@ -32,8 +32,8 @@ func inLedgerTransaction(t *testing.T, fn func(context.Context) error) error {
 
 // The canonical order (#6232): classes ascending, keys ascending within a
 // class, held locks again at any time.
-// Staff rows come after the days in any key order (#6583): composed writers
-// learn their people one by one.
+// Staff rows come after the days, ascending (#6583, #6702); leaf locks come
+// last in any key order.
 func TestOrderLockAdmitsTheCanonicalOrder(t *testing.T) {
 	t.Parallel()
 	err := inLedgerTransaction(t, func(ctx context.Context) error {
@@ -41,18 +41,31 @@ func TestOrderLockAdmitsTheCanonicalOrder(t *testing.T) {
 			class tenant.LockClass
 			key   string
 		}{
+			{tenant.LockAccount, tenant.LockIDKey(4)},
+			{tenant.LockAccount, tenant.LockIDKey(5)},
+			{tenant.LockStudentClassWrites, tenant.LockIDKey(7)},
+			{tenant.LockPayrollRules, tenant.LockIDKey(7)},
+			{tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, false)},
+			{tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, true)},
+			{tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(12, false)},
 			{tenant.LockStaffShifts, tenant.LockIDKey(9)},
 			{tenant.LockStaffShifts, tenant.LockIDKey(12)},
 			{tenant.LockRecurrence, "7"},
 			{tenant.LockGradeTransitions, "7"},
+			{tenant.LockReference, "schedule.planning_tracks"},
+			{tenant.LockReference, "activities.categories"},
 			{tenant.LockScheduleDay, "2026-08-31"},
 			{tenant.LockScheduleDay, "2026-09-07"},
 			{tenant.LockStaffShifts, tenant.LockIDKey(9)},
 			{tenant.LockScheduleDay, "2026-08-31"},
 			{tenant.LockScheduleDay, "2026-09-14"},
-			{tenant.LockStaffRows, tenant.LockIDKey(12)},
+			{tenant.LockStaffPersonMerge, tenant.LockIDKey(7)},
 			{tenant.LockStaffRows, tenant.LockIDKey(9)},
+			{tenant.LockStaffRows, tenant.LockIDKey(12)},
 			{tenant.LockScheduleDay, "2026-09-07"},
+			{tenant.LockStaffRows, tenant.LockIDKey(9)},
+			{tenant.LockLeaf, "schedule.activity_instances"},
+			{tenant.LockLeaf, "activities.groups"},
 			{tenant.LockStaffRows, tenant.LockIDKey(12)},
 		} {
 			if err := tenant.OrderLock(ctx, step.class, step.key); err != nil {
@@ -78,6 +91,19 @@ func TestOrderLockRefusesALockAgainstTheOrder(t *testing.T) {
 		{name: "day after a staff row", first: tenant.LockStaffRows, firstKey: tenant.LockIDKey(3), later: tenant.LockScheduleDay, laterKey: "2026-08-31"},
 		{name: "staff-shift gate after a staff row", first: tenant.LockStaffRows, firstKey: tenant.LockIDKey(3), later: tenant.LockStaffShifts, laterKey: tenant.LockIDKey(3)},
 		{name: "lower staff after a higher staff", first: tenant.LockStaffShifts, firstKey: tenant.LockIDKey(12), later: tenant.LockStaffShifts, laterKey: tenant.LockIDKey(9)},
+		{name: "work-time gate after a staff-shift gate", first: tenant.LockStaffShifts, firstKey: tenant.LockIDKey(3), later: tenant.LockStaffWorkTime, laterKey: tenant.StaffWorkTimeKey(3, false)},
+		{name: "payroll rules after a work-time gate", first: tenant.LockStaffWorkTime, firstKey: tenant.StaffWorkTimeKey(3, false), later: tenant.LockPayrollRules, laterKey: tenant.LockIDKey(7)},
+		{name: "balance after the same person's absence gate", first: tenant.LockStaffWorkTime, firstKey: tenant.StaffWorkTimeKey(3, true), later: tenant.LockStaffWorkTime, laterKey: tenant.StaffWorkTimeKey(3, false)},
+		{name: "lower person's work time after a higher one", first: tenant.LockStaffWorkTime, firstKey: tenant.StaffWorkTimeKey(12, false), later: tenant.LockStaffWorkTime, laterKey: tenant.StaffWorkTimeKey(9, true)},
+		{name: "merge gate after a staff row", first: tenant.LockStaffRows, firstKey: tenant.LockIDKey(3), later: tenant.LockStaffPersonMerge, laterKey: tenant.LockIDKey(7)},
+		{name: "catalogue row after a day", first: tenant.LockScheduleDay, firstKey: "2026-08-31", later: tenant.LockReference, laterKey: "activities.categories"},
+		{name: "recurrence after a catalogue row", first: tenant.LockReference, firstKey: "activities.categories", later: tenant.LockRecurrence, laterKey: "7"},
+		{name: "account after a work-time gate", first: tenant.LockStaffWorkTime, firstKey: tenant.StaffWorkTimeKey(3, false), later: tenant.LockAccount, laterKey: tenant.LockIDKey(4)},
+		{name: "class-write gate after a work-time gate", first: tenant.LockStaffWorkTime, firstKey: tenant.StaffWorkTimeKey(3, false), later: tenant.LockStudentClassWrites, laterKey: tenant.LockIDKey(7)},
+		{name: "lower staff row after a higher staff row", first: tenant.LockStaffRows, firstKey: tenant.LockIDKey(12), later: tenant.LockStaffRows, laterKey: tenant.LockIDKey(9)},
+		{name: "staff row after a leaf", first: tenant.LockLeaf, firstKey: "schedule.activity_instances", later: tenant.LockStaffRows, laterKey: tenant.LockIDKey(3)},
+		{name: "day after a leaf", first: tenant.LockLeaf, firstKey: "workforce.staff_absences", later: tenant.LockScheduleDay, laterKey: "2026-08-31"},
+		{name: "staff-shift gate after a leaf", first: tenant.LockLeaf, firstKey: "workforce.staff_absences", later: tenant.LockStaffShifts, laterKey: tenant.LockIDKey(3)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -170,4 +196,39 @@ func TestHoldsLockReportsTheLedger(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+// A row the transaction inserted is held without an order position: locking
+// it later never waits, so even a staff row after a leaf is admitted, while a
+// staff row the transaction did not insert still follows the order (#6702).
+func TestHoldInsertedAdmitsTheOwnRowOutOfOrder(t *testing.T) {
+	t.Parallel()
+	err := inLedgerTransaction(t, func(ctx context.Context) error {
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockLeaf, "users.persons"))
+		tenant.HoldInserted(ctx, tenant.LockStaffRows, tenant.LockIDKey(30))
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(30)))
+		return tenant.OrderLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(40))
+	})
+	require.ErrorIs(t, err, tenant.ErrLockOrder)
+}
+
+// AdmitBefore admits the ordered lock before every acquisition and takes
+// nothing once the order refuses it (#6702).
+func TestAdmitBeforeAdmitsBeforeItAcquires(t *testing.T) {
+	t.Parallel()
+	var acquired []string
+	acquire := func(ctx context.Context, key string, _ bool) error {
+		acquired = append(acquired, key)
+		if !tenant.HoldsLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, false)) {
+			return errors.New("acquired before the admission")
+		}
+		return nil
+	}
+	err := inLedgerTransaction(t, func(ctx context.Context) error {
+		require.NoError(t, tenant.AdmitBefore(tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, false), acquire)(ctx, "staff-balance:7:9", false))
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(9)))
+		return tenant.AdmitBefore(tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(12, false), acquire)(ctx, "staff-balance:7:12", false)
+	})
+	require.ErrorIs(t, err, tenant.ErrLockOrder)
+	assert.Equal(t, []string{"staff-balance:7:9"}, acquired, "the refused gate is never taken")
 }

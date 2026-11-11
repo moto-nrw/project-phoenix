@@ -49,6 +49,7 @@ func TestAdditionalSupervisionOffersExternalCaregivers(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 		Now:                     func() time.Time { return now },
 	})
 

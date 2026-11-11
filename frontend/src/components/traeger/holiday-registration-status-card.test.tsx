@@ -90,6 +90,13 @@ function renderCard(
 
 describe("HolidayRegistrationStatusCard", () => {
   beforeEach(() => {
+    // The hint at Bestätigen links to the period (#6672).
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
+    _resetTraegerHostCache();
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+      _resetTraegerHostCache();
+    });
     mockChange.mockReset();
     mockCancel.mockReset();
     mockConfirm.mockReset();
@@ -111,15 +118,16 @@ describe("HolidayRegistrationStatusCard", () => {
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
   });
 
-  it("confirms a received registration through the contribution and says parents get no message yet", async () => {
+  it("confirms a received registration through the contribution and says parents get the acceptance mail", async () => {
     mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
     const { onReload, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
 
     expect(
-      screen.getByText(
-        "Eltern bekommen beim Bestätigen noch keine Nachricht von moto.",
-      ),
+      screen.getByText(/Beim Bestätigen bekommen die Eltern eine E-Mail/),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Text der Annahme-Mail" }),
+    ).toHaveAttribute("href", "/ferien/5");
     expect(
       screen.getByRole("radio", { name: /^Die Familie bezahlt/ }),
     ).toBeChecked();

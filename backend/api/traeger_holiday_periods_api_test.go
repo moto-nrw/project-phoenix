@@ -46,6 +46,7 @@ type holidayPeriodBody struct {
 	RegistrationClosesOn string            `json:"registration_closes_on"`
 	Binding              bool              `json:"binding"`
 	Notes                string            `json:"notes"`
+	AcceptanceMailText   string            `json:"acceptance_mail_text,omitempty"`
 	Status               string            `json:"status,omitempty"`
 	PublishedAt          *string           `json:"published_at,omitempty"`
 	AllocationMode       string            `json:"allocation_mode,omitempty"`

@@ -4,9 +4,11 @@
 // Status, Schule, Woche und Zeitmodell, mit Filtern, Hinweis auf mögliche
 // Doppelanmeldungen und Export als CSV oder Excel. Anmeldungen derselben
 // Familie führt das Büro hier als Geschwister zusammen (#5628); gleiche
-// E-Mail oder gleicher Nachname sind nur ein Hinweis.
+// E-Mail oder gleicher Nachname sind nur ein Hinweis. Ausgewählte
+// Anmeldungen bestätigt das Büro hier auch gesammelt (#6674).
 
 import { ClipboardList } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import {
   type MouseEvent as ReactMouseEvent,
@@ -49,9 +51,18 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { SectionCard } from "~/components/ui/section-card";
+import { SelectionBar } from "~/components/ui/selection-bar";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
+import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/use-holiday-registration-pdf";
+import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
+import { HolidayBulkConfirmModal } from "~/components/traeger/holiday-bulk-confirm-modal";
+import {
+  hasPossibleDuplicate,
+  type HolidayBulkPlan,
+  planHolidayBulkConfirmation,
+  registrationCount,
+} from "~/components/traeger/holiday-bulk-confirm-model";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { billingConcept } from "~/lib/concepts/billing";
@@ -61,6 +72,7 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { ApiError } from "~/lib/api-error";
@@ -74,6 +86,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
+  downloadHolidayRegistrationPdfs,
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
   fetchHolidayConfirmationSettings,
@@ -83,6 +96,7 @@ import {
   type HolidayWishFilter,
   type HolidayRegistrationStatus,
   type HolidayRegistrationSummary,
+  TRAEGER_HEALTH_RIGHT,
 } from "~/lib/traeger-holiday-registrations-api";
 import {
   fetchHolidaySiblingGroups,
@@ -95,10 +109,37 @@ const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
 
 type StatusChoice = HolidayRegistrationStatus | "all";
 
-const EXPORT_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
+const LIST_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
   "xlsx",
   "csv",
 ]);
+
+/**
+ * The entries of the download menu: the list as Excel or CSV, and one PDF
+ * per registration in a ZIP (#6691). The health information is its own
+ * entry, only for a person who may see it on the screen.
+ */
+function exportOptions(
+  filtered: boolean,
+  canSeeHealth: boolean,
+): readonly ExportMenuOption[] {
+  // Not "Auswahl": the ticked rows are for merging siblings and for the
+  // bulk confirmation (#6674), not for this.
+  const scope = filtered ? "Gefilterte" : "Alle";
+  return [
+    ...LIST_FORMATS,
+    { key: "pdf", format: "pdf", label: `${scope} als PDF (ZIP)` },
+    ...(canSeeHealth
+      ? [
+          {
+            key: HOLIDAY_PDF_HEALTH_KEY,
+            format: "pdf" as const,
+            label: `${scope} als PDF mit Gesundheitsangaben (ZIP)`,
+          },
+        ]
+      : []),
+  ];
+}
 
 const STATUS_OPTIONS: { value: StatusChoice; label: string }[] = [
   { value: "all", label: "Alle Status" },
@@ -330,11 +371,7 @@ function StatusLine({ list }: Readonly<{ list: HolidayRegistrationList }>) {
 
 /** Registrations with a child that is maybe registered twice. */
 function duplicateCount(list: HolidayRegistrationList | null): number {
-  return (list?.registrations ?? []).filter((registration) =>
-    registration.children.some(
-      (child) => child.duplicateRegistrationIds.length > 0,
-    ),
-  ).length;
+  return (list?.registrations ?? []).filter(hasPossibleDuplicate).length;
 }
 
 export default function TraegerHolidayRegistrationsPage() {
@@ -350,9 +387,12 @@ export default function TraegerHolidayRegistrationsPage() {
   const billingHref = useHolidayPeriodBillingHref(period);
   const [list, setList] = useState<HolidayRegistrationList | null>(null);
   const [groups, setGroups] = useState<readonly HolidaySiblingGroup[]>([]);
-  // The registrations the Träger-Büro picked to merge as siblings (#5628).
+  // The registrations the Träger-Büro picked to merge as siblings (#5628)
+  // or to confirm together (#6674).
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [merging, setMerging] = useState(false);
+  // What the open confirmation dialog confirms; fixed while it is open.
+  const [bulkPlan, setBulkPlan] = useState<HolidayBulkPlan | null>(null);
   const { success } = useToast();
   const [status, setStatus] = useState<StatusChoice>("all");
   const [school, setSchool] = useState("");
@@ -360,7 +400,9 @@ export default function TraegerHolidayRegistrationsPage() {
   const [timeModel, setTimeModel] = useState("");
   const [wish, setWish] = useState<HolidayWishFilter>("");
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const { data: session } = useSession();
+  const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
   // Each new filter starts a new list; an answer for an older one is dropped.
   const generation = useRef(0);
   const {
@@ -504,6 +546,28 @@ export default function TraegerHolidayRegistrationsPage() {
     }
   };
 
+  // One PDF per registration of the filter in a ZIP (#6691).
+  const exportPdfs = async (key: string, withHealth: boolean) => {
+    setExporting(key);
+    try {
+      const file = await downloadHolidayRegistrationPdfs(
+        periodId,
+        filter,
+        withHealth,
+      );
+      downloadBlob(file.blob, file.filename ?? "ferienanmeldungen.zip");
+    } catch (err) {
+      logger.error("traeger_holiday_registrations_pdf_export_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showActionError(err, { object: "die PDF-Dateien" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const deletionNotice = holidayDeletionNotice(list?.registrations ?? []);
+
   const mergeSiblings = async () => {
     if (merging || loading || selected.size < 2) return;
     setMerging(true);
@@ -526,6 +590,29 @@ export default function TraegerHolidayRegistrationsPage() {
 
   const names = schoolNames(schools);
   const registrationsShown = list?.registrations ?? [];
+
+  const openBulkConfirmation = () => {
+    if (merging || loading || selected.size === 0) return;
+    setBulkPlan(
+      planHolidayBulkConfirmation(
+        registrationsShown.filter((registration) =>
+          selected.has(registration.id),
+        ),
+        {
+          debtorNumberRequired: debtorNumberColumn,
+          groups,
+          shown: registrationsShown,
+        },
+      ),
+    );
+  };
+
+  const closeBulkConfirmation = (changed: boolean) => {
+    setBulkPlan(null);
+    if (!changed) return;
+    setSelected(new Set());
+    void load();
+  };
   const siblings: SiblingView = {
     groupOf: siblingGroupOf(groups),
     hints: siblingHints(registrationsShown, groups),
@@ -699,12 +786,17 @@ export default function TraegerHolidayRegistrationsPage() {
           ) : null}
           <ExportMenu
             ariaLabel="Anmeldungen herunterladen"
-            options={EXPORT_FORMATS}
+            options={exportOptions(activeFilters.length > 0, canSeeHealth)}
             busyKey={exporting}
             unavailable={loading || Boolean(loadError)}
             onSelect={(option) => {
               if (option.format === "csv" || option.format === "xlsx") {
                 void exportFile(option.format);
+              } else if (option.format === "pdf") {
+                void exportPdfs(
+                  option.key,
+                  option.key === HOLIDAY_PDF_HEALTH_KEY,
+                );
               }
             }}
           />
@@ -716,6 +808,7 @@ export default function TraegerHolidayRegistrationsPage() {
       error={loadError}
     >
       <LoadErrorAlert error={afterMerge.error} className="mb-4" />
+      {deletionNotice ? <Alert type="info" message={deletionNotice} /> : null}
       {duplicates > 0 ? (
         <Alert
           type="warning"
@@ -727,43 +820,43 @@ export default function TraegerHolidayRegistrationsPage() {
         />
       ) : null}
       {selected.size > 0 ? (
-        <SectionCard>
-          <div className="flex flex-col gap-3 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              {selected.size === 1
-                ? "1 Anmeldung ausgewählt. Wählen Sie mindestens eine weitere Anmeldung derselben Familie."
-                : `${selected.size} Anmeldungen ausgewählt. Als Geschwister zählen ihre Kinder beim Ferienbeitrag zusammen.`}
-            </p>
-            {/* On a phone both actions take the full width, the main one on
-                top, so they do not wrap into rows of different widths. */}
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={merging}
-                onClick={() => setSelected(new Set())}
-                className="w-full sm:w-auto"
-              >
-                Auswahl aufheben
-              </Button>
+        <SelectionBar
+          count={selected.size}
+          aria-label="Ausgewählte Anmeldungen"
+          label={`${registrationCount(selected.size)} ausgewählt`}
+          busy={merging || bulkPlan !== null}
+          onClear={() => setSelected(new Set())}
+          // On a phone each row of actions fills the width.
+          actions={
+            <>
               {selected.size > 1 ? (
                 <Button
                   type="button"
-                  variant="primary"
-                  size="md"
+                  variant="outline"
+                  size="compact"
                   isLoading={merging}
-                  disabled={loading}
+                  disabled={loading || bulkPlan !== null}
                   loadingText="Führt zusammen …"
+                  tooltip="Die Kinder zählen dann beim Ferienbeitrag zusammen."
                   onClick={() => void mergeSiblings()}
-                  className="w-full sm:w-auto"
+                  className="max-sm:grow"
                 >
                   Als Geschwister zusammenführen
                 </Button>
               ) : null}
-            </div>
-          </div>
-        </SectionCard>
+              <Button
+                type="button"
+                variant="primary"
+                size="compact"
+                disabled={loading || merging}
+                onClick={openBulkConfirmation}
+                className="max-sm:grow"
+              >
+                Ausgewählte bestätigen
+              </Button>
+            </>
+          }
+        />
       ) : null}
       <DataTable
         columns={columns(
@@ -778,7 +871,7 @@ export default function TraegerHolidayRegistrationsPage() {
         selection={{
           selectedKeys: selected,
           // While new rows load, the old ones are no choice any more.
-          disabled: merging || loading,
+          disabled: merging || loading || bulkPlan !== null,
           rowLabel: (registration) =>
             `Anmeldung Nr. ${registration.id} von ${registration.guardianFirstName} ${registration.guardianLastName}`,
           onChange: (keys, on) =>
@@ -817,6 +910,14 @@ export default function TraegerHolidayRegistrationsPage() {
           />
         }
       />
+      {bulkPlan ? (
+        <HolidayBulkConfirmModal
+          periodId={periodId}
+          plan={bulkPlan}
+          isOpen
+          onClose={closeBulkConfirmation}
+        />
+      ) : null}
     </TenantPage>
   );
 }

@@ -134,12 +134,7 @@ func (s *Service) LockStaffAssignments(ctx context.Context, staffIDs []int64) er
 	}
 	ids := slices.Sorted(slices.Values(staffIDs))
 	return s.runWrite(ctx, "lock_staff_assignments", true, func(txCtx context.Context, _ *domain.OperationStats) error {
-		for _, staffID := range slices.Compact(ids) {
-			if err := s.lockStaffAssignment(txCtx, staffID); err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.lockStaffAssignments(txCtx, slices.Compact(ids))
 	})
 }
 
@@ -236,15 +231,25 @@ func (s *Service) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64
 	return result, err
 }
 
-// skipHeldStaffRow leaves out a staff row lock the unit of work already holds
+func (s *Service) lockStaffAssignment(ctx context.Context, staffID int64) error {
+	return s.lockStaffAssignments(ctx, []int64{staffID})
+}
+
+// skipHeldStaffRows leaves out staff row locks the unit of work already holds
 // (#6583): a day writer takes the staff rows of its roster up front, so every
 // later assignment write of the same person would only repeat the locked,
 // already validated read.
-func skipHeldStaffRow(lock func(context.Context, int64) error) func(context.Context, int64) error {
-	return func(ctx context.Context, staffID int64) error {
-		if tenant.HoldsLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(staffID)) {
+func skipHeldStaffRows(lock func(context.Context, []int64) error) func(context.Context, []int64) error {
+	return func(ctx context.Context, staffIDs []int64) error {
+		pending := make([]int64, 0, len(staffIDs))
+		for _, staffID := range staffIDs {
+			if !tenant.HoldsLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(staffID)) {
+				pending = append(pending, staffID)
+			}
+		}
+		if len(pending) == 0 {
 			return nil
 		}
-		return lock(ctx, staffID)
+		return lock(ctx, pending)
 	}
 }

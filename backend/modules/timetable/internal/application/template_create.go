@@ -70,6 +70,10 @@ type CreateTemplateInput struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
+	// MaterializeFrom and MaterializeTo name the window the caller
+	// materializes after the create in the same unit (#6702).
+	MaterializeFrom *calendar.Date
+	MaterializeTo   *calendar.Date
 }
 
 // CreateTemplate persists a recurring template (activities.groups with
@@ -287,6 +291,9 @@ func (s *TemplateService) createTemplateLocked(
 	}
 	targets, err := s.validateTemplateCreateReferences(ctx, &in)
 	if err != nil {
+		return err
+	}
+	if err := s.lockCreatedTemplateStaff(ctx, in); err != nil {
 		return err
 	}
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
