@@ -185,6 +185,9 @@ type StudentImportDeps struct {
 	// takes the row path.
 	PrivacyConsentBatches PrivacyConsentBatches
 	ConsentHistoryBatches ConsentTransitionBatches
+	// GuardianBatches is the People Directory's new-guardian batch slice;
+	// without it every chunk takes the row path.
+	GuardianBatches NewGuardianBatches
 	// FindRFIDCard resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
 	FindRFIDCard   func(context.Context, string) (string, bool, error)
