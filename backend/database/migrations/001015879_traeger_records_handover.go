@@ -167,13 +167,12 @@ const (
   END IF;
   RETURN to_jsonb(v_order);
  END $body$;`
-	organizationErasureBeginRecordsChoiceSQL = `
+	organizationErasureBeginRecordsSQL = organizationErasureBeginHeadSQL + `
   -- Started or not: no school is erased without the customer's choice (#4720).
   IF v_order.records_choice IS NULL THEN
    RAISE EXCEPTION 'organization erasure requires the records hint and the customer choice on its order (#4720)' USING ERRCODE = '22023';
-  END IF;`
-	organizationErasureBeginRecordsSQL = organizationErasureBeginHeadSQL + organizationErasureBeginRecordsChoiceSQL + organizationErasureBeginTailSQL
-	organizationErasureBeginLegacySQL  = organizationErasureBeginHeadSQL + organizationErasureBeginTailSQL
+  END IF;` + organizationErasureBeginTailSQL
+	organizationErasureBeginLegacySQL = organizationErasureBeginHeadSQL + organizationErasureBeginTailSQL
 )
 
 func traegerRecordsHandoverUp(ctx context.Context, db *bun.DB) error {
