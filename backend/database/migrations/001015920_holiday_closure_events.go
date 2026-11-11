@@ -169,10 +169,10 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 				USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_holiday_closure_events_immutable';
 		END IF;
 		IF v_school IS NOT NULL AND v_traeger IS NULL THEN
-			-- A deleted source may withdraw commands that never prepared mail.
+			-- Deletion or a confirmed replacement may resolve never-prepared commands.
 			-- Keep the confirmed proposal and outcome until normal retirement.
-			IF OLD.tenant_id = v_school AND OLD.state IN ('pending', 'leased', 'blocked') AND OLD.prepared_at IS NULL
-				AND NEW.state = 'no_mail' AND NEW.error_code = 'source_withdrawn'
+			IF OLD.tenant_id = v_school AND OLD.state IN ('pending', 'leased', 'blocked', 'failed', 'needs_confirmation') AND OLD.prepared_at IS NULL
+				AND NEW.state = 'no_mail' AND NEW.error_code IN ('source_withdrawn', 'superseded')
 				AND NEW.lease_token IS NULL AND NEW.lease_until IS NULL
 				AND NEW.processed_at = CURRENT_TIMESTAMP AND NEW.completed_at = CURRENT_TIMESTAMP
 				AND NEW.prepared_at IS NOT DISTINCT FROM OLD.prepared_at
@@ -180,8 +180,15 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 				AND NEW.requested_channel IS NOT DISTINCT FROM OLD.requested_channel
 				AND NEW.requested_at IS NOT DISTINCT FROM OLD.requested_at
 				AND OLD.source_kind = 'school_closing_day'
-				AND NOT EXISTS (SELECT 1 FROM schedule.closing_days AS day
-					WHERE day.tenant_id = v_school AND day.id = OLD.source_id) THEN
+				AND ((NEW.error_code = 'source_withdrawn' AND NOT EXISTS (SELECT 1 FROM schedule.closing_days AS day
+					WHERE day.tenant_id = v_school AND day.id = OLD.source_id))
+     OR (NEW.error_code = 'superseded' AND EXISTS (
+      SELECT 1 FROM calendar.holiday_closure_proposals AS replacement
+      JOIN calendar.holiday_closure_events AS next_event ON next_event.tenant_id = replacement.tenant_id
+       AND next_event.proposal_id = replacement.id AND next_event.organization_id = replacement.organization_id
+      WHERE replacement.tenant_id = v_school AND replacement.supersedes_event_id = OLD.id
+       AND replacement.organization_id = OLD.organization_id AND replacement.source_kind = OLD.source_kind
+       AND replacement.source_id = OLD.source_id AND replacement.state = 'confirmed'))) THEN
 				RETURN NEW;
 			END IF;
 			IF OLD.state NOT IN ('failed', 'blocked') OR NEW.state <> 'pending'

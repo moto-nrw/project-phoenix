@@ -28,10 +28,20 @@ const confirmHolidayClosureBatchSQL = `WITH requested AS (
 ), confirmed AS (
  UPDATE calendar.holiday_closure_proposals SET state = 'confirmed', confirmed_at = CURRENT_TIMESTAMP
  WHERE tenant_id = ?0 AND id IN (SELECT proposal_id FROM created)
+ RETURNING tenant_id, organization_id, source_kind, source_id, supersedes_event_id
+), superseded AS (
+ UPDATE calendar.holiday_closure_events AS event
+ SET state = 'no_mail', error_code = 'superseded', lease_token = NULL, lease_until = NULL,
+  processed_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
+ FROM confirmed WHERE event.tenant_id = ?0 AND event.id = confirmed.supersedes_event_id
+  AND event.tenant_id = confirmed.tenant_id AND event.organization_id = confirmed.organization_id
+  AND event.source_kind = confirmed.source_kind AND event.source_id = confirmed.source_id
+  AND event.prepared_at IS NULL AND event.state IN ('pending', 'leased', 'blocked', 'failed', 'needs_confirmation')
 ), retried AS (
  UPDATE calendar.holiday_closure_events AS event
  SET state = 'pending', next_attempt_at = CURRENT_TIMESTAMP, error_code = NULL, requested_channel = ?4, requested_at = CURRENT_TIMESTAMP
  FROM requested WHERE event.tenant_id = ?0 AND event.proposal_id = requested.proposal_id AND event.state IN ('failed', 'blocked')
+  AND NOT EXISTS (SELECT 1 FROM confirmed WHERE confirmed.supersedes_event_id = event.id AND event.prepared_at IS NULL)
  RETURNING event.id, event.operation_id, event.revision
 ), authorized AS (
  INSERT INTO calendar.holiday_closure_authorizations (tenant_id, event_id, operation_id, revision, account_id, channel)
