@@ -65,6 +65,18 @@
     }
   ],
   "data_objects": [
+    {
+      "name": "enrollment.traeger_phase_schools",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.traeger_phase_versions",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.traeger_phases",
+      "write_owner": "enrollment"
+    },
     { "name": "enrollment.holiday_form_documents", "write_owner": "enrollment" },
     {
       "name": "enrollment.change_request_messages",

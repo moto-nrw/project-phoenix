@@ -280,7 +280,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+5) and their port of
 // workflows/parentportal/compose (+1) add exactly 6 LOC.
 // ADR 0209: the new composition of workflows/holidayallocation (+13).
-const moduleComposeBudgetTotal = 13299
+const moduleComposeBudgetTotal = 13297
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -304,7 +304,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0153: the contract offerings constructor (+9).
 	// ADR 0154: the booked care offering constructor (+13).
-	"modules/careplan/compose":             1680,
+	// #4704 added the Träger offering constructors and shortened comments of
+	// the package by more than it added (-1).
+	"modules/careplan/compose":             1679,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -334,7 +336,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
 	// ADR 0207: the constructor of the announced holiday periods (+5).
-	"modules/enrollment/compose":                   613,
+	// #4704 added the Träger phase constructor and shortened comments of the
+	// package by more than it added (-1).
+	"modules/enrollment/compose":                   612,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

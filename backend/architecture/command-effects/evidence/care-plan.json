@@ -10353,6 +10353,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering",
+      "binding_digest": "33b7f5228c21425e910c9ae157fe9ac9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.TraegerOfferingCopies.WithdrawTraegerOffering",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.RequestConflicts.WriteStaffValue",
       "binding_digest": "2d818be701a7c1b3397e13997dc8ab4e",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests.Conflicts.WriteStaffValue",

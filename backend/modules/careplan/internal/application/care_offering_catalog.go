@@ -272,6 +272,15 @@ func (c *CareOfferingCatalog) DeleteOffering(ctx context.Context, id int64) erro
 	if id <= 0 {
 		return careOfferingInvalidf("id must be positive")
 	}
+	// Only the Träger office withdraws a copy (ADR 0195 section 7); the next
+	// rollout would otherwise create it again.
+	existing, err := c.findRecord(ctx, id)
+	if err != nil {
+		return err
+	}
+	if existing.Traeger != nil {
+		return careplan.ErrTraegerCopyDelete
+	}
 	// Retire sourced rosters BEFORE the row delete: the FK's ON DELETE SET
 	// NULL only degrades the templates to manual rosters and would leave
 	// their offering-derived enrollment rows and materialized occurrences

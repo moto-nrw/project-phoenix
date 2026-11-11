@@ -14089,6 +14089,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.TraegerOfferingCopies.WithdrawTraegerOffering",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithSavepoint (tenant-runtime) through modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.RequestConflicts.WriteStaffValue",

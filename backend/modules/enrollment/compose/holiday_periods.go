@@ -95,3 +95,8 @@ func NewContractApplications(fingerprint func([]byte) string) enrollment.Contrac
 func NewHolidayClosures(schoolCalendar enrollment.HolidaySchoolCalendar, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, today func() calendar.Date) enrollment.HolidayClosures {
 	return applicationNative.NewHolidayClosures(postgres.NewHolidayRegistrationStore(), schoolCalendar, traeger, mail, today)
 }
+
+// NewTraegerPhases builds the Träger phases (ADR 0195) in the Träger transaction the caller opens.
+func NewTraegerPhases() enrollment.TraegerPhases {
+	return applicationNative.NewTraegerPhases(postgres.NewTraegerPhaseStore())
+}

@@ -64,8 +64,7 @@ func NewCareOfferingRows(catalog CareOfferingCatalogAdministration) *CareOfferin
 	return application.NewCareOfferingRows(catalog)
 }
 
-// PublicDecisions hands the decision flow directly to the HTTP adapters.
-// The flow marks refusals with Enrollment's public values at its own edge.
+// PublicDecisions hands the decision flow, which marks refusals with Enrollment's public values, to the HTTP adapters.
 func PublicDecisions(decisions *Decisions) enrollment.Decisions {
 	return decisions
 }

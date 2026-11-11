@@ -73,6 +73,12 @@ type careOfferingRow struct {
 	// TemplateGapAcks is written only by SetCareOfferingTemplateGapAck
 	// (#5140): planning period id -> classes; NULL means no decision.
 	TemplateGapAcks map[string][]string `bun:"template_gap_acks,type:jsonb,nullzero"`
+	// The Träger link of a copy (ADR 0195). Only the copy commands write it;
+	// an insert leaves it empty and the trigger keeps the deviations.
+	TraegerSourceID      *int64          `bun:"traeger_source_id"`
+	TraegerSourceVersion *int            `bun:"traeger_source_version"`
+	TraegerValues        json.RawMessage `bun:"traeger_values,type:jsonb,nullzero"`
+	TraegerDeviations    []string        `bun:"traeger_deviations,array,nullzero,notnull,default:'{}'"`
 }
 
 type autoTriggerRow struct {
@@ -621,7 +627,18 @@ func careOfferingToDomain(row careOfferingRow) careplan.CareOffering {
 		CountsAsCare: row.CountsAsCare, AutoAddGradeLevels: row.AutoAddGradeLevels, AvailabilityRule: row.AvailabilityRule,
 		SortOrder: row.SortOrder, SelectionGroup: row.SelectionGroup, SelectionRule: row.SelectionRule, PickupTimes: row.PickupTimes,
 		Translations: row.Translations, TemplateGapAcks: templateGapAcksToDomain(row.TemplateGapAcks),
+		Traeger: traegerCopyLink(row.TraegerSourceID, row.TraegerSourceVersion, row.TraegerDeviations),
 	}
+}
+
+func traegerCopyLink(sourceID *int64, version *int, deviations []string) *careplan.TraegerCopyLink {
+	if sourceID == nil || version == nil {
+		return nil
+	}
+	if deviations == nil {
+		deviations = []string{}
+	}
+	return &careplan.TraegerCopyLink{SourceID: *sourceID, Version: *version, Deviations: deviations}
 }
 
 func offeringChangeFromDomain(value careplan.OfferingChangeRequest) offeringChangeRow {

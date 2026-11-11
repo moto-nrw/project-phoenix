@@ -3705,6 +3705,71 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingCapability.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingGuards.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0195",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Cross-owner lock of the school's own phase commands: enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy creates, updates and deletes the copy through the phase administration, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0195.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.MarkRollback (tenant-runtime) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0195",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Cross-owner lock of the school's own phase commands: enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase. The Träger phase copy creates, updates and deletes the copy through the phase administration, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0195.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentUploadAccessLog.RecordUploadAccess",
       "classification": "platform",

@@ -164,5 +164,6 @@
   "holiday_allocation_mode_locked": "Es gibt schon Anmeldungen. Darum bleibt die Platzvergabe so.",
   "holiday_allocation_pending": "Bitte vergeben Sie zuerst im Reiter „Vergabe“ die Plätze.",
   "holiday_allocation_full": "In dieser Woche ist kein Platz mehr frei. Bitte laden Sie die Liste neu.",
-  "holiday_allocation_changed": "Die Liste hat sich geändert. Bitte prüfen Sie Ihre Entscheidung neu."
+  "holiday_allocation_changed": "Die Liste hat sich geändert. Bitte prüfen Sie Ihre Entscheidung neu.",
+  "traeger_copy_delete": "Dieser Eintrag kommt vom Träger. Nur das Träger-Büro kann ihn entfernen. Sie können ihn stattdessen deaktivieren."
 }

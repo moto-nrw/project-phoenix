@@ -7,8 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// New binds Enrollment to the ambient transaction. It never falls back to an
-// unscoped pool when a caller forgets to establish its transaction.
+// New binds Enrollment to the ambient transaction, never to an unscoped pool when a caller forgot its transaction.
 func New() enrollment.Owner {
 	return NewWithStore(newStore(), applicationNative.ObserveOfferingStorage())
 }

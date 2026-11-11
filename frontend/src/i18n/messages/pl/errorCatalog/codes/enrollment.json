@@ -164,5 +164,6 @@
   "holiday_allocation_mode_locked": "Są już zgłoszenia, więc sposób przydziału pozostaje.",
   "holiday_allocation_pending": "Najpierw przydziel miejsca w zakładce „Vergabe”.",
   "holiday_allocation_full": "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
-  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję."
+  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję.",
+  "traeger_copy_delete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

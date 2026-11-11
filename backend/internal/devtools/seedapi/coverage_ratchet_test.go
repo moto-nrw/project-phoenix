@@ -30,6 +30,12 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
+	"enrollment.traeger_phases":                 "Träger catalog of ADR 0195 (#4704): only the rollout routes write it, and they arrive with the seed in the next PR of the stack, which removes this entry",
+	"enrollment.traeger_phase_versions":         "Träger catalog of ADR 0195 (#4704): only the rollout routes write it, and they arrive with the seed in the next PR of the stack, which removes this entry",
+	"enrollment.traeger_phase_schools":          "Träger catalog of ADR 0195 (#4704): only the rollout routes write it, and they arrive with the seed in the next PR of the stack, which removes this entry",
+	"enrollment.traeger_care_offerings":         "Träger catalog of ADR 0195 (#4704): only the rollout routes write it, and they arrive with the seed in the next PR of the stack, which removes this entry",
+	"enrollment.traeger_care_offering_versions": "Träger catalog of ADR 0195 (#4704): only the rollout routes write it, and they arrive with the seed in the next PR of the stack, which removes this entry",
+	"enrollment.traeger_care_offering_schools":  "Träger catalog of ADR 0195 (#4704): only the rollout routes write it, and they arrive with the seed in the next PR of the stack, which removes this entry",
 	"platform.demo_school_file_erasures":        "verified upload removals of retired demo schools only (#5544); the profiles seed keeps its schools active and must not fabricate file erasure markers",
 	"platform.data_return_grants":               "real releases of a checked return package by an operator only (ADR 0203); a seed fabricates no retrieval tokens or archives",
 	"platform.data_return_downloads":            "retrievals of a released return package only (ADR 0203); without a release there is nothing to retrieve",

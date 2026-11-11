@@ -44,7 +44,10 @@ type PhaseDependencies struct {
 	// ErrPhaseResponseOverviewUnavailable.
 	Responses *PhaseResponseSources
 	Runtime   Runtime
-	Logger    *slog.Logger
+	// TraegerCopies links the copies of Träger phases (ADR 0195). Optional:
+	// without it TraegerCopies reports no copy commands.
+	TraegerCopies TraegerPhaseCopyStore
+	Logger        *slog.Logger
 	// Today returns the current calendar day; tests inject a fixed date so
 	// resync/detach boundaries stay deterministic. Nil falls back to
 	// calendar.TodayDate.
@@ -78,6 +81,15 @@ func newPhases(deps PhaseDependencies) *Phases {
 		logger = slog.Default()
 	}
 	return &Phases{PhaseList: deps.Records, deps: deps, logger: logger}
+}
+
+// TraegerCopies returns the copy commands of Träger phases, which write
+// through this phase administration, or nil without their store.
+func (s *Phases) TraegerCopies() enrollment.TraegerPhaseCopies {
+	if s.deps.TraegerCopies == nil {
+		return nil
+	}
+	return &TraegerPhaseCopies{TraegerPhaseCopyStateReads: s.deps.TraegerCopies, phases: s, store: s.deps.TraegerCopies}
 }
 
 // NewResyncingPhases builds the phase administration over the
@@ -404,15 +416,21 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 	if s.deps.Records == nil {
 		return errors.New("phase delete requires the enrollment capability")
 	}
-	if _, err := s.deps.Records.Phase(ctx, id); err != nil {
+	phase, err := s.deps.Records.Phase(ctx, id)
+	if err != nil {
 		if s.notFound(err) {
 			return enrollment.ErrPhaseNotFound
 		}
 		return fmt.Errorf("phase delete: find phase: %w", err)
 	}
+	// Only the Träger office withdraws a copy (ADR 0195 section 7); the
+	// next rollout would otherwise create it again.
+	if phase.Traeger != nil {
+		return enrollment.ErrTraegerCopyDelete
+	}
 
 	deletedRequests := 0
-	err := s.runInTx(ctx, func(txCtx context.Context) error {
+	err = s.runInTx(ctx, func(txCtx context.Context) error {
 		// The recurrence gate serializes the check with the approvals and
 		// booking changes that write bookings under it.
 		if err := s.deps.LockTemplateRecurrence(txCtx); err != nil {

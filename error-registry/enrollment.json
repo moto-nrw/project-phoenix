@@ -1030,6 +1030,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_allocation_changed"
+    },
+    {
+      "code": "enrollment.traeger_copy_delete",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_copy_delete"
     }
   ]
 }

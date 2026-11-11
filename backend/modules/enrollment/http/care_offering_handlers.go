@@ -492,6 +492,10 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
+		if errors.Is(err, capability.ErrTraegerCopyDelete) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(capability.ErrTraegerCopyDelete, common.CodeEnrollmentTraegerCopyDelete))
+			return
+		}
 		// FK violation when a selection or care booking already references
 		// this offering — admin should soft-delete (is_active=false).
 		if rs.Failures.Constraint(err) {
