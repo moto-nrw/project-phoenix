@@ -10205,6 +10205,17 @@ export const traegerBillingRunTopic =
           ],
         },
         {
+          title: "Leeren Lauf verwerfen",
+          description:
+            "Hat ein offener Lauf nichts abzurechnen, lässt er sich nicht freigeben. Das passiert zum Beispiel, wenn alle Anmeldungen storniert sind. Solange er offen ist, starten Sie für den Ferienzeitraum keinen neuen Lauf. Dann verwerfen Sie ihn.",
+          steps: [
+            "Öffnen Sie den Lauf. Steht dort `Dieser Lauf hat nichts abzurechnen`, wählen Sie oben `Leeren Lauf verwerfen`.",
+            "Wählen Sie im Fenster `Verwerfen`.",
+            "Der Lauf steht jetzt als `Verworfen` in der Liste. Er hat nichts ausgestellt. Wann er verworfen wurde, steht unter dem Titel.",
+            "Der Ferienzeitraum ist danach frei. Kommen neue Anmeldungen dazu, wählen Sie im verworfenen Lauf `Neuen Lauf starten`.",
+          ],
+        },
+        {
           title: "Bestätigungsschreiben erstellen",
           description:
             "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es bestätigt die Anmeldung und ist zugleich die Rechnung.",
@@ -10330,6 +10341,7 @@ export const traegerBillingRunTopic =
         "Im Ferienzeitraum fehlt `Zur Abrechnung`? Der Zeitraum ist noch ein Entwurf, oder Ihre Rolle ist nicht Abrechnung.",
         "Im Lauf fehlt `Zum Ferienzeitraum`? Ihre Rolle darf die Ferienbetreuung nicht öffnen.",
         "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
+        "Statt `Lauf freigeben` steht `Leeren Lauf verwerfen`? Der Lauf hat nichts abzurechnen. Verwerfen Sie ihn, dann ist der Ferienzeitraum frei.",
         "Sie sehen oben in der Karte `Rechnungen` kein Menü mit den drei Punkten? Der Lauf ist noch nicht freigegeben.",
         "Ein Klick auf eine Rechnung zeigt kein Schreiben? Die Schreiben des Laufs sind noch nicht erstellt. Erstellen Sie sie bei `Bestätigungsschreiben`.",
         "Auf dem Handy oder einem schmalen Bildschirm steht das Schreiben an der Stelle der Liste. Mit `Zurück zu den Rechnungen` kommen Sie zur Liste.",
@@ -10340,6 +10352,7 @@ export const traegerBillingRunTopic =
       ],
       troubleshootingDetails: [
         "Die Freigabe meldet, dass sich der Lauf geändert hat? Seit Ihrer Prüfung hat sich etwas an den Rechnungen geändert. Zum Beispiel ein Betrag, eine Debitorennummer, die Fälligkeit oder eine neue bestätigte Anmeldung. Das gilt auch, wenn Zahl und Summe gleich bleiben. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
+        "Das Verwerfen meldet, dass der Lauf etwas abzurechnen hat? Seit dem Öffnen kam etwas dazu, zum Beispiel eine bestätigte Anmeldung. Prüfen Sie die neue Vorschau und geben Sie den Lauf frei.",
         "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
         "Die Schreiben lassen sich nicht erstellen, weil eine Bankverbindung fehlt? Die Verwaltung trägt sie unter `Abrechnungsvorgaben` ein. Danach erstellen Sie die Schreiben.",
         "Die Schreiben lassen sich nicht erstellen, weil Rechnungen keine Debitorennummer haben? Ihr eigener Zahlungstext nennt die Debitorennummer. Nach der Freigabe lässt sich die Nummer nicht mehr eintragen. Löschen Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` den eigenen Zahlungstext oder nehmen Sie den Platzhalter {Debitorennummer} heraus. Danach erstellen Sie die Schreiben.",

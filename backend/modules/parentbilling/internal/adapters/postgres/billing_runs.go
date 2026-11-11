@@ -42,6 +42,7 @@ type runRow struct {
 	IssuedOn        *calendar.Date `bun:"issued_on,type:date"`
 	DocumentCount   *int           `bun:"document_count"`
 	TotalCents      *int64         `bun:"total_cents"`
+	DiscardedAt     *time.Time     `bun:"discarded_at"`
 }
 
 func (r runRow) run() parentbilling.BillingRun {
@@ -49,6 +50,7 @@ func (r runRow) run() parentbilling.BillingRun {
 		ID: r.ID, Service: r.Service, HolidayPeriodID: r.HolidayPeriodID, PeriodName: r.PeriodName,
 		ServiceFrom: r.ServiceFrom, ServiceUntil: r.ServiceUntil, Status: r.Status, CreatedAt: r.CreatedAt,
 		ReleasedAt: r.ReleasedAt, IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
+		DiscardedAt: r.DiscardedAt,
 	}
 }
 

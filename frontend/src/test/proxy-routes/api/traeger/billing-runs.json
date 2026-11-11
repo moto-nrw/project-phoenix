@@ -13,6 +13,9 @@
   "api/traeger/billing-runs/[id]/corrections": [
     "POST traeger /traeger/billing-runs/id%2F1/corrections"
   ],
+  "api/traeger/billing-runs/[id]/discard": [
+    "POST traeger /traeger/billing-runs/id%2F1/discard"
+  ],
   "api/traeger/billing-runs/[id]/documents/[documentId]/cancellation": [
     "POST traeger /traeger/billing-runs/id%2F1/documents/documentId%2F1/cancellation"
   ],
