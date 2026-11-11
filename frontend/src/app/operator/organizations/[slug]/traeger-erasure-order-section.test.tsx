@@ -193,6 +193,38 @@ describe("TraegerErasureOrderSection", () => {
     expect(await screen.findByText("Löschauftrag erfasst")).toBeInTheDocument();
   });
 
+  // #6652: the order is recorded once the write holds; the section's reload
+  // runs afterwards and never holds the form in its saving state.
+  it("frees the form after recording while the reload still runs", async () => {
+    mockGetOrder
+      .mockResolvedValueOnce(null)
+      .mockReturnValue(new Promise(() => undefined));
+    mockRecordOrder.mockResolvedValue(openOrder);
+
+    renderSection(false);
+    fillOrderFields(await screen.findByLabelText(/Vorgangsnummer/));
+    fireEvent.click(
+      screen.getByLabelText(/auf die Sicherung seiner Unterlagen hingewiesen/),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kunde wählt Löschung" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Löschauftrag erfassen" }),
+    );
+
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Der Löschauftrag ist erfasst.",
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Löschauftrag erfassen" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Wird erfasst...")).toBeNull();
+    expect(mockRecordOrder).toHaveBeenCalledTimes(1);
+  });
+
   it("points to the records and offers the Rückgabe export before the order", async () => {
     mockGetOrder.mockResolvedValue(null);
 
@@ -351,6 +383,43 @@ describe("TraegerErasureOrderSection", () => {
     });
     expect(mockToastSuccess).toHaveBeenCalledWith("Die Wahl ist eingetragen.");
     expect(await screen.findByText("Kunde wählt Löschung")).toBeInTheDocument();
+  });
+
+  it("frees the choice form after recording while the reload still runs", async () => {
+    const started = {
+      ...openOrder,
+      startedAt: "2027-01-02T09:00:00Z",
+      recordsChoice: null,
+    };
+    mockGetOrder
+      .mockResolvedValueOnce(started)
+      .mockReturnValue(new Promise(() => undefined));
+    mockRecordRecords.mockResolvedValue({
+      ...started,
+      recordsChoice: "erasure_chosen",
+    });
+
+    renderSection(false);
+    fireEvent.click(
+      await screen.findByLabelText(
+        /auf die Sicherung seiner Unterlagen hingewiesen/,
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kunde wählt Löschung" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Wahl eintragen" }));
+
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Die Wahl ist eingetragen.",
+      ),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Wahl eintragen" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Wird eingetragen...")).toBeNull();
+    expect(mockRecordRecords).toHaveBeenCalledTimes(1);
   });
 
   it("shows the recorded handover of an open order", async () => {
