@@ -78,11 +78,20 @@ function isLastOpenedRangePicker(picker: HTMLElement | null): boolean {
   return lastOpenedPicker === picker;
 }
 
+// Overlays portal to the end of body as they open, so one that follows the
+// picker in document order lies above it; one before it (a slide-over under
+// the picker's modal) lies below.
 function isBehindActiveOverlay(picker: HTMLElement | null): boolean {
   if (!picker) return false;
   return Array.from(
     document.querySelectorAll<HTMLElement>(ACTIVE_OVERLAY_SELECTOR),
-  ).some((overlay) => !overlay.contains(picker));
+  ).some(
+    (overlay) =>
+      !overlay.contains(picker) &&
+      (picker.compareDocumentPosition(overlay) &
+        Node.DOCUMENT_POSITION_FOLLOWING) !==
+        0,
+  );
 }
 
 /**

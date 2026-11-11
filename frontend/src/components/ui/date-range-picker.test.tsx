@@ -449,6 +449,73 @@ describe("DateRangePicker in a dialog", () => {
       to: new Date(2026, 8, 9),
     });
   });
+
+  it("keeps the slide-over open on a pointer press and focus in its calendar", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <SlideOver defaultOpen onOpenChange={onOpenChange}>
+        <SlideOverContent>
+          <DateRangePicker
+            value={undefined}
+            onChange={vi.fn()}
+            presets={[
+              {
+                label: "Letzte 7 Tage",
+                range: () => ({
+                  from: new Date(2026, 8, 3),
+                  to: new Date(2026, 8, 9),
+                }),
+              },
+            ]}
+          />
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    const preset = await screen.findByRole("button", { name: "Letzte 7 Tage" });
+
+    fireEvent.pointerDown(preset);
+    fireEvent.focusIn(preset);
+
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+  });
+
+  it("closes its calendar first on a body Escape when its modal lies above a slide-over", async () => {
+    const onClose = vi.fn();
+    function Stack({ modalOpen }: Readonly<{ modalOpen: boolean }>) {
+      return (
+        <>
+          <SlideOver defaultOpen>
+            <SlideOverContent>
+              <p>Liste</p>
+            </SlideOverContent>
+          </SlideOver>
+          <Modal isOpen={modalOpen} onClose={onClose} title="Termine absagen">
+            <DateRangePicker value={undefined} onChange={vi.fn()} />
+          </Modal>
+        </>
+      );
+    }
+    const { rerender } = render(<Stack modalOpen={false} />);
+    await screen.findByText("Liste");
+    rerender(<Stack modalOpen />);
+    // The slide-over hides its siblings from the accessibility tree in jsdom.
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Zeitraum wählen",
+        hidden: true,
+      }),
+    );
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    expect(document.querySelector("[data-range-panel]")).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 it.each(schoolDateCases("2026-06-01"))(
