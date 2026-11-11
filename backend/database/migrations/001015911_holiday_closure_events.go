@@ -14,10 +14,10 @@ func init() {
 		Version:     holidayClosureEventsVersion,
 		Description: "Ferien: Schul-Schließtage schlagen einen Elternhinweis vor, ein Klick beauftragt ihn (#6442, #6457, ADR 0196)",
 		DependsOn: []string{
-			offboardingTraegerMembershipVersion, // the newest migration on development
-			holidayClosureNoticesVersion,        // the notices this one versions
-			traegerClosingDaysVersion,           // the Träger closing days the read channel names
-			mealBillingMonthsVersion,            // the school erasure this one extends
+			holidayCriteriaAllocationVersion, // the newest migration on development
+			holidayClosureNoticesVersion,     // the notices this one versions
+			traegerClosingDaysVersion,        // the Träger closing days the read channel names
+			mealBillingMonthsVersion,         // the school erasure this one extends
 		},
 	})
 	Migrations.MustRegister(holidayClosureEventsUp, holidayClosureEventsDown)
