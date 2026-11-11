@@ -23,6 +23,7 @@ type (
 	SubmissionRateLimiter          = application.SubmissionRateLimiter
 	StudentMatches                 = application.StudentMatches
 	GuardianStudentAuthorizer      = application.GuardianStudentAuthorizer
+	GuardianStudentHold            = application.GuardianStudentHold
 	GuardianInvitationAvailability = application.GuardianInvitationAvailability
 	ManualEnrollmentDecider        = application.ManualEnrollmentDecider
 

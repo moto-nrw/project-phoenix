@@ -203,6 +203,15 @@ func (a *recordingGuardianAuthorizer) GuardianEmailHasStudentPermission(_ contex
 	return email == a.grantedEmail, nil
 }
 
+// The renewal asks the held variants (#6638); the stub records them alike.
+func (a *recordingGuardianAuthorizer) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {
+	return a.AccountHasStudentPermission(ctx, accountID, studentID, tenantID, permission)
+}
+
+func (a *recordingGuardianAuthorizer) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error) {
+	return a.GuardianEmailHasStudentPermission(ctx, email, studentID, tenantID, permission)
+}
+
 func (r *recordingOutbox) EnqueueMail(_ context.Context, req TestMail) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -403,6 +412,7 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 	config := env.config
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
+	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
 		PhaseID:       env.phaseID,
@@ -467,6 +477,7 @@ func withLateInviteRenewalFixture(
 	config := env.config
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
+	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
 		PhaseID:       env.phaseID,

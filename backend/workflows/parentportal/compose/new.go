@@ -138,7 +138,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		BillingDocuments: deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, SEPAMandates: deps.SEPAMandates, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
-		Memberships: deps.Memberships, InvitationAccounts: deps.InvitationAccounts, GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
+		Memberships: deps.Memberships, InvitationAccounts: deps.InvitationAccounts, GuardianHold: GuardianHold, GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		InvalidateInvites: deps.InvalidateInvites,
 		Locales:           deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,

@@ -232,7 +232,9 @@ func reEnrollmentSubmitterForPersistedRequest(ctx context.Context, lateInvites D
 // only if its account, or the email its late invite was issued to, already
 // holds parent_portal.enrollmentNative.submit on its own relationship to S. Staff
 // manual enrollment is the one bypass. It fails closed without an authorizer
-// or without any identity.
+// or without any identity. It reads without locks; the staff's approval of a
+// parent's change request asks it, while the parent's own submission and
+// edit hold the permission instead (holdGuardianReEnrollment).
 func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, tenantID int64, childIndex int) error {
 	if matchedStudentID == nil {
 		return nil
@@ -245,6 +247,53 @@ func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter
 		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
 	}
 	return nil
+}
+
+// holdGuardianReEnrollment is assertGuardianMayReEnrollStudent for the
+// parent's own submission and edit (#6638): the permission is asked behind
+// the parent guard, which keeps the identity's school membership,
+// relationship and permission locked until the request commits. It takes
+// the phase's match lock first, so two renewals naming siblings in opposite
+// order cannot each hold one child and wait for the other.
+func (s *Intake) holdGuardianReEnrollment(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, phaseID, tenantID int64, childIndex int) error {
+	if matchedStudentID == nil {
+		return nil
+	}
+	if !submitter.AdminManaged {
+		if err := s.deps.Requests.AcquireExistingStudentMatchLock(ctx, phaseID); err != nil {
+			return fmt.Errorf("submit: acquire existing-student match lock: %w", err)
+		}
+	}
+	granted, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, submitter, *matchedStudentID, tenantID)
+	if err != nil {
+		return fmt.Errorf("submit: hold guardian re-enrollment permission for child %d: %w", childIndex, err)
+	}
+	if !granted {
+		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
+	}
+	return nil
+}
+
+// submitterHoldsRenewal is submitterMayRenewStudent behind the parent guard:
+// the same identities, the same permission and the same staff bypass, with
+// the facts locked until the caller's transaction ends.
+func submitterHoldsRenewal(ctx context.Context, authorizer GuardianStudentHold, submitter reEnrollmentSubmitter, studentID, tenantID int64) (bool, error) {
+	if submitter.AdminManaged {
+		return true, nil
+	}
+	if authorizer == nil {
+		return false, nil
+	}
+	switch {
+	case submitter.GuardianAccountID != nil:
+		return authorizer.HoldAccountStudentPermission(ctx, *submitter.GuardianAccountID,
+			studentID, tenantID, guardianPermissionEnrollmentSubmit)
+	case submitter.GuardianEmail != "":
+		return authorizer.HoldGuardianEmailStudentPermission(ctx, submitter.GuardianEmail,
+			studentID, tenantID, guardianPermissionEnrollmentSubmit)
+	default:
+		return false, nil
+	}
 }
 
 // submitterMayRenewStudent reports whether the request identity holds

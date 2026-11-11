@@ -79,3 +79,96 @@ func (s *Service) StoreSomething(ctx context.Context, port NewPort) error { retu
 		t.Fatalf("want the unclassified port, got %+v", violations)
 	}
 }
+
+// A poll answer written without the guard is reported with the answer write
+// (#6638).
+func TestParentChildWriteGuardRuleReportsAnUnguardedPollAnswer(t *testing.T) {
+	t.Parallel()
+	project := parentFlowsProject(t)
+	file := filepath.Join(project, flowPackages[1], "parent_announcement_service.go")
+	source, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guarded := "err = s.Children.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {"
+	if !strings.Contains(string(source), guarded) {
+		t.Fatal("the poll answer no longer opens its unit as this test expects; update the bypass")
+	}
+	bypass := strings.Replace(string(source), guarded, "_ = access\n\terr = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {", 1)
+	violations := checkParentFlows(t, project, map[string][]byte{file: []byte(bypass)})
+	if len(violations) != 1 || violations[0].Rule != "parent-child-writes.unguarded" || violations[0].Source != "messaging.Service.RespondToAnnouncement" ||
+		!strings.Contains(violations[0].Target, "messaging.AnnouncementFeedAccess.SetResponse") {
+		t.Fatalf("want the unguarded poll answer, got %+v", violations)
+	}
+}
+
+func checkRenewal(t *testing.T, overlay map[string][]byte) []Violation {
+	t.Helper()
+	cgo := false
+	project := parentFlowsProject(t)
+	loaded, err := loadTypedPatterns(project, Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgo}, overlay, "./"+renewalPackage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parentRenewalGuardViolations(project, parentChildWriteModule, loaded)
+}
+
+func renewalSource(t *testing.T, name string) (string, string) {
+	t.Helper()
+	file := filepath.Join(parentFlowsProject(t), renewalPackage, name)
+	source, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return file, string(source)
+}
+
+func TestParentRenewalsRunBehindTheGuard(t *testing.T) {
+	t.Parallel()
+	if violations := checkRenewal(t, nil); len(violations) > 0 {
+		t.Fatalf("parent renewals outside the guard:\n%v", FormatViolations(violations))
+	}
+}
+
+// A submission that asks the renewal permission without locks is reported.
+func TestParentRenewalGuardRuleReportsTheUnlockedCheck(t *testing.T) {
+	t.Parallel()
+	file, source := renewalSource(t, "intake_submit.go")
+	guarded := "if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, plan.phase.ID, req.TenantID, i); err != nil {"
+	if !strings.Contains(source, guarded) {
+		t.Fatal("the submission no longer holds the renewal as this test expects; update the bypass")
+	}
+	bypass := strings.Replace(source, guarded, "if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {", 1)
+	violations := checkRenewal(t, map[string][]byte{file: []byte(bypass)})
+	rules := map[string]string{}
+	for _, v := range violations {
+		if v.Source == "application.Intake.Submit" {
+			rules[v.Rule] = v.Target
+		}
+	}
+	if !strings.Contains(rules["parent-renewal.unlocked-check"], "application.Intake.assertGuardianMayReEnrollStudent") {
+		t.Fatalf("want the unlocked renewal check of the submission, got %+v", violations)
+	}
+}
+
+// Removing the hold from the shared renewal check reports every renewing
+// entry as unguarded.
+func TestParentRenewalGuardRuleReportsARemovedHold(t *testing.T) {
+	t.Parallel()
+	file, source := renewalSource(t, "intake_eligibility.go")
+	guarded := "granted, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, submitter, *matchedStudentID, tenantID)"
+	if !strings.Contains(source, guarded) {
+		t.Fatal("the renewal no longer asks the hold as this test expects; update the bypass")
+	}
+	bypass := strings.Replace(source, guarded, "granted, err := true, error(nil)", 1)
+	violations := checkRenewal(t, map[string][]byte{file: []byte(bypass)})
+	unguarded := map[string]bool{}
+	for _, v := range violations {
+		if v.Rule == "parent-renewal.unguarded" {
+			unguarded[v.Source] = true
+		}
+	}
+	if !unguarded["application.Intake.Submit"] || !unguarded["application.Intake.ReplaceEditable"] {
+		t.Fatalf("want submission and edit reported as unguarded, got %+v", violations)
+	}
+}

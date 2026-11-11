@@ -423,7 +423,7 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		}
 		submitter = resolvedSubmitter
 	}
-	if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, pin, req.TenantID, i); err != nil {
+	if err := s.holdGuardianReEnrollment(ctx, submitter, pin, plan.phase.ID, req.TenantID, i); err != nil {
 		return nil, err
 	}
 	if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, pin, 0, i); err != nil {

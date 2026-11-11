@@ -3582,11 +3582,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/communicationAnnouncementAudience.HoldAnswerPermission",
-      "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/communicationAnnouncementAudience.HoldDeclarationSigner",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -3859,6 +3854,16 @@
       "decision": "0090",
       "id": "roots/owners/enrollmentGuardianDirectory.ListGuardiansByID",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.Hold) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+    },
+    {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.Hold) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
     },
     {
       "decision": "0090",

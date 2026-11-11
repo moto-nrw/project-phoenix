@@ -2448,17 +2448,6 @@
     },
     {
       "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.HoldAnswerPermission",
-      "classification": "leaf",
-      "effect": "lock",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.HoldAnswerPermission",
-      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.HoldAnswerPermission; modules/parentannouncementaudience/internal/adapters/postgres/polls.go:94. ",
-      "source_owner": "communication",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.HoldAnswerPermission",
-      "target_owner": "parent-announcement-audience"
-    },
-    {
-      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.HoldDeclarationSigner",
       "classification": "leaf",
       "effect": "lock",

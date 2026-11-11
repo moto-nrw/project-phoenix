@@ -20,7 +20,7 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
 		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
 		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: src.StudentRepo,
-		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: src.OutboxEnqueuer,
+		GuardianAuthorizer: src.GuardianAuthorizer, GuardianHold: src.GuardianHold, Outbox: src.OutboxEnqueuer,
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
 		ParentChanges: src.ParentChanges, Uploads: src.Uploads, Signatures: EnrollmentSignatures{Ledger: SignatureLedger()},
 		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
@@ -143,9 +143,12 @@ type EnrollmentIntakeSources struct {
 	Notifications      enrollmentOwner.Notifications
 	StudentRepo        enrollmentCompose.StudentMatches
 	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
-	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
-	OutboxEnqueuer     enrollmentCompose.MailOutbox
-	Settings           EnrollmentIntakeSettings
+	// GuardianHold holds a parent's renewal permission in the submission's
+	// transaction (#6638); nil refuses parent renewals of existing children.
+	GuardianHold   enrollmentCompose.GuardianStudentHold
+	RateLimitRepo  enrollmentCompose.SubmissionRateLimiter
+	OutboxEnqueuer enrollmentCompose.MailOutbox
+	Settings       EnrollmentIntakeSettings
 	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
 	// mail (#3780); nil keeps the configured address list only.
 	AdminSubscribers enrollmentCompose.AdminMailSubscribers

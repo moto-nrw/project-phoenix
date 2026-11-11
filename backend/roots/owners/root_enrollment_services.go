@@ -171,6 +171,7 @@ func BuildEnrollmentFlows(
 			Guardians: records, LateInviteRepo: records, CareOfferingRepo: notices.CareOfferings,
 			Capacity: capacity, Catalog: records, SchoolRepo: EnrollmentSchoolDirectory{Schools: organizations},
 			Notifications: notices.Notifications, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
+			GuardianHold:  NewEnrollmentGuardianHold(db, people.StudentGuardians, people.Students, people.GuardianProfiles),
 			RateLimitRepo: records, Uploads: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
 			AdminSubscribers: NewEnrollmentAdminSubscribers(consent, identity), ManualDecider: decisions,
 			FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL, Logger: env.Logger.With("service", "enrollment-request"),

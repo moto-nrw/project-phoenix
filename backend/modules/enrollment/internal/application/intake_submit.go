@@ -381,7 +381,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, plan.eligibility != eligibilityNone, i); err != nil {
 			return nil, err
 		}
-		if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {
+		if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, plan.phase.ID, req.TenantID, i); err != nil {
 			return nil, err
 		}
 		if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, matchedStudentID, 0, i); err != nil {

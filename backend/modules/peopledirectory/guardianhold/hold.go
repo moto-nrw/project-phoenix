@@ -42,36 +42,26 @@ var (
 	// ErrUnavailable refuses a hold composed without one of its locks;
 	// writes fail closed without them.
 	ErrUnavailable = errors.New("guardian hold: a lock is not composed")
-	// ErrProfileMissing is what Profile and Owner report for a guardian
-	// profile that does not exist.
-	ErrProfileMissing = errors.New("guardian hold: guardian profile not found")
 )
 
-// Granted reports whether the locked relationship grants a permission.
-type Granted func(permission string) bool
-
-// Owner is the identity a guardian profile is bound to.
-type Owner struct {
-	AccountID *int64
-	Email     string
-}
-
 // Locks are the owner commands Hold runs in the caller's school transaction.
+// They use plain types only, so a consumer declares the same struct as its
+// own port and converts it.
 type Locks struct {
 	// Membership pins the account's active mapping at the school after the
 	// live account; false when either is gone.
 	Membership func(ctx context.Context, accountID int64) (bool, error)
 	// Child locks the child row FOR UPDATE.
 	Child func(ctx context.Context, studentID int64) error
-	// Profile locks a guardian profile FOR UPDATE; ErrProfileMissing when
-	// it does not exist.
-	Profile func(ctx context.Context, profileID int64) error
-	// Relationship locks the relationship of profile and child FOR UPDATE;
-	// ErrNotLinked when there is none.
-	Relationship func(ctx context.Context, studentID, profileID int64) (Granted, error)
-	// Owner reads the identity a guardian profile is bound to;
-	// ErrProfileMissing when it does not exist.
-	Owner func(ctx context.Context, profileID int64) (Owner, error)
+	// Profile locks a guardian profile FOR UPDATE; false when it does not
+	// exist.
+	Profile func(ctx context.Context, profileID int64) (bool, error)
+	// Relationship locks the relationship of profile and child FOR UPDATE
+	// and returns its grant check; nil when there is none.
+	Relationship func(ctx context.Context, studentID, profileID int64) (func(permission string) bool, error)
+	// Owner reads the account and address a guardian profile is bound to;
+	// found is false when the profile does not exist.
+	Owner func(ctx context.Context, profileID int64) (accountID *int64, email string, found bool, err error)
 }
 
 // Request is one identity's authority over one child.
@@ -122,6 +112,9 @@ func Hold(ctx context.Context, locks Locks, req Request) error {
 	if err != nil {
 		return err
 	}
+	if granted == nil {
+		return ErrNotLinked
+	}
 	if err := requireOwner(ctx, locks, req, account); err != nil {
 		return err
 	}
@@ -134,17 +127,17 @@ func Hold(ctx context.Context, locks Locks, req Request) error {
 func holdAccount(ctx context.Context, locks Locks, req Request) (int64, error) {
 	account := req.AccountID
 	if account <= 0 {
-		owner, err := locks.Owner(ctx, req.ProfileID)
-		if errors.Is(err, ErrProfileMissing) {
-			return 0, ErrNotLinked
-		}
+		owner, _, found, err := locks.Owner(ctx, req.ProfileID)
 		if err != nil {
 			return 0, err
 		}
-		if owner.AccountID == nil {
+		if !found {
+			return 0, ErrNotLinked
+		}
+		if owner == nil {
 			return 0, nil
 		}
-		account = *owner.AccountID
+		account = *owner
 	}
 	active, err := locks.Membership(ctx, account)
 	if err != nil {
@@ -165,16 +158,14 @@ func lockProfiles(ctx context.Context, locks Locks, req Request) error {
 	}
 	slices.Sort(ids)
 	for _, id := range slices.Compact(ids) {
-		err := locks.Profile(ctx, id)
+		found, err := locks.Profile(ctx, id)
 		switch {
-		case err == nil:
-		case errors.Is(err, ErrProfileMissing) && id == req.ProfileID:
-			return ErrNotLinked
-		case errors.Is(err, ErrProfileMissing):
-			// The write reports a missing contact itself.
-		default:
+		case err != nil:
 			return err
+		case !found && id == req.ProfileID:
+			return ErrNotLinked
 		}
+		// The write reports a missing further contact itself.
 	}
 	return nil
 }
@@ -184,21 +175,21 @@ func lockProfiles(ctx context.Context, locks Locks, req Request) error {
 // its account while a relationship holds it; an accountless identity's
 // profile is locked, so its address holds as well.
 func requireOwner(ctx context.Context, locks Locks, req Request, account int64) error {
-	owner, err := locks.Owner(ctx, req.ProfileID)
-	if errors.Is(err, ErrProfileMissing) {
-		return ErrNotLinked
-	}
+	owner, email, found, err := locks.Owner(ctx, req.ProfileID)
 	if err != nil {
 		return err
 	}
+	if !found {
+		return ErrNotLinked
+	}
 	ownerAccount := int64(0)
-	if owner.AccountID != nil {
-		ownerAccount = *owner.AccountID
+	if owner != nil {
+		ownerAccount = *owner
 	}
 	if ownerAccount != account {
 		return ErrNotLinked
 	}
-	if req.AccountID <= 0 && !strings.EqualFold(strings.TrimSpace(owner.Email), strings.TrimSpace(req.Email)) {
+	if req.AccountID <= 0 && !strings.EqualFold(strings.TrimSpace(email), strings.TrimSpace(req.Email)) {
 		return ErrNotLinked
 	}
 	return nil
@@ -206,10 +197,7 @@ func requireOwner(ctx context.Context, locks Locks, req Request, account int64) 
 
 // requirePermissions checks the access and every action permission on the
 // locked relationship.
-func requirePermissions(granted Granted, req Request) error {
-	if granted == nil {
-		return ErrNotLinked
-	}
+func requirePermissions(granted func(string) bool, req Request) error {
 	if req.Access != "" && !granted(req.Access) {
 		return ErrNotLinked
 	}

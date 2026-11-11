@@ -23,14 +23,16 @@ import (
 // with the reason. A port method the classification does not know is a
 // violation as well, so a new port or a new method of a port is classified
 // before it can be reached, and an exemption that reaches no write is stale.
+// The renewal of an existing child in Enrollment's intake follows the same
+// guard (parentRenewalGuardViolations, #6638).
 func parentChildWriteGuardViolations(project, modulePath string, loaded []*packages.Package) []Violation {
+	violations := parentRenewalGuardViolations(project, modulePath, loaded)
 	flows := parentFlowPackages(modulePath, loaded)
 	if len(flows) == 0 {
-		return nil
+		return violations
 	}
 	graph := newFlowGraph(flows)
 	graph.project = project
-	var violations []Violation
 	reached := map[string]bool{}
 	for _, root := range graph.roots() {
 		violations = append(violations, graph.rootViolations(root, reached)...)
