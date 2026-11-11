@@ -217,6 +217,13 @@ export type PresenceView =
       readonly groupRooms?: readonly string[];
       readonly supervisedRooms?: readonly string[];
       readonly isGroupRoom?: boolean;
+      /**
+       * Sonderfall bis #6663: Liegt ein stärkerer Status (krank …) über
+       * „Kommt heute nicht“, trägt die Pille trotzdem den Grund des Plans als
+       * Tooltip. Ohne die Option gehört der Tooltip zum angezeigten Status.
+       * Nur `LocationBadge` setzt sie, damit sich nichts Sichtbares ändert.
+       */
+      readonly planReasonTitle?: boolean;
     };
 
 type BinaryPresenceState = "anwesend" | "schulhof" | "abwesend";
@@ -266,6 +273,14 @@ export function resolvePresence(
   const titleOf = (row: DayStatusRow) => row.title?.(planning) ?? undefined;
 
   const replacing = atHome ? DAY_STATUSES.find(isSet) : undefined;
+  const planRow = DAY_STATUS_TABLE.not_arrival;
+  const pillTitle = () => {
+    if (!replacing) return undefined;
+    if (view.mode === "detailed" && view.planReasonTitle) {
+      return isSet(planRow) ? titleOf(planRow) : undefined;
+    }
+    return titleOf(replacing);
+  };
   const hintRow = atHome ? undefined : BY_HINT_RANK.find(isSet);
 
   const ownSince = replacing?.since;
@@ -279,7 +294,7 @@ export function resolvePresence(
     pill: {
       label: replacing?.pill.label ?? location.label,
       color: replacing?.pill.color ?? location.color,
-      title: replacing ? titleOf(replacing) : undefined,
+      title: pillTitle(),
       locationStatus: parseLocation(student.current_location).status,
       presenceState: location.presenceState,
     },

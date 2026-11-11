@@ -51,3 +51,31 @@ describe.each([
     expect(screen.queryByText(LOCATION_STATUSES.HOME)).not.toBeInTheDocument();
   });
 });
+
+// #6663: the two badges disagree on the tooltip of a pill that replaced
+// "Kommt heute nicht"; both keep their behaviour until it is decided.
+describe("tooltip of a pill over a planned absence", () => {
+  const student: PresenceStudent = {
+    current_location: "Zuhause",
+    sick: true,
+    arrival_is_exception: true,
+    arrival_notes: "Arzttermin",
+  };
+
+  it("LocationBadge shows the plan's reason on the Krank pill", () => {
+    render(<LocationBadge student={student} displayMode="roomName" />);
+
+    expect(screen.getByText(LOCATION_STATUSES.SICK)).toHaveAttribute(
+      "title",
+      "Arzttermin",
+    );
+  });
+
+  it("PresenceBadge leaves the Krank pill without a tooltip", () => {
+    render(<PresenceBadge student={student} />);
+
+    expect(screen.getByText(LOCATION_STATUSES.SICK)).not.toHaveAttribute(
+      "title",
+    );
+  });
+});

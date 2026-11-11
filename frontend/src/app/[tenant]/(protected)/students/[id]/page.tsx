@@ -1484,6 +1484,7 @@ function StudentDetailPageContent() {
               todayArrivalPlannedTime={todayArrival.time}
               isArrivalException={todayArrival.isException}
               todayArrivalNote={todayArrival.note}
+              isArrivalAbsent={todayArrival.isAbsent}
             />
           </span>
           <StudentHeaderStats

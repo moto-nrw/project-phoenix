@@ -43,6 +43,7 @@ export function LocationBadge({
     groupRooms,
     supervisedRooms,
     isGroupRoom,
+    planReasonTitle: true,
   });
   return (
     <PresenceBadgeView

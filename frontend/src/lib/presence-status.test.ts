@@ -161,3 +161,43 @@ describe("countedDayStatus follows the table's ranking", () => {
     ).toBe("class_trip");
   });
 });
+
+describe("planReasonTitle (#6663)", () => {
+  const sickAndNotComing = {
+    current_location: "Zuhause",
+    sick: true,
+    arrival_is_exception: true,
+    arrival_notes: "Arzttermin",
+  } as const;
+
+  it("keeps the plan's reason as tooltip on a replaced pill", () => {
+    const presence = resolvePresence(sickAndNotComing, {
+      ...DETAILED,
+      planReasonTitle: true,
+    });
+
+    expect(presence.pill).toMatchObject({
+      label: LOCATION_STATUSES.SICK,
+      title: "Arzttermin",
+    });
+  });
+
+  it("gives no tooltip without a plan behind the pill", () => {
+    const presence = resolvePresence(
+      { current_location: "Zuhause", sick: true },
+      { ...DETAILED, planReasonTitle: true },
+    );
+
+    expect(presence.pill).toMatchObject({
+      label: LOCATION_STATUSES.SICK,
+      title: undefined,
+    });
+  });
+
+  it("leaves the tooltip to the shown status in the binary view", () => {
+    expect(resolvePresence(sickAndNotComing, BINARY).pill).toMatchObject({
+      label: LOCATION_STATUSES.SICK,
+      title: undefined,
+    });
+  });
+});

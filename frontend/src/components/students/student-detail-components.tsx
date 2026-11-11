@@ -359,6 +359,7 @@ export function StudentHeaderLocation({
   mySupervisedRooms,
   todayArrivalPlannedTime,
   isArrivalException,
+  isArrivalAbsent,
   todayArrivalNote,
 }: Readonly<
   Pick<
@@ -369,15 +370,26 @@ export function StudentHeaderLocation({
     | "mySupervisedRooms"
     | "todayArrivalPlannedTime"
     | "isArrivalException"
+    | "isArrivalAbsent"
     | "todayArrivalNote"
   >
 >) {
   // The page reads today's arrival from the child's arrival schedule, not from
   // the student row; the badge reads today's plan from these fields itself.
+  //
+  // Sonderfall Kinderakte bis #6663: `isArrivalAbsent` ist auch bei Krank- und
+  // Entschuldigt-Meldung wahr, und die Kopfzeile wertet es als „kommt heute
+  // nicht“. Ein krankes Kind mit Ortstext ohne Status-Präfix zeigt hier darum
+  // „Ungeplant anwesend“, in den Listen „Krank“. Ein Plan ohne Ankunftszeit ist
+  // für den Badge genau diese Aussage.
+  const plannedAbsentFromArrivalSchedule = isArrivalAbsent ?? false;
   const badgeStudent = {
     ...student,
-    arrival_is_exception: isArrivalException,
-    arrival_time: todayArrivalPlannedTime,
+    arrival_is_exception:
+      isArrivalException || plannedAbsentFromArrivalSchedule,
+    arrival_time: plannedAbsentFromArrivalSchedule
+      ? undefined
+      : todayArrivalPlannedTime,
     arrival_notes: todayArrivalNote,
   };
 
