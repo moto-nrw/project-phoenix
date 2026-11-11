@@ -23,6 +23,7 @@ import {
   exportFormatOptions,
   exportMenuItems,
 } from "~/components/ui/export-menu";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -174,6 +175,9 @@ export function BillingRunOverviewCard({
   // Gemerkt wird die Zeile, nicht die Rechnung: nach einer Korrektur zeigt das
   // Panel die neuen Beträge.
   const [shownKey, setShownKey] = useState<string | null>(null);
+  // Below md the table shows its rows stacked, with the row menu in the
+  // row's head (DataTable `stackedOnMobile`).
+  const isPhoneRow = useIsMobile();
   const [breakdownShown, setBreakdownShown] = useState(false);
   // The issued document whose letter shows beside the list (#5692).
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -382,6 +386,9 @@ export function BillingRunOverviewCard({
         >
           <OverflowMenu
             ariaLabel={rowMenuLabel(document)}
+            // On a phone the menu sits in the row's head: opened upwards it
+            // leaves the invoice's due date and number in view.
+            preferredSide={isPhoneRow ? "above" : "below"}
             items={[
               {
                 label: "Aufschlüsselung zeigen",
