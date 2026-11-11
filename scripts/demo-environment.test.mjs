@@ -184,3 +184,18 @@ test('demo deploy ships one Compose file that carries the demo runtime', () => {
     assert.doesNotMatch(other, /demo-runtime/);
   }
 });
+
+test('a failed demo order turns the run red after cleanup and every notification', t => {
+  const job = build.split('  deploy-demo:\n')[1].split('\n  # Summary job')[0];
+  const steps = job.split('\n      - name: ').slice(1).map(step => step.split('\n')[0]);
+  assert.match(job, /id: smoke\n        continue-on-error: true/);
+  const last = 'Fail the run when the demo order failed';
+  assert.equal(steps.at(-1), last);
+  for (const earlier of ['Cleanup secrets', 'Notify Slack about the failed demo order', 'Report deploy to Sentry', 'Notify Slack']) {
+    assert.ok(steps.indexOf(earlier) >= 0 && steps.indexOf(earlier) < steps.indexOf(last), earlier);
+  }
+  assert.match(job.split(`      - name: ${last}\n`)[1], /^        if: steps\.smoke\.outcome == 'failure'$/m);
+  const result = runStep(t, stepRun(build, last));
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /^::error::/m);
+});

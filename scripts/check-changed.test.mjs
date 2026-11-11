@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { concurrencyFor, inputsKey, runSteps, summarize, verifyRate } from './check-changed.mjs';
+import { architectureInputChanged, concurrencyFor, inputsKey, runSteps, stepsFor, summarize, verifyRate } from './check-changed.mjs';
 import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 import { changedPaths, sourceRatchets, sourceRatchetPattern } from './backend-source-ratchets.mjs';
 
@@ -249,6 +249,27 @@ test('source input discovery keeps old and new rename paths, deletions, staged a
   git('commit', '-qm', 'branch changes');
   assert.deepEqual(changedPaths(root, base, env), paths, 'committed and uncommitted inputs have the same selection');
   assert.throws(() => changedPaths(root, 'missing-ref', env), /git merge-base/);
+});
+
+test('the architecture check follows the paths that start CI\'s architecture ratchet', () => {
+  for (const path of ['backend/api/parent_meal_message_write_rig_test.go', 'backend/modules/example/internal/application/new.go',
+    'backend/go.mod', 'backend/go.sum', 'backend/architecture/policy/new-owner.json', 'backend/architecture/legacy.jsonl', 'backend/internal/architecture/testdata/policy.json',
+    'scripts/backend-architecture.sh', 'scripts/backend-architecture/main.go']) {
+    assert.equal(architectureInputChanged([path]), true, path);
+  }
+  for (const path of ['frontend/src/page.tsx', 'backend/architecture/WORKPLAN.md', 'backend/modules/example/README.md',
+    'backend/dev.env', 'scripts/backend-architecture.shx', 'docs/agents/operations.md']) {
+    assert.equal(architectureInputChanged([path]), false, path);
+  }
+  assert.equal(architectureInputChanged([]), false);
+});
+
+test('the architecture step runs the existing checker on the working tree, only for its inputs', () => {
+  const names = steps => steps.map(step => step.name);
+  assert.deepEqual(names(stepsFor('/repo', 'origin/development', ['frontend/src/page.tsx'])), ['static', 'tests']);
+  const steps = stepsFor('/repo', 'origin/development', ['backend/api/untracked_test.go']);
+  assert.deepEqual(names(steps), ['static', 'arch', 'tests']);
+  assert.deepEqual(steps[1].command, ['bash', 'scripts/backend-architecture.sh', 'check', '--baseline', '/repo/backend/architecture/legacy.jsonl']);
 });
 
 test('steps run side by side only on a machine with room', () => {

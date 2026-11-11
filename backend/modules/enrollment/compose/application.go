@@ -51,6 +51,7 @@ type PhaseDependencies struct {
 	// Resyncer keeps the templates sourcing the phase's offerings in step.
 	Resyncer       enrollment.SourcedTemplateResyncer
 	Students       enrollment.PhaseStudents
+	Bookings       enrollment.PhaseBookings
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
 	CareExits      enrollment.PhaseResponseCareExits
@@ -72,6 +73,7 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		Resyncer:                        deps.Resyncer,
 		Students:                        deps.Students,
+		Bookings:                        deps.Bookings,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),

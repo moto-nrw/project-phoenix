@@ -35,7 +35,7 @@ through `devbox run` when the current process has not loaded the project environ
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
 | Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure). Live output lists package results; a failure adds a summary and keeps the full output in the printed `test-changed-go.log.gz` |
-| Before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]`: the pre-push static checks (`scripts/pre-push.sh --worktree`) and `test-changed.sh --fast` for committed, uncommitted and untracked changes. Steps run side by side only while the load average is below half the CPUs, each with a timeout (`PHX_CHECK_TIMEOUT_MINUTES`, default 30); a rerun with byte-identical inputs prints the last passing summary |
+| Before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]`: the pre-push static checks (`scripts/pre-push.sh --worktree`), `test-changed.sh --fast` and, when a Go, `go.mod`/`go.sum`, `backend/architecture/` or architecture-checker path changed, `scripts/backend-architecture.sh check` without the base comparison (import policy for production and test packages, about 30 s; CI adds the comparison with the base), for committed, uncommitted and untracked changes. Two steps run side by side only while the load average is below half the CPUs, each with a timeout (`PHX_CHECK_TIMEOUT_MINUTES`, default 30); a rerun with byte-identical inputs prints the last passing summary |
 | Red PR check | `node scripts/ci-failures.mjs [branch or PR]`: failed jobs and steps, their error lines, the local reproduction, and a warning when the previous push failed in the same job |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
@@ -665,6 +665,12 @@ the app server. That one Caddy serves production, staging, Grafana and
 PyrePortal, so every rollout touches production. The Cloudflare DNS token stays
 in `/etc/caddy/cloudflare.env` on the server and reaches the file only as
 `{env.CLOUDFLARE_API_TOKEN}`. Client-IP rules: [contracts](contracts.md#client-ip-and-rate-limits).
+
+Maintenance page: while a frontend upstream is down (every deploy), the
+`(maintenance-html)` snippet answers 502/503 with the page in its heredoc. It
+rolls out with the Caddyfile; no file on the server belongs to it. Preview a
+change by serving the snippet from the server's Caddy version in Docker with a
+dead upstream, and attach desktop and phone screenshots to the PR.
 
 Checks: `node scripts/check-caddyfile.mjs` (CI, on every change) verifies that
 each `reverse_proxy` imports `client_ip_upstream`; `--cloudflare` also compares

@@ -54,6 +54,8 @@ services:
       - "127.0.0.1:8082:8080"
     volumes:
       - demo-avatar-uploads:/app/public/uploads
+      # Encrypted return packages released for retrieval (ADR 0203).
+      - demo-data-return:/app/data-return
     environment:
       # Endpoint only. The application password is added by GetServeDSN.
       # Never interpolate the privileged maintenance DB_DSN here.
@@ -289,3 +291,5 @@ volumes:
   demo-postgres:
   demo-avatar-uploads:
     name: phoenix-demo-uploads
+  demo-data-return:
+    name: phoenix-demo-data-return
