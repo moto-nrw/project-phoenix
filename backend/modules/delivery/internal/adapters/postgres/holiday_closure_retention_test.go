@@ -127,3 +127,77 @@ func TestRecoverableCancellationKeepsHolidayClosureOrder(t *testing.T) {
 		})
 	}
 }
+
+// A second retry can see a dead letter while the first retry is still
+// committing. Its stale candidate must not reset the newer transport state.
+func TestConcurrentTraegerRetryPreservesNewerMailState(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	_, ctx := testStore(t, db)
+	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Concurrent retry", Slug: fmt.Sprintf("concurrent-retry-%d", testpkg.Tenant(t)),
+	}).ID
+	for _, state := range []string{"pending", "claimed", "sent", "dead_letter"} {
+		t.Run(state, func(t *testing.T) {
+			var id int64
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox
+    (organization_id, kind, idempotency_key, recipient, payload, status, last_error)
+    VALUES (?, 'holiday_closure_notice', ?, jsonb_build_object('address', ?), '{}', 'dead_letter', 'mailbox unavailable')
+    RETURNING id`, organization, state, state+"@example.org").Scan(ctx, &id))
+			first, err := db.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = first.Rollback() }()
+			_, err = first.ExecContext(ctx, `UPDATE platform.email_outbox SET status=?, last_error=?,
+    lease_token=CASE WHEN ?='claimed' THEN 'newer-lease' END,
+    lease_expires_at=CASE WHEN ?='claimed' THEN NOW()+interval '1 minute' END WHERE id=?`, state, deliveryContract.DispatchOutcomeUnknown, state, state, id)
+			require.NoError(t, err)
+			pid := make(chan int, 1)
+			type outcome struct {
+				retried int64
+				err     error
+			}
+			finished := make(chan outcome, 1)
+			retryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			go func() {
+				var retried int64
+				err := testpkg.WithinTraeger(retryCtx, organization, func(ctx context.Context) error {
+					tx, _ := tenant.TransactionFromContext(ctx)
+					var backendPID int
+					if err := tx.(bun.Tx).NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &backendPID); err != nil {
+						return err
+					}
+					pid <- backendPID
+					var err error
+					retried, err = raw.RetryFailedTraegerEmails(ctx, organization, []string{state})
+					return err
+				})
+				finished <- outcome{retried, err}
+			}()
+			var backendPID int
+			select {
+			case backendPID = <-pid:
+			case <-retryCtx.Done():
+				t.Fatal(retryCtx.Err())
+			}
+			require.Eventually(t, func() bool {
+				var waiting bool
+				err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid=? AND wait_event_type='Lock')`, backendPID).Scan(ctx, &waiting)
+				return err == nil && waiting
+			}, 5*time.Second, 10*time.Millisecond, "the second retry must select the old dead letter before the first commits")
+			require.NoError(t, first.Commit())
+			result := <-finished
+			require.NoError(t, result.err)
+			assert.Zero(t, result.retried, "a stale retry must not release mail already retried, claimed, sent or of unknown outcome")
+			var storedState, lease string
+			require.NoError(t, db.NewRaw(`SELECT status, COALESCE(lease_token, '') FROM platform.email_outbox WHERE id=?`, id).Scan(ctx, &storedState, &lease))
+			assert.Equal(t, state, storedState)
+			if state == "claimed" {
+				assert.Equal(t, "newer-lease", lease)
+			} else {
+				assert.Empty(t, lease)
+			}
+		})
+	}
+}

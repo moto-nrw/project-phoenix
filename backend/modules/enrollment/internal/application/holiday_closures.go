@@ -227,6 +227,27 @@ func (h *HolidayClosures) traegerChanges(ctx context.Context, organizationID int
 	if organizationID <= 0 {
 		return nil, errors.New("enrollment: the Träger is required")
 	}
+	if closure.Previous != nil {
+		traeger, err := h.traeger.HolidayTraeger(ctx, organizationID)
+		if err != nil {
+			return nil, err
+		}
+		current := make(map[int64]bool, len(traeger.Schools))
+		for _, school := range traeger.Schools {
+			current[school.ID] = true
+		}
+		// Historical references survive a transfer. Only current schools
+		// can reopen here; newly requested schools still pass the calendar's
+		// authorization below, without filtering.
+		previous := *closure.Previous
+		previous.SchoolIDs = nil
+		for _, school := range closure.Previous.SchoolIDs {
+			if current[school] {
+				previous.SchoolIDs = append(previous.SchoolIDs, school)
+			}
+		}
+		closure.Previous = &previous
+	}
 	schools, from, to := closureSpan(closure)
 	if len(schools) == 0 {
 		return nil, nil

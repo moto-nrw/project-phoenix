@@ -85,10 +85,10 @@ func (c closureCalendar) HolidayNoCareDays(_ context.Context, schoolIDs []int64,
 	return result, nil
 }
 
-type closureTraeger struct{}
+type closureTraeger struct{ schools []enrollment.HolidaySchool }
 
-func (closureTraeger) HolidayTraeger(context.Context, int64) (enrollment.HolidayTraeger, error) {
-	return enrollment.HolidayTraeger{Name: "Träger Ferien"}, nil
+func (c closureTraeger) HolidayTraeger(context.Context, int64) (enrollment.HolidayTraeger, error) {
+	return enrollment.HolidayTraeger{Name: "Träger Ferien", Schools: c.schools}, nil
 }
 
 // closureKeyBytes and closureKeyed stand in for Security Runtime's random
@@ -720,8 +720,9 @@ func TestTraegerMoveExcludesIndependentSchoolClosures(t *testing.T) {
 			testpkg.OwnTenant(t)
 			w := newPlacesWeek(t, db, "Träger genauer Änderungsumfang")
 			school := hostSchoolOf(t, db, w.week)
-			mail := &capturedMails{}
-			closures := newClosures(mail, nil)
+			mail := &capturedMails{outcomes: map[string]string{}}
+			directory := closureTraeger{schools: []enrollment.HolidaySchool{{ID: school}}}
+			closures := compose.NewHolidayClosures(closureCalendar(nil), closureCalendar(nil), directory, mail, closureKeyBytes, closureKeyed, func() calendar.Date { return closureToday })
 			monday, friday := calendar.NewDate(2027, 7, 5), calendar.NewDate(2027, 7, 9)
 			closure := enrollment.HolidayClosure{SchoolIDs: []int64{school}, StartsOn: monday, EndsOn: monday, Reason: "Träger-Schließtag"}
 			withinTraeger(t, db, w.organization, func(ctx context.Context) {
@@ -734,7 +735,8 @@ func TestTraegerMoveExcludesIndependentSchoolClosures(t *testing.T) {
 			if movedSchool {
 				unrelated = friday
 			}
-			closures = newClosures(mail, closureCalendar{{Date: unrelated, Kind: enrollment.HolidayNoCareClosingDay, Name: "Unbestätigter Schul-Schließtag"}})
+			days := closureCalendar{{Date: unrelated, Kind: enrollment.HolidayNoCareClosingDay, Name: "Unbestätigter Schul-Schließtag"}}
+			closures = compose.NewHolidayClosures(days, days, directory, mail, closureKeyBytes, closureKeyed, func() calendar.Date { return closureToday })
 			closure.Previous = &enrollment.HolidayClosureSpan{SchoolIDs: []int64{school}, StartsOn: monday, EndsOn: monday}
 			closure.StartsOn, closure.EndsOn = friday, friday
 			if movedSchool {

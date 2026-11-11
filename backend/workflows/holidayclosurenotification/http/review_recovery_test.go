@@ -3,6 +3,7 @@ package http_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -636,4 +637,31 @@ func TestOfficeRecoversTraegerMailWithoutAnySchoolCommand(t *testing.T) {
 	for _, mail := range w.mails(t) {
 		assert.Equal(t, "dead_letter", mail.Status, "unknown outcomes are never blindly repeated")
 	}
+}
+
+func TestTraegerClosureChangesExcludeTransferredHistoricalSchools(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Schließtag nach Schulwechsel")
+	transferred := testpkg.CreateTestSchoolInOrganization(t, w.db, w.organization, "Wechselnde Schule")
+	next := testpkg.CreateTestOrganization(t, w.db, &testpkg.Organization{
+		Name: "Neuer Träger", Slug: fmt.Sprintf("closure-transfer-%d", transferred), Active: true,
+	})
+	_, err := w.db.ExecContext(w.ctx, `UPDATE platform.schools SET organization_id=? WHERE id=?`, next.ID, transferred)
+	require.NoError(t, err)
+	day := calendar.Date("2030-07-08")
+	previous := &enrollment.HolidayClosureSpan{SchoolIDs: []int64{w.school, transferred}, StartsOn: day, EndsOn: day}
+	for _, deleted := range []bool{false, true} {
+		require.NoError(t, testpkg.WithinTraeger(w.ctx, w.organization, func(ctx context.Context) error {
+			closure := enrollment.HolidayClosure{SchoolIDs: []int64{w.school}, StartsOn: day, EndsOn: day, Previous: previous, Deleted: deleted}
+			_, err := w.closures.HolidayClosureImpact(ctx, w.organization, closure)
+			return err
+		}), "updates and deletion must ignore schools that no longer belong to the Träger")
+	}
+	require.NoError(t, testpkg.WithinTraeger(w.ctx, w.organization, func(ctx context.Context) error {
+		_, err := w.closures.HolidayClosureImpact(ctx, w.organization, enrollment.HolidayClosure{
+			SchoolIDs: []int64{transferred}, StartsOn: day, EndsOn: day, Previous: previous,
+		})
+		require.ErrorIs(t, err, enrollment.ErrHolidayHostSchoolOutsideTraeger, "newly requested schools must still be authorized")
+		return nil
+	}))
 }

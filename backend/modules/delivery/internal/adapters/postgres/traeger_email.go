@@ -79,7 +79,9 @@ const retryFailedTraegerEmailsSQL = `WITH requested AS MATERIALIZED (
 UPDATE platform.email_outbox AS mail
  SET status = 'pending', next_retry_at = NOW(), attempts = 0, last_error = NULL, dead_letter_at = NULL, cancelled_at = NULL,
   lease_token = NULL, lease_expires_at = NULL, updated_at = NOW()
- WHERE mail.tenant_id IS NULL AND mail.organization_id = ?0 AND mail.id IN (SELECT id FROM recoverable)`
+ WHERE mail.tenant_id IS NULL AND mail.organization_id = ?0 AND mail.id IN (SELECT id FROM recoverable)
+  AND ((mail.status = 'dead_letter' AND mail.last_error IS DISTINCT FROM ?2)
+   OR (mail.status = 'cancelled' AND mail.last_error IN (?3, ?4)))`
 
 // TraegerEmailStatusesByKey lists the mails of a Träger by idempotency key
 // in the caller's Träger transaction of that Träger.
