@@ -31,7 +31,7 @@ const storybookTenant: TenantInfo = {
 const preview: Preview = {
   // Schriften vor jedem Render laden, wie next/font es in der App vorab tut.
   // Sonst misst ein Baustein beim Mounten mit der Ersatzschrift und misst
-  // nicht neu: der Unterstrich von NavigationTabs saß im Pixel-Vergleich
+  // nicht neu: der Unterstrich der damaligen NavigationTabs saß im Pixel-Vergleich
   // (#6562) in etwa jedem fünften Lauf 18 px zu weit links.
   loaders: [
     async () => {

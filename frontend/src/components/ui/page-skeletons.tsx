@@ -1,7 +1,7 @@
 "use client";
 
 // Shared realistic loading skeletons. Each primitive mirrors the markup of
-// its real kit counterpart (DataTable, SectionCard, PageHeaderWithSearch,
+// its real kit counterpart (DataTable, SectionCard, TenantPage,
 // detail-modal-components) so the pulse state has the same silhouette as the
 // loaded screen and the swap causes no layout reshuffle.
 //

@@ -1,31 +1,21 @@
 /**
- * Tests for PageHeaderWithSearch Component
- * Tests rendering and functionality of the main page header with search and filters
+ * Tests for TenantPageSearchRow, the search and filter row of TenantPage.
+ * Ported from the PageHeaderWithSearch tests (#6578): every statement about a
+ * part the row still has keeps its assertion; the title row, tabs,
+ * `actionButton`, `statusIndicator`, `className` and `compactOnScroll` are gone
+ * with the layer that carried them.
  */
 import { setViewportWidth as resizeViewport } from "~/test/helpers/viewport";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { PageHeaderWithSearch } from "./PageHeaderWithSearch";
-import type { PageHeaderWithSearchProps } from "./types";
-import { staffConcept } from "~/lib/concepts/staff";
+import {
+  TenantPageSearchRow,
+  type TenantPageSearchRowProps,
+} from "./tenant-page-search-row";
 
 // Mock sub-components
-vi.mock("./PageHeader", () => ({
-  PageHeader: ({
-    title,
-    concept,
-  }: {
-    title: string;
-    concept?: { key: string };
-  }) => (
-    <div data-testid="page-header" data-concept={concept?.key}>
-      {title}
-    </div>
-  ),
-}));
-
-vi.mock("./SearchBar", () => ({
+vi.mock("./page-header/SearchBar", () => ({
   SearchBarDraftProvider: ({ children }: { children: React.ReactNode }) =>
     children,
   SharedSearchBar: ({
@@ -43,11 +33,11 @@ vi.mock("./SearchBar", () => ({
   ),
 }));
 
-vi.mock("./DesktopFilters", () => ({
+vi.mock("./page-header/DesktopFilters", () => ({
   DesktopFilters: () => <div data-testid="desktop-filters">Filters</div>,
 }));
 
-vi.mock("./FilterButton", () => ({
+vi.mock("./page-header/FilterButton", () => ({
   FilterButton: ({
     onClick,
     testId,
@@ -68,39 +58,37 @@ vi.mock("./FilterButton", () => ({
   ),
 }));
 
-vi.mock("./FilterPanel", () => ({
+vi.mock("./page-header/FilterPanel", () => ({
   FilterPanel: ({ isOpen, testId }: { isOpen: boolean; testId?: string }) =>
     isOpen ? (
       <div data-testid={testId ?? "mobile-filter-panel"}>Panel</div>
     ) : null,
 }));
 
-vi.mock("./ActiveFilterChips", () => ({
+vi.mock("./page-header/ActiveFilterChips", () => ({
   ActiveFilterChips: ({ filters }: { filters: unknown[] }) => (
     <div data-testid="active-filter-chips">{filters.length} chips</div>
   ),
 }));
 
-vi.mock("./NavigationTabs", () => ({
-  NavigationTabs: ({ items }: { items: { id: string; label: string }[] }) => (
-    <div data-testid="navigation-tabs">
-      {items.map((item) => (
-        <span key={item.id}>{item.label}</span>
-      ))}
+vi.mock("./page-header/BadgeDisplay", () => ({
+  BadgeDisplay: ({
+    count,
+    label,
+  }: {
+    count: number | string;
+    label?: string;
+  }) => (
+    <div data-testid="badge-display">
+      {count} {label}
     </div>
   ),
-}));
-
-vi.mock("./TabsActionArea", () => ({
-  DesktopTabsActionArea: () => (
-    <div data-testid="desktop-tabs-action">Desktop Action</div>
-  ),
-  MobileTabsActionArea: () => (
-    <div data-testid="mobile-tabs-action">Mobile Action</div>
+  BadgeDisplayCompact: ({ count }: { count: number | string }) => (
+    <div data-testid="badge-display-compact">{count}</div>
   ),
 }));
 
-vi.mock("./OverflowMenu", () => ({
+vi.mock("./page-header/OverflowMenu", () => ({
   OverflowMenu: ({ items }: { items: { label: string }[] }) => (
     <div data-testid="overflow-menu">
       {items.map((it) => (
@@ -110,18 +98,15 @@ vi.mock("./OverflowMenu", () => ({
   ),
 }));
 
-describe("PageHeaderWithSearch", () => {
+describe("TenantPageSearchRow", () => {
   const mockOnChange = vi.fn();
-  const mockOnTabChange = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
     setViewportWidth(1024);
-    setScrollY(0);
   });
 
-  const baseProps: PageHeaderWithSearchProps = {
-    title: "Test Page",
+  const baseProps: TenantPageSearchRowProps = {
     search: {
       value: "",
       onChange: mockOnChange,
@@ -130,28 +115,8 @@ describe("PageHeaderWithSearch", () => {
     activeFilters: [],
   };
 
-  it("renders page header with title", () => {
-    render(<PageHeaderWithSearch {...baseProps} />);
-    expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
-  });
-
-  it("forwards the concept prop to the title area when set", () => {
-    render(<PageHeaderWithSearch {...baseProps} concept={staffConcept} />);
-    expect(screen.getByTestId("page-header")).toHaveAttribute(
-      "data-concept",
-      "staff",
-    );
-  });
-
-  it("does not set a concept on the title area when omitted", () => {
-    render(<PageHeaderWithSearch {...baseProps} />);
-    expect(screen.getByTestId("page-header")).not.toHaveAttribute(
-      "data-concept",
-    );
-  });
-
   it("renders search bar", () => {
-    render(<PageHeaderWithSearch {...baseProps} />);
+    render(<TenantPageSearchRow {...baseProps} />);
     // Component renders two search bars (mobile and desktop)
     const searchBars = screen.getAllByTestId("search-bar");
     expect(searchBars.length).toBeGreaterThan(0);
@@ -159,33 +124,16 @@ describe("PageHeaderWithSearch", () => {
 
   it("does not render search bar when search prop not provided", () => {
     const propsWithoutSearch = { ...baseProps, search: undefined };
-    render(<PageHeaderWithSearch {...propsWithoutSearch} />);
-    // Anker: die Kopfzeile ist gerendert.
-    expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
+    render(
+      <TenantPageSearchRow {...propsWithoutSearch} badge={{ count: 3 }} />,
+    );
+    // Anker: die Zeile ist gerendert, sie trägt die Plakette.
+    expect(screen.getByTestId("badge-display")).toHaveTextContent("3");
     expect(screen.queryByTestId("search-bar")).not.toBeInTheDocument();
   });
 
-  it("renders navigation tabs when provided", () => {
-    const propsWithTabs: PageHeaderWithSearchProps = {
-      ...baseProps,
-      tabs: {
-        items: [
-          { id: "all", label: "Alle" },
-          { id: "active", label: "Aktiv" },
-        ],
-        activeTab: "all",
-        onTabChange: mockOnTabChange,
-      },
-    };
-
-    render(<PageHeaderWithSearch {...propsWithTabs} />);
-    expect(screen.getByTestId("navigation-tabs")).toBeInTheDocument();
-    expect(screen.getByText("Alle")).toBeInTheDocument();
-    expect(screen.getByText("Aktiv")).toBeInTheDocument();
-  });
-
   it("renders desktop filters when filters provided", () => {
-    const propsWithFilters: PageHeaderWithSearchProps = {
+    const propsWithFilters: TenantPageSearchRowProps = {
       ...baseProps,
       filters: [
         {
@@ -199,12 +147,12 @@ describe("PageHeaderWithSearch", () => {
       ],
     };
 
-    render(<PageHeaderWithSearch {...propsWithFilters} />);
+    render(<TenantPageSearchRow {...propsWithFilters} />);
     expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
   });
 
   it("renders mobile filter button when filters provided", () => {
-    const propsWithFilters: PageHeaderWithSearchProps = {
+    const propsWithFilters: TenantPageSearchRowProps = {
       ...baseProps,
       filters: [
         {
@@ -218,12 +166,12 @@ describe("PageHeaderWithSearch", () => {
       ],
     };
 
-    render(<PageHeaderWithSearch {...propsWithFilters} />);
+    render(<TenantPageSearchRow {...propsWithFilters} />);
     expect(screen.getByTestId("mobile-filter-button")).toBeInTheDocument();
   });
 
   it("opens mobile filter panel when button clicked", () => {
-    const propsWithFilters: PageHeaderWithSearchProps = {
+    const propsWithFilters: TenantPageSearchRowProps = {
       ...baseProps,
       filters: [
         {
@@ -237,7 +185,7 @@ describe("PageHeaderWithSearch", () => {
       ],
     };
 
-    render(<PageHeaderWithSearch {...propsWithFilters} />);
+    render(<TenantPageSearchRow {...propsWithFilters} />);
 
     expect(screen.queryByTestId("mobile-filter-panel")).not.toBeInTheDocument();
 
@@ -248,7 +196,7 @@ describe("PageHeaderWithSearch", () => {
   });
 
   it("renders active filter chips when provided", () => {
-    const propsWithActiveFilters: PageHeaderWithSearchProps = {
+    const propsWithActiveFilters: TenantPageSearchRowProps = {
       ...baseProps,
       activeFilters: [
         { id: "filter1", label: "Status: Active", onRemove: vi.fn() },
@@ -256,36 +204,14 @@ describe("PageHeaderWithSearch", () => {
       ],
     };
 
-    render(<PageHeaderWithSearch {...propsWithActiveFilters} />);
+    render(<TenantPageSearchRow {...propsWithActiveFilters} />);
     // Component renders chips for both mobile and desktop
     const chips = screen.getAllByText("2 chips");
     expect(chips.length).toBeGreaterThan(0);
   });
 
-  it("renders action button when provided", () => {
-    const actionButton = (
-      <button type="button" data-testid="custom-action">
-        Add New
-      </button>
-    );
-    const propsWithAction: PageHeaderWithSearchProps = {
-      ...baseProps,
-      actionButton,
-    };
-
-    render(<PageHeaderWithSearch {...propsWithAction} />);
-    expect(screen.getByTestId("custom-action")).toBeInTheDocument();
-  });
-
-  it("applies custom className", () => {
-    const { container } = render(
-      <PageHeaderWithSearch {...baseProps} className="custom-class" />,
-    );
-    expect(container.firstChild).toHaveClass("custom-class");
-  });
-
   it("detects active filters correctly", () => {
-    const propsWithActiveFilter: PageHeaderWithSearchProps = {
+    const propsWithActiveFilter: TenantPageSearchRowProps = {
       ...baseProps,
       filters: [
         {
@@ -302,7 +228,7 @@ describe("PageHeaderWithSearch", () => {
       ],
     };
 
-    render(<PageHeaderWithSearch {...propsWithActiveFilter} />);
+    render(<TenantPageSearchRow {...propsWithActiveFilter} />);
     // When filter has non-default value, button should indicate active state
     expect(screen.getByTestId("mobile-filter-button")).toBeInTheDocument();
     expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
@@ -312,7 +238,7 @@ describe("PageHeaderWithSearch", () => {
   });
 
   it("treats an empty multi-select selection as inactive", () => {
-    const multiSelectFilters: PageHeaderWithSearchProps["filters"] = [
+    const multiSelectFilters: TenantPageSearchRowProps["filters"] = [
       {
         id: "schoolClass",
         label: "Klasse",
@@ -328,7 +254,7 @@ describe("PageHeaderWithSearch", () => {
     ];
 
     const { rerender } = render(
-      <PageHeaderWithSearch {...baseProps} filters={multiSelectFilters} />,
+      <TenantPageSearchRow {...baseProps} filters={multiSelectFilters} />,
     );
     // An empty selection means "alle" — the filter button must stay neutral
     // even though [] never equals the first option's value.
@@ -338,7 +264,7 @@ describe("PageHeaderWithSearch", () => {
     );
 
     rerender(
-      <PageHeaderWithSearch
+      <TenantPageSearchRow
         {...baseProps}
         filters={[{ ...multiSelectFilters[0]!, value: ["3a", "4b"] }]}
       />,
@@ -350,7 +276,7 @@ describe("PageHeaderWithSearch", () => {
   });
 
   it("handles empty filters array", () => {
-    render(<PageHeaderWithSearch {...baseProps} filters={[]} />);
+    render(<TenantPageSearchRow {...baseProps} filters={[]} />);
     // Anker: die Suchzeile, in der die Filter stünden, ist da.
     expect(screen.getAllByTestId("search-bar").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("desktop-filters")).not.toBeInTheDocument();
@@ -362,7 +288,7 @@ describe("PageHeaderWithSearch", () => {
   it("offers the mobile filter button without a search field", () => {
     const { search: _search, ...withoutSearch } = baseProps;
     render(
-      <PageHeaderWithSearch
+      <TenantPageSearchRow
         {...withoutSearch}
         filters={[
           {
@@ -382,113 +308,48 @@ describe("PageHeaderWithSearch", () => {
   });
 
   it("renders badge when provided", () => {
-    const propsWithBadge: PageHeaderWithSearchProps = {
+    const propsWithBadge: TenantPageSearchRowProps = {
       ...baseProps,
       badge: { count: 42, label: "Items" },
     };
 
-    render(<PageHeaderWithSearch {...propsWithBadge} />);
-    // Badge is passed to PageHeader mock
-    expect(screen.getByTestId("page-header")).toBeInTheDocument();
-  });
-
-  it("renders status indicator when provided", () => {
-    const propsWithStatus: PageHeaderWithSearchProps = {
-      ...baseProps,
-      statusIndicator: { color: "green", tooltip: "Active" },
-    };
-
-    render(<PageHeaderWithSearch {...propsWithStatus} />);
-    // Status is passed to PageHeader mock
-    expect(screen.getByTestId("page-header")).toBeInTheDocument();
-  });
-
-  describe("tabsRowAction prop", () => {
-    const tabs = {
-      items: [
-        { id: "a", label: "Eltern" },
-        { id: "b", label: "Mitarbeitende" },
-      ],
-      activeTab: "a",
-      onTabChange: vi.fn(),
-    };
-
-    it("rendert die Aktion neben den Reitern", () => {
-      render(
-        <PageHeaderWithSearch
-          {...baseProps}
-          tabs={tabs}
-          tabsRowAction={<button type="button">Historie</button>}
-        />,
-      );
-      expect(
-        screen.getByRole("button", { name: "Historie" }),
-      ).toBeInTheDocument();
-    });
-
-    it("rendert die Aktion auch ohne Reiter", () => {
-      // Wer nur einen Reiter sehen darf, bekommt keine Reiterleiste — die
-      // Aktion daneben muss trotzdem erreichbar bleiben.
-      render(
-        <PageHeaderWithSearch
-          {...baseProps}
-          tabsRowAction={<button type="button">Historie</button>}
-        />,
-      );
-      expect(
-        screen.getByRole("button", { name: "Historie" }),
-      ).toBeInTheDocument();
-    });
-
-    it("rendert nichts, wenn die Prop fehlt", () => {
-      render(<PageHeaderWithSearch {...baseProps} tabs={tabs} />);
-      // Anker: die Reiterleiste ist gerendert.
-      expect(screen.getByTestId("navigation-tabs")).toHaveTextContent(
-        "Mitarbeitende",
-      );
-      expect(screen.queryByRole("button", { name: "Historie" })).toBeNull();
-    });
+    render(<TenantPageSearchRow {...propsWithBadge} />);
+    // Telefon: kompakt ohne Label; Desktop: mit Label.
+    expect(screen.getByTestId("badge-display-compact")).toHaveTextContent("42");
+    expect(screen.getByTestId("badge-display")).toHaveTextContent("42 Items");
+    expect(
+      screen.getByTestId("badge-display-compact").parentElement,
+    ).toHaveClass("flex", "flex-shrink-0", "items-center", "gap-2");
+    expect(screen.getByTestId("badge-display").parentElement).toHaveClass(
+      "ml-auto",
+      "flex",
+      "flex-shrink-0",
+      "items-center",
+      "gap-3",
+    );
   });
 
   describe("overflowMenu prop", () => {
     it("renders nothing when prop is omitted (default behaviour)", () => {
-      render(<PageHeaderWithSearch {...baseProps} />);
-      // Anker: die Kopfzeile ist gerendert.
-      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
+      render(<TenantPageSearchRow {...baseProps} />);
+      // Anker: die Suchzeile ist gerendert.
+      expect(screen.getAllByTestId("search-bar").length).toBeGreaterThan(0);
       expect(screen.queryByTestId("overflow-menu")).toBeNull();
     });
 
     it("renders nothing when items array is empty", () => {
-      render(<PageHeaderWithSearch {...baseProps} overflowMenu={[]} />);
-      // Anker: die Kopfzeile ist gerendert.
-      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
+      render(<TenantPageSearchRow {...baseProps} overflowMenu={[]} />);
+      // Anker: die Suchzeile ist gerendert.
+      expect(screen.getAllByTestId("search-bar").length).toBeGreaterThan(0);
       expect(screen.queryByTestId("overflow-menu")).toBeNull();
     });
 
-    it("renders the kebab when tabs + items are provided", () => {
+    // The TenantPage header has no other row that carries the kebab. It
+    // sits in the mobile search row as well as the desktop one; before,
+    // phones had no way to reach the menu at all.
+    it("offers the kebab in the mobile search row", () => {
       render(
-        <PageHeaderWithSearch
-          {...baseProps}
-          tabs={{
-            items: [{ id: "a", label: "A" }],
-            activeTab: "a",
-            onTabChange: vi.fn(),
-          }}
-          overflowMenu={[{ label: "Gruppe übergeben", onClick: vi.fn() }]}
-        />,
-      );
-      expect(screen.getByTestId("overflow-menu")).toBeInTheDocument();
-      expect(screen.getByText("Gruppe übergeben")).toBeInTheDocument();
-    });
-
-    // The embedded TenantPage header has neither a title row nor tabs. The
-    // kebab then sits in the mobile search row as well as the desktop one;
-    // before, phones had no way to reach the menu at all.
-    it("offers the kebab in the mobile search row without title and tabs", () => {
-      render(
-        <PageHeaderWithSearch
-          title=""
-          embedded
+        <TenantPageSearchRow
           search={{ value: "", onChange: vi.fn() }}
           overflowMenu={[
             { label: "Alle als gelesen markieren", onClick: vi.fn() },
@@ -500,9 +361,9 @@ describe("PageHeaderWithSearch", () => {
   });
 
   describe("primaryAction + kebab row placement", () => {
-    const quietWithFilters: PageHeaderWithSearchProps = {
+    const quietWithFilters: TenantPageSearchRowProps = {
       ...baseProps,
-      filterVariant: "quiet",
+      filterPanel: true,
       filters: [
         {
           id: "status",
@@ -521,38 +382,40 @@ describe("PageHeaderWithSearch", () => {
       // Quiet filters live in the popover and there is no inline action, so
       // the kebab would otherwise sit alone on its own line.
       render(
-        <PageHeaderWithSearch
+        <TenantPageSearchRow
           {...quietWithFilters}
           primaryAction={primaryAction}
           overflowMenu={overflowMenu}
         />,
       );
 
-      const kebab = screen.getByTestId("overflow-menu");
-      expect(kebab.parentElement).toBe(
+      // Without a title row the mobile search row carries a kebab as well;
+      // the desktop one is the last.
+      const kebab = screen.getAllByTestId("overflow-menu").at(-1);
+      expect(kebab?.parentElement).toBe(
         screen.getByTestId("primary-action").parentElement,
       );
     });
 
     it("leaves the kebab on the second row when inline filters share it", () => {
       render(
-        <PageHeaderWithSearch
+        <TenantPageSearchRow
           {...quietWithFilters}
-          filterVariant={undefined}
+          filterPanel={undefined}
           primaryAction={primaryAction}
           overflowMenu={overflowMenu}
         />,
       );
 
       expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
-      expect(screen.getByTestId("overflow-menu").parentElement).not.toBe(
-        screen.getByTestId("primary-action").parentElement,
-      );
+      expect(
+        screen.getAllByTestId("overflow-menu").at(-1)?.parentElement,
+      ).not.toBe(screen.getByTestId("primary-action").parentElement);
     });
   });
 
-  describe("activeFilterDisplay prop", () => {
-    const filtersWithActive: PageHeaderWithSearchProps = {
+  describe("active filter display", () => {
+    const filtersWithActive: TenantPageSearchRowProps = {
       ...baseProps,
       filters: [
         {
@@ -573,27 +436,22 @@ describe("PageHeaderWithSearch", () => {
     };
 
     it("renders chips by default (rückwärtskompatibel)", () => {
-      render(<PageHeaderWithSearch {...filtersWithActive} />);
+      render(<TenantPageSearchRow {...filtersWithActive} />);
       expect(
         screen.getAllByTestId("active-filter-chips").length,
       ).toBeGreaterThan(0);
     });
 
-    it("suppresses chips when set to count", () => {
-      render(
-        <PageHeaderWithSearch
-          {...filtersWithActive}
-          activeFilterDisplay="count"
-        />,
-      );
+    it("suppresses chips with the filter panel", () => {
+      render(<TenantPageSearchRow {...filtersWithActive} filterPanel />);
       // Anker: die Filter selbst sind geladen, nur die Chips fehlen.
-      expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
+      expect(screen.getByTestId("desktop-filter-button")).toBeInTheDocument();
       expect(screen.queryByTestId("active-filter-chips")).toBeNull();
     });
   });
 
-  describe("filterVariant quiet (popover layout)", () => {
-    const propsWithFilters: PageHeaderWithSearchProps = {
+  describe("filterPanel (popover layout)", () => {
+    const propsWithFilters: TenantPageSearchRowProps = {
       ...baseProps,
       filters: [
         {
@@ -608,15 +466,13 @@ describe("PageHeaderWithSearch", () => {
     };
 
     it("keeps desktop filters inline by default", () => {
-      render(<PageHeaderWithSearch {...propsWithFilters} />);
+      render(<TenantPageSearchRow {...propsWithFilters} />);
 
       expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
     });
 
     it("uses the shared filter panel when set to popover", () => {
-      render(
-        <PageHeaderWithSearch {...propsWithFilters} filterVariant="quiet" />,
-      );
+      render(<TenantPageSearchRow {...propsWithFilters} filterPanel />);
 
       expect(screen.queryByTestId("desktop-filters")).not.toBeInTheDocument();
 
@@ -625,16 +481,15 @@ describe("PageHeaderWithSearch", () => {
       expect(screen.getByTestId("desktop-filter-panel")).toBeInTheDocument();
     });
 
+    // The filter panel moves to its desktop layout at `xl` (1280 px).
     it("transfers an open mobile filter panel to the desktop popover on breakpoint resize", async () => {
       setViewportWidth(500);
-      render(
-        <PageHeaderWithSearch {...propsWithFilters} filterVariant="quiet" />,
-      );
+      render(<TenantPageSearchRow {...propsWithFilters} filterPanel />);
 
       fireEvent.click(screen.getByTestId("mobile-filter-button"));
       expect(screen.getByTestId("mobile-filter-panel")).toBeInTheDocument();
 
-      setViewportWidth(1200);
+      setViewportWidth(1280);
 
       await waitFor(() => {
         expect(
@@ -646,7 +501,7 @@ describe("PageHeaderWithSearch", () => {
 
     it("closes an open mobile panel when resizing to inline desktop filters", async () => {
       setViewportWidth(500);
-      render(<PageHeaderWithSearch {...propsWithFilters} />);
+      render(<TenantPageSearchRow {...propsWithFilters} />);
 
       fireEvent.click(screen.getByTestId("mobile-filter-button"));
       expect(screen.getByTestId("mobile-filter-panel")).toBeInTheDocument();
@@ -662,14 +517,12 @@ describe("PageHeaderWithSearch", () => {
     });
 
     it("transfers an open desktop popover back to the mobile panel on breakpoint resize", async () => {
-      setViewportWidth(1200);
-      render(
-        <PageHeaderWithSearch {...propsWithFilters} filterVariant="quiet" />,
-      );
+      setViewportWidth(1300);
+      render(<TenantPageSearchRow {...propsWithFilters} filterPanel />);
       // Happy DOM startet einen `change`-Listener bei `matches === false`;
       // ein Resize auf der Desktop-Seite gleicht ihn an den echten Wert an,
       // damit das Verlassen der Grenze wie im Browser ein `change` meldet.
-      setViewportWidth(1199);
+      setViewportWidth(1299);
 
       fireEvent.click(screen.getByTestId("desktop-filter-button"));
       expect(screen.getByTestId("desktop-filter-panel")).toBeInTheDocument();
@@ -684,54 +537,7 @@ describe("PageHeaderWithSearch", () => {
       });
     });
   });
-
-  describe("compactOnScroll prop", () => {
-    it("does not add scroll-driven classes by default", () => {
-      const { container } = render(<PageHeaderWithSearch {...baseProps} />);
-      // Anker: die Kopfzeile ist gerendert.
-      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
-      // No transition classes injected when compactOnScroll is off.
-      expect(container.innerHTML).not.toContain("backdrop-blur-md");
-    });
-
-    it("stays uncompacted past the scroll threshold without the prop", () => {
-      setScrollY(200);
-      const { container } = render(<PageHeaderWithSearch {...baseProps} />);
-      // Anker: die Kopfzeile ist gerendert.
-      expect(screen.getByTestId("page-header")).toHaveTextContent("Test Page");
-      expect(container.innerHTML).not.toContain("backdrop-blur-md");
-    });
-
-    it("compacts past the scroll threshold when enabled", () => {
-      // Gegenprobe zu den beiden Tests oben: dieselbe Klasse erscheint, sobald
-      // die Prop gesetzt ist und die Seite gescrollt wurde.
-      setScrollY(200);
-      const { container } = render(
-        <PageHeaderWithSearch {...baseProps} compactOnScroll />,
-      );
-      expect(container.innerHTML).toContain("backdrop-blur-md");
-    });
-
-    it("opts in to scroll-driven transitions when enabled", () => {
-      const { container } = render(
-        <PageHeaderWithSearch {...baseProps} compactOnScroll />,
-      );
-      // The transition class is rendered even at scrollY=0 (idle); the
-      // active state classes only attach once scrollY > threshold.
-      expect(container.innerHTML).toContain(
-        "transition-[transform,backdrop-filter,background-color]",
-      );
-    });
-  });
 });
-
-function setScrollY(y: number) {
-  Object.defineProperty(window, "scrollY", {
-    value: y,
-    configurable: true,
-    writable: true,
-  });
-}
 
 function setViewportWidth(width: number) {
   resizeViewport(width);

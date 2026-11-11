@@ -191,3 +191,22 @@ export function SharedSearchBar(props: Readonly<SearchBarProps>) {
 
   return <SearchBarContent {...props} draftState={sharedDraftState} />;
 }
+
+/**
+ * Ein einzelnes Suchfeld mit eigenem Entwurf, für eine Suche außerhalb der
+ * Such- und Filterzeile von `TenantPage` (z. B. im Bedienband der
+ * Planungsflächen). Die Zeile selbst rendert zwei Kopien desselben Felds und
+ * teilt ihren Entwurf über `SearchBarDraftProvider`.
+ */
+export function SearchBar(props: Readonly<SearchBarProps>) {
+  return (
+    <SearchBarDraftProvider
+      value={props.value}
+      onChange={props.onChange}
+      debounceMs={props.debounceMs}
+      resetKey={props.resetKey}
+    >
+      <SharedSearchBar {...props} />
+    </SearchBarDraftProvider>
+  );
+}
