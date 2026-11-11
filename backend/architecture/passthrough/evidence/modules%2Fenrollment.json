@@ -639,6 +639,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (l HolidayGuestBadgeList) HolidayGuestGroups(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestGroup, error) {\n\tif schoolID \u003c= 0 {\n\t\treturn nil, errors.New(\"enrollment: the hosting school is required\")\n\t}\n\tgroups, err := l.store.ListGuestGroups(ctx, schoolID, l.today())\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif groups == nil {\n\t\tgroups = []enrollment.HolidayGuestGroup{}\n\t}\n\treturn groups, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/enrollment/internal/application/HolidayGuestBadgeList.HolidayGuestGroups",
+      "owner": "modules/enrollment"
+    },
+    {
+      "build": "production",
       "evidence": "func (h *HolidayHostParticipants) HostedHolidayWeeks(ctx context.Context, host enrollment.HolidayHost) ([]enrollment.HostedHolidayWeek, error) {\n\tif host.SchoolID \u003c= 0 {\n\t\treturn nil, errors.New(\"enrollment: the hosting school is required\")\n\t}\n\tweeks, err := h.store.ListHostedHolidayWeeks(ctx, host.SchoolID, h.today())\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif weeks == nil {\n\t\tweeks = []enrollment.HostedHolidayWeek{}\n\t}\n\treturn weeks, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/HolidayHostParticipants.HostedHolidayWeeks",

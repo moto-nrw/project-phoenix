@@ -407,6 +407,8 @@ export const catererKeys = {
 export const holidayKeys = {
   studentHealth: (studentId: string) =>
     `holiday-student-health:${encodeURIComponent(studentId)}`,
+  /** Die Feriengruppen der Gruppenverwaltung (ADR 0120, Nachtrag 2026-11-11). */
+  guestGroups: "holiday-guest-groups",
   /** Je Satz von Feriengästen ein Schlüssel: ein neuer Gast fragt neu. */
   guestBadges: (studentIds: readonly string[]) =>
     `holiday-guest-badges:${[...studentIds]

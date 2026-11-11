@@ -456,6 +456,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0120",
+      "id": "modules/enrollment/internal/application/HolidayGuestBadgeList.HolidayGuestGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0116",
       "id": "modules/enrollment/internal/application/HolidayHostParticipants.HostedHolidayWeeks",
       "reason": "ADR 0116 (#4665): owner-edge translation of the hosting school's week list; it refuses a missing school, passes the service's calendar day that ends the access and maps an empty result onto the public contract."

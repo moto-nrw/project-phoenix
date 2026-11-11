@@ -416,6 +416,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		CareParticipation: careLifecycleService,
 		ExcusedRequests:   excusedRequestService,
 		StatusDays:        studentStatusDayService,
+		HolidayGroups:     enrollmentCompose.NewHolidayGuestBadgeList(timezone.CalendarDateClock(now)),
 		Logger:            logger.With("service", "ogs-group-live"),
 		Now:               now,
 	}, nil)

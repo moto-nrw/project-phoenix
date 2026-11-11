@@ -1,0 +1,7 @@
+{
+  "scenario": "api.holiday_guests.groups",
+  "max": 2,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-guests/groups (ADR 0120 Nachtrag\n2026-11-11): the tenant binding of the school's transaction, then the\nFeriengruppen of the hosted weeks that have not ended, with their guests\ncounted in the same statement. Flat in the number of weeks and guests.",
+  "route": "GET /api/holiday-guests/groups"
+}

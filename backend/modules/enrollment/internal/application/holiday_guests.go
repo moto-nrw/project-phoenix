@@ -54,6 +54,7 @@ type HolidayGuestStore interface {
 	// ListCurrentGuests lists the child and the school fields of every
 	// guest whose access has not ended early and whose week covers today.
 	ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error)
+	ListGuestGroups(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuestGroup, error)
 }
 
 // HolidayGuests serves enrollment.HolidayGuests.
@@ -617,6 +618,9 @@ func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrol
 // hints read.
 type HolidayGuestCurrentGuests interface {
 	ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error)
+	// ListGuestGroups lists the Feriengruppen of the hosted weeks that end
+	// on today or later, with their guests counted.
+	ListGuestGroups(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuestGroup, error)
 }
 
 // HolidayGuestBadgeList serves enrollment.HolidayGuestBadgeList on its own,
