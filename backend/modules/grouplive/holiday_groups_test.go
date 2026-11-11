@@ -154,7 +154,7 @@ func TestLiveGroupKeepsAnAwaitingHolidayGroupThatIsAskedFor(t *testing.T) {
 	require.NoError(t, err, "a link to the Feriengruppe still opens it")
 	assert.Equal(t, []int64{1, 2, 3}, groupIDs(projection.Groups))
 	require.NotNil(t, projection.GroupID)
-	assert.Equal(t, int64(2), *projection.GroupID)
+	assert.EqualValues(t, 2, *projection.GroupID)
 }
 
 func TestHolidayGroupsReadFailureFailsTheList(t *testing.T) {
