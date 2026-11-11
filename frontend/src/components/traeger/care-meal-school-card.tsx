@@ -4,6 +4,7 @@
 // Essen oder als Pauschale, und alle Preise mit ihrem Beginn. Ohne Preis
 // rechnet der Monatslauf die Mensa der Schule nicht ab.
 
+import { Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -142,6 +143,7 @@ export function CareMealSchoolCard({
               ariaLabel={`Weitere Aktionen: ${school.name}`}
               items={deletable.map((tariff) => ({
                 label: `Preis ab ${formatMonth(tariff.validFrom)} löschen`,
+                icon: <Trash2 className="size-4" aria-hidden />,
                 destructive: true,
                 onClick: () => onDelete(tariff),
               }))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Landmark, Plus } from "lucide-react";
+import { Landmark, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -141,6 +141,7 @@ export function TraegerBankAccountsCard({
           items={[
             {
               label: "Ändern",
+              icon: <Pencil className="size-4" aria-hidden />,
               onClick: () => setEdit({ kind: "change", account }),
             },
             ...(account.isDefault
@@ -148,11 +149,13 @@ export function TraegerBankAccountsCard({
               : [
                   {
                     label: "Als Standard festlegen",
+                    icon: <Star className="size-4" aria-hidden />,
                     onClick: () => void makeDefault(account),
                   },
                 ]),
             {
               label: "Löschen",
+              icon: <Trash2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setDeleting(account),
             },

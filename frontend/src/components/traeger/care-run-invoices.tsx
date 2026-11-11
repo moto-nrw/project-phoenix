@@ -8,6 +8,7 @@
 // Menü kommen nur auf der Seite „Schreiben“ dazu
 // (care-run-letter-invoices.tsx), damit der Lauf ihren Code nicht lädt.
 
+import { Wallet } from "lucide-react";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { ButtonLink } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -367,6 +368,7 @@ function familyColumn(
           items={[
             {
               label: "Empfänger und Zahlung",
+              icon: <Wallet className="size-4" aria-hidden />,
               description: "Für alle Rechnungen dieser Familie",
               onClick: () => onFamilyBilling(invoice),
             },

@@ -7,7 +7,7 @@
 // Schreiben, auch nur die der Familien ohne E-Mail. Die Mail und das Fach
 // „Dokumente“ der Eltern-App bekommen dieselbe Datei.
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Printer } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -163,6 +163,7 @@ export function CareLettersCard({
   const printItems = [
     {
       label: "Alle Schreiben drucken",
+      icon: <Printer className="size-4" aria-hidden />,
       description: "Alle Schreiben, die noch gelten, in einer Datei",
       onClick: () => onPrint(false),
     },
@@ -170,6 +171,7 @@ export function CareLettersCard({
       ? [
           {
             label: "Nur Familien ohne E-Mail",
+            icon: <Printer className="size-4" aria-hidden />,
             description: `${familyCount(summary.withoutEmail)} ohne E-Mail-Adresse`,
             onClick: () => onPrint(true),
           },

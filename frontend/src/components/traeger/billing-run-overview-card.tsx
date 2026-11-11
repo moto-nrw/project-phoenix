@@ -12,7 +12,14 @@
 // Schreiben als PDF (#5692): ab xl rechts neben der Liste, darunter an ihrer
 // Stelle mit dem Weg zurück zur Liste.
 
-import { FileText } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileText,
+  Pencil,
+  ReceiptText,
+  Undo2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
 import { Button } from "~/components/ui/button";
@@ -24,7 +31,10 @@ import {
   exportMenuItems,
 } from "~/components/ui/export-menu";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import {
+  OverflowMenu,
+  type OverflowMenuItem,
+} from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -254,10 +264,11 @@ export function BillingRunOverviewCard({
     if (!released || document.kind !== "invoice" || isCancelled(document)) {
       return [];
     }
-    const items: { label: string; onClick: () => void }[] = [];
+    const items: OverflowMenuItem[] = [];
     if (onCancel && !isCredited(document)) {
       items.push({
         label: "Rechnung stornieren",
+        icon: <Undo2 className="size-4" aria-hidden />,
         onClick: () => onCancel(document),
       });
     }
@@ -267,6 +278,7 @@ export function BillingRunOverviewCard({
         if (left <= 0) continue;
         items.push({
           label: `Gutschrift für ${child.firstName}`,
+          icon: <ReceiptText className="size-4" aria-hidden />,
           onClick: () => onCredit(document, child, left),
         });
       }
@@ -392,12 +404,14 @@ export function BillingRunOverviewCard({
             items={[
               {
                 label: "Aufschlüsselung zeigen",
+                icon: <Eye className="size-4" aria-hidden />,
                 onClick: () => setShownKey(rowKey(document)),
               },
               ...(canPreview && document.id
                 ? [
                     {
                       label: "Schreiben ansehen",
+                      icon: <Eye className="size-4" aria-hidden />,
                       onClick: () => openPreview(document),
                     },
                   ]
@@ -405,6 +419,7 @@ export function BillingRunOverviewCard({
               ...(onCorrect
                 ? document.children.map((child) => ({
                     label: `Betrag für ${child.firstName} korrigieren`,
+                    icon: <Pencil className="size-4" aria-hidden />,
                     onClick: () => onCorrect(document, child),
                   }))
                 : []),
@@ -413,6 +428,7 @@ export function BillingRunOverviewCard({
                 ? [
                     {
                       label: "Schreiben herunterladen",
+                      icon: <Download className="size-4" aria-hidden />,
                       onClick: () => onDownloadLetter(document),
                     },
                   ]

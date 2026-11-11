@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Receipt } from "lucide-react";
+import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -118,10 +118,12 @@ export function ContributionRulesCard({
           items={[
             {
               label: "Ändern",
+              icon: <Pencil className="size-4" aria-hidden />,
               onClick: () => setEdit({ kind: "change", rule }),
             },
             {
               label: "Löschen",
+              icon: <Trash2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setDeleting(rule),
             },

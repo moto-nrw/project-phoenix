@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { UserPlus, Users } from "lucide-react";
+import { Pencil, Trash2, Undo2, UserPlus, Users } from "lucide-react";
 import {
   ChangeTraegerRolesModal,
   InviteTraegerAccountModal,
@@ -179,12 +179,17 @@ export default function TraegerAccountsPage() {
         <OverflowMenu
           ariaLabel={`Aktionen für ${member.email}`}
           items={[
-            { label: "Rollen ändern", onClick: () => setEditing(member) },
+            {
+              icon: <Pencil className="size-4" aria-hidden />,
+              label: "Rollen ändern",
+              onClick: () => setEditing(member),
+            },
             ...(isLastLeader(member)
               ? []
               : [
                   {
                     label: "Aus dem Träger-Büro entfernen",
+                    icon: <Trash2 className="size-4" aria-hidden />,
                     destructive: true,
                     onClick: () => setPending({ kind: "remove", member }),
                   },
@@ -231,6 +236,7 @@ export default function TraegerAccountsPage() {
           items={[
             {
               label: "Einladung zurücknehmen",
+              icon: <Undo2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setPending({ kind: "revoke", invitation }),
             },

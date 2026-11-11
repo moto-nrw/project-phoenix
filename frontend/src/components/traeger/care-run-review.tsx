@@ -8,6 +8,7 @@
 // Datei erst in der Prüfphase (care-run-review-lazy.tsx), die Dialoge erst,
 // wenn jemand sie öffnet.
 
+import { Ban, Pencil, Wallet } from "lucide-react";
 import { useState } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import {
@@ -74,6 +75,7 @@ export function ExclusionMenu({
           ? [
               {
                 label: "Rechnung ändern",
+                icon: <Pencil className="size-4" aria-hidden />,
                 description:
                   "Nur diese Rechnung: Betrag, Positionen, Empfänger, Anschrift",
                 onClick: () => onAmend(invoice),
@@ -82,6 +84,7 @@ export function ExclusionMenu({
           : []),
         {
           label: "Ausschließen",
+          icon: <Ban className="size-4" aria-hidden />,
           description: "Bekommt bei der Freigabe keine Nummer",
           onClick: () => onExclude(invoice),
         },
@@ -89,6 +92,7 @@ export function ExclusionMenu({
           ? [
               {
                 label: "Empfänger und Zahlung",
+                icon: <Wallet className="size-4" aria-hidden />,
                 description: "Für alle Rechnungen dieser Familie",
                 onClick: () => onFamilyBilling(invoice),
               },

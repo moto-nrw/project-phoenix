@@ -4,7 +4,14 @@
 // Geschwisterregeln. Jede Zeile zeigt Name, Wirkung, Monate und Schulen; die
 // Aktionen stehen im Menü der Zeile.
 
-import { BadgePercent, Crown, HeartHandshake, User } from "lucide-react";
+import {
+  BadgePercent,
+  Crown,
+  HeartHandshake,
+  Pencil,
+  Trash2,
+  User,
+} from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
@@ -163,9 +170,14 @@ export function CareRulesCard({
                   <OverflowMenu
                     ariaLabel={`Aktionen: ${rule.name}`}
                     items={[
-                      { label: "Ändern", onClick: () => onEdit(rule) },
+                      {
+                        icon: <Pencil className="size-4" aria-hidden />,
+                        label: "Ändern",
+                        onClick: () => onEdit(rule),
+                      },
                       {
                         label: "Löschen",
+                        icon: <Trash2 className="size-4" aria-hidden />,
                         destructive: true,
                         onClick: () => onDelete(rule),
                       },

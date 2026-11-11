@@ -7,7 +7,7 @@
 // Zugriffsprotokoll des Vertrags. Die Stellen selbst pflegt die Abrechnung
 // unter Einstellungen → Abrechnungsvorgaben.
 
-import { HandCoins } from "lucide-react";
+import { HandCoins, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   COST_SHARE_KIND_LABELS,
@@ -45,6 +45,11 @@ import {
   fetchCareCostShares,
 } from "~/lib/traeger-care-cost-shares-api";
 import { traegerPath } from "~/lib/traeger-url";
+
+// Menu icons as in the OGS menus; defined once, outside render.
+const PLUS_ICON = <Plus className="size-4" aria-hidden />;
+const PENCIL_ICON = <Pencil className="size-4" aria-hidden />;
+const TRASH_ICON = <Trash2 className="size-4" aria-hidden />;
 
 const logger = createLogger({ component: "TraegerKostentraegerPage" });
 
@@ -254,6 +259,7 @@ export default function TraegerKostentraegerPage() {
               ? [
                   {
                     label: "Anteil eintragen",
+                    icon: PLUS_ICON,
                     onClick: () => setTarget({ contract, share: null }),
                   },
                 ]
@@ -263,11 +269,13 @@ export default function TraegerKostentraegerPage() {
               return [
                 {
                   label: "Anteil ändern",
+                  icon: PENCIL_ICON,
                   description,
                   onClick: () => setTarget({ contract, share }),
                 },
                 {
                   label: "Anteil löschen",
+                  icon: TRASH_ICON,
                   description,
                   destructive: true,
                   onClick: () => setDeleting({ contract, share }),

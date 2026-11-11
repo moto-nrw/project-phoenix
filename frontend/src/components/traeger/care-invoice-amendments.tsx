@@ -5,6 +5,7 @@
 // stehen; eine Änderung des Betrags oder der Positionen ist eine eigene
 // Zeile mit Grund. Nur die Seite einer Rechnung lädt diese Datei.
 
+import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -173,6 +174,7 @@ export function CareAmendedInvoiceCard({
                     items={[
                       {
                         label: "Position entfernen",
+                        icon: <Trash2 className="size-4" aria-hidden />,
                         description: "Mit Grund, die Zeile bleibt sichtbar",
                         onClick: () =>
                           onDraft({
@@ -228,6 +230,7 @@ export function CareAmendedInvoiceCard({
                     items={[
                       {
                         label: "Position entfernen",
+                        icon: <Trash2 className="size-4" aria-hidden />,
                         description: "Mit Grund, die Zeile bleibt sichtbar",
                         onClick: () =>
                           onDraft({

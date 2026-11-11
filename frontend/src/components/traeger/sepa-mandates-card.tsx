@@ -7,6 +7,7 @@
 // widerrufene bleibt im Verlauf. Nur die Rolle „Abrechnung“ sieht die Karte;
 // jede andere bekommt 403, und die Karte bleibt weg.
 
+import { Eye, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -260,12 +261,17 @@ function MandateMenu({
     <OverflowMenu
       ariaLabel={`Aktionen für das Mandat ${mandate.reference}`}
       items={[
-        { label: "Verlauf ansehen", onClick: () => onHistory(mandate) },
+        {
+          icon: <Eye className="size-4" aria-hidden />,
+          label: "Verlauf ansehen",
+          onClick: () => onHistory(mandate),
+        },
         ...(mandate.revokedOn
           ? []
           : [
               {
                 label: "Widerrufen",
+                icon: <Undo2 className="size-4" aria-hidden />,
                 destructive: true,
                 onClick: () => onRevoke(mandate),
               },

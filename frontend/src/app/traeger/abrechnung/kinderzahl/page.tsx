@@ -23,7 +23,7 @@ import {
   validityLabel,
 } from "~/components/traeger/family-children-format";
 import { FamilyChildrenModal } from "~/components/traeger/family-children-modal";
-import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, TriangleAlert } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -289,6 +289,7 @@ export default function TraegerKinderzahlPage() {
               ? [
                   {
                     label: "Kinderzahl entfernen",
+                    icon: <Trash2 className="size-4" aria-hidden />,
                     destructive: true,
                     onClick: () => setRemoving(family),
                   },

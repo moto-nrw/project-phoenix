@@ -5,7 +5,7 @@
 // Prüfdatum und Gültigkeit. Nur das Recht „Abrechnung“ sieht sie; jedes
 // Lesen steht im Zugriffsprotokoll des Vertrags.
 
-import { FileCheck2 } from "lucide-react";
+import { FileCheck2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   billingAreaTitle,
@@ -223,6 +223,7 @@ export default function TraegerNachweisePage() {
               ? [
                   {
                     label: `${EVIDENCE_KIND_LABELS[kind]} eintragen`,
+                    icon: <Plus className="size-4" aria-hidden />,
                     onClick: () =>
                       setTarget({ contract, kind, evidence: null }),
                   },
@@ -233,11 +234,13 @@ export default function TraegerNachweisePage() {
               return [
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} ändern`,
+                  icon: <Pencil className="size-4" aria-hidden />,
                   description,
                   onClick: () => setTarget({ contract, kind, evidence }),
                 },
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} löschen`,
+                  icon: <Trash2 className="size-4" aria-hidden />,
                   description,
                   destructive: true,
                   onClick: () => setDeleting({ contract, evidence }),

@@ -7,7 +7,7 @@
 // lässt sich nur ausschalten, nicht löschen. Neu angelegt wird im Dialog;
 // „Ändern“ macht die Zeile selbst zum Formular (Bauart 2, kein Overlay).
 
-import { Building2, Plus } from "lucide-react";
+import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -367,7 +367,11 @@ export function CostBearersCard({
                 <OverflowMenu
                   ariaLabel={`Aktionen für ${bearer.name}`}
                   items={[
-                    { label: "Ändern", onClick: () => setEditingId(bearer.id) },
+                    {
+                      icon: <Pencil className="size-4" aria-hidden />,
+                      label: "Ändern",
+                      onClick: () => setEditingId(bearer.id),
+                    },
                     {
                       label: bearer.active ? "Ausschalten" : "Einschalten",
                       onClick: () => void switchActive(bearer),
@@ -377,6 +381,7 @@ export function CostBearersCard({
                       : [
                           {
                             label: "Löschen",
+                            icon: <Trash2 className="size-4" aria-hidden />,
                             destructive: true,
                             onClick: () => setDeleting(bearer),
                           },

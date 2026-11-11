@@ -5,6 +5,7 @@
 // vor der Freigabe, ändert oder entfernt sie. Gutschriften der stornierten
 // Rechnung sind eigene Dokumente: Sie stehen nur als Hinweis hier.
 
+import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -125,10 +126,12 @@ export function BillingCarriedCorrectionsCard({
                   items={[
                     {
                       label: "Ändern",
+                      icon: <Pencil className="size-4" aria-hidden />,
                       onClick: () => onChange(row.child, row.carried),
                     },
                     {
                       label: "Entfernen",
+                      icon: <Trash2 className="size-4" aria-hidden />,
                       onClick: () => setRemoving(row),
                     },
                   ]}
