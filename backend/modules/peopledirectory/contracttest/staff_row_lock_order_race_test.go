@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -284,4 +285,65 @@ func TestPlannedExitRunAndImmediateOffboardingDoNotDeadlock(t *testing.T) {
 	var retired bool
 	require.NoError(t, db.NewRaw(`SELECT deleted_at IS NOT NULL FROM users.staff_school_memberships WHERE id = ?`, subject.ID).Scan(ctx, &retired))
 	assert.True(t, retired, "the planned exit retired X")
+}
+
+// M2: offboarding of S has locked S's staff row and waits at S's caregiver
+// profile, which a third transaction holds. A staff creation for S's person
+// starts meanwhile and would adopt S. Before #6702 it locked the person and
+// then waited for S's staff row, so offboarding, released, waited for the
+// person while the creation waited for S: 40P01. Now the creation locks the
+// live staff row it adopts before the person and waits there holding no
+// person; offboarding finishes, and the creation finds S retired.
+func TestStaffAdoptionAndOffboardingDoNotDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	sc := newOffboardingScenario(t, db)
+	ctx := testpkg.Ctx(t)
+	actor := testpkg.CreateTestStaff(t, db, "Race", "Actor")
+	subject := testpkg.CreateTestTeacher(t, db, "Race", "Adopted")
+	people := setupServiceFactory(t, db).Users
+	offboarding, err := api.NewStaffOffboardingWorkflow(sc.deps)
+	require.NoError(t, err)
+
+	locked, release := make(chan struct{}), make(chan struct{})
+	barrier := startRaceTx(t, db, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.NewRaw(`SELECT id FROM users.teachers WHERE id = ? FOR UPDATE`, subject.ID).Exec(ctx); err != nil {
+			return err
+		}
+		close(locked)
+		<-release
+		return nil
+	})
+	select {
+	case <-locked:
+	case err := <-barrier.done:
+		require.FailNow(t, "the barrier failed", "%v", err)
+	}
+	exit := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
+		actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "test-admin"})
+		_, err := offboarding.Offboard(actorCtx, subject.StaffID)
+		return err
+	})
+	awaitBlockedBy(t, db, exit, barrier.pid, "offboarding")
+	adoption := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
+		_, _, _, err := people.CreateStaffWithTeacher(ctx, api.StaffDirectoryCreateInput(api.StaffCreateInput{
+			PersonID: subject.Staff.PersonID, StaffNotes: "Rennen",
+			ActorPermissions: []string{permissions.UsersCreate, permissions.StaffManage},
+		}))
+		return err
+	})
+	awaitBlockedBy(t, db, adoption, exit.pid, "the staff creation")
+	close(release)
+	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
+	requireFinishedWithoutDeadlock(t, exit, "offboarding")
+	select {
+	case err := <-adoption.done:
+		var state interface{ Field(byte) string }
+		require.False(t, errors.As(err, &state) && state.Field('C') == "40P01", "the staff creation was the deadlock victim: %v", err)
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "the staff creation never finished")
+	}
+	var retired bool
+	require.NoError(t, db.NewRaw(`SELECT deleted_at IS NOT NULL FROM users.staff_school_memberships WHERE id = ?`, subject.StaffID).Scan(ctx, &retired))
+	assert.True(t, retired, "offboarding retired S")
 }
