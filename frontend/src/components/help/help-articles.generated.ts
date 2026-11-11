@@ -3215,7 +3215,9 @@ export const groupsCatalogTopic = function groupsCatalogTopic(
 /**
  * `/ferienwochen` (#4666): Die Leitung wählt die Gruppe für die Feriengäste
  * einer Woche. Die bestätigten Gäste kommen dann in die Gruppe und in den
- * Check-in.
+ * Check-in. Vor der Woche ist die Gruppe leer und sagt, wie viele Kinder
+ * dazukommen (#6680). Mit der Wahl plant moto auch die gebuchten Tage der
+ * eigenen Kinder ein (#6678).
  */
 export const holidayGuestGroupTopic =
   function holidayGuestGroupTopic(): HelpTopic {
@@ -3243,7 +3245,8 @@ export const holidayGuestGroupTopic =
         "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe, im Check-in und unter `Alle Kinder`. Bei jedem steht seine Schule, zum Beispiel `Gast aus Grundschule am See`. Ihr Team sieht Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
       notes: [
         "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
-        "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
+        "Für Kinder Ihrer OGS trägt moto mit der Wahl Ankunft und Abholung für die gebuchten Tage ein. Ob das geklappt hat, steht unter `Kinder Ihrer OGS`.",
+        "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`. Die Feriengruppe ist bis dahin leer. Dort steht, wie viele Kinder dazukommen und ab wann.",
         "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
         "Jede Übernahme steht im Zugriffsprotokoll Ihrer OGS.",
       ],
@@ -3263,7 +3266,9 @@ export const holidayGuestGroupTopic =
  * Abholung, die Antworten, die der Träger freigibt (#5202), und die
  * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722). Der Hinweis
  * „Gast aus …“ nennt die Heimatschule, und Gäste stehen erst ab dem ersten
- * Tag ihrer Woche in den Listen (#5630).
+ * Tag ihrer Woche in den Listen (#5630). Vorher sagt die leere Feriengruppe,
+ * wie viele Kinder dazukommen (#6680). Kinder der eigenen OGS bleiben in
+ * ihrer Gruppe und zeigen die Angaben der Anmeldung in ihrer Akte (#6678).
  */
 export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
   return {
@@ -3297,6 +3302,8 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     notes: [
       "Denselben Hinweis `Gast aus …` sehen Sie unter `Alle Kinder`, in der Aufsicht und auf der Karte des Kindes. Steht nur `Feriengast` da, haben die Eltern keine Schule genannt.",
       "Die Gesundheitsangaben stehen auch in den `Gesundheitsinformationen` des Feriengasts. Sie sehen sie also auch in der Gruppe und in der `Gesundheitsliste`.",
+      "Vor der Ferienwoche ist die Feriengruppe leer. Dort steht dann, wie viele Kinder dazukommen und ab wann. Zum Beispiel `Feriengruppe: 3 Kinder kommen ab 04.01.2027 dazu.`",
+      "Kinder Ihrer OGS sind keine Feriengäste. Sie bleiben in ihrer Gruppe. Notfall, Abholung und Zeiten aus der Anmeldung stehen in ihrer Kinderakte unter `Angaben aus der Ferienanmeldung`.",
       "Mehr als Betreuung, Notfall, Abholung, Gesundheit und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
       "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
     ],
@@ -3306,6 +3313,7 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Angaben aus der Ferienanmeldung`? Dann gibt der Träger keine Frage frei.",
       "Fehlt `Gesundheit`? Dann haben die Eltern nichts angegeben oder der Weitergabe nicht zugestimmt.",
+      "Ist die Feriengruppe leer? Vor dem ersten Tag der Ferienwoche ist das richtig. Die Feriengäste kommen am ersten Tag von selbst dazu.",
       "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
       "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
     ],
@@ -3318,6 +3326,8 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
  * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche. Dazu
  * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202)
  * und die Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722).
+ * Kinder der eigenen OGS bleiben in ihrer Gruppe; die Karte `Kinder Ihrer
+ * OGS` zeigt, ob moto ihre Anmeldung einem Kind zugeordnet hat (#6678).
  */
 export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
   return {
@@ -3341,7 +3351,9 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",
+      "Kommen Kinder Ihrer OGS? Dann steht unter `Kinder Ihrer OGS`, ob sie eingeplant sind.",
       "Unter `Kinder` steht jedes Kind mit Geburtsdatum, Heimatschule und Zeitmodell.",
+      "Bei einem Kind Ihrer OGS öffnen Sie mit `Akte öffnen` seine Kinderakte.",
       "Gibt der Träger Fragen frei, steht jede in einer eigenen Spalte. Zum Beispiel `Darf allein nach Hause gehen`.",
       "Unter `Zweite sorgeberechtigte Person` stehen Name und Telefon, wenn die Eltern eine zweite Person angegeben haben.",
       "Unter `Gesundheit` stehen Allergien, Medikamente und weitere Hinweise. Dort stehen auch Antworten auf Gesundheitsfragen, die der Träger freigibt.",
@@ -3354,16 +3366,19 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
-      "Kommt ein Kind Ihrer OGS in die Ferienwoche? Dann stehen seine Gesundheitsangaben auch in seiner Kinderakte. Sie stehen dort unter `Angaben aus der Ferienanmeldung`. Die `Gesundheitsinformationen` des Kindes ändern sich nicht.",
+      "Kinder Ihrer OGS bleiben in ihrer Gruppe. Haben Sie die Feriengruppe gewählt, trägt moto für die gebuchten Tage Ankunft und Abholung ein. Der Check-in erwartet das Kind dann an diesen Tagen.",
+      "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
+      "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
       "Nach dem letzten Tag der Woche ist die Woche nicht mehr zu sehen. Die Gesundheitsangaben auch nicht.",
-      "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort.",
+      "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort. Die eingeplanten Tage eines Kindes Ihrer OGS entfernt moto innerhalb einer Stunde.",
     ],
     troubleshootingDetails: [
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
+      "Steht ein Kind unter `Ohne Kinderakte`? Dann passen Vorname, Nachname oder Geburtsdatum der Anmeldung zu keinem Kind in moto oder zu mehreren. Ändern Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern. Vorher plant moto für dieses Kind nichts ein.",
       "Steht bei einem Kind unter `Gesundheit` nichts? Dann haben die Eltern nichts angegeben oder nicht zugestimmt. Ältere Anmeldungen geben keine Gesundheitsangaben weiter.",
       "Fehlt `Ferienwochen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],

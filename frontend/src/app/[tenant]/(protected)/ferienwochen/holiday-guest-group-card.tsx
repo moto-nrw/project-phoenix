@@ -22,10 +22,28 @@ function guestCount(count: number): string {
   return count === 1 ? "1 Feriengast" : `${count} Feriengäste`;
 }
 
+/** Die Meldung nach der Wahl: Feriengäste in der Gruppe, eigene Kinder eingeplant. */
+function transferMessage(guests: number, ownChildren: number): string {
+  const parts: string[] = [];
+  if (guests > 0) parts.push(`${guestCount(guests)} in der Gruppe.`);
+  if (ownChildren > 0) {
+    parts.push(
+      ownChildren === 1
+        ? "1 Kind Ihrer OGS ist eingeplant."
+        : `${ownChildren} Kinder Ihrer OGS sind eingeplant.`,
+    );
+  }
+  return parts.length > 0
+    ? parts.join(" ")
+    : "Die Gruppe ist gewählt. Noch ist kein Kind bestätigt.";
+}
+
 /**
  * Feriengruppe einer Woche (#4666): Die Leitung wählt eine Gruppe ihrer OGS.
  * Die bestätigten Feriengäste der Woche kommen dann in diese Gruppe und in
- * den Check-in, mit Betreuung, Notfall und Abholung. Wer keine Kinder anlegen
+ * den Check-in, mit Betreuung, Notfall und Abholung. Mit der Wahl plant moto
+ * auch die gebuchten Tage der eigenen Kinder ein (#6678); sie bleiben in
+ * ihrer Gruppe. Wer keine Kinder anlegen
  * darf, sieht nur, welche Gruppe gewählt ist. Die Seite gibt der Karte je
  * Woche einen eigenen Schlüssel, damit eine nicht übernommene Auswahl nicht
  * in die nächste Woche wandert.
@@ -57,12 +75,8 @@ export function HolidayGuestGroupCard({
     if (!groupId) return;
     setSaving(true);
     try {
-      const guests = await assignHolidayGuestGroup(week.id, groupId);
-      success(
-        guests === 0
-          ? "Die Gruppe ist gewählt. Noch ist kein Feriengast bestätigt."
-          : `${guestCount(guests)} in der Gruppe.`,
-      );
+      const transfer = await assignHolidayGuestGroup(week.id, groupId);
+      success(transferMessage(transfer.guests, transfer.ownChildren));
       setChosen("");
       onAssigned();
     } catch (error) {
@@ -96,7 +110,7 @@ export function HolidayGuestGroupCard({
   return (
     <SectionCard
       title="Feriengruppe"
-      description="Feriengäste sind Kinder anderer Schulen und Kinder ohne Schule beim Träger. In der Feriengruppe melden Sie die Kinder an und ab. Sie sehen Betreuung, Notfall, Abholung, Gesundheit und die Angaben, die der Träger freigibt."
+      description="Feriengäste sind Kinder anderer Schulen und Kinder ohne Schule beim Träger. In der Feriengruppe melden Sie die Kinder an und ab. Sie sehen Betreuung, Notfall, Abholung, Gesundheit und die Angaben, die der Träger freigibt. Kinder Ihrer OGS bleiben in ihrer Gruppe."
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-gray-700">{status}</p>

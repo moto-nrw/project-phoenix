@@ -7,7 +7,9 @@ import { HELP_TOPICS } from "~/lib/help-topics";
  * Abholung, die Antworten, die der Träger freigibt (#5202), und die
  * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722). Der Hinweis
  * „Gast aus …“ nennt die Heimatschule, und Gäste stehen erst ab dem ersten
- * Tag ihrer Woche in den Listen (#5630).
+ * Tag ihrer Woche in den Listen (#5630). Vorher sagt die leere Feriengruppe,
+ * wie viele Kinder dazukommen (#6680). Kinder der eigenen OGS bleiben in
+ * ihrer Gruppe und zeigen die Angaben der Anmeldung in ihrer Akte (#6678).
  */
 export function holidayGuestsTopic(): HelpTopic {
   return {
@@ -41,6 +43,8 @@ export function holidayGuestsTopic(): HelpTopic {
     notes: [
       "Denselben Hinweis `Gast aus …` sehen Sie unter `Alle Kinder`, in der Aufsicht und auf der Karte des Kindes. Steht nur `Feriengast` da, haben die Eltern keine Schule genannt.",
       "Die Gesundheitsangaben stehen auch in den `Gesundheitsinformationen` des Feriengasts. Sie sehen sie also auch in der Gruppe und in der `Gesundheitsliste`.",
+      "Vor der Ferienwoche ist die Feriengruppe leer. Dort steht dann, wie viele Kinder dazukommen und ab wann. Zum Beispiel `Feriengruppe: 3 Kinder kommen ab 04.01.2027 dazu.`",
+      "Kinder Ihrer OGS sind keine Feriengäste. Sie bleiben in ihrer Gruppe. Notfall, Abholung und Zeiten aus der Anmeldung stehen in ihrer Kinderakte unter `Angaben aus der Ferienanmeldung`.",
       "Mehr als Betreuung, Notfall, Abholung, Gesundheit und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
       "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
     ],
@@ -50,6 +54,7 @@ export function holidayGuestsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Angaben aus der Ferienanmeldung`? Dann gibt der Träger keine Frage frei.",
       "Fehlt `Gesundheit`? Dann haben die Eltern nichts angegeben oder der Weitergabe nicht zugestimmt.",
+      "Ist die Feriengruppe leer? Vor dem ersten Tag der Ferienwoche ist das richtig. Die Feriengäste kommen am ersten Tag von selbst dazu.",
       "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
       "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
     ],
