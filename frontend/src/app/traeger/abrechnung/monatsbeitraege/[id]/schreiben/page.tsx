@@ -39,6 +39,7 @@ import {
 } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { downloadBlob } from "~/lib/file-download";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CareLetterMailing,
@@ -129,10 +130,13 @@ export default function TraegerCareRunLettersPage() {
   }, [load]);
 
   const released = run?.status === "released";
+  const fetchLetters = useCallback(async () => {
+    setLetters(await fetchCareLetters(runId));
+    clearLettersError();
+  }, [runId, clearLettersError]);
   const loadLetters = useCallback(async () => {
     try {
-      setLetters(await fetchCareLetters(runId));
-      clearLettersError();
+      await fetchLetters();
     } catch (err) {
       logger.error("traeger_care_letters_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -142,11 +146,17 @@ export default function TraegerCareRunLettersPage() {
         retry: () => void loadLetters(),
       });
     }
-  }, [runId, clearLettersError, showLettersError]);
+  }, [fetchLetters, showLettersError]);
 
   useEffect(() => {
     if (released) void loadLetters();
   }, [released, loadLetters]);
+  // Nach dem Drucken laden die Schreiben nach; ein Fehler dabei ist ein
+  // Ladefehler, kein Fehler des Druckens (#6652).
+  const printAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Schreiben",
+    fetchLetters,
+  );
 
   // A mail on its way: look again until it is sent or failed.
   const waiting = (letters?.summary.queued ?? 0) > 0;
@@ -194,15 +204,16 @@ export default function TraegerCareRunLettersPage() {
     try {
       const file = await printCareLetters(runId, withoutEmailOnly);
       downloadBlob(file.blob, file.filename);
-      await loadLetters();
     } catch (err) {
       logger.error("traeger_care_letters_print_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void actionErrors.show(err, { object: "die Schreiben" });
-    } finally {
       setPrinting(null);
+      return;
     }
+    setPrinting(null);
+    await printAfterWrite.refresh();
   };
 
   // A cancelled invoice is issued again by the run of its month that is
@@ -349,7 +360,7 @@ export default function TraegerCareRunLettersPage() {
             runId={run.id}
             payments={run.invoices.map((invoice) => invoice.payment)}
             letters={letters}
-            loadError={lettersLoad.error}
+            loadError={lettersLoad.error ?? printAfterWrite.error}
             sendingAll={sendingAll}
             printing={printing}
             onCreated={setLetters}

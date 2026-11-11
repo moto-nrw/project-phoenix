@@ -105,6 +105,11 @@ import {
 } from "~/lib/date-helpers";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   MAX_POLL_OPTION_LENGTH,
@@ -309,6 +314,13 @@ function ParentAnnouncementsContent() {
     loadError,
     "die Liste der Mitteilungen",
     () => void mutate(),
+    announcements === undefined ? undefined : STALE_DATA_SUFFIX,
+  );
+  // Nachladen nach dem Speichern im Formular: ein Fehler dabei steht über der
+  // Liste, auch wenn das Formular schon zu ist (#6652).
+  const formAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Mitteilungen",
+    () => mutate(),
   );
 
   const {
@@ -746,12 +758,11 @@ function ParentAnnouncementsContent() {
               schoolClasses={schoolClasses ?? []}
               lookupLoadError={lookupLoadError}
               onClose={closeForm}
-              onRefresh={async () => {
-                await mutate();
-              }}
+              onRefresh={formAfterWrite.refresh}
               onSaved={async () => {
-                await mutate();
+                const refreshed = await formAfterWrite.refresh();
                 closeForm();
+                return refreshed;
               }}
             />
           )}
@@ -788,6 +799,7 @@ function ParentAnnouncementsContent() {
         </>
       }
     >
+      <LoadErrorAlert error={formAfterWrite.error} />
       <DataTable
         stackedOnMobile
         columns={columns}
@@ -824,13 +836,15 @@ interface AnnouncementFormModalProps {
   /** Gruppen, AGs oder Klassen konnten nicht geladen werden. */
   readonly lookupLoadError: FormError | null;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<void> | void;
+  /** Closes the panel and reloads the list; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
   /**
    * Refresh the list WITHOUT closing the modal — used when the draft was saved
    * but publishing failed, so the new/updated draft appears in the list while
-   * the publish error stays visible for the user to retry.
+   * the publish error stays visible for the user to retry. Never rejects
+   * (#6652).
    */
-  readonly onRefresh: () => Promise<void> | void;
+  readonly onRefresh: RefreshAfterWrite;
 }
 
 const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
@@ -1344,7 +1358,10 @@ function AnnouncementFormModal({
     await save.run(async (op) => {
       setSubmitting(publish ? "publish" : "draft");
       clearFormError();
-      try {
+      // Speichert, lädt Anhänge hoch und veröffentlicht. Ein Fehler nach dem
+      // Speichern des Entwurfs zeigt das Formular selbst und meldet „refresh“:
+      // die Liste lädt nach, das Panel bleibt offen.
+      const persist = async (): Promise<"saved" | "refresh"> => {
         const saved = persistedId
           ? await updateAnnouncement(persistedId, input)
           : await createAnnouncement(input);
@@ -1386,8 +1403,7 @@ function AnnouncementFormModal({
                 retry,
               });
             }
-            await onRefresh();
-            return;
+            return "refresh";
           }
         }
 
@@ -1407,14 +1423,14 @@ function AnnouncementFormModal({
                 retry,
               });
             }
-            await onRefresh();
-            return;
+            return "refresh";
           }
         }
-        // Eine späte Antwort frischt nur die Liste auf; das Schließen gehört
-        // zum Panel, das gespeichert hat.
-        if (op.isCurrent()) await onSaved();
-        else await onRefresh();
+        return "saved";
+      };
+      let outcome: "saved" | "refresh";
+      try {
+        outcome = await persist();
       } catch (err) {
         logger.error("announcement_save_failed", {
           mode: isEdit ? "update" : "create",
@@ -1426,9 +1442,15 @@ function AnnouncementFormModal({
           object: "das Speichern der Mitteilung",
           retry,
         });
-      } finally {
         if (op.isCurrent()) setSubmitting(null);
+        return;
       }
+      if (op.isCurrent()) setSubmitting(null);
+      // Nachladen nach dem Schreiben: ein Fehler dabei ist ein Ladefehler der
+      // Liste, kein Fehler des Speicherns (#6652). Eine späte Antwort frischt
+      // nur die Liste auf; das Schließen gehört zum Panel, das gespeichert hat.
+      if (outcome === "saved" && op.isCurrent()) await onSaved();
+      else await onRefresh();
     });
   };
   useLayoutEffect(() => {

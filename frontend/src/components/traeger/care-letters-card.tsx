@@ -73,7 +73,9 @@ export function CareLettersCard({
 }>) {
   const [confirming, setConfirming] = useState(false);
 
-  if (loadError) {
+  // Bestätigte Schreiben bleiben bei einem Ladefehler stehen; der Fehler
+  // steht darüber (#6652).
+  if (loadError && !letters) {
     return (
       <SectionCard title={TITLE}>
         <LoadErrorAlert error={loadError} actionLayout="responsive" />
@@ -156,6 +158,7 @@ export function CareLettersCard({
       }
     >
       <div className="space-y-5">
+        <LoadErrorAlert error={loadError} actionLayout="responsive" />
         <LetterSendState summary={summary} />
         {summary.withoutInbox > 0 ? (
           <Alert type="info" message={withoutInboxNote(summary.withoutInbox)} />
