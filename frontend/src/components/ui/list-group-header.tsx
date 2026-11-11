@@ -24,6 +24,11 @@ interface ListGroupHeaderProps {
   readonly addon?: ReactNode;
   /** Kennzahl oder Steuerung am rechten Rand, etwa „3 Einträge“. */
   readonly meta?: ReactNode;
+  /**
+   * Ein kurzer Satz unter dem Namen, der für alle Zeilen der Gruppe gilt,
+   * etwa was zu tun ist. Er steht einmal, nicht in jeder Zeile.
+   */
+  readonly description?: ReactNode;
   /** Ebene der Überschrift in der Seite. */
   readonly as?: "h2" | "h3" | "h4";
   /** Der Name klappt die Gruppe auf und zu. */
@@ -42,6 +47,7 @@ export function ListGroupHeader({
   titleAddon,
   addon,
   meta,
+  description,
   as = "h3",
   collapsible,
   className,
@@ -57,11 +63,11 @@ export function ListGroupHeader({
         <span className="shrink-0">{titleAddon}</span>
       </span>
     );
-  return (
+  const row = (
     <div
       className={cn(
         "flex items-center justify-between gap-2 bg-gray-50 px-4 py-2",
-        className,
+        description === undefined ? className : "pb-1",
       )}
     >
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -109,6 +115,13 @@ export function ListGroupHeader({
           {meta}
         </div>
       )}
+    </div>
+  );
+  if (description === undefined) return row;
+  return (
+    <div className={cn("bg-gray-50", className)}>
+      {row}
+      <p className="px-4 pb-2 text-xs text-gray-600">{description}</p>
     </div>
   );
 }

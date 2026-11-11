@@ -207,12 +207,15 @@ type ManualEnrollmentDecider interface {
 // intake degrades without them; the intake reports every other missing
 // dependency when it needs it.
 type IntakeDependencies struct {
-	Requests           IntakeRequests
-	Children           IntakeChildren
-	Guardians          IntakeGuardians
-	LateInvites        IntakeLateInvites
-	Catalog            IntakeCatalog
-	RateLimits         SubmissionRateLimiter
+	Requests    IntakeRequests
+	Children    IntakeChildren
+	Guardians   IntakeGuardians
+	LateInvites IntakeLateInvites
+	Catalog     IntakeCatalog
+	RateLimits  SubmissionRateLimiter
+	// RateLimitRefusals reports a refused submission or upload to the
+	// monitoring (#6726). Nil reports nowhere.
+	RateLimitRefusals  RateLimitRefusals
 	Offerings          IntakeOfferings
 	Bookings           enrollmentNative.CareBookingCommands
 	Capacity           enrollmentNative.OfferingCapacity

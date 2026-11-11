@@ -891,6 +891,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (d groupLiveDirectory) SupervisedGroupIDs(ctx context.Context) (map[int64]bool, error) {\n\tids, err := d.userContext.MyGroupIDs(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tmarked := make(map[int64]bool, len(ids))\n\tfor _, id := range ids {\n\t\tmarked[id] = true\n\t}\n\treturn marked, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/groupLiveDirectory.SupervisedGroupIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d groupLiveDirectory) SupervisedGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {\n\treturn d.userContext.MyGroupRecords(ctx)\n}",
       "form": "forward-debt",
       "id": "api/groupLiveDirectory.SupervisedGroups",
@@ -950,6 +957,13 @@
       "evidence": "func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {\n\tvar receipt enrollmentOwner.HolidayProofReceipt\n\terr := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {\n\t\tvar uploadErr error\n\t\treceipt, uploadErr = u.registrations.UploadHolidayProof(txCtx, link, upload)\n\t\treturn uploadErr\n\t})\n\treturn receipt, err\n}",
       "form": "unclassified-evidence",
       "id": "api/holidayProofUnits.UploadHolidayProof",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s holidayRetentionSettings) HolidayRegistrationRetentionDays(ctx context.Context, organizationID int64) (int, error) {\n\tif s.settings == nil {\n\t\treturn 0, errors.New(\"holiday registration: the Träger settings are not configured\")\n\t}\n\tdays, err := s.settings.TraegerInts(ctx, organizationID, []string{configModels.KeyHolidayRegistrationRetentionDays})\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn days[configModels.KeyHolidayRegistrationRetentionDays], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayRetentionSettings.HolidayRegistrationRetentionDays",
       "owner": "roots"
     },
     {
@@ -6046,6 +6060,27 @@
       "evidence": "func (p holidayGuestPeople) SetHolidayGuestHealthInfo(ctx context.Context, studentID int64, healthInfo *string) error {\n\treturn p.directory.ApplyEnrollmentProfile(ctx, studentID, peopleEnrollment.ProfilePatch{HealthInfoSet: true, HealthInfo: healthInfo})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p holidayOwnChildPlans) ApplyHolidayOwnChildPlans(ctx context.Context, changes enrollment.HolidayOwnChildPlanChanges) error {\n\tarrivals := make([]careplan.ArrivalException, 0, len(changes.Arrivals))\n\tfor _, plan := range changes.Arrivals {\n\t\tarrivals = append(arrivals, careplan.ArrivalException{StudentID: plan.StudentID, ExceptionDate: careplan.Date(plan.Day), ExpectedArrival: \u0026plan.Time, Reason: \u0026plan.Reason, Source: careplan.ExceptionSourceHolidayBooking})\n\t}\n\tpickups := make([]careplan.PickupException, 0, len(changes.Pickups))\n\tfor _, plan := range changes.Pickups {\n\t\tpickups = append(pickups, careplan.PickupException{StudentID: plan.StudentID, ExceptionDate: careplan.Date(plan.Day), PickupTime: \u0026plan.Time, Reason: \u0026plan.Reason, Source: careplan.ExceptionSourceHolidayBooking})\n\t}\n\treturn p.batch.ApplyExceptionBatch(ctx, careplan.ExceptionBatch{Arrivals: arrivals, Pickups: pickups, DeleteArrivals: changes.DeleteArrivals, DeletePickups: changes.DeletePickups})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p holidayOwnChildPlans) HolidayOwnChildArrivals(ctx context.Context, from calendar.Date) ([]enrollment.HolidayOwnChildException, error) {\n\trows, err := p.care.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{From: careplan.Date(from)})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayOwnChildException, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, enrollment.HolidayOwnChildException{ID: row.ID, StudentID: row.StudentID, Day: calendar.Date(row.ExceptionDate), Reason: row.Reason})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildArrivals",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p holidayOwnChildPlans) HolidayOwnChildPickups(ctx context.Context, from calendar.Date) ([]enrollment.HolidayOwnChildException, error) {\n\trows, err := p.care.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{From: careplan.Date(from)})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayOwnChildException, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, enrollment.HolidayOwnChildException{ID: row.ID, StudentID: row.StudentID, Day: calendar.Date(row.ExceptionDate), Reason: row.Reason, Excused: row.ExcusedFrom != nil})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildPickups",
       "owner": "roots"
     },
     {

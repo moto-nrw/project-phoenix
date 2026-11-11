@@ -42,6 +42,7 @@ type holidayReviewRegistrationRow struct {
 	CustodyConfirmedAt      *time.Time `bun:"custody_confirmed_at"`
 	DeclarationName         *string    `bun:"declaration_name"`
 	DebtorNumber            *string    `bun:"debtor_number"`
+	RetentionDays           int        `bun:"retention_days"`
 	BenefitsProofAttached   bool       `bun:"benefits_proof_attached"`
 }
 
@@ -77,7 +78,7 @@ const (
 			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
 			custody_confirmed_at, declaration_name,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
-			guardian_address_street, guardian_address_postal_code, guardian_address_city, debtor_number,
+			guardian_address_street, guardian_address_postal_code, guardian_address_city, debtor_number, retention_days,
 			EXISTS (SELECT 1 FROM enrollment.holiday_registration_proofs AS proof
 				WHERE proof.organization_id = holiday_registrations.organization_id
 					AND proof.holiday_registration_id = holiday_registrations.id) AS benefits_proof_attached
@@ -189,7 +190,7 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 				ID: row.ID, Status: row.Status, SubmittedAt: row.SubmittedAt,
 				GuardianFirstName: row.GuardianFirstName, GuardianLastName: row.GuardianLastName,
 				GuardianEmail: row.GuardianEmail, GuardianPhone: row.GuardianPhone, BenefitsDeclared: row.BenefitsDeclared,
-				Children: byRegistration[row.ID],
+				Children: byRegistration[row.ID], RetentionDays: row.RetentionDays,
 			},
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,
 			CustodyConfirmedAt: row.CustodyConfirmedAt, BenefitsProofAttached: row.BenefitsProofAttached,

@@ -52,7 +52,7 @@ func TestDeliveryCheckpointReportsOnlyItsWorkerQueries(t *testing.T) {
 	worker, err := owners.BuildDeliveryWorker(database, env, mailer, from, vapid, mailIdentity,
 		owners.DeliveryRuntime{Runtime: module.Runtime, Outbox: module.EmailOutbox}, nil,
 		owners.IdentityDeliveryRenderers(identity, from, mailIdentity, module.Runtime.EmailStatus, env),
-		nil, settings.Settings, nil)
+		nil, settings.Settings, nil, nil)
 	require.NoError(t, err)
 
 	counter := testpkg.CaptureQueriesForContext(t, runtimeDB)

@@ -320,6 +320,7 @@ func keepArchivedHolidayTimeModels(input enrollment.HolidayPeriodInput, current 
 func normalizeHolidayPeriod(input enrollment.HolidayPeriodInput) enrollment.HolidayPeriodInput {
 	input.Name = strings.TrimSpace(input.Name)
 	input.Notes = strings.TrimSpace(input.Notes)
+	input.AcceptanceMailText = strings.TrimSpace(strings.ReplaceAll(input.AcceptanceMailText, "\r\n", "\n"))
 	if input.AllocationMode == "" {
 		input.AllocationMode = enrollment.HolidayAllocationArrival
 	}
@@ -362,6 +363,9 @@ func validateHolidayPeriod(input enrollment.HolidayPeriodInput, current enrollme
 	}
 	if utf8.RuneCountInString(input.Notes) > holidayNotesMaxLength {
 		errs["notes"] = fmt.Errorf("notes are longer than %d characters", holidayNotesMaxLength)
+	}
+	if utf8.RuneCountInString(input.AcceptanceMailText) > enrollment.HolidayAcceptanceMailTextMaxLength {
+		errs["acceptance_mail_text"] = fmt.Errorf("the text of the acceptance mail is longer than %d characters", enrollment.HolidayAcceptanceMailTextMaxLength)
 	}
 	validateRegistrationWindow(input, errs)
 	if limit := input.MaxDaysPerChild; limit != nil && (*limit < 1 || *limit > enrollment.HolidayMaxDaysPerChildMax) {

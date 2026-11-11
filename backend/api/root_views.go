@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -230,8 +231,9 @@ func buildGroupLive(
 		Settings: settings, Pickups: schedules.Pickups, Arrivals: schedules.Arrivals,
 		PlannedStudentIDs: lifecycle.Instances.GetPlannedStudentIDsByDate, CareDays: schedules.CareDay,
 		CareParticipation: schedules.Lifecycle, ExcusedRequests: requests.Excused, StatusDays: presence.StatusDays,
-		Handovers: groupLiveHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
-		Logger:    env.Logger.With("service", "ogs-group-live"), Now: env.Now,
+		Handovers:     groupLiveHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
+		HolidayGroups: enrollmentCompose.NewHolidayGuestBadgeList(calendar.CalendarDateClock(env.Now)),
+		Logger:        env.Logger.With("service", "ogs-group-live"), Now: env.Now,
 	}, hints)
 	if err != nil {
 		return nil, fmt.Errorf("compose OGS group live projection: %w", err)

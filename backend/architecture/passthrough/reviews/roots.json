@@ -636,6 +636,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0120",
+      "id": "api/groupLiveDirectory.SupervisedGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "api/groupLiveDirectory.SupervisedGroups",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
@@ -679,6 +684,11 @@
       "decision": "0090",
       "id": "api/holidayProofUnits.UploadHolidayProof",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0110",
+      "id": "api/holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "reason": "ADR 0110 (#6691): Consumer-port adapter of Enrollment's holiday retention port; it reads the Träger's holiday_registration.retention_days through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed number into the port's answer."
     },
     {
       "decision": "0114",
@@ -4319,6 +4329,21 @@
       "decision": "0120",
       "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
       "reason": "ADR 0120 addendum (#4722): Consumer-port adapter of Enrollment's holiday guest people; it translates the health information of a guest into the People Directory's enrollment profile patch for the health field of its child, in the hosting school's tenant transaction."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildArrivals",
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildPickups",
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
     },
     {
       "decision": "0116",
