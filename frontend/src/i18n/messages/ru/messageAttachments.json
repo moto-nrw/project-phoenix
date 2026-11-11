@@ -1,6 +1,7 @@
 {
   "attach": "Прикрепить фото или файл",
   "attachHint": "До {max} файлов, каждый не больше {mb} МБ: фото, PDF, Word, Excel, PowerPoint",
+  "drop": "Перетащите файлы сюда",
   "remove": "Удалить вложение: {filename}",
   "uploading": "Загружается: {filename}",
   "tooMany": "В сообщении может быть не больше {max} файлов.",

@@ -1,6 +1,7 @@
 {
   "attach": "Bashkëngjit foto ose skedar",
   "attachHint": "Deri në {max} skedarë, secili më së shumti {mb} MB: foto, PDF, Word, Excel, PowerPoint",
+  "drop": "Lëshoni skedarët këtu",
   "remove": "Hiq bashkëngjitjen: {filename}",
   "uploading": "Po ngarkohet {filename}",
   "tooMany": "Një mesazh mund të ketë më së shumti {max} skedarë.",

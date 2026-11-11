@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -70,13 +76,33 @@ describe("Anhänge im Eingabefeld (#6685)", () => {
       expect.objectContaining({ name: "ausflug.png" }),
     );
     await waitFor(() => expect(send).toBeEnabled());
-    expect(screen.getByText("ausflug.png")).toBeInTheDocument();
+    // Ein Foto zeigt sich selbst; sein Name ist der Bildname.
+    expect(
+      screen.getByRole("img", { name: "ausflug.png" }),
+    ).toBeInTheDocument();
 
     await user.click(send);
     expect(onSend).toHaveBeenCalledWith([PHOTO]);
     // Nach dem Senden ist die Leiste leer.
-    expect(screen.queryByText("ausflug.png")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "ausflug.png" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Nachricht" })).toBeVisible();
+  });
+
+  it("nimmt eine Datei an, die jemand in das Feld zieht", async () => {
+    upload.mockResolvedValue(LIST);
+    render(<Composer onSend={vi.fn()} />);
+    const field = screen.getByRole("textbox", { name: "Nachricht" });
+    const dataTransfer = {
+      types: ["Files"],
+      files: [new File(["x"], "bastelliste.pdf", { type: "application/pdf" })],
+    };
+    fireEvent.dragEnter(field, { dataTransfer });
+    expect(screen.getByText("Dateien hier ablegen")).toBeInTheDocument();
+    fireEvent.drop(field, { dataTransfer });
+    expect(await screen.findByText("bastelliste.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("Dateien hier ablegen")).not.toBeInTheDocument();
   });
 
   it("nimmt einen Anhang wieder heraus", async () => {
@@ -191,7 +217,9 @@ describe("Fehlgeschlagenes Senden (#6685)", () => {
 
     expect(onSend).toHaveBeenCalledWith([PHOTO]);
     // Die Datei steht wieder im Feld und lässt sich erneut senden.
-    expect(await screen.findByText("ausflug.png")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("img", { name: "ausflug.png" }),
+    ).toBeInTheDocument();
     await waitFor(() => expect(send).toBeEnabled());
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
   });

@@ -26,6 +26,7 @@ export function useParentAttachmentLabels(): {
       composer: {
         attach: t("attach"),
         attachHint: t("attachHint", limits),
+        drop: t("drop"),
         remove: (filename) => t("remove", { filename }),
         uploading: (filename) => t("uploading", { filename }),
         tooMany: t("tooMany", limits),

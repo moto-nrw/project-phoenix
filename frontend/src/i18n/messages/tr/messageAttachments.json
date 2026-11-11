@@ -1,6 +1,7 @@
 {
   "attach": "Fotoğraf veya dosya ekle",
   "attachHint": "En fazla {max} dosya, her biri en çok {mb} MB: fotoğraf, PDF, Word, Excel, PowerPoint",
+  "drop": "Dosyaları buraya bırakın",
   "remove": "Eki kaldır: {filename}",
   "uploading": "{filename} yükleniyor",
   "tooMany": "Bir mesajda en fazla {max} dosya olabilir.",

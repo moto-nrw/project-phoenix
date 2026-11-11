@@ -1,6 +1,7 @@
 {
   "attach": "Foto oder Datei anhängen",
   "attachHint": "Bis zu {max} Dateien, je höchstens {mb} MB: Fotos, PDF, Word, Excel, PowerPoint",
+  "drop": "Dateien hier ablegen",
   "remove": "Anhang entfernen: {filename}",
   "uploading": "{filename} wird hochgeladen",
   "tooMany": "Eine Nachricht kann höchstens {max} Dateien haben.",

@@ -1,6 +1,7 @@
 {
   "attach": "Attach a photo or file",
   "attachHint": "Up to {max} files, {mb} MB each at most: photos, PDF, Word, Excel, PowerPoint",
+  "drop": "Drop files here",
   "remove": "Remove attachment: {filename}",
   "uploading": "Uploading {filename}",
   "tooMany": "A message can have at most {max} files.",

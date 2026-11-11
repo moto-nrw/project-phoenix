@@ -4,13 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PaperPlaneRightIcon } from "@phosphor-icons/react/ssr";
 import { Paperclip } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { FileTypeIcon } from "~/components/ui/file-type-icon";
+import { AttachmentPreview } from "~/components/ui/attachment-preview";
+import { useFileDrop } from "~/components/ui/dropzone";
 import { SpinnerIcon } from "~/components/ui/icons";
-import { RemovableChip } from "~/components/ui/removable-chip";
 import { Textarea } from "~/components/ui/textarea";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatBytes } from "~/lib/files-api";
+import { cn } from "~/lib/utils";
 import {
   checkAttachmentFiles,
   MAX_MESSAGE_ATTACHMENT_MB,
@@ -40,6 +41,8 @@ export interface ComposerAttachmentLabels {
   readonly attach: string;
   /** Was angehängt werden darf, steht am Knopf, bevor jemand wählt. */
   readonly attachHint: string;
+  /** Steht im Feld, solange jemand Dateien darüber hält. */
+  readonly drop: string;
   readonly remove: (filename: string) => string;
   readonly uploading: (filename: string) => string;
   readonly tooMany: string;
@@ -52,6 +55,7 @@ export interface ComposerAttachmentLabels {
 const GERMAN_ATTACHMENT_LABELS: ComposerAttachmentLabels = {
   attach: "Foto oder Datei anhängen",
   attachHint: `Bis zu ${MAX_MESSAGE_ATTACHMENTS} Dateien, je höchstens ${MAX_MESSAGE_ATTACHMENT_MB} MB: Fotos, PDF, Word, Excel, PowerPoint`,
+  drop: "Dateien hier ablegen",
   remove: (filename) => `Anhang entfernen: ${filename}`,
   uploading: (filename) => `${filename} wird hochgeladen`,
   tooMany: `Eine Nachricht kann höchstens ${MAX_MESSAGE_ATTACHMENTS} Dateien haben.`,
@@ -85,14 +89,15 @@ let pendingSequence = 0;
 
 /**
  * The shared chat composer for the parent-OGS messaging feature: an
- * auto-growing textarea plus an inline send button, Enter-to-send (Shift+Enter
+ * auto-growing textarea and a send button in one frame, Enter-to-send (Shift+Enter
  * for a newline). Used identically by the parent chat (OgsConversation) and the
  * staff thread page so both stay visually in sync with the calm portal look —
  * neutral gray focus, kit Button, no brand-green accent.
  *
  * With `attachments` it also carries photos and files (#6685): the paperclip
- * or a pasted picture uploads at once, the tray above the field shows what
- * the message will carry, and `onSend` receives the uploaded files.
+ * a pasted picture or a dropped file uploads at once, the tray inside the
+ * frame shows what the message will carry, and `onSend` receives the uploaded
+ * files.
  */
 export function MessageComposer({
   value,
@@ -238,180 +243,164 @@ export function MessageComposer({
   const parent = tone === "parent";
   const inputLocked = externallyDisabled || sending;
   const atLimit = pending.length >= MAX_MESSAGE_ATTACHMENTS;
+  const { dragging, dropProps } = useFileDrop({
+    onFiles: addFiles,
+    disabled: !attachments || inputLocked,
+  });
 
   return (
     <div className="flex flex-col gap-2">
       <FormErrorAlert message={attachError.error} />
-      {pending.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
-          <ul className="flex flex-wrap gap-2">
-            {pending.map((item) => (
-              <li key={item.key} className="max-w-full">
-                <RemovableChip
-                  label={item.file.name}
-                  detail={
-                    item.attachment
-                      ? formatBytes(item.attachment.size_bytes)
-                      : undefined
-                  }
-                  icon={
-                    item.attachment ? (
-                      item.previewUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- Vorschau aus dem Gerät (blob:), kein Server-Bild
-                        <img
-                          src={item.previewUrl}
-                          alt=""
-                          className="-ml-1.5 h-6 w-6 shrink-0 rounded-full object-cover"
-                        />
-                      ) : (
-                        <FileTypeIcon
-                          contentType={item.attachment.content_type}
-                        />
-                      )
-                    ) : (
-                      <span
-                        role="status"
-                        aria-label={labels.uploading(item.file.name)}
-                        className="flex shrink-0"
-                      >
-                        <SpinnerIcon className="h-4 w-4" />
-                      </span>
-                    )
-                  }
-                  onRemove={() => removePending(item.key)}
-                  removeLabel={labels.remove(item.file.name)}
-                />
-              </li>
-            ))}
-          </ul>
-          {attachments?.notice ? (
-            <p className="text-xs text-gray-600">{attachments.notice}</p>
-          ) : null}
-        </div>
-      ) : null}
-      {/* Personal am Handy: das Feld über die ganze Breite, Büroklammer und
-          Senden darunter. Die Eltern-App bleibt mit ihren Symbolknöpfen
-          einzeilig. */}
+      {/* Ein Rahmen für alles, was zur Nachricht gehört: Anhänge, Text und
+          die beiden Knöpfe. Er zeigt den Fokus des Feldes und nimmt Dateien
+          an, die jemand hineinzieht. */}
       <div
-        className={
-          parent
-            ? "flex flex-row items-end gap-2"
-            : "flex flex-wrap items-end gap-2 sm:flex-nowrap"
-        }
+        {...(attachments ? dropProps : {})}
+        className={cn(
+          "relative flex flex-col rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 transition-shadow duration-200 ring-inset focus-within:ring-2 focus-within:ring-gray-400",
+          inputLocked && "bg-gray-50",
+        )}
       >
-        {attachments ? (
-          <>
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              accept={MESSAGE_ATTACHMENT_ACCEPT}
-              className="sr-only"
-              tabIndex={-1}
-              aria-label={labels.attach}
-              onChange={(event) => {
-                addFiles(Array.from(event.target.files ?? []));
-                // Dieselbe Datei lässt sich danach erneut wählen.
-                event.target.value = "";
-              }}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size={parent ? "icon" : "field"}
-              onClick={() => fileInput.current?.click()}
-              disabled={inputLocked || atLimit}
-              aria-label={labels.attach}
-              tooltip={atLimit ? labels.tooMany : labels.attachHint}
-              className="shrink-0"
-            >
-              <Paperclip className="h-5 w-5" aria-hidden="true" />
-            </Button>
-          </>
+        {pending.length > 0 ? (
+          <div className="flex flex-col gap-1.5 px-3 pt-3">
+            <ul className="-mx-3 flex gap-3 overflow-x-auto px-3 pt-1.5 pb-1">
+              {pending.map((item) => (
+                <li key={item.key} className="flex min-w-0 shrink-0">
+                  <AttachmentPreview
+                    name={item.file.name}
+                    detail={formatBytes(item.file.size)}
+                    contentType={item.file.type}
+                    previewUrl={item.previewUrl}
+                    busy={!item.attachment}
+                    busyLabel={labels.uploading(item.file.name)}
+                    onRemove={() => removePending(item.key)}
+                    removeLabel={labels.remove(item.file.name)}
+                  />
+                </li>
+              ))}
+            </ul>
+            {attachments?.notice ? (
+              <p className="text-xs text-gray-600">{attachments.notice}</p>
+            ) : null}
+          </div>
         ) : null}
-        <div
-          className={
-            parent
-              ? "flex w-full min-w-0 flex-col gap-1"
-              : "order-first flex min-w-0 basis-full flex-col gap-1 sm:order-none sm:flex-1 sm:basis-0"
-          }
-        >
-          <label htmlFor="message-composer" className="sr-only">
-            {fieldLabel}
-          </label>
-          <Textarea
-            id="message-composer"
-            name="message-composer"
-            autoGrow
-            rows={1}
-            value={value}
-            maxLength={MAX_MESSAGE_LEN}
-            onChange={(event) => onChange(event.target.value)}
-            onPaste={(event) => {
-              // Ein eingefügtes Bild (Bildschirmfoto) wird zum Anhang.
-              const files = Array.from(event.clipboardData.files);
-              if (attachments && files.length > 0) {
-                event.preventDefault();
-                addFiles(files);
-              }
-            }}
-            onKeyDown={(event) => {
-              // Ignore the Enter that confirms an IME composition candidate
-              // (accented letters, mobile autocomplete): nativeEvent.isComposing is
-              // true mid-composition, and sending there would fire off a
-              // half-composed message instead of accepting the candidate.
-              if (
-                event.key === "Enter" &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault();
-                if (!disabled) send();
-              }
-            }}
-            disabled={inputLocked}
-            placeholder={placeholder}
-            className={
-              parent
-                ? "min-h-8 px-3 py-1.5 text-base leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
-                : "min-h-10 px-4 py-2.5 leading-5 pointer-coarse:min-h-11 pointer-coarse:py-3"
-            }
-          />
-          {value.length >= COUNTER_VISIBLE_FROM ? (
-            <span
-              className={`self-end ${parent ? "text-[15px]" : "text-xs"} ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}
-            >
-              {value.length}/{MAX_MESSAGE_LEN}
-            </span>
+        <div className="flex items-end gap-1 p-1.5">
+          {attachments ? (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                accept={MESSAGE_ATTACHMENT_ACCEPT}
+                className="sr-only"
+                tabIndex={-1}
+                aria-label={labels.attach}
+                onChange={(event) => {
+                  addFiles(Array.from(event.target.files ?? []));
+                  // Dieselbe Datei lässt sich danach erneut wählen.
+                  event.target.value = "";
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInput.current?.click()}
+                disabled={inputLocked || atLimit}
+                aria-label={labels.attach}
+                tooltip={atLimit ? labels.tooMany : labels.attachHint}
+                className="shrink-0"
+              >
+                <Paperclip className="h-5 w-5" aria-hidden="true" />
+              </Button>
+            </>
           ) : null}
-        </div>
-        <Button
-          type="button"
-          variant="primary"
-          size={parent ? "icon" : "field"}
-          onClick={send}
-          disabled={disabled}
-          aria-label={parent ? (sending ? sendingLabel : sendLabel) : undefined}
-          aria-busy={sending}
-          title={parent ? sendLabel : undefined}
-          className={parent ? "shrink-0" : "ml-auto shrink-0"}
-        >
-          {parent ? (
-            sending ? (
+          <div className="min-w-0 flex-1">
+            <label htmlFor="message-composer" className="sr-only">
+              {fieldLabel}
+            </label>
+            <Textarea
+              id="message-composer"
+              name="message-composer"
+              autoGrow
+              rows={1}
+              value={value}
+              maxLength={MAX_MESSAGE_LEN}
+              onChange={(event) => onChange(event.target.value)}
+              onPaste={(event) => {
+                // Ein eingefügtes Bild (Bildschirmfoto) wird zum Anhang.
+                const files = Array.from(event.clipboardData.files);
+                if (attachments && files.length > 0) {
+                  event.preventDefault();
+                  addFiles(files);
+                }
+              }}
+              onKeyDown={(event) => {
+                // Ignore the Enter that confirms an IME composition candidate
+                // (accented letters, mobile autocomplete): nativeEvent.isComposing is
+                // true mid-composition, and sending there would fire off a
+                // half-composed message instead of accepting the candidate.
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  if (!disabled) send();
+                }
+              }}
+              disabled={inputLocked}
+              placeholder={placeholder}
+              // Der Rahmen trägt Linie, Schatten und Fokus; das Feld selbst
+              // bleibt ohne. 16 px Schrift per Finger: iOS zoomt sonst hinein.
+              // Der Platzhalter bleibt einzeilig, sonst wächst das leere Feld
+              // am Handy auf zwei Zeilen.
+              className={cn(
+                "min-h-8 bg-transparent px-2 py-1.5 leading-5 shadow-none ring-0 placeholder:truncate focus-visible:ring-0 disabled:bg-transparent pointer-coarse:min-h-11 pointer-coarse:py-3 pointer-coarse:text-base",
+                parent && "text-base",
+              )}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            size="icon"
+            onClick={send}
+            disabled={disabled}
+            aria-label={sending ? sendingLabel : sendLabel}
+            aria-busy={sending}
+            tooltip={sendLabel}
+            className="shrink-0"
+          >
+            {sending ? (
               <SpinnerIcon className="h-5 w-5" />
             ) : (
               <PaperPlaneRightIcon
-                size={19}
+                size={18}
                 weight="fill"
                 className="translate-x-px"
                 aria-hidden="true"
               />
-            )
-          ) : (
-            sendLabel
-          )}
-        </Button>
+            )}
+          </Button>
+        </div>
+        {dragging ? (
+          <div
+            aria-hidden="true"
+            className="border-moto-green bg-moto-green-soft text-moto-green-strong pointer-events-none absolute inset-0 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-sm font-medium"
+          >
+            <Paperclip className="h-4 w-4" aria-hidden="true" />
+            {labels.drop}
+          </div>
+        ) : null}
       </div>
+      {value.length >= COUNTER_VISIBLE_FROM ? (
+        <span
+          className={`self-end ${parent ? "text-[15px]" : "text-xs"} ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}
+        >
+          {value.length}/{MAX_MESSAGE_LEN}
+        </span>
+      ) : null}
     </div>
   );
 }
