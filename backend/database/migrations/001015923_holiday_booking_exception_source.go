@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayBookingExceptionSourceVersion = "1.15.920"
+const holidayBookingExceptionSourceVersion = "1.15.923"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

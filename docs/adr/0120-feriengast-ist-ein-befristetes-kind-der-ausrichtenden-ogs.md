@@ -408,7 +408,7 @@ Trägerbüro die Woche für die Schule ein, ist das der Normalfall.
 1. **Die Buchung ist Urheber.** Enrollment trägt die gebuchten Tage mit der
    eigenen Quelle `holiday_booking` und ohne Personal-Urheber ein
    (`created_by` bleibt leer, `created_by_guardian` auch); Grund und Zeiten
-   bleiben wie in Punkt 2. Migration 1.15.920 erweitert `chk_exception_source`
+   bleiben wie in Punkt 2. Migration 1.15.923 erweitert `chk_exception_source`
    und `chk_exception_author` der Tabellen
    `schedule.student_arrival_exceptions` und
    `schedule.student_pickup_exceptions` um diese Quelle. Wer die Gruppe
