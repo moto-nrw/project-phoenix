@@ -12,6 +12,10 @@ import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { formatCount } from "~/lib/format-utils";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
@@ -73,6 +77,7 @@ export default function OperatorOrganizationsPage() {
     orgsError,
     "die Liste der Träger",
     () => void mutateOrgs(),
+    organizations === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const statsLoadError = useSwrLoadError(
     statsError,
@@ -83,6 +88,12 @@ export default function OperatorOrganizationsPage() {
   const refreshAll = useCallback(async () => {
     await Promise.all([mutateOrgs(), mutateStats()]);
   }, [mutateOrgs, mutateStats]);
+  // The new Träger loads after the write; a failure stands above the list,
+  // also after the dialog closed (#6652).
+  const createdAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Träger",
+    refreshAll,
+  );
 
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
@@ -243,7 +254,7 @@ export default function OperatorOrganizationsPage() {
           <CreateOrganizationModal
             isOpen={createOrgOpen}
             onClose={() => setCreateOrgOpen(false)}
-            onCreated={() => refreshAll().then(() => undefined)}
+            onCreated={createdAfterWrite.refresh}
           />
         </>
       }
@@ -276,6 +287,7 @@ export default function OperatorOrganizationsPage() {
 
       <div>
         <LoadErrorAlert error={orgsLoadError} />
+        <LoadErrorAlert error={createdAfterWrite.error} />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
             <TrashToggleButton
@@ -299,7 +311,6 @@ export default function OperatorOrganizationsPage() {
             ))}
           </div>
         ) : !orgsLoading &&
-          !orgsError &&
           organizations !== undefined &&
           activeOrganizations.length === 0 ? (
           <ProvisioningEmptyState
@@ -308,8 +319,7 @@ export default function OperatorOrganizationsPage() {
             buttonLabel="Neuer Träger"
             onAction={() => setCreateOrgOpen(true)}
           />
-        ) : (organizations === undefined && !orgsLoading) ||
-          orgsError ? null : (
+        ) : organizations === undefined && !orgsLoading ? null : (
           <DataTable
             columns={columns}
             rows={activeOrganizations}

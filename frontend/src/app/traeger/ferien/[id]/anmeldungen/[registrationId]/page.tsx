@@ -46,6 +46,7 @@ import {
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
 import { LegalMarkdown } from "~/components/enrollment/legal-markdown";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
@@ -180,29 +181,35 @@ export default function TraegerHolidayRegistrationPage() {
   const registrationLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = registrationLoad;
 
+  // Reads the registration and rejects on failure: after a write the card
+  // shows that as a load error; the first load shows it as the page error.
+  const fetchRegistration = useCallback(async () => {
+    const [
+      loadedRegistration,
+      loadedContribution,
+      loadedHealth,
+      loadedConfirmation,
+    ] = await Promise.all([
+      fetchHolidayRegistration(periodId, registrationId),
+      fetchHolidayContribution(periodId, registrationId),
+      canSeeHealth
+        ? fetchHolidayRegistrationHealth(periodId, registrationId)
+        : Promise.resolve(null),
+      fetchHolidayConfirmationSettings(),
+    ]);
+    latestContribution.current++;
+    setConfirmation(loadedConfirmation);
+    setRegistration(loadedRegistration);
+    setHealth(loadedHealth);
+    setContribution(loadedContribution);
+    setExemption(loadedRegistration.benefitsDeclared);
+    setCostBearerId(null);
+    clearLoadError();
+  }, [periodId, registrationId, canSeeHealth, clearLoadError]);
+
   const load = useCallback(async () => {
     try {
-      const [
-        loadedRegistration,
-        loadedContribution,
-        loadedHealth,
-        loadedConfirmation,
-      ] = await Promise.all([
-        fetchHolidayRegistration(periodId, registrationId),
-        fetchHolidayContribution(periodId, registrationId),
-        canSeeHealth
-          ? fetchHolidayRegistrationHealth(periodId, registrationId)
-          : Promise.resolve(null),
-        fetchHolidayConfirmationSettings(),
-      ]);
-      latestContribution.current++;
-      setConfirmation(loadedConfirmation);
-      setRegistration(loadedRegistration);
-      setHealth(loadedHealth);
-      setContribution(loadedContribution);
-      setExemption(loadedRegistration.benefitsDeclared);
-      setCostBearerId(null);
-      clearLoadError();
+      await fetchRegistration();
     } catch (err) {
       logger.error("traeger_holiday_registration_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -212,7 +219,7 @@ export default function TraegerHolidayRegistrationPage() {
         retry: () => void load(),
       });
     }
-  }, [periodId, registrationId, canSeeHealth, clearLoadError, showLoadError]);
+  }, [fetchRegistration, showLoadError]);
 
   useEffect(() => {
     void load();
@@ -306,8 +313,10 @@ export default function TraegerHolidayRegistrationPage() {
     [refreshContribution],
   );
 
+  // Confirmed data stays when a later load fails; the error stands above it
+  // (#6652).
   const loadError =
-    registrationLoad.error ??
+    (registration ? null : registrationLoad.error) ??
     metadataLoadError(
       periodError ?? schoolsError,
       Boolean(registration && period && schools),
@@ -385,6 +394,7 @@ export default function TraegerHolidayRegistrationPage() {
     >
       {registration && view && period && schools ? (
         <>
+          <LoadErrorAlert error={registrationLoad.error} />
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}
@@ -397,8 +407,8 @@ export default function TraegerHolidayRegistrationPage() {
             costBearerId={costBearerId}
             onCostBearerChange={changeCostBearer}
             onChanged={changed}
-            onReload={load}
-            onDebtorNumberChanged={load}
+            onReload={fetchRegistration}
+            onDebtorNumberChanged={fetchRegistration}
             canManageBillingSettings={canManageBillingSettings}
           />
           <HolidayRegistrationCriteriaCard

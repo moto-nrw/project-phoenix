@@ -14,6 +14,8 @@ import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type NumberRange,
@@ -59,6 +61,12 @@ export function NumberRangeCard({
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
   const { success } = useToast();
+  // The reload after a saved pattern is a load error above the card, never
+  // an error of the closed dialog (#6652).
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige des Nummernkreises",
+    onChanged,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -77,16 +85,17 @@ export function NumberRangeCard({
     await save.run(async (op) => {
       try {
         await copy.save(pattern.trim());
-        success("Das Muster ist gespeichert.");
-        if (op.isCurrent()) setOpen(false);
-        await onChanged();
       } catch (err) {
         logger.error("number_range_save_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object: "das Muster" });
+        return;
       }
+      success("Das Muster ist gespeichert.");
+      if (op.isCurrent()) setOpen(false);
+      await afterSave.refresh();
     });
   };
 
@@ -106,6 +115,7 @@ export function NumberRangeCard({
         </Button>
       }
     >
+      <LoadErrorAlert error={afterSave.error} className="mb-4" />
       {set ? (
         <DataGrid columns={2}>
           <DataField label="Muster">

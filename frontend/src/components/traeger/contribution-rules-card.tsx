@@ -9,6 +9,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type ContributionRule,
@@ -67,6 +69,9 @@ export function ContributionRulesCard({
   const [busy, setBusy] = useState(false);
   const deleteErrors = useApiFormError();
   const { success } = useToast();
+  // A write's reload stands above the list as a load error, never as an
+  // error of the write or its closed dialog (#6652).
+  const afterWrite = useRefreshAfterWrite("die Anzeige der Regeln", onChanged);
   const text = KIND_TEXT[kind];
 
   const remove = async () => {
@@ -75,17 +80,18 @@ export function ContributionRulesCard({
     deleteErrors.clear();
     try {
       await deleteContributionRule(deleting.id);
-      success("Die Regel ist gelöscht.");
-      setDeleting(null);
-      await onChanged();
     } catch (err) {
       logger.error("contribution_rule_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void deleteErrors.show(err, { object: "das Löschen der Regel" });
-    } finally {
       setBusy(false);
+      return;
     }
+    setBusy(false);
+    success("Die Regel ist gelöscht.");
+    setDeleting(null);
+    await afterWrite.refresh();
   };
 
   const columns: DataTableColumn<ContributionRule>[] = [
@@ -145,6 +151,7 @@ export function ContributionRulesCard({
           size="md"
           onClick={() => setEdit({ kind: "create", ruleKind: kind })}
         >
+          <LoadErrorAlert error={afterWrite.error} className="mb-4" />
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           {text.add}
         </Button>
@@ -166,7 +173,7 @@ export function ContributionRulesCard({
       <ContributionRuleModal
         edit={edit}
         onClose={() => setEdit(null)}
-        onSaved={onChanged}
+        onSaved={afterWrite.refresh}
       />
       <ConfirmDeleteModal
         isOpen={deleting !== null}
