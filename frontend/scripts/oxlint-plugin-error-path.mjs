@@ -973,7 +973,7 @@ const noErrorTextMatch = {
 // when a `try` with catch awaits it.
 
 const RELOAD_CALLEE_RE =
-  /^(?:on(?:[A-Z]\w*(?:ed|Done)|Refresh\w*|Reload\w*)|refresh\w*|reload\w*|refetch\w*|revalidate\w*|load[A-Z]\w*)$/;
+  /^(?:on(?:[A-Z]\w*(?:ed|Done)|Done|Refresh\w*|Reload\w*)|refresh\w*|reload\w*|refetch\w*|revalidate\w*|load[A-Z]\w*)$/;
 const PROMISE_COMBINATORS = new Set(["all", "race", "any"]);
 
 function calleeName(callee) {

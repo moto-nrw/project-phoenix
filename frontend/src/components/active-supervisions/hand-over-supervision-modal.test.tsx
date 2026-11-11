@@ -90,8 +90,8 @@ const overview = {
   canAssign: true,
 };
 
-function renderModal(props: { onDone?: () => Promise<unknown> } = {}) {
-  const onDone = props.onDone ?? vi.fn().mockResolvedValue(undefined);
+function renderModal(props: { onDone?: () => Promise<boolean> } = {}) {
+  const onDone = props.onDone ?? vi.fn().mockResolvedValue(true);
   const onClose = vi.fn();
   render(
     <HandOverSupervisionModal
