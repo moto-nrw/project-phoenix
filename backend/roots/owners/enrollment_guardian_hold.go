@@ -14,9 +14,11 @@ import (
 )
 
 // EnrollmentGuardianHold is Enrollment's held renewal permission (#6638).
+// Other children are locked with the requested child before guardian profiles
+// and relationships; each candidate still needs its own permission check.
 type EnrollmentGuardianHold interface {
-	HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
-	HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
+	HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error)
+	HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error)
 }
 
 // enrollmentGuardianHold binds Enrollment's held renewal permission
@@ -42,7 +44,7 @@ func NewEnrollmentGuardianHold(db transactionruntime.Database, relationships peo
 
 // HoldAccountStudentPermission holds the account's relationship to the
 // student with the permission until the caller's school transaction ends.
-func (a enrollmentGuardianHold) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {
+func (a enrollmentGuardianHold) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error) {
 	if err := enrollmentHoldTenant(ctx, tenantID); err != nil {
 		return false, err
 	}
@@ -50,12 +52,12 @@ func (a enrollmentGuardianHold) HoldAccountStudentPermission(ctx context.Context
 	if found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {
 		return false, err
 	}
-	return a.hold(ctx, guardianhold.Request{AccountID: accountID, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}})
+	return a.hold(ctx, guardianhold.Request{AccountID: accountID, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}}, otherChildren...)
 }
 
 // HoldGuardianEmailStudentPermission holds the relationship of the guardian
 // the address names; a profile with an account needs its membership as well.
-func (a enrollmentGuardianHold) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error) {
+func (a enrollmentGuardianHold) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error) {
 	if err := enrollmentHoldTenant(ctx, tenantID); err != nil {
 		return false, err
 	}
@@ -63,11 +65,11 @@ func (a enrollmentGuardianHold) HoldGuardianEmailStudentPermission(ctx context.C
 	if found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {
 		return false, err
 	}
-	return a.hold(ctx, guardianhold.Request{Email: email, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}})
+	return a.hold(ctx, guardianhold.Request{Email: email, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}}, otherChildren...)
 }
 
-func (a enrollmentGuardianHold) hold(ctx context.Context, req guardianhold.Request) (bool, error) {
-	err := guardianhold.Hold(ctx, a.locks(), req)
+func (a enrollmentGuardianHold) hold(ctx context.Context, req guardianhold.Request, otherChildren ...int64) (bool, error) {
+	err := guardianhold.Hold(ctx, a.locks(), req, otherChildren...)
 	if errors.Is(err, guardianhold.ErrNotLinked) || errors.Is(err, guardianhold.ErrPermissionDenied) {
 		return false, nil
 	}

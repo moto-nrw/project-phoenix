@@ -442,3 +442,99 @@ func TestParentRenewalTakesTheChildBeforeThePhaseLocks(t *testing.T) {
 	require.NoError(t, awaitRenewal(t, done), "the renewal commits after the staff transaction")
 	require.Equal(t, 1, rig.requestsOf(t, f))
 }
+
+// Contact edits take their child before the guardian profile. While a
+// sibling renewal waits for the second child, it must not hold the shared
+// profile: that would make the contact edit and renewal wait for each other.
+// Exercise the contact guard's owner locks against a real late-invite submit,
+// both for an accountless profile and an email identity carrying an account.
+func TestParentSiblingRenewalTakesAllChildrenBeforeGuardianProfiles(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	for _, withAccount := range []bool{false, true} {
+		t.Run(map[bool]string{false: "without_account", true: "with_account"}[withAccount], func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			rig := setupRenewalRigFor(t, enrollmentNative.PhaseAudienceExistingStudents)
+			first := enrolledChild(t, rig.db, "Lina", "Geschwister", existingChildBirthday)
+			second := enrolledChild(t, rig.db, "Mila", "Geschwister", existingChildBirthday)
+			require.Less(t, first.ID, second.ID)
+			profile := testpkg.CreateTestGuardianProfileNamed(t, rig.db, "Eva", "Geschwister", "sibling-renewal")
+			if withAccount {
+				account := testpkg.CreateTestAccount(t, rig.db, "sibling-renewal")
+				_, err := rig.db.NewUpdate().TableExpr(`users.guardian_profiles`).
+					Set("account_id = ?", account.ID).Set("has_account = TRUE").
+					Where("id = ?", profile.ID).Exec(testpkg.Ctx(t))
+				require.NoError(t, err)
+			}
+			testpkg.CreateTestStudentGuardianLink(t, rig.db, first.ID, profile.ID, securityruntime.GuardianRolePrimaryGuardian)
+			testpkg.CreateTestStudentGuardianLink(t, rig.db, second.ID, profile.ID, securityruntime.GuardianRolePrimaryGuardian)
+			require.NotNil(t, profile.Email)
+			invite, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), rig.db, rig.svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
+				PhaseID: rig.sourcePhase.ID, GuardianEmail: *profile.Email, CreatedBy: rig.creatorID,
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithTimeout(testpkg.Ctx(t), renewalDeadline)
+			defer cancel()
+			started := make(chan renewalBackend, 1)
+			proceed := newRenewalGate()
+			defer proceed.open()
+			contact := make(chan error, 1)
+			go func() {
+				contact <- testpkg.WithTenantTx(t, ctx, rig.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+					var backend renewalBackend
+					backend.err = tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &backend.pid)
+					if backend.err == nil {
+						_, backend.err = rig.repos.Student.FindByIDForUpdate(txCtx, second.ID)
+					}
+					started <- backend
+					if backend.err != nil {
+						return backend.err
+					}
+					select {
+					case <-proceed.release:
+					case <-txCtx.Done():
+						return txCtx.Err()
+					}
+					return rig.repos.GuardianProfile.LockByIDForUpdate(txCtx, profile.ID)
+				})
+			}()
+			var holder renewalBackend
+			select {
+			case holder = <-started:
+				require.NoError(t, holder.err)
+			case <-ctx.Done():
+				t.Fatal("the contact edit never locked the second child")
+			}
+
+			done := make(chan error, 1)
+			var result *enrollmentAPI.SubmitResult
+			go func() {
+				var submitErr error
+				result, submitErr = rig.svc.Submit(ctx, enrollmentAPI.SubmitRequest{
+					TenantID: testpkg.Tenant(t), PhaseID: rig.sourcePhase.ID, LateInviteToken: invite.Token,
+					GuardianFirstName: "Eva", GuardianLastName: "Geschwister", GuardianEmail: *profile.Email,
+					ConsentFlags: testFormValues(rolloverConsentFlags()),
+					// Reverse input order still locks the lower child ID first.
+					Children: []enrollmentAPI.SubmitChild{
+						submitChild("Mila", "Geschwister", existingChildBirthday),
+						submitChild("Lina", "Geschwister", existingChildBirthday),
+					},
+				})
+				done <- submitErr
+			}()
+			require.Eventually(t, func() bool {
+				var waiting bool
+				err := rig.db.NewRaw("SELECT EXISTS (SELECT 1 FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid)))", holder.pid).
+					Scan(ctx, &waiting)
+				return err == nil && waiting
+			}, 10*time.Second, 10*time.Millisecond, "the renewal must wait for the second child")
+			proceed.open()
+			require.NoError(t, awaitRenewal(t, contact), "the contact edit takes the profile and commits without a deadlock")
+			require.NoError(t, awaitRenewal(t, done), "the sibling renewal commits after the contact edit")
+			require.Len(t, result.Children, 2)
+			require.Equal(t, &second.ID, result.Children[0].MatchedStudentID)
+			require.Equal(t, &first.ID, result.Children[1].MatchedStudentID)
+		})
+	}
+}

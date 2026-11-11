@@ -5399,14 +5399,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (a enrollmentGuardianHold) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn false, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByAccount(ctx, accountID)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn false, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{AccountID: accountID, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}})\n}",
+      "evidence": "func (a enrollmentGuardianHold) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn false, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByAccount(ctx, accountID)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn false, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{AccountID: accountID, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}}, otherChildren...)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentPermission",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (a enrollmentGuardianHold) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn false, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByEmail(ctx, email)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn false, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{Email: email, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}})\n}",
+      "evidence": "func (a enrollmentGuardianHold) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn false, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByEmail(ctx, email)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn false, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{Email: email, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}}, otherChildren...)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentPermission",
       "owner": "roots"

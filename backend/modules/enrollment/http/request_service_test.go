@@ -204,11 +204,11 @@ func (a *recordingGuardianAuthorizer) GuardianEmailHasStudentPermission(_ contex
 }
 
 // The renewal asks the held variants (#6638); the stub records them alike.
-func (a *recordingGuardianAuthorizer) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {
+func (a *recordingGuardianAuthorizer) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string, _ ...int64) (bool, error) {
 	return a.AccountHasStudentPermission(ctx, accountID, studentID, tenantID, permission)
 }
 
-func (a *recordingGuardianAuthorizer) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error) {
+func (a *recordingGuardianAuthorizer) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string, _ ...int64) (bool, error) {
 	return a.GuardianEmailHasStudentPermission(ctx, email, studentID, tenantID, permission)
 }
 

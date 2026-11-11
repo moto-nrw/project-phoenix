@@ -74,6 +74,21 @@ func TestHoldLocksAccountSchoolChildProfilesRelationshipInOrder(t *testing.T) {
 	assert.Equal(t, []string{"membership 7", "child 3", "profile 10", "profile 20", "profile 30", "relationship 3/20", "owner 20"}, f.calls)
 }
 
+// A sibling renewal must hold all child rows, even when its email profile
+// carries an account, before it can block a contact edit on that profile.
+func TestHoldLocksAllCandidateChildrenBeforeProfiles(t *testing.T) {
+	t.Parallel()
+	f := newFamily(7)
+	others := []int64{9, 3, 5, 3}
+	err := guardianhold.Hold(context.Background(), f.locks(), guardianhold.Request{
+		Email: f.email, StudentID: 5, ProfileID: 20,
+		Permissions: []string{"parent_portal.enrollment.submit"},
+	}, others...)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"owner 20", "membership 7", "child 3", "child 5", "child 9", "profile 20", "relationship 5/20", "owner 20"}, f.calls)
+	assert.Equal(t, []int64{9, 3, 5, 3}, others, "the caller's candidate order is unchanged")
+}
+
 func TestHoldRefusesWhatTheIdentityNoLongerHolds(t *testing.T) {
 	t.Parallel()
 	base := guardianhold.Request{AccountID: 7, StudentID: 3, ProfileID: 20, Access: "parent_portal.access", Permissions: []string{"parent_portal.enrollment.submit"}}

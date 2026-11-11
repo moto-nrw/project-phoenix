@@ -13,8 +13,8 @@
 //  1. the live account FOR KEY SHARE, then its active mapping at the school
 //     FOR SHARE (Membership): a deactivation or deletion waits for the
 //     write, without cycling with a later foreign key check on the account;
-//  2. the child row (Child), the lock every parent write and care exit of
-//     the child takes first;
+//  2. the child rows (Child), ascending, including any other renewal
+//     candidates, before taking a profile or relationship lock;
 //  3. the guardian profiles the write changes, ascending (Profile);
 //  4. the relationship row FOR UPDATE (Relationship): every change of its
 //     permissions, role or existence locks or deletes it first.
@@ -94,9 +94,11 @@ type Request struct {
 
 // Hold locks and re-checks the request's authority in the caller's school
 // transaction; see the package comment for the order. Errors of the locks
-// pass through unchanged.
-func Hold(ctx context.Context, locks Locks, req Request) error {
-	err := hold(ctx, locks, req)
+// pass through unchanged. Other children are renewal candidates: Hold locks
+// them and the requested child in ascending order before any guardian profile
+// or relationship. Only req.StudentID is checked for authority by this call.
+func Hold(ctx context.Context, locks Locks, req Request, otherChildren ...int64) error {
+	err := hold(ctx, locks, req, otherChildren)
 	switch {
 	case req.NotLinked != nil && errors.Is(err, ErrNotLinked):
 		return req.NotLinked
@@ -108,7 +110,7 @@ func Hold(ctx context.Context, locks Locks, req Request) error {
 	return err
 }
 
-func hold(ctx context.Context, locks Locks, req Request) error {
+func hold(ctx context.Context, locks Locks, req Request, otherChildren []int64) error {
 	if req.StudentID <= 0 || req.ProfileID <= 0 || (req.AccountID <= 0 && strings.TrimSpace(req.Email) == "") {
 		return ErrNotLinked
 	}
@@ -119,7 +121,7 @@ func hold(ctx context.Context, locks Locks, req Request) error {
 	if err != nil {
 		return err
 	}
-	if err := locks.Child(ctx, req.StudentID); err != nil {
+	if err := lockChildren(ctx, locks, req.StudentID, otherChildren); err != nil {
 		return err
 	}
 	if err := lockProfiles(ctx, locks, req); err != nil {
@@ -136,6 +138,22 @@ func hold(ctx context.Context, locks Locks, req Request) error {
 		return err
 	}
 	return requirePermissions(granted, req)
+}
+
+// lockChildren holds every candidate before the first profile or relationship.
+// Copy the input so sorting cannot change the caller's candidate order.
+func lockChildren(ctx context.Context, locks Locks, studentID int64, otherChildren []int64) error {
+	ids := append([]int64{studentID}, otherChildren...)
+	slices.Sort(ids)
+	for _, id := range slices.Compact(ids) {
+		if id <= 0 {
+			return ErrNotLinked
+		}
+		if err := locks.Child(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // holdAccount pins the membership of the account the request acts for: the
