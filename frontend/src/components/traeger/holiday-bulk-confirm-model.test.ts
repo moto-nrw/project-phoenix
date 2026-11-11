@@ -167,4 +167,14 @@ describe("bulkConfirmOutcome", () => {
       stop: true,
     });
   });
+
+  it("leaves a proxy transport failure unclear even when an HTTP response arrived", () => {
+    expect(
+      bulkConfirmOutcome(
+        new ApiError("Backend unavailable", 503, {
+          code: "general.unavailable",
+        }),
+      ),
+    ).toEqual({ reason: "unclear", stop: true });
+  });
 });

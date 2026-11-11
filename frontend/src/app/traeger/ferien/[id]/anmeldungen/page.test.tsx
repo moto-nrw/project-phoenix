@@ -691,37 +691,117 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
     );
   });
 
-  it("reloads after a lost response without reporting a success", async () => {
-    mockConfirm.mockRejectedValue(unavailableApiError());
-    renderPage();
-    await selectRows(["Anmeldung Nr. 21 von Anna Muster"]);
-    fireEvent.click(
-      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
-    );
-    fireEvent.click(
-      within(
-        await screen.findByRole("dialog", { name: "1 Anmeldung bestätigen?" }),
-      ).getByRole("button", { name: "Bestätigen" }),
-    );
-
-    const result = within(
-      await screen.findByRole("dialog", { name: "Keine Anmeldung bestätigt" }),
-    );
-    expect(result.getByText("Ergebnis unklar")).toBeInTheDocument();
-    expect(mockConfirm).toHaveBeenCalledTimes(1);
-    const loads = mockFetchList.mock.calls.length;
-    fireEvent.click(result.getByRole("button", { name: "Fertig" }));
-    await waitFor(() =>
-      expect(mockFetchList.mock.calls.length).toBeGreaterThan(loads),
-    );
-    // Anker: die Liste ist nach dem Schließen wieder sichtbar.
-    expect(screen.getByRole("table")).toBeInTheDocument();
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Anmeldung Nr. 21 von Anna Muster auswählen",
+  it.each([
+    ["lost response", unavailableApiError()],
+    [
+      "proxy timeout",
+      new ApiError("Backend unavailable", 503, {
+        code: "general.unavailable",
       }),
-    ).not.toBeChecked();
-  });
+    ],
+  ])(
+    "stops and reloads after a %s without reporting a success",
+    async (_name, error) => {
+      mockConfirm.mockRejectedValue(error);
+      renderPage();
+      await selectRows([
+        "Anmeldung Nr. 21 von Anna Muster",
+        "Anmeldung Nr. 22 von Bodo Muster",
+      ]);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+      );
+      fireEvent.click(
+        within(
+          await screen.findByRole("dialog", {
+            name: "2 Anmeldungen bestätigen?",
+          }),
+        ).getByRole("button", { name: "2 bestätigen" }),
+      );
+
+      const result = within(
+        await screen.findByRole("dialog", {
+          name: "Keine Anmeldung bestätigt",
+        }),
+      );
+      expect(result.getByText("Ergebnis unklar")).toBeInTheDocument();
+      expect(mockConfirm).toHaveBeenCalledTimes(1);
+      const loads = mockFetchList.mock.calls.length;
+      fireEvent.click(result.getByRole("button", { name: "Fertig" }));
+      await waitFor(() =>
+        expect(mockFetchList.mock.calls.length).toBeGreaterThan(loads),
+      );
+      // Anker: die Liste ist nach dem Schließen wieder sichtbar.
+      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", {
+          name: "Anmeldung Nr. 21 von Anna Muster auswählen",
+        }),
+      ).not.toBeChecked();
+    },
+  );
+
+  it.each([
+    ["confirmed", "Bestätigt"],
+    ["cancelled", "Storniert"],
+  ] as const)(
+    "reloads registrations concurrently %s without any successful confirmation",
+    async (status, label) => {
+      mockConfirm.mockRejectedValue(
+        new ApiError("State conflict", 409, {
+          code: "enrollment.holiday_registration_state_conflict",
+        }),
+      );
+      renderPage();
+      await selectRows([
+        "Anmeldung Nr. 21 von Anna Muster",
+        "Anmeldung Nr. 22 von Bodo Muster",
+      ]);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+      );
+      fireEvent.click(
+        within(
+          await screen.findByRole("dialog", {
+            name: "2 Anmeldungen bestätigen?",
+          }),
+        ).getByRole("button", { name: "2 bestätigen" }),
+      );
+
+      const result = within(
+        await screen.findByRole("dialog", {
+          name: "Keine Anmeldung bestätigt",
+        }),
+      );
+      expect(result.getByText("Inzwischen geändert")).toBeInTheDocument();
+      expect(mockConfirm).toHaveBeenCalledTimes(2);
+      mockFetchList.mockResolvedValue({
+        ...BULK_LIST,
+        registrations: BULK_LIST.registrations.map((registration) =>
+          registration.id === "21" || registration.id === "22"
+            ? { ...registration, status }
+            : registration,
+        ),
+      });
+      const loads = mockFetchList.mock.calls.length;
+      fireEvent.click(result.getByRole("button", { name: "Fertig" }));
+      await waitFor(() =>
+        expect(mockFetchList.mock.calls.length).toBeGreaterThan(loads),
+      );
+      await waitFor(() =>
+        expect(
+          within(screen.getByRole("table")).getByRole("row", {
+            name: /Anna Muster/,
+          }),
+        ).toHaveTextContent(label),
+      );
+      expect(
+        screen.getByRole("checkbox", {
+          name: "Anmeldung Nr. 21 von Anna Muster auswählen",
+        }),
+      ).not.toBeChecked();
+    },
+  );
 
   it("counts a refusal as processed while the next request is pending", async () => {
     let finish: () => void = () => {};

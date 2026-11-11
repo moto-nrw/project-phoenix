@@ -200,7 +200,7 @@ export function HolidayBulkConfirmModal({
   /** What the selection confirms and what stays open, decided on opening. */
   plan: HolidayBulkPlan;
   isOpen: boolean;
-  /** `changed`: a confirmation succeeded or its outcome is unclear. */
+  /** `changed`: a confirmation succeeded, is unclear or found a changed entry. */
   onClose: (changed: boolean) => void;
 }>) {
   const [phase, setPhase] = useState<Phase>({ kind: "review" });
@@ -260,7 +260,7 @@ export function HolidayBulkConfirmModal({
               : undefined,
         });
         if (outcome.stop) {
-          // No further confirmation can succeed.
+          // The result is uncertain or further confirmations cannot succeed.
           void showActionError(err, { object: "die Anmeldungen" });
           rest = "interrupted";
           break;
@@ -283,7 +283,9 @@ export function HolidayBulkConfirmModal({
     onClose(
       phase.kind === "done" &&
         (phase.confirmed.length > 0 ||
-          phase.open.some((entry) => entry.reason === "unclear")),
+          phase.open.some(
+            (entry) => entry.reason === "unclear" || entry.reason === "changed",
+          )),
     );
     setPhase({ kind: "review" });
   };

@@ -155,7 +155,10 @@ export function bulkConfirmOutcome(error: unknown): {
   if (!(error instanceof ApiError)) {
     return { reason: "interrupted", stop: true };
   }
-  if (error.noResponse) return { reason: "unclear", stop: true };
+  // A proxy timeout can arrive after the backend committed the confirmation.
+  if (error.noResponse || error.code === "general.unavailable") {
+    return { reason: "unclear", stop: true };
+  }
   if (error.status === 401 || error.status === 403) {
     return { reason: "interrupted", stop: true };
   }
