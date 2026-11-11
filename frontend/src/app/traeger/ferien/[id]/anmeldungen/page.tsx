@@ -557,6 +557,7 @@ export default function TraegerHolidayRegistrationsPage() {
   const duplicates = duplicateCount(list);
   const loadError =
     listLoad.error ??
+    (!list ? afterMerge.error : null) ??
     metadataLoadError(
       periodError ?? schoolsError,
       Boolean(list && period && schools),

@@ -70,6 +70,7 @@ export function useSchoolAbsenceReports({
     action: (studentId: string) => Promise<void>,
     event: string,
     retry: () => void,
+    onSaved?: () => void,
   ): Promise<boolean> => {
     const studentId = target.child.student_id;
     if (!studentId) return false;
@@ -89,6 +90,7 @@ export function useSchoolAbsenceReports({
       setPending(null);
       return false;
     }
+    onSaved?.();
     setPending(null);
     // Gespeichert; ein gescheitertes Nachladen ist ein Ladefehler (#6652).
     await onChanged();
@@ -111,17 +113,15 @@ export function useSchoolAbsenceReports({
   const confirmWithdraw = async () => {
     const target = withdrawTarget;
     if (!withdraw || !target) return;
-    const done = await run(
+    await run(
       target,
       (studentId) => withdraw(target.schoolClass, dateISO, studentId),
       "absence_report_withdraw_failed",
       () => void confirmWithdraw(),
+      // Nur die eigene Rückfrage schließen, bevor das Nachladen beginnt.
+      () =>
+        setWithdrawTarget((current) => (current === target ? null : current)),
     );
-    // Schließt nur die eigene Rückfrage: wurde sie inzwischen von außen
-    // geschlossen und für ein anderes Kind geöffnet, bleibt diese offen.
-    if (done) {
-      setWithdrawTarget((current) => (current === target ? null : current));
-    }
   };
 
   return {

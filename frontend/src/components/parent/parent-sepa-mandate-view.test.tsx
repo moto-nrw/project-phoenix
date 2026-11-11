@@ -271,32 +271,47 @@ describe("Reload after the revocation (#6652)", () => {
     },
   );
 
-  it("keeps the revocation when the reload fails", async () => {
-    mocks.fetch
-      .mockResolvedValueOnce(granted)
-      .mockRejectedValueOnce(
-        new ApiError("down", 503, { code: "general.unavailable" }),
-      )
-      .mockResolvedValue(open);
-    mocks.revoke.mockResolvedValue(granted);
-    renderView();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Mandat widerrufen" }),
-    );
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
+  it.each([true, false])(
+    "keeps the revocation when the reload fails (can manage: %s)",
+    async (canManage) => {
+      mocks.fetch
+        .mockResolvedValueOnce(granted)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(open);
+      mocks.revoke.mockResolvedValue({
+        ...open,
+        canManage,
+        mandate: { ...granted.mandate, revokedOn: "2026-09-09" },
+      });
+      renderView();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Mandat widerrufen" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Widerrufen" }),
+      );
 
-    expect(
-      await screen.findByText(
-        `${catalogText("general.unavailable", "die Anzeige des Mandats")} ${SAVED_BUT_STALE_SUFFIX}`,
-      ),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-    expect(
-      await screen.findByRole("button", { name: "Weiter" }),
-    ).toBeInTheDocument();
-    expect(mocks.revoke).toHaveBeenCalledTimes(1);
-  });
+      expect(
+        await screen.findByText(
+          `${catalogText("general.unavailable", "die Anzeige des Mandats")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Mandat widerrufen" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(granted.mandate!.ibanMasked),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByRole("button", { name: "Weiter" }),
+      ).toBeInTheDocument();
+      expect(mocks.revoke).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe("Mandate collection status", () => {

@@ -850,6 +850,27 @@ describe("RolesPage", () => {
       expect(screen.getByTestId("role-row-1")).toBeInTheDocument();
     });
 
+    it("discards protected roles and management actions after a refused reload", async () => {
+      setSelectedRole("1");
+      render(<RolesPage />);
+      await screen.findByTestId("role-detail-panel");
+      mockCreate.mockResolvedValueOnce({ id: "3", name: "Neue Rolle" });
+      mockGetList.mockRejectedValueOnce(new ApiError("refused", 403));
+      fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+      fireEvent.click(await screen.findByTestId("submit-create"));
+      expect(
+        await screen.findByText(
+          `${catalogText("general.permission", "die Anzeige der Rollen")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(screen.queryByTestId("role-row-1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("role-detail-panel")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("role-create-modal")).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Rolle erstellen"),
+      ).not.toBeInTheDocument();
+    });
+
     it("keeps a deleted role deleted when the reload fails", async () => {
       setSelectedRole("1");
       mockRemove.mockResolvedValueOnce(true);
@@ -869,6 +890,7 @@ describe("RolesPage", () => {
       ).not.toBeInTheDocument();
       expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
       expect(screen.getByTestId("role-row-2")).toBeInTheDocument();
+      expect(screen.queryByTestId("role-row-1")).not.toBeInTheDocument();
     });
 
     it("keeps an updated role when the reload fails", async () => {

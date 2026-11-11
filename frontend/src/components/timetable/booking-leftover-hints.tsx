@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -30,6 +31,7 @@ import {
   bookingLeftoverKey,
 } from "~/lib/booking-leftover";
 import { parseISODate, formatDate, toISODate } from "~/lib/date-helpers";
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -76,11 +78,20 @@ export function BookingLeftoverHints({
   const firstRemovableDay = earliestRemovalDay(useBerlinToday());
   const openListId = useId();
   const key = periodId ? timetableKeys.bookingLeftovers(periodId) : null;
-  const { data, error } = useSWRAuth(
+  const { data: cachedData, error } = useSWRAuth(
     key,
     () => timetableService.getBookingLeftovers(periodId!),
     { keepPreviousData: false },
   );
+  const { data, accessRefused } = useAccessControlledData(
+    key,
+    cachedData,
+    error,
+  );
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    setRemoving(null);
+  }, [accessRefused]);
   const reload = useCallback(
     () => (key ? tenantMutate(key) : undefined),
     [key, tenantMutate],

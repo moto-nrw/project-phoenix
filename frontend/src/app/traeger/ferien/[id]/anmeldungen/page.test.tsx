@@ -539,6 +539,10 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
           `${catalogText("general.permission", "die Anzeige der Ferienanmeldungen")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
+      expect(
+        screen.queryByText("Es ist noch keine Anmeldung eingegangen."),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
       expect(screen.queryByText("Eva Muster")).not.toBeInTheDocument();
       expect(
         screen.queryByRole("checkbox", { name: /Anmeldung Nr/ }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Plus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -49,6 +50,8 @@ interface MealCatererProps {
 export function MealCaterer({ canManageSupply }: MealCatererProps) {
   const [state, setState] = useState<MealCatererState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessRefused, setAccessRefused] = useState(false);
+  const latestRequest = useRef(0);
   const [form, setForm] = useState(EMPTY_FORM);
   const [inviteOpen, setInviteOpen] = useState(false);
   const save = useFormModalPending(inviteOpen);
@@ -69,15 +72,40 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   // Rejects on failure: after a write the caller shows it as a reload of a
   // saved change and keeps the shown caterer (#6652).
   const readCaterer = useCallback(async () => {
-    setState(await getMealCaterer());
-  }, []);
+    const request = ++latestRequest.current;
+    try {
+      const next = await getMealCaterer();
+      if (request !== latestRequest.current) return;
+      setState(next);
+      setAccessRefused(false);
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        setAccessRefused(true);
+        setState(null);
+        setForm(EMPTY_FORM);
+        setInviteOpen(false);
+        setRevokeTarget(null);
+        setEndOpen(false);
+      }
+      throw error;
+    } finally {
+      if (request === latestRequest.current) setLoading(false);
+    }
+  }, [clearLoadError]);
   // Never rejects: a failed load shows its error in place of the caterer.
   const load = useCallback(async () => {
+    const request = latestRequest.current + 1;
     setLoading(true);
     clearLoadError();
     try {
       await readCaterer();
     } catch (cause) {
+      if (request !== latestRequest.current) return;
       logger.error("meal_caterer_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
@@ -86,7 +114,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         retry: () => reloadRef.current(),
       });
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
   }, [clearLoadError, readCaterer, showLoadError]);
   const afterWrite = useRefreshAfterWrite(
@@ -96,9 +124,13 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   useEffect(() => {
     reloadRef.current = () => void load();
   });
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   function openInvite() {
     setForm(EMPTY_FORM);
@@ -156,6 +188,17 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     setEndOpen(false);
     toast.success("Die Belieferung ist beendet.");
     await afterWrite.refresh();
+  }
+
+  if (accessRefused) {
+    return (
+      <SectionCard
+        title="Caterer"
+        loading={!loadErrors.error && !afterWrite.error}
+      >
+        <LoadErrorAlert error={loadErrors.error ?? afterWrite.error} />
+      </SectionCard>
+    );
   }
 
   const openInvitations =

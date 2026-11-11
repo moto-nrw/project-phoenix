@@ -12,6 +12,7 @@ import type { BookingLeftover } from "~/lib/booking-leftover";
 const mocks = vi.hoisted(() => ({
   leftovers: { current: [] as BookingLeftover[] },
   loadError: { current: undefined as unknown },
+  keepCached: false,
   setKept: vi.fn(),
   remove: vi.fn(),
   mutate: vi.fn(() => Promise.resolve()),
@@ -31,7 +32,7 @@ vi.mock("~/lib/roster-impact", async (importOriginal) => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) => ({
     data:
-      key === null || mocks.loadError.current
+      key === null || (mocks.loadError.current && !mocks.keepCached)
         ? undefined
         : mocks.leftovers.current,
     error: key === null ? undefined : mocks.loadError.current,
@@ -100,11 +101,40 @@ describe("BookingLeftoverHints", () => {
   beforeEach(() => {
     mocks.leftovers.current = [hannah, kept];
     mocks.loadError.current = undefined;
+    mocks.keepCached = false;
     mocks.setKept.mockReset().mockResolvedValue(undefined);
     mocks.remove.mockReset().mockResolvedValue(undefined);
     mocks.mutate.mockClear();
     mocks.toastSuccess.mockClear();
     mocks.showError.mockClear();
+  });
+
+  it("discards refused booking data and closes its removal dialog", async () => {
+    mocks.keepCached = true;
+    const props = {
+      periodId: "5",
+      canManage: true,
+      templatesVersion: undefined,
+    };
+    const view = render(<BookingLeftoverHints {...props} />);
+    expect(screen.getByText("Hannah Schmitz")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Entfernen: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      }),
+    );
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    for (const status of [403, 500]) {
+      mocks.loadError.current = new ApiError("failed", status);
+      view.rerender(<BookingLeftoverHints {...props} />);
+      expect(await screen.findByRole("alert")).toBeVisible();
+      expect(screen.queryByText("Hannah Schmitz")).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    }
+    mocks.loadError.current = undefined;
+    view.rerender(<BookingLeftoverHints {...props} />);
+    expect(await screen.findByText("Hannah Schmitz")).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("names the child, the Regeltermin, the weekdays and since when", () => {

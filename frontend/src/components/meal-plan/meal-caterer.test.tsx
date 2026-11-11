@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -21,6 +22,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { MealCaterer } from "./meal-caterer";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 
 const invitation = {
@@ -280,6 +282,79 @@ describe("reload after a write (#6652)", () => {
     await waitFor(() => expect(mocks.getMealCaterer).toHaveBeenCalledTimes(3));
     expect(write).toHaveBeenCalledTimes(1);
   }
+
+  async function invite(name: string, email: string) {
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Caterer einladen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/Name des Caterers/), {
+      target: { value: name },
+    });
+    fireEvent.change(
+      within(dialog).getByLabelText(/E-Mail-Adresse des Caterers/),
+      { target: { value: email } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Einladung senden" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  }
+
+  it("discards the caterer and open dialogs when a post-write reload refuses access", async () => {
+    const reload = deferred<{
+      supply: null;
+      invitations: (typeof invitation)[];
+    }>();
+    mocks.getMealCaterer
+      .mockResolvedValueOnce({ supply: null, invitations: [invitation] })
+      .mockReturnValueOnce(reload.promise);
+    render(<MealCaterer canManageSupply />, { wrapper: ToastProvider });
+    await invite("Neue Küche", "neu@example.test");
+    fireEvent.click(screen.getByRole("button", { name: "Caterer einladen" }));
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    await act(async () => reload.reject(new ApiError("refused", 403)));
+    expect(
+      await screen.findByText(
+        `${catalogText("general.permission", "die Anzeige des Caterers")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("kueche@example.com")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Caterer einladen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("ignores an older invitation reload after a newer one succeeded", async () => {
+    const older = deferred<{
+      supply: null;
+      invitations: (typeof invitation)[];
+    }>();
+    const second = {
+      ...invitation,
+      id: "6",
+      catererName: "Neue Küche",
+      email: "neu@example.test",
+    };
+    mocks.getMealCaterer
+      .mockResolvedValueOnce({ supply: null, invitations: [] })
+      .mockReturnValueOnce(older.promise)
+      .mockResolvedValueOnce({
+        supply: null,
+        invitations: [invitation, second],
+      });
+    render(<MealCaterer canManageSupply />, { wrapper: ToastProvider });
+    await invite("Küche am Markt", "kueche@example.com");
+    await invite(second.catererName, second.email);
+    expect(await screen.findByText(second.email)).toBeVisible();
+    await act(async () =>
+      older.resolve({ supply: null, invitations: [invitation] }),
+    );
+    expect(screen.getByText(second.email)).toBeVisible();
+  });
 
   it("keeps a sent invitation sent when the reload fails", async () => {
     mocks.getMealCaterer
