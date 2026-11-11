@@ -321,24 +321,28 @@ func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, source
 	if group.GroupID > 0 {
 		groupID = &group.GroupID
 	}
+	unplanned, err := h.unplannedGuests(ctx, sources, byChild, groupID != nil && !replanAll)
+	if err != nil {
+		return guestChanges{}, err
+	}
 	changes := guestChanges{}
 	for _, source := range sources {
 		guest, ok := byChild[source.ChildID]
 		delete(byChild, source.ChildID)
 		switch {
 		case ok && guest.EndedOn == nil:
-			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, group.AssignedByAccountID, replanAll, today); err != nil {
+			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, replanAll || unplanned[guest.StudentID], today); err != nil {
 				return guestChanges{}, err
 			}
 		case groupID == nil:
 			continue
 		case ok:
-			if err := h.reopenGuest(ctx, schoolID, guest, source, week, groupID, group.AssignedByAccountID, today); err != nil {
+			if err := h.reopenGuest(ctx, schoolID, guest, source, week, groupID, today); err != nil {
 				return guestChanges{}, err
 			}
 			changes.copied++
 		default:
-			if err := h.copyGuest(ctx, schoolID, source, week, groupID, group.AssignedByAccountID, today); err != nil {
+			if err := h.copyGuest(ctx, schoolID, source, week, groupID, today); err != nil {
 				return guestChanges{}, err
 			}
 			changes.copied++
@@ -348,7 +352,35 @@ func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, source
 	return changes, nil
 }
 
-func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, actor int64, today calendar.Date) error {
+// unplannedGuests reads in one go which guests that keep their booking have
+// no planned day at all, so a guest copied without its days (before the ADR
+// 0120 addendum of 2026-11-11 the days needed a staff author) gets them at the
+// next reconciliation. A guest with any planned day keeps its plan.
+func (h *HolidayGuests) unplannedGuests(ctx context.Context, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, check bool) (map[int64]bool, error) {
+	if !check {
+		return nil, nil
+	}
+	var studentIDs []int64
+	for _, source := range sources {
+		if guest, ok := byChild[source.ChildID]; ok && guest.EndedOn == nil {
+			studentIDs = append(studentIDs, guest.StudentID)
+		}
+	}
+	if len(studentIDs) == 0 {
+		return nil, nil
+	}
+	unplanned, err := h.care.UnplannedHolidayGuests(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("read the planned days of the holiday guests: %w", err)
+	}
+	result := make(map[int64]bool, len(unplanned))
+	for _, studentID := range unplanned {
+		result[studentID] = true
+	}
+	return result, nil
+}
+
+func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, today calendar.Date) error {
 	studentID, err := h.people.CreateHolidayGuestChild(ctx, guestChild(source, week, groupID, today))
 	if err != nil {
 		return fmt.Errorf("create the child of a holiday guest: %w", err)
@@ -362,30 +394,20 @@ func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source en
 	if err := h.store.InsertGuest(ctx, schoolID, guest); err != nil {
 		return err
 	}
-	return h.planDays(ctx, studentID, actor, source, week)
+	return h.planDays(ctx, studentID, source, week)
 }
 
-// planDays writes the selected dates, or the whole booked week, into Care Plan.
-func (h *HolidayGuests) planDays(ctx context.Context, studentID, actor int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) error {
+// planDays writes the selected dates, or the whole booked week, into Care
+// Plan. The booking is their author: the days do not depend on who picked
+// the group (ADR 0120, addendum of 2026-11-11).
+func (h *HolidayGuests) planDays(ctx context.Context, studentID int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) error {
 	days := source.Days
 	if len(days) == 0 {
 		for day := week.StartsOn; !day.After(week.EndsOn); day = day.AddDays(1) {
 			days = append(days, day)
 		}
 	}
-	err := h.care.PlanHolidayGuestDays(ctx, studentID, actor, days, source.TimeModelStarts, source.TimeModelEnds)
-	if errors.Is(err, enrollment.ErrHolidayGuestPlanAuthorMissing) {
-		// The account that picked the group has no staff record (any more):
-		// the guest still joins the group, only its days stay unplanned
-		// until the school picks the group again. The reconciliation of the
-		// other guests and the deletion of expired contacts go on.
-		h.logger.Warn("holiday guest days left unplanned: the account that picked the group has no staff record",
-			"student_id", studentID,
-			"account_id", actor,
-		)
-		return nil
-	}
-	if err != nil {
+	if err := h.care.PlanHolidayGuestDays(ctx, studentID, days, source.TimeModelStarts, source.TimeModelEnds); err != nil {
 		return fmt.Errorf("plan the care days of a holiday guest: %w", err)
 	}
 	return nil
@@ -393,11 +415,12 @@ func (h *HolidayGuests) planDays(ctx context.Context, studentID, actor int64, so
 
 // refreshGuest follows a change of the registration (names, time model,
 // contacts) or of the group and writes the child only when it differs.
-func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, actor int64, replanDays bool, today calendar.Date) error {
+func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, replanDays bool, today calendar.Date) error {
 	current, err := h.people.ReadHolidayGuestChild(ctx, guest.StudentID)
 	if err != nil {
 		return fmt.Errorf("read the child of a holiday guest: %w", err)
 	}
+	hasGroup := groupID != nil
 	if groupID == nil {
 		groupID = current.GroupID
 	}
@@ -411,11 +434,11 @@ func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest 
 	// group keeps its plan until someone picks a group again.
 	replan := replanDays || guest.StartsOn != week.StartsOn || guest.EndsOn != week.EndsOn ||
 		guest.TimeModelStarts != source.TimeModelStarts || guest.TimeModelEnds != source.TimeModelEnds || !slices.Equal(guest.Days, source.Days)
-	if replan && actor > 0 {
+	if replan && hasGroup {
 		if err := h.care.ClearHolidayGuestDays(ctx, guest.StudentID); err != nil {
 			return fmt.Errorf("clear the care days of a holiday guest: %w", err)
 		}
-		if err := h.planDays(ctx, guest.StudentID, actor, source, week); err != nil {
+		if err := h.planDays(ctx, guest.StudentID, source, week); err != nil {
 			return err
 		}
 	}
@@ -461,11 +484,11 @@ func (h *HolidayGuests) guestHealth(schoolID int64, guest enrollment.HolidayGues
 
 // reopenGuest brings back a guest whose booking returned after its access
 // ended early: the same child, its care interval, group and days again.
-func (h *HolidayGuests) reopenGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, actor int64, today calendar.Date) error {
+func (h *HolidayGuests) reopenGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, today calendar.Date) error {
 	if err := h.store.ReopenGuest(ctx, schoolID, guest.ID); err != nil {
 		return err
 	}
-	return h.refreshGuest(ctx, schoolID, guest, source, week, groupID, actor, true, today)
+	return h.refreshGuest(ctx, schoolID, guest, source, week, groupID, true, today)
 }
 
 // endGuest ends the care of a guest whose booking or week went: from

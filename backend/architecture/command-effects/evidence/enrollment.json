@@ -1378,7 +1378,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
-      "binding_digest": "2d95f3db6e86a0fce63d85794000d22c",
+      "binding_digest": "2ac09fd1341fbf7846f25e22d13fc2b4",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreateArrivalException",
@@ -1386,19 +1386,27 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
-      "binding_digest": "0f3aa4931369223dd17c0f7f6a368d1d",
+      "binding_digest": "68e3a7c1f78401dfa3aea4a02f160ffd",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreatePickupException",
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
-      "binding_digest": "55b2019072bb6ff4043f3c3000f96d23",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.UnplannedHolidayGuests",
+      "binding_digest": "fa271d129adaeddf0e68b0ce4d41ef15",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.UnplannedHolidayGuests",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID",
-      "target_owner": "people-directory"
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.UnplannedHolidayGuests",
+      "binding_digest": "4bc0e5e2f000485f8801250df03ea0ab",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.UnplannedHolidayGuests",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
+      "target_owner": "care-plan"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.CreateHolidayGuestChild",
