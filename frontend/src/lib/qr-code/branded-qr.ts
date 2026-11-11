@@ -15,11 +15,11 @@ const QUIET_ZONE = 4;
 const FINDER_SIZE = 7;
 /**
  * Share of the code's area the plate may hide. H recovers about 30 % of the
- * code words; 7 % leaves room for print damage (decoding test: branded-qr.test.ts).
+ * code words; 9 % leaves room for print damage (decoding test: branded-qr.test.ts).
  */
-const PLATE_AREA_SHARE = 0.07;
-const PLATE_MAX_WIDTH_SHARE = 0.42;
-const PLATE_MAX_HEIGHT_SHARE = 0.3;
+const PLATE_AREA_SHARE = 0.09;
+const PLATE_MAX_WIDTH_SHARE = 0.44;
+const PLATE_MAX_HEIGHT_SHARE = 0.32;
 /** White rim between logo and plate edge, in modules. */
 const PLATE_PADDING = 0.6;
 

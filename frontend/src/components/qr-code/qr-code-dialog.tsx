@@ -161,7 +161,7 @@ export function QrCodeDialog({
       onClose={onClose}
       title={title}
       description="Eltern öffnen den Link, wenn sie den Code mit der Handy-Kamera scannen."
-      size="lg"
+      size="md"
       mobileSheet
       footer={
         <>
@@ -194,24 +194,21 @@ export function QrCodeDialog({
         </>
       }
     >
-      <div className="grid gap-6 sm:grid-cols-[15rem_minmax(0,1fr)]">
-        <InsetPanel
-          padding="md"
-          className="flex flex-col items-center gap-3 self-start"
-        >
-          <div className="moto-content-surface aspect-square w-full max-w-52 rounded-xl border p-2">
+      <div className="space-y-5">
+        <InsetPanel padding="md" className="flex flex-col items-center gap-3">
+          <div className="moto-content-surface aspect-square w-full max-w-60 rounded-xl border p-3">
             {waitingForLogo ? (
               <Skeleton shape="inner" className="h-full w-full" />
             ) : (
               <QrCodeImage url={url} logo={logo} />
             )}
           </div>
-          <p className="w-full text-center text-xs break-all text-gray-500">
+          <p className="max-w-full text-center text-xs break-all text-gray-500">
             {url}
           </p>
         </InsetPanel>
 
-        <div className="min-w-0 space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <SectionLabel id="qr-logo-choice">Logo in der Mitte</SectionLabel>
             <SegmentedControl

@@ -7,7 +7,8 @@ import type { QrLogo } from "~/lib/qr-code/qr-image";
 import type { QrBrandLogo } from "./qr-code-dialog";
 import { useQrLogo } from "./use-qr-logo";
 
-export const MOTO_QR_LOGO = "/images/moto-logo-mit-schriftzug.png";
+/** The moto mark without its word: at this size the figures stay readable. */
+export const MOTO_QR_LOGO = "/images/moto_transparent.png";
 
 /** The code as a picture that fills its box. */
 export function QrCodeImage({
