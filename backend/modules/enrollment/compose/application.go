@@ -123,9 +123,9 @@ func NewNotifications(deps NotificationDependencies) enrollment.Notifications {
 	})
 }
 
-// NewMailRenderers returns Enrollment's mail renderers.
-func NewMailRenderers() enrollment.MailRenderers {
-	return application.NewMailRenderers()
+// NewMailRenderers binds account eligibility and the parents URL to Enrollment's renderers.
+func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) enrollment.MailRenderers {
+	return application.NewMailRenderers(accounts, parentsURL)
 }
 
 // NewApprovedOfferingProjection composes the approved-offering projection.
