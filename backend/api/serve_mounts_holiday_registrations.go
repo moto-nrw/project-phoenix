@@ -20,9 +20,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/observability"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+)
+
+// holidayRegistrationPath is the public holiday registration and
+// holidayQuoteMount the contribution its summary shows. The general request
+// limiter leaves both to holidayRegistrationRateLimit.
+const (
+	holidayRegistrationPath = "/traeger/holiday-registrations"
+	holidayQuoteMount       = "/traeger/holiday-quotes"
 )
 
 // mountTraegerRoutes serves the Träger-Portal at /traeger, the public
@@ -40,9 +49,13 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations)); err != nil {
 		return err
 	}
-	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, holidayCalendar, settings, logger).Router())
+	publicLink := root
+	if limit := holidayRegistrationRateLimit(limiters.enabled(), demoLoopbackExempt()); limit != nil {
+		publicLink = root.With(limit)
+	}
+	publicLink.Mount(holidayRegistrationPath, NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, holidayCalendar, settings, logger).Router())
 	mountTraegerClosingDayRoutes(root, calendarSchools, organizations, delivery, holidayCalendar)
-	mountParentBillingRoutes(root, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, bankData, holidayCalendar, logger)
+	mountParentBillingRoutes(root, publicLink, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, bankData, holidayCalendar, logger)
 	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
 		owners.NewCareContractNoticeAddressees(persons, identity), contractHolidays, parentsURL)
 	mountCareTimeOverrunRoutes(root, organizations, statistics, audit.Log)
@@ -153,7 +166,7 @@ func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, deliv
 // information to the root's cipher (#4722).
 func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, schoolCalendar enrollmentOwner.HolidaySchoolCalendar, settings TraegerBrandingSettings, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
 	return enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-		holidayTraegerMail{delivery: delivery}, healthData, schoolCalendar, holidayWishModes{settings: settings}, holidayRetentionSettings{settings: settings}, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
+		holidayTraegerMail{delivery: delivery}, healthData, schoolCalendar, holidayWishModes{settings: settings}, holidayRetentionSettings{settings: settings}, securityruntime.FillRandom, securityruntime.Fingerprint, logger, observability.RecordRateLimitRejection)
 }
 
 // holidayWishModes binds Enrollment's holiday wish mode (#4703) to the

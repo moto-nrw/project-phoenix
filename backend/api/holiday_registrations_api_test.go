@@ -373,20 +373,18 @@ func TestHolidayRegistrationRefusesInvalidClosedAndAbusiveSubmissions(t *testing
 	code, _ = registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.captcha_failed", code)
 
-	// Three attempts counted so far; the online registration's limit for an
-	// e-mail address is five a day, so the sixth is refused.
-	for range 2 {
+	// Refused attempts take nothing from the limits (#6726): after more of
+	// them than the old limit of five a day, the corrected registration of
+	// the same e-mail address is stored.
+	for range 5 {
 		rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), refused)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	}
-	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), siblingsRegistration(offer, "pruefung@example.org"))
-	require.Equal(t, http.StatusTooManyRequests, rec.Code, rec.Body.String())
-	code, _ = registrationRefusalOf(t, rec)
-	assert.Equal(t, "enrollment.submission_rate_limited", code)
-	assert.Equal(t, "3600", rec.Header().Get("Retry-After"))
 	var stored int
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_registrations WHERE organization_id = ?`, office.organization).Scan(context.Background(), &stored))
 	assert.Zero(t, stored, "no refused attempt stored a registration")
+	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), siblingsRegistration(offer, "pruefung@example.org"))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	closedBody := januaryHolidays(office)
 	closedBody.RegistrationOpensOn, closedBody.RegistrationClosesOn = "2020-01-01", "2020-01-31"

@@ -15,6 +15,9 @@ const (
 	// windows last an hour or a day, so a replay within a minute only counts
 	// another attempt and keeps the demo visitor waiting.
 	seedSubmissionRateLimited = "enrollment.submission_rate_limited"
+	// seedSubmissionEmailRateLimited is the same limit of one e-mail address
+	// (#6726), with a window of a day.
+	seedSubmissionEmailRateLimited = "enrollment.submission_email_rate_limited"
 	// seedCaptchaFailed is the refusal of a holiday registration whose
 	// captcha the server rejects.
 	seedCaptchaFailed = "enrollment.captcha_failed"
@@ -58,7 +61,7 @@ func (a *retryingAdapter) retry(ctx context.Context, request func() error) error
 		err := request()
 		var apiErr *APIError
 		if err == nil || attempt >= maxRateLimitRetries || !errors.As(err, &apiErr) || apiErr.StatusCode != 429 ||
-			apiErr.Code == seedSubmissionRateLimited {
+			apiErr.Code == seedSubmissionRateLimited || apiErr.Code == seedSubmissionEmailRateLimited {
 			return err
 		}
 		if waitErr := a.sleep(ctx, retryDelay(apiErr.RetryAfter, time.Now())); waitErr != nil {

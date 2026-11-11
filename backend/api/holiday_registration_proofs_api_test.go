@@ -240,7 +240,10 @@ func TestHolidayProofUploadsCountPerAddress(t *testing.T) {
 	f := newHolidayRegistrationFixture(t)
 	office := newTraegerOffice(t, f.db, f.traeger, "Träger Nachweis Limit", identityaccess.TraegerRoleAdministration)
 	period := openHolidays(t, f, office)
-	for i := range 30 {
+	// The address may upload a hundred proofs an hour (#6726); the old limit
+	// of thirty refused the thirty-first. 69 are counted already.
+	fillHolidayBucket(t, f, office.organization, "upload_ip", holidayTestAddress, 69)
+	for i := range 31 {
 		rec := uploadProof(t, f, period.PublicToken, "bescheid.pdf", proofPDF)
 		require.Equal(t, http.StatusCreated, rec.Code, "upload %d: %s", i+1, rec.Body.String())
 	}
@@ -249,7 +252,7 @@ func TestHolidayProofUploadsCountPerAddress(t *testing.T) {
 	assert.Equal(t, "3600", rec.Header().Get("Retry-After"))
 	code, _ := registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.upload_rate_limited", code)
-	assert.Equal(t, 30, countProofs(t, f, office.organization, "TRUE"), "the refused upload stored nothing")
+	assert.Equal(t, 31, countProofs(t, f, office.organization, "TRUE"), "the refused upload stored nothing")
 }
 
 // TestUnclaimedHolidayProofsGoAfterADay runs on its own database: the

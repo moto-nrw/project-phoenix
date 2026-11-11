@@ -148,6 +148,7 @@ export const PARENT_PORTAL_ERROR_CODES = [
   "enrollment.request_duplicate",
   "enrollment.child_already_requested",
   "enrollment.submission_rate_limited",
+  "enrollment.submission_email_rate_limited",
   "enrollment.consent_required",
   "enrollment.child_required",
   "enrollment.guardian_name_required",

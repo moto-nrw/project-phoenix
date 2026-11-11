@@ -353,9 +353,9 @@ func holidayFormFields(fields []capability.HolidayFormField) []capability.Holida
 	return fields
 }
 
-// submit counts the attempt, checks the captcha and stores the registration
-// with its receipt mail. The counter commits in a Träger transaction of its
-// own, so a refused registration still counts.
+// submit checks the captcha and stores the registration with its receipt
+// mail. The Owner counts the stored registration in the same Träger
+// transaction, so a refused one takes nothing from the limits (#6726).
 func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Request) {
 	req := &HolidayRegistrationRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -368,19 +368,15 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 		return
 	}
 	remoteIP := remoteIPFromRequest(r)
-	if err := rs.countAttempt(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
-		return rs.registrations.CountHolidayRegistrationAttempt(txCtx, link.OrganizationID, remoteIP, req.Guardian.Email)
-	}); err != nil {
-		renderHolidayRegistrationError(w, r, err)
-		return
-	}
 	if err := rs.captcha.Verify(r.Context(), req.CaptchaToken, remoteIP); err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
+	input := req.input()
+	input.RemoteIP = remoteIP
 	var receipt capability.HolidayRegistrationReceipt
 	err = withinTraeger(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
-		stored, submitErr := rs.registrations.SubmitHolidayRegistration(txCtx, link, req.input())
+		stored, submitErr := rs.registrations.SubmitHolidayRegistration(txCtx, link, input)
 		receipt = stored
 		return submitErr
 	})
@@ -391,14 +387,14 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusCreated, HolidayRegistrationReceiptResponse(receipt), "Holiday registration received")
 }
 
-// countAttempt runs one abuse counter of the public link, a registration or
-// a proof upload, in a Träger transaction of its own that commits even when
-// the count refuses, so a refused attempt still counts.
+// countAttempt runs the upload counter of the public link in a Träger
+// transaction of its own that commits even when the count refuses, so a
+// refused upload still counts.
 func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organizationID int64, count func(context.Context) error) error {
 	var limitErr error
 	err := withinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		limitErr = count(txCtx)
-		if errors.Is(limitErr, capability.ErrRateLimited) || errors.Is(limitErr, capability.ErrUploadRateLimited) {
+		if errors.Is(limitErr, capability.ErrUploadRateLimited) {
 			return nil
 		}
 		return limitErr
@@ -425,7 +421,7 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
 			map[string]any{"max_mb": rejection.MaxMB, "allowed_types": rejection.AllowedTypes}))
 	case errors.Is(err, capability.ErrUploadRateLimited):
-		setRateLimitRetryAfter(w)
+		setRateLimitRetryAfter(w, rateLimitRetryAfterSeconds)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
 	case errors.Is(err, capability.ErrHolidayProofExpired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
@@ -445,8 +441,11 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	case errors.Is(err, capability.ErrHolidayWishMissing):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayWishMissing))
 	case errors.Is(err, capability.ErrRateLimited):
-		setRateLimitRetryAfter(w)
+		setRateLimitRetryAfter(w, rateLimitRetryAfterSeconds)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionRateLimited))
+	case errors.Is(err, capability.ErrEmailRateLimited):
+		setRateLimitRetryAfter(w, emailRateLimitRetryAfterSeconds)
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionEmailRateLimited))
 	case errors.Is(err, capability.ErrCaptchaRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCaptchaRequired))
 	case errors.Is(err, capability.ErrCaptchaFailed):

@@ -59,12 +59,14 @@ import (
 // debit file of the issued runs at /traeger/sepa-debits (#4697), and the
 // check of the DATEV settings at /traeger/datev-export (#4694), and the
 // finance exports with their protocol at /traeger/finance-exports (#4693).
-func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) {
+func mountParentBillingRoutes(root, publicLink chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, holidayCalendar, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
-	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
+	// The quote belongs to the public holiday registration and shares its
+	// request limit (#6726).
+	publicLink.Mount(holidayQuoteMount, holiday.QuoteRouter())
 	runs, documentKinds := NewBillingRunHTTP(settings, delivery, outcomes, healthData)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))

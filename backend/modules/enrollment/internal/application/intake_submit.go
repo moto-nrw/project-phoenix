@@ -57,13 +57,6 @@ type submissionPlan struct {
 }
 
 func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome, error) {
-	if !req.SkipRateLimit {
-		if err := s.enforceRateLimit(ctx, req.TenantID, func(ctx context.Context) error {
-			return s.countSubmissionAttempt(ctx, req)
-		}); err != nil {
-			return nil, err
-		}
-	}
 	if strings.TrimSpace(req.LateInviteToken) != "" {
 		req.AllowClosedPhase = true
 		req.SubmissionSource = enrollmentNative.RequestSourceLateInvite
@@ -83,7 +76,11 @@ func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome,
 	}
 	outcome := &submitOutcome{StatusURL: plan.statusURL}
 	if err := s.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return s.writeSubmission(txCtx, &req, plan, outcome)
+		if err := s.writeSubmission(txCtx, &req, plan, outcome); err != nil {
+			return err
+		}
+		// Last lock of the transaction, after every lock of the write.
+		return s.countStoredSubmission(txCtx, &req)
 	}); err != nil {
 		return nil, err
 	}

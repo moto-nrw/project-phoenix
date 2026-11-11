@@ -129,6 +129,7 @@
   "status_link_invalid": "This link is invalid or has expired. Please use the link from your email.",
   "student_exists": "{object} could not be changed. Please check its current status.",
   "submission_rate_limited": "Too many enrollments were sent. Please try again in an hour.",
+  "submission_email_rate_limited": "Many enrollments were already sent with this email address today. Please try again tomorrow.",
   "waitlist_disabled": "{object} could not be changed. Please check its current status.",
   "window_closed": "The enrollment period has ended or has not started yet. Please contact the school.",
   "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school.",
