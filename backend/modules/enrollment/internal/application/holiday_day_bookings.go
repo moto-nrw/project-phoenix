@@ -134,6 +134,41 @@ func (h *HolidayRegistrations) refuseSubmittedDayLimits(ctx context.Context, org
 	return nil
 }
 
+// refuseEditedDayLimits checks changed child identities while the period is
+// locked. Replace this registration's stored contributions with its final
+// identities before counting, including children edited together. An unchanged
+// identity keeps its bookings even after the office lowers the bound.
+func (h *HolidayRegistrationReview) refuseEditedDayLimits(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod,
+	stored holidayStoredDetails, next enrollment.HolidayRegistrationInput) error {
+	if period.MaxDaysPerChild == nil {
+		return nil
+	}
+	before, after := make([]enrollment.HolidayChildKey, len(next.Children)), make([]enrollment.HolidayChildKey, len(next.Children))
+	changes := map[enrollment.HolidayChildKey]int{}
+	for i, child := range next.Children {
+		old := stored.input.Children[i]
+		before[i] = enrollment.NewHolidayChildKey(stored.input.Guardian.Email, old.FirstName, old.LastName, old.BirthDate)
+		after[i] = enrollment.NewHolidayChildKey(next.Guardian.Email, child.FirstName, child.LastName, child.BirthDate)
+		days := holidayBookedDayCount(old.Bookings, period)
+		changes[before[i]] -= days
+		changes[after[i]] += days
+	}
+	for i, key := range after {
+		if key == before[i] {
+			continue
+		}
+		elsewhere, err := holidayDaysElsewhere(ctx, h.store, organizationID, period, key, 0)
+		if err != nil {
+			return err
+		}
+		elsewhere += changes[key] - holidayBookedDayCount(stored.input.Children[i].Bookings, period)
+		if err := refuseHolidayDayLimit(i, stored.input.Children[i].Bookings, period, 0, elsewhere); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // holidayChildWithKey finds a child among the read registrations with the
 // key the bound of care days knows it by (#6446).
 func holidayChildWithKey(read []enrollment.HolidayRegistrationDetail, childID int64) (enrollment.HolidayRegistrationChild, enrollment.HolidayChildKey, bool) {

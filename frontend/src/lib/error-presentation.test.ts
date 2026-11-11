@@ -4,6 +4,20 @@ import { presentError } from "./error-presentation";
 
 describe("presentError", () => {
   it.each(["de", "en", "pl", "ru", "sq", "tr", "uk"] as const)(
+    "formats the public holiday day limit without booking totals in %s",
+    (locale) => {
+      const error = new ApiError("internal day limit diagnostic", 400, {
+        code: "enrollment.holiday_child_day_limit_public",
+        details: { limit: 3, child: 1 },
+      });
+      const result = presentError(error, "die Anmeldung", locale);
+      expect(result.message).toContain("3");
+      expect(result.message).not.toMatch(/[{}#]|plural|diagnostic/);
+      expect(result.retryable).toBe(false);
+    },
+  );
+
+  it.each(["de", "en", "pl", "ru", "sq", "tr", "uk"] as const)(
     "formats the holiday day limit and other registrations in %s",
     (locale) => {
       for (const elsewhere of [0, 1, 3]) {

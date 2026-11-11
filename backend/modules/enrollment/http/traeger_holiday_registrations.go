@@ -187,10 +187,13 @@ func registrationKey(w http.ResponseWriter, r *http.Request) (capability.Holiday
 func renderHolidayReviewError(w http.ResponseWriter, r *http.Request, err error) {
 	tenant.MarkRollback(r.Context())
 	var fields validation.Errors
+	var dayLimit *capability.HolidayChildDayLimitRefusal
 	if renderHolidayWeekWithoutCare(w, r, err) {
 		return
 	}
 	switch {
+	case errors.As(err, &dayLimit):
+		common.RenderError(w, r, holidayChildDayLimitError(err, dayLimit))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayWishInvalid):

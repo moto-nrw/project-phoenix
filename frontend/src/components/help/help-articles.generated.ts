@@ -6456,6 +6456,7 @@ export const parentHolidayRegistrationTopic =
         "Sie können diese Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
       ],
       troubleshootingDetails: [
+        "moto meldet zu viele Tage je Kind? Die Grenze gilt für alle Anmeldungen des Kindes zusammen. Bitte wählen Sie weniger Tage oder fragen Sie das Träger-Büro. Der Hinweis zeigt keine Tage aus anderen Anmeldungen.",
         "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",
         "moto sagt, den Anmeldelink gebe es nicht? Fragen Sie den Träger nach dem richtigen Link.",
       ],
@@ -12295,6 +12296,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` fest.",
       ],
       troubleshootingDetails: [
+        "Eine Änderung führt zu zu vielen Tagen je Kind? Prüfen Sie die Anmeldungen vor dem Speichern. Bei gleicher Eltern-E-Mail, gleichem Namen und Geburtsdatum zählen die Tage zusammen. Das gilt auch, wenn Sie diese Angaben ändern.",
         "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
         "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
         "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",

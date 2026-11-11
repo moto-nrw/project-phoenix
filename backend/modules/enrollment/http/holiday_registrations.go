@@ -427,7 +427,10 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	case errors.Is(err, capability.ErrHolidayProofExpired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
 	case errors.As(err, &dayLimit):
-		common.RenderError(w, r, holidayChildDayLimitError(err, dayLimit))
+		// Public input does not prove family access. The typed refusal's
+		// diagnostic and both totals can reveal existing bookings.
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(capability.ErrHolidayChildDayLimit,
+			common.CodeEnrollmentHolidayChildDayLimitPublic, map[string]any{"limit": dayLimit.Limit, "child": dayLimit.Child + 1}))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayRegistrationNotFound):
