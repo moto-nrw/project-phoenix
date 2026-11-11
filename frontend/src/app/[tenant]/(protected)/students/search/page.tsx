@@ -73,7 +73,6 @@ import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
-  countedDayStatus,
   parseLocation,
   isAtSchoolLocation,
   isInClassLocation,
@@ -82,6 +81,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   teacherHintKey,
@@ -183,10 +183,7 @@ import {
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import {
   matchesTrackingFilter,
   parseTrackingFilter,
@@ -3642,17 +3639,7 @@ function SearchPageContent() {
                       locationBadge={
                         isToday ? (
                           <StudentPresenceBadge
-                            student={(() => {
-                              const badgePlanning =
-                                getStudentPresenceBadgePlanning(student);
-                              return {
-                                ...student,
-                                not_arrival_today:
-                                  badgePlanning.notArrivalToday,
-                                not_arrival_reason:
-                                  badgePlanning.notArrivalReason,
-                              };
-                            })()}
+                            student={student}
                             displayMode="contextAware"
                             userGroups={myGroups}
                             groupRooms={myGroupRooms}

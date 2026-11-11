@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import type { StudentLocationContext } from "@/lib/location-helper";
+import type { PresenceStudent } from "@/lib/presence-status";
 import { LocationBadge } from "./location-badge";
 
 const meta = {
@@ -12,42 +12,42 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-const presentStudent: StudentLocationContext = {
+const presentStudent: PresenceStudent = {
   current_location: "Raum 101",
   location_since: "2026-07-01T09:15:00.000Z",
   group_name: "Gruppe A",
 };
 
-const homeStudent: StudentLocationContext = {
+const homeStudent: PresenceStudent = {
   current_location: "Zuhause",
   location_since: "2026-07-01T14:00:00.000Z",
 };
 
-const sickAtHomeStudent: StudentLocationContext = {
+const sickAtHomeStudent: PresenceStudent = {
   current_location: "Zuhause",
   sick: true,
   sick_since: "2026-07-01T07:30:00.000Z",
 };
 
-const sickButPresentStudent: StudentLocationContext = {
+const sickButPresentStudent: PresenceStudent = {
   current_location: "Raum 101",
   sick: true,
 };
 
-const excusedStudent: StudentLocationContext = {
+const excusedStudent: PresenceStudent = {
   current_location: "Zuhause",
   excused: true,
 };
 
-const classTripStudent: StudentLocationContext = {
+const classTripStudent: PresenceStudent = {
   current_location: "Zuhause",
   class_trip: true,
 };
 
-const notArrivalStudent: StudentLocationContext = {
+const notArrivalStudent: PresenceStudent = {
   current_location: "Zuhause",
-  not_arrival_today: true,
-  not_arrival_reason: "Arzttermin",
+  arrival_is_exception: true,
+  arrival_notes: "Arzttermin",
 };
 
 export const Present: Story = {
@@ -235,8 +235,8 @@ export const UnplannedPresent: Story = {
   args: {
     student: {
       current_location: "Anwesend - Raum 101",
-      not_arrival_today: true,
-      not_arrival_reason: "Arzttermin",
+      arrival_is_exception: true,
+      arrival_notes: "Arzttermin",
     },
     displayMode: "roomName",
   },
@@ -247,7 +247,7 @@ export const UnplannedPresentDespiteSickNote: Story = {
     student: {
       current_location: "Anwesend - Raum 101",
       sick: true,
-      not_arrival_today: true,
+      arrival_is_exception: true,
     },
     displayMode: "roomName",
   },
@@ -309,8 +309,8 @@ export const NotArrivalAtHomeSince: Story = {
     student: {
       current_location: "Zuhause",
       location_since: SINCE,
-      not_arrival_today: true,
-      not_arrival_reason: "Arzttermin",
+      arrival_is_exception: true,
+      arrival_notes: "Arzttermin",
     },
     displayMode: "roomName",
     showLocationSince: true,
@@ -322,7 +322,7 @@ export const NotArrivalAtSchool: Story = {
     student: {
       current_location: "Schule",
       location_since: SINCE,
-      not_arrival_today: true,
+      arrival_is_exception: true,
     },
     displayMode: "roomName",
     showLocationSince: true,

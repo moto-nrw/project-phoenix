@@ -33,10 +33,10 @@ import {
   type SchoolCheckoutReason,
 } from "~/lib/student-api";
 import {
-  countedDayStatus,
   isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import { useStudentData } from "~/lib/hooks/use-student-data";
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
@@ -1484,7 +1484,6 @@ function StudentDetailPageContent() {
               todayArrivalPlannedTime={todayArrival.time}
               isArrivalException={todayArrival.isException}
               todayArrivalNote={todayArrival.note}
-              isArrivalAbsent={todayArrival.isAbsent}
             />
           </span>
           <StudentHeaderStats

@@ -1,8 +1,5 @@
-import {
-  countedDayStatus,
-  isNotCheckedInLocation,
-  LOCATION_COLORS,
-} from "./location-helper";
+import { isNotCheckedInLocation, LOCATION_COLORS } from "./location-helper";
+import { countedDayStatus } from "./presence-status";
 import {
   berlinDateTimeISO,
   berlinTodayISO,

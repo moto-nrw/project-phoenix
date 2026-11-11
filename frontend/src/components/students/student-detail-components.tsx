@@ -18,10 +18,7 @@ import {
   getStudentTimeStatus,
   type StudentDayTimes,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   attendanceActorLabel,
@@ -362,7 +359,6 @@ export function StudentHeaderLocation({
   mySupervisedRooms,
   todayArrivalPlannedTime,
   isArrivalException,
-  isArrivalAbsent,
   todayArrivalNote,
 }: Readonly<
   Pick<
@@ -373,25 +369,16 @@ export function StudentHeaderLocation({
     | "mySupervisedRooms"
     | "todayArrivalPlannedTime"
     | "isArrivalException"
-    | "isArrivalAbsent"
     | "todayArrivalNote"
   >
 >) {
-  // Spread the student so any field LocationBadge consumes (current_room_color,
-  // future room-derived attributes, etc.) propagates without maintaining a
-  // parallel whitelist here. Only the not_arrival_* fields are computed locally.
-  const badgePlanning = getStudentPresenceBadgePlanning({
+  // The page reads today's arrival from the child's arrival schedule, not from
+  // the student row; the badge reads today's plan from these fields itself.
+  const badgeStudent = {
     ...student,
     arrival_is_exception: isArrivalException,
     arrival_time: todayArrivalPlannedTime,
     arrival_notes: todayArrivalNote,
-  });
-  const badgeStudent = {
-    ...student,
-    not_arrival_today:
-      badgePlanning.notArrivalToday || (isArrivalAbsent ?? false),
-    not_arrival_reason:
-      badgePlanning.notArrivalReason ?? todayArrivalNote ?? null,
   };
 
   return (

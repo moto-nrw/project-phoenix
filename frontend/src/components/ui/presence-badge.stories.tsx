@@ -171,8 +171,8 @@ export const NotArrivalAtHome: Story = {
     student: {
       current_location: "Zuhause",
       location_since: SINCE,
-      not_arrival_today: true,
-      not_arrival_reason: "Arzttermin",
+      arrival_is_exception: true,
+      arrival_notes: "Arzttermin",
     },
     showLocationSince: true,
   },
@@ -201,8 +201,8 @@ export const UnplannedPresent: Story = {
     student: {
       current_location: "Anwesend - Raum 101",
       sick: true,
-      not_arrival_today: true,
-      not_arrival_reason: "Arzttermin",
+      arrival_is_exception: true,
+      arrival_notes: "Arzttermin",
     },
   },
 };

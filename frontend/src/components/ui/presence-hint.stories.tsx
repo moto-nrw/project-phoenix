@@ -12,25 +12,25 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const UnplannedPresent: Story = {
-  args: { kind: "notArrival", title: "Arzttermin" },
+  args: { status: "not_arrival", title: "Arzttermin" },
 };
 
 export const Sick: Story = {
-  args: { kind: "sick" },
+  args: { status: "sick" },
 };
 
 export const ClassTrip: Story = {
-  args: { kind: "classTrip" },
+  args: { status: "class_trip" },
 };
 
 export const Excused: Story = {
-  args: { kind: "excused" },
+  args: { status: "excused" },
 };
 
 export const Small: Story = {
-  args: { kind: "sick", size: "sm" },
+  args: { status: "sick", size: "sm" },
 };
 
 export const Large: Story = {
-  args: { kind: "sick", size: "lg" },
+  args: { status: "sick", size: "lg" },
 };

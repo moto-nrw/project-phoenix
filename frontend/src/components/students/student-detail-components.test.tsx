@@ -181,7 +181,6 @@ function StudentDetailHeader(
           mySupervisedRooms={props.mySupervisedRooms}
           todayArrivalPlannedTime={props.todayArrivalPlannedTime}
           isArrivalException={props.isArrivalException}
-          isArrivalAbsent={props.isArrivalAbsent}
           todayArrivalNote={props.todayArrivalNote}
         />
       }
