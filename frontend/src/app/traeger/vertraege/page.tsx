@@ -239,7 +239,10 @@ export default function TraegerVertraegePage() {
                         (!candidate.guardianEmail.trim()
                           ? ("recipient_missing" as const)
                           : null) ??
-                        candidate.acceptanceIssue ??
+                        (candidate.acceptanceIssue === "acceptance_missing" &&
+                        candidate.renewal
+                          ? ("acceptance_missing_renewal" as const)
+                          : candidate.acceptanceIssue) ??
                         (candidate.mailBlock === "stopped"
                           ? ("mail_stopped" as const)
                           : null) ??

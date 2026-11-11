@@ -66,8 +66,11 @@ including Security Runtime's public helpers. Do not import `securityruntime`
 into the workflow: the policy grants it no such dependency.
 
 An owner command a flow calls (Care Plan, People Directory, Audit Platform)
-does not repeat the relationship check: the flow keeps it, with the same
-permission constant, before it opens the unit of work.
+does not repeat the relationship check: the flow keeps it. Parent writes for
+an existing child open their unit via `WithChildWrite` or
+`WithPermittedChildForWrite`; `guardChildWrite` (#6529) locks membership,
+child, profile and relationship and re-checks every permission until commit.
+`TestParentChildWritesRunBehindTheGuard` enforces it.
 
 Use action-specific permissions:
 

@@ -27,6 +27,10 @@ const (
 	EnrollmentPayloadPhaseName         = "phase_name"
 	EnrollmentPayloadStatusReason      = "status_reason"
 	EnrollmentPayloadRolloverDeadline  = "rollover_deadline"
+	// EnrollmentPayloadRenewalTermsRequired tells the renewal mail that the
+	// form of the new phase has required blocks the parents must accept on
+	// the status page (#6456).
+	EnrollmentPayloadRenewalTermsRequired = "renewal_terms_required"
 	// EnrollmentPayloadCareFacilityTerm is the school's term for its care
 	// (enrollment.care_facility_term, #6042) for the mail header. A payload
 	// enqueued before it existed has none; the header then says "OGS".

@@ -89,7 +89,7 @@ func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 		if err := child.RequireCareRunning(); err != nil {
 			return err
 		}
-		if s.StudentRepo == nil || s.StudentGuardianRepo == nil || s.StudentConsents == nil || s.Students == nil {
+		if s.StudentRepo == nil || s.StudentConsents == nil || s.Students == nil {
 			return fmt.Errorf("parent: consent dependencies not wired")
 		}
 		return nil
@@ -107,24 +107,11 @@ func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 	return consents, nil
 }
 
-// changePhotoConsent re-checks the relationship's consent permission and the
-// care interval under the student lock, then grants or withdraws the voluntary
-// photo consent. A repeated call changes nothing and appends no audit entry.
+// changePhotoConsent re-checks the care interval under the student lock, then
+// grants or withdraws the voluntary photo consent. The relationship's consent
+// permission is held by the guard of WithPermittedChildForWrite. A repeated
+// call changes nothing and appends no audit entry.
 func (s *Service) changePhotoConsent(ctx context.Context, tenantID, accountID, studentID int64, action photoConsentAction) ([]ChildConsent, error) {
-	allowed, err := s.StudentGuardianRepo.AccountHasStudentPermission(
-		ctx,
-		accountID,
-		studentID,
-		tenantID,
-		GuardianPermissionConsentManage,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if !allowed {
-		return nil, ErrGuardianPermissionDenied
-	}
-
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return nil, err

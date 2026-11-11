@@ -60,8 +60,7 @@ type Dependencies struct {
 
 	// CareProfiles writes the child's care profile (health information, live absence flags).
 	CareProfiles careplan.StudentProfileCommands
-	// People is People Directory: the guardian rows and the child's photo
-	// consent the flows write.
+	// People writes guardian rows and the child's photo consent.
 	People PeopleDirectory
 
 	StudentAudit        care.StudentChangeRecorder
@@ -81,6 +80,8 @@ type Dependencies struct {
 	SchoolTraeger       care.SchoolTraeger
 	ParentAccounts      care.ParentAccounts
 	DocumentNotifier    care.BillingDocumentNotifier
+	Memberships         care.SchoolMembershipLock
+	InvitationAccounts  care.InvitationAccountLock
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error
@@ -137,7 +138,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		BillingDocuments: deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, SEPAMandates: deps.SEPAMandates, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
-		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
+		Memberships: deps.Memberships, InvitationAccounts: deps.InvitationAccounts, GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		InvalidateInvites: deps.InvalidateInvites,
 		Locales:           deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,

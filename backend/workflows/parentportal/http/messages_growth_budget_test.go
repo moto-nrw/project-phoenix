@@ -40,6 +40,7 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 	portal := portalCompose.New(portalCompose.Dependencies{
 		GuardianPolicy: owners.NewParentGuardianPolicy(), DeparturePolicy: owners.ParentDeparturePolicy(), Fingerprints: owners.SecurityFingerprints{}, Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{}, Logger: slog.Default(),
 		ChildRepo: repos.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(people.Student), GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile), Settings: settings.Settings,
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(people.StudentGuardian), Memberships: owners.NewParentSchoolMembershipLock(database),
 		CareProfiles: profiles, People: owners.MustNewPeopleDirectory(database), MessagingEnabled: owners.BindParentMessagingGate(settings.Settings, slog.Default()),
 		MessageThreadRepo: owners.BindParentMessageThreadAccess(messages.ParentMessageThread), MessageRepo: owners.BindParentMessageReads(messageRepo), MessageReadRepo: owners.BindParentMessageInboxReads(messages.ParentMessageRead),
 		Conversations: api.NewParentConversationCore(messages.ParentMessageThread, messageRepo, messages.ParentMessageRead, broadcaster, slog.Default()), GroupThreads: api.NewParentGroupThreadTestPort(database),
