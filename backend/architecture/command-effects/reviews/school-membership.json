@@ -1794,6 +1794,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffAssignmentLockQuery.ListStaff",
+      "reason": "The assignment guard reaches the existing ListStaff capability. TenantFromContext only reads the ambient tenant identity; the staff locks remain inside Membership ListStaff with ForMutation (#6702, ADR 0098).",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffLookup.ListStaff",
       "classification": "query",
       "effect": "query",

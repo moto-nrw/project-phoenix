@@ -24,10 +24,10 @@ func TestModuleCareExitRemovesOnlyPlansAndRestoresSnapshots(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Care exit snapshot room")
 	facts := &fixedSessions{}
 	module, err := New(Dependencies{
-		Provenance:          testpkg.EnrollmentProvenance{},
-		LockStaffAssignment: func(context.Context, int64) error { return nil },
-		DB:                  db,
-		Students:            directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
+		Provenance:           testpkg.EnrollmentProvenance{},
+		LockStaffAssignments: func(context.Context, []int64) error { return nil },
+		DB:                   db,
+		Students:             directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
 		Rooms: timetable.RoomDirectoryFunc(func(_ context.Context, ids []int64) ([]timetable.RoomRef, error) {
 			assert.Equal(t, []int64{room.ID}, ids)
 			return []timetable.RoomRef{{ID: room.ID, TenantID: testpkg.Tenant(t)}}, nil

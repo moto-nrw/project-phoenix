@@ -69,7 +69,7 @@ Kiosk-Sitzungsspiegel, Aktivität anlegen und Betreuerrouten, Materialisierung.
 | Stelle | Klasse | Aufrufer / Transaktion |
 |---|---|---|
 | `store.go` `FindStaff` | StaffRows | `findStaffRow` |
-| `store.go` `ListStaff` mit `StaffFilter.ForMutation` | StaffRows | Personal-Import: ein geordnetes `FOR NO KEY UPDATE` für alle Treffer des Chunks; Beschäftigungsdaten gebündelt. Krankmeldung: alle beteiligten Personen in einer geordneten Abfrage, ohne Beschäftigungsdaten |
+| `store.go` `ListStaff` mit `StaffFilter.ForMutation` | StaffRows | Personal-Import: ein geordnetes `FOR NO KEY UPDATE` für alle Treffer des Chunks; Beschäftigungsdaten gebündelt. Krankmeldung und Stundenplan-Betreuer: alle beteiligten Personen in einer geordneten Abfrage, ohne Beschäftigungsdaten |
 | `staff_person_merge.go` `StaffMergeMemberships` | StaffRows (alle, aufsteigend, `application.StaffPersonMerge`) | Merge, jetzt vor den Personen |
 | `store.go` `CreateStaff` (Merge-Gate geteilt) | StaffPersonMerge | Staff anlegen; Identität nimmt das Gate vor Person/Staff |
 | `student_enrollment.go` Klassen-Gate exklusiv | StudentClassWrites | Jahrgangswechsel (erste Sperre) |
