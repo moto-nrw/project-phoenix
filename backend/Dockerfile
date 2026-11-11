@@ -49,6 +49,10 @@ COPY templates templates
 # Copy frontend
 COPY public public
 
+# Store of the encrypted return packages released for retrieval (ADR 0203);
+# a named volume mounted here inherits the owner and the private mode.
+RUN mkdir -p /app/data-return && chmod 700 /app/data-return
+
 # Set ownership and switch to non-root user
 RUN chown -R appuser:appgroup /app
 USER appuser

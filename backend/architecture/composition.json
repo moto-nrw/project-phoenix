@@ -33,6 +33,12 @@
     "phoenix tenant export",
     "phoenix tenant ledger-init",
     "phoenix tenant receipt",
+    "phoenix tenant return",
+    "phoenix tenant return grant",
+    "phoenix tenant return list",
+    "phoenix tenant return purge",
+    "phoenix tenant return release",
+    "phoenix tenant return revoke",
     "phoenix worker"
   ],
   "constructor_calls": [

@@ -45,6 +45,13 @@ eingebettet und entsteht mit demselben Code wie `model.json`;
 Registerstand, zu dem es gehört. Kunden und Zielanbieter auf diese Adresse
 verweisen, nicht auf eine Kopie.
 
+**Abruf über HTTPS (Art. 30 Abs. 2 Data Act, [ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md)):** Ein geprüftes Paket
+gibt `tenant return release` für den Abruf frei (Abschnitt 8). Kunde und ein
+vom Kunden benannter neuer Anbieter laden es mit einem kurzlebigen Token über
+`GET /public/data-return/package/archive` selbst herunter; die Schnittstelle
+beschreibt `/public/data-return/openapi.json`. Wir erstellen und prüfen das
+Paket weiter selbst; es gibt keinen Selbstbedienungs-Export.
+
 **Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten, der
 bestätigte Text eines Online-Mandats, IBAN und Kontoinhaber der Eltern sowie
 IBAN, Steuer-ID und Sozialversicherungsnummer des Personals (alle Bankring)
@@ -56,8 +63,9 @@ als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
 
 **Weiter offen:** Der Mail-Payload bleibt ausgeschlossen (Sicherheitsmails
 tragen dort Link oder Code); der Inhalt einer Mail ist der verknüpfte
-Datensatz. Die rechtliche Bewertung der Data-Act-Schnittstellenpflicht
-(Abschnitt 7) und die menschlichen Nachweise unten. Die Beschäftigtenauskunft
+Datensatz. Die anwaltliche Bestätigung, dass Register und Abrufweg Art. 26 und
+Art. 30 Abs. 2 Data Act genügen (Abschnitt 7), und die menschlichen Nachweise
+unten. Die Beschäftigtenauskunft
 nimmt weiter mehr Kontextzeilen auf als nötig; Pflicht-Redigierung und
 Zweitprüfung fangen das ab.
 
@@ -336,7 +344,10 @@ Es gibt keinen Modus zum stillen Überspringen.
    Sicherungen genügt Überschreiben einzelner Dateien nicht als sicherer
    Löschbeleg. Geschütztes temporäres Medium und dessen Lebenszyklus nutzen;
    keine dauerhaften unkontrollierten Kopien erstellen.
-4. Ein Wechselauftrag folgt zusätzlich dem Wechselprozess mit seinen Fristen
+4. Statt der Übergabe nach 1. und 2. kann das Paket über die
+   HTTPS-Schnittstelle abgerufen werden (Abschnitt 8); bei einem Wechsel ist das
+   der vorgesehene Weg, auch für den neuen Anbieter.
+5. Ein Wechselauftrag folgt zusätzlich dem Wechselprozess mit seinen Fristen
    in Abschnitt 7. Bei einem Wechsel bleibt das verschlüsselte Paket bis zum
    Ende des Abrufzeitraums erhalten; erst danach die lokalen Kopien entfernen.
 
@@ -510,7 +521,7 @@ Die Fristen laufen ab dem Eingang der Wechselanfrage:
 | Wechselanfrage bestätigen, Umfang (Schulen, Träger, Ziel) festhalten | unverzüglich; Ankündigungsfrist höchstens 2 Monate (10.1) | zuständige Person |
 | Ist der Übergang in 30 Tagen nicht machbar: begründen, Ersatzzeitraum ≤ 7 Monate nennen | 14 Arbeitstage nach der Anfrage (10.3) | zuständige Person |
 | Pakete erstellen, prüfen, verschlüsselt übergeben; Dienst läuft weiter | Übergangszeitraum ≤ 30 Kalendertage nach der Ankündigungsfrist, einmal verlängerbar (10.3) | zuständige Person, zweite Person prüft |
-| Verschlüsselte Pakete zum Abruf bereithalten, erneute Übergabe auf Anfrage | 30 Kalendertage nach dem Übergangszeitraum (10.3) | zuständige Person |
+| Pakete nach Abschnitt 8 freigeben (`--keep-until` = Ende des Abrufzeitraums), Tokens bei Bedarf neu ausstellen | ab Freigabe bis 30 Kalendertage nach dem Übergangszeitraum (10.3) | zuständige Person |
 | Löschung nach [tenant-erasure.md](tenant-erasure.md), Nachweis auf Anfrage | danach (10.4, AVV 8.2) | zuständige Person |
 
 Bekannte Wechselrisiken, die dem Kunden mitzuteilen sind: Daten ändern sich
@@ -519,8 +530,129 @@ vereinbaren und neu exportieren; Kennwörter, Passkeys, MFA-Faktoren, Tokens und
 `password`-Einstellungen (Geräte-PIN, SFTP-Passwort) kommen nicht mit und
 müssen im Zielsystem neu gesetzt werden; der Import braucht eine Feldzuordnung.
 
-**Offen (Recht, Yannick):** Ob ein von moto-Mitarbeitenden betreuter Export
-in offenem, dokumentiertem Format die „offenen Schnittstellen“ nach Art. 30
-Abs. 2 Data Act erfüllt oder ob Kunde oder Zielanbieter einen eigenen Abruf
-(etwa eine API) erhalten müssen. Bis zur Entscheidung kein jederzeitiger
-Selbstdownload zugesagt.
+**Offen (Recht):** Die Gründer haben am 10.11.2026 Option B gewählt
+(ADR 0201, ADR 0203): Register nach Art. 26 und HTTPS-Abruf des geprüften Pakets mit
+kurzlebiger Berechtigung nach Art. 30 Abs. 2. Ob das genügt, bestätigt die
+anwaltliche Prüfung. Ein jederzeitiger Selbstbedienungs-Export ist nicht
+zugesagt.
+
+## 8. Paket zum Abruf freigeben (Art. 30 Abs. 2 Data Act)
+
+Grundlage: [ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md).
+Das Paket enthält vollständige Bankdaten und Gesundheitsangaben. Wer ein Token
+hat, kann es laden.
+
+1. **Freigabezugang.** Die Befehle `tenant return …` laufen als Gruppenrolle
+   `phoenix_data_return` (Migration 1.15.917). Sie hat keine Tabellenrechte,
+   nur `EXECUTE` auf die Datenbankfunktionen der Freigabe; diese prüfen den
+   aktiven Operator und schreiben Freigabe und Operator-Protokoll in einer
+   Transaktion. Wie beim [Löschzugang](tenant-erasure.md#1-auftrag-und-wartungsfenster-freigeben-mensch)
+   einen dedizierten Login mit `NOINHERIT` und ausschließlicher Mitgliedschaft
+   in `phoenix_data_return` (mit SET-Option) einrichten, **ohne**
+   Tabellenrechte, Superuser, `BYPASSRLS` oder weitere Mitgliedschaften. Der
+   bestehende `DB_DSN` muss für diesen Lauf diesen Zugang verwenden;
+   Zugangsdaten nur über den freigegebenen Secret-Prozess, nie in Argumente,
+   Shell-History, Ausgabe oder dieses Runbook. Kein neues Env-Schema. Nach
+   einem Restore ist der Login NOLOGIN (`restore_data_return_disabled`); ihn
+   bewusst neu freischalten wie den Löschzugang und nach dem Lauf wieder auf
+   NOLOGIN setzen. Der Webzugang `phoenix_auth` kann nicht freigeben, auch
+   nicht über `phoenix_admin`. `--operator` ordnet die Aktion zu; die
+   Anmeldung ist dieser Login.
+2. **Geheimnisse nie auf die Ausgabe.** Die Container-Ausgabe von `server`
+   landet in journald und Loki. Token und Paketschlüssel schreibt die CLI
+   deshalb nur in eine **neue** Datei mit Modus 0600 (`--secrets-out`); sie
+   verweigert die Standardausgabe, eine vorhandene Datei und ein Verzeichnis,
+   das andere lesen können. Auf dem Host ein privates Verzeichnis anlegen,
+   das UID 1001 gehört und Modus 0700 hat, und als Bind-Mount einhängen. Die
+   Ausgabe nennt nur `grant_id`, `archive`, Prüfsumme, Größe, Ablauf und den
+   Pfad der Datei.
+3. Paket nach Abschnitt 3 erstellen und prüfen. Freigegeben wird nur ein Paket
+   mit passendem `COMPLETE`, unveränderten Dateien laut Manifest, ohne
+   zusätzliche Datei oder Link, ohne Personen-Prüfpaket und mit genau der
+   angegebenen Schule bzw. dem angegebenen Träger. Die CLI prüft das, hasht
+   jede Datei beim Packen erneut und bricht bei jeder Abweichung ab.
+4. Das geprüfte Paketverzeichnis auf den Server der Installation bringen
+   (verschlüsselter Kanal, geschützte temporäre Ablage, für UID 1001 lesbar)
+   und mit derselben Binary wie `server` freigeben. Der Einmal-Container nutzt
+   die Volumes von `server`, also auch `phoenix-<env>-data-return`:
+
+   ```sh
+   docker compose run --rm --no-deps \
+     -v "$PACKAGE_DIR":/package:ro -v "$SECRETS_DIR":/secrets server \
+     /app/main tenant return release --package /package \
+     --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+     --keep-until "$LETZTER_ABRUFTAG" \
+     --recipient customer --recipient-name "$KUNDE" \
+     --valid-for 168h --max-downloads 5 --secrets-out /secrets/release.json
+   ```
+
+   Für einen Träger `--organization` statt `--school`. Lokal gilt
+   `scripts/dev-native.sh backend go run . tenant return …`.
+   `--keep-until` ist der letzte Tag des Abrufzeitraums (YYYY-MM-DD).
+   `release.json` enthält `token` und `archive_key`, nur einmal erzeugt. Das
+   Token über einen bestätigten zweiten Kanal an die Empfängerorganisation
+   geben, nie in das Ticket oder eine unverschlüsselte Mail. Den `archive_key`
+   im geschützten Auftrag (Passwortmanager) bis zum Ende des Abrufzeitraums
+   aufbewahren. Danach die Datei und die Paketkopie auf dem Server löschen.
+5. Token für den benannten neuen Anbieter oder ein neues Token nach Ablauf:
+
+   ```sh
+   docker compose run --rm --no-deps -v "$SECRETS_DIR":/secrets server \
+     /app/main tenant return grant --archive "$ARCHIVE" --operator "$OPERATOR_ID" \
+     --archive-key-file /secrets/release.json \
+     --recipient target_provider --recipient-name "$ZIELANBIETER" \
+     --secrets-out /secrets/grant-zielanbieter.json
+   ```
+
+   Ohne `--archive-key-file` liest der Befehl den Schlüssel von stdin
+   (`docker compose run -T …`), nie aus einem Argument. Ein Token gilt
+   höchstens 30 Tage und nie über `--keep-until` hinaus.
+6. Abruf durch den Empfänger, beschrieben in `/public/data-return/openapi.json`:
+
+   ```sh
+   curl -fsS -H "Authorization: Bearer $TOKEN" \
+     "$API_URL/public/data-return/package"
+   curl -fsS -H "Authorization: Bearer $TOKEN" -o paket.zip \
+     "$API_URL/public/data-return/package/archive"
+   ```
+
+   `$API_URL` ist die API-Adresse der Installation; Agents verwenden nur
+   localhost. Nach dem Download die SHA-256 der ZIP mit `archiveSHA256`
+   vergleichen, dann `COMPLETE` und `manifest.json`. Jeder Download zählt; ein
+   abgebrochener Download liefert weniger Bytes als `Content-Length`.
+7. Überblick ohne Tokens: `tenant return list --operator "$OPERATOR_ID"`;
+   `archive_stored` zeigt, ob das Archiv eines offenen Tokens in der Ablage
+   liegt. Abrufe stehen in `platform.data_return_downloads`, Freigaben,
+   Tokens, Widerrufe und Bereinigungen im Operator-Protokoll (Aktion
+   `data_return_*`, je Archiv bzw. Token ein Eintrag).
+8. Tokens beenden, jeweils mit `--operator`: ein Token
+   `tenant return revoke --grant "$GRANT_ID"`, alle Tokens eines Pakets
+   `--archive "$ARCHIVE"`, alle Tokens der Installation `--all` (nach jedem
+   Restore der Datenbank, siehe [Sicherung](daily-backup.md)). Ein Widerruf
+   wirkt für neue Anfragen sofort; ein laufender Download bricht nach
+   höchstens 8 MiB ab, weil der Abruf den Token währenddessen erneut prüft.
+9. Nach dem Abrufzeitraum, **vor jeder Löschung** nach
+   [tenant-erasure.md](tenant-erasure.md) und regelmäßig:
+   `tenant return purge --operator "$OPERATOR_ID"`. Das löscht Archive nach
+   `--keep-until` oder mit nur widerrufenen Tokens und leert deren Schlüssel,
+   entfernt Dateien der Ablage, die kein offenes Token mehr nennt
+   (abgebrochene Freigaben), und Nachweiszeilen drei Jahre nach dem
+   Abrufzeitraum. `tenant erase` verweigert eine Schule oder einen Träger,
+   solange ein Paket davon nicht bereinigt ist: vorher
+   `tenant return revoke --archive` und `tenant return purge`. Auch der
+   Probelauf (`--dry-run`) verweigert dann. Eine gleichzeitige Freigabe kann
+   nicht durchrutschen: Der Löschbefehl prüft in derselben Transaktion erneut,
+   und eine gelöschte Schule nimmt keine Freigabe mehr an. **Offen:** Ein
+   Paket des Trägers sperrt die Löschung einer seiner Schulen nicht; es
+   bleibt abrufbar, bis es bereinigt oder der Träger gelöscht wird. Das ist
+   der heutige Stand, keine getroffene fachliche Entscheidung
+   ([#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)). Eine
+   Freigabe für eine Schule oder einen Träger, deren Löschung begonnen hat,
+   verweigert die CLI.
+
+Die Ablage `phoenix-<env>-data-return` ist nicht Teil der täglichen
+Sicherung. Jeder Restore der Datenbank, aus der täglichen Sicherung wie beim
+Rollback eines Releases ([release-backup-rollback.md](release-backup-rollback.md)),
+widerruft alle Tokens mit Archiv selbst (`restore_data_return_revoked=<Anzahl>`,
+`revoked_by = 'restore'` an der Tokenzeile); danach `purge` ausführen,
+laufende Wechsel neu exportieren und freigeben.

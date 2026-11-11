@@ -80,6 +80,11 @@ changed_dirs=$({ printf '%s\n' "$shared_fixture_dirs"; printf '%s\n' "$backend_c
     if ($0 ~ /data_lifecycle_catalog/) print "test database/migrations"
     next
   }
+  # The OpenAPI description of the data return is embedded by its route.
+  /^backend\/modules\/organizationtenancy\/inbound\/datareturn\/openapi\.json$/ {
+    print "production modules/organizationtenancy/inbound/datareturn"
+    next
+  }
   /^backend\/modules\/documentrendering\/internal\/application\/listrenderer\/assets\// {
     print "production modules/documentrendering/internal/application/listrenderer"
   }

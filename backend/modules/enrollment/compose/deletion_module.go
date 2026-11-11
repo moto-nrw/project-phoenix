@@ -18,9 +18,8 @@ type DeletionOwner interface {
 	UsedLateInviteCleaner
 }
 
-// DeletionModuleDependencies are the owner and the ports the admin deletion
-// and the retention cleanup share. A nil Audit leaves both unaudited; a nil
-// Retention fails the cleanup's retention lookup.
+// DeletionModuleDependencies are the owner and the ports the admin deletion and the retention cleanup share.
+// A nil Audit leaves both unaudited; a nil Retention fails the cleanup's retention lookup.
 type DeletionModuleDependencies struct {
 	Owner     DeletionOwner
 	Guardians GuardianDirectory

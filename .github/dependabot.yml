@@ -94,11 +94,9 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Berlin"
-    # A Node major moves Devbox, CI and both frontend images together
-    # (TestToolchainPinsRatchet); Node 25 dropped Corepack (#6483, #6590).
-    ignore:
-      - dependency-name: "node"
-        update-types:
-          - "version-update:semver-major"
+    # A Node major PR is a reminder, not mergeable as opened: it moves only
+    # the frontend images and fails TestToolchainPinsRatchet. Complete it in
+    # the same PR with devbox.json, devbox.lock and every node-version in
+    # .github/workflows. Close it for a non-LTS major.
     commit-message:
       prefix: "chore(deps)"

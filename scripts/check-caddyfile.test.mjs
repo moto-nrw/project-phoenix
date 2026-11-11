@@ -19,6 +19,15 @@ test('flags a reverse_proxy without the import, also next to braces in quoted st
   assert.match(errors[0], /line 15: reverse_proxy localhost:2/);
 });
 
+test('a heredoc body is text: its braces and directives carry no structure', () => {
+  const page = '(page) {\n\trespond <<HTML\n\tbody {\n\t}\n\treverse_proxy localhost:9\n\t}\n\tHTML 200\n}\n';
+  const proxy = 'a.example {\n\treverse_proxy localhost:1 {\n\t\timport client_ip_upstream\n\t}\n}\n';
+  assert.deepEqual(checkReverseProxies(`${page}${snippet}${proxy}`), []);
+  const errors = checkReverseProxies(`${page}${snippet}b.example {\n\treverse_proxy localhost:2\n}\n`);
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /line 15: reverse_proxy localhost:2 has no block/);
+});
+
 test('flags a reverse_proxy without a block and a missing snippet', () => {
   const errors = checkReverseProxies('a.example {\n\treverse_proxy localhost:1\n}\n');
   assert.match(errors[0], /has no block/);
