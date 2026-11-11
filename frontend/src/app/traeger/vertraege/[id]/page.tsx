@@ -7,7 +7,7 @@
 // (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
 import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
-import { Download, RotateCw, Send, Trash2 } from "lucide-react";
+import { ChevronDown, Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -351,9 +351,27 @@ export default function TraegerVertragPage() {
               </Button>
             )}
             {/* One visible action; the rest waits in the menu (TENANT-PAGE-SPEC
-                rule 4). An entry that cannot run right now stays out. */}
+                rule 4). An entry that cannot run right now stays out. For an
+                active contract the menu holds only the mail actions, so it
+                is named „Versand“ instead of a bare ⋮. */}
             {headMenu.length > 0 ? (
-              <OverflowMenu items={headMenu} ariaLabel="Weitere Aktionen" />
+              resendInCard && !isDraft ? (
+                <OverflowMenu
+                  items={headMenu}
+                  ariaLabel="Versand"
+                  triggerButton={{ variant: "outline", size: "md" }}
+                  // The arrow says that a menu opens, as on the download menus.
+                  triggerClassName="gap-2 whitespace-nowrap"
+                  triggerContent={
+                    <>
+                      Versand
+                      <ChevronDown className="h-4 w-4" aria-hidden />
+                    </>
+                  }
+                />
+              ) : (
+                <OverflowMenu items={headMenu} ariaLabel="Weitere Aktionen" />
+              )
             ) : null}
           </>
         ) : null
