@@ -150,6 +150,7 @@
   "holiday_booking_unit_booked": "Bu hafta için zaten kayıtlar var. Bu yüzden rezervasyon şekli ve tek günlerde haftanın tarihleri aynı kalır.",
   "holiday_child_day_limit": "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {days} gün seçildi. Lütfen daha az gün seçin.",
   "holiday_weeks_booked_together": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "holiday_week_day_limit": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "hosted_holiday_week_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_guest_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_guest_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

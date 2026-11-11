@@ -64,6 +64,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/organizationtenancy/inbound/datareturn",
+      "owner": "organization-tenancy",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/organizationtenancy/internal/adapters/tenantexport",
       "owner": "organization-tenancy",
       "role": "postgres",

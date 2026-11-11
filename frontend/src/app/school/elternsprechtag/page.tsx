@@ -35,6 +35,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
@@ -152,7 +153,8 @@ function SchoolParentConferences() {
   const [draft, setDraft] = useState<ParentConferenceDraft>(() =>
     emptyParentConferenceDraft([]),
   );
-  const [submitting, setSubmitting] = useState(false);
+  const save = useFormModalPending(formOpen);
+  const submitting = save.pending;
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
@@ -199,31 +201,33 @@ function SchoolParentConferences() {
       return;
     }
     formErrors.clear();
-    setSubmitting(true);
-    try {
-      const request = parentConferenceRequest(draft);
-      const saved = editing
-        ? await updateSchoolParentConference(editing.id, request)
-        : await createSchoolParentConference(request);
-      await mutate();
-      toast.success(
-        editing
-          ? `Der Elternsprechtag am ${formatDate(saved.date)} ist geändert.`
-          : `Der Elternsprechtag am ${formatDate(saved.date)} ist angelegt. Die Eltern der ${schoolClassLabel(saved.school_class)} können jetzt buchen.`,
-      );
-      closeForm();
-      select(saved.id);
-    } catch (err) {
-      logger.error("school_parent_conference_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Speichern des Elternsprechtags",
-        retry: () => latestSubmitRef.current(),
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const request = parentConferenceRequest(draft);
+        const saved = editing
+          ? await updateSchoolParentConference(editing.id, request)
+          : await createSchoolParentConference(request);
+        await mutate();
+        toast.success(
+          editing
+            ? `Der Elternsprechtag am ${formatDate(saved.date)} ist geändert.`
+            : `Der Elternsprechtag am ${formatDate(saved.date)} ist angelegt. Die Eltern der ${schoolClassLabel(saved.school_class)} können jetzt buchen.`,
+        );
+        if (!op.isCurrent()) return;
+        closeForm();
+        select(saved.id);
+      } catch (err) {
+        logger.error("school_parent_conference_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Speichern des Elternsprechtags",
+          retry: () => latestSubmitRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = () => void submit();
@@ -298,13 +302,12 @@ function SchoolParentConferences() {
           <SlideOver
             open={formOpen}
             onOpenChange={(open) => {
-              if (!open && !submitting) closeForm();
+              if (!open) closeForm();
             }}
+            pending={save}
           >
             <SlideOverContent size="md">
-              <SlideOverHeader
-                close={<SlideOverCloseButton disabled={submitting} />}
-              >
+              <SlideOverHeader close={<SlideOverCloseButton />}>
                 <SlideOverTitle>
                   {editing ? "Elternsprechtag ändern" : "Neuer Elternsprechtag"}
                 </SlideOverTitle>

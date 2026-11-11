@@ -1332,7 +1332,6 @@ function StudentDetailPageContent() {
             ? "Klassenfahrt"
             : "Entschuldigung";
       toast.success(`${statusLabel} für ${student.name} ist gespeichert.`);
-      setPlannedStatusModal(null);
     } catch (err) {
       logger.error("planned_status_create_failed", {
         student_id: studentId,
@@ -1396,7 +1395,6 @@ function StudentDetailPageContent() {
           ? `Die Entschuldigung für ${student.name} ist geändert.`
           : `Die Entschuldigung für ${student.name} ist gespeichert.`,
       );
-      setPlannedStatusModal(null);
     } catch (err) {
       logger.error("partial_absence_save_failed", {
         student_id: studentId,

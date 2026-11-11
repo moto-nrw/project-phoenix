@@ -40,6 +40,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -141,7 +142,10 @@ export function BulkSubstitutionModal({
   // Abgewählte Tage statt gewählter: neue Tage aus einer Zeitraumänderung sind
   // damit automatisch ausgewählt, ohne die bestehende Abwahl zu verlieren.
   const [deselected, setDeselected] = useState<ReadonlySet<string>>(new Set());
-  const [saving, setSaving] = useState(false);
+  // Der Save ist EIN atomarer Request: ein während des Speicherns
+  // geschlossenes Panel sähe abgebrochen aus, während der Server noch
+  // committet; das Panel sperrt alle Schließwege bis zur Antwort (#6593).
+  const save = useFormModalPending(isOpen);
   // Speicherfehler stehen oben im Panel (SlideOverBody `error`), nicht als
   // Toast: Bauart 2 Regel 5.
   const formRef = useRef<HTMLDivElement>(null);
@@ -274,7 +278,7 @@ export function BulkSubstitutionModal({
   const tooManyDates = selectedDates.length > MAX_SELECTED_DATES;
 
   const canSave =
-    !saving &&
+    !save.pending &&
     absentStaffId !== "" &&
     rangeValid &&
     // Nur mit erfolgreich geladener Vorschau des AKTUELLEN Zeitraums: die
@@ -286,60 +290,62 @@ export function BulkSubstitutionModal({
     selectedDates.length > 0 &&
     !tooManyDates;
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!canSave) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      const result = await substitutionService.applyBulkSubstitution({
-        absentStaffId,
-        substituteStaffId: substituteStaffId || undefined,
-        dates: selectedDates,
-        reason: reason.trim() || undefined,
-      });
-      toast.success(
-        bulkSuccessMessage(
-          Boolean(substituteStaffId),
-          result.totalAffected,
-          result.days.length,
-        ),
-      );
-      if (result.warningCount > 0) {
-        // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Save ist durch und das Panel schließt; der Hinweis auf Überschneidungen hat keine andere Fläche.
-        toast.warning(overlapWarningMessage(result.warningCount), {
-          // Bleibt stehen, bis die Person den Hinweis schließt.
-          duration: 0,
+    void save.run(async (op) => {
+      formErrors.clear();
+      try {
+        const result = await substitutionService.applyBulkSubstitution({
+          absentStaffId,
+          substituteStaffId: substituteStaffId || undefined,
+          dates: selectedDates,
+          reason: reason.trim() || undefined,
         });
-      }
-      // Alle Vorschau-Caches leeren: sie tragen den Stand VOR dem Save, und
-      // mit keepPreviousData würde ein erneutes Öffnen desselben Zeitraums
-      // die veraltete Auswahl sofort wieder speicherbar anzeigen. Leeren
-      // statt revalidieren, damit der nächste Mount frisch lädt (isLoading)
-      // und der Save-Gate bis dahin greift. Ein Fehler hier darf den bereits
-      // committeten Save nicht als Fehler melden.
-      // Bewusst still: der Save ist gespeichert; ein misslungenes Leeren
-      // zeigt beim nächsten Öffnen höchstens kurz den alten Stand, bis SWR
-      // die Vorschau neu lädt.
-      await clearPreviewCache({ clear: true }).catch((err: unknown) => {
-        logger.warn("bulk_preview_cache_clear_failed", {
+        toast.success(
+          bulkSuccessMessage(
+            Boolean(substituteStaffId),
+            result.totalAffected,
+            result.days.length,
+          ),
+        );
+        if (result.warningCount > 0) {
+          // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Save ist durch und das Panel schließt; der Hinweis auf Überschneidungen hat keine andere Fläche.
+          toast.warning(overlapWarningMessage(result.warningCount), {
+            // Bleibt stehen, bis die Person den Hinweis schließt.
+            duration: 0,
+          });
+        }
+        // Alle Vorschau-Caches leeren: sie tragen den Stand VOR dem Save, und
+        // mit keepPreviousData würde ein erneutes Öffnen desselben Zeitraums
+        // die veraltete Auswahl sofort wieder speicherbar anzeigen. Leeren
+        // statt revalidieren, damit der nächste Mount frisch lädt (isLoading)
+        // und der Save-Gate bis dahin greift. Ein Fehler hier darf den bereits
+        // committeten Save nicht als Fehler melden.
+        // Bewusst still: der Save ist gespeichert; ein misslungenes Leeren
+        // zeigt beim nächsten Öffnen höchstens kurz den alten Stand, bis SWR
+        // die Vorschau neu lädt.
+        await clearPreviewCache({ clear: true }).catch((err: unknown) => {
+          logger.warn("bulk_preview_cache_clear_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
+        await onSaved();
+        // Eine späte Antwort schließt kein inzwischen neu geöffnetes Panel.
+        if (op.isCurrent()) resetAndClose();
+      } catch (err) {
+        // Der Save ist alles-oder-nichts: bei einem Fehler bleibt das Formular
+        // mit allen Eingaben offen, die Meldung steht oben im Panel.
+        logger.error("bulk_substitution_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-      });
-      await onSaved();
-      resetAndClose();
-    } catch (err) {
-      // Der Save ist alles-oder-nichts: bei einem Fehler bleibt das Formular
-      // mit allen Eingaben offen, die Meldung steht oben im Panel.
-      logger.error("bulk_substitution_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, {
-        object: "die Sammel-Vertretung",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: "die Sammel-Vertretung",
+          retry: () => latestSaveRef.current(),
+        });
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -352,21 +358,15 @@ export function BulkSubstitutionModal({
   return (
     <SlideOver
       open={isOpen}
-      isDismissDisabled={saving}
+      pending={save}
       onOpenChange={(open) => {
-        // Der Save ist EIN atomarer Request: ein während des Speicherns
-        // geschlossenes Panel sähe abgebrochen aus, während der Server noch
-        // committet; alle Schließwege bleiben bis zur Antwort blockiert.
-        if (!open && !saving) resetAndClose();
+        if (!open) resetAndClose();
       }}
     >
       <SlideOverContent size="lg">
         <SlideOverHeader
           close={
-            <SlideOverCloseButton
-              aria-label="Sammel-Vertretung schließen"
-              disabled={saving}
-            />
+            <SlideOverCloseButton aria-label="Sammel-Vertretung schließen" />
           }
         >
           <SlideOverTitle>Sammel-Vertretung</SlideOverTitle>
@@ -554,7 +554,6 @@ export function BulkSubstitutionModal({
             variant="outline"
             size="md"
             onClick={resetAndClose}
-            disabled={saving}
           >
             Abbrechen
           </Button>
@@ -565,7 +564,7 @@ export function BulkSubstitutionModal({
             onClick={handleSave}
             disabled={!canSave}
           >
-            {saving
+            {save.pending
               ? "Speichert…"
               : selectedDates.length > 0
                 ? `Für ${selectedDates.length} Tag(e) speichern`

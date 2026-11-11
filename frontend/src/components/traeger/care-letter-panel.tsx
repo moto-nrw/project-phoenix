@@ -41,6 +41,7 @@ export function CareLetterPanel<T extends CareLetterDetails>({
   onClose: () => void;
 }>) {
   return (
+    // oxlint-disable-next-line ui-kit/slide-over-pending -- zeigt das Schreiben an und lädt es herunter; schreibt nichts.
     <SlideOver
       open={letter !== null}
       onOpenChange={(open) => {

@@ -97,6 +97,26 @@ func (o testGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Context, 
 	return err
 }
 
+// CreateGuardianPickupPermissions and GrantGuardianStudentAccesses write the
+// batch halves one by one through the single commands above.
+func (o testGuardianLinkOwners) CreateGuardianPickupPermissions(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	for _, link := range links {
+		if err := o.CreateGuardianPickupPermission(ctx, tenantID, link.RelationshipID, link.CanPickup, link.PickupNotes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o testGuardianLinkOwners) GrantGuardianStudentAccesses(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	for _, link := range links {
+		if err := o.GrantGuardianStudentAccess(ctx, tenantID, link.RelationshipID, link.AccountID, link.Permissions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (o testGuardianLinkOwners) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
 	result, err := o.queryDB(ctx).NewRaw(`UPDATE auth.guardian_student_access SET permissions = ?::jsonb
 		WHERE tenant_id = ? AND relationship_id = ?`, string(permissions), tenantID, relationshipID).Exec(ctx)

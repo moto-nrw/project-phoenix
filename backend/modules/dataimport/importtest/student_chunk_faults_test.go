@@ -26,11 +26,15 @@ import (
 // statement and every owner write after it) replays the chunk.
 
 const (
-	personBatch      = "WITH staff_person_merge_gate AS MATERIALIZED"
-	enrollmentWrite  = "WITH class_write_gate AS MATERIALIZED"
-	studentCount     = `SELECT count(*) FROM users.student_profiles WHERE tenant_id = ?`
-	consentBatch     = "INSERT INTO users.privacy_consents "
-	studentChunkRows = 8
+	personBatch     = "WITH staff_person_merge_gate AS MATERIALIZED"
+	enrollmentWrite = "WITH class_write_gate AS MATERIALIZED"
+	studentCount    = `SELECT count(*) FROM users.student_profiles WHERE tenant_id = ?`
+	consentBatch    = "INSERT INTO users.privacy_consents "
+	// The bundled guardian statements of step 5c.
+	guardianBatch      = "MERGE INTO users.guardian_profiles"
+	guardianPhoneBatch = `INSERT INTO users.guardian_phone_numbers ("tenant_id"`
+	guardianAccess     = "INSERT INTO auth.guardian_student_access"
+	studentChunkRows   = 8
 )
 
 // namedStudentBatch is studentBatch with its own first-name prefix, so a
@@ -115,6 +119,17 @@ type studentFaultCase struct {
 	want          faultOutcome
 }
 
+// faultTableFile is the eight-row file of the fault table. Rows 1, 3 and 5
+// carry guardians without e-mail, which the batch command bundles after the
+// rows (#5552 step 5c); the others keep theirs in place.
+func faultTableFile() []importModels.StudentImportRow {
+	rows := namedStudentBatch("Fault", studentChunkRows)
+	for _, i := range []int{1, 3, 5} {
+		rows[i].Guardians[0].Email = ""
+	}
+	return rows
+}
+
 // runStudentFaultTable imports an eight-row file once per case over a pool
 // that fails the chosen statement. faultOutcome.entries counts students.
 func runStudentFaultTable(t *testing.T, cases []studentFaultCase) {
@@ -140,7 +155,7 @@ func runStudentFaultTable(t *testing.T, cases []studentFaultCase) {
 			actor := newImporter(t, db)
 			armed.Store(true)
 			armed2.Store(c.prefix2 != "")
-			upload := awaitStudents(t, uploadStudents(t, module, pool, actor, namedStudentBatch("Fault", studentChunkRows), "fault.csv"))
+			upload := awaitStudents(t, uploadStudents(t, module, pool, actor, faultTableFile(), "fault.csv"))
 			require.False(t, armed.Load(), "the fault fired")
 			require.False(t, armed2.Load(), "the second fault fired")
 			observation := (*module.Observations)[0]
@@ -196,6 +211,21 @@ func TestStudentChunkFaultTable(t *testing.T) {
 		{point: "consent batch", prefix: consentBatch, nth: 1, err: injectedSQLState("23514"), want: replayed},
 		{point: "consent batch", prefix: consentBatch, nth: 1, err: driver.ErrBadConn, want: broken},
 		{point: "consent batch", prefix: consentBatch, nth: 1, err: injectedSQLState("40P01"), prefix2: rollbackTo, err2: injectedSQLState("40P01"), want: faultOutcome{failsWith: "rollback failed"}},
+		// The bundled guardian statements run under the second bound before
+		// the consents (step 5c): the profile statement, the phone statement
+		// and the access statement after the five in-place accesses of rows
+		// 0, 2, 4, 6 and 7.
+		{point: "guardian batch", prefix: guardianBatch, err: injectedSQLState("40P01"), want: replayed},
+		{point: "guardian batch", prefix: guardianBatch, err: injectedSQLState("40001"), want: replayed},
+		{point: "guardian batch", prefix: guardianBatch, err: injectedSQLState("57014"), want: replayed},
+		{point: "guardian batch", prefix: guardianBatch, err: injectedSQLState("23514"), want: replayed},
+		{point: "guardian batch", prefix: guardianBatch, err: driver.ErrBadConn, want: broken},
+		{point: "guardian batch", prefix: guardianBatch, err: injectedSQLState("40P01"), prefix2: rollbackTo, err2: driver.ErrBadConn, want: faultOutcome{failsWith: "rollback failed"}},
+		{point: "guardian batch", prefix: guardianBatch, err: injectedSQLState("57014"), prefix2: rollbackTo, err2: driver.ErrBadConn, want: replayed},
+		{point: "guardian phone batch", prefix: guardianPhoneBatch, err: injectedSQLState("23514"), want: replayed},
+		{point: "guardian access batch", prefix: guardianAccess, nth: 6, err: injectedSQLState("40P01"), want: replayed},
+		{point: "guardian access batch", prefix: guardianAccess, nth: 6, err: injectedSQLState("57014"), want: replayed},
+		{point: "guardian access batch", prefix: guardianAccess, nth: 6, err: driver.ErrBadConn, want: broken},
 		{point: "second bound set", prefix: boundSet, nth: 2, err: injectedSQLState("40P01"), want: retried},
 		{point: "second bound set", prefix: boundSet, nth: 2, err: driver.ErrBadConn, want: broken},
 		{point: "second bound reset", prefix: boundReset, nth: 2, err: injectedSQLState("40001"), want: retried},

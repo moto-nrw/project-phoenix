@@ -664,6 +664,12 @@
       "legacy": "enrollment.holiday_weeks_booked_together"
     },
     {
+      "code": "enrollment.holiday_week_day_limit",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_week_day_limit"
+    },
+    {
       "code": "enrollment.invalid_email",
       "class": "input",
       "parameters": [],

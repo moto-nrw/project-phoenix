@@ -13,6 +13,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
@@ -157,24 +158,35 @@ export function CarePlanEditorModal({
   const [arrivalReason, setArrivalReason] = useState("");
   const [pickupMode, setPickupMode] = useState<PickupMode>("regular");
   const [pickupTime, setPickupTime] = useState("");
-  const [isResettingPickup, setIsResettingPickup] = useState(false);
   const [pickupReason, setPickupReason] = useState("");
   const [departureMode, setDepartureMode] = useState<string>("regular");
   const [departureReason, setDepartureReason] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Welche wartende Aktion das Panel sperrt; nur für die Ladetexte.
+  const [runningAction, setRunningAction] = useState<
+    "save" | "resetPickup" | "deleteNote" | null
+  >(null);
   const formRef = useRef<HTMLFormElement>(null);
   const errors = useApiFormError(formRef);
   const clearErrors = errors.clear;
   const [showParentConfirm, setShowParentConfirm] = useState(false);
   const [noteDeletionTarget, setNoteDeletionTarget] =
     useState<NoteDeletionTarget | null>(null);
-  const [isDeletingNote, setIsDeletingNote] = useState(false);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const initializedExceptionKey = useRef<string | null>(null);
   // The form steps aside while the confirmation is up so the two dialogs never
   // stack. Kept out of `isOpen` on purpose: the reset effect keys on `isOpen`,
   // so toggling this preserves what the user typed.
   const [formVisible, setFormVisible] = useState(true);
+  // Eine Sitzung je geöffnetem Tag. Bewusst `isOpen`, nicht `formVisible`:
+  // Bestätigungen über dem Panel blenden es aus, ihr Speichern gehört aber
+  // zu derselben Sitzung und hält das Panel gesperrt.
+  const save = useFormModalPending(
+    isOpen,
+    arrivalDay ? toDayISO(arrivalDay.date) : null,
+  );
+  const isSubmitting = save.pending && runningAction === "save";
+  const isResettingPickup = save.pending && runningAction === "resetPickup";
+  const isDeletingNote = save.pending && runningAction === "deleteNote";
 
   useEffect(() => {
     if (!isOpen || !isException) {
@@ -190,7 +202,6 @@ export function CarePlanEditorModal({
     clearErrors();
     setShowParentConfirm(false);
     setNoteDeletionTarget(null);
-    setIsDeletingNote(false);
     setFormVisible(true);
 
     const arrivalInit = arrivalInitialState(arrivalDay);
@@ -272,6 +283,22 @@ export function CarePlanEditorModal({
     void errors.show(err, { object: "die Notiz" });
   };
 
+  const runNoteMutation = (
+    mutation: () => Promise<void>,
+    onSuccess?: () => void,
+  ): Promise<void> =>
+    save
+      .run(async (op) => {
+        setRunningAction(null);
+        try {
+          await mutation();
+          if (op.isCurrent()) onSuccess?.();
+        } catch (err) {
+          if (op.isCurrent()) handleNoteError(err);
+        }
+      })
+      .then(() => undefined);
+
   const closeNoteDeleteConfirmation = () => {
     setNoteDeletionTarget(null);
     setFormVisible(true);
@@ -279,62 +306,70 @@ export function CarePlanEditorModal({
 
   const handleNoteDelete = async () => {
     if (!noteDeletionTarget) return;
-    setIsDeletingNote(true);
-    try {
-      await noteDeletionTarget.deleteNote();
-    } catch (err) {
-      handleNoteError(err);
-    } finally {
-      setIsDeletingNote(false);
-      closeNoteDeleteConfirmation();
-    }
+    const target = noteDeletionTarget;
+    await save.run(async (op) => {
+      setRunningAction("deleteNote");
+      try {
+        await target.deleteNote();
+      } catch (err) {
+        if (op.isCurrent()) handleNoteError(err);
+      } finally {
+        if (op.isCurrent()) closeNoteDeleteConfirmation();
+      }
+    });
   };
 
   const handleResetPickupToOffering = async (weekday: number, date: string) => {
     if (!onResetPickupToOffering) return;
-    errors.clear();
-    setIsResettingPickup(true);
-    try {
-      await onResetPickupToOffering(weekday, date);
-    } catch (err) {
-      await errors.show(err, {
-        object: "die Abholung",
-        retry: () => void handleResetPickupToOffering(weekday, date),
-      });
-    } finally {
-      setIsResettingPickup(false);
-    }
+    await save.run(async (op) => {
+      setRunningAction("resetPickup");
+      errors.clear();
+      try {
+        await onResetPickupToOffering(weekday, date);
+      } catch (err) {
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await errors.show(err, {
+          object: "die Abholung",
+          retry: () => void handleResetPickupToOffering(weekday, date),
+        });
+      }
+    });
   };
 
   const performSave = async () => {
-    errors.clear();
-    setIsSubmitting(true);
-    try {
-      await onSubmitException({
-        date: toDayISO(arrivalDay.date),
-        arrival: arrivalChanged
-          ? toLegSubmit(arrivalMode, arrivalTime, arrivalReason)
-          : null,
-        pickup: pickupChanged
-          ? toLegSubmit(pickupMode, pickupTime, pickupReason)
-          : null,
-        ...(departureChanged
-          ? { departure: toDepartureSubmit(departureMode, departureReason) }
-          : {}),
-      });
+    await save.run(async (op) => {
+      setRunningAction("save");
+      errors.clear();
+      try {
+        await onSubmitException({
+          date: toDayISO(arrivalDay.date),
+          arrival: arrivalChanged
+            ? toLegSubmit(arrivalMode, arrivalTime, arrivalReason)
+            : null,
+          pickup: pickupChanged
+            ? toLegSubmit(pickupMode, pickupTime, pickupReason)
+            : null,
+          ...(departureChanged
+            ? { departure: toDepartureSubmit(departureMode, departureReason) }
+            : {}),
+        });
+      } catch (err) {
+        // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+        if (!op.isCurrent()) return;
+        cancelConfirm();
+        // Ohne „Wiederholen“: „Speichern“ wiederholt mit dem aktuellen
+        // Entwurf. Eine Ref dafür bräuchte einen Hook nach dem return null.
+        await errors.show(err, {
+          object: "die Ausnahme",
+        });
+        return;
+      }
       toast.success("Die Ausnahme ist gespeichert.");
+      if (!op.isCurrent()) return;
       setShowParentConfirm(false);
       onClose();
-    } catch (err) {
-      cancelConfirm();
-      // Ohne „Wiederholen“: „Speichern“ wiederholt mit dem aktuellen
-      // Entwurf. Eine Ref dafür bräuchte einen Hook nach dem return null.
-      await errors.show(err, {
-        object: "die Ausnahme",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const footer = (
@@ -344,7 +379,7 @@ export function CarePlanEditorModal({
         variant="outline"
         size="md"
         onClick={onClose}
-        disabled={isSubmitting}
+        disabled={save.pending}
       >
         Abbrechen
       </Button>
@@ -367,6 +402,7 @@ export function CarePlanEditorModal({
         onOpenChange={(open) => {
           if (!open) onClose();
         }}
+        pending={save}
       >
         <SlideOverContent size="md">
           <SlideOverHeader
@@ -502,7 +538,7 @@ export function CarePlanEditorModal({
                     variant="surface"
                     size="compact"
                     className="ml-auto"
-                    disabled={isResettingPickup}
+                    disabled={save.pending}
                     onClick={() =>
                       void handleResetPickupToOffering(
                         pickupDay.weekday,
@@ -527,7 +563,8 @@ export function CarePlanEditorModal({
                 onCreatePickup={onCreatePickupNote}
                 onUpdatePickup={onUpdatePickupNote}
                 onDeletePickup={onDeletePickupNote}
-                onError={handleNoteError}
+                runMutation={runNoteMutation}
+                isMutationPending={save.pending}
                 noteDrafts={noteDrafts}
                 onNoteDraftChange={(key, content) =>
                   setNoteDrafts((drafts) => ({ ...drafts, [key]: content }))
@@ -673,6 +710,15 @@ function LegSection({
   );
 }
 
+/**
+ * Führt eine Hinweis-Änderung über die Sperre des Panels aus (#6593);
+ * `onSuccess` läuft nur, solange das Panel noch denselben Tag zeigt.
+ */
+type NoteMutationRunner = (
+  mutation: () => Promise<void>,
+  onSuccess?: () => void,
+) => Promise<void>;
+
 function DayNotesEditor({
   date,
   arrivalNotes,
@@ -683,7 +729,8 @@ function DayNotesEditor({
   onCreatePickup,
   onUpdatePickup,
   onDeletePickup,
-  onError,
+  runMutation,
+  isMutationPending,
   noteDrafts,
   onNoteDraftChange,
   onRequestDelete,
@@ -705,7 +752,8 @@ function DayNotesEditor({
     content: string,
   ) => Promise<void>;
   readonly onDeletePickup: (id: string) => Promise<void>;
-  readonly onError: (err: unknown) => void;
+  readonly runMutation: NoteMutationRunner;
+  readonly isMutationPending: boolean;
   readonly noteDrafts: Readonly<Record<string, string>>;
   readonly onNoteDraftChange: (key: string, content: string) => void;
   readonly onRequestDelete: (target: NoteDeletionTarget) => void;
@@ -727,7 +775,8 @@ function DayNotesEditor({
         }
         onUpdate={(id, content) => onUpdateArrival(date, id, content)}
         onDelete={onDeleteArrival}
-        onError={onError}
+        runMutation={runMutation}
+        isMutationPending={isMutationPending}
         noteDrafts={noteDrafts}
         onNoteDraftChange={onNoteDraftChange}
         onRequestDelete={onRequestDelete}
@@ -744,7 +793,8 @@ function DayNotesEditor({
         }
         onUpdate={(id, content) => onUpdatePickup(date, id, content)}
         onDelete={onDeletePickup}
-        onError={onError}
+        runMutation={runMutation}
+        isMutationPending={isMutationPending}
         noteDrafts={noteDrafts}
         onNoteDraftChange={onNoteDraftChange}
         onRequestDelete={onRequestDelete}
@@ -761,7 +811,8 @@ function NoteList({
   onCreate,
   onUpdate,
   onDelete,
-  onError,
+  runMutation,
+  isMutationPending,
   noteDrafts,
   onNoteDraftChange,
   onRequestDelete,
@@ -773,33 +824,12 @@ function NoteList({
   readonly onCreate: () => Promise<void>;
   readonly onUpdate: (id: string, content: string) => Promise<void>;
   readonly onDelete: (id: string) => Promise<void>;
-  readonly onError: (err: unknown) => void;
+  readonly runMutation: NoteMutationRunner;
+  readonly isMutationPending: boolean;
   readonly noteDrafts: Readonly<Record<string, string>>;
   readonly onNoteDraftChange: (key: string, content: string) => void;
   readonly onRequestDelete: (target: NoteDeletionTarget) => void;
 }) {
-  const mutationInFlight = useRef(false);
-  const [isMutationPending, setIsMutationPending] = useState(false);
-
-  const runMutation = async (
-    mutation: () => Promise<void>,
-    onSuccess?: () => void,
-  ) => {
-    if (mutationInFlight.current) return;
-
-    mutationInFlight.current = true;
-    setIsMutationPending(true);
-    try {
-      await mutation();
-      onSuccess?.();
-    } catch (err) {
-      onError(err);
-    } finally {
-      mutationInFlight.current = false;
-      setIsMutationPending(false);
-    }
-  };
-
   return (
     <div className="space-y-2">
       <p className="text-xs font-medium text-gray-500">{label}</p>
@@ -860,10 +890,7 @@ function NoteEditor({
   readonly onContentChange: (content: string) => void;
   readonly onUpdate: (id: string, content: string) => Promise<void>;
   readonly onDelete: (id: string) => Promise<void>;
-  readonly runMutation: (
-    mutation: () => Promise<void>,
-    onSuccess?: () => void,
-  ) => Promise<void>;
+  readonly runMutation: NoteMutationRunner;
   readonly isMutationPending: boolean;
   readonly onRequestDelete: (target: NoteDeletionTarget) => void;
 }) {

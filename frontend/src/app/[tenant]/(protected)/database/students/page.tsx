@@ -391,7 +391,7 @@ function StudentsPageContent() {
           ),
         );
       }
-      setShowCreateModal(false);
+      // Das Panel schließt sich selbst, nur im Vorgang, der angelegt hat.
       await Promise.all([
         tenantMutate("database-students-list"),
         tenantMutate("database-students-child-quota"),
