@@ -186,7 +186,8 @@ describe("StaffPoolSlideOver pending lock (#6593)", () => {
     ).toBeDisabled();
     fireEvent.click(cancel);
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
-    fireEvent.keyDown(document, { key: "Escape" });
+    // Abbrechen schließt ohne Animation; Escape und X deckt modal.test.tsx
+    // mit Fake-Timern ab.
     expect(screen.getByText("Person verschieben?")).toBeInTheDocument();
 
     await act(async () => {

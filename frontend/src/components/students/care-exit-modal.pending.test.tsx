@@ -205,6 +205,7 @@ describe("CareExitModal pending lock (#6593)", () => {
         answer.resolve(PREVIEW);
       });
 
+      // Anker: das wiedergeöffnete Panel steht frisch auf Schritt 1.
       expect(
         screen.getByText("Schritt 1 von 2: Tag und Grund festlegen."),
       ).toBeVisible();

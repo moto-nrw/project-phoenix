@@ -1917,6 +1917,7 @@ describe("StudentDetailPage", () => {
         });
         expect(viewAllButton).toBeDisabled();
         fireEvent.click(viewAllButton);
+        // Anker: der Aufheben-Dialog ist weiter offen.
         expect(screen.getByTestId(modal)).toBeInTheDocument();
         expect(
           screen.queryByTestId(`planned-status-modal-${status}`),
