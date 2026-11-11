@@ -62,36 +62,11 @@ func runDemo(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs []s
 	}
 }
 
-// eraseTheRest repeats the run until it has erased want orders and returns
-// how many it erased, erased by the first run included. The erasure starts
-// no order after its budget (250 ms), and how many orders that covers
-// depends on the machine (#6338, #6452); the rest stays open for the next
-// run. Each run starts at least one order, so the first run erased one and
-// want orders take at most want runs.
-func eraseTheRest(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs []string, erased, want int) int {
-	t.Helper()
-	assert.Positive(t, erased, "the first run erases at least one order")
-	for run := 1; run < want && erased < want; run++ {
-		_, more, err := queue.RetireDemoSchools(t.Context(), slugs)
-		require.NoError(t, err)
-		erased += more
-	}
-	return erased
-}
-
 // waitsPerBudget is the most lock waits one budget of the run allows: a wait
 // lasts lock_timeout (100 ms) before the order is deferred, and neither the
 // retirement (200 ms) nor the erasure (250 ms) starts an order after its
 // budget, so a fourth wait would start at 300 ms at the earliest.
 const waitsPerBudget = 3
-
-// retireCounted runs the demo run like retireNow and returns the deferrals
-// of every order still open, for runs that meet many locked orders.
-func retireCounted(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSchoolQueue, slugs []string) (erased int, deferrals map[string]int) {
-	t.Helper()
-	_, erased, deferrals = countedRun(t, db, queue, slugs)
-	return erased, deferrals
-}
 
 // countedRun runs the demo run and bounds its lock waits by their number:
 // every order that waits for a lock is deferred once and counted in its
@@ -297,7 +272,11 @@ func (o demoOrder) requireErasedNext(t *testing.T) {
 	open := o.snapshot(t)["platform.schools"]
 	var visible bool
 	require.NoError(t, o.db.NewRaw(`SELECT deleted_at IS NULL FROM platform.schools WHERE id = ?`, o.schoolID).Scan(t.Context(), &visible))
-	hidden, erased := retireNow(t, o.db, o.queue, nil)
+	wantHidden := 0
+	if visible {
+		wantHidden = 1
+	}
+	hidden, erased := retireAtLeast(t, o.db, o.queue, nil, wantHidden, 1)
 	if visible {
 		require.Equal(t, 1, hidden, "the next run hides the school the previous one deferred: %s", open)
 	}
@@ -527,7 +506,7 @@ func TestDemoVisitorErasureMeetsARealSchoolProfileChange(t *testing.T) {
 	order := newHiddenDemoOrder(t)
 	testpkg.MapAccountToTenant(t, order.db, order.accounts.parent, order.realID)
 	order.writerFirst(t, profileChange(order.accounts.parent, order.realID)...)
-	_, erased := retireNow(t, order.db, order.queue, nil)
+	_, erased := retireAtLeast(t, order.db, order.queue, nil, 0, 1)
 	require.Equal(t, 1, erased)
 	assert.Nil(t, stateOfAccount(t, order.db, order.accounts.parent).Erased, "the shared account stays")
 	var bio string
@@ -544,7 +523,7 @@ func requireMembershipKeepsTheAccount(t *testing.T, membership func(order demoOr
 	order := newHiddenDemoOrder(t)
 	caregiver := stateOfAccount(t, order.db, order.accounts.caregiver)
 	order.writerFirst(t, membership(order))
-	_, erased := retireNow(t, order.db, order.queue, nil)
+	_, erased := retireAtLeast(t, order.db, order.queue, nil, 0, 1)
 	require.Equal(t, 1, erased)
 	assert.Equal(t, caregiver, stateOfAccount(t, order.db, order.accounts.caregiver),
 		"an account that got a real membership while the run ran keeps its address and access")
@@ -695,8 +674,10 @@ func TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone(t *testing.T) {
 						assert.Equal(t, "[]", after["auth.tokens"], "a school the run hid keeps no session while the erasure waits")
 					}
 				}
-				for run := 0; run < 3 && slices.Contains(demoOrderNames(t, order.db), order.slug); run++ {
-					retireNow(t, order.db, order.queue, nil)
+				if slices.Contains(demoOrderNames(t, order.db), order.slug) {
+					retireUntil(t, order.db, order.queue, nil, func(int, int, map[string]int) bool {
+						return !slices.Contains(demoOrderNames(t, order.db), order.slug)
+					})
 				}
 				order.requireFullyErased(t)
 			})
@@ -733,7 +714,7 @@ func TestDemoRunFindsADeferredWaitingOrderOnceSeeded(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
-	hidden, erased = retireNow(t, db, queue, nil)
+	hidden, erased = retireAtLeast(t, db, queue, nil, 1, 1)
 	assert.Equal(t, 1, hidden, "the next run hides the seeded school no access names")
 	assert.Equal(t, 1, erased)
 	assert.Nil(t, demoSchoolProgress(t, db, slug))
@@ -762,12 +743,10 @@ func TestDemoRunKeepsItsBudgetWhenManyOrdersWait(t *testing.T) {
 		require.NoError(t, seedLock(slug)(ctx, holder))
 	}
 
-	erased, _ := retireCounted(t, db, queue, slugs)
+	_, erased := retireNow(t, db, queue, slugs)
 	assert.Zero(t, erased)
 	require.NoError(t, holder.Rollback())
-	for run := 0; run < 3 && len(demoOrderNames(t, db)) > 0; run++ {
-		retireNow(t, db, queue, nil)
-	}
+	retireUntil(t, db, queue, nil, func(int, int, map[string]int) bool { return len(demoOrderNames(t, db)) == 0 })
 	assert.Empty(t, demoOrderNames(t, db), "the next runs erase every order")
 }
 
@@ -796,8 +775,9 @@ func hiddenOrders(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSchoo
 // so the run's budget reaches the unlocked orders (#5540). How many orders a
 // budget covers depends on the machine; the order does not (#6338): no
 // locked order is deferred a second time while an order behind it is open.
-// Each run starts an order, so the free orders are gone after at most one
-// run per order.
+// A run that erases nothing, because it deferred locked orders or met a
+// stalled database (#6698), counts against stalledRuns, so a starved free
+// order still fails the test.
 func TestDemoRunReachesTheOrdersBehindLockedOnes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -815,15 +795,17 @@ func TestDemoRunReachesTheOrdersBehindLockedOnes(t *testing.T) {
 		require.NoError(t, seedLock(slug)(ctx, holder))
 	}
 
-	for run := 1; run <= len(locked)+len(free) && freeOpen(t, db, free); run++ {
-		_, deferrals := retireCounted(t, db, queue, nil)
+	run := 0
+	retireUntil(t, db, queue, nil, func(_, _ int, deferrals map[string]int) bool {
+		run++
 		if !freeOpen(t, db, free) {
-			break
+			return true
 		}
 		for _, slug := range locked {
 			assert.LessOrEqual(t, deferrals[slug], 1, "run %d defers %s again while an order behind it is open", run, slug)
 		}
-	}
+		return false
+	})
 	remaining := demoOrderNames(t, db)
 	for _, slug := range free {
 		assert.NotContains(t, remaining, slug, "an order behind locked ones is erased while they stay locked")
@@ -869,9 +851,9 @@ func TestDemoRunErasesWhileTheRetirementWaits(t *testing.T) {
 		require.NoError(t, seedLock(slug)(ctx, holder))
 	}
 
-	for run := 0; run < 3; run++ {
-		retireCounted(t, db, queue, nil)
-	}
+	retireUntil(t, db, queue, nil, func(int, int, map[string]int) bool {
+		return !slices.Contains(demoOrderNames(t, db), hidden[0])
+	})
 	assert.NotContains(t, demoOrderNames(t, db), hidden[0], "the hidden order is erased while the open ones stay locked")
 }
 
@@ -895,9 +877,7 @@ func TestDemoRunReachesTheOrdersBehindLockedStateRows(t *testing.T) {
 		require.NoError(t, stateRow(slug)(ctx, holder))
 	}
 
-	for run := 0; run < 3; run++ {
-		retireNow(t, db, queue, nil)
-	}
+	retireUntil(t, db, queue, nil, func(int, int, map[string]int) bool { return !freeOpen(t, db, free) })
 	remaining := demoOrderNames(t, db)
 	for _, slug := range free {
 		assert.NotContains(t, remaining, slug, "an order behind locked state rows is erased while they stay locked")
@@ -906,9 +886,9 @@ func TestDemoRunReachesTheOrdersBehindLockedStateRows(t *testing.T) {
 }
 
 // Locked state rows take no place in the erasure's batch: the erasure picks
-// its orders past them, so a free order behind fifty locked ones is erased in
-// the first run, and the locked ones, still open, once they are free, without
-// being named (#5540).
+// its orders past them, so a free order behind fifty locked ones is erased
+// by the first run that starts an order (#6698), and the locked ones, still
+// open, once they are free, without being named (#5540).
 func TestDemoRunErasesAFreeOrderBehindFiftyLockedStateRows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -930,15 +910,13 @@ func TestDemoRunErasesAFreeOrderBehindFiftyLockedStateRows(t *testing.T) {
 		require.NoError(t, stateRow(slug)(ctx, holder))
 	}
 
-	_, erased := retireNow(t, db, queue, nil)
-	assert.Equal(t, 1, erased, "the first run erases the free order")
+	_, erased := retireAtLeast(t, db, queue, nil, 0, 1)
+	assert.Equal(t, 1, erased, "a run erases the free order past the locked state rows")
 	assert.NotContains(t, demoOrderNames(t, db), free[0])
 	assert.Len(t, demoOrderNames(t, db), len(locked), "the locked orders stay open")
 	require.NoError(t, holder.Rollback())
 
-	for run := 0; run < 5 && len(demoOrderNames(t, db)) > 0; run++ {
-		retireNow(t, db, queue, nil)
-	}
+	retireUntil(t, db, queue, nil, func(int, int, map[string]int) bool { return len(demoOrderNames(t, db)) == 0 })
 	assert.Empty(t, demoOrderNames(t, db), "the next runs, told nothing, erase the orders once they are free")
 }
 
@@ -959,7 +937,7 @@ func TestDemoRunDefersAnOrderOncePerRun(t *testing.T) {
 			defer func() { _ = holder.Rollback() }()
 			require.NoError(t, seedLock(order.slug)(ctx, holder))
 			for run := 1; run <= 2; run++ {
-				retireNow(t, order.db, order.queue, []string{order.slug})
+				retireUntilDeferred(t, order.db, order.queue, []string{order.slug}, order.slug, run)
 				var deferrals int
 				require.NoError(t, order.db.NewRaw(`SELECT erasure_deferrals FROM platform.demo_school_states WHERE name = ?`, order.slug).Scan(ctx, &deferrals))
 				assert.Equal(t, run, deferrals, "one deferral per run")
@@ -978,8 +956,8 @@ func TestDemoVisitorErasureCountsItsDeferrals(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = holder.Rollback() }()
 	require.NoError(t, keyShare(order.accounts.caregiver)(ctx, holder))
-	for range 2 {
-		_, erased := retireNow(t, order.db, order.queue, nil)
+	for run := 1; run <= 2; run++ {
+		_, erased := retireUntilDeferred(t, order.db, order.queue, nil, order.slug, run)
 		assert.Zero(t, erased)
 	}
 	var deferrals int

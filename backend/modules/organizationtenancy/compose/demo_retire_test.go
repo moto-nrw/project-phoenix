@@ -70,10 +70,9 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	// still waiting for its seed is closed, and an unknown slug is passed over.
 	// No access names either order any more, so both lose their visitor
 	// (#4048).
-	hidden, erased, err := queue.RetireDemoSchools(ctx, []string{first, waiting, "nobody-ordered-this"})
-	require.NoError(t, err)
+	hidden, erased := retireAtLeast(t, db, queue, []string{first, waiting, "nobody-ordered-this"}, 1, 2)
 	assert.Equal(t, 1, hidden)
-	assert.Equal(t, 2, eraseTheRest(t, queue, []string{first, waiting, "nobody-ordered-this"}, erased, 2))
+	assert.Equal(t, 2, erased)
 	assert.True(t, schoolHidden(t, db, firstID))
 	assert.False(t, schoolHidden(t, db, secondID))
 	assert.Nil(t, demoSchoolProgress(t, db, waiting), "a waiting order nobody can enter is closed and erased, not seeded")
@@ -154,7 +153,7 @@ func TestRetiringDemoSchoolDefersDuringItsSeedLease(t *testing.T) {
 	}))
 
 	// The next run is told nothing: it finds the order in the database.
-	hidden, erased := retireNow(t, db, queue, nil)
+	hidden, erased := retireAtLeast(t, db, queue, nil, 1, 1)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 1, erased)
 }
@@ -183,7 +182,7 @@ func TestRetiringDemoSchoolsSkipsDuringAnotherRunsLease(t *testing.T) {
 	assert.False(t, schoolHidden(t, db, schoolID))
 	require.NoError(t, tx.Rollback())
 
-	hidden, erased = retireNow(t, db, queue, nil)
+	hidden, erased = retireAtLeast(t, db, queue, nil, 1, 1)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 1, erased)
 }
