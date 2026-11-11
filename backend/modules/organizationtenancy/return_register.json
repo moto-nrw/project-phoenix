@@ -18601,6 +18601,12 @@
           "type": "date",
           "udt": "date",
           "nullable": true
+        },
+        {
+          "name": "discarded_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -18824,6 +18830,12 @@
           "name": "total_cents",
           "type": "bigint",
           "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "discarded_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
           "nullable": true
         }
       ],

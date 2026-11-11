@@ -25,7 +25,7 @@ const (
 	careNoticeAmendsIndex       = "uq_care_notices_amends"
 	careNoticeFirstOfYearIndex  = "uq_care_notices_first"
 	careNoticeRunSelectColumnsQ = `id, billing_year, period_from, period_until, status, school_ids, notice_date, created_at,
-		released_at, issued_on, notice_count, total_cents`
+		released_at, issued_on, notice_count, total_cents, discarded_at`
 )
 
 type careNoticeRunRow struct {
@@ -44,12 +44,13 @@ type careNoticeRunRow struct {
 	IssuedOn           *calendar.Date `bun:"issued_on,type:date"`
 	NoticeCount        *int           `bun:"notice_count"`
 	TotalCents         *int64         `bun:"total_cents"`
+	DiscardedAt        *time.Time     `bun:"discarded_at"`
 }
 
 func (r careNoticeRunRow) run() parentbilling.CareNoticeRun {
 	return parentbilling.CareNoticeRun{ID: r.ID, Year: r.Year, PeriodFrom: r.PeriodFrom, PeriodUntil: r.PeriodUntil, Status: r.Status,
 		SchoolIDs: r.SchoolIDs, NoticeDate: r.NoticeDate, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt, IssuedOn: r.IssuedOn,
-		NoticeCount: r.NoticeCount, TotalCents: r.TotalCents}
+		NoticeCount: r.NoticeCount, TotalCents: r.TotalCents, DiscardedAt: r.DiscardedAt}
 }
 
 type careNoticeRow struct {
