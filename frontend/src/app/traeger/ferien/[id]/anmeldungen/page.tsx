@@ -779,6 +779,7 @@ export default function TraegerHolidayRegistrationsPage() {
           label={`${registrationCount(selected.size)} ausgewählt`}
           busy={merging || bulkPlan !== null}
           onClear={() => setSelected(new Set())}
+          // On a phone each row of actions fills the width.
           actions={
             <>
               {selected.size > 1 ? (
@@ -791,6 +792,7 @@ export default function TraegerHolidayRegistrationsPage() {
                   loadingText="Führt zusammen …"
                   tooltip="Die Kinder zählen dann beim Ferienbeitrag zusammen."
                   onClick={() => void mergeSiblings()}
+                  className="max-sm:grow"
                 >
                   Als Geschwister zusammenführen
                 </Button>
@@ -801,6 +803,7 @@ export default function TraegerHolidayRegistrationsPage() {
                 size="compact"
                 disabled={loading || merging}
                 onClick={openBulkConfirmation}
+                className="max-sm:grow"
               >
                 Ausgewählte bestätigen
               </Button>
