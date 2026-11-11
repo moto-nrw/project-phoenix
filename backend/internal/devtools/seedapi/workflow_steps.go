@@ -274,9 +274,27 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 
 // traegerSteps are the steps of the Träger. They share the state of the
 // Träger with every other school seeded under it at the same time, so they
-// run one school at a time.
+// run one school at a time. A demo order (DeferHistory) runs only the setup
+// before its school opens; its contracts and billing need the applications
+// and bookings of the deferred steps (#6621).
 func traegerSteps(seeder *Seeder) []Step {
-	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedTraegerHolidayCriteriaStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedMealBillingStep{seeder: seeder}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedParentSEPAMandateStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedBelegRetentionStep{}, seedHolidayClosuresStep{}, seedTestTraegerStep{})
+	steps := traegerSetupSteps()
+	if seeder.options.DeferHistory {
+		return steps
+	}
+	return append(steps, traegerCareSteps(seeder)...)
+}
+
+// traegerSetupSteps prepare the Träger: office, holidays, settings and
+// master data.
+func traegerSetupSteps() []Step {
+	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedTraegerHolidayCriteriaStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{})
+}
+
+// traegerCareSteps conclude and bill the contracts of the school's accepted
+// applications, so they follow the applications and the booked care.
+func traegerCareSteps(seeder *Seeder) []Step {
+	return traegerSerial(seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedMealBillingStep{seeder: seeder}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedParentSEPAMandateStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedBelegRetentionStep{}, seedHolidayClosuresStep{}, seedTestTraegerStep{})
 }
 
 func appendPayrollRuleSteps(steps []Step, seeder *Seeder) []Step {
@@ -314,14 +332,19 @@ func deferredPastSteps() []Step {
 // the other families wait as well: a visitor needs them only for writing to
 // parents, not for the school to open. The child quota is sized to the
 // children in care once the requests are decided, and the billing snapshot
-// counts them, so both follow.
+// counts them, so both follow. The Träger concludes and bills the school's
+// contracts once its applications and bookings exist.
 func deferredDemoSteps(seeder *Seeder) []Step {
-	return append(deferredPastSteps(),
+	steps := append(deferredPastSteps(),
 		// Bei aufgeschobener Historie existiert der Regenerationstag erst jetzt.
 		seedPayrollAbsenceTypeMappingStep{},
 		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedBookingLeftoverStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		// The meal orders ran before the phase existed; the bookings follow it.
-		seedRegularBookingsStep{},
+		seedRegularBookingsStep{})
+	// The contracts of the accepted applications and their billing, in the
+	// order of a full seed (#6621).
+	steps = append(steps, traegerCareSteps(seeder)...)
+	return append(steps,
 		// The past presence of every child, once the requests have added the
 		// last ones (#5031).
 		seedPresenceHistoryStep{seeder: seeder},
