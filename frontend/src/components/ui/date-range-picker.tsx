@@ -6,6 +6,7 @@ import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useOverlay } from "./overlay-stack";
 import { createPortal } from "react-dom";
 import type { DateRange, Matcher } from "react-day-picker";
 import { addDays } from "date-fns/addDays";
@@ -84,6 +85,18 @@ export function DateRangePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // The open calendar takes its place in the overlay stack (#6732): over the
+  // overlay it opened from, under one that opens later. It closes when that
+  // overlay closes or rests, or when a dialog, side panel or tour opens above
+  // it, as the click that usually opens them would have. It does not close on
+  // Escape yet, so Escape stays with the overlay below (#6569).
+  const closeCovered = useCallback(() => setIsOpen(false), []);
+  useOverlay(isOpen, "popover", {
+    takesEscape: false,
+    elementRef: panelRef,
+    onCovered: closeCovered,
+  });
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
