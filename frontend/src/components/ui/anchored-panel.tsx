@@ -21,7 +21,7 @@ import { useOverlay, type OverlayOwner } from "./overlay-stack";
  * `DateRangePicker`. It puts the open panel on the overlay stack and decides,
  * the same way for all of them, what closes it:
  *
- * - **A press outside** (pointer, mouse or touch, after the target's own
+ * - **A press outside** (see `outsidePress`; after the target's own
  *   handlers: a field can mark the press before the panel closes). Inside are
  *   the trigger, the panel and every overlay opened from inside the panel
  *   (`OverlayOwnerProvider`): a select menu in a calendar, a calendar in a
@@ -56,13 +56,17 @@ interface AnchoredPanelOptions {
    */
   readonly closeOnEscape?: boolean;
   /**
-   * `press` closes on the press outside and lets it through. `click` waits for
-   * the click and swallows it, for a panel over buttons that must not fire by
-   * accident (`AnchoredPopover` `swallowOutsideClick`).
+   * What outside closes the panel, and lets it through:
+   * - `press`: the first touch or mouse press (`AnchoredPopover`, `DatePicker`).
+   * - `tap`: the press of a finished tap or click (`mousedown`). A finger that
+   *   starts to scroll the page keeps the panel open, and the panel follows
+   *   its trigger (select menu, `DateRangePicker`).
+   * - `click`: the click, which the panel swallows: for a panel over buttons
+   *   that must not fire by accident (`AnchoredPopover` `swallowOutsideClick`).
    */
-  readonly outsidePress?: "press" | "click";
+  readonly outsidePress?: "press" | "tap" | "click";
   /** `follow` moves the panel with its trigger, `close` closes it. */
-  readonly onScroll: "follow" | "close";
+  readonly scroll: "follow" | "close";
   /** Places the panel again: on resize, and on scroll while following. */
   readonly reposition?: () => void;
   /**
@@ -79,7 +83,7 @@ export function useAnchoredPanel({
   panelRef,
   closeOnEscape = true,
   outsidePress = "press",
-  onScroll,
+  scroll,
   reposition,
   onCovered,
 }: AnchoredPanelOptions): {
@@ -97,23 +101,23 @@ export function useAnchoredPanel({
       onCovered,
     });
 
-  // One press fires pointerdown, touchstart and mousedown; it closes once.
-  const closedRef = useRef(false);
   const onCloseRef = useRef(onClose);
   const repositionRef = useRef(reposition);
   useLayoutEffect(() => {
     onCloseRef.current = onClose;
     repositionRef.current = reposition;
   });
-  useLayoutEffect(() => {
-    closedRef.current = false;
-  }, [open]);
-
   const close = useCallback((reason: PanelCloseReason) => {
-    if (closedRef.current) return;
-    closedRef.current = true;
     onCloseRef.current(reason);
   }, []);
+
+  // One press fires pointerdown, touchstart and mousedown; it closes once.
+  // The mark lasts until the press ends, so a caller that keeps the panel
+  // open still gets the next press.
+  const pressClosedRef = useRef(false);
+  useLayoutEffect(() => {
+    pressClosedRef.current = false;
+  }, [open]);
 
   /** The panel, its trigger, or a sub-panel opened from the panel. */
   const isInside = useCallback(
@@ -128,7 +132,12 @@ export function useAnchoredPanel({
   useEffect(() => {
     if (!open) return undefined;
     const handlePress = (event: Event) => {
-      if (!isInside(event.target)) close("outside");
+      if (pressClosedRef.current || isInside(event.target)) return;
+      pressClosedRef.current = true;
+      close("outside");
+    };
+    const endPress = () => {
+      pressClosedRef.current = false;
     };
     const handleClick = (event: MouseEvent) => {
       if (isInside(event.target)) return;
@@ -136,18 +145,30 @@ export function useAnchoredPanel({
       event.stopPropagation();
       close("outside");
     };
+    const pressEvents =
+      outsidePress === "press"
+        ? (["pointerdown", "touchstart", "mousedown"] as const)
+        : outsidePress === "tap"
+          ? (["mousedown"] as const)
+          : ([] as const);
+    const endEvents = ["mouseup", "touchend", "touchcancel"] as const;
     if (outsidePress === "click") {
       document.addEventListener("click", handleClick, true);
-    } else {
-      document.addEventListener("pointerdown", handlePress);
-      document.addEventListener("mousedown", handlePress);
-      document.addEventListener("touchstart", handlePress, { passive: true });
+    }
+    for (const type of pressEvents) {
+      document.addEventListener(type, handlePress, { passive: true });
+    }
+    for (const type of endEvents) {
+      document.addEventListener(type, endPress, true);
     }
     return () => {
       document.removeEventListener("click", handleClick, true);
-      document.removeEventListener("pointerdown", handlePress);
-      document.removeEventListener("mousedown", handlePress);
-      document.removeEventListener("touchstart", handlePress);
+      for (const type of pressEvents) {
+        document.removeEventListener(type, handlePress);
+      }
+      for (const type of endEvents) {
+        document.removeEventListener(type, endPress, true);
+      }
     };
   }, [close, isInside, open, outsidePress]);
 
@@ -176,7 +197,7 @@ export function useAnchoredPanel({
       ) {
         return;
       }
-      if (onScroll === "close") close("scroll");
+      if (scroll === "close") close("scroll");
       else place();
     };
     // A trigger in a dialog that is still sliding in reaches its place only
@@ -200,7 +221,7 @@ export function useAnchoredPanel({
       window.removeEventListener("animationend", placeAfterMotion, true);
       window.removeEventListener("transitionend", placeAfterMotion, true);
     };
-  }, [anchorRef, close, isInsideOwnedOverlay, onScroll, open, panelRef]);
+  }, [anchorRef, close, isInsideOwnedOverlay, open, panelRef, scroll]);
 
   return { owner };
 }

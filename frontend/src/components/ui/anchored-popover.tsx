@@ -177,7 +177,7 @@ export function AnchoredPopover<
     panelRef,
     closeOnEscape: panelRole === "dialog",
     outsidePress: swallowOutsideClick ? "click" : "press",
-    onScroll: "follow",
+    scroll: "follow",
     reposition: updatePosition,
   });
 

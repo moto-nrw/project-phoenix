@@ -217,3 +217,57 @@ describe.each(CASES)("$name on the panel engine", (panel) => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe("outside presses on a phone", () => {
+  it("keeps a select open while a finger starts to scroll the page, and closes it on a tap", async () => {
+    render(
+      <>
+        <p>Seite</p>
+        <Select />
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Gruppe" }));
+    await screen.findByRole("listbox");
+
+    fireEvent.pointerDown(screen.getByText("Seite"));
+    fireEvent.touchStart(screen.getByText("Seite"));
+
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByText("Seite"));
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+});
+
+describe("a caller that keeps the panel open", () => {
+  it("is asked again on the next press", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <>
+        <p>Seite</p>
+        <AnchoredPopover
+          open
+          onOpenChange={onOpenChange}
+          ariaLabel="Speichert"
+          renderTrigger={({ ref }) => (
+            <button ref={ref} type="button">
+              Speichern
+            </button>
+          )}
+        >
+          {() => <p>Wird gespeichert</p>}
+        </AnchoredPopover>
+      </>,
+    );
+    const page = screen.getByText("Seite");
+
+    fireEvent.pointerDown(page);
+    fireEvent.mouseDown(page);
+    fireEvent.mouseUp(page);
+    fireEvent.mouseDown(page);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    expect(onOpenChange.mock.calls).toEqual([[false], [false], [false]]);
+  });
+});

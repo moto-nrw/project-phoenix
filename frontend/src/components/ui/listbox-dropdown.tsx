@@ -544,7 +544,8 @@ export function ListboxDropdown<K extends string>({
     anchorRef: containerRef,
     panelRef: menuRef,
     closeOnEscape: false,
-    onScroll: "follow",
+    outsidePress: "tap",
+    scroll: "follow",
     reposition: updateMenuPosition,
   });
 

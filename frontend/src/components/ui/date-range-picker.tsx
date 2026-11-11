@@ -110,7 +110,8 @@ export function DateRangePicker({
     },
     anchorRef: containerRef,
     panelRef,
-    onScroll: "follow",
+    outsidePress: "tap",
+    scroll: "follow",
     reposition,
     onCovered: closeCovered,
   });

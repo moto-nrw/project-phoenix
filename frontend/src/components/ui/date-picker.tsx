@@ -311,7 +311,7 @@ export function DatePicker({
     },
     anchorRef: containerRef,
     panelRef: popoverRef,
-    onScroll: isPopover ? "close" : "follow",
+    scroll: isPopover ? "close" : "follow",
     reposition: isPopover ? syncPopoverPosition : undefined,
     onCovered: closeCovered,
   });
