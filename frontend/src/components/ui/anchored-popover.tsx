@@ -108,7 +108,7 @@ export function AnchoredPopover<
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
   // In the overlay stack (#6732): a press in a calendar opened from the panel
   // is not outside, and a calendar open below leaves Escape to the panel.
-  const { isInsideOverlayAbove } = useOverlay(open, "popover", {
+  const { isInsideOverlayAbove, isTopmost } = useOverlay(open, "popover", {
     elementRef: panelRef,
   });
   const portalContainer =
@@ -226,7 +226,7 @@ export function AnchoredPopover<
     };
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (belongsToPopoverMenu(event.target)) return;
-      if (event.key === "Escape") close();
+      if (event.key === "Escape" && isTopmost()) close();
     };
     if (swallowOutsideClick) {
       document.addEventListener("click", handleOutsideClick, true);
@@ -243,7 +243,14 @@ export function AnchoredPopover<
       document.removeEventListener("touchstart", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [close, isInsideOverlayAbove, open, panelId, swallowOutsideClick]);
+  }, [
+    close,
+    isInsideOverlayAbove,
+    isTopmost,
+    open,
+    panelId,
+    swallowOutsideClick,
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -344,7 +351,7 @@ export function AnchoredPopover<
           leavePanelOnTab(event);
           return;
         }
-        if (event.key !== "Escape") return;
+        if (event.key !== "Escape" || !isTopmost()) return;
         event.preventDefault();
         event.stopPropagation();
         event.nativeEvent.stopImmediatePropagation();
