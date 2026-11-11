@@ -63,7 +63,7 @@ describe("NotBookedSlot im Seitengerüst", () => {
           backLabel="Zurück zu den Räumen"
           stats="12 Dienste"
           actions={<button type="button">Anlegen</button>}
-          overlays={<div role="dialog" aria-label="Bereichseinstellungen" />}
+          overlays={<p>Dialog der Seite</p>}
         >
           <p>Inhalt</p>
         </TenantPage>
@@ -77,11 +77,10 @@ describe("NotBookedSlot im Seitengerüst", () => {
       screen.getByRole("link", { name: "Zurück zu den Räumen" }),
     ).toBeVisible();
     expect(screen.getByText("Zustand für dienstplan")).toBeVisible();
-    expect(
-      screen.getByRole("dialog", { name: "Bereichseinstellungen" }),
-    ).toBeVisible();
     expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
     expect(screen.queryByText("12 Dienste")).not.toBeInTheDocument();
+    // Wie vor #6577: eine gesperrte Seite mountet ihre Overlays nicht.
+    expect(screen.queryByText("Dialog der Seite")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Anlegen" }),
     ).not.toBeInTheDocument();

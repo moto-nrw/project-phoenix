@@ -484,6 +484,10 @@ export function TenantBackLink({
  */
 export function TenantPage(props: TenantPageProps) {
   if (useNotBookedPageModule()) {
+    // Bewusst nur der Kopf: Inhalt, Zustände und `overlays` der Seite
+    // entfallen, wie vor #6577. Eine gesperrte Seite öffnet keine Dialoge.
+    // Den Rumpf rendert `TenantPageView` trotzdem: `PageBody` zeigt dort
+    // die Erklärung aus dem Slot, auch ohne `children`.
     return (
       <TenantPageView
         title={props.title}
@@ -491,15 +495,8 @@ export function TenantPage(props: TenantPageProps) {
         backHref={props.backHref}
         backLabel={props.backLabel}
         printHideHeader={props.printHideHeader}
-        error={props.error}
-        loading={props.loading}
-        loadingLabel={props.loadingLabel}
-        empty={props.empty}
-        overlays={props.overlays}
         testId={props.testId}
-      >
-        {props.children}
-      </TenantPageView>
+      />
     );
   }
   return <TenantPageView {...props} />;
