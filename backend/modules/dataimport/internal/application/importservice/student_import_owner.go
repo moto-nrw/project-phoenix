@@ -115,29 +115,22 @@ func personInputFromRow(row importModels.StudentImportRow) ports.CreatePerson {
 // createStudentFromRow creates the student under the owner's class-write
 // gate and then patches the profile columns the enrollment command does not
 // carry (health, notes, address, group, departure plan, consent dates). With
-// a prepared enrollment (#5552 step 7) the profile exists already; the row
+// a batch-created profile (#5552 step 7) the profile exists already; the row
 // writes its membership here, in its place, and collects its care profile.
 func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites, prepared *preparedEnrollment) (ports.CreatedEnrollmentStudent, error) {
-	var input ports.EnrollmentStudent
-	var patch ports.EnrollmentProfilePatch
+	input, patch, err := c.enrollmentInputForRow(personID, row, prepared)
+	if err != nil {
+		return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
+	}
 	var created ports.CreatedEnrollmentStudent
-	if prepared != nil {
-		input, patch, created = prepared.input, prepared.patch, prepared.created
-		if !prepared.statusSet {
-			c.applyEnrollmentStatus(&input, row)
-		}
+	if prepared != nil && prepared.created.ID != 0 {
+		created = prepared.created
 		membershipID, err := c.EnrollmentBatches.EnrollCreatedStudent(ctx, created, input)
 		if err != nil {
 			return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
 		}
 		leafs.cares = append(leafs.cares, ports.EnrollmentCare{MembershipID: membershipID, Student: created, Input: input})
 	} else {
-		var err error
-		input, patch, err = enrollmentInputFromRow(personID, row)
-		if err != nil {
-			return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
-		}
-		c.applyEnrollmentStatus(&input, row)
 		created, err = c.Students.CreateEnrollmentStudent(ctx, input)
 		if err != nil {
 			return ports.CreatedEnrollmentStudent{}, fmt.Errorf("create student: %w", err)
@@ -161,6 +154,23 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		}
 	}
 	return created, nil
+}
+
+// enrollmentInputForRow reuses a prepared input without recalculating a
+// status already taken before the class gate.
+func (c *StudentImportConfig) enrollmentInputForRow(personID int64, row importModels.StudentImportRow, prepared *preparedEnrollment) (ports.EnrollmentStudent, ports.EnrollmentProfilePatch, error) {
+	if prepared != nil {
+		input := prepared.input
+		if !prepared.statusSet {
+			c.applyEnrollmentStatus(&input, row)
+		}
+		return input, prepared.patch, nil
+	}
+	input, patch, err := enrollmentInputFromRow(personID, row)
+	if err == nil {
+		c.applyEnrollmentStatus(&input, row)
+	}
+	return input, patch, err
 }
 
 // applyEnrollmentStatus sets the status a new child starts with: a future

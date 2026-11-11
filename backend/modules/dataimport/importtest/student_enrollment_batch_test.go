@@ -73,17 +73,23 @@ func membershipStatuses(t *testing.T, db *bun.DB) map[string]string {
 // upload waits for it (its own session, pg_blocking_pids), the clock turns
 // to D+1, the holder releases. The first two children start on D+1: the
 // first took its status on D (pending), the second on D+1 (active), on the
-// batch path as on the row path.
+// batch path as on the row path, even if the first child has a group or a
+// permanent hint and keeps its enrollment in place.
 func TestStudentEnrollmentBatchTakesEachStatusWhereTheRowPathDoes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	day := calendar.NewDate(2026, time.November, 10)
 	for _, run := range []struct {
-		name    string
-		options api.ImportTestOptions
+		name       string
+		options    api.ImportTestOptions
+		leadingRow string
 	}{
-		{"batch path", api.ImportTestOptions{}},
-		{"row path", api.ImportTestOptions{RowPathOnly: true}},
+		{"batch path", api.ImportTestOptions{}, ""},
+		{"row path", api.ImportTestOptions{RowPathOnly: true}, ""},
+		{"batch path/leading group", api.ImportTestOptions{}, "group"},
+		{"row path/leading group", api.ImportTestOptions{RowPathOnly: true}, "group"},
+		{"batch path/leading hint", api.ImportTestOptions{}, "hint"},
+		{"row path/leading hint", api.ImportTestOptions{RowPathOnly: true}, "hint"},
 	} {
 		t.Run(run.name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
@@ -102,6 +108,13 @@ func TestStudentEnrollmentBatchTakesEachStatusWhereTheRowPathDoes(t *testing.T) 
 			rows := namedStudentBatch("Mitternacht", studentChunkRows)
 			rows[0].EnrolledFrom = day.AddDays(1).String()
 			rows[1].EnrolledFrom = day.AddDays(1).String()
+			switch run.leadingRow {
+			case "group":
+				group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Gruppe %d", testpkg.Tenant(t)))
+				rows[0].GroupName = group.Name
+			case "hint":
+				rows[0].SupervisorNotes = "Dauerhinweis"
+			}
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			holder, pid := holdClassWriteGate(t, ctx, db)
@@ -119,6 +132,12 @@ func TestStudentEnrollmentBatchTakesEachStatusWhereTheRowPathDoes(t *testing.T) 
 				require.Zero(t, commandCount(observation, enrollmentProfilesCommand))
 			} else {
 				require.Equal(t, 1, commandCount(observation, enrollmentProfilesCommand), "the batch path ran")
+				inPlace := 0
+				if run.leadingRow != "" {
+					inPlace = 1
+				}
+				require.Equal(t, inPlace, commandCount(observation, "create_enrollment_student"), "group and hint rows keep their enrollment in place")
+				require.Equal(t, studentChunkRows-inPlace, commandCount(observation, "enroll_created_student"))
 			}
 			statuses := membershipStatuses(t, db)
 			require.Equal(t, "pending", statuses["Mitternacht0"], "the first child took its status before the gate, on day D")

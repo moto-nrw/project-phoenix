@@ -16,8 +16,9 @@ import (
 // permanent hint keeps the whole enrollment in place: the group's foreign
 // key lock and the note insert follow the care insert in the owner's unit.
 
-// preparedEnrollment is a child whose profile the batch created before the
-// row loop.
+// preparedEnrollment carries a row's input and, for a batch row, the profile
+// created before the row loop. The first row's input is prepared even if its
+// enrollment stays in place, so its status is taken before the class gate.
 type preparedEnrollment struct {
 	created ports.CreatedEnrollmentStudent
 	input   ports.EnrollmentStudent
@@ -35,10 +36,10 @@ func enrollmentBatchRow(row importModels.StudentImportRow) bool {
 
 // createEnrollmentProfiles creates the profiles of the segment's enrollment
 // batch rows in one statement and returns them by row. The status of the
-// first of them is taken here, before the statement waits for the class
-// gate, as the row path takes the first child's status before its profile
-// insert waits there; every later row takes its status in the loop, after
-// the gate, as on the row path (#5552 step 7, finding 1).
+// first segment row is taken here, even if it is not a batch row, before
+// the statement waits for the class gate. The row path takes the first
+// child's status before its profile insert waits there; every later row
+// takes its status in the loop, after the gate (#5552 step 7, finding 1).
 func (c *StudentImportConfig) createEnrollmentProfiles(ctx context.Context, rows []importModels.StudentImportRow, persons []ports.Person) ([]*preparedEnrollment, error) {
 	prepared := make([]*preparedEnrollment, len(rows))
 	if c.EnrollmentBatches == nil {
@@ -47,7 +48,7 @@ func (c *StudentImportConfig) createEnrollmentProfiles(ctx context.Context, rows
 	var indices []int
 	var inputs []ports.EnrollmentStudent
 	for i, row := range rows {
-		if !enrollmentBatchRow(row) {
+		if i != 0 && !enrollmentBatchRow(row) {
 			continue
 		}
 		input, patch, err := enrollmentInputFromRow(persons[i].ID, row)
@@ -55,11 +56,14 @@ func (c *StudentImportConfig) createEnrollmentProfiles(ctx context.Context, rows
 			return nil, err
 		}
 		entry := &preparedEnrollment{input: input, patch: patch}
-		if len(indices) == 0 {
+		if i == 0 {
 			c.applyEnrollmentStatus(&entry.input, row)
 			entry.statusSet = true
 		}
 		prepared[i] = entry
+		if !enrollmentBatchRow(row) {
+			continue
+		}
 		indices = append(indices, i)
 		inputs = append(inputs, entry.input)
 	}
