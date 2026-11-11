@@ -151,12 +151,19 @@ interface OverflowMenuProps {
   readonly portalOwnerId?: string;
   /** Stacking level for a document-level menu owned by an overlay. */
   readonly portalZIndex?: number;
+  /**
+   * Side the menu opens on when it fits on both. `above` suits a trigger at
+   * the top of a phone row: the menu then leaves the row's own details in
+   * view. Without room above it opens below, as by default.
+   */
+  readonly preferredSide?: "below" | "above";
 }
 
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
  * default; flips to bottom-left if the page edge is too close on the right, and
- * flips ABOVE the trigger when it sits too close to the viewport bottom.
+ * flips ABOVE the trigger when it sits too close to the viewport bottom (or
+ * opens above first with `preferredSide="above"`).
  *
  * Closes on outside click, Escape key, or item activation. Built without a
  * popover library to avoid adding a Radix dep just for one use site — the
@@ -178,6 +185,7 @@ export function OverflowMenu({
   matchContainerSelector,
   portalOwnerId,
   portalZIndex,
+  preferredSide = "below",
 }: OverflowMenuProps) {
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
@@ -316,7 +324,12 @@ export function OverflowMenu({
         0,
         window.innerHeight - rect.bottom - gap - viewportInset,
       );
-      const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
+      const fitsBelow = roomBelow >= estimatedMenuHeight;
+      const flipUp =
+        preferredSide === "above"
+          ? roomAbove >= estimatedMenuHeight ||
+            (!fitsBelow && roomAbove > roomBelow)
+          : !fitsBelow && roomAbove > roomBelow;
       const vertical: CSSProperties = flipUp
         ? {
             bottom: scopeRect
