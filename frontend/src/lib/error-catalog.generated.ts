@@ -871,8 +871,12 @@ export const ERROR_CATALOG = {
         "Es gibt noch keine Bestätigungsschreiben. Bitte erstellen Sie zuerst die Schreiben.",
       "parent_billing.billing_run_changed":
         "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
+      "parent_billing.billing_run_discarded":
+        "Dieser Lauf ist verworfen. Er lässt sich nicht mehr ändern. Starten Sie bei Bedarf einen neuen Lauf.",
       "parent_billing.billing_run_empty":
         "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
+      "parent_billing.billing_run_not_empty":
+        "Der Lauf hat inzwischen etwas abzurechnen. Er wird nicht verworfen. Bitte prüfen Sie die Vorschau.",
       "parent_billing.billing_run_not_found":
         "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
       "parent_billing.billing_run_not_released":

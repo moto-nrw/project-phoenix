@@ -13,7 +13,9 @@ const CodeParentBillingBillingLettersExist = "parent_billing.billing_letters_exi
 const CodeParentBillingBillingLettersInvalid = "parent_billing.billing_letters_invalid"
 const CodeParentBillingBillingLettersMissing = "parent_billing.billing_letters_missing"
 const CodeParentBillingBillingRunChanged = "parent_billing.billing_run_changed"
+const CodeParentBillingBillingRunDiscarded = "parent_billing.billing_run_discarded"
 const CodeParentBillingBillingRunEmpty = "parent_billing.billing_run_empty"
+const CodeParentBillingBillingRunNotEmpty = "parent_billing.billing_run_not_empty"
 const CodeParentBillingBillingRunNotFound = "parent_billing.billing_run_not_found"
 const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_released"
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
@@ -132,7 +134,9 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingLettersInvalid, "input"},
 	{CodeParentBillingBillingLettersMissing, "business_rejection"},
 	{CodeParentBillingBillingRunChanged, "business_rejection"},
+	{CodeParentBillingBillingRunDiscarded, "business_rejection"},
 	{CodeParentBillingBillingRunEmpty, "business_rejection"},
+	{CodeParentBillingBillingRunNotEmpty, "business_rejection"},
 	{CodeParentBillingBillingRunNotFound, "business_rejection"},
 	{CodeParentBillingBillingRunNotReleased, "business_rejection"},
 	{CodeParentBillingBillingRunOpen, "business_rejection"},

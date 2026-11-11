@@ -340,7 +340,7 @@ func (t *BillingTerms) SetCareRunDueDates(ctx context.Context, reviewer parentbi
 		return nil, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return nil, parentbilling.ErrBillingRunReleased
+		return nil, closedRunError(run.Status)
 	}
 	if err := t.store.ReplaceRunDueDates(ctx, reviewer.OrganizationID, reviewer.AccountID, run.ID, 0, dates); err != nil {
 		return nil, err
