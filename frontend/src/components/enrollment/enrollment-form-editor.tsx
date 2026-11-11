@@ -761,14 +761,17 @@ export function EnrollmentFormEditor({
 
   if (mode === "detail" && currentSchema) {
     return (
-      <FormTemplateDetail
-        schema={currentSchema}
-        onBack={backToOverview}
-        onEdit={() => editSchema(currentSchema)}
-        assignedPhases={phases.filter(
-          (phase) => phase.form_schema_id === currentSchema.id,
-        )}
-      />
+      <>
+        <LoadErrorAlert error={schemasAfterWrite.error} />
+        <FormTemplateDetail
+          schema={currentSchema}
+          onBack={backToOverview}
+          onEdit={() => editSchema(currentSchema)}
+          assignedPhases={phases.filter(
+            (phase) => phase.form_schema_id === currentSchema.id,
+          )}
+        />
+      </>
     );
   }
 
