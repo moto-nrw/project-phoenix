@@ -301,7 +301,9 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 
 	svc := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
-	}}, nil)
+	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(context.Context, int64) ([]*peopleValues.GuardianRelationshipSnapshot, error) { return nil, nil },
+	}, StudentRepo: &fakeStudentRepo{}}, nil)
 	err := svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to lock guardian profile")
@@ -315,7 +317,9 @@ func TestDeleteGuardian_WithoutFinancialRepoRefuses(t *testing.T) {
 
 	svc := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return nil },
-	}}, nil)
+	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(context.Context, int64) ([]*peopleValues.GuardianRelationshipSnapshot, error) { return nil, nil },
+	}, StudentRepo: &fakeStudentRepo{}}, nil)
 	for name, run := range map[string]func() error{
 		"DeleteGuardian":          func() error { return svc.DeleteGuardian(guardianAmbientTxContext(), 1, 1) },
 		"DeleteGuardianWithLinks": func() error { return svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{1}, 1) },

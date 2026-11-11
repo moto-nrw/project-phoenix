@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Sender kinds shared by parent threads and messages. A message originates
 // from a guardian (parents portal), from staff (tenant portal), or from the
@@ -51,8 +54,11 @@ type ParentMessage struct {
 	// GroupThreadID names the group thread a guardian's message answers
 	// (#4784). The answer lives in this 1:1 conversation only.
 	GroupThreadID *int64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	// Attachments is the stored snapshot of the message's files (#6685),
+	// nil for a message without any.
+	Attachments json.RawMessage
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Thread audiences (#5200). A team conversation is read by every staff member

@@ -1,0 +1,2 @@
+GET /school-staff-messages/attachments/{attachmentId}/download -> unterricht_vormittag
+POST /school-staff-messages/attachments -> unterricht_vormittag

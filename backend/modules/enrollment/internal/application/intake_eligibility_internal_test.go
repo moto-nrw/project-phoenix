@@ -455,7 +455,7 @@ func TestValidatePhaseEligibility_NewStudentsLookupErrorPropagates(t *testing.T)
 	assert.NotErrorIs(t, err, enrollmentNative.ErrChildAlreadyEnrolled)
 }
 
-// --- assertGuardianMayReEnrollStudent (per-child re-enrollment gate, #1663) ---
+// --- holdReEnrollment (per-child re-enrollment gate, #1663, held since #6638) ---
 
 // stubGuardianAuthorizer records its calls and returns a fixed verdict/error for
 // both identity probes (account and guardian email).
@@ -491,6 +491,47 @@ func (s *stubGuardianAuthorizer) GuardianEmailHasStudentPermission(_ context.Con
 	return s.granted, s.err
 }
 
+// The gate asks the held variants (#6638); the stub answers them like the
+// probes.
+func (s *stubGuardianAuthorizer) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := s.AccountHasStudentPermission(ctx, accountID, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
+}
+
+func (s *stubGuardianAuthorizer) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := s.GuardianEmailHasStudentPermission(ctx, email, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
+}
+
+// reEnrollmentGate holds the submitter's authority over the pin and checks
+// it the way the change-request approval does (holdApprovalAuthority,
+// reconciledPin).
+func reEnrollmentGate(svc *Intake, submitter reEnrollmentSubmitter, pin *int64, tenantID int64, childIndex int) error {
+	var ids []int64
+	if pin != nil {
+		ids = append(ids, *pin)
+	}
+	holds, err := svc.holdReEnrollment(context.Background(), submitter, ids, nil, tenantID)
+	if err != nil {
+		return err
+	}
+	return svc.holdGuardianReEnrollment(holds, pin, childIndex)
+}
+
 // portalSubmitter is the authenticated parents-portal identity.
 func portalSubmitter(accountID int64) reEnrollmentSubmitter {
 	return reEnrollmentSubmitter{GuardianAccountID: int64PtrEligibility(accountID), GuardianEmail: "parent@example.test"}
@@ -498,14 +539,13 @@ func portalSubmitter(accountID int64) reEnrollmentSubmitter {
 
 // A guardian holding parent_portal.enrollmentNative.submit on the MATCHED student may
 // re-enroll it; the probe is called with the exact (account, student, tenant).
-func TestAssertGuardianMayReEnrollStudent_GrantedPasses(t *testing.T) {
+func TestHoldReEnrollment_GrantedPasses(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{granted: true}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 0)
+	err := reEnrollmentGate(svc, portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 0)
 	require.NoError(t, err)
 	require.True(t, auth.called)
 	assert.False(t, auth.emailCalled, "an authenticated account is decided by the account probe alone")
@@ -519,29 +559,27 @@ func TestAssertGuardianMayReEnrollStudent_GrantedPasses(t *testing.T) {
 // the core P1 fix: authority over child A must not renew child B. An email that
 // WOULD pass must not rescue the denied account: the account is the identity
 // approval attaches, so it is the identity that has to hold the permission.
-func TestAssertGuardianMayReEnrollStudent_NotGrantedRejected(t *testing.T) {
+func TestHoldReEnrollment_NotGrantedRejected(t *testing.T) {
 	t.Parallel()
 
 	emailGranted := true
 	auth := &stubGuardianAuthorizer{granted: false, emailGranted: &emailGranted}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 3)
+	err := reEnrollmentGate(svc, portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 3)
 	require.ErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 	assert.NotErrorIs(t, err, enrollmentNative.ErrInvalidSubmission, "not-permitted is a 403, not a 400")
 	assert.False(t, auth.emailCalled, "no email fallback for an account submission")
 }
 
 // No matched student (fresh create) skips the probe entirely.
-func TestAssertGuardianMayReEnrollStudent_NoMatchSkips(t *testing.T) {
+func TestHoldReEnrollment_NoMatchSkips(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{granted: false}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		portalSubmitter(4711), nil, int64(9001), 0)
+	err := reEnrollmentGate(svc, portalSubmitter(4711), nil, int64(9001), 0)
 	require.NoError(t, err)
 	assert.False(t, auth.called, "no matched student → no per-child probe")
 	assert.False(t, auth.emailCalled)
@@ -550,14 +588,13 @@ func TestAssertGuardianMayReEnrollStudent_NoMatchSkips(t *testing.T) {
 // An accountless submission (the late-invite path) is authorized by the guardian
 // EMAIL the request is bound to: the invited parent may renew a child they are
 // already a permitted guardian of.
-func TestAssertGuardianMayReEnrollStudent_EmailIdentityGrantedPasses(t *testing.T) {
+func TestHoldReEnrollment_EmailIdentityGrantedPasses(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{granted: true}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 0)
+	err := reEnrollmentGate(svc, reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 0)
 	require.NoError(t, err)
 	require.True(t, auth.emailCalled)
 	assert.False(t, auth.called, "no account → no account probe")
@@ -570,28 +607,26 @@ func TestAssertGuardianMayReEnrollStudent_EmailIdentityGrantedPasses(t *testing.
 // A late-invite holder naming a child they have no guardian relationship with
 // is rejected. The invite opens the phase, but the submitted email still has to
 // prove authority over the enrolled child.
-func TestAssertGuardianMayReEnrollStudent_EmailIdentityNotGrantedRejected(t *testing.T) {
+func TestHoldReEnrollment_EmailIdentityNotGrantedRejected(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{granted: false}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 2)
+	err := reEnrollmentGate(svc, reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 2)
 	require.ErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 	require.True(t, auth.emailCalled)
 }
 
 // A submission carrying NO identity at all cannot be authorized against
 // anything, so it may not pin a live student.
-func TestAssertGuardianMayReEnrollStudent_NoIdentityFailsClosed(t *testing.T) {
+func TestHoldReEnrollment_NoIdentityFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{granted: true}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		reEnrollmentSubmitter{}, int64PtrEligibility(555), int64(9001), 0)
+	err := reEnrollmentGate(svc, reEnrollmentSubmitter{}, int64PtrEligibility(555), int64(9001), 0)
 	require.ErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 	assert.False(t, auth.called)
 	assert.False(t, auth.emailCalled)
@@ -600,14 +635,13 @@ func TestAssertGuardianMayReEnrollStudent_NoIdentityFailsClosed(t *testing.T) {
 // Admin manual enrollment is the one deliberate bypass: staff act with their own
 // authorization and must be able to re-enroll a child whose guardian is not yet
 // recorded, exactly like the paper form.
-func TestAssertGuardianMayReEnrollStudent_AdminManagedBypasses(t *testing.T) {
+func TestHoldReEnrollment_AdminManagedBypasses(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{granted: false}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		reEnrollmentSubmitterFor(enrollmentNative.RequestSourceAdminManual, nil, "office@example.test"),
+	err := reEnrollmentGate(svc, reEnrollmentSubmitterFor(enrollmentNative.RequestSourceAdminManual, nil, "office@example.test"),
 		int64PtrEligibility(555), int64(9001), 0)
 	require.NoError(t, err)
 	assert.False(t, auth.called)
@@ -628,50 +662,46 @@ func TestReEnrollmentSubmitterFor_OnlyAdminManualOverrides(t *testing.T) {
 
 // Fail closed: a submission that resolved an existing student with no authorizer
 // wired is a misconfiguration, never a silent bypass.
-func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosed(t *testing.T) {
+func TestHoldReEnrollment_NilAuthorizerFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 1)
+	err := reEnrollmentGate(svc, portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 1)
 	require.ErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 }
 
 // Same for the accountless identity: no authorizer, no pin.
-func TestAssertGuardianMayReEnrollStudent_NilAuthorizerFailsClosedForEmail(t *testing.T) {
+func TestHoldReEnrollment_NilAuthorizerFailsClosedForEmail(t *testing.T) {
 	t.Parallel()
 
 	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 1)
+	err := reEnrollmentGate(svc, reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 1)
 	require.ErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 }
 
 // A repository error propagates and is NOT mistaken for a denial.
-func TestAssertGuardianMayReEnrollStudent_ProbeErrorPropagates(t *testing.T) {
+func TestHoldReEnrollment_ProbeErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{err: errors.New("boom")}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 0)
+	err := reEnrollmentGate(svc, portalSubmitter(4711), int64PtrEligibility(555), int64(9001), 0)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 }
 
 // The email probe's errors get the same treatment: unknown is not "denied", and
 // never silently "allowed" either.
-func TestAssertGuardianMayReEnrollStudent_EmailProbeErrorPropagates(t *testing.T) {
+func TestHoldReEnrollment_EmailProbeErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	auth := &stubGuardianAuthorizer{emailErr: errors.New("boom")}
-	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianAuthorizer: auth})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}, GuardianHold: auth})
 
-	err := svc.assertGuardianMayReEnrollStudent(context.Background(),
-		reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 0)
+	err := reEnrollmentGate(svc, reEnrollmentSubmitter{GuardianEmail: "invited@example.test"}, int64PtrEligibility(555), int64(9001), 0)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, enrollmentNative.ErrChildEnrollmentNotPermitted)
 }

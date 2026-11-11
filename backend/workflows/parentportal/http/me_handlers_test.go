@@ -1089,3 +1089,15 @@ func TestUpdateMyProfile_PropagatesOtherErrorsAs500(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
+
+func (f *fakeParentService) PrepareChildMessageAttachment(context.Context, int64, int64, parentService.MessageAttachmentUpload) (*parentService.StoredMessageAttachment, error) {
+	return nil, errors.New("not implemented in fake")
+}
+
+func (f *fakeParentService) DiscardChildMessageAttachment(context.Context, int64, int64, int64) error {
+	return errors.New("not implemented in fake")
+}
+
+func (f *fakeParentService) OpenChildMessageAttachment(context.Context, int64, int64, int64) (*parentService.StoredMessageAttachment, error) {
+	return nil, errors.New("not implemented in fake")
+}

@@ -86,12 +86,14 @@ type Config struct {
 
 	AnnouncementRepo AnnouncementAccess
 
-	MessageThreadRepo     MessageThreadAccess
-	MessageRepo           MessageReads
-	MessageReadRepo       MessageInboxReads
-	Conversations         ConversationCore
-	MessagingEnabled      MessagingGate
-	GroupThreads          GroupThreads
+	MessageThreadRepo MessageThreadAccess
+	MessageRepo       MessageReads
+	MessageReadRepo   MessageInboxReads
+	Conversations     ConversationCore
+	MessagingEnabled  MessagingGate
+	GroupThreads      GroupThreads
+	// MessageAttachments stores the photos and files of messages (#6685).
+	MessageAttachments    MessageAttachments
 	Surveys               Surveys
 	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               care.ChildEvents

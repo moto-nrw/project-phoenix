@@ -310,7 +310,7 @@ func childConversationError(view *MessageThreadView, err error) error {
 func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string, targets ...MessageTarget) (*MessageThreadView, error) {
 	target := firstTarget(targets)
 	groupThreadID := target.GroupThreadID
-	body, audience, err := normalizeMessageInput(body, target.Audience, groupThreadID)
+	body, audience, err := normalizeMessageInput(body, target.Audience, groupThreadID, len(MessageAttachmentIDs(ctx)) > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -539,9 +539,9 @@ func (s *Service) postGuardianReply(txCtx context.Context, child *Child, account
 	return message.SendReplayed, s.finishGuardianReply(txCtx, child, thread, accountID, studentID, message.ID, messages, view, message.SendReplayed)
 }
 
-func normalizeParentMessageBody(body string) (string, error) {
+func normalizeParentMessageBody(body string, hasAttachments bool) (string, error) {
 	body = strings.TrimSpace(body)
-	if body == "" {
+	if body == "" && !hasAttachments {
 		return "", care.ErrEmptyNote
 	}
 	if utf8.RuneCountInString(body) > care.MaxParentNoteLen {

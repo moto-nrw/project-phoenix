@@ -69,8 +69,8 @@ Owner commands keep no relationship check: the flow does. Parent
 writes for an existing child (poll answers too) open their unit via
 `WithChildWrite`/`WithPermittedChildForWrite`; `guardChildWrite` (#6529)
 locks and re-checks membership, child, relationship and permissions until
-commit via People Directory's `guardianhold`, as Enrollment's renewals of
-existing children do (#6638). `TestParentChildWritesRunBehindTheGuard` and
+commit via People Directory's `guardianhold`, as renewals and
+staff reuses of a parent's pin do (#6638). `TestParentChildWritesRunBehindTheGuard` and
 `TestParentRenewalsRunBehindTheGuard` enforce it.
 
 Use action-specific permissions:
