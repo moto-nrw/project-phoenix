@@ -302,6 +302,27 @@ und 4, alle Läufe grün mit 199 Ergebnissen:
 Endstand ohne Overlay, `-count=3` in einem Binary bei Load 56 / 39: 295,6 s
 für drei Durchläufe (98,5 s je Durchlauf), 597 Ergebnisse grün.
 
+Der geteilte Server streut stark: `scripts/check-changed.mjs` auf dem Endstand
+war zweimal grün, mit 179,7 s (Load 56 / 49) und 346,6 s (Load 45 / 43) für
+das Paket. Die Load-1 des Rechners erklärt das nicht. Deshalb derselbe Wechsel
+auf einem eigenen Testserver (Port 46452, sonst gleiche Konfiguration, nur
+dieses Paket), Load-1 43 bis 56:
+
+| Lauf | Paket | Clones | Create Σ | Testkörper Σ | Drop Σ |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Slot 1 | 85,5 s | 113 | 8,6 s | 53,8 s | 1,8 s |
+| Per-Test 1 | 13,3 s | 145 | 12,6 s | 65,4 s | 3,6 s |
+| Slot 2 | 70,2 s | 113 | 9,3 s | 55,2 s | 2,0 s |
+| Per-Test 2 | 15,4 s | 145 | 13,0 s | 75,8 s | 4,0 s |
+| Slot 3 | 64,7 s | 113 | 8,5 s | 50,8 s | 1,9 s |
+| Per-Test 3 | 19,4 s | 145 | 15,1 s | 125,0 s | 5,2 s |
+
+Auf dem eigenen Server kosten Create und Drop zusammen 0,09 bis 0,14 s je
+Clone, auf dem geteilten 1,3 bis 6 s. Was die Lifecycles aufbläht, ist also
+die Belegung des geteilten Testservers durch andere Sessions (129 Datenbanken
+bei der Stichprobe), nicht die CPU-Last des Rechners. Der Slot machte daraus
+die Paketzeit, weil er alle Lifecycles hintereinander legte.
+
 Der Preis: 32 Clones mehr je Paketlauf und etwa doppelt so viel aufsummierte
 Datenbankarbeit, weil die Lifecycles einander bremsen. Bis zu acht statt
 einem Clone dieses Pakets bestehen gleichzeitig. Eine Messung ohne fremde Last
