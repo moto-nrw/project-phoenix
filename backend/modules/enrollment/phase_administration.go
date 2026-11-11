@@ -71,7 +71,7 @@ type PhaseAdministration interface {
 
 	CreatePhase(ctx context.Context, phase *Phase) (*Phase, error)
 	// UpdatePhase saves the phase and reports the children whose care runs
-	// past a shortened end (#6598, ADR 0210).
+	// past a shortened end (#6598, ADR 0211).
 	UpdatePhase(ctx context.Context, phase *Phase) (PhaseUpdateReport, error)
 
 	// DeleteImpact reports how many enrollment requests + care offerings a

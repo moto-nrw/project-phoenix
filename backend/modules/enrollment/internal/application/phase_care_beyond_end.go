@@ -10,7 +10,7 @@ import (
 )
 
 // careBeyondShortenedEnd lists the confirmed children of the phase whose
-// care now runs past its shortened end (#6598, ADR 0210). Nothing is
+// care now runs past its shortened end (#6598, ADR 0211). Nothing is
 // written: the school ends each care on purpose through the care-end process.
 //
 // It reads after the follow steps, in the edit's transaction and under the
