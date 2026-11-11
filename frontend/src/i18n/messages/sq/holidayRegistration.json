@@ -161,10 +161,11 @@
   "fullDaysHint": "Tashmë plot: {days}",
   "fullDayAria": "{day}, tashmë plot",
   "fullDaysChosen": "Këto ditë janë tashmë plot: {days} Me to fëmija hyn në listën e pritjes për gjithë javën. Pa to ndoshta merr menjëherë një vend.",
-  "dayLimitHint": "Në këto pushime çdo fëmijë mund të vijë më së shumti {limit} ditë. Ditët mund të jenë në java të ndryshme.",
+  "dayLimitHint": "Në këto pushime çdo fëmijë mund të vijë më së shumti {limit} ditë. Numërohen të gjitha regjistrimet e fëmijës së bashku. Ditët mund të jenë në java të ndryshme.",
   "dayLimitCount": "Zgjedhur: {count, plural, one {# ditë} other {# ditë}}.",
   "dayLimitOver": "Zgjedhur: {count, plural, one {# ditë} other {# ditë}}. Janë shumë. Ju lutemi zgjidhni më pak ditë.",
   "summaryDays": "Ditët: {days}",
   "contributionDays": "{count, plural, one {# ditë} other {# ditë}}",
-  "dayWithoutCare": "Më {date} nuk ka kujdes ({name})."
+  "dayWithoutCare": "Më {date} nuk ka kujdes ({name}).",
+  "noCareDayAria": "{day}, nuk ka kujdes"
 }

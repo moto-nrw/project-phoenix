@@ -421,7 +421,7 @@ export const parameters = {
   "enrollment.holiday_allocation_pending": [],
   "enrollment.holiday_booking_unit_booked": [],
   "enrollment.holiday_care_wish_required": [],
-  "enrollment.holiday_child_day_limit": ["limit", "days", "child"],
+  "enrollment.holiday_child_day_limit": ["limit", "days", "elsewhere", "child"],
   "enrollment.holiday_form_field_not_allowed": [],
   "enrollment.holiday_guest_group_invalid": [],
   "enrollment.holiday_guest_not_found": [],

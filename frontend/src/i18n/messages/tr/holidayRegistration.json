@@ -161,10 +161,11 @@
   "fullDaysHint": "Zaten dolu: {days}",
   "fullDayAria": "{day}, zaten dolu",
   "fullDaysChosen": "Bu günler zaten dolu: {days} Bu günlerle çocuğunuz tüm hafta için bekleme listesine girer. Bu günler olmadan belki hemen yer alır.",
-  "dayLimitHint": "Bu tatilde her çocuk en fazla {limit} gün gelebilir. Günler farklı haftalarda olabilir.",
+  "dayLimitHint": "Bu tatilde her çocuk en fazla {limit} gün gelebilir. Çocuğun tüm kayıtları birlikte sayılır. Günler farklı haftalarda olabilir.",
   "dayLimitCount": "Seçilen: {count} gün.",
   "dayLimitOver": "Seçilen: {count} gün. Bu çok fazla. Lütfen daha az gün seçin.",
   "summaryDays": "Günler: {days}",
   "contributionDays": "{count} gün",
-  "dayWithoutCare": "{date} tarihinde bakım yok ({name})."
+  "dayWithoutCare": "{date} tarihinde bakım yok ({name}).",
+  "noCareDayAria": "{day}, bakım yok"
 }

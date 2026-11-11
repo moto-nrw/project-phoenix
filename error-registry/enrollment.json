@@ -641,6 +641,7 @@
       "parameters": [
         "limit",
         "days",
+        "elsewhere",
         "child"
       ],
       "legacy": "enrollment.holiday_child_day_limit"

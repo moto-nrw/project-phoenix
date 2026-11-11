@@ -161,10 +161,11 @@
   "fullDaysHint": "Już pełne: {days}",
   "fullDayAria": "{day}, już pełny",
   "fullDaysChosen": "Te dni są już pełne: {days} Z nimi dziecko trafi na listę oczekujących na cały tydzień. Bez nich może od razu dostać miejsce.",
-  "dayLimitHint": "W te ferie każde dziecko może przyjść najwyżej {limit} dni. Dni mogą być w różnych tygodniach.",
+  "dayLimitHint": "W te ferie każde dziecko może przyjść najwyżej {limit} dni. Liczą się wszystkie zgłoszenia dziecka razem. Dni mogą być w różnych tygodniach.",
   "dayLimitCount": "Wybrano: {count, plural, one {# dzień} other {# dni}}.",
   "dayLimitOver": "Wybrano: {count, plural, one {# dzień} other {# dni}}. To za dużo. Wybierz mniej dni.",
   "summaryDays": "Dni: {days}",
   "contributionDays": "{count, plural, one {# dzień} other {# dni}}",
-  "dayWithoutCare": "{date} nie ma opieki ({name})."
+  "dayWithoutCare": "{date} nie ma opieki ({name}).",
+  "noCareDayAria": "{day}, brak opieki"
 }

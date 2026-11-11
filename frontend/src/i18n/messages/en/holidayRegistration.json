@@ -161,10 +161,11 @@
   "fullDaysHint": "Already full: {days}",
   "fullDayAria": "{day}, already full",
   "fullDaysChosen": "{count, plural, one {This day is} other {These days are}} already full: {days} With {count, plural, one {it} other {them}} your child goes on the waiting list for the whole week. Without {count, plural, one {it} other {them}} your child may get a place right away.",
-  "dayLimitHint": "In these holidays each child can come on at most {limit} days. The days may be in different weeks.",
+  "dayLimitHint": "In these holidays each child can come on at most {limit} days. This counts all registrations of the child together. The days may be in different weeks.",
   "dayLimitCount": "Chosen: {count, plural, one {# day} other {# days}}.",
   "dayLimitOver": "Chosen: {count, plural, one {# day} other {# days}}. That is too many. Please choose fewer days.",
   "summaryDays": "Days: {days}",
   "contributionDays": "{count, plural, one {# day} other {# days}}",
-  "dayWithoutCare": "There is no care on {date} ({name})."
+  "dayWithoutCare": "There is no care on {date} ({name}).",
+  "noCareDayAria": "{day}, no care"
 }

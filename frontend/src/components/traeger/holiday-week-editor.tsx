@@ -22,6 +22,10 @@ import type { HolidayBookingUnit, TraegerSchool } from "~/lib/traeger-api";
 import { formatDayWithWeekday } from "./closing-day-format";
 import type { WeekNoCareDays } from "./use-week-no-care-days";
 import {
+  bookableHolidayDays,
+  HolidayWeekCareDays,
+} from "./holiday-week-care-days";
+import {
   emptyTimeModel,
   MAX_TIME_MODELS_PER_WEEK,
   type TimeModelDraft,
@@ -48,8 +52,16 @@ function bookingUnitHint(unit: HolidayBookingUnit, booked: boolean): string {
 
 type FieldError = (name: string) => string | null | undefined;
 
-/** Nennt die Tage ohne Betreuung und was daraus folgt (#4702). */
-function noCareDaysMessage(noCare: WeekNoCareDays): string {
+/**
+ * Nennt die Tage ohne Betreuung und was daraus folgt (#4702). Bei einzelnen
+ * Tagen fällt nur dieser Tag weg (#6447); eine ganze Woche ist so nicht
+ * buchbar.
+ */
+function noCareDaysNotice(
+  noCare: WeekNoCareDays,
+  week: WeekDraft,
+  booked: boolean,
+): { readonly type: "info" | "warning"; readonly message: string } {
   const days = noCare.days
     .map(
       (day) =>
@@ -57,9 +69,32 @@ function noCareDaysMessage(noCare: WeekNoCareDays): string {
     )
     .join(", ");
   const head = `In dieser Woche ist keine Betreuung: ${days}.`;
-  return noCare.keptAsStored
-    ? `${head} Bisherige Buchungen bleiben. Neue Buchungen sind nicht möglich.`
-    : `${head} Bitte wählen Sie andere Tage, zum Beispiel ohne diesen Tag.`;
+  if (week.bookingUnit === "day") {
+    if (
+      bookableHolidayDays(week.startsOn, week.endsOn, noCare.days).length === 0
+    ) {
+      return {
+        type: "warning",
+        message: `${head} Es bleibt kein Tag zum Buchen. Bitte wählen Sie andere Tage.`,
+      };
+    }
+    return {
+      type: "info",
+      message: `${head} Eltern können ${noCare.days.length === 1 ? "diesen Tag" : "diese Tage"} nicht buchen. Die anderen Tage bleiben buchbar.`,
+    };
+  }
+  if (noCare.keptAsStored) {
+    return {
+      type: "warning",
+      message: `${head} Bisherige Buchungen bleiben. Neue Buchungen sind nicht möglich.`,
+    };
+  }
+  return {
+    type: "warning",
+    message: booked
+      ? `${head} Bitte wählen Sie andere Tage.`
+      : `${head} So ist die Woche nicht buchbar. Wählen Sie bei „Buchung“ „Einzelne Tage“. Dann fällt nur dieser Tag weg.`,
+  };
 }
 
 function weekTitle(index: number, week: WeekDraft): string {
@@ -237,6 +272,10 @@ export function HolidayWeekEditor({
   const title = weekTitle(index, week);
   const booked = weekBooked(week);
   const unitHintId = `${prefix}.booking_unit-hint`;
+  const notice =
+    noCareDays && noCareDays.days.length > 0
+      ? noCareDaysNotice(noCareDays, week, booked)
+      : null;
   return (
     // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
@@ -290,8 +329,10 @@ export function HolidayWeekEditor({
             onChange={(hostSchoolId) => onChange({ ...week, hostSchoolId })}
           />
         </div>
-        {noCareDays && noCareDays.days.length > 0 ? (
-          <Alert type="warning" message={noCareDaysMessage(noCareDays)} />
+        {notice?.type === "info" ? (
+          <Alert type="info" message={notice.message} />
+        ) : notice ? (
+          <Alert type="warning" message={notice.message} />
         ) : null}
 
         <div className="space-y-2">
@@ -308,6 +349,14 @@ export function HolidayWeekEditor({
           <p id={unitHintId} className="text-sm text-gray-600">
             {bookingUnitHint(week.bookingUnit ?? "week", booked)}
           </p>
+          {week.bookingUnit === "day" && week.startsOn && week.endsOn ? (
+            <HolidayWeekCareDays
+              startsOn={week.startsOn}
+              endsOn={week.endsOn}
+              noCareDays={noCareDays?.days ?? []}
+              labelId={`${prefix}.care_days-label`}
+            />
+          ) : null}
         </div>
 
         <div className="space-y-3">
