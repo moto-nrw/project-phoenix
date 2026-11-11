@@ -16,6 +16,11 @@ export const ModalFrameContext = React.createContext({
   stackedSheetFooter: false,
 });
 
+/** Whether the surrounding modal currently locks dismissal actions. */
+export function useModalDismissDisabled(): boolean {
+  return React.useContext(ModalFrameContext).isDismissDisabled;
+}
+
 type ModalCancelButtonProps = Omit<
   React.ComponentProps<typeof Button>,
   "variant" | "size" | "type"

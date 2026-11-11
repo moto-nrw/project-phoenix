@@ -2,6 +2,7 @@
 
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
+import { useModalDismissDisabled } from "./modal-frame";
 
 /**
  * Der Fuß eines Bearbeiten-Zustands (Bauart 2, Regel 4): genau ein
@@ -43,6 +44,7 @@ export function EditActions({
   stretchOnPhone?: boolean;
   className?: string;
 }>) {
+  const isDismissDisabled = useModalDismissDisabled();
   const buttonWidth = stretchOnPhone ? "flex-1 sm:flex-none" : undefined;
   return (
     <div
@@ -57,7 +59,7 @@ export function EditActions({
         variant="outline"
         size="md"
         onClick={onCancel}
-        disabled={saving || cancelDisabled}
+        disabled={saving || cancelDisabled || isDismissDisabled}
         className={buttonWidth}
       >
         {cancelLabel}

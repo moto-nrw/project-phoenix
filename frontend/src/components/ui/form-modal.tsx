@@ -1,6 +1,5 @@
 "use client";
 
-import { Children, cloneElement, isValidElement } from "react";
 import type { ReactNode } from "react";
 import { Modal, type ModalSize } from "./modal";
 import { DialogActions, DialogErrorSlot } from "./dialog-parts";
@@ -12,6 +11,11 @@ interface FormModalProps {
   readonly onClose: () => void;
   readonly title: string;
   readonly children: ReactNode;
+  /**
+   * Footer actions. A dismissal action uses `ModalCancelButton`; a compound
+   * action reads `useModalDismissDisabled`. Submit actions stay independent
+   * of `isDismissDisabled`.
+   */
   readonly footer?: ReactNode;
   readonly size?: ModalSize;
   // Where to position the modal on mobile viewports
@@ -44,32 +48,6 @@ interface FormModalProps {
    * Field-level problems additionally go to the field (`Input` `error`).
    */
   readonly error?: FormErrorInput;
-}
-
-type FooterElementProps = {
-  readonly children?: ReactNode;
-  readonly disabled?: boolean;
-  readonly onClick?: unknown;
-};
-
-/**
- * Footer controls normally use `ModalCancelButton`, which reads the dismissal
- * lock from its context. Existing FormModal footers also pass `onClose`
- * directly to a kit Button; lock that equivalent dismiss action without
- * disabling adjacent submit actions.
- */
-function disableFooterDismissActions(
-  children: ReactNode,
-  onClose: () => void,
-): ReactNode {
-  return Children.map(children, (child) => {
-    if (!isValidElement<FooterElementProps>(child)) return child;
-
-    return cloneElement(child, {
-      ...(child.props.onClick === onClose ? { disabled: true } : {}),
-      children: disableFooterDismissActions(child.props.children, onClose),
-    });
-  });
 }
 
 /**
@@ -110,11 +88,12 @@ export function FormModal({
       footer={
         footer ? (
           // Form actions stay one right-aligned row on every width
-          // (`sheetFooter="row"`); the row locks while a save runs.
+          // (`sheetFooter="row"`); the row locks while a save runs. A
+          // dismissal control uses ModalCancelButton (or reads
+          // useModalDismissDisabled) so the external lock never disables
+          // unrelated submit actions.
           <DialogActions locked={busy} className="m-0 flex-1 border-0 p-0">
-            {isDismissDisabled
-              ? disableFooterDismissActions(footer, onClose)
-              : footer}
+            {footer}
           </DialogActions>
         ) : undefined
       }
