@@ -3115,6 +3115,66 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Capability.ListStudentNamesByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Capability.ListStudentsByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Owner.ListStudentNamesByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Owner.ListStudentsByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.StudentQuery.ListStudentNamesByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.StudentQuery.ListStudentsByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.phaseExpiryCarePlanDirectory.ListCareOfferings",
       "classification": "query",
       "effect": "query",
