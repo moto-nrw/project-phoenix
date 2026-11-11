@@ -167,3 +167,13 @@ export const Sizes: Story = {
     </div>
   ),
 };
+
+/** One sentence on what a click does: mouse hover and keyboard focus (#6643). */
+export const WithTooltip: Story = {
+  args: {
+    variant: "outline",
+    size: "md",
+    children: "Speichern",
+    tooltip: "Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden.",
+  },
+};

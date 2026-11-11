@@ -6,6 +6,7 @@ import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { isCareContractSigningLink } from "~/lib/care-contract-signing-link";
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
+import { forwardedBody } from "~/lib/backend-proxy-response.server";
 
 export const GET = withPrivateDownloadNoStore(
   createPublicJsonProxy({
@@ -23,7 +24,10 @@ export const GET = withPrivateDownloadNoStore(
         const value = response.headers.get(name);
         if (value) headers.set(name, value);
       }
-      return new Response(response.body, { status: response.status, headers });
+      return new Response(forwardedBody(response), {
+        status: response.status,
+        headers,
+      });
     },
     path: (request, params) => {
       const link = params.link;

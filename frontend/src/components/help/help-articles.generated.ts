@@ -2779,6 +2779,8 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Eltern melden sich über den Link oder im Elternportal an. Eingänge sehen Sie im `Überblick`.",
     notes: [
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
+      "Für einen Aushang oder Elternbrief gibt es den Link auch als QR-Code. Wählen Sie im Menü der Phase `QR-Code anzeigen`, dann `Bild speichern`. Eltern scannen den Code mit der Handy-Kamera.",
+      "In der Mitte des QR-Codes steht das Bild Ihrer Login-Seite, sonst das moto-Logo. Unter `Eigenes Bild` wählen Sie ein anderes.",
       "Ihre Betreuung heißt nicht OGS, sondern zum Beispiel GTS? Öffnen Sie `Einstellungen`, dann den Bereich `Anmeldung`. Wählen Sie bei `Name der Betreuung in Texten für Eltern` den passenden Namen.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
@@ -2792,7 +2794,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
       "Eine Phase trägt `Aktiv` oder nichts. Nur eine aktive Phase nimmt Anmeldungen an.",
-      "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen` und der Link zum Kopieren. Diese Eltern melden sich im Elternportal an.",
+      "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen`, der Link zum Kopieren und der QR-Code. Diese Eltern melden sich im Elternportal an.",
     ],
     troubleshootingDetails: [
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
@@ -12392,6 +12394,7 @@ export const traegerHolidayRegistrationTopic =
       result:
         "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
       notes: [
+        "Für einen Aushang gibt es den Link auch als QR-Code. Wählen Sie neben dem Link `QR-Code`, dann `Bild speichern`. In der Mitte steht Ihr Logo aus dem Briefkopf, sonst das moto-Logo.",
         "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
         "Eltern brauchen kein Elternkonto.",
         "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",

@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 99,
+  "policy_epoch": 100,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -199,6 +199,10 @@
     },
     {
       "id": "open-room-move",
+      "kind": "workflow"
+    },
+    {
+      "id": "holiday-allocation",
       "kind": "workflow"
     },
     {

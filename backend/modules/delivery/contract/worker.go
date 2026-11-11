@@ -27,6 +27,18 @@ func WebPushProviderSubscriber(contact string) string {
 	return strings.TrimPrefix(contact, "mailto:")
 }
 
+// WebPushRecordSize is the aes128gcm record size of every Web Push request.
+// webpush-go pads each message to the record size, so the request body is
+// exactly this long. Mozilla delivers to Firefox on Android through FCM and
+// rejects with 413 when the base64-encoded body, inside its FCM data map,
+// exceeds 4096 bytes. The library default of 4096 failed every such push.
+// One fixed size keeps all messages the same length on the wire.
+const WebPushRecordSize uint32 = 2048
+
+// WebPushMaxPayloadBytes is the largest payload one record holds: the record
+// size minus the 86-byte header, the padding delimiter and the 16-byte tag.
+const WebPushMaxPayloadBytes = int(WebPushRecordSize) - 103
+
 type PushSender interface {
 	SendPush(context.Context, ClaimedIntent) (ProviderResult, error)
 }
