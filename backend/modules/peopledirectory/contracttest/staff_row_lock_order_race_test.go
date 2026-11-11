@@ -1,130 +1,26 @@
 package contracttest_test
 
-// The staff person merge and the offboarding of a staff member against each
-// other, and an assignment write against a held staff row (#6702).
-// Invariant M1: the merge locks the school's staff rows (ascending, admitted
-// through tenant.OrderLock as LockStaffRows) before their people, the order
-// offboarding, retention and staff admin follow (Konto → Schule → Profil), so
-// the merge never holds a person while it waits for a staff row. Invariant
+// Staff exits, staff creation and assignment writes against each other
+// (#6702), in the order Konto → Schule → Profil. The staff person merge
+// against offboarding is api/staff_person_merge_lock_order_test.go. Invariant
 // K1: the staff row lock is FOR NO KEY UPDATE, so the foreign-key key share
 // of a row referencing the staff member never waits for it.
 
 import (
 	"context"
 	"errors"
-	"net"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
-	"github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge"
-	mergeCompose "github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// mergeRaceAudit records nothing; the merge's own writes are what the race
-// checks. It reports the merge's lock ledger at its audit write, inside the
-// merge transaction.
-type mergeRaceAudit struct {
-	staffRowHeld func(context.Context) bool
-	held         chan bool
-}
-
-func (a mergeRaceAudit) RecordStaffPersonMerge(ctx context.Context, _, _ int64, _ staffpersonmerge.Candidate) error {
-	select {
-	case a.held <- a.staffRowHeld(ctx):
-	default:
-	}
-	return nil
-}
-
-func (mergeRaceAudit) RecordStaffPersonMergePreview(context.Context, int64, int64, net.IP) error {
-	return nil
-}
-
-// M1: offboarding of X has locked X's staff row and waits at X's caregiver
-// profile, which a third transaction holds. The merge of a namesake pair of
-// the same school starts meanwhile and must wait for X's staff row. Before
-// #6702 it locked every person of the school first, X's person included, so
-// offboarding, released, then waited for the merge's person lock while the
-// merge waited for X's staff row: 40P01. Now the merge waits for the staff
-// row holding no person; offboarding finishes, then the merge.
-func TestStaffPersonMergeAndOffboardingDoNotDeadlock(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
-	sc := newOffboardingScenario(t, db)
-	ctx := testpkg.Ctx(t)
-	actor := testpkg.CreateTestStaff(t, db, "Race", "Actor")
-	subject := testpkg.CreateTestTeacher(t, db, "Race", "Subject")
-	keeper, _ := testpkg.CreateTestStaffWithAccount(t, db, "Rennen", "Doppelsatz")
-	donor := testpkg.CreateTestStaff(t, db, "Rennen", "Doppelsatz")
-	_, err := db.NewRaw(`UPDATE users.staff_school_memberships SET deleted_at = '2026-09-02T12:00:00Z' WHERE tenant_id = ? AND id = ?`, testpkg.Tenant(t), donor.ID).Exec(ctx)
-	require.NoError(t, err)
-	operator := testpkg.CreateTestOperator(t, db)
-	audit := mergeRaceAudit{held: make(chan bool, 1), staffRowHeld: func(ctx context.Context) bool {
-		return tenant.HoldsLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(subject.StaffID)) &&
-			tenant.HoldsLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(testpkg.Tenant(t)))
-	}}
-	merge, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), audit,
-		func(context.Context) int64 { return operator.ID })
-	require.NoError(t, err)
-	var candidates []staffpersonmerge.Candidate
-	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, func(ctx context.Context) error {
-		candidates, err = merge.Preview(ctx, testpkg.Tenant(t), net.IPv4(127, 0, 0, 1))
-		return err
-	}))
-	require.Len(t, candidates, 1)
-	require.Equal(t, keeper.PersonID, candidates[0].Keeper.Person.ID)
-	offboarding, err := api.NewStaffOffboardingWorkflow(sc.deps)
-	require.NoError(t, err)
-
-	locked, release := make(chan struct{}), make(chan struct{})
-	barrier := startRaceTx(t, db, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.NewRaw(`SELECT id FROM users.teachers WHERE id = ? FOR UPDATE`, subject.ID).Exec(ctx); err != nil {
-			return err
-		}
-		close(locked)
-		<-release
-		return nil
-	})
-	select {
-	case <-locked:
-	case err := <-barrier.done:
-		require.FailNow(t, "the barrier failed", "%v", err)
-	}
-	exit := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
-		actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "test-admin"})
-		_, err := offboarding.Offboard(actorCtx, subject.StaffID)
-		return err
-	})
-	awaitBlockedBy(t, db, exit, barrier.pid, "offboarding")
-	repair := startAdminRaceTx(t, db, func(ctx context.Context) error {
-		return merge.Execute(ctx, testpkg.Tenant(t), staffpersonmerge.Request{SchoolConfirmed: true, Cases: []staffpersonmerge.Selection{
-			{DonorID: candidates[0].Donor.Person.ID, KeeperID: candidates[0].Keeper.Person.ID, Revision: candidates[0].Revision},
-		}})
-	})
-	awaitBlockedBy(t, db, repair, exit.pid, "the merge")
-	close(release)
-	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
-	requireFinishedWithoutDeadlock(t, exit, "offboarding")
-	requireFinishedWithoutDeadlock(t, repair, "the merge")
-	assert.True(t, <-audit.held, "the merge admitted the staff rows and its gate in the lock order")
-
-	var retired bool
-	require.NoError(t, db.NewRaw(`SELECT deleted_at IS NOT NULL FROM users.staff_school_memberships WHERE id = ?`, subject.StaffID).Scan(ctx, &retired))
-	assert.True(t, retired, "offboarding retired X")
-	var donorPerson int64
-	require.NoError(t, db.NewRaw(`SELECT person_id FROM users.staff_school_memberships WHERE id = ?`, donor.ID).Scan(ctx, &donorPerson))
-	assert.Equal(t, keeper.PersonID, donorPerson, "the merge moved the donor's employment to the keeper")
-}
 
 // K1: a transaction holds S's staff row through School Membership's
 // FindStaffForMutation, as offboarding and every staff writer do. An
@@ -161,30 +57,6 @@ func TestStaffRowLockLeavesForeignKeySharesFree(t *testing.T) {
 		return err
 	})
 	requireFinishedWithoutWaitingFor(t, db, insert, holder.pid, "the assignment insert")
-}
-
-// startAdminRaceTx runs write in an administrative transaction, as the
-// operator merge route does, and reports its backend first.
-func startAdminRaceTx(t *testing.T, db *bun.DB, write func(ctx context.Context) error) raceTx {
-	t.Helper()
-	pid, done := make(chan int64, 1), make(chan error, 1)
-	go func() {
-		done <- testpkg.WithAdminTx(t, context.Background(), db, func(ctx context.Context, tx bun.Tx) error {
-			var backend int64
-			if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(ctx, &backend); err != nil {
-				return err
-			}
-			pid <- backend
-			return write(ctx)
-		})
-	}()
-	select {
-	case backend := <-pid:
-		return raceTx{pid: backend, done: done}
-	case err := <-done:
-		require.FailNow(t, "admin race transaction failed before it started", "%v", err)
-		return raceTx{}
-	}
 }
 
 // requireFinishedWithoutWaitingFor requires the transaction to finish

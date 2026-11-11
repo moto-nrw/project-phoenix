@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -57,9 +56,7 @@ func TestAdditionalSupervisionAndSupervisorWriteOfTheSameStaffDoNotDeadlock(t *t
 	})
 	awaitWaiting(t, db, assign, holderPID, "the assignment")
 	supervise := startRacingWrite(t, db, func(ctx context.Context) error {
-		return presence.CreateGroupSupervisor(ctx, &studentpresence.GroupSupervision{
-			StaffID: target.StaffID, GroupID: second.ID, Role: "supervisor", StartDate: calendar.TodayDate().String(),
-		})
+		return api.CreateSupervisorForTest(ctx, presence, target.StaffID, second.ID, calendar.TodayDate().String())
 	})
 	awaitWaiting(t, db, supervise, 0, "the supervisor write")
 	require.NoError(t, holder.Rollback())

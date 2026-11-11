@@ -26,6 +26,9 @@ func (s *Service) countingWrite(ctx context.Context, stats *domain.OperationStat
 	if s.quota == nil {
 		return errChildQuotaUnbound
 	}
+	if err := admitClassWrites(ctx); err != nil {
+		return err
+	}
 	gateStats, err := s.store.LockStudentClassWrites(ctx, false)
 	stats.Add(gateStats)
 	if err != nil {
@@ -41,6 +44,9 @@ func (s *Service) countingWriteAfterClassGate(ctx context.Context, stats *domain
 		return errChildQuotaUnbound
 	}
 	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := admitLeaf(ctx, true, "advisory:child-quota"); err != nil {
 		return err
 	}
 	lockStats, err := s.store.LockChildQuota(ctx)
@@ -126,6 +132,9 @@ func (s *Service) ChildQuotaUsage(ctx context.Context) (usage schoolmembership.C
 func (s *Service) countingTransition(ctx context.Context, stats *domain.OperationStats, write func(context.Context) (bool, error)) error {
 	if s.quota == nil {
 		return errChildQuotaUnbound
+	}
+	if err := admitLeaf(ctx, true, "advisory:child-quota"); err != nil {
+		return err
 	}
 	lockStats, err := s.store.LockChildQuota(ctx)
 	stats.Add(lockStats)

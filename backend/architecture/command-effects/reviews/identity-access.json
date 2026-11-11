@@ -2274,6 +2274,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.LinkSchoolAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.LinkSchoolAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.LinkSchoolAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.LinkSchoolAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -2407,6 +2417,28 @@
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
       "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.LinkSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.LinkSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.LinkSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.LinkSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.LinkSchoolAccount",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess.Owner.LinkSchoolAccount. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
@@ -2519,6 +2551,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.RegisterSchoolAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.RegisterSchoolAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.RegisterSchoolAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.RegisterSchoolAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -2607,6 +2649,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.RegisterSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.RegisterSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountProvisioning.RegisterSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.RegisterSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -5692,6 +5756,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.AcceptSchoolInvitation. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess/internal/application.engine.AcceptSchoolInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -5804,6 +5878,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/workforce.EmploymentResetter.ResetEmployment",
       "target_owner": "workforce"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptSchoolInvitation",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptSchoolInvitation",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -6307,6 +6403,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignRoleToAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.AssignRoleToAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AssignRoleToAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignRoleToAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess/internal/application.engine.AssignRoleToAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -6435,6 +6541,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AssignRoleToAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignRoleToAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.AssignRoleToAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AssignRoleToAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignRoleToAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.AssignRoleToAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -7567,6 +7695,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.EnsureSchoolIdentity. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.EnsureSchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess/internal/application.engine.EnsureSchoolIdentity. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -7655,6 +7793,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.EnsureSchoolIdentity",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.EnsureSchoolIdentity. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.EnsureSchoolIdentity",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.EnsureSchoolIdentity. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -8486,6 +8646,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.GrantAccountTenantAccess",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.GrantAccountTenantAccess. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.GrantAccountTenantAccess",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.GrantAccountTenantAccess",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.PersonRepository.FindByAccountID (people-directory) through modules/identityaccess/internal/application.engine.GrantAccountTenantAccess. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByAccountID",
@@ -8624,6 +8794,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.GrantAccountTenantAccess",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.GrantAccountTenantAccess",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.GrantAccountTenantAccess. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.GrantAccountTenantAccess",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.GrantAccountTenantAccess",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.GrantAccountTenantAccess. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -9310,6 +9502,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.LinkSchoolAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LinkSchoolAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess/internal/application.engine.LinkSchoolAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -9438,6 +9640,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LinkSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.LinkSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LinkSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.LinkSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -10622,6 +10846,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.RegisterSchoolAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RegisterSchoolAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess/internal/application.engine.RegisterSchoolAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -10710,6 +10944,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RegisterSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.RegisterSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RegisterSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.RegisterSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -10981,6 +11237,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ReplaceAccountRole",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.ReplaceAccountRole. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ReplaceAccountRole",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ReplaceAccountRole",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess/internal/application.engine.ReplaceAccountRole. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -11109,6 +11375,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ReplaceAccountRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ReplaceAccountRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.ReplaceAccountRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ReplaceAccountRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ReplaceAccountRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.ReplaceAccountRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -12362,6 +12650,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.UpdateAccountTenantRole",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.engine.UpdateAccountTenantRole. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.UpdateAccountTenantRole",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.UpdateAccountTenantRole",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.PersonRepository.FindByAccountID (people-directory) through modules/identityaccess/internal/application.engine.UpdateAccountTenantRole. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByAccountID",
@@ -12500,6 +12798,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.UpdateAccountTenantRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.UpdateAccountTenantRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.engine.UpdateAccountTenantRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.UpdateAccountTenantRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.UpdateAccountTenantRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.engine.UpdateAccountTenantRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -13640,6 +13960,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolIdentityProvisioning.EnsureSchoolIdentity",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.EnsureSchoolIdentity. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolIdentityProvisioning.EnsureSchoolIdentity",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.EnsureSchoolIdentity. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -13728,6 +14058,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolIdentityProvisioning.EnsureSchoolIdentity",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.EnsureSchoolIdentity. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolIdentityProvisioning.EnsureSchoolIdentity",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.EnsureSchoolIdentity. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -13885,6 +14237,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through api.InvitationCapability.AcceptSchoolInvitation. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.AcceptSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through api.InvitationCapability.AcceptSchoolInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -14002,6 +14364,28 @@
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.AcceptSchoolInvitation",
       "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through api.InvitationCapability.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.AcceptSchoolInvitation",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through api.InvitationCapability.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.InvitationCapability.AcceptSchoolInvitation",
+      "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.InvitationCapability.AcceptSchoolInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
@@ -14096,6 +14480,16 @@
       "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: identity-access reaches modules/peopledirectory.Owner.LinkTag (people-directory) through modules/identityaccess.Owner.AcceptSchoolInvitation. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LinkTag",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.AcceptSchoolInvitation. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
       "target_owner": "people-directory"
     },
     {
@@ -14215,6 +14609,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/workforce.EmploymentResetter.ResetEmployment",
       "target_owner": "workforce"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolInvitations.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -15768,6 +16184,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.AssignRoleToAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.AssignRoleToAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignRoleToAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.AssignRoleToAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.AssignRoleToAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -15896,6 +16322,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignRoleToAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.AssignRoleToAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.AssignRoleToAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignRoleToAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.AssignRoleToAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.AssignRoleToAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -16662,6 +17110,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LinkSchoolAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.LinkSchoolAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LinkSchoolAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.LinkSchoolAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -16790,6 +17248,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LinkSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.LinkSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LinkSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LinkSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.LinkSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -17380,6 +17860,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RegisterSchoolAccount",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.RegisterSchoolAccount. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RegisterSchoolAccount",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.RegisterSchoolAccount. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -17468,6 +17958,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RegisterSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.RegisterSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RegisterSchoolAccount",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RegisterSchoolAccount",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.RegisterSchoolAccount. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -17684,6 +18196,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ReplaceAccountRole",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.ReplaceAccountRole. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ReplaceAccountRole",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ReplaceAccountRole",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.ReplaceAccountRole. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -17812,6 +18334,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ReplaceAccountRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ReplaceAccountRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.ReplaceAccountRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ReplaceAccountRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ReplaceAccountRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.ReplaceAccountRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -18555,6 +19099,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.AcceptSchoolInvitation",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess.Owner.AcceptSchoolInvitation. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.AcceptSchoolInvitation",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through modules/identityaccess.Owner.AcceptSchoolInvitation. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -18667,6 +19221,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/workforce.EmploymentResetter.ResetEmployment",
       "target_owner": "workforce"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess.Owner.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptSchoolInvitation",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.AcceptSchoolInvitation",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess.Owner.AcceptSchoolInvitation. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -19924,6 +20500,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.GrantAccountTenantAccess",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through api.operatorIdentityCapabilities.GrantAccountTenantAccess. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.operatorIdentityCapabilities.GrantAccountTenantAccess",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.GrantAccountTenantAccess",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.PersonRepository.FindByAccountID (people-directory) through api.operatorIdentityCapabilities.GrantAccountTenantAccess. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByAccountID",
@@ -20062,6 +20648,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.operatorIdentityCapabilities.GrantAccountTenantAccess",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.GrantAccountTenantAccess",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through api.operatorIdentityCapabilities.GrantAccountTenantAccess. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.operatorIdentityCapabilities.GrantAccountTenantAccess",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.GrantAccountTenantAccess",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through api.operatorIdentityCapabilities.GrantAccountTenantAccess. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -20332,6 +20940,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.UpdateAccountTenantRole",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through api.operatorIdentityCapabilities.UpdateAccountTenantRole. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.operatorIdentityCapabilities.UpdateAccountTenantRole",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.UpdateAccountTenantRole",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.PersonRepository.FindByAccountID (people-directory) through api.operatorIdentityCapabilities.UpdateAccountTenantRole. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByAccountID",
@@ -20470,6 +21088,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.operatorIdentityCapabilities.UpdateAccountTenantRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.UpdateAccountTenantRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through api.operatorIdentityCapabilities.UpdateAccountTenantRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.operatorIdentityCapabilities.UpdateAccountTenantRole",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator.Capability.UpdateAccountTenantRole",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through api.operatorIdentityCapabilities.UpdateAccountTenantRole. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -22247,6 +22887,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.InvitationIdentity.EnsureSchoolIdentityChain",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.InvitationIdentity.EnsureSchoolIdentityChain",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through *modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -22335,6 +22985,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.InvitationIdentity.EnsureSchoolIdentityChain",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.InvitationIdentity.EnsureSchoolIdentityChain",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutDuration",
@@ -24711,6 +25383,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentity.EnsureSchoolIdentityChain",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentity.EnsureSchoolIdentityChain",
       "reason": "Read-only target already reviewed as query: identity-access reaches modules/peopledirectory/ports.RowMissing (people-directory) through *modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.RowMissing",
@@ -24801,6 +25483,28 @@
       "target_owner": "school-membership"
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentity.EnsureSchoolIdentityChain",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentity.EnsureSchoolIdentityChain",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.AccountLifecycle.EnsureSchoolIdentityChain. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain",
@@ -24887,6 +25591,16 @@
       "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: identity-access reaches modules/peopledirectory.Owner.LinkTag (people-directory) through modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LinkTag",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentity.EnsureSchoolIdentityChain",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
       "target_owner": "people-directory"
     },
     {
@@ -24984,6 +25698,28 @@
       "target_owner": "school-membership"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentity.EnsureSchoolIdentityChain",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentity.EnsureSchoolIdentityChain",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.LateSchoolIdentity.EnsureSchoolIdentityChain. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity",
@@ -25070,6 +25806,16 @@
       "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: identity-access reaches modules/peopledirectory.Owner.LinkTag (people-directory) through modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LinkTag",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentityProvisioner.EnsureSchoolIdentity",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
       "target_owner": "people-directory"
     },
     {
@@ -25165,6 +25911,28 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Teacher.IsDeleted",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentityProvisioner.EnsureSchoolIdentity",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.SchoolIdentityProvisioner.EnsureSchoolIdentity",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.SchoolIdentityProvisioner.EnsureSchoolIdentity. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolIdentityProvisioner.HasLiveCaregiverProfile",
@@ -25483,6 +26251,38 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LinkTag",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.StaffDirectory.LockStaffPersonMerge",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.StaffDirectory.LockStaffPersonMerge",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through modules/identityaccess/internal/application.StaffDirectory.LockStaffPersonMerge. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.StaffDirectory.LockStaffPersonMerge",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.StaffDirectory.LockStaffPersonMerge",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through modules/identityaccess/internal/application.StaffDirectory.LockStaffPersonMerge. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.StaffDirectory.LockStaffPersonMerge",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.StaffDirectory.LockStaffPersonMerge",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through modules/identityaccess/internal/application.StaffDirectory.LockStaffPersonMerge. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -28278,6 +29078,38 @@
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LinkTag",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectory.LockStaffPersonMerge",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.StaffDirectory.LockStaffPersonMerge",
+      "reason": "Read-only newly exposed target: identity-access reaches modules/peopledirectory.StaffPersonMergeLockKey (people-directory) through roots/owners.staffDirectory.LockStaffPersonMerge. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StaffPersonMergeLockKey",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectory.LockStaffPersonMerge",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.StaffDirectory.LockStaffPersonMerge",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.AcquireLock (tenant-runtime) through roots/owners.staffDirectory.LockStaffPersonMerge. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.staffDirectory.LockStaffPersonMerge",
+      "classification": "platform",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.StaffDirectory.LockStaffPersonMerge",
+      "reason": "Platform protocol participation (lock): identity-access reaches tenant.OrderLock (tenant-runtime) through roots/owners.staffDirectory.LockStaffPersonMerge. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0067",

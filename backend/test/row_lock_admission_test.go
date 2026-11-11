@@ -121,33 +121,37 @@ type rowLockAdmitter struct {
 }
 
 const (
-	membershipAdmission = "modules/schoolmembership/internal/application/lock_admission.go"
-	membershipStore     = "modules/schoolmembership/internal/adapters/postgres/"
+	membershipApplication = "modules/schoolmembership/internal/application/"
+	membershipStore       = "modules/schoolmembership/internal/adapters/postgres/"
 )
 
 // rowLockAdmitted maps "file#Function" of a lock statement to its admitters.
+// An admitter with function "*" stands for every function of that directory
+// that calls the statement with a lock: each must admit before the call.
 var rowLockAdmitted = map[string][]rowLockAdmitter{
 	membershipStore + "store.go#Store.FindStaff":                           {{"modules/schoolmembership/internal/application/staff_row_lock.go", "findStaffRow", ""}},
-	membershipStore + "store.go#Store.CreateStaff":                         {{membershipAdmission, "CreateStaff", ""}},
-	membershipStore + "store.go#Store.FindTeacher":                         {{membershipAdmission, "FindTeacher", ""}},
-	membershipStore + "store.go#Store.FindExternalCaregiverRecord":         {{membershipAdmission, "FindExternalCaregiverRecord", ""}},
-	membershipStore + "class_list_entry.go#Store.FindClassListEntry":       {{membershipAdmission, "FindClassListEntry", ""}},
-	membershipStore + "list_filters.go#groupAssignmentListQuery":           {{membershipAdmission, "ListGroupAssignments", "ListGroupAssignments"}},
-	membershipStore + "teaching_assignment.go#Store.ListClassAssignments":  {{membershipAdmission, "ListClassAssignments", ""}},
-	membershipStore + "teaching_assignment.go#Store.LockGroupAssignments":  {{membershipAdmission, "LockGroupAssignments", ""}},
-	membershipStore + "retired_staff.go#Store.MarkNextRetiredStaffErased":  {{membershipAdmission, "MarkNextRetiredStaffErased", ""}},
-	membershipStore + "student_counts.go#Store.LockChildQuota":             {{membershipAdmission, "LockChildQuota", ""}},
-	membershipStore + "student_enrollment.go#Store.LockStudentClassWrites": {{membershipAdmission, "LockStudentClassWrites", ""}},
+	membershipStore + "store.go#Store.CreateStaff":                         {{membershipApplication, "*", "CreateStaff"}},
+	membershipStore + "store.go#Store.FindTeacher":                         {{membershipApplication, "*", "FindTeacher"}},
+	membershipStore + "store.go#Store.FindExternalCaregiverRecord":         {{membershipApplication, "*", "FindExternalCaregiverRecord"}},
+	membershipStore + "class_list_entry.go#Store.FindClassListEntry":       {{membershipApplication, "*", "FindClassListEntry"}},
+	membershipStore + "list_filters.go#groupAssignmentListQuery":           {{membershipApplication, "*", "ListGroupAssignments"}},
+	membershipStore + "teaching_assignment.go#Store.ListClassAssignments":  {{membershipApplication, "*", "ListClassAssignments"}},
+	membershipStore + "teaching_assignment.go#Store.LockGroupAssignments":  {{membershipApplication, "*", "LockGroupAssignments"}},
+	membershipStore + "retired_staff.go#Store.MarkNextRetiredStaffErased":  {{membershipApplication, "*", "MarkNextRetiredStaffErased"}},
+	membershipStore + "student_counts.go#Store.LockChildQuota":             {{membershipApplication, "*", "LockChildQuota"}},
+	membershipStore + "student_enrollment.go#Store.LockStudentClassWrites": {{membershipApplication, "*", "LockStudentClassWrites"}},
 	membershipStore + "student_enrollment.go#StudentClassWriteGateQuery": {
-		{membershipAdmission, "EnrollStudent", "EnrollStudent"},
+		{membershipApplication, "*", "EnrollStudent"},
 		{"modules/schoolmembership/compose/student_class_gate.go", "StudentClassWriteGateQuery", "ResolveStudentClassWriteGate"},
 	},
-	membershipStore + "student_membership.go#Store.LockStudentWindow":     {{membershipAdmission, "LockStudentWindow", ""}},
+	membershipStore + "student_membership.go#Store.LockStudentWindow":     {{membershipApplication, "*", "LockStudentWindow"}},
 	membershipStore + "staff_person_merge.go#Store.StaffMergeMemberships": {{"modules/schoolmembership/compose/staff_person_merge.go", "StaffMergeMemberships", ""}},
+	// The person lock of a staff creation is admitted. Two root bindings
+	// under an approved exception (ADR 0067) lock the person unadmitted:
+	// staff admin's LockStaff takes it after the staff row, Care Plan's master
+	// data update takes no gate, day or staff row; both follow the order.
 	"modules/peopledirectory/internal/adapters/peoplepostgres/person.go#personRepository.FindByIDForUpdate": {
 		{"modules/peopledirectory/internal/application/staff_directory.go", "requireLivePersonLocked", ""},
-		{"roots/owners/staff_admin_composition.go", "LockStaff", ""},
-		{"roots/owners/master_data_decisions.go", "UpdatePerson", ""},
 	},
 	"modules/studentpresence/internal/adapters/postgres/offboarding.go#Store.LockStaffSupervision": {
 		{"modules/studentpresence/internal/application/offboarding.go", "LockStaffSupervision", ""},
@@ -306,6 +310,20 @@ func checkRowLockAdmitters(t *testing.T, root string, site rowLockSite, admitter
 		called := called
 		if admitter.calls != "" {
 			called = admitter.calls
+		}
+		if admitter.function == "*" {
+			unadmitted, found, err := everyLockingCallAdmitted(filepath.Join(root, admitter.file), called)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !found {
+				t.Errorf("%s: no function takes %s with a lock any more (%s): update rowLockAdmitted", admitter.file, called, site)
+			}
+			for _, at := range unadmitted {
+				at = strings.TrimPrefix(filepath.ToSlash(at), filepath.ToSlash(root)+"/")
+				t.Errorf("%s calls %s with a lock without tenant.OrderLock before it (%s)", at, called, site)
+			}
+			continue
 		}
 		source, err := os.ReadFile(filepath.Join(root, admitter.file))
 		if err != nil {

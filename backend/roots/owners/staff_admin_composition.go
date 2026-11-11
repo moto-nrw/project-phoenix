@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // staffAdminStaffRows are the retained staff rows the administration reads
@@ -113,12 +112,6 @@ func (s staffAdminSubjects) LockStaff(ctx context.Context, staffID int64, withPe
 	if withPerson && staff.Person == nil {
 		// FindByIDForUpdate does not preload; lock the person row too so
 		// person-section diffs read the last committed values.
-		// A person comes after the staff row that names it (Konto → Schule →
-		// Profil, #6702): offboarding holds the staff row while it locks the
-		// person, so the person is a leaf of the lock order.
-		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.persons"); err != nil {
-			return workforceModule.StaffProfile{}, err
-		}
 		person, err := s.persons.rows.FindByIDForUpdate(ctx, staff.PersonID)
 		if err != nil {
 			return workforceModule.StaffProfile{}, err

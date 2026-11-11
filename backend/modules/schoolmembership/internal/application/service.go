@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Service is the School Membership owner. It validates every input at the
@@ -42,7 +43,7 @@ func New(store ports.Store, employment ports.StaffEmployment, quota ports.ChildQ
 	if classList != nil && (classList.Students == nil || classList.Trail == nil) {
 		panic("school membership application: class list entry administration needs a student directory and an audit trail")
 	}
-	return &Service{store: admittingStore{Store: store}, employment: employment, quota: quota, today: today, tx: tx, observe: observe, classList: classList}
+	return &Service{store: store, employment: employment, quota: quota, today: today, tx: tx, observe: observe, classList: classList}
 }
 
 // --- staff ---
@@ -149,11 +150,17 @@ func (s *Service) CreateStaff(ctx context.Context, input schoolmembership.Create
 	fields := input.StaffFields
 	err = s.runStaffWrite(ctx, "create_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var createStats domain.OperationStats
+		if err := admitStaffPersonMerge(txCtx); err != nil {
+			return err
+		}
 		result, createStats, err = s.store.CreateStaff(txCtx, fields.PersonID)
 		stats.Add(createStats)
 		if err != nil {
 			return err
 		}
+		// The inserted row is held: a caregiver profile or employment written
+		// next locks it again without waiting (#6702).
+		tenant.HoldInserted(txCtx, tenant.LockStaffRows, tenant.LockIDKey(result.ID))
 		result, err = s.saveEmployment(txCtx, result, fields, stats)
 		return err
 	})
@@ -343,6 +350,9 @@ func (s *Service) UpdateTeacher(ctx context.Context, input schoolmembership.Upda
 		if err := s.requireStaffLocked(txCtx, fields.StaffID, stats); err != nil {
 			return err
 		}
+		if err := admitLeaf(txCtx, true, "users.teachers"); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindTeacher(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {
@@ -365,6 +375,9 @@ func (s *Service) DeleteTeacher(ctx context.Context, id int64) error {
 		return invalid("teacher ID is required")
 	}
 	return s.runWrite(ctx, "delete_teacher", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "users.teachers"); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindTeacher(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {
@@ -455,6 +468,9 @@ func (s *Service) UpdateExternalCaregiverRecord(ctx context.Context, input schoo
 	}
 	id, fields := input.ID, input.ExternalCaregiverRecordFields
 	err = s.runWrite(ctx, "update_external_caregiver_record", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "users.external_caregivers"); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindExternalCaregiverRecord(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {

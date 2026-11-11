@@ -1,4 +1,4 @@
-package compose
+package postgres
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -123,10 +122,13 @@ func holdAdvisory(key string) func(context.Context, bun.Tx) error {
 func TestWorkforceRowLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	store := postgres.New(postgres.DatabaseRuntime(db))
-	capability := buildWorkforce(t, db)
+	store := New(DatabaseRuntime(db))
 	school := testpkg.Tenant(t)
-	today := calendar.TodayDate()
+	// A fixed future school day: the paths take their locks whatever the
+	// wall clock says.
+	today := calendar.NewDate(2099, 6, 1)
+	from := calendar.NewDate(2026, 1, 1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("absence type", func(t *testing.T) {
 		absenceType := testpkg.CreateTestStaffAbsenceType(t, db, "Admission")
@@ -148,11 +150,15 @@ func TestWorkforceRowLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 		{"offboarding series", "schedule.staff_shift_series", func(t *testing.T, staffID int64) int64 {
 			start := calendar.NewDate(2099, 9, 1)
 			period := testpkg.CreateTestCalendarPeriod(t, db, "Admission", start, calendar.NewDate(2100, 6, 30))
-			series, err := capability.CreateStaffShiftSeries(testpkg.Ctx(t), workforce.StaffShiftSeries{
-				StaffID: staffID, Weekdays: []int{1}, StartTime: "09:00:00", EndTime: "12:00:00",
-				CalendarPeriodID: period.ID, WeekPattern: workforce.WeekPatternEvery, ValidFrom: start.String(), CreatedBy: staffID,
-			})
-			require.NoError(t, err)
+			var series domain.StaffShiftSeries
+			require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, school, func(ctx context.Context) error {
+				var err error
+				series, _, err = store.CreateStaffShiftSeries(ctx, domain.StaffShiftSeries{
+					StaffID: staffID, Weekdays: []int{1}, StartTime: "09:00:00", EndTime: "12:00:00",
+					CalendarPeriodID: period.ID, WeekPattern: workforce.WeekPatternEvery, ValidFrom: start.String(), CreatedBy: staffID,
+				})
+				return err
+			}))
 			return series.ID
 		}},
 		{"offboarding shifts", "schedule.staff_shifts", func(t *testing.T, staffID int64) int64 {
@@ -170,7 +176,7 @@ func TestWorkforceRowLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 			requireAdmittedBeforeWait(t, db, admissionPath{class: tenant.LockLeaf, key: path.table,
 				hold: holdRow(path.table, id),
 				run: func(ctx context.Context) error {
-					_, _, err := store.PreviewStaffOffboarding(ctx, staff.ID, today.String())
+					_, _, err := store.PreviewStaffOffboarding(ctx, staff.ID, from.String())
 					return err
 				}})
 		})
@@ -203,12 +209,16 @@ func TestWorkforceRowLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 
 	t.Run("bank data rekey", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Bank", "Admission")
-		financial, err := capability.CreateStaffFinancialData(testpkg.Ctx(t), workforce.StaffFinancialData{StaffID: staff.ID})
-		require.NoError(t, err)
+		var financial domain.StaffFinancialData
+		require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, school, func(ctx context.Context) error {
+			var err error
+			financial, _, err = store.CreateStaffFinancialData(ctx, domain.StaffFinancialData{StaffID: staff.ID})
+			return err
+		}))
 		requireAdmittedBeforeWait(t, db, admissionPath{class: tenant.LockLeaf, key: "users.staff_financial_data",
 			hold: holdRow("users.staff_financial_data", financial.ID),
 			run: func(ctx context.Context) error {
-				_, err := postgres.NewStaffBankRekeyStore().RewriteStaffBankData(ctx, school, financial.ID-1, 1,
+				_, err := NewStaffBankRekeyStore().RewriteStaffBankData(ctx, school, financial.ID-1, 1,
 					func(*domain.StaffFinancialData) (bool, error) { return false, nil })
 				return err
 			}})
@@ -253,8 +263,15 @@ func TestWorkforceRowLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 
 	t.Run("work sessions", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Session", "Admission")
-		session, err := capability.CreateWorkSession(testpkg.Ctx(t), testWorkSession(staff.ID, today, time.Now().Add(-time.Hour)))
-		require.NoError(t, err)
+		var session workforce.WorkSession
+		require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, school, func(ctx context.Context) error {
+			var err error
+			session, _, err = store.CreateWorkSession(ctx, workforce.WorkSession{
+				StaffID: staff.ID, Date: today.String(), Status: workforce.WorkSessionStatusPresent,
+				Source: workforce.WorkSessionSourceApp, CheckInTime: today.BerlinMidnight().Add(9 * time.Hour), CreatedBy: staff.ID,
+			})
+			return err
+		}))
 		requireAdmittedBeforeWait(t, db, admissionPath{class: tenant.LockLeaf, key: "active.work_sessions",
 			hold: holdRow("active.work_sessions", session.ID),
 			run: func(ctx context.Context) error {
@@ -269,16 +286,16 @@ func TestWorkforceRowLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 			}})
 	})
 
-	gates := transaction{lock: store.AcquireXactLock}
+	lock := func(ctx context.Context, key string) error { return AcquireXactLock(ctx, key, store.AcquireXactLock) }
 	for _, gate := range []struct {
 		name  string
 		class tenant.LockClass
 		key   func(staffID int64) string
 		lock  func(context.Context, int64) error
 	}{
-		{"staff-balance", tenant.LockStaffWorkTime, func(id int64) string { return tenant.StaffWorkTimeKey(id, false) }, gates.LockStaffBalance},
-		{"staff-absence", tenant.LockStaffWorkTime, func(id int64) string { return tenant.StaffWorkTimeKey(id, true) }, gates.LockStaffAbsence},
-		{"staff-qualifications", tenant.LockLeaf, func(int64) string { return "advisory:staff-qualifications" }, gates.LockStaffQualifications},
+		{"staff-balance", tenant.LockStaffWorkTime, func(id int64) string { return tenant.StaffWorkTimeKey(id, false) }, func(ctx context.Context, id int64) error { return LockStaffBalanceGate(ctx, id, lock) }},
+		{"staff-absence", tenant.LockStaffWorkTime, func(id int64) string { return tenant.StaffWorkTimeKey(id, true) }, func(ctx context.Context, id int64) error { return LockStaffAbsenceGate(ctx, id, lock) }},
+		{"staff-qualifications", tenant.LockLeaf, func(int64) string { return "advisory:staff-qualifications" }, func(ctx context.Context, id int64) error { return LockStaffQualificationsGate(ctx, id, lock) }},
 	} {
 		t.Run(gate.name+" gate", func(t *testing.T) {
 			staff := testpkg.CreateTestStaff(t, db, "Gate", "Admission")
@@ -306,7 +323,7 @@ func TestWorkforceRowLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 
 // insertOpenPayrollDownload stores a sent dispatch whose e-mail link is still
 // open under the token fingerprint.
-func insertOpenPayrollDownload(t *testing.T, db *bun.DB, store *postgres.Store, tokenHash string) int64 {
+func insertOpenPayrollDownload(t *testing.T, db *bun.DB, store *Store, tokenHash string) int64 {
 	t.Helper()
 	actor := testpkg.CreateTestAccount(t, db, "payroll-admission")
 	finished := time.Now()

@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -282,4 +284,86 @@ func calledName(call *ast.CallExpr) string {
 		return fun.Name
 	}
 	return ""
+}
+
+// everyLockingCallAdmitted checks every function of the directory's non-test
+// files that calls called with a lock: each such call needs a checked
+// admission before it in the same function. A call that passes "" or false
+// takes no lock. found reports whether any locking call exists.
+func everyLockingCallAdmitted(dir, called string) (unadmitted []string, found bool, err error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, false, err
+	}
+	fset := token.NewFileSet()
+	var files []*ast.File
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(fset, filepath.Join(dir, entry.Name()), nil, parser.SkipObjectResolution)
+		if err != nil {
+			return nil, false, err
+		}
+		files = append(files, parsed)
+	}
+	admitters := map[string]bool{}
+	for _, file := range files {
+		for _, decl := range file.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Body != nil && len(checkedAdmissions(fn.Body, tenantNameOf(file), nil)) > 0 {
+				admitters[fn.Name.Name] = true
+			}
+		}
+	}
+	for _, file := range files {
+		tenantName := tenantNameOf(file)
+		if tenantName == "" {
+			tenantName = "tenant"
+		}
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			admissions := checkedAdmissions(fn.Body, tenantName, admitters)
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok || calledName(call) != called || !takesLock(call) {
+					return true
+				}
+				found = true
+				if len(admissions) == 0 || admissions[0] > call.Pos() {
+					unadmitted = append(unadmitted, fset.Position(call.Pos()).String())
+				}
+				return true
+			})
+		}
+	}
+	return unadmitted, found, nil
+}
+
+func tenantNameOf(file *ast.File) string {
+	for _, spec := range file.Imports {
+		if path, _ := strconv.Unquote(spec.Path.Value); path == tenantImportPath {
+			if spec.Name != nil {
+				return spec.Name.Name
+			}
+			return "tenant"
+		}
+	}
+	return ""
+}
+
+// takesLock is false for a call that passes an empty lock strength or a
+// false lock flag.
+func takesLock(call *ast.CallExpr) bool {
+	for _, arg := range call.Args {
+		if lit, ok := arg.(*ast.BasicLit); ok && lit.Value == `""` {
+			return false
+		}
+		if ident, ok := arg.(*ast.Ident); ok && ident.Name == "false" {
+			return false
+		}
+	}
+	return true
 }
