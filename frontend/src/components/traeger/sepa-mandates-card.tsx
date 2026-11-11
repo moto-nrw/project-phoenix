@@ -440,10 +440,14 @@ export function SepaMandatesCard({
             {MANDATE_KIND_LABELS[mandate.kind]}
           </span>
           {/* On a tablet the next debit stands under the kind, named: the
-              table has no room for its own column there. */}
+              table has no room for its own column there. Its value stays
+              whole; the line breaks after the colon. */}
           {mandate.revokedOn ? null : (
             <span className="hidden text-sm text-gray-500 md:block xl:hidden">
-              Nächste: {nextDebitLabel(mandate)}
+              Nächste Abbuchung:{" "}
+              <span className="whitespace-nowrap">
+                {nextDebitLabel(mandate)}
+              </span>
             </span>
           )}
         </span>
