@@ -145,7 +145,8 @@ CREATE TRIGGER update_holiday_closure_events_updated_at
 -- Field guard (ADR 0196 section 3): the command fields come only from the
 -- school unit that confirms the proposal and never change. A Träger unit
 -- moves the processing state, a school unit only takes up a failed command
--- again. Row security decides whose row it is; this guard decides which
+-- again, or withdraws a never-prepared command after deleting its source.
+-- Row security decides whose row it is; this guard decides which
 -- fields each of them writes, below and in addition to it.
 CREATE FUNCTION calendar.guard_holiday_closure_event()
 	RETURNS trigger
@@ -167,6 +168,20 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 				USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_holiday_closure_events_immutable';
 		END IF;
 		IF v_school IS NOT NULL AND v_traeger IS NULL THEN
+			-- A deleted source may withdraw commands that never prepared mail.
+			-- Keep the confirmed proposal and outcome until normal retirement.
+			IF OLD.tenant_id = v_school AND OLD.state IN ('pending', 'leased') AND OLD.processed_at IS NULL
+				AND NEW.state = 'no_mail' AND NEW.error_code = 'source_withdrawn'
+				AND NEW.lease_token IS NULL AND NEW.lease_until IS NULL
+				AND NEW.processed_at = CURRENT_TIMESTAMP AND NEW.completed_at = CURRENT_TIMESTAMP
+				AND NEW.attempts = OLD.attempts AND NEW.next_attempt_at = OLD.next_attempt_at
+				AND NEW.requested_channel IS NOT DISTINCT FROM OLD.requested_channel
+				AND NEW.requested_at IS NOT DISTINCT FROM OLD.requested_at
+				AND OLD.source_kind = 'school_closing_day'
+				AND NOT EXISTS (SELECT 1 FROM schedule.closing_days AS day
+					WHERE day.tenant_id = v_school AND day.id = OLD.source_id) THEN
+				RETURN NEW;
+			END IF;
 			IF OLD.state NOT IN ('failed', 'blocked') OR NEW.state <> 'pending'
 				OR NEW.lease_token IS NOT NULL OR NEW.attempts IS DISTINCT FROM OLD.attempts
 				OR NEW.processed_at IS DISTINCT FROM OLD.processed_at OR NEW.completed_at IS DISTINCT FROM OLD.completed_at THEN
@@ -253,7 +268,7 @@ CREATE FUNCTION calendar.holiday_closure_due_traeger_ids()
 		FROM calendar.holiday_closure_events AS event
 		WHERE (event.state = 'pending' AND event.next_attempt_at <= clock_timestamp())
 			OR (event.state = 'leased' AND event.lease_until < clock_timestamp())
-			OR event.state IN ('prepared', 'unknown')
+			OR event.state IN ('prepared', 'unknown', 'failed')
 			OR (event.state IN ('completed', 'no_mail')
 				AND COALESCE(event.completed_at, event.processed_at) < clock_timestamp() - interval '30 days')
 		UNION

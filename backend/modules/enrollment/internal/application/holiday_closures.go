@@ -244,7 +244,10 @@ func (h *HolidayClosures) traegerChanges(ctx context.Context, organizationID int
 		return nil, err
 	}
 	bookings, _, err := h.changes(ctx, organizationID, schools, start, to, traegerClosedOn(closure, noCareIndex(noCare, closure.TraegerClosingDayID)))
-	return bookings, err
+	if err != nil {
+		return nil, err
+	}
+	return traegerChangesWithin(bookings, closure, start, to), nil
 }
 
 // closureSpan names the schools and days a Träger closing day touches: its

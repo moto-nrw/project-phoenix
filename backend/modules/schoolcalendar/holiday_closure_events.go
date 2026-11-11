@@ -212,7 +212,7 @@ type HolidayClosureEventQueue interface {
 	HolidayClosureEventSuperseded(ctx context.Context, organizationID, eventID int64) (bool, error)
 	// FinishHolidayClosureEvent writes the outcome of a leased command.
 	FinishHolidayClosureEvent(ctx context.Context, organizationID, eventID int64, leaseToken string, outcome HolidayClosureOutcome) error
-	// WaitingHolidayClosureEvents lists the prepared and unknown commands
+	// WaitingHolidayClosureEvents lists the prepared, unknown and failed commands
 	// whose mails the worker still follows.
 	WaitingHolidayClosureEvents(ctx context.Context, organizationID int64) ([]HolidayClosureEvent, error)
 	// SettleHolidayClosureEvents moves waiting commands to their delivery

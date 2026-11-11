@@ -148,6 +148,10 @@ func TestHolidayClosureEventFieldGuard(t *testing.T) {
 		})
 	}
 	school, traeger := fmt.Sprint(f.school), fmt.Sprint(f.organization)
+	withdraw := `UPDATE calendar.holiday_closure_events SET state = 'no_mail', error_code = 'source_withdrawn',
+  lease_token = NULL, lease_until = NULL, processed_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP WHERE id = ?`
+	require.ErrorContains(t, scoped("app.current_tenant_id", school, withdraw), "only takes up a failed",
+		"a school cannot withdraw a prepared command")
 	require.ErrorContains(t, scoped("app.current_tenant_id", school, `UPDATE calendar.holiday_closure_events SET state = 'pending' WHERE id = ?`),
 		"only takes up a failed", "a prepared command is not the school's to restart")
 	require.ErrorContains(t, scoped("app.current_tenant_id", school, `UPDATE calendar.holiday_closure_events SET span_to = '2030-07-12' WHERE id = ?`),
@@ -157,6 +161,8 @@ func TestHolidayClosureEventFieldGuard(t *testing.T) {
 	require.NoError(t, scoped("app.current_org_id", traeger, `UPDATE calendar.holiday_closure_events SET state = 'failed' WHERE id = ?`))
 	require.NoError(t, scoped("app.current_tenant_id", school, `UPDATE calendar.holiday_closure_events
 		SET state = 'pending', requested_channel = 'school', requested_at = NOW() WHERE id = ?`), "a failed command is the school's to take up")
+	require.ErrorContains(t, scoped("app.current_tenant_id", school, withdraw), "only takes up a failed",
+		"a school cannot withdraw a pending command while its source exists")
 	var accountColumns int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM information_schema.columns WHERE table_schema = 'calendar'
 		AND table_name IN ('holiday_closure_events', 'holiday_closure_proposals') AND column_name LIKE '%account%'`).Scan(ctx, &accountColumns))

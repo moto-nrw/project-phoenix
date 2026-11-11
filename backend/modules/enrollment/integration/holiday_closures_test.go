@@ -710,3 +710,57 @@ func TestHolidayClosureRecoveryKeepsRecordedMail(t *testing.T) {
 	require.Len(t, mail.mails, 1, "retry must not enqueue reopening under the recorded key")
 	assert.Equal(t, before, string(mail.mails[0].Payload))
 }
+
+// A Träger approval covers only the old and new source ranges at each school.
+func TestTraegerMoveExcludesIndependentSchoolClosures(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	for _, movedSchool := range []bool{false, true} {
+		t.Run(fmt.Sprintf("different_school_%t", movedSchool), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			w := newPlacesWeek(t, db, "Träger genauer Änderungsumfang")
+			school := hostSchoolOf(t, db, w.week)
+			mail := &capturedMails{}
+			closures := newClosures(mail, nil)
+			monday, friday := calendar.NewDate(2027, 7, 5), calendar.NewDate(2027, 7, 9)
+			closure := enrollment.HolidayClosure{SchoolIDs: []int64{school}, StartsOn: monday, EndsOn: monday, Reason: "Träger-Schließtag"}
+			withinTraeger(t, db, w.organization, func(ctx context.Context) {
+				impact, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
+				require.NoError(t, err)
+				_, err = closures.NotifyHolidayClosure(ctx, w.organization, closure, impact.Token)
+				require.NoError(t, err)
+			})
+			unrelated := calendar.NewDate(2027, 7, 6)
+			if movedSchool {
+				unrelated = friday
+			}
+			closures = newClosures(mail, closureCalendar{{Date: unrelated, Kind: enrollment.HolidayNoCareClosingDay, Name: "Unbestätigter Schul-Schließtag"}})
+			closure.Previous = &enrollment.HolidayClosureSpan{SchoolIDs: []int64{school}, StartsOn: monday, EndsOn: monday}
+			closure.StartsOn, closure.EndsOn = friday, friday
+			if movedSchool {
+				closure.SchoolIDs = []int64{testpkg.CreateTestSchoolInOrganization(t, db, w.organization, "Neue Schule")}
+			}
+			withinTraeger(t, db, w.organization, func(ctx context.Context) {
+				impact, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
+				require.NoError(t, err)
+				require.Len(t, impact.Weeks, 1)
+				if movedSchool {
+					assert.Empty(t, impact.Weeks[0].ClosedDays)
+				} else {
+					assert.Equal(t, []enrollment.HolidayClosedDay{{Date: friday, Reason: closure.Reason}}, impact.Weeks[0].ClosedDays)
+				}
+				assert.Equal(t, []enrollment.HolidayClosedDay{{Date: monday}}, impact.Weeks[0].ReopenedDays)
+				_, err = closures.NotifyHolidayClosure(ctx, w.organization, closure, impact.Token)
+				require.NoError(t, err)
+				require.Len(t, mail.mails, 2)
+				assert.NotContains(t, string(mail.mails[1].Payload), "Unbestätigter Schul-Schließtag")
+				// The independent school closure remains available for its own approval.
+				operation := closureOperation(school)
+				operation.From, operation.To = unrelated, unrelated
+				pending, err := planOne(ctx, closures, w.organization, operation)
+				require.NoError(t, err)
+				assert.Positive(t, pending.Families)
+			})
+		})
+	}
+}

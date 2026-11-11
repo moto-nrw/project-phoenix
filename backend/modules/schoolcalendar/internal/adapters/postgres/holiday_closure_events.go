@@ -37,7 +37,7 @@ const (
 	unprocessedHolidayClosureEventSQL = `SELECT event.id, event.span_from, event.span_to, proposal.previous_start, proposal.previous_end
   FROM calendar.holiday_closure_events AS event JOIN calendar.holiday_closure_proposals AS proposal
    ON proposal.id = event.proposal_id AND proposal.tenant_id = event.tenant_id
-  WHERE event.tenant_id = ? AND event.source_kind = ? AND event.source_id = ? AND event.state IN ('pending', 'leased')
+  WHERE event.tenant_id = ? AND event.source_kind = ? AND event.source_id = ? AND event.state IN ('pending', 'leased') AND event.processed_at IS NULL
   ORDER BY event.id DESC LIMIT 1`
 	insertHolidayClosureProposalSQL = `INSERT INTO calendar.holiday_closure_proposals
 			(tenant_id, organization_id, source_kind, source_id, operation_id, reason, previous_start, previous_end,
@@ -48,6 +48,14 @@ const (
 		WHERE tenant_id = ? AND id = ? AND state = 'open'`
 	dropHolidayClosureProposalSQL = `DELETE FROM calendar.holiday_closure_proposals
 		WHERE tenant_id = ? AND id = ? AND state = 'open'`
+
+	// Preserve confirmed history when a new source disappears before any
+	// preparation committed. The calendar lock fences even an active lease.
+	withdrawUnpreparedHolidayClosureSQL = `UPDATE calendar.holiday_closure_events
+  SET state = 'no_mail', error_code = 'source_withdrawn', lease_token = NULL, lease_until = NULL,
+   processed_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
+  WHERE tenant_id = ? AND source_kind = ? AND source_id = ?
+   AND state IN ('pending', 'leased') AND processed_at IS NULL`
 
 	holidayClosureNoticeColumns = `proposal.id AS proposal_id, proposal.tenant_id, proposal.organization_id, proposal.source_id,
 		proposal.reason, proposal.previous_start, proposal.previous_end, proposal.current_start, proposal.current_end,
@@ -111,12 +119,12 @@ const (
 	waitingHolidayClosureEventsSQL = `SELECT event.id, event.organization_id, event.tenant_id, event.operation_id::text AS operation_id,
 			event.revision, event.impact_token, event.span_from, event.span_to, '' AS lease_token, event.attempts, event.state
 		FROM calendar.holiday_closure_events AS event
-		WHERE event.organization_id = ? AND event.state IN ('prepared', 'unknown')
+		WHERE event.organization_id = ? AND event.state IN ('prepared', 'unknown', 'failed')
 		ORDER BY event.id`
 	settleHolidayClosureEventsSQL = `UPDATE calendar.holiday_closure_events AS event
   SET state = changes.state, completed_at = CASE WHEN changes.state = 'completed' THEN CURRENT_TIMESTAMP ELSE event.completed_at END
   FROM unnest(?::bigint[], ?::text[]) AS changes(id, state)
-  WHERE event.organization_id = ? AND event.id = changes.id AND event.state IN ('prepared', 'unknown')`
+  WHERE event.organization_id = ? AND event.id = changes.id AND event.state IN ('prepared', 'unknown', 'failed')`
 	retireHolidayClosureEventsSQL = `DELETE FROM calendar.holiday_closure_proposals AS proposal
 		WHERE proposal.organization_id = ?
 			AND ((proposal.state = 'open' AND proposal.span_to < ?)
@@ -201,6 +209,13 @@ func RecordHolidayClosureChange(ctx context.Context, db bun.IDB, schoolID int64,
 	switch {
 	case err == nil:
 		previous := rangeOf(open.PreviousStart, open.PreviousEnd)
+		if previous == nil && change.Current == nil && open.SupersedesEventID != nil {
+			if _, err := db.NewRaw(withdrawUnpreparedHolidayClosureSQL, schoolID, change.SourceKind, change.SourceID).Exec(ctx); err != nil {
+				return wrapProposal(err)
+			}
+			_, err = db.NewRaw(dropHolidayClosureProposalSQL, schoolID, open.ID).Exec(ctx)
+			return wrapProposal(err)
+		}
 		if sameRange(previous, change.Current) && open.SupersedesEventID == nil {
 			_, err = db.NewRaw(dropHolidayClosureProposalSQL, schoolID, open.ID).Exec(ctx)
 			return wrapProposal(err)
@@ -226,6 +241,10 @@ func RecordHolidayClosureChange(ctx context.Context, db bun.IDB, schoolID int64,
 		change.Previous = rangeOf(unprocessed.PreviousStart, unprocessed.PreviousEnd)
 		from, to = min(from, unprocessed.SpanFrom), max(to, unprocessed.SpanTo)
 	case !errors.Is(err, sql.ErrNoRows):
+		return wrapProposal(err)
+	}
+	if change.Previous == nil && change.Current == nil {
+		_, err = db.NewRaw(withdrawUnpreparedHolidayClosureSQL, schoolID, change.SourceKind, change.SourceID).Exec(ctx)
 		return wrapProposal(err)
 	}
 	_, err = db.NewRaw(insertHolidayClosureProposalSQL, schoolID, change.SourceKind, change.SourceID, change.Reason,

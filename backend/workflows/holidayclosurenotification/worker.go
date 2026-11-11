@@ -161,7 +161,7 @@ func errorCode(err error) string {
 	}
 }
 
-// settle moves prepared and unknown commands to the state their mails
+// settle moves prepared, unknown and failed commands to the state their mails
 // reached and retires finished commands after 30 days.
 func (s *Service) settle(ctx context.Context, organizationID int64) error {
 	return s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
