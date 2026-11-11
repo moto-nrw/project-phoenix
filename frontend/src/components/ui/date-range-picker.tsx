@@ -141,6 +141,24 @@ export function DateRangePicker({
     };
   }, [isOpen]);
 
+  // An overlay can open above the calendar without a click (keyboard, code).
+  // The calendar's popover level would paint over it and take its clicks, so
+  // the panel stays open but hidden and inert until that overlay closes.
+  // Overlays portal straight into body, so its child list is enough to watch.
+  const [isCovered, setIsCovered] = useState(false);
+  useEffect(() => {
+    if (!isOpen) return;
+    const update = () =>
+      setIsCovered(isBehindActiveOverlay(containerRef.current));
+    update();
+    const observer = new MutationObserver(update);
+    observer.observe(document.body, { childList: true });
+    return () => {
+      observer.disconnect();
+      setIsCovered(false);
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
@@ -282,6 +300,7 @@ export function DateRangePicker({
         <RangeCalendar
           triggerRef={triggerRef}
           panelRef={panelRef}
+          covered={isCovered}
           value={value}
           presets={presets}
           fromMin={fromMin}
@@ -334,10 +353,13 @@ function formatRangeLabel(range: DateRange | undefined): string {
 function RangeCalendar({
   triggerRef,
   panelRef,
+  covered,
   ...props
 }: RangeCalendarProps & {
   readonly triggerRef: React.RefObject<HTMLElement | null>;
   readonly panelRef: React.RefObject<HTMLDivElement | null>;
+  /** A higher overlay lies above: keep the panel, but hidden and inert. */
+  readonly covered: boolean;
 }) {
   const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
   const [isNarrowViewport, setIsNarrowViewport] = useState<boolean | null>(
@@ -413,15 +435,22 @@ function RangeCalendar({
       data-range-panel
       // A dialog locks the page scroll; the panel scrolls like `DatePicker`'s.
       {...SCROLL_AREA_PROPS}
+      inert={covered}
       className={`fixed ${Z_LAYER.popover} moto-popover-surface max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry
           ? {
               ...narrowStyle,
               pointerEvents: "auto",
-              visibility: isNarrowViewport === null ? "hidden" : undefined,
+              visibility:
+                covered || isNarrowViewport === null ? "hidden" : undefined,
             }
-          : { top: geometry.top, left: geometry.left, pointerEvents: "auto" }
+          : {
+              top: geometry.top,
+              left: geometry.left,
+              pointerEvents: "auto",
+              visibility: covered ? "hidden" : undefined,
+            }
       }
     >
       <RangeCalendarInline {...props} />
