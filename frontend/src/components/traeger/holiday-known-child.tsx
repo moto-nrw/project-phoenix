@@ -6,14 +6,8 @@
 // Daten der Schule, nur ihren Namen. Jeder Abgleich steht im Protokoll, die
 // Seite fragt deshalb nur, was sie zeigt.
 
-import { School } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
-import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
+import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { createLogger } from "~/lib/logger";
 import {
   fetchHolidayKnownChildren,
@@ -73,60 +67,6 @@ function registeredAs(child: HolidayRegistrationChild): string {
 }
 
 /**
- * The hint in the card of a child. The same school is a plaque; another
- * school asks the office to check the child's school and offers the change
- * of its details.
- */
-export function KnownChildNotice({
-  child,
-  view,
-  names,
-  onEdit,
-}: Readonly<{
-  child: HolidayRegistrationChild;
-  view: KnownChildView;
-  names: ReadonlyMap<string, string>;
-  onEdit?: () => void;
-}>) {
-  if (view.sameSchool) {
-    return (
-      <StatusBadge
-        tone={view.tone}
-        label={view.label}
-        icon={School}
-        title={view.title}
-        wrap
-      />
-    );
-  }
-  const named =
-    child.homeSchoolId === null
-      ? `Angemeldet ist ${child.firstName} als Feriengast.`
-      : `In der Anmeldung steht die Schule „${names.get(child.homeSchoolId) ?? "nicht mehr vorhanden"}“.`;
-  return (
-    <Alert
-      type="info"
-      icon={<School aria-hidden className="size-5" />}
-      message={`Die Schule „${view.schoolName}“ führt ein Kind mit gleichem Namen und Geburtsdatum. ${named} Bitte prüfen Sie die Schule.`}
-      actionLayout="responsive"
-      action={
-        onEdit ? (
-          <Button
-            type="button"
-            variant="ghost_tone"
-            size="compact"
-            aria-label={`Schule von ${child.firstName} ${child.lastName} ändern`}
-            onClick={onEdit}
-          >
-            Schule ändern
-          </Button>
-        ) : undefined
-      }
-    />
-  );
-}
-
-/**
  * The names and dates of birth of the children, the only details the
  * comparison depends on: a key that asks again after they changed, and
  * not after every other change of the registration.
@@ -153,7 +93,12 @@ export function useHolidayKnownChildren(
   registrationId?: string,
   children?: string,
 ): ReadonlyMap<string, string> {
-  const [known, setKnown] = useState(NO_KNOWN_CHILDREN);
+  const [known, setKnown] = useState<{
+    periodId: string;
+    registrationId: string | undefined;
+    children: string | undefined;
+    matches: ReadonlyMap<string, string>;
+  } | null>(null);
   useEffect(() => {
     if (!periodId || children === "") return;
     let current = true;
@@ -168,12 +113,18 @@ export function useHolidayKnownChildren(
           error: err instanceof Error ? err.message : String(err),
         });
       }
-      if (current) setKnown(next);
+      if (current) {
+        setKnown({ periodId, registrationId, children, matches: next });
+      }
     };
     void load();
     return () => {
       current = false;
     };
   }, [periodId, registrationId, children]);
-  return known;
+  return known?.periodId === periodId &&
+    known.registrationId === registrationId &&
+    known.children === children
+    ? known.matches
+    : NO_KNOWN_CHILDREN;
 }

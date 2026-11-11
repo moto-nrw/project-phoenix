@@ -5,6 +5,7 @@
 // eine Schule des Trägers, die das Kind kennt (#6683). Hier
 // bucht das Träger-Büro das Kind um und ändert seine Angaben (#5629).
 
+import { School } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
@@ -50,7 +51,7 @@ import {
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "./holiday-placement";
 import { HolidayWishSection } from "./holiday-wish";
-import { KnownChildNotice, knownChildView } from "./holiday-known-child";
+import { knownChildView } from "./holiday-known-child";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -159,6 +160,10 @@ export function HolidayRegistrationChildCard({
   if (editor) return editor;
   // A cancelled registration needs no check of the school.
   const known = cancelled ? null : knownChildView(child, knownSchoolId, names);
+  const namedSchool =
+    child.homeSchoolId === null
+      ? `Angemeldet ist ${child.firstName} als Feriengast.`
+      : `In der Anmeldung steht die Schule „${names.get(child.homeSchoolId) ?? "nicht mehr vorhanden"}“.`;
 
   return (
     <SectionCard
@@ -192,12 +197,33 @@ export function HolidayRegistrationChildCard({
       }
     >
       <div className="space-y-4">
-        {known ? (
-          <KnownChildNotice
-            child={child}
-            view={known}
-            names={names}
-            onEdit={draft ? undefined : onEdit}
+        {known?.sameSchool ? (
+          <StatusBadge
+            tone={known.tone}
+            label={known.label}
+            icon={School}
+            title={known.title}
+            wrap
+          />
+        ) : known ? (
+          <Alert
+            type="info"
+            icon={<School aria-hidden className="size-5" />}
+            message={`Die Schule „${known.schoolName}“ führt ein Kind mit gleichem Namen und Geburtsdatum. ${namedSchool} Bitte prüfen Sie die Schule.`}
+            actionLayout="responsive"
+            action={
+              !draft && onEdit ? (
+                <Button
+                  type="button"
+                  variant="ghost_tone"
+                  size="compact"
+                  aria-label={`Schule von ${child.firstName} ${child.lastName} ändern`}
+                  onClick={onEdit}
+                >
+                  Schule ändern
+                </Button>
+              ) : undefined
+            }
           />
         ) : null}
         {child.duplicateRegistrationIds.length > 0 ? (

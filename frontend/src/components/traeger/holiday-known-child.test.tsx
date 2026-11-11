@@ -1,4 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import {
@@ -6,10 +13,17 @@ import {
   HOLIDAY_REGISTRATION,
 } from "~/test/fixtures/holiday-registrations";
 import { HolidayRegistrationChildCard } from "./holiday-registration-child-card";
-import { knownChildrenKey, knownChildView } from "./holiday-known-child";
+import {
+  knownChildrenKey,
+  knownChildView,
+  useHolidayKnownChildren,
+} from "./holiday-known-child";
 import { schoolNames } from "./holiday-registration-format";
 
-vi.mock("~/lib/traeger-holiday-registrations-api", () => ({}));
+const { mockFetchKnown } = vi.hoisted(() => ({ mockFetchKnown: vi.fn() }));
+vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
+  fetchHolidayKnownChildren: mockFetchKnown,
+}));
 
 const names = schoolNames([
   { id: "31", name: "OGS Nord", slug: "nord", subdomain: "nord", city: "" },
@@ -115,5 +129,70 @@ describe("hint on a known child (#6683)", () => {
       ),
     ).not.toBe(key);
     expect(knownChildrenKey(undefined)).toBe("");
+  });
+});
+
+describe("known-child comparison inputs", () => {
+  beforeEach(() => mockFetchKnown.mockReset());
+
+  it.each([
+    { firstName: "Neu" },
+    { lastName: "Neu" },
+    { birthDate: "2018-01-01" },
+  ])(
+    "hides the old match while an identity correction is checked: %o",
+    async (correction) => {
+      const initial = new Map([["9", "31"]]);
+      const updated = new Map([["9", "32"]]);
+      let finish!: (matches: ReadonlyMap<string, string>) => void;
+      mockFetchKnown.mockResolvedValueOnce(initial).mockReturnValueOnce(
+        new Promise<ReadonlyMap<string, string>>((resolve) => {
+          finish = resolve;
+        }),
+      );
+      const { result, rerender } = renderHook(
+        ({ children }) => useHolidayKnownChildren("5", "7", children),
+        {
+          initialProps: {
+            children: knownChildrenKey(HOLIDAY_REGISTRATION.children),
+          },
+        },
+      );
+      await waitFor(() => expect(result.current).toEqual(initial));
+
+      rerender({
+        children: knownChildrenKey(
+          HOLIDAY_REGISTRATION.children.map((child) => ({
+            ...child,
+            ...correction,
+          })),
+        ),
+      });
+      expect(mockFetchKnown).toHaveBeenCalledTimes(2);
+      expect(result.current.size).toBe(0);
+
+      await act(async () => finish(updated));
+      expect(result.current).toEqual(updated);
+    },
+  );
+
+  it("ignores an earlier response after switching registrations", async () => {
+    let finishEarlier!: (matches: ReadonlyMap<string, string>) => void;
+    mockFetchKnown.mockReturnValueOnce(
+      new Promise<ReadonlyMap<string, string>>((resolve) => {
+        finishEarlier = resolve;
+      }),
+    );
+    const current = new Map([["10", "32"]]);
+    mockFetchKnown.mockResolvedValueOnce(current);
+    const { result, rerender } = renderHook(
+      ({ registrationId }) => useHolidayKnownChildren("5", registrationId),
+      { initialProps: { registrationId: "7" } },
+    );
+    rerender({ registrationId: "8" });
+    await waitFor(() => expect(result.current).toEqual(current));
+
+    await act(async () => finishEarlier(new Map([["9", "31"]])));
+    expect(result.current).toEqual(current);
   });
 });
