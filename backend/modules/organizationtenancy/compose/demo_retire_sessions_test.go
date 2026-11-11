@@ -51,7 +51,7 @@ func TestDemoRetirementEndsTheSessionsOfTheSchoolItHides(t *testing.T) {
 	defer func() { _ = holder.Rollback() }()
 	require.NoError(t, stateRow(order.slug)(ctx, holder))
 
-	hidden, erased := retireNow(t, order.queue, nil)
+	hidden, erased := retireNow(t, order.db, order.queue, nil)
 
 	require.Equal(t, 1, hidden)
 	assert.Zero(t, erased, "the visitor erasure waits for the state row")
@@ -77,7 +77,7 @@ func TestDemoRetirementDefersASchoolWhoseSessionIsInUse(t *testing.T) {
 	require.NoError(t, statement(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, colleague)(ctx, holder))
 	require.NoError(t, statement(`SELECT id FROM auth.tokens WHERE account_id = ? AND tenant_id = ? FOR UPDATE`, colleague, order.schoolID)(ctx, holder))
 
-	hidden, erased := retireNow(t, order.queue, []string{order.slug})
+	hidden, erased := retireNow(t, order.db, order.queue, []string{order.slug})
 
 	assert.Zero(t, hidden, "the school waits for the next run")
 	assert.Zero(t, erased)
@@ -88,7 +88,7 @@ func TestDemoRetirementDefersASchoolWhoseSessionIsInUse(t *testing.T) {
 	assert.Equal(t, 1, deferrals, "one deferral, one log line")
 
 	require.NoError(t, holder.Rollback())
-	hidden, _ = retireNow(t, order.queue, nil)
+	hidden, _ = retireNow(t, order.db, order.queue, nil)
 	assert.Equal(t, 1, hidden, "the next run finds the order without being told")
 	assert.Equal(t, "[]", schoolSessions(t, order.db, order.schoolID))
 }

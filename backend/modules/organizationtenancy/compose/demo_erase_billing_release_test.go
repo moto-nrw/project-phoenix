@@ -68,6 +68,7 @@ func TestDemoErasureIncludesAConcurrentBillingRelease(t *testing.T) {
 	order := newHiddenDemoOrder(t)
 	withoutIssuedInvoice(t, order)
 	release, documentID := pendingBillingRelease(t, order)
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error
@@ -103,7 +104,7 @@ func TestDemoErasureDefersABillingReleaseThatKeepsItsLock(t *testing.T) {
 	before := order.snapshot(t)
 	release, documentID := pendingBillingRelease(t, order)
 
-	_, erased := retireNow(t, order.queue, nil)
+	_, erased := retireNow(t, order.db, order.queue, nil)
 	assert.Zero(t, erased)
 	assert.Equal(t, before, order.snapshot(t), "the deferred order is unchanged")
 	assert.Equal(t, 1, visitorTraces(t, order.db, order.schoolID)["enrollment.holiday_registrations"], "the registration stays for the next run")
@@ -146,6 +147,7 @@ func TestDemoErasureIncludesAConcurrentLetterSend(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	send, mailID := pendingLetterSend(t, order)
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error
@@ -244,6 +246,7 @@ func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 			SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM document)
 		SELECT id FROM document`, order.schoolID, visitorFirst, visitorLast, runID).Scan(ctx, &documentID))
 
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error
@@ -342,6 +345,7 @@ func TestDemoErasureWaitsForAConcurrentCorrection(t *testing.T) {
 			-total_cents, 'cancellation', id, 'Storno'
 		FROM parent_billing.documents, period WHERE number = 'F-' || ?0 RETURNING id`, order.schoolID, "holiday", runID).Scan(ctx, &cancellationID))
 
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error

@@ -49,6 +49,7 @@ func TestDemoErasureIncludesAConcurrentContractSend(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	sender, mailID, eventID := pendingContractSend(t, order)
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error
@@ -85,7 +86,7 @@ func TestDemoErasureDefersAContractSendThatKeepsItsLock(t *testing.T) {
 	contracts := careContractRows(t, order.db, order.schoolID)
 	sender, mailID, _ := pendingContractSend(t, order)
 
-	_, erased := retireNow(t, order.queue, nil)
+	_, erased := retireNow(t, order.db, order.queue, nil)
 	assert.Zero(t, erased)
 	assert.Equal(t, before, order.snapshot(t), "the deferred order is unchanged")
 	assert.Equal(t, contracts, careContractRows(t, order.db, order.schoolID), "contract cleanup rolls back too")
