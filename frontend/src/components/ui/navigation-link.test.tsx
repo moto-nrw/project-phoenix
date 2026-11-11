@@ -3,8 +3,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 
 import { ButtonLink } from "./button";
-import { NavLink } from "./nav-link";
-import { HOVER_PREFETCH_DELAY_MS } from "./navigation-link";
+import NavigationLink from "./navigation-link";
+import { HOVER_PREFETCH_DELAY_MS } from "./use-link-intent-prefetch";
 
 const linkProps = vi.fn();
 
@@ -32,15 +32,15 @@ function currentPrefetch(): boolean | null | undefined {
 }
 
 describe.each([
-  { name: "NavLink", Link: NavLink },
+  { name: "NavigationLink", Link: NavigationLink },
   { name: "ButtonLink", Link: ButtonLink },
-])("$name", ({ Link: NavLink }) => {
+])("$name", ({ Link }) => {
   beforeEach(() => {
     linkProps.mockClear();
   });
 
   it("switches the viewport prefetch of next/link off", () => {
-    render(<NavLink href="/rooms">Räume</NavLink>);
+    render(<Link href="/rooms">Räume</Link>);
 
     expect(screen.getByRole("link", { name: "Räume" })).toHaveAttribute(
       "href",
@@ -52,7 +52,7 @@ describe.each([
 
   it("prefetches the full page once the mouse rests on the link", () => {
     vi.useFakeTimers();
-    render(<NavLink href="/rooms">Räume</NavLink>);
+    render(<Link href="/rooms">Räume</Link>);
 
     fireEvent.pointerEnter(screen.getByRole("link", { name: "Räume" }), {
       pointerType: "mouse",
@@ -66,7 +66,7 @@ describe.each([
 
   it("does not prefetch when the mouse only passes over the link", () => {
     vi.useFakeTimers();
-    render(<NavLink href="/rooms">Räume</NavLink>);
+    render(<Link href="/rooms">Räume</Link>);
 
     const link = screen.getByRole("link", { name: "Räume" });
     fireEvent.pointerEnter(link, { pointerType: "mouse" });
@@ -80,7 +80,7 @@ describe.each([
   it.each(["touch", "pen"])(
     "prefetches at once when %s starts on the link",
     (pointerType) => {
-      render(<NavLink href="/rooms">Räume</NavLink>);
+      render(<Link href="/rooms">Räume</Link>);
 
       fireEvent.pointerEnter(screen.getByRole("link", { name: "Räume" }), {
         pointerType,
@@ -91,7 +91,7 @@ describe.each([
   );
 
   it("prefetches when the link receives keyboard focus", () => {
-    render(<NavLink href="/staff">Mitarbeitende</NavLink>);
+    render(<Link href="/staff">Mitarbeitende</Link>);
 
     fireEvent.focus(screen.getByRole("link", { name: "Mitarbeitende" }));
 
@@ -105,7 +105,7 @@ describe.each([
     "requires fresh intent after href changes following %s",
     (intent) => {
       vi.useFakeTimers();
-      const { rerender } = render(<NavLink href="/rooms">Ziel</NavLink>);
+      const { rerender } = render(<Link href="/rooms">Ziel</Link>);
       const link = screen.getByRole("link", { name: "Ziel" });
       if (intent === "focus") {
         fireEvent.focus(link);
@@ -116,13 +116,13 @@ describe.each([
       expect(currentPrefetch()).toBe(true);
 
       linkProps.mockClear();
-      rerender(<NavLink href="/staff">Ziel</NavLink>);
+      rerender(<Link href="/staff">Ziel</Link>);
       expect(link).toHaveAttribute("href", "/staff");
       expect(
         linkProps.mock.calls.every(([props]) => props.prefetch === false),
       ).toBe(true);
 
-      rerender(<NavLink href="/rooms">Ziel</NavLink>);
+      rerender(<Link href="/rooms">Ziel</Link>);
       expect(currentPrefetch()).toBe(false);
       fireEvent.focus(link);
       expect(currentPrefetch()).toBe(true);
@@ -131,12 +131,12 @@ describe.each([
 
   it("cancels a pending hover when href changes", () => {
     vi.useFakeTimers();
-    const { rerender } = render(<NavLink href="/rooms">Ziel</NavLink>);
+    const { rerender } = render(<Link href="/rooms">Ziel</Link>);
     const link = screen.getByRole("link", { name: "Ziel" });
     fireEvent.pointerEnter(link, { pointerType: "mouse" });
     act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS / 2));
 
-    rerender(<NavLink href="/staff">Ziel</NavLink>);
+    rerender(<Link href="/staff">Ziel</Link>);
     expect(link).toHaveAttribute("href", "/staff");
     act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS));
     expect(currentPrefetch()).toBe(false);
@@ -150,28 +150,28 @@ describe.each([
 
   it("resets intent and cancels pending hover when target changes", () => {
     vi.useFakeTimers();
-    const { rerender } = render(<NavLink href="/rooms">Ziel</NavLink>);
+    const { rerender } = render(<Link href="/rooms">Ziel</Link>);
     const link = screen.getByRole("link", { name: "Ziel" });
     fireEvent.pointerEnter(link, { pointerType: "mouse" });
     rerender(
-      <NavLink href="/rooms" target="_blank">
+      <Link href="/rooms" target="_blank">
         Ziel
-      </NavLink>,
+      </Link>,
     );
     act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS));
     expect(currentPrefetch()).toBe(false);
 
-    rerender(<NavLink href="/rooms">Ziel</NavLink>);
+    rerender(<Link href="/rooms">Ziel</Link>);
     fireEvent.focus(link);
     expect(currentPrefetch()).toBe(true);
     rerender(
-      <NavLink href="/rooms" target="_blank">
+      <Link href="/rooms" target="_blank">
         Ziel
-      </NavLink>,
+      </Link>,
     );
     expect(link).toHaveAttribute("target", "_blank");
     expect(currentPrefetch()).toBe(false);
-    rerender(<NavLink href="/rooms">Ziel</NavLink>);
+    rerender(<Link href="/rooms">Ziel</Link>);
     expect(currentPrefetch()).toBe(false);
   });
 
@@ -180,14 +180,14 @@ describe.each([
     const onPointerLeave = vi.fn();
     const onFocus = vi.fn();
     render(
-      <NavLink
+      <Link
         href="/rooms"
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
         onFocus={onFocus}
       >
         Räume
-      </NavLink>,
+      </Link>,
     );
 
     const link = screen.getByRole("link", { name: "Räume" });
@@ -204,9 +204,9 @@ describe.each([
   it("never prefetches links that open a new tab", () => {
     vi.useFakeTimers();
     render(
-      <NavLink href="/help" target="_blank" rel="noopener noreferrer">
+      <Link href="/help" target="_blank" rel="noopener noreferrer">
         Hilfe
-      </NavLink>,
+      </Link>,
     );
 
     const link = screen.getByRole("link", { name: "Hilfe" });
@@ -222,9 +222,9 @@ describe.each([
   it("never prefetches hrefs that are not same-origin paths", () => {
     render(
       <>
-        <NavLink href="https://example.org/extern">Extern</NavLink>
-        <NavLink href="//example.org/extern">Protokollrelativ</NavLink>
-        <NavLink href="mailto:info@example.org">Mail</NavLink>
+        <Link href="https://example.org/extern">Extern</Link>
+        <Link href="//example.org/extern">Protokollrelativ</Link>
+        <Link href="mailto:info@example.org">Mail</Link>
       </>,
     );
 
@@ -242,14 +242,14 @@ describe.each([
   it("passes className, aria and click handlers through to the anchor", () => {
     const onClick = vi.fn();
     render(
-      <NavLink
+      <Link
         href="/rooms"
         className="nav-item"
         aria-label="Räume öffnen"
         onClick={onClick}
       >
         Räume
-      </NavLink>,
+      </Link>,
     );
 
     const link = screen.getByRole("link", { name: "Räume öffnen" });

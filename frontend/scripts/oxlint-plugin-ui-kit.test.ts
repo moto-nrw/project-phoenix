@@ -2248,7 +2248,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
   it("follows aliased link imports", async () => {
     const result = await lintSource(
       `import AppLink from "next/link";
-      import { NavLink as SidebarLink } from "~/components/ui/nav-link";
+      import SidebarLink from "~/components/ui/navigation-link";
       import ProgressLink from "~/components/ui/navigation-link";
       function Probe() {
         return <>
@@ -2568,7 +2568,7 @@ describe("ui-kit/no-grey-button-fill", () => {
 
   it("accepts state tints, tracks, switches and navigation rows", async () => {
     const result = await lint(
-      `import { NavLink as SideLink } from "~/components/ui/nav-link";
+      `import SideLink from "~/components/ui/navigation-link";
       function Probe({ on }: { on: boolean }) {
         return (
           <>
