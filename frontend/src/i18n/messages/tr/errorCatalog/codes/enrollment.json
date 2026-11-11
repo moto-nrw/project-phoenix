@@ -98,6 +98,7 @@
   "upload_not_found": "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
   "message_required": "Lütfen bir mesaj yazın.",
   "offering_adjustment_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "phase_booking_bounds_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "phase_care_offering_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "phase_has_effective_bookings": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "phase_eligibility_setting_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

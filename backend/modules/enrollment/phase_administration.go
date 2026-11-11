@@ -23,6 +23,9 @@ var (
 	// ErrPhasePendingChildWindowConflict rejects a service-window edit that
 	// would end a pending child's window before it starts (#6505).
 	ErrPhasePendingChildWindowConflict = errors.New("phase change would end a pending child's window before it starts")
+	// ErrPhaseBookingBoundsConflict rejects a service-window edit that would
+	// leave a care offering booking empty (#6597).
+	ErrPhaseBookingBoundsConflict = errors.New("phase change would leave a care offering booking empty")
 )
 
 // Storage refusals of a phase write. The owner marks the database error with
@@ -142,4 +145,23 @@ type PendingWindowMove struct {
 	UntilAfter  Date
 	OtherStarts []Date
 	OtherEnds   []Date
+}
+
+// PhaseBookings is the Care Plan command a phase edit carries the bounds the
+// phase set on its offerings' bookings with (#6597, ADR 0205). The command
+// locks the bookings, decides under those locks which bound is still the
+// phase's and refuses a booking the move would leave empty.
+type PhaseBookings interface {
+	FollowPhaseBookingBounds(ctx context.Context, move PhaseBookingMove) error
+}
+
+// PhaseBookingMove is the phase's service window before and after an edit,
+// with the day of the edit.
+type PhaseBookingMove struct {
+	PhaseID     int64
+	StartBefore calendar.Date
+	StartAfter  calendar.Date
+	EndBefore   calendar.Date
+	EndAfter    calendar.Date
+	Today       calendar.Date
 }

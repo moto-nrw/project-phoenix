@@ -3956,6 +3956,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0205",
+      "id": "roots/owners/enrollmentPhaseBookings.FollowPhaseBookingBounds",
+      "reason": "#6597: Consumer-port adapter of Enrollment's phase edit; it maps the phase window onto Care Plan's guarded booking-bounds command and its refusal of an empty booking onto a conflict of the phase edit."
+    },
+    {
       "decision": "0202",
       "id": "roots/owners/enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
       "reason": "#6505: Consumer-port adapter of Enrollment's phase delete; it reads Care Plan's bookings of the phase's offerings and maps them onto Enrollment's booking rows, read in the caller's tenant transaction under the recurrence gate."

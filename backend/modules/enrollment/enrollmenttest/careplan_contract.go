@@ -61,6 +61,7 @@ var (
 	ErrCareOfferingTemplatePeriodMismatch     = enrollment.ErrCareOfferingTemplatePeriodMismatch
 	ErrCompleteWithdrawalConfirmationRequired = enrollment.ErrCompleteWithdrawalConfirmationRequired
 	ErrOfferingAdjustmentInvalid              = enrollment.ErrOfferingAdjustmentInvalid
+	ErrPhaseBookingBoundsConflict             = enrollment.ErrPhaseBookingBoundsConflict
 )
 
 // NewCareOfferingRows serves Care Plan's catalog administration in

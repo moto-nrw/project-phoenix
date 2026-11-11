@@ -461,6 +461,21 @@ func TestUpdatePhaseHandler_PendingChildWindowConflictReturns409(t *testing.T) {
 	assert.Equal(t, "enrollment.phase_pending_child_window_conflict", body.Code)
 }
 
+// A window edit that would leave a care offering booking empty is refused
+// with its own code (#6597).
+func TestUpdatePhaseHandler_BookingBoundsConflictReturns409(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     fmt.Errorf("phase update: move booking bounds: %w", capability.ErrPhaseBookingBoundsConflict),
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.phase_booking_bounds_conflict"`)
+}
+
 func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 	t.Parallel()
 

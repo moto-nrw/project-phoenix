@@ -98,6 +98,7 @@
   "upload_not_found": "This file no longer exists. Please upload it again.",
   "message_required": "Please write a message.",
   "offering_adjustment_invalid": "{object} could not be saved. Please check your entries.",
+  "phase_booking_bounds_conflict": "{object} could not be changed. Please check its current status.",
   "phase_care_offering_conflict": "{object} could not be changed. Please check its current status.",
   "phase_has_effective_bookings": "{object} could not be changed. Please check its current status.",
   "phase_eligibility_setting_required": "{object} could not be saved. Please check your entries.",

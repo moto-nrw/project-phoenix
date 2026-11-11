@@ -511,6 +511,8 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, common.CodeEnrollmentPhaseCareOfferingConflict)
 	case errors.Is(err, enrollmentOwner.ErrPhasePendingChildWindowConflict):
 		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhasePendingChildWindowConflict, common.CodeEnrollmentPhasePendingChildWindowConflict)
+	case errors.Is(err, enrollmentOwner.ErrPhaseBookingBoundsConflict):
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseBookingBoundsConflict, common.CodeEnrollmentPhaseBookingBoundsConflict)
 	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
 		return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound)
 	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):

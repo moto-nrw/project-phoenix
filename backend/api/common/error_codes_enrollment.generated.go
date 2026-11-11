@@ -124,6 +124,7 @@ const CodeEnrollmentLegalBlockRequiredNotAllowed = "enrollment.legal_block_requi
 const CodeEnrollmentLegalDocumentInvalid = "enrollment.legal_document_invalid"
 const CodeEnrollmentMessageRequired = "enrollment.message_required"
 const CodeEnrollmentOfferingAdjustmentInvalid = "enrollment.offering_adjustment_invalid"
+const CodeEnrollmentPhaseBookingBoundsConflict = "enrollment.phase_booking_bounds_conflict"
 const CodeEnrollmentPhaseCareOfferingConflict = "enrollment.phase_care_offering_conflict"
 const CodeEnrollmentPhaseEligibilitySettingRequired = "enrollment.phase_eligibility_setting_required"
 const CodeEnrollmentPhaseHasEffectiveBookings = "enrollment.phase_has_effective_bookings"
@@ -288,6 +289,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentLegalDocumentInvalid, "input"},
 	{CodeEnrollmentMessageRequired, "input"},
 	{CodeEnrollmentOfferingAdjustmentInvalid, "input"},
+	{CodeEnrollmentPhaseBookingBoundsConflict, "business_rejection"},
 	{CodeEnrollmentPhaseCareOfferingConflict, "business_rejection"},
 	{CodeEnrollmentPhaseEligibilitySettingRequired, "input"},
 	{CodeEnrollmentPhaseHasEffectiveBookings, "business_rejection"},
