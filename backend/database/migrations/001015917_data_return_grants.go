@@ -128,75 +128,7 @@ RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, platfor
 	SELECT pg_advisory_xact_lock(hashtextextended('data-return-archive:' || p_archive, 0));
 $function$;
 
--- A release stores a new archive of an existing school or Träger: it locks
--- that root row FOR KEY SHARE, so a concurrent erasure waits for the commit
--- and then finds the grant (trigger below), and an erased subject is
--- refused. A grant adds a token to a live archive; everything but the
--- recipient, the token and its expiry comes from the archive's own rows.
-CREATE OR REPLACE FUNCTION platform.data_return_issue(
-	p_operator BIGINT, p_action TEXT, p_package TEXT, p_subject BIGINT, p_archive_name TEXT,
-	p_archive_bytes BIGINT, p_archive_sha256 TEXT, p_manifest_sha256 TEXT, p_format_version INTEGER,
-	p_key_check TEXT, p_recipient TEXT, p_recipient_name TEXT, p_token_lookup TEXT, p_wrapped_key BYTEA,
-	p_expires_at TIMESTAMPTZ, p_keep_until TIMESTAMPTZ, p_max_downloads INTEGER)
-RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, platform, pg_temp AS $function$
-DECLARE
-	v_id BIGINT;
-	v_head platform.data_return_grants%ROWTYPE;
-BEGIN
-	PERFORM platform.data_return_require_operator(p_operator);
-	PERFORM platform.data_return_lock_archive(p_archive_name);
-	IF p_action = 'release' THEN
-		IF p_package = 'school' THEN
-			PERFORM 1 FROM platform.schools WHERE id = p_subject FOR KEY SHARE;
-		ELSIF p_package = 'organization' THEN
-			PERFORM 1 FROM platform.organizations WHERE id = p_subject FOR KEY SHARE;
-		END IF;
-		IF NOT FOUND THEN
-			RAISE EXCEPTION 'data return: the school or Träger does not exist or is erased' USING ERRCODE = '55000';
-		END IF;
-		-- An erasure that has begun is no less final than one that is done:
-		-- a school with an erasure order, a Träger whose order has started.
-		-- A recorded Träger order in its grace period does not block: the
-		-- customer may need the return then.
-		IF p_package = 'school' AND EXISTS (SELECT 1 FROM platform.school_erasures WHERE school_id = p_subject)
-			OR p_package = 'organization' AND EXISTS (SELECT 1 FROM platform.organization_erasure_orders
-				WHERE organization_id = p_subject AND started_at IS NOT NULL AND withdrawn_at IS NULL) THEN
-			RAISE EXCEPTION 'data return: the erasure of the school or Träger has begun' USING ERRCODE = '55000';
-		END IF;
-		IF EXISTS (SELECT 1 FROM platform.data_return_grants WHERE archive_name = p_archive_name) THEN
-			RAISE EXCEPTION 'data return: archive already released' USING ERRCODE = '23505';
-		END IF;
-		IF p_keep_until <= now() OR p_keep_until > now() + interval '366 days' THEN
-			RAISE EXCEPTION 'data return: the retrieval period ends within a year' USING ERRCODE = '22023';
-		END IF;
-		v_head.package := p_package; v_head.subject_id := p_subject; v_head.archive_name := p_archive_name;
-		v_head.archive_bytes := p_archive_bytes; v_head.archive_sha256 := p_archive_sha256;
-		v_head.manifest_sha256 := p_manifest_sha256; v_head.format_version := p_format_version;
-		v_head.key_check := p_key_check; v_head.keep_until := p_keep_until;
-	ELSIF p_action = 'grant' THEN
-		SELECT * INTO v_head FROM platform.data_return_grants WHERE archive_name = p_archive_name
-			AND purged_at IS NULL AND keep_until > now() AND key_check = p_key_check ORDER BY id LIMIT 1;
-		IF NOT FOUND THEN
-			RAISE EXCEPTION 'data return: archive purged, expired or unknown' USING ERRCODE = '55000';
-		END IF;
-	ELSE
-		RAISE EXCEPTION 'data return: unknown action' USING ERRCODE = '22023';
-	END IF;
-	IF p_expires_at <= now() OR p_expires_at > now() + interval '30 days' OR p_expires_at > v_head.keep_until THEN
-		RAISE EXCEPTION 'data return: a token lives up to 30 days, within the retrieval period' USING ERRCODE = '22023';
-	END IF;
-	INSERT INTO platform.data_return_grants (package, subject_id, archive_name, archive_bytes, archive_sha256,
-		manifest_sha256, format_version, key_check, recipient, recipient_name, token_lookup, wrapped_key,
-		issued_by, expires_at, keep_until, max_downloads)
-	VALUES (v_head.package, v_head.subject_id, v_head.archive_name, v_head.archive_bytes, v_head.archive_sha256,
-		v_head.manifest_sha256, v_head.format_version, v_head.key_check, p_recipient, p_recipient_name,
-		p_token_lookup, p_wrapped_key, p_operator, p_expires_at, v_head.keep_until, p_max_downloads)
-	RETURNING id INTO v_id;
-	PERFORM platform.data_return_audit(p_operator, p_action, v_head.package, v_head.subject_id, jsonb_build_object(
-		'grant_id', v_id, 'archive_name', v_head.archive_name, 'manifest_sha256', v_head.manifest_sha256,
-		'recipient', p_recipient, 'expires_at', p_expires_at, 'keep_until', v_head.keep_until));
-	RETURN v_id;
-END $function$;
+` + dataReturnIssueHeadSQL + dataReturnIssueRootLockSQL + dataReturnIssueErasureBegunSQL + dataReturnIssueTailSQL + `
 
 -- What a further grant needs of a live archive; no token, no wrapped key.
 CREATE OR REPLACE FUNCTION platform.data_return_archive(p_operator BIGINT, p_archive_name TEXT)
@@ -368,6 +300,84 @@ COMMENT ON TABLE platform.data_return_grants IS
 COMMENT ON TABLE platform.data_return_downloads IS
 	'One retrieval of a released return package with its outcome (ADR 0203).';
 `
+
+// data_return_issue in four parts, so that a later migration adds a lock
+// alone: the function up to the release branch, the lock on the root row,
+// the check for an erasure that has begun, and the rest.
+const (
+	dataReturnIssueHeadSQL = `-- A release stores a new archive of an existing school or Träger: it locks
+-- that root row FOR KEY SHARE, so a concurrent erasure waits for the commit
+-- and then finds the grant (trigger below), and an erased subject is
+-- refused. A grant adds a token to a live archive; everything but the
+-- recipient, the token and its expiry comes from the archive's own rows.
+CREATE OR REPLACE FUNCTION platform.data_return_issue(
+	p_operator BIGINT, p_action TEXT, p_package TEXT, p_subject BIGINT, p_archive_name TEXT,
+	p_archive_bytes BIGINT, p_archive_sha256 TEXT, p_manifest_sha256 TEXT, p_format_version INTEGER,
+	p_key_check TEXT, p_recipient TEXT, p_recipient_name TEXT, p_token_lookup TEXT, p_wrapped_key BYTEA,
+	p_expires_at TIMESTAMPTZ, p_keep_until TIMESTAMPTZ, p_max_downloads INTEGER)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, platform, pg_temp AS $function$
+DECLARE
+	v_id BIGINT;
+	v_head platform.data_return_grants%ROWTYPE;
+BEGIN
+	PERFORM platform.data_return_require_operator(p_operator);
+	PERFORM platform.data_return_lock_archive(p_archive_name);
+	IF p_action = 'release' THEN
+`
+	dataReturnIssueRootLockSQL = `		IF p_package = 'school' THEN
+			PERFORM 1 FROM platform.schools WHERE id = p_subject FOR KEY SHARE;
+		ELSIF p_package = 'organization' THEN
+			PERFORM 1 FROM platform.organizations WHERE id = p_subject FOR KEY SHARE;
+		END IF;
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'data return: the school or Träger does not exist or is erased' USING ERRCODE = '55000';
+		END IF;
+`
+	dataReturnIssueErasureBegunSQL = `		-- An erasure that has begun is no less final than one that is done:
+		-- a school with an erasure order, a Träger whose order has started.
+		-- A recorded Träger order in its grace period does not block: the
+		-- customer may need the return then.
+		IF p_package = 'school' AND EXISTS (SELECT 1 FROM platform.school_erasures WHERE school_id = p_subject)
+			OR p_package = 'organization' AND EXISTS (SELECT 1 FROM platform.organization_erasure_orders
+				WHERE organization_id = p_subject AND started_at IS NOT NULL AND withdrawn_at IS NULL) THEN
+			RAISE EXCEPTION 'data return: the erasure of the school or Träger has begun' USING ERRCODE = '55000';
+		END IF;
+`
+	dataReturnIssueTailSQL = `		IF EXISTS (SELECT 1 FROM platform.data_return_grants WHERE archive_name = p_archive_name) THEN
+			RAISE EXCEPTION 'data return: archive already released' USING ERRCODE = '23505';
+		END IF;
+		IF p_keep_until <= now() OR p_keep_until > now() + interval '366 days' THEN
+			RAISE EXCEPTION 'data return: the retrieval period ends within a year' USING ERRCODE = '22023';
+		END IF;
+		v_head.package := p_package; v_head.subject_id := p_subject; v_head.archive_name := p_archive_name;
+		v_head.archive_bytes := p_archive_bytes; v_head.archive_sha256 := p_archive_sha256;
+		v_head.manifest_sha256 := p_manifest_sha256; v_head.format_version := p_format_version;
+		v_head.key_check := p_key_check; v_head.keep_until := p_keep_until;
+	ELSIF p_action = 'grant' THEN
+		SELECT * INTO v_head FROM platform.data_return_grants WHERE archive_name = p_archive_name
+			AND purged_at IS NULL AND keep_until > now() AND key_check = p_key_check ORDER BY id LIMIT 1;
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'data return: archive purged, expired or unknown' USING ERRCODE = '55000';
+		END IF;
+	ELSE
+		RAISE EXCEPTION 'data return: unknown action' USING ERRCODE = '22023';
+	END IF;
+	IF p_expires_at <= now() OR p_expires_at > now() + interval '30 days' OR p_expires_at > v_head.keep_until THEN
+		RAISE EXCEPTION 'data return: a token lives up to 30 days, within the retrieval period' USING ERRCODE = '22023';
+	END IF;
+	INSERT INTO platform.data_return_grants (package, subject_id, archive_name, archive_bytes, archive_sha256,
+		manifest_sha256, format_version, key_check, recipient, recipient_name, token_lookup, wrapped_key,
+		issued_by, expires_at, keep_until, max_downloads)
+	VALUES (v_head.package, v_head.subject_id, v_head.archive_name, v_head.archive_bytes, v_head.archive_sha256,
+		v_head.manifest_sha256, v_head.format_version, v_head.key_check, p_recipient, p_recipient_name,
+		p_token_lookup, p_wrapped_key, p_operator, p_expires_at, v_head.keep_until, p_max_downloads)
+	RETURNING id INTO v_id;
+	PERFORM platform.data_return_audit(p_operator, p_action, v_head.package, v_head.subject_id, jsonb_build_object(
+		'grant_id', v_id, 'archive_name', v_head.archive_name, 'manifest_sha256', v_head.manifest_sha256,
+		'recipient', p_recipient, 'expires_at', p_expires_at, 'keep_until', v_head.keep_until));
+	RETURN v_id;
+END $function$;`
+)
 
 // dataReturnGrantsDownSQL keeps the role: roles are cluster-wide and may
 // hold logins, like phoenix_school_erasure, whose rollback drops none.
