@@ -192,6 +192,7 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
 import { PhasesEditor } from "./phases-editor";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
   phase,
   schema,
@@ -479,6 +480,40 @@ describe("PhasesEditor", () => {
         expect.objectContaining({ object: "die Anmeldephase" }),
       ),
     );
+  });
+
+  // #6652: the status change holds once the write is through; a failed
+  // reload is a load error that says the change is saved, no action error.
+  it("keeps a status change when the reload fails", async () => {
+    mocks.listPhases
+      .mockReset()
+      .mockResolvedValueOnce([phase()])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([phase({ is_active: false })]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(phase({ is_active: false }));
+
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deaktivieren" }),
+    );
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldephasen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.showActionError).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mocks.listPhases).toHaveBeenCalledTimes(3));
+    expect(mocks.updatePhase).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a failed delete in the open dialog (#2515)", async () => {
