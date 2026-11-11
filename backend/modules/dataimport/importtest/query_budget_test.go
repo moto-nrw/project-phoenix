@@ -72,6 +72,46 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	t.Logf("import statements: %d rows -> %d, %d rows -> %d", studentBatchRows, smallImport, len(large), counter.Total())
 }
 
+// TestStudentImportWithoutGuardianEmailQueryBudget pins the statements of a
+// ten- and a 110-row create import whose guardians carry no e-mail, after
+// the warmups of TestStudentImportBatchQueryBudget: the chunk executor
+// bundles those guardians per segment (#5552 step 5c).
+func TestStudentImportWithoutGuardianEmailQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	ctx := counter.Context(testpkg.Ctx(t))
+	run := func(rows []importModels.StudentImportRow, dryRun bool) {
+		t.Helper()
+		counter.Reset()
+		result, err := module.Import.ImportBatches(ctx, importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows: rows, Mode: importModels.ImportModeCreate, DryRun: dryRun, UserID: actor.staffID, SkipInvalidRows: true,
+		}, importModels.BatchAudit{EntityType: "student", Filename: "budget.csv", AccountID: actor.accountID})
+		require.NoError(t, err)
+		require.Zero(t, result.ErrorCount)
+	}
+	withoutEmail := func(iteration, n int) []importModels.StudentImportRow {
+		rows := studentBatch(iteration, n)
+		for i := range rows {
+			rows[i].Guardians[0].Email = ""
+		}
+		return rows
+	}
+	for iteration := range 2 {
+		rows := withoutEmail(iteration, studentBatchRows)
+		run(rows, true)
+		run(rows, false)
+	}
+	run(withoutEmail(2, studentBatchRows), false)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_without_guardian_email", counter.Measurement(counter.Queries()))
+	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new profiles need no phone read")
+	run(withoutEmail(3, 11*studentBatchRows), false)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_without_guardian_email_110", counter.Measurement(counter.Queries()))
+}
+
 // studentBatchRows is the size of the budgeted and measured import file.
 const studentBatchRows = 10
 

@@ -148,6 +148,7 @@
   "holiday_booking_unit_booked": "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
   "holiday_child_day_limit": "W te ferie dziecko może przyjść najwyżej {limit} dni. {elsewhere, plural, =0 {Wybrano {days}.} other {Razem z innym zgłoszeniem tego dziecka byłoby to {days} dni. Tam zgłoszono już dni: #.}} Wybierz mniej dni.",
   "holiday_weeks_booked_together": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "holiday_week_day_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "hosted_holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_guest_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

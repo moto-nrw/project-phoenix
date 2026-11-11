@@ -159,7 +159,7 @@ func (e *tenantExporter) start(ctx context.Context, options organizationtenancy.
 	if err = json.Unmarshal(source, &r.catalog); err != nil {
 		return nil, errors.New("tenant export: invalid catalog")
 	}
-	r.manifest = organizationtenancy.ExportManifest{FormatVersion: 1, CatalogVersion: r.catalog.Version, CatalogSHA256: r.fingerprints.Bytes(source)}
+	r.manifest = organizationtenancy.ExportManifest{FormatVersion: organizationtenancy.ExportFormatVersion, CatalogVersion: r.catalog.Version, CatalogSHA256: r.fingerprints.Bytes(source)}
 	r.tx, err = e.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
 	if err != nil {
 		return nil, errors.New("tenant export: cannot open read-only snapshot")

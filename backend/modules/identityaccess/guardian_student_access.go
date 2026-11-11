@@ -40,3 +40,14 @@ type GuardianStudentAccess interface {
 	// relationship and reports whether it has an access row in that school.
 	SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error)
 }
+
+// GuardianStudentAccessBatches records the access halves of many new
+// relationships at once (#5552, ADR 0067 addendum of 2026-11-08, point 3:
+// part of People Directory's LinkGuardiansToStudents). It is a leaf command
+// outside GuardianStudentAccess; People Directory's root binding asserts it.
+type GuardianStudentAccessBatches interface {
+	// GrantGuardianStudentAccesses records every access like
+	// GrantGuardianStudentAccess, in the caller's transaction, all or none.
+	// Every grant names the caller's school.
+	GrantGuardianStudentAccesses(context.Context, []GuardianStudentAccessGrant) error
+}

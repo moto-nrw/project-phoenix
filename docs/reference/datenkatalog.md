@@ -237,7 +237,14 @@ offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht
    `TestEveryUploadKindHasDataLifecycleClassification` sowie
    `TestSchoolErasurePlanCoversCatalogAndDeleteTriggers` und die
    `TestSchoolErasure*`-Verhaltenstests.
-5. Bei Verfahrensänderungen den Katalogstand im späteren datensparsamen
+5. Ändert sich eine zurückgegebene Tabelle, Spalte, Beziehung oder ein
+   Ausschluss, das Register des Rückgabepakets (Art. 26 Data Act,
+   [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md))
+   im selben PR neu erzeugen:
+   `../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/organizationtenancy/internal/adapters/tenantexport -run TestReturnRegisterMatchesMigratedSchema -update-return-register`.
+   Der Test schlägt sonst fehl. Die API liefert die eingebettete Datei unter
+   `/public/data-return/register`.
+6. Bei Verfahrensänderungen den Katalogstand im späteren datensparsamen
    Durchführungsnachweis festhalten. Schemaabdeckung allein beweist weder
    Mandantentrennung des Verfahrens noch erfolgreiche Löschung/Rückgabe.
 

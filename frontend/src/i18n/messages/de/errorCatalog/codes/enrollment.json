@@ -148,6 +148,7 @@
   "holiday_booking_unit_booked": "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
   "holiday_child_day_limit": "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. {elsewhere, plural, =0 {Gewählt sind {days}.} one {Mit einer anderen Anmeldung dieses Kindes wären es {days} Tage. Dort ist schon # Tag angemeldet.} other {Mit anderen Anmeldungen dieses Kindes wären es {days} Tage. Dort sind schon # Tage angemeldet.}} Bitte wählen Sie weniger Tage.",
   "holiday_weeks_booked_together": "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
+  "holiday_week_day_limit": "Ein Kind ist schon für diese Woche angemeldet. Mit den neuen Tagen hätte es mehr Tage als erlaubt. Lassen Sie die Tage so oder erhöhen Sie „Höchstens Tage je Kind“.",
   "hosted_holiday_week_not_found": "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
   "holiday_guest_not_found": "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
   "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
