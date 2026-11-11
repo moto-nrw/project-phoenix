@@ -25,6 +25,7 @@ import {
 import { paymentMethodsText } from "~/components/traeger/billing-payment-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { emptySearchText } from "~/components/traeger/empty-search";
+import { EmailText } from "~/components/traeger/email-text";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -81,9 +82,10 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
             {familyName(family)}
           </span>
           {/* The address gives way first: on a tablet all four sums stay
-              in view beside it. */}
-          <span className="block max-w-56 truncate text-sm text-gray-500 md:max-xl:max-w-36">
-            {family.recipientEmail}
+              in view beside it. There it wraps after its „@“ instead of
+              being cut, so the whole address stays readable. */}
+          <span className="block max-w-56 truncate text-sm text-gray-500 md:max-xl:max-w-36 md:max-xl:whitespace-normal">
+            <EmailText email={family.recipientEmail} />
           </span>
         </span>
       </span>

@@ -122,7 +122,9 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
     header: "Zeitraum und Kinder",
     render: (document) => (
       <span className="block min-w-0">
-        <span className="block wrap-break-word text-gray-900">
+        {/* text-balance: a wrapping name splits into two even lines and
+            keeps its year with the word before it („Herbstferien 2026“). */}
+        <span className="block text-balance wrap-break-word text-gray-900">
           {document.periodName}
         </span>
         <span className="block text-sm text-gray-500 md:whitespace-nowrap">
