@@ -11,6 +11,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { DeclarationStatus } from "~/lib/parent-announcements-api";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
   DeclarationStatusPanel,
   sortDeclarationChildren,
@@ -466,5 +467,65 @@ describe("DeclarationStatusPanel with signatures (#4785)", () => {
     ).toBeInTheDocument();
     // Only the entry whose signature no longer matches is marked.
     expect(screen.getAllByText("Nachträglich verändert")).toHaveLength(1);
+  });
+});
+
+// #6652: a write holds once it is through; a failed reload keeps the shown
+// answers and says the change is saved, and its retry only reloads.
+describe("reload after a write (#6652)", () => {
+  const reloadText = `${catalogText("general.unavailable", "die Anzeige der Antworten")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    statusMock
+      .mockReset()
+      .mockResolvedValueOnce(status())
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(
+        status({
+          summary: {
+            children_total: 4,
+            agreed: 3,
+            declined: 0,
+            revoked: 0,
+            partial: 0,
+            open: 0,
+            no_signer: 1,
+            expired: 0,
+          },
+        }),
+      );
+    remindMock.mockReset().mockResolvedValue(3);
+  });
+
+  it("keeps a sent reminder sent when the reload fails", async () => {
+    render(<DeclarationStatusPanel announcementId="42" canAct />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Offene erinnern/ }),
+    );
+
+    expect(await screen.findByText(reloadText)).toBeInTheDocument();
+    // Anker: der bisher gezeigte Stand steht noch da.
+    expect(
+      screen.getByText("Für 2 Kinder fehlt noch eine Antwort."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("3 Personen wurden erinnert.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "das Senden der Erinnerung"),
+      ),
+    ).not.toBeInTheDocument();
+    expect(remindMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText(
+        "Für alle Kinder, bei denen das möglich ist, liegt eine Antwort vor.",
+      ),
+    ).toBeInTheDocument();
+    expect(statusMock).toHaveBeenCalledTimes(3);
+    expect(remindMock).toHaveBeenCalledTimes(1);
   });
 });

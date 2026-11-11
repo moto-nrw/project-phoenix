@@ -4,6 +4,7 @@ import GuardianApprovalQueue from "./guardian-approval-queue";
 import type { PendingApproval } from "@/lib/guardian-api";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 const { mockToastSuccess, mockToastError, mockShowActionError } = vi.hoisted(
   () => ({
@@ -317,5 +318,62 @@ describe("GuardianApprovalQueue", () => {
     fireEvent.click(screen.getByTestId("confirm-reject"));
 
     await waitFor(() => expect(mockReject).toHaveBeenCalledWith("42"));
+  });
+});
+
+// #6652: a write holds once it is through; a failed reload keeps the list
+// and says the change is saved, and its retry only reloads.
+describe("reload after a write (#6652)", () => {
+  const reloadText = `${catalogText("general.unavailable", "die Anzeige der Anfragen")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockList
+      .mockReset()
+      .mockResolvedValueOnce([sampleRequest])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([]);
+    mockApprove.mockReset().mockResolvedValue(undefined);
+    mockReject.mockReset().mockResolvedValue(undefined);
+  });
+
+  async function expectReloadOnly(write: ReturnType<typeof vi.fn>) {
+    expect(await screen.findByText(reloadText)).toBeInTheDocument();
+    // Anker: die bisher gezeigte Anfrage steht noch da.
+    expect(screen.getByText("Julia Schröder")).toBeInTheDocument();
+    expect(mockShowActionError).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Liste der Anfragen"),
+      ),
+    ).not.toBeInTheDocument();
+    expect(write).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText(/Keine offenen Anfragen/),
+    ).toBeInTheDocument();
+    expect(mockList).toHaveBeenCalledTimes(3);
+    expect(write).toHaveBeenCalledTimes(1);
+  }
+
+  it("keeps an approved request approved when the reload fails", async () => {
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Freigeben/ }));
+
+    await expectReloadOnly(mockApprove);
+    expect(mockToastSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a rejected request rejected when the reload fails", async () => {
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Ablehnen/ }));
+    fireEvent.click(await screen.findByTestId("confirm-reject"));
+
+    await expectReloadOnly(mockReject);
+    expect(screen.queryByTestId("confirm-modal")).not.toBeInTheDocument();
+    expect(mockToastSuccess).toHaveBeenCalledWith("Die Anfrage ist abgelehnt.");
   });
 });

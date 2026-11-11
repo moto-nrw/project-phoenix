@@ -22,6 +22,7 @@ import {
 } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   endMealCatererSupply,
   getMealCaterer,
@@ -65,11 +66,17 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   const toast = useToast();
   const reloadRef = useRef<() => void>(() => undefined);
 
+  // Rejects on failure: after a write the caller shows it as a reload of a
+  // saved change and keeps the shown caterer (#6652).
+  const readCaterer = useCallback(async () => {
+    setState(await getMealCaterer());
+  }, []);
+  // Never rejects: a failed load shows its error in place of the caterer.
   const load = useCallback(async () => {
     setLoading(true);
     clearLoadError();
     try {
-      setState(await getMealCaterer());
+      await readCaterer();
     } catch (cause) {
       logger.error("meal_caterer_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -81,7 +88,11 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     } finally {
       setLoading(false);
     }
-  }, [clearLoadError, showLoadError]);
+  }, [clearLoadError, readCaterer, showLoadError]);
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige des Caterers",
+    readCaterer,
+  );
   useEffect(() => {
     reloadRef.current = () => void load();
   });
@@ -102,16 +113,17 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
       formErrors.clear();
       try {
         await inviteMealCaterer(form);
-        toast.success(`Die Einladung ist unterwegs an ${form.email.trim()}.`);
-        if (op.isCurrent()) {
-          setInviteOpen(false);
-          setForm(EMPTY_FORM);
-        }
-        await load();
       } catch (cause) {
         if (!op.isCurrent()) return;
         void formErrors.show(cause, { object: "die Einladung" });
+        return;
       }
+      toast.success(`Die Einladung ist unterwegs an ${form.email.trim()}.`);
+      if (op.isCurrent()) {
+        setInviteOpen(false);
+        setForm(EMPTY_FORM);
+      }
+      await afterWrite.refresh();
     });
   }
 
@@ -120,28 +132,30 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     setWorking(true);
     try {
       await revokeMealCatererInvitation(revokeTarget.id);
-      setRevokeTarget(null);
-      toast.success("Die Einladung ist widerrufen.");
-      await load();
     } catch (cause) {
       void showActionError(cause, { object: "die Einladung" });
-    } finally {
       setWorking(false);
+      return;
     }
+    setWorking(false);
+    setRevokeTarget(null);
+    toast.success("Die Einladung ist widerrufen.");
+    await afterWrite.refresh();
   }
 
   async function confirmEnd() {
     setWorking(true);
     try {
       await endMealCatererSupply();
-      setEndOpen(false);
-      toast.success("Die Belieferung ist beendet.");
-      await load();
     } catch (cause) {
       void showActionError(cause, { object: "das Ende der Belieferung" });
-    } finally {
       setWorking(false);
+      return;
     }
+    setWorking(false);
+    setEndOpen(false);
+    toast.success("Die Belieferung ist beendet.");
+    await afterWrite.refresh();
   }
 
   const openInvitations =
@@ -222,6 +236,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
       description="Ihr Caterer sieht die Bestellungen der Schule in seinem eigenen Zugang bei moto. Namen der Kinder sieht er nur, wenn Sie das in den Einstellungen einschalten."
       actions={headerActions}
     >
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       {loading ? (
         <Skeleton className="h-24 w-full" />
       ) : loadErrors.error ? (

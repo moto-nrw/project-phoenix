@@ -34,6 +34,7 @@ vi.mock("~/components/ui/back-link", () => ({
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { RolloverReviewQueue as Queue } from "./rollover-review-queue";
 
 function RolloverReviewQueue(props: { phaseID: string }) {
@@ -307,5 +308,45 @@ describe("RolloverReviewQueue", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(await screen.findByText(/Lina Beispiel/)).toBeInTheDocument();
+  });
+
+  // #6652: a write holds once it is through; a failed reload keeps the list
+  // and says the change is saved, and its retry only reloads.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Prüfliste")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    it("keeps a decided entry decided when the reload fails", async () => {
+      mockListReview
+        .mockResolvedValueOnce([makeItem()])
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValueOnce([]);
+      mockDecideReview.mockResolvedValueOnce(undefined);
+      render(<RolloverReviewQueue phaseID="77" />);
+
+      expect(await screen.findByText(/Lina Beispiel/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Behalten/ }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      // Anker: der bisher gezeigte Eintrag steht noch da.
+      expect(screen.getByText(/Lina Beispiel/)).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Entscheidung"),
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Prüfliste")),
+      ).not.toBeInTheDocument();
+      expect(mockDecideReview).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByText(/Keine offenen Einträge/),
+      ).toBeInTheDocument();
+      expect(mockListReview).toHaveBeenCalledTimes(3);
+      expect(mockDecideReview).toHaveBeenCalledTimes(1);
+    });
   });
 });

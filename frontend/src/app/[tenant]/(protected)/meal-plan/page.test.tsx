@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 import MealPlanPage from "./page";
 
@@ -314,5 +321,70 @@ describe("Speiseplan: Allergene je Gericht (#4777)", () => {
         allergens: ["gluten", "fish", "milk"],
       },
     ]);
+  });
+});
+
+// #6652: a write holds once it is through; a failed reload keeps the week
+// on screen and says the change is saved, and its retry only reloads.
+describe("reload after a write (#6652)", () => {
+  const reloadText = `${catalogText("general.unavailable", "die Anzeige des Speiseplans")} ${SAVED_BUT_STALE_SUFFIX}`;
+  const stored = {
+    date: "2026-10-05",
+    position: 0,
+    dish: "Fischstäbchen",
+    note: null,
+    allergens: [],
+  };
+
+  beforeEach(() => {
+    getMealPlanWeek
+      .mockReset()
+      .mockResolvedValueOnce([stored])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([{ ...stored, dish: "Nudeln" }]);
+    getMealOrders.mockReset().mockResolvedValue({
+      rhythm: "daily",
+      detail: "total",
+      days: [],
+    });
+    setDay.mockReset().mockResolvedValue(undefined);
+    rights.admin = true;
+    rights.permissions = [];
+    features.mealPlanEnabled = true;
+  });
+
+  it("keeps a saved week saved when the reload fails", async () => {
+    renderPage();
+    fireEvent.change(await screen.findByDisplayValue("Fischstäbchen"), {
+      target: { value: "Nudeln" },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    const reloadAlert = (
+      await screen.findByText(reloadText)
+    ).closest<HTMLElement>('[role="alert"]');
+    expect(reloadAlert).not.toBeNull();
+    // Anker: die gespeicherte Woche steht noch da.
+    expect(screen.getByDisplayValue("Nudeln")).toBeInTheDocument();
+    expect(screen.getByText("1 von 5 Tagen geplant")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Woche im Speiseplan"),
+      ),
+    ).not.toBeInTheDocument();
+    // Die gespeicherten Tage gelten nicht mehr als geändert.
+    expect(screen.queryByText("1 Tag geändert")).not.toBeInTheDocument();
+    expect(setDay).toHaveBeenCalledTimes(1);
+
+    // Andere Karten der Seite (Caterer) laden ungemockt und können ein
+    // eigenes „Wiederholen“ zeigen; geklickt wird das des Nachladefehlers.
+    fireEvent.click(
+      within(reloadAlert!).getByRole("button", { name: "Wiederholen" }),
+    );
+    await waitFor(() => expect(getMealPlanWeek).toHaveBeenCalledTimes(3));
+    expect(await screen.findByDisplayValue("Nudeln")).toBeInTheDocument();
+    expect(setDay).toHaveBeenCalledTimes(1);
   });
 });

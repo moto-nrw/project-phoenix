@@ -1,22 +1,28 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LetterStatusPanel } from "./letter-status-panel";
 import type { LetterStatus } from "~/lib/parent-announcements-api";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 
-const { fetchLetterStatus } = vi.hoisted(() => ({
+const { fetchLetterStatus, remindUnanswered, showError } = vi.hoisted(() => ({
   fetchLetterStatus: vi.fn(),
+  remindUnanswered: vi.fn(),
+  showError: vi.fn(),
 }));
 
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
-  useApiErrorDisplay: () => ({ show: vi.fn() }),
+  useApiErrorDisplay: () => ({ show: showError }),
 }));
 
 vi.mock("~/lib/parent-announcements-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-announcements-api")>()),
   fetchLetterStatus,
+  remindUnanswered,
 }));
 
 function status(
@@ -260,5 +266,59 @@ describe("LetterStatusPanel mail state (#5934)", () => {
     expect(
       screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
     ).toBeEnabled();
+  });
+});
+
+// #6652: a write holds once it is through; a failed reload keeps the shown
+// status and says the change is saved, and its retry only reloads.
+describe("reload after a write (#6652)", () => {
+  const reloadText = `${catalogText("general.unavailable", "die Anzeige der Übersicht zum Elternbrief")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+  beforeEach(() => {
+    fetchLetterStatus.mockReset();
+    remindUnanswered.mockReset();
+    showError.mockReset();
+  });
+
+  it("keeps a sent reminder sent when the reload fails", async () => {
+    fetchLetterStatus
+      .mockResolvedValueOnce(
+        status(
+          { children_confirmable: 2, children_fulfilled: 1, children_open: 1 },
+          [recipient({})],
+        ),
+      )
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce(
+        status(
+          { children_confirmable: 2, children_fulfilled: 2, children_open: 0 },
+          [recipient({})],
+        ),
+      );
+    remindUnanswered.mockResolvedValueOnce(1);
+    renderPanel();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Offene erinnern" }),
+    );
+
+    expect(await screen.findByText(reloadText)).toBeInTheDocument();
+    // Anker: der bisher gezeigte Stand steht noch da.
+    expect(
+      screen.getByText("1 Kind wartet noch auf eine Bestätigung."),
+    ).toBeInTheDocument();
+    expect(showError).not.toHaveBeenCalled();
+    expect(remindUnanswered).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(
+      await screen.findByText(
+        "Alle Kinder sind bestätigt, bei denen das möglich ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(fetchLetterStatus).toHaveBeenCalledTimes(3);
+    expect(remindUnanswered).toHaveBeenCalledTimes(1);
   });
 });

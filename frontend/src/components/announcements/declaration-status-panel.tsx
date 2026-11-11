@@ -30,6 +30,7 @@ import {
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { formatBytes } from "~/lib/files-api";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   downloadDeclarationExport,
   fetchDeclarationStatus,
@@ -174,13 +175,19 @@ export function DeclarationStatusPanel({
     () => undefined,
   );
 
+  // Rejects on failure: after a reminder the caller shows it as a reload of
+  // a saved change (#6652).
+  const readStatus = useCallback(async () => {
+    setStatus(
+      await withApiBase(fetchDeclarationStatus, announcementId, apiBase),
+    );
+    setLoadFailed(false);
+    clearLoadError();
+  }, [announcementId, apiBase, clearLoadError]);
+  // Never rejects: a failed load shows its error in place.
   const load = useCallback(async () => {
     try {
-      setStatus(
-        await withApiBase(fetchDeclarationStatus, announcementId, apiBase),
-      );
-      setLoadFailed(false);
-      clearLoadError();
+      await readStatus();
     } catch (error) {
       logger.error("declaration_status_load_failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -191,7 +198,11 @@ export function DeclarationStatusPanel({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [announcementId, apiBase, showLoadError, clearLoadError]);
+  }, [readStatus, showLoadError]);
+  const afterRemind = useRefreshAfterWrite(
+    "die Anzeige der Antworten",
+    readStatus,
+  );
   useLayoutEffect(() => {
     latestLoadRef.current = () => void load();
   });
@@ -210,18 +221,9 @@ export function DeclarationStatusPanel({
 
   const remind = async () => {
     setBusy("remind");
+    let count: number;
     try {
-      const count = await withApiBase(
-        remindUnanswered,
-        announcementId,
-        apiBase,
-      );
-      toastSuccess(
-        count === 0
-          ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
-          : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} erinnert.`,
-      );
-      await load();
+      count = await withApiBase(remindUnanswered, announcementId, apiBase);
     } catch (error) {
       logger.error("declaration_remind_failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -230,9 +232,16 @@ export function DeclarationStatusPanel({
         object: "das Senden der Erinnerung",
         retry: () => latestRemindRef.current(),
       });
-    } finally {
       setBusy(null);
+      return;
     }
+    setBusy(null);
+    toastSuccess(
+      count === 0
+        ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
+        : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} erinnert.`,
+    );
+    await afterRemind.refresh();
   };
 
   const download = async (format: "pdf" | "csv") => {
@@ -374,9 +383,11 @@ export function DeclarationStatusPanel({
         />
       </div>
 
-      {/* Ein Neuladen nach einer Aktion ist gescheitert: der alte Stand
-          bleibt sichtbar, der Fehler steht darüber. */}
+      {/* Ein Neuladen ist gescheitert: der alte Stand bleibt sichtbar, der
+          Fehler steht darüber. Nach einer Erinnerung sagt er, dass sie
+          gesendet ist (#6652). */}
       <LoadErrorAlert error={loadFailed ? loadError.error : null} />
+      <LoadErrorAlert error={afterRemind.error} className="mb-4" />
 
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

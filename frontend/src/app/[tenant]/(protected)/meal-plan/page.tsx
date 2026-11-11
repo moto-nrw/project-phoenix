@@ -14,7 +14,10 @@ import { Copy, ClipboardPaste, Plus, Trash2, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -41,6 +44,7 @@ import {
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   useMealPlanEnabled,
   useMealRegistrationEnabled,
@@ -243,19 +247,32 @@ export default function MealPlanPage() {
   // button and after save, not only from the week-switch effect.
   const loadTokenRef = useRef(0);
 
-  const load = useCallback(async () => {
-    const token = ++loadTokenRef.current;
-    setLoading(true);
-    clearLoadError();
-    try {
-      const entries = await getMealPlanWeek(mondayISO);
-      if (loadTokenRef.current !== token) return;
+  // Reads the week for the load with `token`; a newer load wins, its answer
+  // and its failure count, an older one is dropped. Rejects on failure, so
+  // after a save the caller keeps the week on screen (#6652).
+  const readWeek = useCallback(
+    async (token: number) => {
+      const entries = await getMealPlanWeek(mondayISO).catch((err: unknown) => {
+        if (loadTokenRef.current === token) throw err;
+        return null;
+      });
+      if (entries === null || loadTokenRef.current !== token) return;
       const built = draftsFromEntries(entries, weekDates);
       setDrafts(built);
       // Originals store only the persisted (non-empty) rows for dirty checks.
       const orig: Record<string, DishDraft[]> = {};
       for (const date of weekDates) orig[date] = normalizeDay(built[date]!);
       setOriginals(orig);
+    },
+    [mondayISO, weekDates],
+  );
+
+  const load = useCallback(async () => {
+    const token = ++loadTokenRef.current;
+    setLoading(true);
+    clearLoadError();
+    try {
+      await readWeek(token);
     } catch (err) {
       if (loadTokenRef.current !== token) return;
       logger.error("meal_plan_load_failed", {
@@ -276,10 +293,13 @@ export default function MealPlanPage() {
         setHasLoaded(true);
       }
     }
-  }, [mondayISO, weekDates, showLoadError, clearLoadError]);
+  }, [readWeek, showLoadError, clearLoadError]);
   useLayoutEffect(() => {
     reloadRef.current = () => void load();
   });
+  const afterSave = useRefreshAfterWrite("die Anzeige des Speiseplans", () =>
+    readWeek(++loadTokenRef.current),
+  );
 
   useEffect(() => {
     if (status !== "authenticated" || !canReadPlan || !mealPlanEnabled) return;
@@ -504,8 +524,6 @@ export default function MealPlanPage() {
         );
         persisted[date] = draft;
       }
-      toast.success("Der Speiseplan ist gespeichert.");
-      await load();
     } catch (err) {
       logger.error("meal_plan_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -520,9 +538,16 @@ export default function MealPlanPage() {
         object: "die Woche im Speiseplan",
         retry: () => retrySaveRef.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    // The saved days are stored even when the reload below fails.
+    setOriginals((prev) => ({ ...prev, ...persisted }));
+    toast.success("Der Speiseplan ist gespeichert.");
+    // Saving stays on during the reload: no edit or week switch can slip in
+    // before the stored week replaces the drafts.
+    await afterSave.refresh();
+    setSaving(false);
   };
   useLayoutEffect(() => {
     retrySaveRef.current = () => void handleSave();
@@ -659,6 +684,7 @@ export default function MealPlanPage() {
       }
     >
       <FormErrorAlert message={saveErrors.error} />
+      <LoadErrorAlert error={afterSave.error} className="mb-4" />
 
       {/* Eine Karte für den Wochenplan: Titel, Erklärung und „Vorwoche
           übernehmen“ im Kopf, die fünf Tage randlos unter einer Trennlinie.

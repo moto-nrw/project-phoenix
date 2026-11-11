@@ -34,6 +34,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import type { ParentInviteMode } from "~/lib/user-context-types";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { accountsConcept } from "~/lib/concepts/accounts";
@@ -203,13 +204,18 @@ export default function GuardianApprovalQueue({
   const clearRejectError = rejectErrors.clear;
   const latestRejectRef = useRef<() => void>(() => undefined);
 
+  // Rejects on failure: after a decision the caller shows it as a reload of
+  // a saved change and keeps the shown list (#6652).
+  const readRequests = useCallback(async () => {
+    setRequests(await listPendingApprovals());
+    setLoadFailed(false);
+    clearLoadError();
+  }, [clearLoadError]);
   // Never rejects: a failed load shows its error where the list belongs.
   const load = useCallback(async () => {
     try {
       setIsLoading(true);
-      setRequests(await listPendingApprovals());
-      setLoadFailed(false);
-      clearLoadError();
+      await readRequests();
     } catch (err) {
       logger.error("approvals_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -222,7 +228,11 @@ export default function GuardianApprovalQueue({
     } finally {
       setIsLoading(false);
     }
-  }, [showLoadError, clearLoadError]);
+  }, [showLoadError, readRequests]);
+  const afterDecision = useRefreshAfterWrite(
+    "die Anzeige der Anfragen",
+    readRequests,
+  );
   useLayoutEffect(() => {
     latestLoadRef.current = () => void load();
   });
@@ -240,10 +250,6 @@ export default function GuardianApprovalQueue({
     setActingId(req.id);
     try {
       await approveGuardianInvitation(req.id);
-      await load();
-      toastSuccess(
-        `Der Zugang für ${req.guardianName || req.guardianEmail || "die Bezugsperson"} ist freigegeben.`,
-      );
     } catch (err) {
       logger.error("approval_approve_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -252,9 +258,14 @@ export default function GuardianApprovalQueue({
         object: "die Freigabe der Anfrage",
         retry: () => void handleApprove(req),
       });
-    } finally {
       setActingId(null);
+      return;
     }
+    setActingId(null);
+    toastSuccess(
+      `Der Zugang für ${req.guardianName || req.guardianEmail || "die Bezugsperson"} ist freigegeben.`,
+    );
+    await afterDecision.refresh();
   };
 
   const handleReject = async () => {
@@ -264,9 +275,6 @@ export default function GuardianApprovalQueue({
     clearRejectError();
     try {
       await rejectGuardianInvitation(req.id);
-      setRejectTarget(null);
-      await load();
-      toastSuccess("Die Anfrage ist abgelehnt.");
     } catch (err) {
       logger.error("approval_reject_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -275,9 +283,13 @@ export default function GuardianApprovalQueue({
         object: "das Ablehnen der Anfrage",
         retry: () => latestRejectRef.current(),
       });
-    } finally {
       setActingId(null);
+      return;
     }
+    setActingId(null);
+    setRejectTarget(null);
+    toastSuccess("Die Anfrage ist abgelehnt.");
+    await afterDecision.refresh();
   };
   useLayoutEffect(() => {
     latestRejectRef.current = () => void handleReject();
@@ -305,6 +317,7 @@ export default function GuardianApprovalQueue({
   return (
     <div className="space-y-3">
       <LoadErrorAlert error={loadError.error} />
+      <LoadErrorAlert error={afterDecision.error} className="mb-4" />
 
       {failedWithoutData ? null : requests.length === 0 ? (
         <InviteModeDependentEmptyState state={inviteModeState} />

@@ -22,6 +22,8 @@ import {
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -61,12 +63,18 @@ export function RolloverReviewQueue({ phaseID }: Props) {
   // „Wiederholen“ lädt die Liste mit der aktuellen Fassung neu.
   const latestLoad = useRef<() => Promise<void>>(async () => undefined);
 
+  // Rejects on failure: after a decision the caller shows it as a reload of
+  // a saved change and keeps the shown list (#6652).
+  const readQueue = useCallback(async () => {
+    const list = await listRolloverReview(phaseID);
+    setItems(list);
+    clearLoadError();
+  }, [phaseID, clearLoadError]);
+  // Never rejects: a failed load shows its error in place of the list.
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await listRolloverReview(phaseID);
-      setItems(list);
-      clearLoadError();
+      await readQueue();
     } catch (err) {
       logger.error("review_queue_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -78,7 +86,11 @@ export function RolloverReviewQueue({ phaseID }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [phaseID, showLoadError, clearLoadError]);
+  }, [readQueue, showLoadError]);
+  const afterDecide = useRefreshAfterWrite(
+    "die Anzeige der Prüfliste",
+    readQueue,
+  );
 
   useLayoutEffect(() => {
     latestLoad.current = load;
@@ -114,15 +126,6 @@ export function RolloverReviewQueue({ phaseID }: Props) {
         decision: choice,
         new_grade_level: overrideNumber ?? null,
       });
-      toast.success(
-        choice === "keep"
-          ? "Das Kind wird in die nächste Phase übernommen."
-          : choice === "drop"
-            ? "Der Eintrag ist abgeschlossen."
-            : "Der Eintrag ist zurückgestellt.",
-      );
-      refreshPhaseExpiryWarnings();
-      await load();
     } catch (err) {
       logger.error("review_queue_decide_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -131,9 +134,19 @@ export function RolloverReviewQueue({ phaseID }: Props) {
         object: "die Entscheidung",
         retry: () => void latestDecide.current(item, choice),
       });
-    } finally {
       setBusyChild(null);
+      return;
     }
+    setBusyChild(null);
+    toast.success(
+      choice === "keep"
+        ? "Das Kind wird in die nächste Phase übernommen."
+        : choice === "drop"
+          ? "Der Eintrag ist abgeschlossen."
+          : "Der Eintrag ist zurückgestellt.",
+    );
+    refreshPhaseExpiryWarnings();
+    await afterDecide.refresh();
   };
   // „Wiederholen“ sendet die Entscheidung mit der aktuellen Eingabe.
   const latestDecide = useRef(decide);
@@ -178,6 +191,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
           : null
       }
     >
+      <LoadErrorAlert error={afterDecide.error} className="mb-4" />
       {/* Der Erklärsatz steht auf einer Fläche, nicht frei auf dem Grund. */}
       <SectionCard className="px-5 py-3">
         <p className="text-sm leading-6 text-gray-600">
