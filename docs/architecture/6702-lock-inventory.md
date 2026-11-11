@@ -83,6 +83,7 @@ Kiosk-Sitzungsspiegel, Aktivität anlegen und Betreuerrouten, Materialisierung.
 | Austritt `PreviewAccess`, Identity `LockStaffOffboardingAccounts` | Account | Austritt; geplante Austritte sperren alle Konten mit einer geordneten Abfrage vor ihren Gates, ohne Zugriffsvorschauen zu laden; Zugang schließen: Konto vor Person |
 | Personal-Import | StaffPersonMerge | Upsert nimmt das Merge-Gate vor der ersten Aktualisierung |
 | Personal-Import Aktualisieren/Upsert | StaffRows | jeder Chunk sperrt die Staff-Zeilen aller Treffer aufsteigend vor seiner ersten Zeile (`BatchWriteConfig`) |
+| Jahrgangswechsel anwenden/zurücknehmen | StaffRows | `StaffFilter.ForMutation` sperrt alle betroffenen Personalzeilen gebündelt aufsteigend, bevor Klassenzuordnungen gelöscht oder wieder angelegt werden; beim Zurücknehmen bleiben ausgetretene Personen ausgeschlossen |
 | Identitätskette | StaffPersonMerge | Merge-Gate vor Person und Staff-Zeile |
 | Betreuungszugang freischalten (`ensureCaregiverProfile`) | StaffPersonMerge | geteiltes Merge-Gate vor der Profilanlage; die anschließende Rollenzuweisung verwendet das gehaltene Gate |
 
