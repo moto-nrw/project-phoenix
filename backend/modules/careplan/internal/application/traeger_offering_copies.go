@@ -84,7 +84,7 @@ func (s *TraegerOfferingCopies) ApplyTraegerOffering(ctx context.Context, copy c
 	if copy.SourceID <= 0 || copy.Version <= 0 || copy.PhaseID <= 0 {
 		return careplan.TraegerOfferingApplied{}, careOfferingInvalidf("träger source, version and phase are required")
 	}
-	traeger := traegerOfferingValues(copy.Fields, true)
+	traeger := traegerOfferingValues(copy.Fields, copy.Fields.Active())
 	states, err := s.TraegerOfferingCopyStates(ctx, []int64{copy.SourceID}, true)
 	if err != nil {
 		return careplan.TraegerOfferingApplied{}, err

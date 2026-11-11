@@ -11130,7 +11130,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListPickupExceptions",
-      "binding_digest": "6267e4d993f86988ad712f68fc733c6a",
+      "binding_digest": "d2b450a918f52d9312f2b02f090cea3c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListPickupExceptions",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
@@ -11138,7 +11138,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListPickupExceptions",
-      "binding_digest": "a16701ce7e091f1cd5d3c101adf97ac6",
+      "binding_digest": "0b7164a92760f917a9753062058edd88",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListPickupExceptions",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListPickupExceptions",
@@ -11146,7 +11146,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListStudentStatusDays",
-      "binding_digest": "49e3d73872b10c2637f5cf3b96d8a94b",
+      "binding_digest": "2ba1c33e620640a791dbd76ed21c7da3",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListStudentStatusDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
@@ -11154,7 +11154,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListStudentStatusDays",
-      "binding_digest": "73d9382404ecc208a69113e1389f7b3a",
+      "binding_digest": "08682ca6c56658676c13dde296c28542",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListStudentStatusDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListStudentStatusDays",
@@ -11716,6 +11716,30 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstances",
       "binding_digest": "e227a8013824f329765590468b7e22d7",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "binding_digest": "082a0a7a1d52fef0199e34b9b441c2d1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""

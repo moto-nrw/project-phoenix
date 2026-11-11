@@ -250,6 +250,8 @@ func TestRolloutFollowsThePreview(t *testing.T) {
 	require.NotNil(t, preview.Schools[0].Offerings[0].PricesFrom)
 	assert.Equal(t, calendar.NewDate(2027, 8, 1), *preview.Schools[0].Offerings[0].PricesFrom, "a new copy is priced from the service start")
 
+	assert.Empty(t, f.prices, "preview prices are rolled back")
+	f.trail = nil
 	rollout, err := catalog.Rollout(context.Background(), office, 7, preview.Fingerprint)
 	require.NoError(t, err)
 	assert.Equal(t, []traegercatalog.SchoolResult{{SchoolID: 10, Outcome: "applied"}, {SchoolID: 20, Outcome: "applied"}}, rollout.Schools)
@@ -610,4 +612,20 @@ func TestRolloutRejectsPreviewWhenOnlyTheFinancialCopyChanges(t *testing.T) {
 	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
 	assert.ErrorIs(t, err, traegercatalog.ErrPreviewStale, "a changed copy baseline changes the confirmed financial plan")
 	assert.Empty(t, f.applied)
+}
+
+func TestPreviewRejectsFinancialRefusalsWithoutKeepingWrites(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	catalog := f.catalog(t)
+	f.billingError = &ports.Refusal{Code: "parent_billing.care_tariff_month_billed", Err: errors.New("month billed")}
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	for _, school := range preview.Schools {
+		assert.Equal(t, traegercatalog.PreviewRejected, school.Outcome)
+		assert.Equal(t, "parent_billing.care_tariff_month_billed", school.ErrorCode)
+	}
+	assert.Empty(t, f.prices)
+	assert.Empty(t, f.applied)
+	assert.False(t, f.released)
 }

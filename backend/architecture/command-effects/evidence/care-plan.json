@@ -10713,6 +10713,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.DayLocks.LockRosterDays",
+      "binding_digest": "f7d90d168c10e21f4a532d59313eff78",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.DayLocks.LockRosterDays",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.DayLocks.LockStudentAndExceptionDay",
       "binding_digest": "58d88180901210ff336960e142bb2144",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.DayLocks.LockStudentAndExceptionDay",

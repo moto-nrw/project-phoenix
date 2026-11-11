@@ -33,6 +33,7 @@ type TraegerCopyLink struct {
 // JSON names are the column names of enrollment.care_offerings: they are the
 // keys of the copy's traeger_values.
 type TraegerOfferingFields struct {
+	IsActive            *bool             `json:"is_active,omitempty"`
 	Name                string            `json:"name"`
 	Description         *string           `json:"description"`
 	DaysOfWeekMode      string            `json:"days_of_week_mode"`
@@ -213,3 +214,7 @@ type TraegerOfferingWrite struct {
 type TraegerOfferingBatch interface {
 	ApplyTraegerOfferings(ctx context.Context, copies []TraegerOfferingCopy, withdrawSourceIDs []int64) (TraegerOfferingBatchApplied, error)
 }
+
+// Active preserves the default of drafts and immutable versions written before
+// the active flag was available. An explicit false temporarily deactivates it.
+func (f TraegerOfferingFields) Active() bool { return f.IsActive == nil || *f.IsActive }

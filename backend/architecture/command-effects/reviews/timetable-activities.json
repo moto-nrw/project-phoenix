@@ -32828,21 +32828,23 @@
       "target_owner": "facilities"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.pickupExceptionDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.pickupExceptionDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListPickupExceptions",
       "target_owner": "care-plan"
@@ -35170,21 +35172,23 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.pickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.pickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListPickupExceptions",
       "target_owner": "care-plan"

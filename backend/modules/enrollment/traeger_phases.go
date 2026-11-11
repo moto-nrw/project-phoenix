@@ -56,6 +56,7 @@ type TraegerCopyLink struct {
 // names are the column names of enrollment.phases: they are the keys of the
 // copy's traeger_values.
 type TraegerPhaseFields struct {
+	IsActive                  *bool      `json:"is_active,omitempty"`
 	Name                      string     `json:"name"`
 	Kind                      string     `json:"kind"`
 	ServiceStartDate          Date       `json:"service_start_date"`
@@ -179,3 +180,7 @@ type TraegerPhaseCopies interface {
 	// care offerings; otherwise it deactivates the copy and drops its link.
 	WithdrawTraegerPhase(ctx context.Context, sourceID int64) (TraegerWithdrawal, error)
 }
+
+// Active preserves the default of drafts and immutable versions written before
+// the active flag was available. An explicit false temporarily deactivates it.
+func (f TraegerPhaseFields) Active() bool { return f.IsActive == nil || *f.IsActive }

@@ -456,6 +456,9 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 		if err := s.deps.LockTemplateRecurrence(txCtx); err != nil {
 			return fmt.Errorf("lock template recurrence for phase delete: %w", err)
 		}
+		if err := s.refuseTraegerOfferings(txCtx, id); err != nil {
+			return err
+		}
 		if err := s.refuseEffectiveBookings(txCtx, id); err != nil {
 			return err
 		}
@@ -478,5 +481,26 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 	s.logger.Info("phase deleted",
 		slog.Int64("phase_id", id),
 		slog.Int("deleted_requests", deletedRequests))
+	return nil
+}
+
+func (s *Phases) refuseTraegerOfferings(ctx context.Context, id int64) error {
+	phase, err := s.deps.Records.Phase(ctx, id)
+	if err != nil {
+		return err
+	}
+	if phase.Traeger != nil {
+		return enrollment.ErrTraegerCopyDelete
+	}
+	if s.deps.Offerings == nil {
+		return errors.New("phase delete requires the offering guard")
+	}
+	copies, err := s.deps.Offerings.HasTraegerCopiesForPhase(ctx, id)
+	if err != nil {
+		return err
+	}
+	if copies {
+		return enrollment.ErrTraegerCopyDelete
+	}
 	return nil
 }

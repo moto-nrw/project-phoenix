@@ -15046,41 +15046,45 @@
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListPickupExceptions",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListStudentStatusDays",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListStudentStatusDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListStudentStatusDays",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListStudentStatusDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListStudentStatusDays; modules/careplan/ports/student_names.go:28. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListStudentStatusDays; modules/careplan/ports/student_names.go:28. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListStudentStatusDays",
       "target_owner": "care-plan"
@@ -15851,6 +15855,39 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
       "reason": "Existing injected Student Presence observation callback, now exposed through the narrow SourcedRosterAttendance capability. No observer behavior change; the unresolved binding remains explicit.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "reason": "Platform transaction protocol for the batch roster command. Attendance reuses the caller school unit through runWrite; the ID-only student lock requires that existing tenant transaction. The participant/date batch and sorted row/day locks do not widen the transaction scope (ADR 0215).",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "reason": "Reads the existing tenant transaction for the complete sourced roster attendance batch; no mutation, lock acquisition or new scope at this terminal.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "reason": "The batch roster/student-row command reuses its owner observation callback. Typed binding resolution cannot follow the injected observer; this boundary remains explicitly unresolved, not a query or approved mutation. The caller transaction and complete batch lock order are covered by the populated roster contract test (ADR 0215).",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""

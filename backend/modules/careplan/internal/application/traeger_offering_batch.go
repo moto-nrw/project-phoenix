@@ -138,7 +138,7 @@ func (batch *traegerOfferingBatch) mergeCopies(copies []careplan.TraegerOffering
 }
 
 func mergeTraegerCopy(copy careplan.TraegerOfferingCopy, row careplan.CareOffering, exists bool) (careplan.CareOffering, careplan.TraegerOfferingApplied, error) {
-	baseline := traegerOfferingValues(copy.Fields, true)
+	baseline := traegerOfferingValues(copy.Fields, copy.Fields.Active())
 	applied := careplan.TraegerOfferingApplied{SourceID: copy.SourceID, Created: !exists}
 	if exists {
 		merged, changes := mergeTraegerOfferingValues(baseline, traegerOfferingValues(traegerOfferingFieldsOf(row), row.IsActive), row.Traeger.Deviations)

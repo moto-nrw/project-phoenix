@@ -14858,6 +14858,29 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.LockStudentRows",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "reason": "Platform transaction protocol for the batch roster command. Attendance reuses the caller school unit through runWrite; the ID-only student lock requires that existing tenant transaction. The participant/date batch and sorted row/day locks do not widen the transaction scope (ADR 0215).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.LockStudentRows",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "reason": "The batch roster/student-row command reuses its owner observation callback. Typed binding resolution cannot follow the injected observer; this boundary remains explicitly unresolved, not a query or approved mutation. The caller transaction and complete batch lock order are covered by the populated roster contract test (ADR 0215).",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.StudentSnapshotByID",
       "classification": "platform",
       "effect": "scope",

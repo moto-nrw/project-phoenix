@@ -305,7 +305,7 @@ func TestTraegerCatalogRecoversCopiesAfterBillingFailure(t *testing.T) {
 			path := fmt.Sprintf("/traeger/catalog/phases/%d", phase.ID)
 			rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/offerings", catalogOffering(20, 1600))
 			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-			preview := catalogPreview(t, router, office.token, path)
+			preview := catalogPreview(t, traegerCatalogRouter(t, db), office.token, path)
 			rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/rollout", map[string]any{"fingerprint": preview.Fingerprint})
 			require.Equal(t, scenario.status, rec.Code, rec.Body.String())
 			if scenario.status == http.StatusOK {
@@ -492,16 +492,17 @@ func TestTraegerCatalogFinancialWritesAreAtomic(t *testing.T) {
 	offering := decodeSchoolPortalData[careplan.TraegerOffering](t, rec.Body.Bytes())
 	preview := catalogPreview(t, router, office.token, path)
 	catalogRollout(t, router, office.token, path, preview.Fingerprint)
-	_, err := db.ExecContext(t.Context(), `CREATE FUNCTION care_contract.refuse_catalog_template_test() RETURNS trigger LANGUAGE plpgsql AS $$
-  BEGIN IF NEW.contract_partner = 'Abgelehnte Bedingungen' THEN RAISE EXCEPTION 'template write refused'; END IF; RETURN NEW; END $$;
-  CREATE TRIGGER refuse_catalog_template_test BEFORE INSERT OR UPDATE ON care_contract.contract_templates
-  FOR EACH ROW EXECUTE FUNCTION care_contract.refuse_catalog_template_test()`)
-	require.NoError(t, err)
+
 	dearer := catalogOffering(30, 1800)
 	dearer["contract_template"].(map[string]any)["contract_partner"] = "Abgelehnte Bedingungen"
 	rec = traegerJSON(t, router, office.token, http.MethodPut, fmt.Sprintf("/traeger/catalog/offerings/%d", offering.ID), dearer)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	preview = catalogPreview(t, router, office.token, path)
+	_, err := db.ExecContext(t.Context(), `CREATE FUNCTION care_contract.refuse_catalog_template_test() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN IF NEW.contract_partner = 'Abgelehnte Bedingungen' THEN RAISE EXCEPTION 'template write refused'; END IF; RETURN NEW; END $$;
+  CREATE TRIGGER refuse_catalog_template_test BEFORE INSERT OR UPDATE ON care_contract.contract_templates
+  FOR EACH ROW EXECUTE FUNCTION care_contract.refuse_catalog_template_test()`)
+	require.NoError(t, err)
 	rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/rollout", map[string]any{"fingerprint": preview.Fingerprint})
 	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
 	checkTerms := func() {
@@ -584,4 +585,17 @@ func TestTraegerCatalogRejectsInvalidOfferingFields(t *testing.T) {
 			})
 		}
 	}
+}
+
+func (o catalogPhaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {
+	rows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Traeger != nil {
+			return true, nil
+		}
+	}
+	return false, nil
 }

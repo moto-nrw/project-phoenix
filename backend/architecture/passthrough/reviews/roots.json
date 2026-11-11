@@ -4011,6 +4011,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0215",
+      "id": "roots/owners/enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "reason": "ADR 0075 consumer-port adapter: projects the existing owner capability into the narrow root-bound contract without a new service graph. No new application pass-through floor."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentPhaseOfferings.OfferingIDsForPhase",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

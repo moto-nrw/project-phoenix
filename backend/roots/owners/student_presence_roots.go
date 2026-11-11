@@ -1,6 +1,7 @@
 package owners
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -40,7 +41,11 @@ func NewStudentPresence(db transactionruntime.Database, observe func(presenceCom
 	if err != nil {
 		return nil, err
 	}
-	locks, err := carePlanCompose.NewDayLocks(pool, students.LockStudent, peopledirectory.ErrStudentNotFound)
+	batch, ok := students.Owner.(peopledirectory.StudentRowLocks)
+	if !ok {
+		return nil, errors.New("student presence: student row batch locks are required")
+	}
+	locks, err := carePlanCompose.NewDayLocks(pool, students.LockStudent, peopledirectory.ErrStudentNotFound, batch.LockStudentRows)
 	if err != nil {
 		return nil, err
 	}

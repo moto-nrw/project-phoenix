@@ -69,8 +69,7 @@ type BookingMaterializationDependencies struct {
 	LockTemplateRecurrence      func(context.Context) error
 	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error
 	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
-	// PickupStaff, PickupGuardians and PlanningStaffing (#5498) hear about a
-	// committed booking or pickup projection change; each may be nil.
+	// These optional ports announce committed booking and pickup changes (#5498).
 	PickupStaff      ports.PickupScheduleStaff
 	PickupGuardians  ports.PickupScheduleGuardians
 	PlanningStaffing ports.BookingPlanningStaffing

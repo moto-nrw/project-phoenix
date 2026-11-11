@@ -193,7 +193,7 @@ func traegerPhaseOf(fields enrollment.TraegerPhaseFields) *enrollment.Phase {
 		ServiceStartDate: fields.ServiceStartDate, ServiceEndDate: fields.ServiceEndDate,
 		EnrollmentOpenAt: fields.EnrollmentOpenAt, EnrollmentCloseAt: fields.EnrollmentCloseAt,
 		Audience: fields.Audience, CareOverflowMode: fields.CareOverflowMode,
-		CareOfferingSelectionMode: fields.CareOfferingSelectionMode, IsActive: true,
+		CareOfferingSelectionMode: fields.CareOfferingSelectionMode, IsActive: fields.Active(),
 		AvailableSchoolClasses: []string{}, EligibleSchoolClasses: []string{}, EligibleGradeLevels: []int{},
 	}
 }

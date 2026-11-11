@@ -170,3 +170,16 @@ func fixtureEnrollmentQuery[T any](ctx context.Context, call func(context.Contex
 	})
 	return value, err
 }
+
+func (o phaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {
+	rows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Traeger != nil {
+			return true, nil
+		}
+	}
+	return false, nil
+}

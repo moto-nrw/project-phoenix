@@ -57,7 +57,7 @@ func prepareTraegerOfferingRows(writes []careplan.TraegerOfferingWrite, school i
 			row.TraegerValues, err = json.Marshal(struct {
 				careplan.TraegerOfferingFields
 				IsActive bool `json:"is_active"`
-			}{write.Baseline, true})
+			}{write.Baseline, write.Baseline.Active()})
 			if err != nil {
 				return nil, nil, nil, nil, err
 			}

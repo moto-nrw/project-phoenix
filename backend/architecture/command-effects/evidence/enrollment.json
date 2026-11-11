@@ -5625,6 +5625,22 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "binding_digest": "aa0da132a48570d8b3cacf123ccde88f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.HasTraegerCopiesForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListCareOfferings",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "binding_digest": "fb667a7b8bc978346adb388733d06f60",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.HasTraegerCopiesForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListCareOfferings",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.OfferingIDsForPhase",
       "binding_digest": "e68ff92d8cc570cd764adb4f49743dd6",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.OfferingIDsForPhase",

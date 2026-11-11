@@ -10393,6 +10393,22 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.LockStudentRows",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.LockStudentRows",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.StudentSnapshotByID",
       "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentSnapshotReads.StudentSnapshotByID",

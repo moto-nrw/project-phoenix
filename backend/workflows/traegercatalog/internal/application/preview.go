@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog"
+	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog/ports"
 )
 
 // fingerprint ties a rollout to its preview: the draft with its targets as
@@ -66,7 +67,7 @@ func (c *Catalog) Preview(ctx context.Context, actor traegercatalog.Actor, traeg
 	print := fingerprint{Draft: c.draftHash(snap, targets), Schools: map[int64]string{}}
 	preview := traegercatalog.Preview{TraegerPhaseID: traegerPhaseID, Version: next.phaseVersion, Schools: []traegercatalog.SchoolPlan{}}
 	for _, t := range targets {
-		plan, state, err := c.previewSchool(ctx, snap, next, t)
+		plan, state, err := c.previewSchool(ctx, actor, snap, next, t)
 		if err != nil {
 			return traegercatalog.Preview{}, err
 		}
@@ -77,10 +78,11 @@ func (c *Catalog) Preview(ctx context.Context, actor traegercatalog.Actor, traeg
 	return preview, nil
 }
 
-func (c *Catalog) previewSchool(ctx context.Context, snap snapshot, next release, t target) (traegercatalog.SchoolPlan, string, error) {
+func (c *Catalog) previewSchool(ctx context.Context, actor traegercatalog.Actor, snap snapshot, next release, t target) (traegercatalog.SchoolPlan, string, error) {
 	var plan traegercatalog.SchoolPlan
 	var copies map[int64]careplan.TraegerOfferingApplied
 	var state string
+	run := schoolRun{target: t}
 	err := c.deps.Runtime.WithinSchool(ctx, t.schoolID, func(ctx context.Context) error {
 		var err error
 		if err = c.lockSchool(ctx, snap.phase.OrganizationID, t.schoolID); err != nil {
@@ -92,8 +94,13 @@ func (c *Catalog) previewSchool(ctx context.Context, snap snapshot, next release
 		if plan, copies, err = c.applySchool(ctx, snap, next, t.action); err != nil {
 			return err
 		}
-		return errPreviewDiscard
+		run.copies = copies
+		run.prices, run.templates, err = c.preparePreviewBilling(ctx, actor, snap, next, run)
+		return err
 	})
+	if errors.Is(err, errPreviewDiscard) && t.action != traegercatalog.ActionWithdraw {
+		err = c.previewBilling(ctx, actor, run)
+	}
 	plan.SchoolID = t.schoolID
 	switch code, refused := rejectionCode(err); {
 	case errors.Is(err, errPreviewDiscard):
@@ -127,4 +134,28 @@ func (c *Catalog) planBilling(snap snapshot, next release, schoolID int64, plan 
 		plan.Offerings[index].PricesFrom = billing.pricesFrom
 		plan.Offerings[index].ContractTemplate = billing.template
 	}
+}
+
+// Exercise both financial owners in a separate Träger unit and discard it.
+func (c *Catalog) previewBilling(ctx context.Context, actor traegercatalog.Actor, run schoolRun) error {
+	return c.deps.Runtime.WithinTraeger(ctx, actor.OrganizationID, func(ctx context.Context) error {
+		if err := c.deps.Tariffs(ctx, actor.OrganizationID, actor.AccountID, run.prices); err != nil {
+			return err
+		}
+		if err := run.templates(ctx); err != nil {
+			return err
+		}
+		return errPreviewDiscard
+	})
+}
+
+func (c *Catalog) preparePreviewBilling(ctx context.Context, actor traegercatalog.Actor, snap snapshot, next release, run schoolRun) ([]ports.ModulePrices, func(context.Context) error, error) {
+	if run.target.action == traegercatalog.ActionWithdraw {
+		return nil, nil, errPreviewDiscard
+	}
+	prices, templates, err := c.prepareBilling(ctx, actor, snap, next, run)
+	if err != nil {
+		return nil, nil, err
+	}
+	return prices, templates, errPreviewDiscard
 }

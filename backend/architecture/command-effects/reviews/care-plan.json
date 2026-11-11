@@ -14612,6 +14612,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.DayLocks.LockRosterDays",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.DayLocks.LockRosterDays",
+      "reason": "Guarded People Directory locking command: locks the complete tenant-scoped student ID set in ascending order, without loading foreign facts. Care Plan takes these row locks before its ordered advisory day locks in the caller school transaction; no transaction is opened here (ADR 0215).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres.DayLocks.LockStudentAndExceptionDay",
       "classification": "leaf",
       "effect": "lock",

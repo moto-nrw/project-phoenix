@@ -178,3 +178,16 @@ func (s *StudentService) ListEnrolledIDsByIdentities(ctx context.Context, tenant
 	})
 	return ids, err
 }
+
+func (s *StudentService) LockRows(ctx context.Context, ids []int64) (count int, err error) {
+	if err = s.tx.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	err = s.run(ctx, "lock_student_rows", func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, func(ctx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		count, queryStats, err = s.store.LockRows(ctx, ids)
+		stats.Add(queryStats)
+		return err
+	})
+	return count, err
+}

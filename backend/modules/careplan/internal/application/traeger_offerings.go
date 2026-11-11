@@ -272,7 +272,7 @@ func traegerOfferingOf(fields careplan.TraegerOfferingFields, phaseID int64) car
 	return careplan.CareOffering{
 		PhaseID: phaseID, Name: fields.Name, Description: fields.Description, DaysOfWeekMode: fields.DaysOfWeekMode,
 		AvailableDays: fields.AvailableDays, IncludesHolidayCare: fields.IncludesHolidayCare, IncludesLunch: fields.IncludesLunch,
-		Capacity: fields.Capacity, PriceCents: fields.PriceCents, IsActive: true, IsRequired: fields.IsRequired,
+		Capacity: fields.Capacity, PriceCents: fields.PriceCents, IsActive: fields.Active(), IsRequired: fields.IsRequired,
 		CountsAsCare: fields.CountsAsCare, SelectionGroup: fields.SelectionGroup, SelectionRule: fields.SelectionRule,
 		SortOrder: fields.SortOrder, PickupTimes: fields.PickupTimes, AutoAddGradeLevels: []int{},
 		AutoAddTriggerOfferingIDs: []int64{},
@@ -281,7 +281,7 @@ func traegerOfferingOf(fields careplan.TraegerOfferingFields, phaseID int64) car
 
 func traegerOfferingFieldsOf(offering careplan.CareOffering) careplan.TraegerOfferingFields {
 	return careplan.TraegerOfferingFields{
-		Name: offering.Name, Description: offering.Description, DaysOfWeekMode: offering.DaysOfWeekMode,
+		IsActive: &offering.IsActive, Name: offering.Name, Description: offering.Description, DaysOfWeekMode: offering.DaysOfWeekMode,
 		AvailableDays: offering.AvailableDays, IncludesHolidayCare: offering.IncludesHolidayCare,
 		IncludesLunch: offering.IncludesLunch, Capacity: offering.Capacity, PriceCents: offering.PriceCents,
 		IsRequired: offering.IsRequired, CountsAsCare: offering.CountsAsCare, SelectionGroup: offering.SelectionGroup,

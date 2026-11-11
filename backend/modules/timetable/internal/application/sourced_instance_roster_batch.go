@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
@@ -130,26 +129,11 @@ func (s *RosterReconciler) applySourcedRosterStatusDays(ctx context.Context, tou
 	if !ok {
 		return errors.New("sourced roster batch: attendance batch commands are required")
 	}
-	byDate := map[calendar.Date][]int64{}
+	dates := make(map[int64]string, len(touched))
 	for id, date := range touched {
-		byDate[date] = append(byDate[date], id)
+		dates[id] = date.String()
 	}
-	dates := make([]calendar.Date, 0, len(byDate))
-	for date := range byDate {
-		dates = append(dates, date)
-	}
-	slices.Sort(dates)
-	for _, date := range dates {
-		ids := byDate[date]
-		slices.Sort(ids)
-		if _, err := attendance.ApplyActiveStatusDaysForInstances(ctx, ids, date.String()); err != nil {
-			return err
-		}
-		if _, err := attendance.ApplyActivePartialAbsencesForInstances(ctx, ids, date.String()); err != nil {
-			return err
-		}
-	}
-	return nil
+	return attendance.ApplySourcedRosterAttendance(ctx, dates)
 }
 
 func (s *RosterReconciler) saveSourcedInstanceBatch(ctx context.Context, batch *sourcedInstanceBatch) error {
