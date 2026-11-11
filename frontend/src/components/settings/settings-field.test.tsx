@@ -1209,6 +1209,35 @@ describe("SettingsField", () => {
     expect(getByRole("button", { name: "Entfernen" })).toBeDefined();
   });
 
+  it("keeps its hook order when the rendered setting changes from AGB", () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const onReset = vi.fn().mockResolvedValue(null);
+    const { rerender } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({
+          key: "enrollment.legal_agb_text",
+          label: "AGB / Teilnahmebedingungen",
+          type: "textarea",
+          value: "Gespeicherter AGB-Text",
+        })}
+        onSave={onSave}
+        onReset={onReset}
+      />,
+    );
+
+    rerender(
+      <ToastProvider>
+        <SettingsField
+          setting={makeSetting({ label: "Name", type: "text" })}
+          onSave={onSave}
+          onReset={onReset}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+  });
+
   it("hides AGB PDF upload and delete controls for operator settings", () => {
     const { getByRole, getByText, queryByText, queryByRole } =
       renderWithProviders(

@@ -401,6 +401,7 @@ export function SettingsField({
   // that must change first). Server errors go through the shared path.
   const [hint, setHint] = useState<string | null>(null);
   const hintId = useId();
+  const uploadHintId = useId();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [historyDeletion, setHistoryDeletion] = useState<
     "save" | "reset" | null
@@ -1358,6 +1359,7 @@ export function SettingsField({
               documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
+              uploadHintId,
               textOnly: audience === "traeger",
             })
           ) : (
@@ -1425,6 +1427,7 @@ export function SettingsField({
               documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
+              uploadHintId,
               textOnly: audience === "traeger",
             })
           ) : (
@@ -1581,6 +1584,7 @@ interface AGBSourceEditorProps {
   readonly documentDeleteDisabledReason?: string;
   readonly onDocumentUpload: (file: File | null) => void;
   readonly onDocumentDelete: () => void;
+  readonly uploadHintId: string;
   /**
    * Only the text source. The Träger portal sets the AGB text for all its
    * schools; the PDF and the choice between both stay with each school.
@@ -1600,9 +1604,9 @@ function renderAGBSourceEditor({
   documentDeleteDisabledReason,
   onDocumentUpload,
   onDocumentDelete,
+  uploadHintId,
   textOnly = false,
 }: AGBSourceEditorProps) {
-  const uploadHintId = useId();
   const hasText = textValue.trim() !== "";
   const hasDocument = documentURL.trim() !== "";
   const canManageDocument =
