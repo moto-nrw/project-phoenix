@@ -1,6 +1,7 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -199,6 +200,84 @@ describe("TraegerHolidayRegistrationsPage", () => {
     expect(table.queryByText("Bekannt an OGS Süd")).not.toBeInTheDocument();
   });
 
+  it.each([
+    { firstName: "Benedikt" },
+    { lastName: "Meier" },
+    { birthDate: "2016-09-13" },
+  ])(
+    "refreshes school matches after a loaded identity changes: %o",
+    async (correction) => {
+      let finish!: (matches: ReadonlyMap<string, string>) => void;
+      mockFetchKnown
+        .mockResolvedValueOnce(new Map([["10", "32"]]))
+        .mockReturnValueOnce(
+          new Promise<ReadonlyMap<string, string>>((resolve) => {
+            finish = resolve;
+          }),
+        );
+      renderPage();
+      expect(await screen.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+
+      mockFetchList.mockResolvedValue({
+        ...HOLIDAY_REGISTRATION_LIST,
+        registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+          (registration) => ({
+            ...registration,
+            children: registration.children.map((child) =>
+              child.id === "10" ? { ...child, ...correction } : child,
+            ),
+          }),
+        ),
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: "Feriengäste" }),
+      );
+
+      await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(2));
+      const table = within(await screen.findByRole("table"));
+      expect(
+        table.getByText(
+          `${correction.firstName ?? "Ben"} ${correction.lastName ?? "Muster"}`,
+        ),
+      ).toBeInTheDocument();
+      expect(table.queryByText("Bekannt an OGS Süd")).not.toBeInTheDocument();
+
+      await act(async () => finish(new Map([["10", "31"]])));
+      expect(await table.findByText("Bekannt an OGS Nord")).toBeInTheDocument();
+    },
+  );
+
+  it("loads school matches for newly loaded children", async () => {
+    mockFetchKnown
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([["11", "32"]]));
+    renderPage();
+    await within(await screen.findByRole("table")).findByText("Ben Muster");
+    await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(1));
+
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+        (registration) => ({
+          ...registration,
+          children: [
+            ...registration.children,
+            { ...registration.children[1]!, id: "11", firstName: "Nora" },
+          ],
+        }),
+      ),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Feriengäste" }));
+
+    const table = within(await screen.findByRole("table"));
+    expect(await table.findByText("Nora Muster")).toBeInTheDocument();
+    expect(await table.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+    expect(mockFetchKnown).toHaveBeenCalledTimes(2);
+    expect(mockFetchKnown).toHaveBeenLastCalledWith("5", undefined);
+  });
+
   it("shows the debtor number column only while the Träger asks for it (#5621)", async () => {
     mockFetchList.mockResolvedValue({
       ...HOLIDAY_REGISTRATION_LIST,
@@ -273,6 +352,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
         wish: "",
       }),
     );
+    await within(await screen.findByRole("table")).findByText("Ben Muster");
+    expect(mockFetchKnown).toHaveBeenCalledTimes(1);
   });
 
   it("opens a registration from the list", async () => {

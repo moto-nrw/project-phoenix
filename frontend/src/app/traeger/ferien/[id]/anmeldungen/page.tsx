@@ -38,6 +38,7 @@ import {
 } from "~/components/traeger/holiday-wish";
 import {
   knownChildView,
+  knownChildrenKey,
   useHolidayKnownChildren,
 } from "~/components/traeger/holiday-known-child";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
@@ -565,8 +566,14 @@ export default function TraegerHolidayRegistrationsPage() {
   };
 
   const names = schoolNames(schools);
-  const known = useHolidayKnownChildren(periodId);
   const registrationsShown = list?.registrations ?? [];
+  const known = useHolidayKnownChildren(
+    periodId,
+    undefined,
+    knownChildrenKey(
+      registrationsShown.flatMap((registration) => registration.children),
+    ),
+  );
 
   const openBulkConfirmation = () => {
     if (merging || loading || selected.size === 0) return;
