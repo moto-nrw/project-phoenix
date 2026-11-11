@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ApiError } from "~/lib/api-error";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -602,8 +603,23 @@ export function CareOfferingsEditor({
         logger.error("care_offerings_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        // Nach einem Schreiben bleibt die bestätigte Liste stehen; der
-        // Aufrufer zeigt den Fehler als Nachladefehler (#6652).
+        if (
+          err instanceof ApiError &&
+          (err.status === 401 || err.status === 403)
+        ) {
+          setOfferings([]);
+          setPhases([]);
+          setCatalogFailed(true);
+          selectedPhaseIdRef.current = "";
+          setSelectedPhaseId("");
+          setDraft(null);
+          setEditingId(null);
+          setCloneSource(null);
+          setDeleteTarget(null);
+          setBookingStats({});
+        }
+        // Vorübergehende Nachladefehler lassen bestätigte Daten stehen;
+        // der Aufrufer zeigt sie als Nachladefehler (#6652).
         if (options.rethrow) throw err;
         setOfferings([]);
         setCatalogFailed(true);
@@ -956,7 +972,7 @@ export function CareOfferingsEditor({
           loadingRowCount={6}
           getRowKey={(offering) => offering.id}
         />
-      ) : catalogLoad.error ? (
+      ) : catalogFailed || catalogLoad.error ? (
         // Ein Ladefehler steht an Stelle des Katalogs, nie ein Leerzustand.
         <LoadErrorAlert error={catalogLoad.error} />
       ) : hasNoPhases ? (

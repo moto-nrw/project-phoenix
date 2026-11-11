@@ -704,6 +704,37 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
   });
 
+  it.each([403, 503])(
+    "handles a %s report reload after a successful decision and data reload",
+    async (status) => {
+      await renderPhase();
+      mocks.getCareUsageReport.mockRejectedValueOnce(
+        new ApiError("failed", status),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      expect(
+        await screen.findByText(
+          `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(screen.queryAllByText("eva@example.test")).toHaveLength(0);
+        expect(screen.queryByRole("table")).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Bestätigen" }),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByRole("table")).toBeVisible();
+      }
+      if (status === 503) {
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        expect(await screen.findByRole("table")).toBeVisible();
+      }
+      expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("keeps the table after a quick decision whose reload fails", async () => {
     await renderPhase();
     const loads = mocks.listAdminRequests.mock.calls.length;

@@ -1229,6 +1229,45 @@ describe("EnrollmentStatusView", () => {
       await retryOnlyReloads(mockConfirmRenewal);
     });
 
+    it("applies a successful withdrawn status when only the change requests reload fails", async () => {
+      mockFetchStatus.mockResolvedValueOnce(status()).mockResolvedValue(
+        status({
+          withdrawn_at: "2026-09-09T12:00:00Z",
+          children: status().children.map((child) => ({
+            ...child,
+            status: "withdrawn",
+          })),
+        }),
+      );
+      mockWithdrawStatus.mockResolvedValueOnce();
+      render(<EnrollmentStatusView token="tok" />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung zurückziehen" }),
+      );
+      mockListEnrollmentChangeRequests.mockRejectedValueOnce(down());
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Endgültig zurückziehen" }),
+      );
+      expect(await screen.findByText(reloadText)).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Anmeldung zurückziehen" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Bestätigen/ }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Lina Muster")).toBeVisible();
+      const alert = screen
+        .getByText(reloadText)
+        .closest<HTMLElement>('[role="alert"]')!;
+      fireEvent.click(
+        within(alert).getByRole("button", { name: "Wiederholen" }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+      );
+      expect(mockWithdrawStatus).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps a withdrawn enrollment withdrawn when the reload fails", async () => {
       mockFetchStatus
         .mockResolvedValueOnce(status())

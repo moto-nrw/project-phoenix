@@ -932,7 +932,7 @@ export function PhasesEditor() {
       // Ein Ladefehler steht an Stelle der Liste, nie ein Leerzustand.
       error={pageLoad.error}
       empty={
-        !loading && phases.length === 0
+        !loading && phases.length === 0 && !afterWrite.error
           ? {
               title: "Noch keine Anmeldephase angelegt",
               description:

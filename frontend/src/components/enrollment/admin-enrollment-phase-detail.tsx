@@ -293,6 +293,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         const data = await getCareUsageReport(filters);
         if (superseded()) return;
         setReport(data);
+        setReportFailed(false);
+        clearReportError();
         setDefaultOfferingIds(
           data.filter_options.offerings
             .filter((offering) => offering.counts_as_care !== false)
@@ -304,6 +306,17 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           error: err instanceof Error ? err.message : "unknown",
           phase_id: phaseId,
         });
+        if (
+          err instanceof ApiError &&
+          (err.status === 401 || err.status === 403)
+        ) {
+          setReport(null);
+          setReportFailed(true);
+          setDefaultOfferingIds([]);
+          setExplicitOfferingIds(null);
+          setClassRosterSchoolClass(ALL_VALUE);
+          setApprovalWithoutOfferingRow(null);
+        }
         if (options.rethrow) throw err;
         setReportFailed(true);
         await showReportError(err, {

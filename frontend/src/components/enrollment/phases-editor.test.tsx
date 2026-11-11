@@ -482,6 +482,35 @@ describe("PhasesEditor", () => {
     );
   });
 
+  it("shows the reload error instead of the empty state after creating the first phase", async () => {
+    mocks.listPhases
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new ApiError("failed", 503))
+      .mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.createPhase.mockResolvedValue(phase());
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
+    );
+    fireEvent.change(inputByName("name"), {
+      target: { value: "Schuljahr 2026/27" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldephasen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Noch keine Anmeldephase angelegt"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Schuljahr 2026/27")).toBeVisible();
+    expect(mocks.createPhase).toHaveBeenCalledTimes(1);
+  });
+
   // #6652: the status change holds once the write is through; a failed
   // reload is a load error that says the change is saved, no action error.
   it("keeps a status change when the reload fails", async () => {

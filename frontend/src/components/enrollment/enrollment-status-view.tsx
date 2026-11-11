@@ -135,6 +135,7 @@ function EnrollmentStatusViewContent({
     EnrollmentChangeRequest[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [requestsReloadFailed, setRequestsReloadFailed] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const latestRequest = useRef(0);
   // One display path for every failure (#2515): loads stay where the data
@@ -197,6 +198,7 @@ function EnrollmentStatusViewContent({
     setLoading(true);
     clearLoadError();
     clearRequestsLoadError();
+    setRequestsReloadFailed(false);
     setNotFound(false);
     try {
       const [result, requestChanges] = await Promise.all([
@@ -264,12 +266,15 @@ function EnrollmentStatusViewContent({
   const readStatus = useCallback(async () => {
     const request = ++latestRequest.current;
     try {
-      const [result, requestChanges] = await Promise.all([
+      const [statusResult, requestChanges] = await Promise.allSettled([
         fetchStatus(token),
         listEnrollmentChangeRequests(token),
       ]);
       if (request !== latestRequest.current) return;
       setLoading(false);
+      setRequestsReloadFailed(false);
+      if (statusResult.status === "rejected") throw statusResult.reason;
+      const result = statusResult.value;
       if (!result) {
         setNotFound(true);
         setChangeRequests([]);
@@ -277,7 +282,14 @@ function EnrollmentStatusViewContent({
       }
       clearLoadError();
       clearRequestsLoadError();
-      applyStatus(result, requestChanges);
+      applyStatus(
+        result,
+        requestChanges.status === "fulfilled" ? requestChanges.value : [],
+      );
+      if (requestChanges.status === "rejected") {
+        setRequestsReloadFailed(true);
+        throw requestChanges.reason;
+      }
     } catch (error) {
       if (request !== latestRequest.current) return;
       throw error;
@@ -477,8 +489,10 @@ function EnrollmentStatusViewContent({
         editing={editing}
         errors={{
           load: loadError,
-          reload: afterWrite.error,
-          requests: requestsLoadError,
+          reload: requestsReloadFailed ? null : afterWrite.error,
+          requests: requestsReloadFailed
+            ? (afterWrite.error ?? requestsLoadError)
+            : requestsLoadError,
           edit: editError.error,
           editField: editError.fieldError,
           reply: replyError.error,

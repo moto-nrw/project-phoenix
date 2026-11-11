@@ -7,7 +7,7 @@
 // davon nur den Stand, damit sie diesen Code nicht lädt.
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
@@ -130,9 +130,27 @@ export default function TraegerCareRunLettersPage() {
   }, [load]);
 
   const released = run?.status === "released";
+  const lettersRequest = useRef(0);
   const fetchLetters = useCallback(async () => {
-    setLetters(await fetchCareLetters(runId));
-    clearLettersError();
+    const request = ++lettersRequest.current;
+    try {
+      const result = await fetchCareLetters(runId);
+      if (request !== lettersRequest.current) return;
+      setLetters(result);
+      clearLettersError();
+      return result;
+    } catch (error) {
+      if (request !== lettersRequest.current) return;
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        setLetters(null);
+        setShownLetter(null);
+        setCancelling(null);
+      }
+      throw error;
+    }
   }, [runId, clearLettersError]);
   const loadLetters = useCallback(async () => {
     try {
@@ -223,8 +241,8 @@ export default function TraegerCareRunLettersPage() {
     setReissuing(true);
     try {
       // Another tab may already have released the replacement.
-      const latest = await fetchCareLetters(run.id);
-      setLetters(latest);
+      const latest = await fetchLetters();
+      if (!latest) return;
       const cancelled = new Set(
         latest.documents
           .filter(
