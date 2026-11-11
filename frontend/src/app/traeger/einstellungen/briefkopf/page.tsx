@@ -29,6 +29,7 @@ import {
 import { billingConcept } from "~/lib/concepts/billing";
 import { documentTemplatesConcept } from "~/lib/concepts/documentTemplates";
 import { traegerPath } from "~/lib/traeger-url";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
@@ -47,6 +48,10 @@ export default function TraegerBriefkopfPage() {
   const { data: session } = useSession();
   const canEdit = hasPermission(session ?? null, SETTINGS_RIGHT);
   const master = useTraegerMasterData("der Briefkopf");
+  const afterLogoWrite = useRefreshAfterWrite(
+    "die Anzeige des Logos",
+    master.read,
+  );
   const { masterData, loaded, loading, refresh: refreshMaster } = master;
   const {
     data: schema,
@@ -91,7 +96,7 @@ export default function TraegerBriefkopfPage() {
   // Ein fehlgeschlagenes Nachladen lässt die gezeigten Angaben stehen; die
   // Meldung steht dann über ihnen statt an ihrer Stelle.
   const error = metadataLoadError(
-    master.error ?? schemaError,
+    master.error ?? afterLogoWrite.error ?? schemaError,
     loaded && schema !== undefined,
     master.failure,
     schemaFailure,
@@ -132,7 +137,7 @@ export default function TraegerBriefkopfPage() {
           <TraegerLogoCard
             logo={masterData.logo}
             canEdit={canEdit}
-            onChanged={refresh}
+            onChanged={afterLogoWrite.refresh}
           />
 
           {branding?.categories.map((category) => (

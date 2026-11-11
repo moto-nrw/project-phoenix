@@ -7,7 +7,7 @@
 // Schreiben, auch nur die der Familien ohne E-Mail. Die Mail und das Fach
 // „Dokumente“ der Eltern-App bekommen dieselbe Datei.
 
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -72,8 +72,13 @@ export function CareLettersCard({
   onPrint: (withoutEmailOnly: boolean) => void;
 }>) {
   const [confirming, setConfirming] = useState(false);
+  useLayoutEffect(() => {
+    if (!letters) setConfirming(false);
+  }, [letters]);
 
-  if (loadError) {
+  // Bestätigte Schreiben bleiben bei einem Ladefehler stehen; der Fehler
+  // steht darüber (#6652).
+  if (loadError && !letters) {
     return (
       <SectionCard title={TITLE}>
         <LoadErrorAlert error={loadError} actionLayout="responsive" />
@@ -156,6 +161,7 @@ export function CareLettersCard({
       }
     >
       <div className="space-y-5">
+        <LoadErrorAlert error={loadError} actionLayout="responsive" />
         <LetterSendState summary={summary} />
         {summary.withoutInbox > 0 ? (
           <Alert type="info" message={withoutInboxNote(summary.withoutInbox)} />

@@ -14,9 +14,18 @@ const formError = vi.hoisted(() => ({
   clear: vi.fn(),
 }));
 
+// useRefreshAfterWrite (#6652) reads the load-error path; a stable stub keeps
+// its callbacks stable across renders.
+const loadErrorStub = vi.hoisted(() => ({
+  error: null,
+  show: vi.fn(() => Promise.resolve()),
+  clear: vi.fn(),
+}));
+
 vi.mock("~/contexts/ToastContext", () => ({
   useApiErrorDisplay: () => errorDisplay,
   useApiFormError: () => formError,
+  useApiLoadError: () => loadErrorStub,
 }));
 
 // The hook reads the session for the account-bound sidebar memory (#5000).

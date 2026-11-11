@@ -217,6 +217,9 @@ type TemplateServiceDependencies struct {
 	Logger        *slog.Logger
 	Transactions  ports.TenantTransactions
 	Today         func() calendar.Date
+	// Materialization names the people a create's materialization window
+	// plans; nil plans nobody (#6702).
+	Materialization timetable.MaterializationCapability
 }
 
 // TemplateService holds the template writes (create, update, archive, the

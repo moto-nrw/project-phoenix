@@ -22,6 +22,7 @@ import {
   saveTraegerSettingValue,
 } from "~/lib/traeger-api";
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
@@ -122,9 +123,17 @@ function TraegerSettingsContent() {
     ? null
     : (tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null);
   const contact = useTraegerMasterData("die Kontaktdaten", contactActive);
+  const afterContactWrite = useRefreshAfterWrite(
+    "die Anzeige des Ansprechpartners",
+    contact.read,
+  );
   // Ein fehlgeschlagenes Nachladen lässt die Kontaktkarte stehen, außer bei einer Ablehnung.
   const contactError = contactActive
-    ? metadataLoadError(contact.error, contact.loaded, contact.failure)
+    ? metadataLoadError(
+        contact.error ?? afterContactWrite.error,
+        contact.loaded,
+        contact.failure,
+      )
     : null;
   // The holiday tab shows the payment sentence with example values (#5622).
   const paymentText =
@@ -183,7 +192,7 @@ function TraegerSettingsContent() {
         <TraegerContactSection
           masterData={contact.masterData}
           letterheadText={letterheadText(schema)}
-          onSaved={contact.refresh}
+          onSaved={afterContactWrite.refresh}
         />
       ) : null}
       {activeTab?.categories.map((category) => (

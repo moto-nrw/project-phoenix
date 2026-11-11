@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -134,6 +135,9 @@ func (s *Store) DeletePlannedSupervisor(ctx context.Context, id int64) (domain.O
 func (s *Store) LockPlannedSupervisors(ctx context.Context) (domain.OperationStats, error) {
 	db, _, err := s.database(ctx)
 	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "activities.supervisors"); err != nil {
 		return domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{Queries: 1}

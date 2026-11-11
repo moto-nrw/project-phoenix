@@ -34,6 +34,12 @@ interface StudentPhotoSectionProps {
    * Satz in seinem Fehlerkasten (#2513); hier gibt es keinen eigenen.
    */
   onPhotoError: (message: string) => void;
+  /**
+   * Kinderfotos der Schule sind eingeschaltet. Ausgeschaltet bleibt nur der
+   * Haken, damit das Team einen Widerruf von Eltern ohne Elternportal
+   * eintragen kann (#6650); Fotos lassen sich dann nicht hochladen.
+   */
+  uploadsEnabled?: boolean;
 }
 
 const PHOTO_PROCESSING_FAILED =
@@ -64,6 +70,7 @@ export function StudentPhotoSection({
   onMarkRemoved,
   onCancelRemove,
   onPhotoError,
+  uploadsEnabled = true,
 }: StudentPhotoSectionProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -164,26 +171,34 @@ export function StudentPhotoSection({
         Foto
       </h3>
 
-      <div className="flex items-center gap-4">
-        <Avatar imageUrl={displayUrl} name={fullName} size="lg" />
-        <div className="min-w-0 flex-1 text-xs text-gray-600">
-          {pendingPhotoBlob ? (
-            <p className="text-moto-blue font-medium">
-              Foto ausgewählt — wird beim Speichern hochgeladen.
-            </p>
-          ) : pendingPhotoRemoved ? (
-            <p className="text-moto-red-hover font-medium">
-              Foto wird beim Speichern entfernt.
-            </p>
-          ) : displayUrl ? (
-            <p>Aktuelles Foto ist hinterlegt.</p>
-          ) : (
-            <p>
-              Kein Foto hinterlegt — Initialen werden als Platzhalter angezeigt.
-            </p>
-          )}
+      {uploadsEnabled ? (
+        <div className="flex items-center gap-4">
+          <Avatar imageUrl={displayUrl} name={fullName} size="lg" />
+          <div className="min-w-0 flex-1 text-xs text-gray-600">
+            {pendingPhotoBlob ? (
+              <p className="text-moto-blue font-medium">
+                Foto ausgewählt — wird beim Speichern hochgeladen.
+              </p>
+            ) : pendingPhotoRemoved ? (
+              <p className="text-moto-red-hover font-medium">
+                Foto wird beim Speichern entfernt.
+              </p>
+            ) : displayUrl ? (
+              <p>Aktuelles Foto ist hinterlegt.</p>
+            ) : (
+              <p>
+                Kein Foto hinterlegt — Initialen werden als Platzhalter
+                angezeigt.
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="text-xs text-gray-600">
+          Kinderfotos sind ausgeschaltet. Widerrufen Eltern die Einwilligung,
+          entfernen Sie hier den Haken.
+        </p>
+      )}
 
       <ChoiceTile
         htmlFor="photo-consent"
@@ -205,16 +220,22 @@ export function StudentPhotoSection({
             <span className="mt-0.5 block text-xs text-gray-500">
               Erfasst am {consentTimestamp}
             </span>
-          ) : (
+          ) : uploadsEnabled ? (
             <span className="mt-0.5 block text-xs text-gray-500">
               Ein Foto kann erst nach Bestätigung der Einwilligung hochgeladen
               werden.
+            </span>
+          ) : consentGiven ? null : (
+            // Ausgeschaltet zeigt die Akte keinen Zeitpunkt (#6650); nur
+            // der entfernte Haken braucht hier einen Satz.
+            <span className="mt-0.5 block text-xs text-gray-500">
+              Die Einwilligung endet beim Speichern.
             </span>
           )}
         </div>
       </ChoiceTile>
 
-      {consentGiven ? (
+      {consentGiven && uploadsEnabled ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}

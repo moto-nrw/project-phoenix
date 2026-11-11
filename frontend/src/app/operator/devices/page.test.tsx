@@ -362,6 +362,45 @@ describe("OperatorDevicesPage", () => {
 
   // Existing keys are deliberately read-only. Clipboard success and failure
   // remain covered by the one-time creation/rotation dialog suites.
+  it.each(["all", "org", "school"])(
+    "discards refused cached %s devices until a successful fetch",
+    async (scope) => {
+      mockSearchParamsGet.mockImplementation((key: string) => {
+        if (scope === "school" && key === "schoolId") return "10";
+        if (scope !== "all" && key === "orgId") return "1";
+        return null;
+      });
+      const devices = {
+        allDevices: [mockDevice],
+        orgDevices: [mockDevice],
+        schoolDevices: [mockDevice],
+      };
+      withDefaultSWR(devices);
+      const view = render(<OperatorDevicesPage />);
+      expect(screen.getByText("DEV-001")).toBeVisible();
+      for (const status of [403, 500]) {
+        withDefaultSWR({
+          ...devices,
+          devicesError: new ApiError("failed", status),
+          staleData: true,
+        });
+        view.rerender(<OperatorDevicesPage />);
+        expect(
+          await screen.findByText(
+            catalogText(
+              status === 403 ? "general.permission" : "general.server",
+              "die Liste der Geräte",
+            ),
+          ),
+        ).toBeVisible();
+        expect(screen.queryByText("DEV-001")).not.toBeInTheDocument();
+      }
+      withDefaultSWR(devices);
+      view.rerender(<OperatorDevicesPage />);
+      expect(await screen.findByText("DEV-001")).toBeVisible();
+    },
+  );
+
   it("keeps keys read-only even if a stale list fixture contains a raw key", () => {
     const writeText = vi.fn();
     Object.defineProperty(navigator, "clipboard", {

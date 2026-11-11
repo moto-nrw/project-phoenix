@@ -140,6 +140,7 @@ function RevokeModal({
       confirmText="Widerrufen"
       confirmVariant="danger"
       isConfirmLoading={saving}
+      loadingText="Wird widerrufen …"
       isConfirmDisabled={!revokedOn}
     >
       <div className="space-y-4">

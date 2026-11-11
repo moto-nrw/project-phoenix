@@ -43,3 +43,10 @@ func NewImportSchoolAccountLookup(accounts identityaccess.SchoolAccountQuery) fu
 		return account.ID, true, nil
 	}
 }
+
+// NewImportSchoolEmailLookup binds the separate batch query capability without
+// widening the identity owner's login and command facade.
+func NewImportSchoolEmailLookup(accounts identityaccess.SchoolAccountQuery) func(context.Context, []string) (map[string]int64, map[string][]int64, error) {
+	queries := accounts.(identityaccess.SchoolEmailQuery)
+	return queries.FindSchoolEmailIdentities
+}

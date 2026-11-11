@@ -205,18 +205,41 @@ func (s *StudentPhotoService) ApplyPhotoConsent(
 	return updated, nil
 }
 
-// ScheduleUnlink removes a detached file after the caller's commit. An empty
-// URL is a no-op so callers need no conditional.
-func (s *StudentPhotoService) ScheduleUnlink(ctx context.Context, storedURL string) error {
+// queueUnlink preserves the single-file path for callers outside retention.
+func (s *StudentPhotoService) queueUnlink(ctx context.Context, storedURL string) error {
 	if storedURL == "" || s.runtime == nil {
 		return nil
 	}
 	if err := s.runtime.QueueUnlinkStoredPhoto(ctx, storedURL); err != nil {
 		return err
 	}
+	s.ScheduleUnlink(ctx, storedURL)
+	return nil
+}
+
+// scheduleUnlinks queues detached files in bulk in the caller's transaction
+// before registering the existing optional fast path for each file.
+func (s *StudentPhotoService) scheduleUnlinks(ctx context.Context, urls []string) error {
+	if s.runtime == nil || len(urls) == 0 {
+		return nil
+	}
+	if err := s.runtime.QueueUnlinkStoredPhotos(ctx, urls); err != nil {
+		return err
+	}
+	for _, url := range urls {
+		s.ScheduleUnlink(ctx, url)
+	}
+	return nil
+}
+
+// ScheduleUnlink registers only the optional fast path. Its caller must first
+// queue the durable cleanup intent in the triggering transaction.
+func (s *StudentPhotoService) ScheduleUnlink(ctx context.Context, storedURL string) {
+	if storedURL == "" || s.runtime == nil {
+		return
+	}
 	detached := storedURL
 	s.tx.RegisterAfterCommit(ctx, func() { s.runtime.UnlinkStoredPhoto(detached) })
-	return nil
 }
 
 // readPhoto loads the photo slice, refusing a missing child and a graduate

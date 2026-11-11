@@ -115,6 +115,7 @@ func newStaffImport(
 			Transactions:                 runtime.Transactions,
 			Invitations:                  NewStaffInviter(invitations),
 			FindInvitedPeople:            identity.FindInvitedPersonIDs,
+			FindSchoolEmailIdentities:    NewImportSchoolEmailLookup(identity),
 			FindSchoolAccount:            NewImportSchoolAccountLookup(identity),
 			Roles:                        identity,
 			RolePolicy:                   dataImportCompose.NewSchoolRolePolicy(),
@@ -122,6 +123,7 @@ func newStaffImport(
 			SchoolName:                   NewImportSchoolName(organizations),
 			Persons:                      persons,
 			Membership:                   membership,
+			LockStaffPersonMerge:         owners.LockStaffPersonMergeShared,
 			Records:                      workforce,
 		},
 	), runtime)

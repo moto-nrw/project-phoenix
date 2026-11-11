@@ -615,6 +615,7 @@ export function GradeTransitionsManager({
         confirmText="Ja, zurücksetzen"
         cancelText="Abbrechen"
         isConfirmLoading={busy}
+        loadingText="Wird zurückgesetzt …"
       >
         <FormErrorAlert message={revertErrors.error} className="mb-3" />
         <p>

@@ -53,16 +53,43 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 	if opts.DryRun {
 		return &result, nil
 	}
-	reason := bulkCancelReason
-	for _, id := range ids {
-		if _, err := s.cancel(ctx, id, &reason, actorAccountID); err != nil {
-			return nil, err
-		}
-		if err := s.deleteInstance(ctx, id, bulkCancelReason, false); err != nil {
-			return nil, err
-		}
+	if err := s.cancelAndDeleteSelected(ctx, bulkCancelledBlocks(candidates, ids), actorAccountID); err != nil {
+		return nil, err
 	}
 	return &result, nil
+}
+
+// cancelAndDeleteSelected locks the people of every selected future block in
+// one ascending batch (#6702) and then cancels and deletes the blocks.
+func (s *InstanceLifecycleService) cancelAndDeleteSelected(ctx context.Context, blocks []cancelledBlock, actorAccountID *int64) error {
+	if err := s.lockCancelledBlockStaff(ctx, blocks, "bulk cancel"); err != nil {
+		return err
+	}
+	reason := bulkCancelReason
+	for _, block := range blocks {
+		if _, err := s.cancel(ctx, block.id, &reason, actorAccountID, false); err != nil {
+			return err
+		}
+		if err := s.deleteInstance(ctx, block.id, bulkCancelReason, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// bulkCancelledBlocks names the selected candidates with their dates.
+func bulkCancelledBlocks(candidates []timetable.BulkCancelCandidate, ids []int64) []cancelledBlock {
+	selected := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		selected[id] = true
+	}
+	blocks := make([]cancelledBlock, 0, len(ids))
+	for _, candidate := range candidates {
+		if selected[candidate.InstanceID] {
+			blocks = append(blocks, cancelledBlock{id: candidate.InstanceID, date: calendar.Date(candidate.Date)})
+		}
+	}
+	return blocks
 }
 
 // bulkCancelCandidates loads the occurrences of [from, to] with the closing

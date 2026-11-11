@@ -135,6 +135,7 @@ func BuildWorkforcePlanning(
 	staffShifts := shifts.Planning(planExport)
 	cascade, err := shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
 		Planning: staffShifts, Workforce: workTime, LockStaffShifts: workforceCompose.NewStaffShiftLock(db.Pool()),
+		LockStaff:     SickReportStaffLock(membership),
 		Deviations:    lifecycle.Deviations,
 		TimetableData: lifecycle.Rows.SickCascadeRows(arrivalTimetable.SubstituteDayLock(db.Pool()), owner.RecurrenceLock),
 		InstanceStaff: arrivalTimetable.NewTimetableInstanceStaffReads(owner.Repositories.InstanceStaff),

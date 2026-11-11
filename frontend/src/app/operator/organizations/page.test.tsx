@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
@@ -302,6 +303,33 @@ describe("OperatorOrganizationsPage", () => {
     });
   });
 
+  // #6652: the list reloads after the write; a failure there is a load error
+  // above the list that says the Träger is saved, never a failed creation.
+  it("keeps a created Träger successful when the list reload fails", async () => {
+    withDefaultSWR();
+    mockCreateOrganization.mockResolvedValue(mockOrg);
+    mockMutateOrgs.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    render(<OperatorOrganizationsPage />);
+    fireEvent.click(screen.getAllByText("Neuer Träger")[0]!);
+    fireEvent.change(await screen.findByLabelText(/Name/), {
+      target: { value: "New Org" },
+    });
+    fireEvent.click(screen.getByText("Erstellen"));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Träger")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("modal")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mockMutateOrgs).toHaveBeenCalledTimes(2));
+    expect(mockCreateOrganization).toHaveBeenCalledTimes(1);
+  });
+
   it("shows error for duplicate organization slug", async () => {
     withDefaultSWR();
     mockCreateOrganization.mockRejectedValue(
@@ -528,6 +556,39 @@ describe("OperatorOrganizationsPage", () => {
       expect(screen.getByText("A Org")).toBeInTheDocument();
       expect(screen.getByText("B Org")).toBeInTheDocument();
     });
+  });
+
+  it("closes overlays and keeps refused cached organizations hidden", async () => {
+    withDefaultSWR();
+    const view = render(<OperatorOrganizationsPage />);
+    expect(screen.getByText("Test Org")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Test-Träger anlegen" }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Test-Träger anlegen" }),
+    ).toBeVisible();
+    for (const status of [403, 500]) {
+      withDefaultSWR({
+        orgsError: new ApiError("failed", status),
+        staleData: true,
+      });
+      view.rerender(<OperatorOrganizationsPage />);
+      expect(
+        await screen.findByText(
+          catalogText(
+            status === 403 ? "general.permission" : "general.server",
+            "die Liste der Träger",
+          ),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Test Org")).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    }
+    withDefaultSWR();
+    view.rerender(<OperatorOrganizationsPage />);
+    expect(await screen.findByText("Test Org")).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   // #2519: a failed load is not an empty list.

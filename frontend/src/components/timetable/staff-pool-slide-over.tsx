@@ -306,6 +306,9 @@ export function StaffPoolSlideOver({
           confirmText={pendingMove.assignment ? "Verschieben" : "Zuweisen"}
           cancelText="Abbrechen"
           isConfirmLoading={save.pending}
+          loadingText={
+            pendingMove.assignment ? "Wird verschoben …" : "Wird zugewiesen …"
+          }
         >
           <FormErrorAlert message={moveErrors.error} className="mb-3" />
           <p className="text-sm text-gray-600">

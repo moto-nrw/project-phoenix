@@ -16,6 +16,7 @@ import type {
   ContributionRule,
   CostBearer,
 } from "~/lib/traeger-contributions-api";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 
 const { billingApi, termsApi, masterApi, session, api } = vi.hoisted(() => ({
@@ -611,10 +612,51 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Bankverbindungen"),
+        `${catalogText("general.unavailable", "die Anzeige der Bankverbindungen")} ${SAVED_BUT_STALE_SUFFIX}`,
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Elternbeiträge")[0]).toBeInTheDocument();
+  });
+
+  it("reports a rejected billing reload after saving a number pattern", async () => {
+    billingApi.fetchHolidayNumberRange.mockResolvedValue({
+      service: "holiday",
+      pattern: "",
+      example: "",
+    });
+    billingApi.saveHolidayNumberRange.mockResolvedValue({
+      service: "holiday",
+      pattern: "R-{NNN}",
+      example: "R-001",
+    });
+    billingApi.fetchCareNumberRange.mockResolvedValue({
+      service: "care",
+      pattern: "MB-{NNNN}",
+      example: "MB-0001",
+    });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Muster festlegen" }),
+    );
+    fireEvent.change(
+      await screen.findByLabelText("Muster der Rechnungsnummer"),
+      { target: { value: "R-{NNN}" } },
+    );
+    billingApi.fetchHolidayNumberRange.mockRejectedValueOnce(
+      new ApiError("down", 503),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    // Anker: die gespeicherte Änderung bleibt trotz des fehlgeschlagenen Lesens bestätigt.
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Abrechnungsvorgaben")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(billingApi.fetchHolidayNumberRange).toHaveBeenCalledTimes(3),
+    );
+    expect(billingApi.saveHolidayNumberRange).toHaveBeenCalledTimes(1);
   });
 
   it("asks for a pattern before the first release and saves it", async () => {

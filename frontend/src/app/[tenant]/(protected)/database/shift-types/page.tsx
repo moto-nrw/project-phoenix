@@ -4,7 +4,13 @@
 // lagen Liste und Formular in einem Slide-over, das der Dienstplan öffnete.
 // Der Dienstplan verlinkt jetzt hierher.
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -26,6 +32,13 @@ import { createLogger } from "~/lib/logger";
 import { shiftTypeService } from "~/lib/shift-type-api";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useModuleBooked } from "~/lib/tenant-context";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
@@ -55,18 +68,34 @@ function ShiftTypesPageContent() {
   const { show: showSeedError } = useApiErrorDisplay();
   const [seeding, setSeeding] = useState(false);
 
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<ShiftType[]>(CACHE_KEY, () =>
     shiftTypeService.getShiftTypes(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
   // (#2517).
-  const loadError = useSwrLoadError(swrError, "die Liste der Dienstarten", () =>
-    mutate(),
+  const loadError = useSwrLoadError(
+    swrError,
+    "die Liste der Dienstarten",
+    () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   // Die Kategorien tragen ihre aktuelle Schichtart; daraus kommt die
@@ -229,6 +258,7 @@ function ShiftTypesPageContent() {
         menuLabel: "Nicht mehr anbieten",
         confirmTitle: "Dienstart nicht mehr anbieten?",
         confirmLabel: "Nicht mehr anbieten",
+        loadingLabel: "Wird aus der Auswahl genommen …",
         describe: (type) =>
           `Die Dienstart „${type.name}“ steht bei neuen Diensten nicht mehr zur Auswahl. Geplante Dienste behalten sie.`,
         run: (type) =>
@@ -262,12 +292,17 @@ function ShiftTypesPageContent() {
     };
   }, [categories, categoriesReady]);
 
+  // Die Beispiele laden nach dem Anlegen; ein Fehler dabei steht über der
+  // Liste und legt nichts erneut an (#6652).
+  const seedAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Dienstarten",
+    onChanged,
+  );
+
   const handleSeed = useCallback(async () => {
     setSeeding(true);
     try {
       await shiftTypeService.createDefaults();
-      await onChanged();
-      toast.success("Die Beispiele sind hinzugefügt.");
     } catch (err: unknown) {
       logger.error("shift_type_seed_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -276,10 +311,13 @@ function ShiftTypesPageContent() {
         object: "das Anlegen der Beispiele",
         retry: () => void handleSeed(),
       });
-    } finally {
       setSeeding(false);
+      return;
     }
-  }, [onChanged, toast, showSeedError]);
+    setSeeding(false);
+    toast.success("Die Beispiele sind hinzugefügt.");
+    await seedAfterWrite.refresh();
+  }, [seedAfterWrite, toast, showSeedError]);
 
   return (
     <CatalogPage
@@ -293,6 +331,7 @@ function ShiftTypesPageContent() {
       }
       error={loadError}
       onChanged={onChanged}
+      notice={<LoadErrorAlert error={seedAfterWrite.error} />}
       // Die Route liegt hinter time_tracking:manage (database/layout).
       canManage
       selectedId={searchParams.get(CATALOG_SELECTION_PARAM)}

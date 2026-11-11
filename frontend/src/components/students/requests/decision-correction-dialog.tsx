@@ -118,6 +118,7 @@ export function DecisionCorrectionDialog({
       confirmText="Korrektur speichern"
       cancelText="Zurück"
       isConfirmLoading={saving}
+      loadingText="Wird gespeichert …"
       isDismissDisabled={saving}
       mobileSheet
     >

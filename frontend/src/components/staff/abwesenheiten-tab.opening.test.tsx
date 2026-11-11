@@ -2,6 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { StaffVacationQuotaSummary } from "~/lib/staff-api";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 
 // Same stub as stundenkonto-panel.test.tsx: the kit picker opens a calendar
 // overlay, the native input keeps the Stichtag settable via fireEvent.change
@@ -220,6 +223,80 @@ describe("AbwesenheitenTab vacation takeover", () => {
 
     await waitFor(() => {
       expect(mocks.deleteVacationOpening).toHaveBeenCalledWith("4", year);
+    });
+  });
+
+  // #6652: the takeover holds once the write is through; a failed reload is
+  // a load error that says the change is saved, and its retry only reloads.
+  describe("reload after a takeover (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Abwesenheiten")} ${SAVED_BUT_STALE_SUFFIX}`;
+    function failSecondQuotaLoad(first: ReturnType<typeof quota>) {
+      mocks.getVacationQuota
+        .mockReset()
+        .mockResolvedValueOnce(first)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(first);
+    }
+
+    it("keeps a booked takeover booked when the reload fails", async () => {
+      mocks.setVacationOpening.mockClear();
+      failSecondQuotaLoad(quota());
+      mocks.getAbsences.mockResolvedValue([]);
+      mocks.setVacationOpening.mockResolvedValue(existingOpening);
+      renderTab();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Urlaubs-Übernahme" }),
+      );
+      fireEvent.change(screen.getByLabelText("Stichtag"), {
+        target: { value: `${year}-02-28` },
+      });
+      fireEvent.change(
+        screen.getByLabelText("Resturlaub zum Stichtag (Tage)"),
+        { target: { value: "26,5" } },
+      );
+      fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+        target: { value: "Übernahme aus Urlaubsliste" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Übernahme buchen" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(mocks.getVacationQuota).toHaveBeenCalledTimes(3),
+      );
+      expect(mocks.setVacationOpening).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a deleted takeover deleted when the reload fails", async () => {
+      mocks.deleteVacationOpening.mockClear();
+      failSecondQuotaLoad(
+        quota({
+          taken_before_days: 6,
+          remaining_days: 26,
+          opening: existingOpening,
+        }),
+      );
+      mocks.getAbsences.mockResolvedValue([]);
+      mocks.deleteVacationOpening.mockResolvedValue(undefined);
+      renderTab();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Urlaubs-Übernahme" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Übernahme löschen" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(mocks.getVacationQuota).toHaveBeenCalledTimes(3),
+      );
+      expect(mocks.deleteVacationOpening).toHaveBeenCalledTimes(1);
     });
   });
 

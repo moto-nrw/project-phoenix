@@ -1577,7 +1577,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error {\n\treturn mapPhotoError(s.studentPhotos.ScheduleUnlink(ctx, storedURL))\n}",
+      "evidence": "func (s *Service) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error {\n\treturn mapPhotoError(s.studentPhotos.queueUnlink(ctx, storedURL))\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/application/Service.ScheduleStudentPhotoUnlink",
       "owner": "modules/peopledirectory"

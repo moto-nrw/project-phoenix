@@ -12,6 +12,7 @@ import type {
 const { api, push } = vi.hoisted(() => ({
   api: {
     fetchCareRun: vi.fn(),
+    printCareLetters: vi.fn(),
     fetchCareLetters: vi.fn(),
     fetchCareRuns: vi.fn(),
     startCareRun: vi.fn(),
@@ -29,6 +30,10 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
+vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
+
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import TraegerCareRunLettersPage from "./page";
 
 const RUN: CareRunDetail = {
@@ -134,6 +139,57 @@ describe("monthly invoice reissue", () => {
     api.fetchCareRun.mockResolvedValue(RUN);
     api.fetchCareRuns.mockResolvedValue({ runs: [] });
   });
+
+  it.each([403, 503])(
+    "handles a %s letters reload after printing without exposing refused letters",
+    async (status) => {
+      api.fetchCareLetters.mockResolvedValue({
+        ...letters([]),
+        letters: {
+          paymentDueOn: "2026-09-23",
+          notes: "Privater Hinweis",
+          createdAt: "2026-09-09T08:00:00Z",
+        },
+        summary: { ...letters([]).summary, letters: 1, notSent: 1 },
+      });
+      api.printCareLetters.mockResolvedValue({
+        blob: new Blob(),
+        filename: "letters.pdf",
+      });
+      renderPage();
+      expect(await screen.findByText("Privater Hinweis")).toBeVisible();
+      api.fetchCareLetters.mockRejectedValueOnce(
+        new ApiError("failed", status),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Schreiben drucken" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: /Alle Schreiben drucken/ }),
+      );
+      expect(
+        await screen.findByText(
+          `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Schreiben")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(screen.queryByText("Privater Hinweis")).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "An alle senden" }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Schreiben drucken" }),
+        ).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByText("Privater Hinweis")).toBeVisible();
+      }
+      if (status === 503) {
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        expect(await screen.findByText("Privater Hinweis")).toBeVisible();
+      }
+      expect(api.printCareLetters).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("hides reissue when every cancellation has a released replacement", async () => {
     api.fetchCareLetters.mockResolvedValue(

@@ -1,14 +1,19 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
   OrgAccount,
@@ -63,7 +68,7 @@ function OperatorAccountsPageContent() {
   );
 
   const {
-    data: schoolAccounts,
+    data: cachedSchoolAccounts,
     error: schoolAccountsError,
     isLoading: schoolAccountsLoading,
   } = useSWRAuth(
@@ -77,9 +82,17 @@ function OperatorAccountsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolAccounts, accessRefused: schoolAccountsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && urlSchoolId
+        ? operatorProvisioningKeys.schoolAccounts(urlSchoolId)
+        : null,
+      cachedSchoolAccounts,
+      schoolAccountsError,
+    );
 
   const {
-    data: orgAccounts,
+    data: cachedOrgAccounts,
     error: orgAccountsError,
     isLoading: orgAccountsLoading,
   } = useSWRAuth(
@@ -93,9 +106,17 @@ function OperatorAccountsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: orgAccounts, accessRefused: orgAccountsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.orgAccounts(filterOrgId)
+        : null,
+      cachedOrgAccounts,
+      orgAccountsError,
+    );
 
   const {
-    data: allAccounts,
+    data: cachedAllAccounts,
     error: allAccountsError,
     isLoading: allAccountsLoading,
   } = useSWRAuth(
@@ -109,18 +130,53 @@ function OperatorAccountsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: allAccounts, accessRefused: allAccountsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && !filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.allAccounts()
+        : null,
+      cachedAllAccounts,
+      allAccountsError,
+    );
+
+  const activeError = urlSchoolId
+    ? schoolAccountsError
+    : filterOrgId
+      ? orgAccountsError
+      : allAccountsError;
+  const accessRefused = urlSchoolId
+    ? schoolAccountsAccessRefused
+    : filterOrgId
+      ? orgAccountsAccessRefused
+      : allAccountsAccessRefused;
+
+  useEffect(() => {
+    if (!accessRefused) return;
+    setCaregiverAccount(null);
+    setCaregiverSchoolContext(null);
+    setMfaAccount(null);
+    setMfaSchoolContext(null);
+    setTenantAccessAccount(null);
+  }, [accessRefused]);
 
   const refreshAccounts = useCallback(() => refreshFamily(), [refreshFamily]);
 
   // Only one of the three lists is active at a time.
   const accountsLoadError = useSwrLoadError(
-    urlSchoolId
-      ? schoolAccountsError
-      : filterOrgId
-        ? orgAccountsError
-        : allAccountsError,
+    activeError,
     "die Liste der Konten",
     () => void refreshAccounts(),
+    !accessRefused &&
+      (urlSchoolId ? schoolAccounts : filterOrgId ? orgAccounts : allAccounts)
+        ?.length
+      ? STALE_DATA_SUFFIX
+      : undefined,
+  );
+  // A dialog's write reloads the list afterwards; a failed reload stands
+  // above the list, also after the dialog closed (#6652).
+  const accountsAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Konten",
+    refreshAccounts,
   );
 
   const openCaregiverModal = useCallback(
@@ -150,11 +206,13 @@ function OperatorAccountsPageContent() {
     [],
   );
 
-  const count = selectedSchool
-    ? schoolAccounts?.length
-    : filterOrgId
-      ? orgAccounts?.length
-      : allAccounts?.length;
+  const count = accessRefused
+    ? undefined
+    : selectedSchool
+      ? schoolAccounts?.length
+      : filterOrgId
+        ? orgAccounts?.length
+        : allAccounts?.length;
 
   return (
     <TenantPage
@@ -179,7 +237,7 @@ function OperatorAccountsPageContent() {
       }
       overlays={
         <>
-          {mfaAccount && mfaSchoolContext ? (
+          {!accessRefused && mfaAccount && mfaSchoolContext ? (
             <MFAAdminOverrideModal
               isOpen={true}
               onClose={() => {
@@ -193,7 +251,7 @@ function OperatorAccountsPageContent() {
             />
           ) : null}
 
-          {tenantAccessAccount ? (
+          {!accessRefused && tenantAccessAccount ? (
             <AccountTenantAccessModal
               isOpen={true}
               onClose={() => setTenantAccessAccount(null)}
@@ -203,13 +261,11 @@ function OperatorAccountsPageContent() {
                 tenantAccessAccount.email
               }
               accountEmail={tenantAccessAccount.email}
-              onUpdated={async () => {
-                await refreshAccounts();
-              }}
+              onUpdated={accountsAfterWrite.refresh}
             />
           ) : null}
 
-          {caregiverAccount && caregiverSchoolContext ? (
+          {!accessRefused && caregiverAccount && caregiverSchoolContext ? (
             <CaregiverCapabilityModal
               isOpen={true}
               onClose={() => {
@@ -221,9 +277,7 @@ function OperatorAccountsPageContent() {
               accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
               schoolId={caregiverSchoolContext.id}
               schoolName={caregiverSchoolContext.name}
-              onUpdated={async () => {
-                await refreshAccounts();
-              }}
+              onUpdated={accountsAfterWrite.refresh}
             />
           ) : null}
         </>
@@ -232,8 +286,9 @@ function OperatorAccountsPageContent() {
       <LoadErrorAlert error={organizationsLoadError} />
       <LoadErrorAlert error={schoolsLoadError} />
       <LoadErrorAlert error={accountsLoadError} />
+      <LoadErrorAlert error={accountsAfterWrite.error} />
 
-      {!urlSchoolId && filterOrgId && (
+      {!accessRefused && !urlSchoolId && filterOrgId && (
         <>
           {!orgAccountsError &&
           !orgAccountsLoading &&
@@ -243,7 +298,7 @@ function OperatorAccountsPageContent() {
               description="Für diesen Träger gibt es noch keine zugewiesenen Konten."
             />
           ) : (orgAccounts === undefined && !orgAccountsLoading) ||
-            orgAccountsError ? null : (
+            (orgAccountsError && !orgAccounts?.length) ? null : (
             <AccountsTable
               accounts={orgAccounts ?? []}
               showSchool
@@ -256,7 +311,7 @@ function OperatorAccountsPageContent() {
         </>
       )}
 
-      {!urlSchoolId && !filterOrgId && (
+      {!accessRefused && !urlSchoolId && !filterOrgId && (
         <>
           {!allAccountsError &&
           !allAccountsLoading &&
@@ -266,7 +321,7 @@ function OperatorAccountsPageContent() {
               description="Es gibt noch keine Konten im System."
             />
           ) : (allAccounts === undefined && !allAccountsLoading) ||
-            allAccountsError ? null : (
+            (allAccountsError && !allAccounts?.length) ? null : (
             <AccountsTable
               accounts={allAccounts ?? []}
               showSchool
@@ -279,7 +334,7 @@ function OperatorAccountsPageContent() {
         </>
       )}
 
-      {selectedSchool && (
+      {!accessRefused && selectedSchool && (
         <>
           <div className="mb-3 flex items-center gap-2">
             <h3 className="text-sm font-semibold text-gray-900">
@@ -308,7 +363,7 @@ function OperatorAccountsPageContent() {
               description="Für diese Schule gibt es noch keine zugewiesenen Konten."
             />
           ) : (schoolAccounts === undefined && !schoolAccountsLoading) ||
-            schoolAccountsError ? null : (
+            (schoolAccountsError && !schoolAccounts?.length) ? null : (
             <AccountsTable
               accounts={schoolAccounts ?? []}
               selectedSchool={selectedSchool}
