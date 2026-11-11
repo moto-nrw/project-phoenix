@@ -16,7 +16,7 @@
     <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
         {{range .Weeks}}
-        <p style="margin: 8px 0 4px 0; font-size: 14px;">{{.Week}}{{if .Waitlisted}} (Warteliste){{end}}</p>
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">{{.Week}}{{if .Pending}} (Das Büro entscheidet noch){{else if .Waitlisted}} (Warteliste){{end}}</p>
         <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
             {{range .ClosedDays}}
             <li>Geschlossen: {{.}}</li>
@@ -30,6 +30,7 @@
         <p style="margin: 0; font-size: 14px;"><strong>Was heißt das für Sie?</strong></p>
         <p style="margin: 8px 0 0 0; font-size: 14px;">Bitte planen Sie für diese Tage eine andere Betreuung.</p>
         <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre anderen gebuchten Tage bleiben. Sie müssen nichts ändern.</p>
+        {{if .Pending}}<p style="margin: 8px 0 0 0; font-size: 14px;">Das Büro entscheidet noch, ob Ihr Kind einen Platz bekommt.</p>{{end}}
         {{if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">Steht Ihr Kind auf der Warteliste, bleibt es dort.</p>{{end}}
         {{if .KeepsContribution}}<p style="margin: 8px 0 0 0; font-size: 14px;">Der Beitrag bleibt gleich.</p>{{end}}
     </div>

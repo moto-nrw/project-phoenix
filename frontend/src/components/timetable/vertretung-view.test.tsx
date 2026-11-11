@@ -187,8 +187,13 @@ vi.mock("~/components/timetable/substitution-slide-over", () => ({
         </button>
         <button
           type="button"
+          // Wie der echte Editor: er schließt sich nach einer bestätigten
+          // Absage selbst (#6593); die View schließt nicht mehr mit.
           onClick={() =>
-            void props.onApply({ cancel: true }).catch(mockApplyRejected)
+            void props
+              .onApply({ cancel: true })
+              .then(() => props.onClose())
+              .catch(mockApplyRejected)
           }
         >
           editor-cancel-save

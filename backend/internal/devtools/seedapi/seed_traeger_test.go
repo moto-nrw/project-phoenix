@@ -138,7 +138,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 				assert.NoError(t, json.Unmarshal(raw, &correction))
 				w.WriteHeader(http.StatusCreated)
 			}
-			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"preview_count":1,"preview_cents":11250,` +
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"preview_count":1,"preview_cents":11250,"fingerprint":"geprueft",` +
 				`"documents":[{"registration_id":9,"children":[{"child_id":91,"total_cents":4500}]}]}}`))
 		case "/traeger/holiday-contributions/5/registrations/9/confirm":
 			raw, err := io.ReadAll(r.Body)
@@ -248,7 +248,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
 	assert.Equal(t, map[string]any{"registration_id": float64(9), "child_id": float64(91), "total_cents": float64(3500),
 		"reason": "Am ersten Ferientag krank, Tag wird erstattet."}, correction, "the Abrechnung lowers one child with a reason")
-	assert.Equal(t, map[string]any{"document_count": float64(1), "total_cents": float64(11250)}, release,
+	assert.Equal(t, map[string]any{"document_count": float64(1), "total_cents": float64(11250), "fingerprint": "geprueft"}, release,
 		"the release names the preview it checked")
 	assert.Equal(t, map[string]any{"benefits_exemption": false, "debtor_number": "10 4711"}, confirmation,
 		"the Träger-Büro asks for the debtor number and confirms the siblings with theirs (#5621)")

@@ -74,22 +74,14 @@ func firstAudience(audiences []string) string {
 	return audiences[0]
 }
 
-// childConversationView resolves the guardian's child and builds the view of
-// the audience's conversation: who reads it and, filled in the tenant
+// childConversationView builds the view of the audience's conversation about
+// the resolved child: who reads it and, filled in the school's part of the
 // transaction, the leadership option.
-func (s *Service) childConversationView(ctx context.Context, accountID, studentID int64, audience string) (*Child, *MessageThreadView, error) {
-	audience, err := normalizeAudience(audience)
-	if err != nil {
-		return nil, nil, err
-	}
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return child, &MessageThreadView{
+func childConversationView(child *Child, studentID int64, audience string) *MessageThreadView {
+	return &MessageThreadView{
 		StudentID: studentID, StudentName: child.StudentName, SchoolName: child.SchoolName,
 		Audience: audience,
-	}, nil
+	}
 }
 
 // findChildConversation stamps the leadership option on the view and loads

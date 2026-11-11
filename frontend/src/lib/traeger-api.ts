@@ -531,8 +531,16 @@ export interface HolidayPeriodInput {
    * (#4701).
    */
   readonly maxDaysPerChild?: number | null;
+  /**
+   * How places are given out (#4700): in the order of arrival, or by the
+   * office after the Träger's criteria. Absent reads as arrival.
+   */
+  readonly allocationMode?: HolidayAllocationMode;
   readonly weeks: readonly HolidayWeek[];
 }
+
+/** How the places of a holiday period are given out (#4700). */
+export type HolidayAllocationMode = "arrival" | "criteria";
 
 export interface HolidayPeriod extends HolidayPeriodInput {
   readonly id: string;
@@ -542,6 +550,8 @@ export interface HolidayPeriod extends HolidayPeriodInput {
   readonly publicToken: string;
   /** Registrations received so far, a summed figure. */
   readonly registrationCount: number;
+  /** The period has a registration, so its allocation stays (#4700). */
+  readonly allocationModeLocked?: boolean;
 }
 
 interface BackendTimeModel {
@@ -577,6 +587,8 @@ interface BackendHolidayPeriod {
   public_token?: string;
   registration_count?: number;
   max_days_per_child?: number | null;
+  allocation_mode?: HolidayAllocationMode;
+  allocation_mode_locked?: boolean;
   weeks?: BackendWeek[] | null;
 }
 
@@ -594,6 +606,8 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
     publicToken: period.public_token ?? "",
     registrationCount: period.registration_count ?? 0,
     maxDaysPerChild: period.max_days_per_child ?? null,
+    allocationMode: period.allocation_mode ?? "arrival",
+    allocationModeLocked: period.allocation_mode_locked ?? false,
     weeks: (period.weeks ?? []).map((week) => ({
       id: String(week.id),
       startsOn: week.starts_on,
@@ -623,6 +637,7 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
     notes: input.notes,
     holiday_wish_rule: input.holidayWishRule,
     max_days_per_child: input.maxDaysPerChild ?? null,
+    allocation_mode: input.allocationMode ?? "arrival",
     weeks: input.weeks.map((week) => ({
       ...(week.id ? { id: Number(week.id) } : {}),
       starts_on: week.startsOn,

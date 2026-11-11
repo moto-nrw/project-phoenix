@@ -3047,7 +3047,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {\n\terr := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)\n\tswitch {\n\tcase errors.Is(err, identityaccess.ErrInvalidTraegerRole):\n\t\treturn organizationtenancy.ErrInvalidTraegerRole\n\tcase errors.Is(err, identityaccess.ErrAccountNotFound):\n\t\treturn organizationtenancy.ErrTraegerAccountNotFound\n\t}\n\treturn err\n}",
+      "evidence": "func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {\n\terr := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)\n\tswitch {\n\tcase errors.Is(err, identityaccess.ErrInvalidTraegerRole):\n\t\treturn organizationtenancy.ErrInvalidTraegerRole\n\tcase errors.Is(err, identityaccess.ErrAccountNotFound):\n\t\treturn organizationtenancy.ErrTraegerAccountNotFound\n\tcase errors.Is(err, identityaccess.ErrAccountInactive):\n\t\treturn organizationtenancy.ErrTraegerAccountInactive\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ProvisioningIdentity.AssignTraegerRole",
       "owner": "roots"
@@ -5203,6 +5203,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a deletionAudit) CreateAll(ctx context.Context, events []*presenceservice.DeletionEvent) error {\n\tentries := make([]*audit.DataDeletion, len(events))\n\tfor i, event := range events {\n\t\tif event != nil {\n\t\t\tentries[i] = presenceDataDeletion(event)\n\t\t}\n\t}\n\treturn a.writer.CreateAll(ctx, entries)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/deletionAudit.CreateAll",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s deliveryOnDutyStaff) OnDutyStaffIDs(ctx context.Context) ([]int64, error) {\n\tpresence, err := s.presence.WorkPresenceMap(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn slices.Sorted(maps.Keys(workforce.OnDutyStaffIDs(presence))), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/deliveryOnDutyStaff.OnDutyStaffIDs",
@@ -5532,6 +5539,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (o enrollmentPhaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentOwner.OfferingBooking, error) {\n\trows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offering bookings by phase: %w\", err)\n\t}\n\treturn enrollmentBookings(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (o enrollmentPhaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error) {\n\tcount, err := o.carePlan.CountCareOfferingsByPhase(ctx, phaseID)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to count care offerings by phase: %w\", err)\n\t}\n\treturn count, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.CountOfferingsForPhase",
@@ -5542,6 +5556,13 @@
       "evidence": "func (o enrollmentPhaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {\n\tofferings, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{phaseID}, Order: careplan.OfferingOrderCatalog})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offerings by phase: %w\", err)\n\t}\n\tids := make([]int64, 0, len(offerings))\n\tfor _, offering := range offerings {\n\t\tids = append(ids, offering.ID)\n\t}\n\treturn ids, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.OfferingIDsForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentOwner.PendingWindowMove) (bool, error) {\n\tmoved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{StudentID: move.StudentID, FromBefore: calendar.Date(move.FromBefore), FromAfter: calendar.Date(move.FromAfter), UntilBefore: calendar.Date(move.UntilBefore), UntilAfter: calendar.Date(move.UntilAfter), OtherStarts: calendarDates(move.OtherStarts), OtherEnds: calendarDates(move.OtherEnds)})\n\tvar conflict *schoolmembership.PendingWindowConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn false, fmt.Errorf(\"%w: student %d\", enrollmentOwner.ErrPhasePendingChildWindowConflict, conflict.StudentID)\n\t}\n\treturn moved, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseStudents.MovePendingWindow",
       "owner": "roots"
     },
     {
@@ -5605,27 +5626,6 @@
       "evidence": "func (s enrollmentReviewerStaff) StaffIDByPerson(ctx context.Context, personID int64) (int64, error) {\n\tstaff, err := s.repo.FindByPersonID(ctx, personID)\n\tif err != nil || staff == nil {\n\t\treturn 0, err\n\t}\n\treturn staff.ID, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentReviewerStaff.StaffIDByPerson",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) CollectGradeLevel(ctx context.Context) (bool, error) {\n\treturn s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectGradeLevel)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.CollectGradeLevel",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) GradeLevelMax(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) StatusTokenTTLDays(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentStatusTokenTTLDays)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.StatusTokenTTLDays",
       "owner": "roots"
     },
     {
@@ -6627,6 +6627,13 @@
       "evidence": "func (p parentSurveys) SurveySummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]parentportal.SurveySummary, error) {\n\trows, err := p.source.PortalSurveySummaries(ctx, accountID, announcementIDs)\n\tif err != nil {\n\t\treturn nil, parentSurveyError(err)\n\t}\n\tout := make(map[int64]parentportal.SurveySummary, len(rows))\n\tfor id, row := range rows {\n\t\tout[id] = parentportal.SurveySummary{SurveyID: row.SurveyID, Anonymous: row.Anonymous, ClosesAt: row.ClosesAt, Participated: row.Participated}\n\t}\n\treturn out, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentSurveys.SurveySummaries",
+      "owner": "roots"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r parkedParentChildReads) FindForAccount(ctx context.Context, accountID, studentID int64) (*parentportal.ChildSummary, error) {\n\tchild, err := r.ChildReads.FindForAccount(ctx, accountID, studentID)\n\tr.park()\n\treturn child, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parkedParentChildReads.FindForAccount",
       "owner": "roots"
     },
     {

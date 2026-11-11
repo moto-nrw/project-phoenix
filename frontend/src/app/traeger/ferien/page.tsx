@@ -3,7 +3,7 @@
 // Ferienzeiträume des Trägers (#4659): Übersicht aller Zeiträume, von hier
 // aus anlegen und öffnen.
 
-import { CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, ListChecks, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   formatDateRange,
@@ -89,10 +89,20 @@ export default function TraegerHolidayPeriodsPage() {
       statsLoading={loading}
       error={loadError}
       actions={
-        <ButtonLink href={newHref} variant="primary" size="md">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Ferienzeitraum anlegen
-        </ButtonLink>
+        <>
+          <ButtonLink
+            href={traegerPath("/traeger/ferien/kriterien")}
+            variant="outline"
+            size="md"
+          >
+            <ListChecks className="h-4 w-4" aria-hidden="true" />
+            Kriterien der Platzvergabe
+          </ButtonLink>
+          <ButtonLink href={newHref} variant="primary" size="md">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Ferienzeitraum anlegen
+          </ButtonLink>
+        </>
       }
     >
       <DataTable

@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 
@@ -261,6 +262,25 @@ func (p guardianPickupPort) ChangeGuardianPickupPermission(ctx context.Context, 
 	})
 }
 
+// CreateGuardianPickupPermissions writes the pickup halves of many new links
+// in one Care Plan statement (#5552); an owner without the batch slice
+// refuses.
+func (p guardianPickupPort) CreateGuardianPickupPermissions(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	batches, ok := p.owner.(careplan.GuardianPickupPermissionBatches)
+	if !ok {
+		return errGuardianLinkBatchesUnbound
+	}
+	rows := make([]careplan.GuardianPickupPermission, len(links))
+	for i, link := range links {
+		rows[i] = careplan.GuardianPickupPermission{
+			TenantID: tenantID, RelationshipID: link.RelationshipID, CanPickup: link.CanPickup, PickupNotes: link.PickupNotes,
+		}
+	}
+	return batches.CreateGuardianPickupPermissions(ctx, rows)
+}
+
+var errGuardianLinkBatchesUnbound = errors.New("people directory link owners: the batch slice is not bound")
+
 type guardianAccessPort struct {
 	owner guardianStudentAccess
 }
@@ -285,6 +305,23 @@ func (p guardianAccessPort) GrantGuardianStudentAccess(ctx context.Context, tena
 
 func (p guardianAccessPort) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
 	return p.owner.SetGuardianStudentPermissions(ctx, tenantID, relationshipID, permissions)
+}
+
+// GrantGuardianStudentAccesses writes the access halves of many new links in
+// one Identity & Access statement (#5552); an owner without the batch slice
+// refuses.
+func (p guardianAccessPort) GrantGuardianStudentAccesses(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	batches, ok := p.owner.(identityaccess.GuardianStudentAccessBatches)
+	if !ok {
+		return errGuardianLinkBatchesUnbound
+	}
+	rows := make([]identityaccess.GuardianStudentAccessGrant, len(links))
+	for i, link := range links {
+		rows[i] = identityaccess.GuardianStudentAccessGrant{
+			TenantID: tenantID, RelationshipID: link.RelationshipID, AccountID: link.AccountID, Permissions: link.Permissions,
+		}
+	}
+	return batches.GrantGuardianStudentAccesses(ctx, rows)
 }
 
 // guardianLinkOwners serves People Directory's parents-portal link writes the

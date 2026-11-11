@@ -2385,6 +2385,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
+      "binding_digest": "a5f32f0966629d0f95b40a50194dd0bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseStudents.MovePendingWindow",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.PendingWindows.MovePendingWindow",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RejectedCleanup.CleanupRejectedEnrollments",
       "binding_digest": "07832e19f0cfb11d964b78cbad7c3bfc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.RejectedEnrollmentCleaner.CleanupRejectedEnrollments",
@@ -3191,6 +3199,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "binding_digest": "529e813e6c8f8d91391fda5276145db7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "target_owner": "parent-billing"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
@@ -5057,6 +5073,30 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "binding_digest": "1f3549beaed18301b09deffeb003ba04",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "binding_digest": "d02423fb32a8abe6418d1d632e692bf9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingBooking.EffectiveSelectedDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "binding_digest": "9eb8f0bf7618d495064a204c95956509",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CountOfferingsForPhase",
       "binding_digest": "f5d0e4ee8f1a4d16525eadcf22833494",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CountOfferingsForPhase",
@@ -5361,27 +5401,35 @@
       "target_owner": "timetable-activities"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
-      "binding_digest": "2986ee28f8a7982af6dc34085156bc78",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CollectGradeLevel",
+      "binding_digest": "f25f3905dd24d0984fb04a15138de7d1",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.CollectGradeLevel",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.CollectGradeLevel",
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
-      "binding_digest": "763179e38fda00ab66caf3d4b50e13c9",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.GradeLevelMax",
+      "binding_digest": "e375f6f70a10926186ba80f4532875c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.GradeLevelMax",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.GradeLevelMax",
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.StatusTokenTTLDays",
-      "binding_digest": "5d87b8c580f934359c760560f309e021",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.LegalSettings",
+      "binding_digest": "966e23dee22a36ba0cc5b14721ef5dce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.LegalSettings",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.Legal",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.StatusTokenTTLDays",
+      "binding_digest": "f00ca645aba20b54bde634a376331a7f",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.StatusTokenTTLDays",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.StatusTokenTTLDays",
       "target_owner": "settings-platform"
     },
     {

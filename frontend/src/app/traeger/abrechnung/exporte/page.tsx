@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
 import {
+  BOOKING_ACCOUNTS_PATH,
   DATEV_SETTINGS_PATH,
   DatevNothingNewNotice,
   DatevReadinessNotice,
@@ -339,6 +340,13 @@ export default function TraegerFinanceExportsPage() {
             size="md"
           >
             Feldzuordnung
+          </ButtonLink>
+          <ButtonLink
+            href={traegerPath(BOOKING_ACCOUNTS_PATH)}
+            variant="outline"
+            size="md"
+          >
+            Konten und Kostenstellen
           </ButtonLink>
         </>
       }

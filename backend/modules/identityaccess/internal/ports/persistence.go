@@ -301,7 +301,7 @@ type AccountLoginStore interface {
 // the caller's administrative transaction.
 type TraegerRoleStore interface {
 	ListTraegerRoles(ctx context.Context, organizationID, accountID int64) ([]string, domain.OperationStats, error)
-	LockLiveTraegerAccount(ctx context.Context, accountID int64) (bool, domain.OperationStats, error)
+	LockLiveTraegerAccount(ctx context.Context, accountID int64) (live, active bool, stats domain.OperationStats, err error)
 	InsertTraegerRole(ctx context.Context, organizationID, accountID int64, role string) (domain.OperationStats, error)
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]domain.TraegerAccount, domain.OperationStats, error)
 	DeleteTraegerSessions(ctx context.Context, organizationID int64) (int64, domain.OperationStats, error)
@@ -331,4 +331,16 @@ type AccountAccessStore interface {
 	RemoveAccountRole(ctx context.Context, accountID, roleID, tenantID int64) (domain.OperationStats, error)
 	FindRole(ctx context.Context, roleID int64) (domain.RoleFact, bool, domain.OperationStats, error)
 	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
+}
+
+// SchoolMembershipLockStore locks the account before pinning its active
+// mapping FOR SHARE in the caller's transaction (#6529).
+type SchoolMembershipLockStore interface {
+	LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error)
+	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
+}
+
+// GuardianInvitationLockStore pins the accounts an invitation participates in.
+type GuardianInvitationLockStore interface {
+	LockGuardianInvitationAccounts(ctx context.Context, inviterID int64, email string) error
 }

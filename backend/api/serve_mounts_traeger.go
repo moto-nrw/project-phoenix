@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
+	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -82,8 +83,8 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayMail, holidayTraeger)
 	if err != nil {
 		return err
 	}
@@ -98,9 +99,13 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // information of a holiday registration behind the right
 // "Gesundheitsangaben sehen" (#4722). holidayCalendar names the host
 // schools' days without care, which no holiday week may book (#4702).
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar) (*traegerportal.Resource, error) {
-	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil {
-		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings and the host schools' calendar are required")
+// holidayMail tells the parents the places the Büro decided on by criteria
+// (#4700), in the Träger transaction of the decision; holidayTraeger names
+// the Träger and the host schools in that mail, like the mail of a booking
+// that moved up (#6437).
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) (*traegerportal.Resource, error) {
+	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil || holidayMail == nil || holidayTraeger == nil {
+		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings, the host schools' calendar, the holiday mail and the Träger names are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
@@ -115,9 +120,11 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	if err != nil {
 		return nil, err
 	}
-	review, places := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil, nil, holidayCalendar)
+	review, places, allocation := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar)
+	_, allocationBilling := parentBillingCompose.NewHolidayContributions(parentBillingHolidayRegistrations{review: review, places: places}, parentBillingSettings{settings: settings})
+	allocation = enrollmentAPI.NewBilledHolidayAllocation(allocation, allocationBilling)
 	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
-	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, wishes, places, holidaySchoolNames{overview: overview},
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, wishes, places, allocation, holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
@@ -133,6 +140,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 // portal serves it: the settings routes and the thresholds of the dashboard
 // hints (#4675).
 type TraegerPortalSettings interface {
+	TraegerBrandingSettings
 	settingsHTTP.TraegerOperations
 	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
 }

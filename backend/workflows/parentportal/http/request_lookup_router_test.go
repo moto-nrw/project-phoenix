@@ -42,6 +42,7 @@ func newRequestLookupRouter(t *testing.T, db *bun.DB) (http.Handler, careplan.Ca
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	carePlan := repos.CarePlan()
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:     parentMemberships(t, db),
 		GuardianChanges: owners.ParentGuardianChanges(),
 		DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy:  owners.NewParentGuardianPolicy(),

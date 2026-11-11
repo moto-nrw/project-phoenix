@@ -51,6 +51,8 @@
   "companion_note_required": "Podaj, z kim dziecko wraca do domu.",
   "complete_withdrawal_confirmation_required": "Nie można jeszcze wypisać: {object}. Potwierdź, wpisując {confirmation}.",
   "consent_required": "Potwierdź wszystkie wymagane zgody.",
+  "renewal_terms_required": "Prosimy wyrazić zgodę na warunki na nowy okres.",
+  "renewal_terms_changed": "Warunki zostały właśnie zmienione. Prosimy przeczytać je ponownie i wyrazić zgodę.",
   "correction_reason_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "correction_school_class_mismatch": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "day_selection_not_allowed": "Dni tej oferty są ustalone. Nie możesz wybierać dni.",
@@ -99,7 +101,9 @@
   "message_required": "Napisz wiadomość.",
   "offering_adjustment_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "phase_care_offering_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "phase_has_effective_bookings": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "phase_eligibility_setting_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "phase_pending_child_window_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "phase_name_exists": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "phase_name_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "phase_not_eligible": "Ten zapis nie jest dostępny dla Twojego konta. Zaloguj się w aplikacji dla rodziców lub zapytaj szkołę.",
@@ -146,6 +150,7 @@
   "holiday_booking_unit_booked": "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
   "holiday_child_day_limit": "W te ferie dziecko może przyjść najwyżej {limit} dni. Wybrano {days}. Wybierz mniej dni.",
   "holiday_weeks_booked_together": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "holiday_week_day_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "hosted_holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_guest_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -153,5 +158,9 @@
   "holiday_registration_form_changed": "Organizator właśnie zmienił formularz. Sprawdź swoje dane i wyślij zgłoszenie jeszcze raz.",
   "holiday_proof_limit": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "family_children_closed": "Liczby dzieci nie można już tutaj zmienić. Znajdzie ją Pan/Pani w umowie o opiekę.",
-  "family_children_invalid": "Proszę podać liczbę od 1 do 20."
+  "family_children_invalid": "Proszę podać liczbę od 1 do 20.",
+  "holiday_allocation_mode_locked": "Są już zgłoszenia, więc sposób przydziału pozostaje.",
+  "holiday_allocation_pending": "Najpierw przydziel miejsca w zakładce „Vergabe”.",
+  "holiday_allocation_full": "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
+  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję."
 }

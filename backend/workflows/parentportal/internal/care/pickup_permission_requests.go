@@ -51,7 +51,7 @@ func (s *Service) SubmitPickupPermissionRequest(ctx context.Context, accountID, 
 		return nil, errors.New("parent: pickup permission requests are not configured")
 	}
 	var result *carerequests.Request
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, ChildWriteAccess{Permissions: []string{GuardianPermissionPickupManage}, Profiles: []int64{guardianProfileID}}, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -103,8 +103,10 @@ func (s *Service) SubmitPickupPermissionRequestWithRelationship(ctx context.Cont
 	if s.CareRequests == nil || s.Guardians == nil {
 		return nil, errors.New("parent: pickup permission requests are not configured")
 	}
+	access := edit.access()
+	access.Permissions = append(access.Permissions, GuardianPermissionPickupManage)
 	var result *carerequests.Request
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {
 		if _, err := s.updateGuardianRelationshipInTx(txCtx, child, *edit); err != nil {
 			return err
 		}

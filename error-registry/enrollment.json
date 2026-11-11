@@ -321,6 +321,18 @@
       "legacy": "enrollment.consent_required"
     },
     {
+      "code": "enrollment.renewal_terms_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.renewal_terms_changed"
+    },
+    {
+      "code": "enrollment.renewal_terms_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.renewal_terms_required"
+    },
+    {
       "code": "enrollment.correction_reason_required",
       "class": "input",
       "parameters": [],
@@ -652,6 +664,12 @@
       "legacy": "enrollment.holiday_weeks_booked_together"
     },
     {
+      "code": "enrollment.holiday_week_day_limit",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_week_day_limit"
+    },
+    {
       "code": "enrollment.invalid_email",
       "class": "input",
       "parameters": [],
@@ -732,10 +750,22 @@
       "legacy": "enrollment.phase_care_offering_conflict"
     },
     {
+      "code": "enrollment.phase_has_effective_bookings",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_has_effective_bookings"
+    },
+    {
       "code": "enrollment.phase_eligibility_setting_required",
       "class": "input",
       "parameters": [],
       "legacy": "enrollment.phase_eligibility_setting_required"
+    },
+    {
+      "code": "enrollment.phase_pending_child_window_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_pending_child_window_conflict"
     },
     {
       "code": "enrollment.phase_name_exists",
@@ -958,6 +988,30 @@
       "class": "input",
       "parameters": [],
       "legacy": "enrollment.family_children_invalid"
+    },
+    {
+      "code": "enrollment.holiday_allocation_mode_locked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_mode_locked"
+    },
+    {
+      "code": "enrollment.holiday_allocation_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_pending"
+    },
+    {
+      "code": "enrollment.holiday_allocation_full",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_full"
+    },
+    {
+      "code": "enrollment.holiday_allocation_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_changed"
     }
   ]
 }

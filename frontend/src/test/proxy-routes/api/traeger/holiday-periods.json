@@ -62,5 +62,18 @@
   ],
   "api/traeger/holiday-periods/[id]/weeks/[weekId]/capacity": [
     "PUT traeger /traeger/holiday-contributions/id%2F1/weeks/weekId%2F1/capacity"
+  ],
+  "api/traeger/holiday-periods/criteria": [
+    "GET traeger /traeger/holiday-periods/criteria",
+    "PUT traeger /traeger/holiday-periods/criteria"
+  ],
+  "api/traeger/holiday-periods/[id]/allocation": [
+    "GET traeger /traeger/holiday-periods/id%2F1/allocation"
+  ],
+  "api/traeger/holiday-periods/[id]/allocation/decisions": [
+    "POST traeger /traeger/holiday-periods/id%2F1/allocation/decisions"
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/criteria": [
+    "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/criteria"
   ]
 }

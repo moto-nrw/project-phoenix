@@ -50,6 +50,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 	require.NoError(t, api.CreateParentDataRequestFixture(reposCare.CarePlan(), ctx, request))
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:     parentMemberships(t, db),
 		GuardianChanges: owners.ParentGuardianChanges(),
 		DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy:  owners.NewParentGuardianPolicy(),

@@ -1332,7 +1332,6 @@ function StudentDetailPageContent() {
             ? "Klassenfahrt"
             : "Entschuldigung";
       toast.success(`${statusLabel} für ${student.name} ist gespeichert.`);
-      setPlannedStatusModal(null);
     } catch (err) {
       logger.error("planned_status_create_failed", {
         student_id: studentId,
@@ -1396,7 +1395,6 @@ function StudentDetailPageContent() {
           ? `Die Entschuldigung für ${student.name} ist geändert.`
           : `Die Entschuldigung für ${student.name} ist gespeichert.`,
       );
-      setPlannedStatusModal(null);
     } catch (err) {
       logger.error("partial_absence_save_failed", {
         student_id: studentId,
@@ -1646,6 +1644,9 @@ function StudentDetailPageContent() {
               variant="outline"
               size="md"
               className="mt-4"
+              // Wechselt den Dialog; während des Aufhebens hätte dessen
+              // Antwort sonst keine Fläche (#6594).
+              disabled={sickLoading}
               onClick={() => openPlannedStatusFromLift("sick")}
             >
               Alle Kranktage ansehen
@@ -1691,6 +1692,7 @@ function StudentDetailPageContent() {
                 variant="outline"
                 size="md"
                 className="mt-4"
+                disabled={excusedLoading}
                 onClick={() => openPlannedStatusFromLift("excused")}
               >
                 Alle entschuldigten Tage ansehen

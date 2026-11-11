@@ -50,6 +50,9 @@ type Application struct {
 	// FamilyChildren is the number of children the parents stated on the
 	// registration (#6335); nil when they stated none.
 	FamilyChildren *FamilyStatement
+	// Renewal tells that the application renews care into a new phase, whose
+	// conditions the parents accept on their own (#6456).
+	Renewal bool
 }
 
 // Offering is a care offering of one school. A contract books it as a

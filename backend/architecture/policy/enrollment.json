@@ -83,6 +83,14 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_allocation_criteria",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_allocation_decisions",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_guests",
       "write_owner": "enrollment"
     },
@@ -104,6 +112,10 @@
     },
     {
       "name": "enrollment.holiday_registration_audit",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_criteria",
       "write_owner": "enrollment"
     },
     {

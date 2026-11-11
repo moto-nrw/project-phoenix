@@ -51,6 +51,8 @@
   "companion_note_required": "Bitte geben Sie an, mit wem das Kind nach Hause geht.",
   "complete_withdrawal_confirmation_required": "{object} kann noch nicht abgemeldet werden. Bitte bestätigen Sie mit {confirmation}.",
   "consent_required": "Bitte bestätigen Sie alle Pflicht-Zustimmungen.",
+  "renewal_terms_required": "Bitte stimmen Sie den Bedingungen für den neuen Zeitraum zu.",
+  "renewal_terms_changed": "Die Bedingungen wurden gerade geändert. Bitte lesen Sie sie noch einmal und stimmen Sie dann zu.",
   "correction_reason_required": "Bitte geben Sie einen Grund für die Korrektur ein.",
   "correction_school_class_mismatch": "Die Klasse passt nicht zur Klassenstufe. Bitte wählen Sie eine passende Klasse.",
   "day_selection_not_allowed": "Bei diesem Angebot stehen die Tage fest. Sie können keine Tage auswählen.",
@@ -99,7 +101,9 @@
   "message_required": "Bitte schreiben Sie eine Nachricht.",
   "offering_adjustment_invalid": "Diese Änderung der Angebote ist so nicht möglich. Bitte prüfen Sie Angebote und Datum.",
   "phase_care_offering_conflict": "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
+  "phase_has_effective_bookings": "Für diese Anmeldephase sind noch Kinder gebucht. Deshalb kann sie nicht gelöscht werden. Wählen Sie stattdessen „Deaktivieren“ oder beenden Sie zuerst die Buchungen.",
   "phase_eligibility_setting_required": "Für eine Einschränkung nach Klasse oder Klassenstufe muss die passende Abfrage eingeschaltet sein. Bitte schalten Sie sie in den Einstellungen ein.",
+  "phase_pending_child_window_conflict": "Der neue Zeitraum passt nicht zu einem vorgemerkten Kind. Bitte prüfen Sie zuerst dessen Betreuungszeitraum.",
   "phase_name_exists": "Es gibt schon eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
   "phase_name_required": "Bitte geben Sie einen Namen für die Anmeldephase ein.",
   "phase_not_eligible": "Diese Anmeldung ist für Ihr Konto nicht freigegeben. Bitte melden Sie sich in der Eltern-App an oder fragen Sie die Schule.",
@@ -146,6 +150,7 @@
   "holiday_booking_unit_booked": "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
   "holiday_child_day_limit": "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Gewählt sind {days}. Bitte wählen Sie weniger Tage.",
   "holiday_weeks_booked_together": "Ein Kind ist schon für beide Wochen angemeldet. Darum dürfen die Wochen nicht auf dieselben Tage fallen.",
+  "holiday_week_day_limit": "Ein Kind ist schon für diese Woche angemeldet. Mit den neuen Tagen hätte es mehr Tage als erlaubt. Lassen Sie die Tage so oder erhöhen Sie „Höchstens Tage je Kind“.",
   "hosted_holiday_week_not_found": "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
   "holiday_guest_not_found": "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
   "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
@@ -153,5 +158,9 @@
   "holiday_registration_form_changed": "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal.",
   "holiday_proof_limit": "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht.",
   "family_children_closed": "Die Kinderzahl kann hier nicht mehr geändert werden. Sie steht dann in Ihrem Betreuungsvertrag.",
-  "family_children_invalid": "Bitte geben Sie eine Zahl von 1 bis 20 an."
+  "family_children_invalid": "Bitte geben Sie eine Zahl von 1 bis 20 an.",
+  "holiday_allocation_mode_locked": "Es gibt schon Anmeldungen. Darum bleibt die Platzvergabe so.",
+  "holiday_allocation_pending": "Bitte vergeben Sie zuerst im Reiter „Vergabe“ die Plätze.",
+  "holiday_allocation_full": "In dieser Woche ist kein Platz mehr frei. Bitte laden Sie die Liste neu.",
+  "holiday_allocation_changed": "Die Liste hat sich geändert. Bitte prüfen Sie Ihre Entscheidung neu."
 }

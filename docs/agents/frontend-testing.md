@@ -1,7 +1,8 @@
-# Frontend tests: clock, timers, absence assertions
+# Frontend tests: clock, timers, absence assertions, kit pixel comparison
 
-Read before writing or diagnosing a date- or time-sensitive Vitest test, or a
-test that asserts something is absent.
+Read before writing or diagnosing a date- or time-sensitive Vitest test, a
+test that asserts something is absent, or before proving that a kit change
+is invisible.
 Paths start at `frontend/`; commands run from `frontend/`.
 
 ## Projects
@@ -199,3 +200,44 @@ renders nothing and that has no visible environment worth tabling. Empty text
 (`container.textContent` is `""`) stays an absence, and
 `not.toBeEmptyDOMElement()` is no anchor: a skeleton passes both. There is no
 baseline or allowlist.
+
+## Kit pixel comparison
+
+`pnpm run kit-pixel` proves that a kit refactor changes nothing a user sees
+(#6562, epic #6561). It renders every story under `src/components/ui/` at
+desktop and phone width (`playwright.kit-pixel.config.ts`) and compares them
+pixel for pixel, threshold zero, against a baseline of a chosen commit. Local
+only; no CI job runs it.
+
+1. `pnpm run kit-pixel baseline --ref <commit>` (default `HEAD`). Exports the
+   commit with `git archive`, so uncommitted edits stay out, builds Storybook
+   from it and writes the images to `.kit-pixel/baseline/`. A failed run
+   keeps the previous baseline.
+2. Change the code.
+3. `pnpm run kit-pixel compare` builds Storybook from the working tree. Done
+   when it ends with „Keine Abweichung“. It also fails when a story of the
+   baseline is gone (deleted or renamed). A deviation leaves expected, actual
+   and `*-diff.png` under `.kit-pixel/results/`;
+   `pnpm exec playwright show-report .kit-pixel/report` shows them side by side.
+
+Options for both commands: `--filter <regex>` on the story id
+(`components-ui-modal--default`; with a leading dash write `--filter=--opened$`),
+`--all-stories` to include stories outside `ui/`. `compare` reuses the
+baseline's selection unless given its own.
+
+- A refactor ticket adds missing stories for the pieces it touches in its
+  first commit, without code changes, and takes the baseline from that commit.
+- Open states (menu, popover, picker) are stories with a `play` function that
+  opens them. Templates: `OverflowMenu` and `ListboxDropdown` `Opened`
+  (menu, list), `TenantPage` `InfoOpened` (popover).
+  A modal story passes `isOpen`. The run waits for `play` to finish and fails
+  the story when `play` throws: Storybook itself still reports success then.
+- Fixed for stable images: the app fonts (`.storybook/fonts.css`, loaded
+  before every render; a baseline from a commit before #6562 renders Arial),
+  the Vitest instant `TEST_CLOCK_INSTANT` with running timers, Berlin time,
+  reduced motion, no CSS transitions, CSS animations in zero time, CPU
+  rendering. A running transition alone changed edge smoothing between runs.
+  The build is served from disk via `page.route`: no port, no network.
+- Chrome updates itself, and another build renders differently. The baseline
+  records the version; `compare` refuses a different one. Take a new baseline
+  then.

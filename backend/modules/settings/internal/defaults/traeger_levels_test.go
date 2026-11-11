@@ -51,7 +51,7 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		// The DATEV booking batch (#4694).
 		config.KeyParentBillingDatevAccountLength, config.KeyParentBillingDatevChartOfAccounts,
 		config.KeyParentBillingDatevClientNumber, config.KeyParentBillingDatevConsultantNumber,
-		config.KeyParentBillingDatevFiscalYearStart, config.KeyParentBillingDatevLocked,
+		config.KeyParentBillingDatevCostCenterRequired, config.KeyParentBillingDatevFiscalYearStart, config.KeyParentBillingDatevLocked,
 		config.KeyParentBillingDatevRevenueAccount, config.KeyParentBillingDebtorNumberOnConfirm,
 		// The SEPA mandate in the parents portal (#4696).
 		config.KeyParentBillingOnlineMandate,

@@ -7,7 +7,8 @@
     "parent_billing.datev_chart_of_accounts": "04",
     "parent_billing.datev_fiscal_year_start": "1",
     "parent_billing.datev_revenue_account": "4400",
-    "parent_billing.datev_locked": false
+    "parent_billing.datev_locked": false,
+    "parent_billing.datev_cost_center_required": false
   },
   "cases": [
     {"key": "parent_billing.datev_consultant_number", "value": "1001", "save": true, "export": "ok"},
@@ -57,6 +58,9 @@
     {"key": "parent_billing.datev_revenue_account", "value": "", "save": true, "export": "missing"},
 
     {"key": "parent_billing.datev_locked", "value": true, "save": true, "export": "ok"},
-    {"key": "parent_billing.datev_locked", "value": false, "save": true, "export": "ok"}
+    {"key": "parent_billing.datev_locked", "value": false, "save": true, "export": "ok"},
+
+    {"key": "parent_billing.datev_cost_center_required", "value": true, "save": true, "export": "ok"},
+    {"key": "parent_billing.datev_cost_center_required", "value": false, "save": true, "export": "ok"}
   ]
 }

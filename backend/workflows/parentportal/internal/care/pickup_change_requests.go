@@ -63,7 +63,7 @@ func (s *Service) EditPickupChange(ctx context.Context, accountID, studentID, re
 	// (#2267, story 28).
 	reasonRequired := s.guardianReasonRequired(ctx, child.TenantID)
 	var out *carerequests.Request
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionPickupManage), func(txCtx context.Context) error {
 		req, editErr := s.editPickupChangeInTx(txCtx, child, accountID, studentID, requestID, edit, reasonRequired)
 		out = req
 		return editErr
@@ -157,7 +157,7 @@ func (s *Service) SubmitPickupChange(ctx context.Context, accountID, studentID i
 		return nil, err
 	}
 	var result *carerequests.Request
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionPickupManage), func(txCtx context.Context) error {
 		created, createErr := s.submitPickupChangeInTx(txCtx, child, accountID, studentID, submission, reasonRequired, today)
 		result = created
 		return createErr

@@ -51,6 +51,8 @@
   "companion_note_required": "Вкажіть, з ким дитина йде додому.",
   "complete_withdrawal_confirmation_required": "Поки не можна скасувати запис: {object}. Підтвердьте за допомогою {confirmation}.",
   "consent_required": "Підтвердіть усі обов'язкові згоди.",
+  "renewal_terms_required": "Будь ласка, погодьтеся з умовами на новий період.",
+  "renewal_terms_changed": "Умови щойно змінилися. Будь ласка, прочитайте їх ще раз і погодьтеся.",
   "correction_reason_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "correction_school_class_mismatch": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "day_selection_not_allowed": "Дні цієї програми визначені заздалегідь. Обрати дні не можна.",
@@ -99,7 +101,9 @@
   "message_required": "Напишіть повідомлення.",
   "offering_adjustment_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "phase_care_offering_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "phase_has_effective_bookings": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_eligibility_setting_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "phase_pending_child_window_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_name_exists": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_name_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "phase_not_eligible": "Цей запис недоступний для вашого облікового запису. Увійдіть у застосунок для батьків або зверніться до школи.",
@@ -146,6 +150,7 @@
   "holiday_booking_unit_booked": "На цей тиждень уже є заявки. Тому спосіб бронювання, а для окремих днів і дати тижня, залишаються без змін.",
   "holiday_child_day_limit": "У ці канікули дитина може прийти не більше {limit} днів. Обрано: {days}. Оберіть менше днів.",
   "holiday_weeks_booked_together": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "holiday_week_day_limit": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_guest_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_guest_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -153,5 +158,9 @@
   "holiday_registration_form_changed": "Організатор щойно змінив форму. Будь ласка, перевірте дані й надішліть заявку ще раз.",
   "holiday_proof_limit": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "family_children_closed": "Кількість дітей тут більше не можна змінити. Ви знайдете її у договорі про догляд.",
-  "family_children_invalid": "Будь ласка, вкажіть число від 1 до 20."
+  "family_children_invalid": "Будь ласка, вкажіть число від 1 до 20.",
+  "holiday_allocation_mode_locked": "Заявки вже є, спосіб розподілу не змінюється.",
+  "holiday_allocation_pending": "Спершу розподіліть місця на вкладці «Vergabe».",
+  "holiday_allocation_full": "На цьому тижні вільних місць більше немає. Будь ласка, завантажте список знову.",
+  "holiday_allocation_changed": "Список змінився. Перевірте рішення ще раз."
 }

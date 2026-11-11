@@ -68,6 +68,7 @@ export default function TraegerHolidayPlacesPage() {
     const all = weeks ?? [];
     return {
       placed: all.reduce((sum, week) => sum + week.placed, 0),
+      pending: all.reduce((sum, week) => sum + (week.pending ?? 0), 0),
       waiting: new Set(
         all.flatMap((week) => week.waitlist.map((entry) => entry.childId)),
       ).size,
@@ -82,14 +83,26 @@ export default function TraegerHolidayPlacesPage() {
       backHref={traegerPath("/traeger/ferien")}
       backLabel="Zurück zu den Ferien"
       info={
-        <p>
-          Hier legen Sie fest, wie viele Kinder in einer Woche mitmachen können.
-          Plätze gehen in der Reihenfolge, in der die Anmeldungen eingehen. Ist
-          eine Woche voll, kommt das Kind auf die Warteliste. Wird ein Platz
-          frei, rückt das nächste Kind automatisch nach. Seine Eltern bekommen
-          eine E-Mail. Kinder auf der Warteliste zahlen nichts und stehen nicht
-          auf der Liste der OGS.
-        </p>
+        period?.allocationMode === "criteria" ? (
+          <p>
+            Hier legen Sie fest, wie viele Kinder in einer Woche mitmachen
+            können. Die Plätze vergibt Ihr Büro im Reiter „Vergabe“. moto
+            sortiert die Anmeldungen dafür nach Ihren Kriterien vor. Wird später
+            ein Platz frei, rückt das nächste Kind der Warteliste automatisch
+            nach. Seine Eltern bekommen eine E-Mail. Kinder auf der Warteliste
+            oder mit offenem Platz zahlen nichts und stehen nicht auf der Liste
+            der OGS.
+          </p>
+        ) : (
+          <p>
+            Hier legen Sie fest, wie viele Kinder in einer Woche mitmachen
+            können. Plätze gehen in der Reihenfolge, in der die Anmeldungen
+            eingehen. Ist eine Woche voll, kommt das Kind auf die Warteliste.
+            Wird ein Platz frei, rückt das nächste Kind automatisch nach. Seine
+            Eltern bekommen eine E-Mail. Kinder auf der Warteliste zahlen nichts
+            und stehen nicht auf der Liste der OGS.
+          </p>
+        )
       }
       stats={
         weeks ? (
@@ -101,12 +114,18 @@ export default function TraegerHolidayPlacesPage() {
                 : `${totals.limited} mit Grenze`}
             </span>
             <span>{totals.placed} Plätze vergeben</span>
+            {totals.pending > 0 ? <span>{totals.pending} offen</span> : null}
             <WaitlistFact count={totals.waiting} />
           </HolidayHeadFacts>
         ) : null
       }
       statsLoading={!weeks && !loadError}
-      tabs={holidayPeriodTabs(id, "plaetze", period?.registrationCount)}
+      tabs={holidayPeriodTabs(
+        id,
+        "plaetze",
+        period?.registrationCount,
+        period?.allocationMode,
+      )}
       error={loadError}
       loading={!loadError && !weeks}
       empty={

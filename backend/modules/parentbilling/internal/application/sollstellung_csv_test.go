@@ -58,7 +58,7 @@ func TestSollstellungGolden(t *testing.T) {
 	} {
 		normalized, err := normalizeSollMapping(mapping)
 		require.NoError(t, err, name)
-		data, err := renderSollstellung(normalized, sollInvoices(), 110)
+		data, err := renderSollRows(normalized, invoiceSollRows(sollInvoices()), 110)
 		require.NoError(t, err, name)
 		path := filepath.Join("testdata", "sollstellung", name)
 		if os.Getenv("UPDATE_GOLDEN") == "1" {
@@ -78,7 +78,7 @@ func TestSollstellungWindows1252(t *testing.T) {
 	mapping := parentbilling.SollstellungMapping{Columns: []parentbilling.SollstellungColumn{{Field: parentbilling.SollFieldRecipientName}},
 		Delimiter: ";", DecimalSeparator: ",", DateFormat: parentbilling.SollDateGerman, Encoding: parentbilling.SollEncodingWindows1252,
 		FileNamePattern: "s-{NR}.csv"}
-	data, err := renderSollstellung(mapping, []parentbilling.ExportInvoice{{RecipientName: "Jürgen Łukasz"}}, 1)
+	data, err := renderSollRows(mapping, invoiceSollRows([]parentbilling.ExportInvoice{{RecipientName: "Jürgen Łukasz"}}), 1)
 	require.NoError(t, err)
 	text, err := charmap.Windows1252.NewDecoder().Bytes(data)
 	require.NoError(t, err)
@@ -93,9 +93,9 @@ func TestSollstellungInvoiceNumbersAreNoFormulas(t *testing.T) {
 		{Field: parentbilling.SollFieldInvoiceNumber},
 		{Field: parentbilling.SollFieldAmount},
 	}, Delimiter: ";", DecimalSeparator: ",", Encoding: parentbilling.SollEncodingUTF8}
-	data, err := renderSollstellung(mapping, []parentbilling.ExportInvoice{{
+	data, err := renderSollRows(mapping, invoiceSollRows([]parentbilling.ExportInvoice{{
 		Number: formatInvoiceNumber(pattern, 2026, 1), TotalCents: -7800,
-	}}, 1)
+	}}), 1)
 	require.NoError(t, err)
 	assert.Equal(t, "'-1-2;-78,00\r\n", string(data))
 }
@@ -111,7 +111,7 @@ func TestSollstellungHeadersAreNoFormulas(t *testing.T) {
 		{Field: parentbilling.SollFieldChildName, Header: "Kind"},
 	}, Delimiter: ";", DecimalSeparator: ",", DateFormat: parentbilling.SollDateGerman, Encoding: parentbilling.SollEncodingUTF8,
 		HeaderRow: true, FileNamePattern: "s-{NR}.csv"}
-	data, err := renderSollstellung(mapping, nil, 1)
+	data, err := renderSollRows(mapping, invoiceSollRows(nil), 1)
 	require.NoError(t, err)
 	assert.Equal(t, "\"'=HYPERLINK(\"\"https://example.org\"\")\";'+Betrag;Kind\r\n", string(data))
 }

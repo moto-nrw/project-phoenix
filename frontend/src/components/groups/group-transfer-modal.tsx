@@ -19,13 +19,13 @@ import {
 } from "~/components/ui/detail-modal-components";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -70,7 +70,9 @@ export function GroupTransferModal({
   onCancelTransfer,
 }: GroupTransferModalProps) {
   const [selectedStaffId, setSelectedStaffId] = useState("");
-  const [loading, setLoading] = useState(false);
+  // Übergeben and Zurücknehmen run in the panel's session (#6593); another
+  // group starts a new one.
+  const save = useFormModalPending(isOpen, group?.id);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearFormErrors } = formErrors;
@@ -105,42 +107,49 @@ export function GroupTransferModal({
     );
     const targetName = selectedUser?.fullName ?? "Pädagogische Fachkraft";
 
-    try {
-      setLoading(true);
-      await onTransfer(selectedStaffId, targetName);
-      setSelectedStaffId("");
-    } catch (err) {
-      logger.error("group_transfer_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        group_id: group?.id,
-      });
-      void formErrors.show(err, {
-        object: "die Übergabe",
-        retry: () => latestTransferRef.current(),
-      });
-    } finally {
-      setLoading(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await onTransfer(selectedStaffId, targetName);
+        if (op.isCurrent()) setSelectedStaffId("");
+      } catch (err) {
+        logger.error("group_transfer_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          group_id: group?.id,
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: "die Übergabe",
+          retry: () => latestTransferRef.current(),
+        });
+      }
+    });
   };
 
   const handleCancel = async (substitutionId: string) => {
     if (!onCancelTransfer) return;
 
-    try {
-      setDeletingId(substitutionId);
-      formErrors.clear();
-      await onCancelTransfer(substitutionId);
-    } catch (err) {
-      logger.error("group_transfer_cancel_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        substitution_id: substitutionId,
-      });
-      // Kein Wiederholen-Link: der Dialog ist dann schon zu, Zurücknehmen
-      // startet man erneut über die Liste.
-      void formErrors.show(err, { object: "die Übergabe" });
-    } finally {
-      setDeletingId(null);
-    }
+    // The confirmation replaces the panel meanwhile. Running in the panel's
+    // session keeps a second save out and a late error out of a later one.
+    await save.run(async (op) => {
+      try {
+        setDeletingId(substitutionId);
+        formErrors.clear();
+        await onCancelTransfer(substitutionId);
+      } catch (err) {
+        logger.error("group_transfer_cancel_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          substitution_id: substitutionId,
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        // Kein Wiederholen-Link: der Dialog ist dann schon zu, Zurücknehmen
+        // startet man erneut über die Liste.
+        void formErrors.show(err, { object: "die Übergabe" });
+      } finally {
+        setDeletingId(null);
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -151,13 +160,7 @@ export function GroupTransferModal({
 
   const footer = (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={onClose}
-        disabled={loading}
-      >
+      <Button type="button" variant="outline" size="md" onClick={onClose}>
         Abbrechen
       </Button>
       <Button
@@ -165,9 +168,9 @@ export function GroupTransferModal({
         variant="primary"
         size="md"
         onClick={() => void handleTransfer()}
-        isLoading={loading}
+        isLoading={save.pending}
         loadingText="Wird übergeben..."
-        disabled={!selectedStaffId || loading || availableUsers.length === 0}
+        disabled={!selectedStaffId || availableUsers.length === 0}
       >
         Übergeben
       </Button>
@@ -202,12 +205,13 @@ export function GroupTransferModal({
   return (
     <SlideOver
       open={isOpen}
+      pending={save}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && !loading) onClose();
+        if (!nextOpen) onClose();
       }}
     >
       <SlideOverContent size="md">
-        <SlideOverHeader close={<SlideOverCloseButton disabled={loading} />}>
+        <SlideOverHeader>
           <SlideOverTitle>{`Gruppe "${group.name}" übergeben`}</SlideOverTitle>
           <SlideOverDescription>
             Die Verantwortung für diese Gruppe heute übergeben.
@@ -264,7 +268,11 @@ export function GroupTransferModal({
                       onClick={() => setCancelTarget(transfer)}
                       isLoading={deletingId === transfer.substitutionId}
                       loadingText="Wird zurückgenommen…"
-                      disabled={deletingId === transfer.substitutionId}
+                      // Die Rückfrage ersetzt das Panel; eine laufende
+                      // Übergabe darf es so nicht entsperren.
+                      disabled={
+                        save.pending || deletingId === transfer.substitutionId
+                      }
                     >
                       Zurücknehmen
                     </Button>

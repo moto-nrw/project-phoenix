@@ -142,6 +142,7 @@ describe("TraegerAbrechnungPage", () => {
 
     it("explains how to start the missing run and preselects the period", async () => {
       api.fetchBillingRuns.mockResolvedValue([OTHER]);
+      api.startBillingRun.mockResolvedValue({ ...RELEASED, id: "12" });
       api.fetchBillingPeriods.mockResolvedValue([
         { ...PERIOD, id: "8", name: "Sommerferien 2027" },
         PERIOD,

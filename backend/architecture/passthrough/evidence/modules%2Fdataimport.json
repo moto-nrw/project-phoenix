@@ -72,6 +72,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (o observedNewGuardianBatches) CreateNewStudentGuardians(ctx context.Context, links []NewStudentGuardianLink) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_new_student_guardians\", time.Now(), \u0026err)\n\treturn o.NewGuardianBatches.CreateNewStudentGuardians(ctx, links)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedNewGuardianBatches.CreateNewStudentGuardians",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
       "evidence": "func (o observedOpeningBalanceBookings) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, date string, minutes int, note string) (result *StaffBalanceAdjustment, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"create_opening_balance\", time.Now(), \u0026err)\n\treturn o.OpeningBalanceBookings.CreateOpeningBalance(ctx, staffID, decidedBy, date, minutes, note)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedOpeningBalanceBookings.CreateOpeningBalance",

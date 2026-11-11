@@ -70,6 +70,8 @@ type CareStore interface {
 	CareAmendmentStore
 	// DocumentKindStore keeps the kind of document of each service (#4688).
 	DocumentKindStore
+	// BookingAssignmentReader names where the positions book (#4821).
+	BookingAssignmentReader
 }
 
 // CareBilling serves parentbilling.CareBilling. The contract versions and
@@ -435,6 +437,11 @@ func (c *CareBilling) issue(ctx context.Context, organizationID int64, run paren
 		invoices[i].Number = formatInvoiceNumber(pattern, issuedOn.Year(), first+int64(i))
 		invoices[i].IssuedOn = &issuedOn
 	}
+	resolver, err := bookingResolverOf(ctx, c.store, c.settings, organizationID)
+	if err != nil {
+		return err
+	}
+	freezeCareAccounts(resolver, invoices)
 	return c.store.IssueCareInvoices(ctx, organizationID, run, rule, year, first, invoices)
 }
 

@@ -51,6 +51,8 @@
   "companion_note_required": "Please state who the child goes home with.",
   "complete_withdrawal_confirmation_required": "{object} cannot be withdrawn yet. Please confirm with {confirmation}.",
   "consent_required": "Please confirm all required consents.",
+  "renewal_terms_required": "Please agree to the terms for the new period.",
+  "renewal_terms_changed": "The terms have just changed. Please read them again and then agree.",
   "correction_reason_required": "{object} could not be saved. Please check your entries.",
   "correction_school_class_mismatch": "{object} could not be saved. Please check your entries.",
   "day_selection_not_allowed": "The days for this option are fixed. You cannot choose days.",
@@ -99,7 +101,9 @@
   "message_required": "Please write a message.",
   "offering_adjustment_invalid": "{object} could not be saved. Please check your entries.",
   "phase_care_offering_conflict": "{object} could not be changed. Please check its current status.",
+  "phase_has_effective_bookings": "{object} could not be changed. Please check its current status.",
   "phase_eligibility_setting_required": "{object} could not be saved. Please check your entries.",
+  "phase_pending_child_window_conflict": "{object} could not be changed. Please check its current status.",
   "phase_name_exists": "{object} could not be changed. Please check its current status.",
   "phase_name_required": "{object} could not be saved. Please check your entries.",
   "phase_not_eligible": "This enrollment is not available for your account. Please sign in to the parent app or ask the school.",
@@ -146,6 +150,7 @@
   "holiday_booking_unit_booked": "There are already registrations for this week. That is why the way it is booked and, for single days, its dates stay as they are.",
   "holiday_child_day_limit": "In these holidays a child can come on at most {limit} days. {days} are chosen. Please choose fewer days.",
   "holiday_weeks_booked_together": "A child is already registered for both weeks. That is why the weeks cannot fall on the same days.",
+  "holiday_week_day_limit": "A child is already registered for this week. With the new days, the child would have more days than allowed. Keep the days as they are or raise “Höchstens Tage je Kind”.",
   "hosted_holiday_week_not_found": "There is no participant list for this week any more. It is only available until the last day of the week.",
   "holiday_guest_not_found": "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
   "holiday_guest_group_invalid": "This group no longer exists. Please choose another group.",
@@ -153,5 +158,9 @@
   "holiday_registration_form_changed": "The provider has just changed the form. Please check your entries and send the registration again.",
   "holiday_proof_limit": "{object} could not be changed. Please check its current status.",
   "family_children_closed": "The number of children can no longer be changed here. You will find it in your care contract.",
-  "family_children_invalid": "Please enter a number from 1 to 20."
+  "family_children_invalid": "Please enter a number from 1 to 20.",
+  "holiday_allocation_mode_locked": "There are registrations already, so the allocation stays as it is.",
+  "holiday_allocation_pending": "Please give out the places in the “Vergabe” tab first.",
+  "holiday_allocation_full": "There are no free places left in this week. Please reload the list.",
+  "holiday_allocation_changed": "The list has changed. Please check your decision again."
 }

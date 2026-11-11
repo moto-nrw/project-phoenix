@@ -233,6 +233,22 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "binding_digest": "2f2296ab745d120d1f5c395b52987b1d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "binding_digest": "6ac2847e4ccde3285d5c9755efbb8c3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareContracts.Recipients",
       "binding_digest": "ccc46fb834b73c55bbf6488878ef0708",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
@@ -362,7 +378,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
-      "binding_digest": "38216c913e8b341341e458017d4f9a91",
+      "binding_digest": "2f2296ab745d120d1f5c395b52987b1d",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
@@ -370,7 +386,39 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
-      "binding_digest": "36c23941dcf612da853428597f972531",
+      "binding_digest": "6ac2847e4ccde3285d5c9755efbb8c3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "binding_digest": "2f2296ab745d120d1f5c395b52987b1d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "binding_digest": "6ac2847e4ccde3285d5c9755efbb8c3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "binding_digest": "2f2296ab745d120d1f5c395b52987b1d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "binding_digest": "6ac2847e4ccde3285d5c9755efbb8c3d",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
@@ -414,6 +462,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.AsksDebtorNumber",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "binding_digest": "2f2296ab745d120d1f5c395b52987b1d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "binding_digest": "6ac2847e4ccde3285d5c9755efbb8c3d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
     },
     {

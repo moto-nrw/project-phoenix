@@ -11,6 +11,9 @@ export function exportsTopic(): HelpTopic {
     group: "auswertung",
     audience: "lead",
     icon: "Download",
+    image: "/help/screens/export-dialog.webp",
+    imageAlt:
+      "Das Fenster zum Exportieren einer Kinderliste mit Titel, Spalten und Format.",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Exporte`.",
       "Suchen Sie die passende Liste und wählen Sie `Liste erstellen`.",

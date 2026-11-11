@@ -350,6 +350,15 @@ function TimetablesContent() {
       ? careDayISO(requestedDayISO, weekendOpen, todayISO)
       : requestedDayISO;
   const selectedInstanceId = params.block;
+  // Die URL-Auswahl bleibt bestehen, wenn die Aktualisierung den gelöschten
+  // Termin entfernt. Ein Wechsel oder erneutes Öffnen beginnt eine neue Auswahl.
+  const selectedInstanceRef = useRef<{ id: string | null } | null>(null);
+  useLayoutEffect(() => {
+    selectedInstanceRef.current = { id: selectedInstanceId };
+    return () => {
+      selectedInstanceRef.current = null;
+    };
+  }, [selectedInstanceId, requestedDayISO]);
   // Gruppen- und Personenfilter (#4766). Ungültige Werte fallen still weg;
   // ohne Gruppenliste gibt es keine Auswahl und damit auch keinen
   // unsichtbaren Gruppenfilter aus einem geteilten Link.
@@ -1571,12 +1580,18 @@ function TimetablesContent() {
   // protokolliert und weitergeworfen.
   const handleDeleteCancelledInstance = useCallback(
     async (instance: EnrichedInstance) => {
+      const selection = selectedInstanceRef.current;
       try {
         await timetableService.deleteCancelled(instance.id);
         toast.success("Der Termin ist gelöscht.");
-        updateUrlParams({ block: null });
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
+        if (
+          selection?.id === instance.id &&
+          selectedInstanceRef.current === selection
+        ) {
+          handleSelectInstance(null);
+        }
       } catch (err) {
         logger.error("instance_delete_failed", {
           instance_id: instance.id,
@@ -1585,11 +1600,12 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [gapsSWRKey, swrKey, tenantMutate, toast, updateUrlParams],
+    [gapsSWRKey, handleSelectInstance, swrKey, tenantMutate, toast],
   );
 
   const handleDeleteFollowingInstances = useCallback(
     async (instance: EnrichedInstance) => {
+      const selection = selectedInstanceRef.current;
       if (!instance.activityGroupId) return;
       // Das Modal blendet die Option für vergangene Termine aus und prüft
       // das Datum vor dem Aufruf erneut. Diese Sperre fängt nur einen
@@ -1612,12 +1628,17 @@ function TimetablesContent() {
         toast.success(
           `Der Regeltermin ist ab ${formatDate(result.effectiveDate)} beendet.`,
         );
-        updateUrlParams({ block: null });
         if (templatePeriodID) {
           await tenantMutate(`timetable-templates-${templatePeriodID}`);
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
+        if (
+          selection?.id === instance.id &&
+          selectedInstanceRef.current === selection
+        ) {
+          handleSelectInstance(null);
+        }
       } catch (err) {
         logger.error("template_end_failed", {
           template_id: instance.activityGroupId,
@@ -1630,11 +1651,11 @@ function TimetablesContent() {
     },
     [
       gapsSWRKey,
+      handleSelectInstance,
       swrKey,
       templatePeriodID,
       tenantMutate,
       toast,
-      updateUrlParams,
     ],
   );
 

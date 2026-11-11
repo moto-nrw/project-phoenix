@@ -429,6 +429,8 @@ func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationStateConflict))
 	case errors.Is(err, capability.ErrHolidayRegistrationFrozen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFrozen))
+	case errors.Is(err, capability.ErrHolidayAllocationPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayAllocationPending))
 	case errors.Is(err, capability.ErrBenefitsExemptionUnavailable):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingBenefitsExemptionUnavailable))
 	case errors.Is(err, capability.ErrCostTakeoverWithExemption):

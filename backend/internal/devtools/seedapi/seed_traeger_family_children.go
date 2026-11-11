@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -12,19 +13,23 @@ import (
 // confirmed number and one that asks for a check on every dev machine. The
 // placeholder sibling rule counts the family (seedCareReductions).
 
+type seedFamilyChild struct {
+	ContractID int64 `json:"contract_id"`
+}
+
 type seedFamilyChildrenSet struct {
 	Families []struct {
-		Children []struct {
-			ContractID int64 `json:"contract_id"`
-		} `json:"children"`
-		Count *struct {
+		Children []seedFamilyChild `json:"children"`
+		Count    *struct {
 			ID int64 `json:"id"`
 		} `json:"count"`
 	} `json:"families"`
 }
 
-// seedFamilyChildren confirms the numbers and answers how many it kept.
-func seedFamilyChildren(client *Client, auth AuthRef, month calendar.Date) (int, error) {
+// seedFamilyChildren confirms the numbers of families with a contract of
+// the seeded school (own) and answers how many it kept. Families of the
+// Träger's other schools stay untouched.
+func seedFamilyChildren(client *Client, auth AuthRef, own []int64, month calendar.Date) (int, error) {
 	raw, err := client.GetWithAuth(auth, "/traeger/family-children/")
 	if err != nil {
 		return 0, fmt.Errorf("read the family children: %w", err)
@@ -43,11 +48,12 @@ func seedFamilyChildren(client *Client, auth AuthRef, month calendar.Date) (int,
 		if kept == len(numbers) {
 			break
 		}
-		if family.Count != nil || len(family.Children) == 0 {
+		child := slices.IndexFunc(family.Children, func(child seedFamilyChild) bool { return slices.Contains(own, child.ContractID) })
+		if family.Count != nil || child < 0 {
 			continue
 		}
 		body := numbers[kept]
-		body["contract_id"] = family.Children[0].ContractID
+		body["contract_id"] = family.Children[child].ContractID
 		if _, err := client.PutWithAuth(auth, "/traeger/family-children/", body); err != nil {
 			return kept, fmt.Errorf("confirm the children of a family: %w", err)
 		}

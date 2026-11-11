@@ -46,6 +46,7 @@
     "generate:messages": "node scripts/generate-message-index.mjs",
     "generate:help-index": "node scripts/generate-help-index.mjs",
     "generate:portal-pages": "node scripts/generate-portal-pages.mjs",
+    "kit-pixel": "node scripts/kit-pixel.mjs",
     "ui-kit:button-baseline": "node scripts/ui-kit-button-baseline-update.mjs",
     "test:source-contracts": "node --test scripts/*.node-test.mjs",
     "test:bundle-policy": "node --test scripts/perf/*.node-test.mjs"
@@ -135,6 +136,8 @@
       "scripts/generate-guides.ts",
       "scripts/secure-chrome.setup.ts",
       "scripts/product-screenshots/*.pw.ts",
+      "scripts/kit-pixel-browser-version.setup.ts",
+      "scripts/kit-pixel-stories.pw.ts",
       "playwright*.config.ts",
       "e2e/**/*.ts",
       "scripts/*.node-test.mjs"
