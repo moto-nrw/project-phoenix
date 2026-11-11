@@ -190,8 +190,11 @@ export function EnrollmentFormEditor({
   const loadAllRef = useRef<() => Promise<FormSchema[]>>(async () => []);
   const loadAll = useCallback(
     async (options: { rethrow?: boolean } = {}) => {
-      setLoading(true);
-      if (!options.rethrow) clearLoadError();
+      // Nach einem Schreiben bleibt die bestätigte Liste stehen (#6652).
+      if (!options.rethrow) {
+        setLoading(true);
+        clearLoadError();
+      }
       try {
         // Legal texts are NOT best-effort: silently swallowing a fetch
         // failure would seed the builder with all-disabled standard blocks

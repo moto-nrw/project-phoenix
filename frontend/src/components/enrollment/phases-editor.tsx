@@ -332,7 +332,8 @@ export function PhasesEditor() {
   const latestLoadAll = useRef<() => Promise<void>>(async () => undefined);
   const loadAll = useCallback(
     async (options: { rethrow?: boolean } = {}) => {
-      setLoading(true);
+      // Nach einem Schreiben bleibt die bestätigte Liste stehen (#6652).
+      if (!options.rethrow) setLoading(true);
       try {
         const [phasesData, schemasData, periodsData] = await Promise.all([
           listPhases(),

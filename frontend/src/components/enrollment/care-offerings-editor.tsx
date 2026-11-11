@@ -572,8 +572,11 @@ export function CareOfferingsEditor({
   const loadAll = useCallback(
     async (preferredPhaseId?: string, options: { rethrow?: boolean } = {}) => {
       const requestSeq = ++catalogLoadSeq.current;
-      setLoading(true);
-      clearCatalogError();
+      // Nach einem Schreiben bleibt die bestätigte Liste stehen (#6652).
+      if (!options.rethrow) {
+        setLoading(true);
+        clearCatalogError();
+      }
       try {
         const phasesData = await listPhases();
         if (catalogLoadSeq.current !== requestSeq) return;
@@ -944,6 +947,7 @@ export function CareOfferingsEditor({
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
       ) : null}
 
+      <LoadErrorAlert error={afterWrite.error} />
       {loading ? (
         <DataTable
           columns={columns}
@@ -955,7 +959,6 @@ export function CareOfferingsEditor({
       ) : catalogLoad.error ? (
         // Ein Ladefehler steht an Stelle des Katalogs, nie ein Leerzustand.
         <LoadErrorAlert error={catalogLoad.error} />
-        <LoadErrorAlert error={afterWrite.error} />
       ) : hasNoPhases ? (
         <NoPhaseState />
       ) : (
