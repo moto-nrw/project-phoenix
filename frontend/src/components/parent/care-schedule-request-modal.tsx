@@ -173,13 +173,7 @@ function ModalFooter({
   const t = useCareTermTranslations("parentMasterData.careSchedule");
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        disabled={submitting}
-        onClick={onClose}
-      >
+      <Button type="button" variant="outline" size="md" onClick={onClose}>
         {t("cancel")}
       </Button>
       <Button
