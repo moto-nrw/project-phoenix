@@ -32,6 +32,7 @@ export interface HolidayClosureNotice {
   readonly current: HolidayClosureRange | null;
   /** Der Stand, den ein Klick beauftragt. */
   readonly revision: number;
+  readonly token: string;
   readonly status: HolidayClosureNoticeStatus;
   /** Der Schließtag hat sich nach einem Klick noch einmal geändert. */
   readonly changed: boolean;
@@ -57,6 +58,7 @@ export interface BackendHolidayClosureNotice {
   previous?: BackendRange | null;
   current?: BackendRange | null;
   revision: number;
+  token?: string;
   status: HolidayClosureNoticeStatus;
   changed?: boolean;
   can_notify?: boolean;
@@ -85,6 +87,7 @@ export function mapHolidayClosureNotice(
     previous: mapRange(notice.previous),
     current: mapRange(notice.current),
     revision: notice.revision,
+    token: notice.token ?? "",
     status: notice.status,
     changed: notice.changed ?? false,
     canNotify: notice.can_notify ?? false,
@@ -156,11 +159,12 @@ export async function fetchHolidayClosureNotices(): Promise<
 export async function notifyHolidayClosureNotice(
   id: string,
   revision: number,
+  token: string,
 ): Promise<HolidayClosureNotice> {
   return mapHolidayClosureNotice(
     await noticeRequest<BackendHolidayClosureNotice>(
       `${schoolPath}/${encodeURIComponent(id)}/notify`,
-      { method: "POST", body: { revision } },
+      { method: "POST", body: { revision, token } },
     ),
   );
 }

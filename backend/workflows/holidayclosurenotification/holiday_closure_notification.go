@@ -39,6 +39,7 @@ type Range struct {
 // computed like the mails themselves; it is set while the notice waits for
 // a click and holds no name, contact or child (decision of 10.11.2026).
 type Notice struct {
+	Token        string     `json:"token"`
 	ID           int64      `json:"id"`
 	SchoolID     int64      `json:"school_id"`
 	SchoolName   string     `json:"school_name,omitempty"`
@@ -83,12 +84,12 @@ type Notifications interface {
 	SchoolNotices(ctx context.Context, schoolID int64) ([]Notice, error)
 	// NotifyFromSchool confirms a notice of the school, or takes its
 	// failed command up again, for accountID.
-	NotifyFromSchool(ctx context.Context, schoolID, accountID, noticeID, revision int64) (Notice, error)
+	NotifyFromSchool(ctx context.Context, schoolID, accountID, noticeID, revision int64, token string) (Notice, error)
 	// PendingHolidayClosures lists the notices of the Träger's schools.
 	PendingHolidayClosures(ctx context.Context, organizationID int64) (Pending, error)
 	// NotifyFromTraeger confirms a notice of a current school of the
 	// Träger, or takes its failed command up again, for accountID.
-	NotifyFromTraeger(ctx context.Context, organizationID, accountID, noticeID, revision int64) (Notice, error)
+	NotifyFromTraeger(ctx context.Context, organizationID, accountID, noticeID, revision int64, token string) (Notice, error)
 	// NotifyPendingHolidayClosures confirms every notice of the list the
 	// Büro saw, each under its own operation; token is that list's.
 	NotifyPendingHolidayClosures(ctx context.Context, organizationID, accountID int64, token string) (NotifiedPending, error)

@@ -55,10 +55,13 @@ type holidayClosureCalendar struct {
 	reads    schoolcalendar.HolidayClosureEventQueue
 }
 
-func (c holidayClosureCalendar) HolidayClosureNoCareDays(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
+func (c holidayClosureCalendar) HolidayClosureNoCareDays(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date, revision *int64) ([]enrollment.HolidayNoCareDay, error) {
 	school, err := c.reads.HolidayClosureCalendar(ctx, organizationID, schoolID, from, to)
 	if err != nil {
 		return nil, err
+	}
+	if revision != nil && school.Revision != *revision {
+		return nil, enrollment.ErrHolidayClosureChanged
 	}
 	region, err := holidayClosureRegion(school.FederalState)
 	if err != nil {

@@ -60,7 +60,8 @@ func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(c
 
 // NotifyRequest confirms one notice at the revision the caller saw.
 type NotifyRequest struct {
-	Revision int64 `json:"revision"`
+	Token    string `json:"token"`
+	Revision int64  `json:"revision"`
 }
 
 // Bind accepts the body.
@@ -98,7 +99,7 @@ func (rs *Resource) schoolNotifyOne(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	notice, err := rs.notices.NotifyFromSchool(r.Context(), principal.TenantID(), principal.AccountID(), id, req.Revision)
+	notice, err := rs.notices.NotifyFromSchool(r.Context(), principal.TenantID(), principal.AccountID(), id, req.Revision, req.Token)
 	if err != nil {
 		renderError(w, r, err)
 		return
@@ -130,7 +131,7 @@ func (rs *Resource) traegerNotifyOne(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	notice, err := rs.notices.NotifyFromTraeger(r.Context(), principal.OrganizationID(), principal.AccountID(), id, req.Revision)
+	notice, err := rs.notices.NotifyFromTraeger(r.Context(), principal.OrganizationID(), principal.AccountID(), id, req.Revision, req.Token)
 	if err != nil {
 		renderError(w, r, err)
 		return

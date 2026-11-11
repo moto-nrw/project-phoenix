@@ -170,9 +170,10 @@ func seedNotifySchoolHolidayClosures(rt *Runtime) (int, error) {
 		return 0, fmt.Errorf("read the school's holiday closure notices: %w", err)
 	}
 	var notices []struct {
-		ID        int64 `json:"id"`
-		Revision  int64 `json:"revision"`
-		CanNotify bool  `json:"can_notify"`
+		ID        int64  `json:"id"`
+		Revision  int64  `json:"revision"`
+		Token     string `json:"token"`
+		CanNotify bool   `json:"can_notify"`
 	}
 	// A stand-in server of the seed tests answers every read with an object;
 	// only a list holds notices.
@@ -187,7 +188,7 @@ func seedNotifySchoolHolidayClosures(rt *Runtime) (int, error) {
 			continue
 		}
 		if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-closure-notices/%d/notify", notice.ID),
-			map[string]any{"revision": notice.Revision}); err != nil {
+			map[string]any{"revision": notice.Revision, "token": notice.Token}); err != nil {
 			return confirmed, fmt.Errorf("tell the parents about the school's closing day: %w", err)
 		}
 		confirmed++

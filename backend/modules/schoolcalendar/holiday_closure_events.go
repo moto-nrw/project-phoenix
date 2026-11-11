@@ -107,6 +107,7 @@ func (n HolidayClosureNotice) CanNotify() bool {
 // HolidayClosureActor is the account that clicks and where; a click of the
 // Träger-Büro names its Träger, which must be the proposal's.
 type HolidayClosureActor struct {
+	ImpactToken    string
 	AccountID      int64
 	Channel        string
 	OrganizationID int64
@@ -128,6 +129,7 @@ type HolidayClosureProposals interface {
 
 // HolidayClosureEvent is a leased command as the worker processes it.
 type HolidayClosureEvent struct {
+	ImpactToken    string
 	ID             int64
 	OrganizationID int64
 	SchoolID       int64

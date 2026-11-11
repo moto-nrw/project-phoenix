@@ -1306,7 +1306,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "086b8f0952242fec97d2d165f460d74d",
+      "binding_digest": "d553869d04191c2f1b4a44ac4f1fd973",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.Registry.GetDefinition",
@@ -1314,7 +1314,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "fa79d5a2633919e7476313b4c7559824",
+      "binding_digest": "6d41e5da26a7c3dca50540e804ae7116",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
@@ -1322,7 +1322,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "aac9daf0a084e5dff5596070557db425",
+      "binding_digest": "b40fad707f5a88fb420bfa2074e7793b",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
@@ -1330,7 +1330,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "7a1c82a7e15fc2c651eef2560b1cc46e",
+      "binding_digest": "ef5e07ec4f3d8d21da62746456d83ad8",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureEventQueue.HolidayClosureCalendar",

@@ -117,6 +117,7 @@ func (h *HolidayClosures) NotifyHolidayClosure(ctx context.Context, organization
 // PlanHolidayClosureOperation previews the notice of a school closing day
 // change without writing anything.
 func (h *HolidayClosures) PlanHolidayClosureOperation(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureImpact, error) {
+	operation.From = max(operation.From, h.today())
 	bookings, err := h.operationChanges(ctx, organizationID, operation)
 	if err != nil {
 		return enrollment.HolidayClosureImpact{}, err
@@ -133,9 +134,22 @@ func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, org
 	if err := h.store.LockHolidayClosureNotices(ctx, organizationID); err != nil {
 		return enrollment.HolidayClosureOperationResult{}, err
 	}
+	keys, err := h.store.HolidayClosureSendKeys(ctx, organizationID, operation.OperationID)
+	if err != nil {
+		return enrollment.HolidayClosureOperationResult{}, err
+	}
+	// Recorded mails and day states committed together. Recovery only
+	// retries that content; it never reads or approves a newer calendar.
+	if len(keys) > 0 {
+		retried, err := h.mail.RetryFailedTraegerEmails(ctx, organizationID, keys)
+		return enrollment.HolidayClosureOperationResult{Mails: len(keys), Retried: retried}, err
+	}
 	bookings, err := h.operationChanges(ctx, organizationID, operation)
 	if err != nil {
 		return enrollment.HolidayClosureOperationResult{}, err
+	}
+	if operation.Token != "" && operation.Token != holidayClosureToken(bookings) {
+		return enrollment.HolidayClosureOperationResult{}, enrollment.ErrHolidayClosureChanged
 	}
 	var result enrollment.HolidayClosureOperationResult
 	if len(bookings) > 0 {
@@ -143,17 +157,7 @@ func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, org
 		if err != nil {
 			return enrollment.HolidayClosureOperationResult{}, err
 		}
-		result.Families = notice.Families
-	}
-	keys, err := h.store.HolidayClosureSendKeys(ctx, organizationID, operation.OperationID)
-	if err != nil {
-		return enrollment.HolidayClosureOperationResult{}, err
-	}
-	result.Mails = len(keys)
-	if len(keys) > 0 {
-		if result.Retried, err = h.mail.RetryFailedTraegerEmails(ctx, organizationID, keys); err != nil {
-			return enrollment.HolidayClosureOperationResult{}, fmt.Errorf("enrollment: take the failed closure mails up again: %w", err)
-		}
+		result.Families, result.Mails = notice.Families, notice.Families
 	}
 	return result, nil
 }
@@ -266,11 +270,11 @@ func (h *HolidayClosures) operationChanges(ctx context.Context, organizationID i
 	if organizationID <= 0 || operation.SchoolID <= 0 {
 		return nil, errors.New("enrollment: the Träger and the school are required")
 	}
-	from, to := max(operation.From, h.today()), operation.To
+	from, to := operation.From, operation.To
 	if to.IsZero() || to.Before(from) {
 		return nil, nil
 	}
-	noCare, err := h.operation.HolidayClosureNoCareDays(ctx, organizationID, operation.SchoolID, from, to)
+	noCare, err := h.operation.HolidayClosureNoCareDays(ctx, organizationID, operation.SchoolID, from, to, operation.Revision)
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +580,7 @@ func (h *HolidayClosures) enqueue(ctx context.Context, organizationID int64, tra
 		Recipient: first.GuardianEmail, GuardianName: first.GuardianFirstName + " " + first.GuardianLastName, TraegerName: traeger.Name,
 		RegistrationIDs: slices.Compact(slices.Sorted(slices.Values(registrations))),
 		Reasons:         reasons, Children: closed.children, ReopenedChildren: reopened.children,
-		KeepsContribution: enrollment.HolidayClosureKeepsContribution,
+		KeepsContribution: enrollment.HolidayClosureKeepsContribution, ContainsPastDays: hasPastClosureDays(bookings, h.today()),
 	})
 	if err != nil {
 		return fmt.Errorf("enrollment: encode holiday closure mail: %w", err)
@@ -635,4 +639,18 @@ var germanWeekdays = [...]string{"Sonntag", "Montag", "Dienstag", "Mittwoch", "D
 // germanDay is a day as the mail names it, "Montag, 03.08.2026".
 func germanDay(day calendar.Date) string {
 	return germanWeekdays[day.Weekday()] + ", " + day.Format("02.01.2006")
+}
+
+// hasPastClosureDays marks a notice prepared after one of its confirmed days.
+func hasPastClosureDays(bookings []changedBooking, today calendar.Date) bool {
+	for _, booking := range bookings {
+		for _, days := range [][]enrollment.HolidayClosedDay{booking.closed, booking.reopened} {
+			for _, day := range days {
+				if day.Date.Before(today) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

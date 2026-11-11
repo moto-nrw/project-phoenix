@@ -52,7 +52,7 @@ function daysLabel(list: HolidayClosureWeek["closedDays"]): string {
 }
 
 /** Geschlossene und wieder geöffnete Tage einer Woche, je eine Zeile. */
-export function HolidayClosureDayLines({
+function HolidayClosureDayLines({
   week,
 }: Readonly<{ week: HolidayClosureWeek }>) {
   return (
@@ -84,7 +84,7 @@ export function HolidayClosureDayLines({
 }
 
 /** Die betroffenen Wochen als Liste: Zeitraum, Schule, Tage und Kinder. */
-function HolidayClosureWeekList({
+export function HolidayClosureWeekList({
   weeks,
   schoolName,
 }: Readonly<{

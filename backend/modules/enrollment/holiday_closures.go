@@ -77,6 +77,9 @@ type HolidayClosureSpan struct {
 // closing day (ADR 0196): the operation of its proposal, the school and the
 // days it touches.
 type HolidayClosureOperation struct {
+	// Revision is required for fresh confirmed mail; nil for previews.
+	Revision    *int64
+	Token       string
 	OperationID string
 	SchoolID    int64
 	From        calendar.Date
@@ -89,7 +92,7 @@ type HolidayClosureOperation struct {
 // (ADR 0196 section 3.4). A notice reads it under Enrollment's lock, so a
 // Träger closing day saved meanwhile counts. The root binds it.
 type HolidayClosureCalendar interface {
-	HolidayClosureNoCareDays(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date) ([]HolidayNoCareDay, error)
+	HolidayClosureNoCareDays(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date, revision *int64) ([]HolidayNoCareDay, error)
 }
 
 // HolidayClosureOperationResult is what the worker learns of a processed
@@ -202,6 +205,7 @@ type HolidayClosureMailChild struct {
 // reasons, and what happens to the contribution. No date of birth, no
 // health information.
 type HolidayClosureMail struct {
+	ContainsPastDays bool `json:"contains_past_days,omitempty"`
 	// RegistrationIDs links every included registration for demo erasure.
 	RegistrationIDs   []int64                   `json:"registration_ids"`
 	Recipient         string                    `json:"recipient_email"`

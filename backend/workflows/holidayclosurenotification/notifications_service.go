@@ -99,11 +99,12 @@ func (s *Service) SchoolNotices(ctx context.Context, schoolID int64) ([]Notice, 
 	}
 	result := make([]Notice, 0, len(notices))
 	for _, notice := range notices {
-		if notice.Status == schoolcalendar.HolidayClosureSuggested && families[notice.ProposalID] == 0 {
+		if notice.Status == schoolcalendar.HolidayClosureSuggested && families[notice.ProposalID].Families == 0 {
 			continue
 		}
 		item := view(notice)
-		item.Families = families[notice.ProposalID]
+		item.Families = families[notice.ProposalID].Families
+		item.Token = families[notice.ProposalID].Token
 		result = append(result, item)
 	}
 	return result, nil
@@ -111,8 +112,8 @@ func (s *Service) SchoolNotices(ctx context.Context, schoolID int64) ([]Notice, 
 
 // waitingFamilies counts, per notice that waits for a click, the families a
 // click would tell, in a Träger transaction of each Träger of its own.
-func (s *Service) waitingFamilies(ctx context.Context, notices []schoolcalendar.HolidayClosureNotice) (map[int64]int, error) {
-	families := make(map[int64]int, len(notices))
+func (s *Service) waitingFamilies(ctx context.Context, notices []schoolcalendar.HolidayClosureNotice) (map[int64]enrollment.HolidayClosureImpact, error) {
+	families := make(map[int64]enrollment.HolidayClosureImpact, len(notices))
 	for _, organizationID := range organizationsOf(notices, true) {
 		if err := s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
 			for _, notice := range notices {
@@ -123,7 +124,7 @@ func (s *Service) waitingFamilies(ctx context.Context, notices []schoolcalendar.
 				if err != nil {
 					return err
 				}
-				families[notice.ProposalID] = impact.Families
+				families[notice.ProposalID] = impact
 			}
 			return nil
 		}); err != nil {
@@ -147,22 +148,22 @@ func organizationsOf(notices []schoolcalendar.HolidayClosureNotice, suggestedOnl
 // NotifyFromSchool confirms the notice in the school's transaction and then
 // processes the Träger's due commands: a failure there leaves the
 // committed command for the worker.
-func (s *Service) NotifyFromSchool(ctx context.Context, schoolID, accountID, noticeID, revision int64) (Notice, error) {
+func (s *Service) NotifyFromSchool(ctx context.Context, schoolID, accountID, noticeID, revision int64, token string) (Notice, error) {
 	return s.confirm(ctx, schoolID, noticeID, revision, schoolcalendar.HolidayClosureActor{
-		AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelSchool,
+		AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelSchool, ImpactToken: token,
 	})
 }
 
 // NotifyFromTraeger checks in a Träger transaction that the notice belongs
 // to a current school of the Träger, then confirms it in the school's own
 // transaction: never a school transaction inside the Träger's.
-func (s *Service) NotifyFromTraeger(ctx context.Context, organizationID, accountID, noticeID, revision int64) (Notice, error) {
+func (s *Service) NotifyFromTraeger(ctx context.Context, organizationID, accountID, noticeID, revision int64, token string) (Notice, error) {
 	notice, err := s.traegerNotice(ctx, organizationID, noticeID)
 	if err != nil {
 		return Notice{}, err
 	}
 	return s.confirm(ctx, notice.SchoolID, noticeID, revision, schoolcalendar.HolidayClosureActor{
-		AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelTraeger, OrganizationID: organizationID,
+		AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelTraeger, OrganizationID: organizationID, ImpactToken: token,
 	})
 }
 
@@ -227,8 +228,18 @@ func (s *Service) currentSchools(ctx context.Context, organizationID int64) (map
 }
 
 func (s *Service) confirm(ctx context.Context, schoolID, noticeID, revision int64, actor schoolcalendar.HolidayClosureActor) (Notice, error) {
+	seen, err := s.reread(ctx, schoolID, noticeID)
+	if err != nil {
+		return Notice{}, err
+	}
+	if actor.OrganizationID != 0 && seen.OrganizationID != actor.OrganizationID {
+		return Notice{}, ErrNoticeNotFound
+	}
+	if err := s.validateImpact(ctx, seen, actor.ImpactToken); err != nil {
+		return Notice{}, err
+	}
 	var confirmed schoolcalendar.HolidayClosureNotice
-	err := s.Units.WithinSchool(ctx, schoolID, func(ctx context.Context) error {
+	err = s.Units.WithinSchool(ctx, schoolID, func(ctx context.Context) error {
 		var err error
 		confirmed, err = s.Proposals.ConfirmHolidayClosureNotice(ctx, noticeID, revision, actor)
 		return err
@@ -264,6 +275,24 @@ func (s *Service) confirm(ctx context.Context, schoolID, noticeID, revision int6
 		confirmed = refreshed
 	}
 	return view(confirmed), nil
+}
+
+// validateImpact compares the displayed cohort before the school confirms.
+// Preparation rechecks it in the Träger unit that records the mail.
+func (s *Service) validateImpact(ctx context.Context, notice schoolcalendar.HolidayClosureNotice, token string) error {
+	if notice.Status != schoolcalendar.HolidayClosureSuggested {
+		return nil
+	}
+	return s.Units.WithinTraeger(ctx, notice.OrganizationID, func(ctx context.Context) error {
+		impact, err := s.plan(ctx, notice)
+		if err != nil {
+			return err
+		}
+		if token == "" || impact.Token != token {
+			return ErrNoticeChanged
+		}
+		return nil
+	})
 }
 
 func (s *Service) reread(ctx context.Context, schoolID, noticeID int64) (schoolcalendar.HolidayClosureNotice, error) {
@@ -339,6 +368,7 @@ func (s *Service) traegerItem(ctx context.Context, notice schoolcalendar.Holiday
 		return item, impact, false, err
 	}
 	item.Families, item.Children, item.Weeks = impact.Families, impact.Children, impact.Weeks
+	item.Token = impact.Token
 	return item, impact, true, nil
 }
 
@@ -368,7 +398,7 @@ func (s *Service) NotifyPendingHolidayClosures(ctx context.Context, organization
 			continue
 		}
 		if _, err := s.confirm(ctx, notice.SchoolID, notice.ID, notice.Revision, schoolcalendar.HolidayClosureActor{
-			AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelTraeger, OrganizationID: organizationID,
+			AccountID: accountID, Channel: schoolcalendar.HolidayClosureChannelTraeger, OrganizationID: organizationID, ImpactToken: notice.Token,
 		}); err != nil {
 			return result, err
 		}

@@ -141,6 +141,7 @@ function schoolNotice(
     previous: null,
     current: { startDate: "2026-11-04", endDate: "2026-11-04" },
     revision: 3,
+    token: "impact-preview",
     status: "suggested",
     changed: false,
     canNotify: true,
@@ -357,7 +358,7 @@ describe("TraegerClosingDaysPage (#4702)", () => {
     expect(
       within(card).getByText("Die Eltern wurden noch nicht informiert."),
     ).toBeInTheDocument();
-    expect(within(card).getByText("5 Kinder")).toBeInTheDocument();
+    expect(within(card).getAllByText("5 Kinder")).toHaveLength(2);
     expect(within(card).getByText("Sommerferien")).toBeInTheDocument();
     expect(
       within(card).getByText("Geschlossen: Mi., 04.11.2026 (Betriebsausflug)"),
@@ -378,7 +379,11 @@ describe("TraegerClosingDaysPage (#4702)", () => {
     // Kein zweiter Dialog: Der Klick beauftragt den Versand.
     expect(await within(card).findByText("Wird gesendet")).toBeInTheDocument();
     expect(within(card).getByText("Bitte warten Sie.")).toBeInTheDocument();
-    expect(api.notifyTraegerHolidayClosureNotice).toHaveBeenCalledWith("41", 3);
+    expect(api.notifyTraegerHolidayClosureNotice).toHaveBeenCalledWith(
+      "41",
+      3,
+      "impact-preview",
+    );
     expect(api.notifyTraegerHolidayClosureNotice).toHaveBeenCalledTimes(1);
     await screen.findByText("Die E-Mails an 3 Familien werden gesendet.");
     expect(
@@ -426,6 +431,7 @@ describe("TraegerClosingDaysPage (#4702)", () => {
       expect(api.notifyTraegerHolidayClosureNotice).toHaveBeenLastCalledWith(
         "41",
         4,
+        "impact-preview",
       ),
     );
   });

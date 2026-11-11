@@ -123,7 +123,7 @@ func closureOperation(school int64) enrollment.HolidayClosureOperation {
 
 // HolidayClosureNoCareDays answers the operation's read channel with the
 // same days.
-func (c closureCalendar) HolidayClosureNoCareDays(ctx context.Context, _ int64, school int64, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
+func (c closureCalendar) HolidayClosureNoCareDays(ctx context.Context, _ int64, school int64, from, to calendar.Date, _ *int64) ([]enrollment.HolidayNoCareDay, error) {
 	byDay, err := c.HolidayNoCareDays(ctx, []int64{school}, from, to)
 	return byDay[school], err
 }
@@ -608,4 +608,53 @@ func TestHolidayClosureCountsAPendingBookingWithoutAPlace(t *testing.T) {
 		assert.Equal(t, 1, waiting, "only the waitlisted child is called waitlisted")
 		assert.Equal(t, 1, pending, "the mail keeps the office decision pending")
 	})
+}
+
+// Confirmed commands keep every confirmed date, even after midnight.
+func TestConfirmedHolidayClosureKeepsElapsedDates(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Hinweis nach Mitternacht")
+	days := closureCalendar{{Date: calendar.NewDate(2027, 7, 5), Kind: enrollment.HolidayNoCareClosingDay}}
+	mail := &capturedMails{}
+	closures := compose.NewHolidayClosures(days, days, closureTraeger{}, mail, closureKeyBytes, closureKeyed,
+		func() calendar.Date { return calendar.NewDate(2027, 7, 12) })
+	operation := closureOperation(hostSchoolOf(t, db, w.week))
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		preview, err := closures.PlanHolidayClosureOperation(ctx, w.organization, operation)
+		require.NoError(t, err)
+		assert.Zero(t, preview.Families, "an unconfirmed preview excludes elapsed dates")
+		result, err := closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)
+		require.NoError(t, err)
+		assert.Positive(t, result.Mails, "recovery must not silently discard confirmed dates")
+	})
+	require.NotEmpty(t, mail.mails)
+	assert.Contains(t, string(mail.mails[0].Payload), "05.07.2027")
+	assert.Contains(t, string(mail.mails[0].Payload), `"contains_past_days":true`)
+}
+
+// Recovery retries recorded content, even when the current calendar differs.
+func TestHolidayClosureRecoveryKeepsRecordedMail(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Hinweis unverändert nachholen")
+	mail := &capturedMails{}
+	days := closureCalendar{{Date: calendar.NewDate(2027, 7, 7), Kind: enrollment.HolidayNoCareClosingDay}}
+	closures := newClosures(mail, days)
+	operation := closureOperation(hostSchoolOf(t, db, w.week))
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		_, err := closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)
+		require.NoError(t, err)
+	})
+	require.Len(t, mail.mails, 1)
+	before := string(mail.mails[0].Payload)
+	mail.outcomes[mail.mails[0].IdempotencyKey] = enrollment.TraegerMailFailed
+	closures = newClosures(mail, nil)
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		result, err := closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, result.Retried)
+	})
+	require.Len(t, mail.mails, 1, "retry must not enqueue reopening under the recorded key")
+	assert.Equal(t, before, string(mail.mails[0].Payload))
 }

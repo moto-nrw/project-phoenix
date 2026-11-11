@@ -126,7 +126,7 @@ function NoticeRanges({ notice }: Readonly<{ notice: HolidayClosureNotice }>) {
           <span className="min-w-0 tabular-nums">
             {current
               ? `Vorher: ${formatClosingRange(previous)}`
-              : `Gelöscht: ${formatClosingRange(previous)}. Diese Tage sind wieder geöffnet.`}
+              : `Schließtag gelöscht: ${formatClosingRange(previous)}.`}
           </span>
         </li>
       ) : null}
@@ -158,19 +158,48 @@ function sendingToast(families: number): string {
  * neuen Stand für einen erneuten Klick.
  */
 export function useNoticeNotify(
-  notify: (id: string, revision: number) => Promise<HolidayClosureNotice>,
+  notify: (
+    id: string,
+    revision: number,
+    token: string,
+  ) => Promise<HolidayClosureNotice>,
   reload: () => Promise<unknown>,
 ) {
   const [sending, setSending] = useState<ReadonlySet<string>>(new Set());
-  const { show: showError } = useApiErrorDisplay();
-  const { success } = useToast();
+  const { show: showError, showMessage } = useApiErrorDisplay();
+  const { success, info } = useToast();
 
   const run = useCallback(
     async (notice: HolidayClosureNotice) => {
       setSending((current) => new Set(current).add(notice.id));
       try {
-        await notify(notice.id, notice.revision);
-        success(sendingToast(notice.families));
+        const result = await notify(notice.id, notice.revision, notice.token);
+        switch (result.status) {
+          case "sent":
+            success("Die E-Mails wurden gesendet.");
+            break;
+          case "no_mail":
+            info(
+              "Keine E-Mail nötig. Es gibt keine neuen Änderungen für die Eltern.",
+            );
+            break;
+          case "failed":
+            showMessage(
+              "Der Versand hat nicht geklappt. Bitte versuchen Sie es erneut.",
+            );
+            break;
+          case "unknown":
+            info(
+              "Ergebnis unbekannt. Bitte lassen Sie den Versand vom moto-Team prüfen.",
+            );
+            break;
+          case "suggested":
+            info("Der Hinweis wurde geändert. Bitte prüfen Sie ihn erneut.");
+            break;
+          case "sending":
+            success(sendingToast(notice.families));
+            break;
+        }
       } catch (err) {
         logger.error("holiday_closure_notice_notify_failed", {
           notice_id: notice.id,
@@ -193,7 +222,7 @@ export function useNoticeNotify(
         });
       }
     },
-    [notify, reload, showError, success],
+    [notify, reload, showError, showMessage, success, info],
   );
 
   return { isSending: (id: string) => sending.has(id), notify: run };

@@ -23,6 +23,7 @@ import (
 // school's current membership. The filters hold below row security too.
 
 const (
+	lockHolidayClosureCalendarSQL = `SELECT pg_advisory_xact_lock(hashtextextended('school-calendar:holiday-closure:' || ?::text, 0))`
 	bumpHolidayClosureRevisionSQL = `INSERT INTO calendar.holiday_closure_revisions (tenant_id, revision)
 		VALUES (?, 1)
 		ON CONFLICT (tenant_id) DO UPDATE
@@ -54,6 +55,9 @@ const (
 	// one for two weeks, a superseded command never (its proposal shows).
 	holidayClosureNoticeVisible = `(proposal.state = 'open' AND proposal.span_to >= ?)
 		OR (proposal.state = 'confirmed' AND event.state NOT IN ('completed', 'no_mail', 'needs_confirmation'))
+		OR (proposal.state = 'confirmed' AND event.state = 'needs_confirmation'
+			AND NOT EXISTS (SELECT 1 FROM calendar.holiday_closure_proposals AS newer
+				WHERE newer.tenant_id = proposal.tenant_id AND newer.supersedes_event_id = event.id))
 		OR (proposal.state = 'confirmed' AND event.state IN ('completed', 'no_mail')
 			AND COALESCE(event.completed_at, event.processed_at) > CURRENT_TIMESTAMP - interval '14 days')`
 	schoolHolidayClosureNoticesSQL = `SELECT ` + holidayClosureNoticeColumns + `
@@ -74,9 +78,10 @@ const (
 		FOR UPDATE OF proposal`
 	insertHolidayClosureEventSQL = `INSERT INTO calendar.holiday_closure_events
 			(tenant_id, organization_id, proposal_id, operation_id, source_kind, source_id, revision, span_from, span_to,
-			confirmed_channel)
+			confirmed_channel, impact_token)
 		SELECT proposal.tenant_id, proposal.organization_id, proposal.id, proposal.operation_id, proposal.source_kind,
-			proposal.source_id, proposal.revision, proposal.span_from, proposal.span_to, ?
+			proposal.source_id, COALESCE((SELECT revision FROM calendar.holiday_closure_revisions WHERE tenant_id = proposal.tenant_id), 0),
+			GREATEST(proposal.span_from, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date), proposal.span_to, ?, ?
 		FROM calendar.holiday_closure_proposals AS proposal
 		WHERE proposal.tenant_id = ? AND proposal.id = ? AND proposal.state = 'open'
 		ON CONFLICT (proposal_id) DO NOTHING`
@@ -100,7 +105,7 @@ const (
 			LIMIT 1
 			FOR UPDATE SKIP LOCKED)
 			AND event.organization_id = ?
-		RETURNING event.id, event.organization_id, event.tenant_id, event.operation_id::text AS operation_id, event.revision,
+		RETURNING event.id, event.organization_id, event.tenant_id, event.operation_id::text AS operation_id, event.revision, event.impact_token,
 			event.span_from, event.span_to, event.lease_token::text AS lease_token, event.attempts, event.state`
 	lockLeasedHolidayClosureEventSQL = `SELECT id FROM calendar.holiday_closure_events
 		WHERE organization_id = ? AND id = ? AND state = 'leased' AND lease_token = ?::uuid
@@ -116,7 +121,7 @@ const (
 	supersededHolidayClosureEventSQL = `SELECT EXISTS (SELECT 1 FROM calendar.holiday_closure_proposals
 		WHERE organization_id = ? AND supersedes_event_id = ?)`
 	waitingHolidayClosureEventsSQL = `SELECT event.id, event.organization_id, event.tenant_id, event.operation_id::text AS operation_id,
-			event.revision, event.span_from, event.span_to, '' AS lease_token, event.attempts, event.state
+			event.revision, event.impact_token, event.span_from, event.span_to, '' AS lease_token, event.attempts, event.state
 		FROM calendar.holiday_closure_events AS event
 		WHERE event.organization_id = ? AND event.state IN ('prepared', 'unknown')
 		ORDER BY event.id`
@@ -172,6 +177,9 @@ func (s *HolidayClosureEventStore) schoolDB(ctx context.Context) (bun.IDB, int64
 // until the school transaction ends: the calendar lock of ADR 0196.
 func BumpHolidayClosureRevision(ctx context.Context, db bun.IDB, schoolID int64) (int64, error) {
 	var revision int64
+	if _, err := db.NewRaw(lockHolidayClosureCalendarSQL, schoolID).Exec(ctx); err != nil {
+		return 0, fmt.Errorf("school calendar postgres: lock the closing day calendar: %w", err)
+	}
 	if err := db.NewRaw(bumpHolidayClosureRevisionSQL, schoolID).Scan(ctx, &revision); err != nil {
 		return 0, fmt.Errorf("school calendar postgres: raise the closing day revision: %w", err)
 	}
@@ -310,6 +318,7 @@ func (row holidayClosureNoticeRow) notice() schoolcalendar.HolidayClosureNotice 
 		state = *row.EventState
 	}
 	notice.Status = holidayClosureStatusOf(row.ProposalState, state)
+	notice.Changed = notice.Changed || state == schoolcalendar.HolidayClosureEventNeedsConfirmation
 	return notice
 }
 
@@ -363,6 +372,9 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Conte
 	if err != nil {
 		return schoolcalendar.HolidayClosureNotice{}, err
 	}
+	if _, err := db.NewRaw(lockHolidayClosureCalendarSQL, schoolID).Exec(ctx); err != nil {
+		return schoolcalendar.HolidayClosureNotice{}, err
+	}
 	var row holidayClosureNoticeRow
 	if err := db.NewRaw(lockHolidayClosureProposalSQL, schoolID, proposalID).Scan(ctx, &row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -373,6 +385,11 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Conte
 	if actor.Channel == schoolcalendar.HolidayClosureChannelTraeger && row.OrganizationID != actor.OrganizationID {
 		return schoolcalendar.HolidayClosureNotice{}, schoolcalendar.ErrHolidayClosureNoticeNotFound
 	}
+	row, err = renewHolidayClosureProposal(ctx, db, schoolID, revision, row)
+	if err != nil {
+		return schoolcalendar.HolidayClosureNotice{}, err
+	}
+	proposalID = row.ProposalID
 	if err := confirmOrRetry(ctx, db, schoolID, proposalID, revision, actor, row); err != nil {
 		if errors.Is(err, schoolcalendar.ErrHolidayClosureNoticeChanged) {
 			return row.notice(), err
@@ -384,6 +401,34 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Conte
 		return schoolcalendar.HolidayClosureNotice{}, fmt.Errorf("school calendar postgres: read the confirmed proposal: %w", err)
 	}
 	return confirmed.notice(), nil
+}
+
+// renewHolidayClosureProposal replaces only a command that prepared no mail.
+// Renewed approval gets a fresh operation; recorded mail retains its identity.
+func renewHolidayClosureProposal(ctx context.Context, db bun.IDB, schoolID, revision int64, row holidayClosureNoticeRow) (holidayClosureNoticeRow, error) {
+	if row.EventState == nil || *row.EventState != schoolcalendar.HolidayClosureEventNeedsConfirmation {
+		return row, nil
+	}
+	if row.Revision != revision {
+		return row, schoolcalendar.ErrHolidayClosureNoticeChanged
+	}
+
+	var replacementID int64
+	if err := db.NewRaw(`INSERT INTO calendar.holiday_closure_proposals
+			(tenant_id, organization_id, source_kind, source_id, operation_id, reason, previous_start, previous_end,
+			current_start, current_end, span_from, span_to, revision)
+		SELECT tenant_id, organization_id, source_kind, source_id, gen_random_uuid(), reason, previous_start, previous_end,
+			current_start, current_end, span_from, span_to, revision
+		FROM calendar.holiday_closure_proposals WHERE tenant_id = ? AND id = ? RETURNING id`, schoolID, row.ProposalID).Scan(ctx, &replacementID); err != nil {
+		return holidayClosureNoticeRow{}, err
+	}
+	if _, err := db.NewRaw(`DELETE FROM calendar.holiday_closure_proposals WHERE tenant_id = ? AND id = ?`, schoolID, row.ProposalID).Exec(ctx); err != nil {
+		return holidayClosureNoticeRow{}, err
+	}
+	if err := db.NewRaw(lockHolidayClosureProposalSQL, schoolID, replacementID).Scan(ctx, &row); err != nil {
+		return holidayClosureNoticeRow{}, err
+	}
+	return row, nil
 }
 
 // confirmOrRetry writes the command of an open proposal at its revision, or
@@ -398,7 +443,7 @@ func confirmOrRetry(ctx context.Context, db bun.IDB, schoolID, proposalID, revis
 	if row.Revision != revision {
 		return schoolcalendar.ErrHolidayClosureNoticeChanged
 	}
-	if _, err := db.NewRaw(insertHolidayClosureEventSQL, actor.Channel, schoolID, proposalID).Exec(ctx); err != nil {
+	if _, err := db.NewRaw(insertHolidayClosureEventSQL, actor.Channel, actor.ImpactToken, schoolID, proposalID).Exec(ctx); err != nil {
 		return fmt.Errorf("school calendar postgres: write the holiday closure event: %w", err)
 	}
 	if _, err := db.NewRaw(confirmHolidayClosureProposalSQL, schoolID, proposalID).Exec(ctx); err != nil {
@@ -414,6 +459,7 @@ type holidayClosureEventRow struct {
 	TenantID       int64         `bun:"tenant_id"`
 	OperationID    string        `bun:"operation_id"`
 	Revision       int64         `bun:"revision"`
+	ImpactToken    string        `bun:"impact_token"`
 	SpanFrom       calendar.Date `bun:"span_from"`
 	SpanTo         calendar.Date `bun:"span_to"`
 	LeaseToken     string        `bun:"lease_token"`
@@ -423,7 +469,7 @@ type holidayClosureEventRow struct {
 
 func (row holidayClosureEventRow) event() schoolcalendar.HolidayClosureEvent {
 	return schoolcalendar.HolidayClosureEvent{ID: row.ID, OrganizationID: row.OrganizationID, SchoolID: row.TenantID,
-		OperationID: row.OperationID, Revision: row.Revision, SpanFrom: row.SpanFrom, SpanTo: row.SpanTo,
+		OperationID: row.OperationID, Revision: row.Revision, ImpactToken: row.ImpactToken, SpanFrom: row.SpanFrom, SpanTo: row.SpanTo,
 		LeaseToken: row.LeaseToken, Attempts: row.Attempts, State: row.State}
 }
 
@@ -496,6 +542,9 @@ func (s *HolidayClosureEventStore) HolidayClosureCalendar(ctx context.Context, o
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return schoolcalendar.HolidayClosureCalendar{}, err
+	}
+	if _, err := db.NewRaw(lockHolidayClosureCalendarSQL, schoolID).Exec(ctx); err != nil {
+		return schoolcalendar.HolidayClosureCalendar{}, fmt.Errorf("school calendar postgres: lock the notice calendar: %w", err)
 	}
 	var rows []holidayClosureCalendarRow
 	if err := db.NewRaw(holidayClosureCalendarSQL, schoolID, from, to).Scan(ctx, &rows); err != nil {
@@ -640,7 +689,7 @@ func (s *Store) LockHolidayClosureRevision(ctx context.Context) (int64, domain.O
 	}
 	started := time.Now()
 	revision, err := BumpHolidayClosureRevision(ctx, db, tenantID)
-	return revision, domain.OperationStats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
+	return revision, domain.OperationStats{Queries: 2, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
 // RecordHolidayClosureChange proposes the notice of a changed closing day.
@@ -663,7 +712,9 @@ func holidayClosureStatusOf(proposalState, eventState string) schoolcalendar.Hol
 	switch eventState {
 	case schoolcalendar.HolidayClosureEventCompleted:
 		return schoolcalendar.HolidayClosureSent
-	case schoolcalendar.HolidayClosureEventNoMail, schoolcalendar.HolidayClosureEventNeedsConfirmation:
+	case schoolcalendar.HolidayClosureEventNeedsConfirmation:
+		return schoolcalendar.HolidayClosureSuggested
+	case schoolcalendar.HolidayClosureEventNoMail:
 		return schoolcalendar.HolidayClosureNoMail
 	case schoolcalendar.HolidayClosureEventFailed, schoolcalendar.HolidayClosureEventBlocked:
 		return schoolcalendar.HolidayClosureFailed

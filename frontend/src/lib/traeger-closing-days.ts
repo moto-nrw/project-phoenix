@@ -322,11 +322,12 @@ export async function fetchPendingHolidayClosures(): Promise<PendingHolidayClosu
 export async function notifyTraegerHolidayClosureNotice(
   id: string,
   revision: number,
+  token: string,
 ): Promise<HolidayClosureNotice> {
   return mapHolidayClosureNotice(
     await traegerRequest<BackendHolidayClosureNotice>(
       `${closuresPath}/pending/${encodeURIComponent(id)}/notify`,
-      { method: "POST", body: { revision } },
+      { method: "POST", body: { revision, token } },
     ),
   );
 }

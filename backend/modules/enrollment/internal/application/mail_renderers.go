@@ -146,6 +146,8 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 	reopened, reopenedWaitlisted, reopenedPending := holidayClosureMailChildren(payload.ReopenedChildren)
 	subject := "Ferienbetreuung: An einem gebuchten Tag ist geschlossen"
 	switch {
+	case payload.ContainsPastDays:
+		subject = "Ferienbetreuung: Hinweis zu vergangenen Schließtagen"
 	case len(closed) > 0 && len(reopened) > 0:
 		subject = "Ferienbetreuung: Die Schließtage haben sich geändert"
 	case len(reopened) > 0:
@@ -162,6 +164,7 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 			"Reasons":           payload.Reasons,
 			"Children":          closed,
 			"ReopenedChildren":  reopened,
+			"ContainsPastDays":  payload.ContainsPastDays,
 			"Waitlisted":        closedWaitlisted || reopenedWaitlisted,
 			"Pending":           closedPending || reopenedPending,
 			"KeepsContribution": payload.KeepsContribution,

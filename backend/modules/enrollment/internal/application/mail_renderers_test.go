@@ -492,3 +492,12 @@ func TestHolidayClosureRendererKeepsPendingSeparateFromWaitlisted(t *testing.T) 
 	assert.Equal(t, true, weeks[0]["Pending"])
 	assert.Equal(t, false, weeks[0]["Waitlisted"])
 }
+
+func TestHolidayClosureRendererMarksElapsedDates(t *testing.T) {
+	t.Parallel()
+	rendered, err := NewMailRenderers().HolidayClosureNotice(context.Background(), enrollment.MailKindHolidayClosureNotice,
+		json.RawMessage(`{"recipient_email":"guardian@example.test","contains_past_days":true,"children":[{"name":"Tom","weeks":[{"week":"Sommerferien"}]}]}`))
+	require.NoError(t, err)
+	assert.Equal(t, "Ferienbetreuung: Hinweis zu vergangenen Schließtagen", rendered.Subject)
+	assert.Equal(t, true, contentOf(t, rendered)["ContainsPastDays"])
+}

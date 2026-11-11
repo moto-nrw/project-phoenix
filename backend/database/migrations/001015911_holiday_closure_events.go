@@ -106,6 +106,7 @@ CREATE TABLE calendar.holiday_closure_events (
 	source_kind TEXT NOT NULL,
 	source_id BIGINT NOT NULL,
 	revision BIGINT NOT NULL,
+ impact_token TEXT NOT NULL DEFAULT '',
 	span_from DATE NOT NULL,
 	span_to DATE NOT NULL,
 	state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN
@@ -152,7 +153,8 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 		IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
 			OR NEW.proposal_id IS DISTINCT FROM OLD.proposal_id OR NEW.operation_id IS DISTINCT FROM OLD.operation_id
 			OR NEW.source_kind IS DISTINCT FROM OLD.source_kind OR NEW.source_id IS DISTINCT FROM OLD.source_id
-			OR NEW.revision IS DISTINCT FROM OLD.revision OR NEW.span_from IS DISTINCT FROM OLD.span_from
+			OR NEW.impact_token IS DISTINCT FROM OLD.impact_token
+   OR NEW.revision IS DISTINCT FROM OLD.revision OR NEW.span_from IS DISTINCT FROM OLD.span_from
 			OR NEW.span_to IS DISTINCT FROM OLD.span_to OR NEW.confirmed_channel IS DISTINCT FROM OLD.confirmed_channel
 			OR NEW.confirmed_at IS DISTINCT FROM OLD.confirmed_at OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
 			RAISE EXCEPTION 'the command fields of a holiday closure event never change'

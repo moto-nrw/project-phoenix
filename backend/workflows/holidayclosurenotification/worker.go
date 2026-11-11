@@ -84,20 +84,14 @@ func (s *Service) process(ctx context.Context, event schoolcalendar.HolidayClosu
 		if err := s.Queue.LockLeasedHolidayClosureEvent(ctx, event.OrganizationID, event.ID, event.LeaseToken); err != nil {
 			return err
 		}
-		superseded, err := s.Queue.HolidayClosureEventSuperseded(ctx, event.OrganizationID, event.ID)
-		if err != nil {
-			return err
-		}
-		if superseded {
-			// A later change of the same closing day replaced the command
-			// before it was processed: no mail, a new click decides.
+		confirmed := operation(event.SchoolID, event.OperationID, event.SpanFrom, event.SpanTo)
+		confirmed.Revision, confirmed.Token = &event.Revision, event.ImpactToken
+		result, err := s.Closures.NotifyHolidayClosureOperation(ctx, event.OrganizationID, confirmed)
+		if errors.Is(err, enrollment.ErrHolidayClosureChanged) {
 			outcome = schoolcalendar.HolidayClosureOutcome{State: schoolcalendar.HolidayClosureEventNeedsConfirmation}
+		} else if err != nil {
+			return err
 		} else {
-			result, err := s.Closures.NotifyHolidayClosureOperation(ctx, event.OrganizationID,
-				operation(event.SchoolID, event.OperationID, event.SpanFrom, event.SpanTo))
-			if err != nil {
-				return err
-			}
 			outcome = schoolcalendar.HolidayClosureOutcome{State: schoolcalendar.HolidayClosureEventNoMail}
 			if result.Mails > 0 {
 				outcome.State = schoolcalendar.HolidayClosureEventPrepared

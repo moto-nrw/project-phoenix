@@ -101,7 +101,7 @@
     {"name": "calendar.appointment_reminder_push_deliveries", "scope": "tenant", "export": "include", "personKeys": {"guardian_profile_id": "users.guardian_profiles.id"}},
     {"name": "calendar.appointment_targets", "scope": "tenant", "export": "include"},
     {"name": "calendar.appointments", "scope": "tenant", "export": "include", "personKeys": {"organizer_staff_id": "users.staff_school_memberships.id"}},
-    {"name": "calendar.holiday_closure_events", "scope": "tenant", "export": "include", "excludeSecretColumns": {"lease_token": "Worker lease fence; operational secret, not customer export content.", "error_code": "Technical failure code of the worker; operational diagnostics, not customer export content."}},
+    {"name": "calendar.holiday_closure_events", "scope": "tenant", "export": "include", "excludeSecretColumns": {"impact_token": "Operational fingerprint of approved recipients and dates; may encode contact changes and is not customer export content.", "lease_token": "Worker lease fence; operational secret, not customer export content.", "error_code": "Technical failure code of the worker; operational diagnostics, not customer export content."}},
     {"name": "calendar.holiday_closure_proposals", "scope": "tenant", "export": "include"},
     {"name": "calendar.holiday_closure_revisions", "scope": "tenant", "export": "include"},
     {"name": "calendar.parent_conference_bookings", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "guardian_profile_id": "users.guardian_profiles.id"}},

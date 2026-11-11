@@ -1130,7 +1130,7 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
           "Öffnen Sie `Schuljahr und Kalender`.",
           "Oben steht die Karte `Eltern der Ferienbetreuung informieren`. Dort stehen der Grund, die Tage und wie viele Familien gebucht haben.",
           "Wählen Sie `Eltern informieren`. Ein Klick genügt.",
-          "Der Hinweis zeigt `Wird gesendet` und dann `Gesendet`.",
+          "Der Hinweis zeigt den Versandstand: `Wird gesendet`, `Gesendet` oder `Keine E-Mail nötig`.",
         ],
       },
       {

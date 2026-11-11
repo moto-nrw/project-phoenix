@@ -18,12 +18,11 @@ import {
   type HolidayClosureNoticeRowContent,
   useNoticeNotify,
 } from "~/components/planning/holiday-closure-notice-list";
-import { formatDate } from "~/lib/date-helpers";
 import {
   childrenLabel,
   familiesLabel,
   HolidayClosureConsequences,
-  HolidayClosureDayLines,
+  HolidayClosureWeekList,
 } from "~/components/traeger/closing-day-holiday-impact";
 import { Button } from "~/components/ui/button";
 import type { FormErrorInput } from "~/components/ui/form-error";
@@ -39,26 +38,6 @@ import {
 } from "~/lib/traeger-closing-days";
 
 const logger = createLogger({ component: "TraegerHolidayClosureNotices" });
-
-function NoticeWeeks({
-  notice,
-}: Readonly<{ notice: TraegerHolidayClosureNotice }>) {
-  if (notice.weeks.length === 0) return null;
-  return (
-    <ul className="mt-2 space-y-1.5">
-      {notice.weeks.map((week) => (
-        <li key={week.weekId} className="space-y-0.5">
-          <p className="text-sm text-gray-600 tabular-nums">
-            <span className="font-medium text-gray-900">{week.periodName}</span>
-            {" · "}
-            {formatDate(week.startsOn)} bis {formatDate(week.endsOn)}
-          </p>
-          <HolidayClosureDayLines week={week} />
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 export function TraegerHolidayClosureNotices({
   pending,
@@ -123,7 +102,15 @@ export function TraegerHolidayClosureNotices({
               size="xs"
             />
           ) : null,
-        details: waiting ? <NoticeWeeks notice={notice} /> : null,
+        details:
+          waiting && notice.weeks.length > 0 ? (
+            <div className="mt-2">
+              <HolidayClosureWeekList
+                weeks={notice.weeks}
+                schoolName={schoolName}
+              />
+            </div>
+          ) : null,
       };
     });
 

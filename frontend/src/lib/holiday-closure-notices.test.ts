@@ -26,6 +26,7 @@ const backendNotice = {
   previous: { start_date: "2026-10-05", end_date: "2026-10-05" },
   current: null,
   revision: 4,
+  token: "impact-preview",
   status: "suggested",
   changed: false,
   can_notify: true,
@@ -55,6 +56,7 @@ describe("holiday closure notices (ADR 0196)", () => {
         previous: { startDate: "2026-10-05", endDate: "2026-10-05" },
         current: null,
         revision: 4,
+        token: "impact-preview",
         status: "suggested",
         changed: false,
         canNotify: true,
@@ -71,8 +73,8 @@ describe("holiday closure notices (ADR 0196)", () => {
       Promise.resolve(json({ data: backendNotice })),
     );
 
-    await notifyHolidayClosureNotice("7", 4);
-    await notifyTraegerHolidayClosureNotice("7", 4);
+    await notifyHolidayClosureNotice("7", 4, "impact-preview");
+    await notifyTraegerHolidayClosureNotice("7", 4, "impact-preview");
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       "/api/holiday-closure-notices/7/notify",
@@ -82,6 +84,7 @@ describe("holiday closure notices (ADR 0196)", () => {
       expect(init).toMatchObject({ method: "POST" });
       expect(JSON.parse((init as RequestInit).body as string)).toEqual({
         revision: 4,
+        token: "impact-preview",
       });
     }
   });

@@ -59,6 +59,7 @@ function notice(
     previous: null,
     current: { startDate: "2026-10-12", endDate: "2026-10-14" },
     revision: 2,
+    token: "impact-preview",
     status: "suggested",
     changed: false,
     canNotify: true,
@@ -120,7 +121,7 @@ describe("HolidayClosureNotices (ADR 0196)", () => {
     ).toBeInTheDocument();
   });
 
-  it("names a moved closing day with both ranges and a deleted one as open again", () => {
+  it("names a moved closing day and describes a deletion without claiming care resumes", () => {
     store.current = [
       notice({
         previous: { startDate: "2026-10-05", endDate: "2026-10-05" },
@@ -139,9 +140,7 @@ describe("HolidayClosureNotices (ADR 0196)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Vorher: Mo., 05.10.2026")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Gelöscht: 20.10.2026 bis 21.10.2026. Diese Tage sind wieder geöffnet.",
-      ),
+      screen.getByText("Schließtag gelöscht: 20.10.2026 bis 21.10.2026."),
     ).toBeInTheDocument();
   });
 
@@ -202,7 +201,7 @@ describe("HolidayClosureNotices (ADR 0196)", () => {
     renderNotices();
 
     fireEvent.click(button()!);
-    expect(mockNotify).toHaveBeenCalledWith("7", 2);
+    expect(mockNotify).toHaveBeenCalledWith("7", 2, "impact-preview");
     expect(mockNotify).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Wird gesendet")).toBeInTheDocument();
     expect(button()).not.toBeInTheDocument();
@@ -215,6 +214,28 @@ describe("HolidayClosureNotices (ADR 0196)", () => {
     ).toBeInTheDocument();
     expect(mockReload).toHaveBeenCalled();
     expect(screen.getByText("Wird gesendet")).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "no_mail",
+      "Keine E-Mail nötig. Es gibt keine neuen Änderungen für die Eltern.",
+    ],
+    [
+      "failed",
+      "Der Versand hat nicht geklappt. Bitte versuchen Sie es erneut.",
+    ],
+    ["sent", "Die E-Mails wurden gesendet."],
+    [
+      "unknown",
+      "Ergebnis unbekannt. Bitte lassen Sie den Versand vom moto-Team prüfen.",
+    ],
+    ["suggested", "Der Hinweis wurde geändert. Bitte prüfen Sie ihn erneut."],
+  ] as const)("reports the returned %s outcome", async (status, message) => {
+    mockNotify.mockResolvedValueOnce(notice({ status }));
+    renderNotices();
+    fireEvent.click(button()!);
+    expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
   it("shows a changed closing day through the error path and loads the new state", async () => {
@@ -241,7 +262,7 @@ describe("HolidayClosureNotices (ADR 0196)", () => {
       ),
     ).toBeInTheDocument();
     fireEvent.click(button()!);
-    expect(mockNotify).toHaveBeenLastCalledWith("7", 3);
+    expect(mockNotify).toHaveBeenLastCalledWith("7", 3, "impact-preview");
   });
 
   it("shows nothing without the right to change closing days", () => {

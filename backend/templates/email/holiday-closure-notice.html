@@ -2,7 +2,9 @@
 {{template "header" .}}
 
 <div class="email-body">
-    {{if and .Children .ReopenedChildren}}
+    {{if .ContainsPastDays}}
+    <h1>Hinweis zu vergangenen Schließtagen</h1>
+    {{else if and .Children .ReopenedChildren}}
     <h1>Die Schließtage in Ihrer Ferienbetreuung haben sich geändert</h1>
     {{else if .ReopenedChildren}}
     <h1>Die Ferienbetreuung findet doch statt</h1>
@@ -12,7 +14,10 @@
 
     <p>Guten Tag {{.GuardianName}},</p>
 
-    {{if and .Children .ReopenedChildren}}
+    {{if .ContainsPastDays}}
+    <p>Diese E-Mail kommt verspätet. Einige der genannten Tage sind bereits vorbei.</p>
+    <p>Unten stehen die Schließtage und die wieder geöffneten Tage Ihrer Ferienbetreuung.</p>
+    {{else if and .Children .ReopenedChildren}}
     <p>Sie haben Ferienbetreuung gebucht. Die Schließtage haben sich geändert. Unten sehen Sie, welche Tage geschlossen sind und welche Tage doch geöffnet sind.</p>
     {{else if .ReopenedChildren}}
     <p>Sie haben Ferienbetreuung gebucht. Wir hatten Ihnen geschrieben, dass an diesen Tagen geschlossen ist. Das hat sich geändert: An den Tagen unten gibt es doch Betreuung.</p>
@@ -59,8 +64,8 @@
 
     <div class="highlight-box" style="margin-top: 24px;">
         <p style="margin: 0; font-size: 14px;"><strong>Was heißt das für Sie?</strong></p>
-        {{if .Children}}<p style="margin: 8px 0 0 0; font-size: 14px;">Bitte planen Sie für die geschlossenen Tage eine andere Betreuung.</p>{{end}}
-        {{if .ReopenedChildren}}<p style="margin: 8px 0 0 0; font-size: 14px;">An den geöffneten Tagen können Sie Ihr Kind wie gebucht bringen.</p>{{end}}
+        {{if and .Children (not .ContainsPastDays)}}<p style="margin: 8px 0 0 0; font-size: 14px;">Bitte planen Sie für die geschlossenen Tage eine andere Betreuung.</p>{{end}}
+        {{if and .ReopenedChildren (not .ContainsPastDays)}}<p style="margin: 8px 0 0 0; font-size: 14px;">An den geöffneten Tagen können Sie Ihr Kind wie gebucht bringen.</p>{{end}}
         <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre Buchung bleibt. Sie müssen nichts ändern.</p>
         {{if .Pending}}<p style="margin: 8px 0 0 0; font-size: 14px;">Das Büro entscheidet noch, ob Ihr Kind einen Platz bekommt.</p>{{end}}
         {{if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">Steht Ihr Kind auf der Warteliste, bleibt es dort. Es hat damit noch keinen Platz.</p>{{end}}

@@ -1799,11 +1799,13 @@
       "target_owner": "school-calendar"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0196",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "classification": "query",
-      "effect": "query",
+      "classification": "leaf",
+      "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "reason": "ADR 0196 section 3.4: reads one current school of the calling Träger through the read-only SECURITY DEFINER channel in the caller's Träger transaction; no write, lock or scope change.",
+      "reason": "ADR 0196 section 3.4: School Calendar acquires its own transaction-scoped calendar lock before reading one current school through its read-only SECURITY DEFINER channel. The notification workflow holds the event lease, then Enrollment's notice lock; the school lock fences calendar changes through mail preparation and commit. No school unit is nested in the Träger unit.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureEventQueue.HolidayClosureCalendar",
       "target_owner": "school-calendar"
