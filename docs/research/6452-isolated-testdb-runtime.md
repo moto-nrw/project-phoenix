@@ -367,28 +367,6 @@ von 250 ms läuft ab Funktionsbeginn, bei stockender Datenbank also schon vor
 dem ersten Auftrag. Ohne die fsync-Last trat das in keinem Lauf auf; nicht
 geändert.
 
-### Endstand im Gate
-
-`scripts/run-go-toolchain.sh scripts/check-changed.mjs` auf dem Endstand,
-Load-1 21 bis 38:
-
-| Testserver | Paket | Ergebnis |
-| --- | ---: | --- |
-| geteilt, Port 5433 | 61,0 s | grün |
-| geteilt, Port 5433, nach Rebase | 188,2 s | rot: `TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools`, ein Durchgang löschte keinen Auftrag |
-| eigener, aktuelle Konfiguration | 12,3 s | grün |
-| eigener, aktuelle Konfiguration | 13,6 s | grün |
-
-Der geteilte Server auf Port 5433 ist auf diesem Rechner ein Alt-Container
-vom 10.11.2026: Daten auf einem Volume statt im tmpfs, Speicherlimit 1,5 GiB
-statt 3584 MB. Die langsamen Create/Drop-Zeiten und die Streuung oben stammen
-von ihm. Der rote Lauf ist der bei „fsync im Gate“ beschriebene Fall: Das
-250-ms-Budget läuft ab, bevor die Löschung den ersten Auftrag beginnt, wenn
-die Datenbank stockt. Auf dem Server in aktueller Konfiguration trat er nicht
-auf. Offen bleibt die Umstellung des Alt-Containers nach
-`docs/agents/operations.md` („Test database“); sie betrifft andere Sessions
-und ist hier nicht geschehen.
-
 ### Per-Test-Datenbanken in der CI
 
 Der erste CI-Lauf mit Per-Test-Datenbanken
@@ -408,3 +386,28 @@ Ein Mutex nur um das Löschen der Schemas senkte das auf 3 bis 7, beseitigte
 es also nicht. Der Slot begrenzt genau diese Last auf einen Export-Test je
 Paket. Das Paket bleibt deshalb auf der Paket-Datenbank mit einem Slot; die
 Messwerte der Per-Test-Läufe stehen oben nur als Vergleich.
+
+### Endstand im Gate
+
+`scripts/run-go-toolchain.sh scripts/check-changed.mjs`, Load-1 21 bis 40.
+Zuerst mit Per-Test-Datenbanken, dann auf dem Endstand mit einem Slot:
+
+| Stand | Testserver | Paket | Ergebnis |
+| --- | --- | ---: | --- |
+| Per-Test | geteilt, Port 5433 | 61,0 s | grün |
+| Per-Test | geteilt, Port 5433 | 188,2 s | rot: ein Durchgang löschte keinen Auftrag (#6698) |
+| Per-Test | eigener, aktuelle Konfiguration | 12,3 s / 13,6 s | grün / grün |
+| Endstand (Slot) | geteilt, Port 5433 | 447,7 s | rot: 23 Tests warteten bis zur Frist auf den Slot |
+| Endstand (Slot) | eigener, aktuelle Konfiguration | 65,3 s / 61,4 s | grün / grün |
+
+Der geteilte Server auf Port 5433 ist auf diesem Rechner ein Alt-Container
+vom 10.11.2026: Daten auf einem Volume statt im tmpfs, Speicherlimit 1,5 GiB
+statt 3584 MB. Die langsamen Create/Drop-Zeiten und die Streuung oben stammen
+von ihm; im Slot-Modus reichen sie für den Paket-Timeout des Ausgangsbefunds,
+auch ohne `fsync`. Offen bleibt die Umstellung des Alt-Containers nach
+`docs/agents/operations.md` („Test database“). Sie betrifft andere Sessions
+und ist hier nicht geschehen. Auf einem Server in aktueller Konfiguration
+läuft das Paket im Gate in gut einer Minute.
+
+Nicht gemessen: macOS (`F_FULLFSYNC`) und ein Rechner ohne fremde Last. Die
+CI-Paketzeit dient als Gegenprobe.
