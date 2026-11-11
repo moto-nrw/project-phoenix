@@ -49,6 +49,7 @@ import {
   HOMEWORK_SUBJECT_MAX_LENGTH,
 } from "~/lib/homework-feedback";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassDayClasses,
@@ -302,6 +303,15 @@ export function ClassDayClass({
 
   useSchoolReportRefusal(error, classReportKey);
 
+  // Nachladen nach dem Schreiben holt den Bericht direkt: ein Fehler dabei
+  // weist ab und steht als Ladefehler über der Klasse, die bestätigten
+  // Zeilen bleiben stehen (#6652). Ein reines `mutate()` meldete ihn nicht.
+  const reportAfterWrite = useRefreshAfterWrite("die Anzeige der Klasse", () =>
+    refetchReport(fetchClassDay(schoolClass, dateISO), {
+      revalidate: false,
+    }),
+  );
+
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
   // offene Klasse neu, ohne Neuladen der Seite (#4792).
   const refreshReport = useCallback(
@@ -426,7 +436,7 @@ export function ClassDayClass({
           hintStudentId,
         );
         if (op.isCurrent()) setHintOpen(false);
-        await refetchReport();
+        await reportAfterWrite.refresh();
       } catch (err) {
         logger.error("class_day_hint_save_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -446,7 +456,7 @@ export function ClassDayClass({
       await deleteDayHintSchool(schoolClass, dateISO, hintStudentId);
       setHintDeleteOpen(false);
       setHintOpen(false);
-      await refetchReport();
+      await reportAfterWrite.refresh();
     } catch (err) {
       logger.error("class_day_hint_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -532,7 +542,7 @@ export function ClassDayClass({
         dateISO,
         draftMarks(rows, draft),
       );
-      await refetchReport();
+      await reportAfterWrite.refresh();
       // Die neu geladene Liste zeigt den gespeicherten Stand, der Fuß
       // verschwindet: das ist die Rückmeldung.
       setDraftState({ key: reportKey, marks: {} });
@@ -556,7 +566,7 @@ export function ClassDayClass({
     api: homework,
     schoolClass,
     dateISO,
-    onChanged: () => refetchReport(),
+    onChanged: reportAfterWrite.refresh,
   });
   // Übergabe an die OGS (#4794): bestätigt wird je Klasse, Ausnahmen je Kind.
   const canHandOver =
@@ -600,7 +610,7 @@ export function ClassDayClass({
             .filter((row) => handoverAbsent.has(row.student_id))
             .map((row) => row.student_id),
         });
-        await refetchReport();
+        await reportAfterWrite.refresh();
         if (op.isCurrent()) setHandoverOpen(false);
       } catch (cause) {
         logger.error("class_day_handover_save_failed", {
@@ -627,7 +637,7 @@ export function ClassDayClass({
     setWithdrawing(true);
     try {
       await withdrawClassHandover(schoolClass, dateISO);
-      await refetchReport();
+      await reportAfterWrite.refresh();
       setWithdrawOpen(false);
     } catch (cause) {
       logger.error("class_day_handover_withdraw_failed", {
@@ -1199,6 +1209,7 @@ export function ClassDayClass({
           {!weekend && !isLoading && error ? (
             <LoadErrorAlert error={loadError} className="mt-4" />
           ) : null}
+          <LoadErrorAlert error={reportAfterWrite.error} className="mt-4" />
 
           {!weekend && !isLoading && report && rows.length === 0 && (
             <EmptyState

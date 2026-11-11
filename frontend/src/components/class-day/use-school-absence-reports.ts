@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import { useApiFormError } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import type {
   AbsenceReportStatus,
@@ -40,7 +41,8 @@ interface Options {
     studentId: string,
   ) => Promise<void>;
   /** Lädt die Tagesübersicht nach einer Änderung neu. */
-  readonly onChanged: () => Promise<unknown>;
+  /** Reloads the school day; never rejects (#6652). */
+  readonly onChanged: RefreshAfterWrite;
 }
 
 function childKey(target: AbsenceReportTarget): string {
@@ -72,8 +74,6 @@ export function useSchoolAbsenceReports({
     setPending(childKey(target));
     try {
       await action(studentId);
-      await onChanged();
-      return true;
     } catch (cause) {
       logger.error(event, {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -82,11 +82,14 @@ export function useSchoolAbsenceReports({
       // Die Liste kann veraltet sein, etwa wenn die Lehrkraft das Kind
       // inzwischen als da eingetragen hat: neu laden, damit es verschwindet.
       // Scheitert auch das, bleibt die Meldung oben der sichtbare Fehler.
-      void onChanged().catch(() => undefined);
-      return false;
-    } finally {
+      void onChanged();
       setPending(null);
+      return false;
     }
+    setPending(null);
+    // Gespeichert; ein gescheitertes Nachladen ist ein Ladefehler (#6652).
+    await onChanged();
+    return true;
   };
 
   const enter = async (

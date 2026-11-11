@@ -20,7 +20,7 @@ describe("useSchoolAbsenceReports withdraw", () => {
   it("lässt eine von außen geschlossene und neu geöffnete Rückfrage offen", async () => {
     const answer = deferred();
     const withdraw = vi.fn(() => answer.promise);
-    const onChanged = vi.fn(() => Promise.resolve());
+    const onChanged = vi.fn(() => Promise.resolve(true));
     const { result } = renderHook(() =>
       useSchoolAbsenceReports({
         dateISO: "2026-09-09",
@@ -59,7 +59,7 @@ describe("useSchoolAbsenceReports withdraw", () => {
         dateISO: "2026-09-09",
         report: vi.fn(),
         withdraw,
-        onChanged: () => Promise.resolve(),
+        onChanged: () => Promise.resolve(true),
       }),
     );
     const mia = target("1");

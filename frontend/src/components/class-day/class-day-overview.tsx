@@ -29,6 +29,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -574,6 +575,15 @@ function ClassDayOverviewContent({
   );
 
   useSchoolReportRefusal(schoolDayError, schoolDayKey);
+  // Nach einer Meldung lädt die Tagesübersicht direkt nach: ein Fehler dabei
+  // weist ab und steht als Ladefehler über der Übersicht (#6652).
+  const schoolDayAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Schultags",
+    () =>
+      fetchSchoolDay
+        ? reloadSchoolDay(fetchSchoolDay(dateISO), { revalidate: false })
+        : reloadSchoolDay(),
+  );
 
   // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der
   // Übersicht ohne Neuladen der Seite (#4792); in der Schulansicht die
@@ -588,7 +598,7 @@ function ClassDayOverviewContent({
     dateISO,
     report: reportAbsence,
     withdraw: withdrawAbsenceReport,
-    onChanged: reloadSchoolDay,
+    onChanged: schoolDayAfterWrite.refresh,
   });
   const canReportAbsences =
     absenceReports.available && schoolDay?.can_report_absences === true;
@@ -672,6 +682,10 @@ function ClassDayOverviewContent({
                 {hasLoadFailure && Object.keys(reports).length > 0 && (
                   <LoadErrorAlert error={loadError} className="mt-4" />
                 )}
+                <LoadErrorAlert
+                  error={schoolDayAfterWrite.error}
+                  className="mt-4"
+                />
 
                 {weekend ? (
                   <EmptyState
