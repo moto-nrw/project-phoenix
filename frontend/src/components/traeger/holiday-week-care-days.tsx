@@ -20,6 +20,11 @@ function noCareKind(day: HolidayNoCareDay): string {
   return day.kind === "holiday" ? "Feiertag" : "Schließtag";
 }
 
+/** Wie `noCareKind`, mit weicher Trennung für schmale Kacheln am Handy. */
+function noCareKindShort(day: HolidayNoCareDay): string {
+  return day.kind === "holiday" ? "Feier\u00ADtag" : "Schließ\u00ADtag";
+}
+
 /** "Mi 06.01. Feiertag (Heilige Drei Könige)" für jeden Tag ohne Betreuung. */
 export function noCareDayList(days: readonly HolidayNoCareDay[]): string {
   return days
@@ -107,12 +112,12 @@ export function HolidayWeekCareDays({
               >
                 {none ? (
                   <CalendarOff
-                    className="h-3 w-3 shrink-0"
+                    className="hidden h-3 w-3 shrink-0 sm:block"
                     aria-hidden="true"
                   />
                 ) : null}
-                <span className="truncate">
-                  {none ? noCareKind(none) : "buchbar"}
+                <span className="min-w-0 break-words hyphens-manual">
+                  {none ? noCareKindShort(none) : "buchbar"}
                 </span>
               </span>
             </InsetPanel>
