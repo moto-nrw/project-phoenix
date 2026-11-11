@@ -779,6 +779,35 @@ describe("ConfirmationModal", () => {
     expect(screen.getByText("Wird geladen...")).toBeInTheDocument();
   });
 
+  // #6636: the caller's action text stands on the busy confirm button; the
+  // confirmText is hidden while the action runs.
+  it("shows the caller's loadingText instead of confirmText while loading", async () => {
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          title="Kind anmelden"
+          confirmText="Anmelden"
+          isConfirmLoading={true}
+          loadingText="Wird angemeldet…"
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const confirm = screen.getByRole("button", { name: "Wird angemeldet…" });
+    expect(confirm).toBeDisabled();
+    expect(confirm).not.toHaveTextContent("Anmelden");
+    expect(screen.queryByText("Wird geladen...")).not.toBeInTheDocument();
+  });
+
   it("should disable confirm button when loading", async () => {
     render(
       <TestWrapper>

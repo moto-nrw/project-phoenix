@@ -744,8 +744,9 @@ jobs:
 
       # Health checks stayed green on 2026-10-27 while every visitor's demo
       # order failed. One order proves the order path of the new release. A
-      # failure alarms in Slack; it rolls nothing back, the demo runtime
-      # cannot roll back by design (deploy-remote.sh).
+      # failure alarms in Slack and turns the run red in the last step; it
+      # rolls nothing back, the demo runtime cannot roll back by design
+      # (deploy-remote.sh).
       - name: Order a demo school
         id: smoke
         continue-on-error: true
@@ -809,6 +810,15 @@ jobs:
           repository: ${{ github.repository }}
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
           sha: ${{ github.sha }}
+
+      # Last step: "Order a demo school" continues on error so cleanup, Sentry
+      # and Slack still run. "Notify Slack" above therefore still reports the
+      # deploy itself as successful; only this step marks the run as failed.
+      - name: Fail the run when the demo order failed
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo "::error::Demo deployed, but the test order of a demo school failed; visitors get no demo."
+          exit 1
 
   # Summary job for branch protection
   build-status:

@@ -141,6 +141,8 @@ vi.mock("~/components/ui/modal", () => ({
     children,
     confirmText,
     isConfirmDisabled,
+    isConfirmLoading,
+    loadingText = "Wird geladen...",
   }: {
     isOpen: boolean;
     onClose: () => void;
@@ -149,6 +151,8 @@ vi.mock("~/components/ui/modal", () => ({
     children: React.ReactNode;
     confirmText: string;
     isConfirmDisabled?: boolean;
+    isConfirmLoading?: boolean;
+    loadingText?: string;
   }) =>
     isOpen ? (
       <div data-testid={`modal-${title.toLowerCase().replace(/\s+/g, "-")}`}>
@@ -161,9 +165,10 @@ vi.mock("~/components/ui/modal", () => ({
           type="button"
           data-testid="modal-confirm"
           onClick={onConfirm}
-          disabled={isConfirmDisabled}
+          disabled={isConfirmDisabled || isConfirmLoading}
         >
-          {confirmText}
+          {/* Wie das Kit: während der Aktion steht loadingText (#6636). */}
+          {isConfirmLoading ? loadingText : confirmText}
         </button>
       </div>
     ) : null,
@@ -1556,6 +1561,35 @@ describe("StudentDetailPage", () => {
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
+    });
+
+    // #6636: „Wird angemeldet…“ steht während der Anmeldung tatsächlich auf
+    // dem Knopf, nicht der allgemeine Ladetext.
+    it("shows the check-in loading text while the check-in runs", async () => {
+      let finish: (value: unknown) => void = () => undefined;
+      mockSchoolCheckinStudent.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("checkin-button"));
+      const confirmButton = await screen.findByTestId("modal-confirm");
+      expect(confirmButton).toHaveTextContent("Anmelden");
+      fireEvent.click(confirmButton);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("modal-confirm")).toHaveTextContent(
+          "Wird angemeldet…",
+        ),
+      );
+      expect(screen.getByTestId("modal-confirm")).toBeDisabled();
+
+      await act(async () => {
+        finish({});
+      });
+      await waitFor(() => expect(mockToastSuccess).toHaveBeenCalled());
     });
 
     it("shows the error in the dialog when checkin fails", async () => {

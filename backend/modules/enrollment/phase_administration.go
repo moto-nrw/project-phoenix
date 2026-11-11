@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -23,6 +24,9 @@ var (
 	// ErrPhasePendingChildWindowConflict rejects a service-window edit that
 	// would end a pending child's window before it starts (#6505).
 	ErrPhasePendingChildWindowConflict = errors.New("phase change would end a pending child's window before it starts")
+	// ErrPhaseBookingBoundsConflict rejects a service-window edit that would
+	// leave a care offering booking empty (#6597).
+	ErrPhaseBookingBoundsConflict = errors.New("phase change would leave a care offering booking empty")
 )
 
 // Storage refusals of a phase write. The owner marks the database error with
@@ -143,3 +147,38 @@ type PendingWindowMove struct {
 	OtherStarts []Date
 	OtherEnds   []Date
 }
+
+// PhaseBookings is the Care Plan command a phase edit carries the bounds the
+// phase set on its offerings' bookings with (#6597, ADR 0205). The command
+// locks the bookings, decides under those locks which bound is still the
+// phase's and refuses a booking the move would leave empty.
+type PhaseBookings interface {
+	FollowPhaseBookingBounds(ctx context.Context, move PhaseBookingMove) error
+}
+
+// PhaseBookingMove is the phase's service window before and after an edit,
+// with the day of the edit.
+type PhaseBookingMove struct {
+	PhaseID     int64
+	StartBefore calendar.Date
+	StartAfter  calendar.Date
+	EndBefore   calendar.Date
+	EndAfter    calendar.Date
+	Today       calendar.Date
+}
+
+// PhaseBookingBoundsConflictError names the application whose booking a
+// phase edit would leave empty (#6597). Care Plan reports the request child;
+// the phase administration adds its name, so the refusal can say whose
+// offerings to adjust first.
+type PhaseBookingBoundsConflictError struct {
+	RequestChildID int64
+	ChildName      string
+}
+
+func (e *PhaseBookingBoundsConflictError) Error() string {
+	return fmt.Sprintf("%s: request child %d", ErrPhaseBookingBoundsConflict, e.RequestChildID)
+}
+
+// Unwrap lets callers match the refusal with errors.Is.
+func (e *PhaseBookingBoundsConflictError) Unwrap() error { return ErrPhaseBookingBoundsConflict }

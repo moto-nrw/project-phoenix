@@ -3096,6 +3096,17 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseBookings.FollowPhaseBookingBounds",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseBookings.FollowPhaseBookingBounds",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.PhaseBookingBounds.FollowPhaseBookingBounds (care-plan) through roots/owners.enrollmentPhaseBookings.FollowPhaseBookingBounds. ADR 0205 (#6597): a phase edit carries the bounds the phase set on its offerings' bookings in the edit's tenant transaction; Care Plan locks the bookings of each application in ascending order, reads them again under those locks, decides which bound is still the phase's and refuses an empty booking, and takes no gate, so no cross-owner lock order or re-read by Enrollment is needed (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PhaseBookingBounds.FollowPhaseBookingBounds",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.phaseExpiryCarePlanDirectory.ListCareOfferings",
       "classification": "query",
       "effect": "query",

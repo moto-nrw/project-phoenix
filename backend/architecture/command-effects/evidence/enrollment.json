@@ -2321,6 +2321,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseBookings.FollowPhaseBookingBounds",
+      "binding_digest": "91ae440d3a743297db8f2b4442af9c67",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseBookings.FollowPhaseBookingBounds",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PhaseBookingBounds.FollowPhaseBookingBounds",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.phaseExpiryCarePlanDirectory.ListCareOfferings",
       "binding_digest": "af91eb3a58121afaf4f855cb5bd7a855",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseExpiryOfferings.ListCareOfferings",

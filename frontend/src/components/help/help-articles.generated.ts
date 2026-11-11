@@ -2798,6 +2798,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Ihre Betreuung heißt nicht OGS, sondern zum Beispiel GTS? Öffnen Sie `Einstellungen`, dann den Bereich `Anmeldung`. Wählen Sie bei `Name der Betreuung in Texten für Eltern` den passenden Namen.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
+      "Ändern Sie später `Beginn` oder `Ende` der Phase, ziehen die Buchungen der Kinder mit. Ein Angebotswechsel ab einem bestimmten Tag behält diesen Tag.",
       "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
       "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
@@ -2812,6 +2813,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
       "Auf `Betreuungsangebote` steht `Erst eine Anmeldephase anlegen`? Dann fehlt die Phase noch. Angebote gibt es nur innerhalb einer Phase.",
       "Oben steht `Anschlussphase fehlt`? Dann laufen die Buchungen aus. Wählen Sie `Anschlussphase erstellen`.",
+      "Beim Speichern steht `Der neue Zeitraum passt nicht zur geänderten Buchung von …`? Das genannte Kind wechselt sein Angebot ab einem Tag im alten Zeitraum. Der neue Zeitraum würde diese Buchung leeren. Passen Sie zuerst die Angebote dieses Kindes an.",
       "Fehlt `Anmeldungen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],
     related: [
@@ -5623,7 +5625,8 @@ export const parentCareChangeTopic =
 /**
  * Bereich `Angaben zum Kind` (i18n `parentMasterData`). Drei Arten von
  * Feldern: direkt aenderbar, nur auf Anfrage, und Gesundheitshinweise, die
- * sofort gespeichert werden.
+ * sofort gespeichert werden. Dazu der Widerruf der Foto-Einwilligung
+ * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494).
  */
 export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
   return {
@@ -5660,12 +5663,22 @@ export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
           "Die Eingabe wird automatisch gespeichert.",
         ],
       },
+      {
+        title: "Foto-Einwilligung widerrufen",
+        steps: [
+          "Gehen Sie zum Abschnitt `Einwilligungen und Bestätigungen`.",
+          "Tippen Sie bei `Foto-Einwilligung` auf `Widerrufen`.",
+          "Tippen Sie auf `Jetzt widerrufen`.",
+        ],
+      },
     ],
     result:
       "Unter dem Feld steht dann `Beantragte Änderung` mit dem neuen Wert und `In Prüfung`. Bis zur Bestätigung gilt der Wert darüber.",
     notes: [
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
       "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
+      "Nach dem Widerruf löscht moto ein gespeichertes Foto Ihres Kindes.",
+      "Ist die Betreuung beendet, können Sie die Foto-Einwilligung weiter widerrufen. Neu geben können Sie sie dann nicht mehr.",
     ],
     differences: [
       "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",

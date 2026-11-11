@@ -5546,6 +5546,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, move enrollmentOwner.PhaseBookingMove) error {\n\terr := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))\n\tvar conflict *careplan.PhaseBookingBoundsConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn \u0026enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseBookings.FollowPhaseBookingBounds",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (o enrollmentPhaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentOwner.OfferingBooking, error) {\n\trows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offering bookings by phase: %w\", err)\n\t}\n\treturn enrollmentBookings(rows), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
