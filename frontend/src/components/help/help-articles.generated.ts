@@ -2062,6 +2062,8 @@ export const dutyRosterTopic = function dutyRosterTopic(): HelpTopic {
     notes: [
       "Jede Schicht kann eine Dienstart tragen. Die Farbe kommt von der Dienstart.",
       "Über `Dienstarten verwalten` pflegen Sie die Arten.",
+      // ADR 0116: die ausgerichtete Ferienwoche im Dienstplan.
+      "Richtet Ihre OGS eine Ferienwoche für den Träger aus, steht im Kopf jedes Tages `Ferienbetreuung`. Darunter stehen die Zahl der Kinder und die Betreuungszeit. Planen Sie dafür Schichten. In der Ansicht `Halbjahr` zeigt eine Sonne die Woche.",
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Dienstart und das Soll.",
       "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Dienstart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
@@ -3355,6 +3357,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
     result:
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
     notes: [
+      "Die Woche steht auch im `Betreuungsplan` und im `Dienstplan`: im Kopf jedes Tages mit `Ferienbetreuung`, der Zahl der Kinder und der Betreuungszeit. Ein Klick darauf öffnet diese Seite.",
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
       "Bei Tagesbuchung nennt die Spalte `Tage` die gebuchten Tage. Das gilt auch für Excel und CSV.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
@@ -3911,6 +3914,8 @@ export const leadCarePlanTopic = function leadCarePlanTopic(): HelpTopic {
       // #4768: Raumfilter.
       "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
+      // ADR 0116: die ausgerichtete Ferienwoche im Plan.
+      "Richtet Ihre OGS eine Ferienwoche für den Träger aus, steht im Kopf jedes Tages `Ferienbetreuung` mit der Zahl der Kinder. Die Betreuungszeit ist in der Spalte orange hinterlegt. Planen Sie dafür Personal ein. An einem Schließtag gibt es keine Ferienbetreuung.",
       // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
       "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
@@ -12334,6 +12339,16 @@ export const traegerHolidayRegistrationReviewTopic =
             "Wählen Sie `Herunterladen` und dann `Excel` oder `CSV`.",
           ],
         },
+        {
+          title: "Anmeldungen als PDF aufbewahren",
+          steps: [
+            "Über der Liste steht, wann moto die Anmeldungen löscht.",
+            "Wählen Sie `Herunterladen` und dann `Alle als PDF (ZIP)`. Sie bekommen eine ZIP-Datei mit einem PDF je Anmeldung.",
+            "Haben Sie Filter eingestellt? Dann heißt der Eintrag `Gefilterte als PDF (ZIP)`. Die ZIP-Datei enthält nur die gefilterten Anmeldungen.",
+            "Für eine einzelne Anmeldung öffnen Sie die Anmeldung. Wählen Sie `Herunterladen` und dann `PDF`.",
+            "Speichern Sie die Dateien bei Ihrem Träger. Für diese Kopien sind Sie selbst verantwortlich.",
+          ],
+        },
       ],
       result:
         "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
@@ -12349,7 +12364,9 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
         "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
         "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
-        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
+        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export und jedes PDF steht dort.",
+        "Das PDF enthält alle Angaben der Eltern, die gebuchten Wochen, den Status und die Erklärung der Eltern mit dem genauen Text, Namen und Zeitpunkt. Nachweise und der Verlauf stehen nicht darin.",
+        "Gesundheitsangaben stehen nur im PDF, wenn Sie `PDF mit Gesundheitsangaben` wählen. Diesen Eintrag sieht nur die Rolle Verwaltung. Nach 92 Tagen sind die Gesundheitsangaben gelöscht. Dann enthält auch das PDF keine mehr.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen. Nur wenn ein Kind von der Warteliste nachrückt, rechnet moto den Beitrag mit der neuen Woche neu.",
         "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
         "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",
@@ -12420,7 +12437,9 @@ export const traegerHolidayRegistrationTopic =
         "Eltern bestätigen bei jeder Anmeldung das Sorgerecht. Mit ihrem Vor- und Nachnamen geben sie die Erklärungen ab.",
         "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage. Sie enthält die Erklärung der Eltern mit dem genauen Text, auch Ihre bestätigten Hinweise.",
         "Gesundheitsangaben stehen nur in der Anmeldung. Die Bestätigung nennt sie nicht.",
-        "Drei Monate nach der letzten Woche löscht moto die Anmeldungen. Ausgestellte Rechnungen und Bestätigungsschreiben bleiben.",
+        "Ein Jahr nach der letzten Woche löscht moto die Anmeldungen. Die Frist ändern Sie in den Einstellungen unter `Ferienbetreuung`. Sie steht im Einwilligungstext für die Eltern.",
+        "Eine Anmeldung behält die Frist, die bei ihrer Abgabe im Einwilligungstext stand. Ältere Anmeldungen mit dem Text „drei Monate“ löscht moto nach drei Monaten.",
+        "Gesundheitsangaben löscht moto immer schon 92 Tage nach der letzten Woche. Ausgestellte Rechnungen und Bestätigungsschreiben bleiben.",
       ],
       differences: [
         "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",
@@ -12988,6 +13007,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
+      "Unter `Ferienbetreuung` legen Sie bei `Ferienanmeldungen löschen nach (Tagen)` fest, wie lange moto Ferienanmeldungen aufbewahrt. Möglich sind 92 bis 1095 Tage, der Standard ist 365 Tage. Die Frist steht im Einwilligungstext für die Eltern. Eine Änderung gilt nur für Anmeldungen, die danach eingehen.",
       "Im Bereich `Dashboard` legen Sie fest, ab wann das Dashboard eine Schule unter `Auffälligkeiten` zeigt: bei zu wenig Personal, bei vielen Krankmeldungen und bei offenen Anmeldungen. 0 schaltet einen Hinweis aus.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],

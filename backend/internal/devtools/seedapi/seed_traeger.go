@@ -655,8 +655,8 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"custody_confirmed": true, "declaration_name": "Sabine Ferienkind",
-		"consent_version": 3,
-		"captcha_token":   seedTurnstileTestToken,
+		"consent_version": seedHolidayConsentVersion, "retention_days": seedHolidayRetentionDays,
+		"captcha_token": seedTurnstileTestToken,
 	}, nil
 }
 

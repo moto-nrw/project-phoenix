@@ -686,6 +686,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0110",
+      "id": "api/holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "reason": "ADR 0110 (#6691): Consumer-port adapter of Enrollment's holiday retention port; it reads the Träger's holiday_registration.retention_days through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed number into the port's answer."
+    },
+    {
       "decision": "0114",
       "id": "api/holidaySchoolNames.HolidaySchoolNames",
       "reason": "ADR 0114 (#4663): Consumer-port adapter of Enrollment's school names; it translates the Träger projection's school list into the names the export of the holiday registrations prints, read before the route opens the Träger transaction."

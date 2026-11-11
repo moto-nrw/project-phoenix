@@ -35,6 +35,10 @@ const BACKEND_WEEK = {
   starts_on: "2026-09-14",
   ends_on: "2026-09-18",
   participants: 1,
+  booking_unit: "week",
+  care_starts_at: "07:45",
+  care_ends_at: "16:00",
+  day_participants: [],
 };
 
 describe("holiday host api", () => {
@@ -62,11 +66,40 @@ describe("holiday host api", () => {
         startsOn: "2026-09-14",
         endsOn: "2026-09-18",
         participants: 1,
+        bookingUnit: "week",
+        careStartsAt: "07:45",
+        careEndsAt: "16:00",
+        dayParticipants: new Map(),
         guestGroupId: null,
         guests: 0,
       },
     ]);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-weeks");
+  });
+
+  it("maps the children per booked day of a week booked by days", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: [
+          {
+            ...BACKEND_WEEK,
+            booking_unit: "day",
+            day_participants: [
+              { date: "2026-09-14", participants: 2 },
+              { date: "2026-09-16", participants: 1 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const [week] = await fetchHostedHolidayWeeks();
+    expect(week?.bookingUnit).toBe("day");
+    expect([...(week?.dayParticipants ?? [])]).toEqual([
+      ["2026-09-14", 2],
+      ["2026-09-16", 1],
+    ]);
   });
 
   it("maps a participant list, keeping holiday guests without a school", async () => {

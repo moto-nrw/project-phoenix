@@ -95,6 +95,10 @@ const firstWeek: HostedHolidayWeek = {
   startsOn: "2026-09-14",
   endsOn: "2026-09-18",
   participants: 2,
+  bookingUnit: "week",
+  careStartsAt: "08:00",
+  careEndsAt: "16:00",
+  dayParticipants: new Map(),
   guestGroupId: null,
   guests: 0,
 };
@@ -105,6 +109,10 @@ const secondWeek: HostedHolidayWeek = {
   startsOn: "2026-09-21",
   endsOn: "2026-09-25",
   participants: 1,
+  bookingUnit: "week",
+  careStartsAt: "08:00",
+  careEndsAt: "16:00",
+  dayParticipants: new Map(),
   guestGroupId: null,
   guests: 0,
 };

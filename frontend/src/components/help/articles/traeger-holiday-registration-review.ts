@@ -112,6 +112,16 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Wählen Sie `Herunterladen` und dann `Excel` oder `CSV`.",
         ],
       },
+      {
+        title: "Anmeldungen als PDF aufbewahren",
+        steps: [
+          "Über der Liste steht, wann moto die Anmeldungen löscht.",
+          "Wählen Sie `Herunterladen` und dann `Alle als PDF (ZIP)`. Sie bekommen eine ZIP-Datei mit einem PDF je Anmeldung.",
+          "Haben Sie Filter eingestellt? Dann heißt der Eintrag `Gefilterte als PDF (ZIP)`. Die ZIP-Datei enthält nur die gefilterten Anmeldungen.",
+          "Für eine einzelne Anmeldung öffnen Sie die Anmeldung. Wählen Sie `Herunterladen` und dann `PDF`.",
+          "Speichern Sie die Dateien bei Ihrem Träger. Für diese Kopien sind Sie selbst verantwortlich.",
+        ],
+      },
     ],
     result:
       "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
@@ -127,7 +137,9 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
       "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
       "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
-      "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
+      "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export und jedes PDF steht dort.",
+      "Das PDF enthält alle Angaben der Eltern, die gebuchten Wochen, den Status und die Erklärung der Eltern mit dem genauen Text, Namen und Zeitpunkt. Nachweise und der Verlauf stehen nicht darin.",
+      "Gesundheitsangaben stehen nur im PDF, wenn Sie `PDF mit Gesundheitsangaben` wählen. Diesen Eintrag sieht nur die Rolle Verwaltung. Nach 92 Tagen sind die Gesundheitsangaben gelöscht. Dann enthält auch das PDF keine mehr.",
       "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen. Nur wenn ein Kind von der Warteliste nachrückt, rechnet moto den Beitrag mit der neuen Woche neu.",
       "Die Debitorennummer steht im Bestätigungsschreiben als Verwendungszweck. Im Export steht sie in der Spalte `Debitorennummer`. In der Liste steht sie nur, wenn Ihr Träger sie abfragt.",
       "Eine Änderung der Angaben ändert den Ferienbeitrag nicht. Ein schon erstelltes Schreiben an die Familie bleibt, wie es ist. Auch eine schon ausgestellte Rechnung behält die bisherige Anschrift.",

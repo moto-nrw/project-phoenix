@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.holiday_registration_files",
+  "max": 16,
+  "exact": true,
+  "description": "modules/enrollment — GET /traeger/holiday-periods/{id}/registrations/pdf?health=true\n(#6691, ADR 0118 addendum): the school names of the Träger projection,\nthe Träger binding of the Träger transaction, the period with its weeks\nand time models, then the registrations, their children and bookings,\ntheir contacts, their answers per registration and per child, the form\nversions and the sealed health information per registration and per\nchild; the audit entries write but select nothing. Flat in the number of\nregistrations.",
+  "route": "GET /traeger/holiday-periods/{id}/registrations/pdf"
+}

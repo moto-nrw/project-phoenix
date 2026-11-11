@@ -32,6 +32,7 @@ const (
 type HolidayReviewStore interface {
 	HolidayPlaceStore
 	HolidayAllocationStore
+	HolidayRecordStore
 	// ReadHolidayReview reads the registrations of a period, or the one
 	// registrationID names, with children and bookings; a booking names
 	// only its week and time model. It reads no health information.
@@ -106,8 +107,8 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // care (#4702), traeger names the Träger and the host schools in the mail of
 // a booking that moved up (#6437), of a decision by criteria and of the
 // acceptance (#6672). A nil today uses the Berlin calendar day. The allocation by criteria shares the
-// review's store, locks and mail (#4700).
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation) {
+// review's store, locks and mail (#4700), the files (#6691) its reads.
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation, *HolidayRegistrationRecords) {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
@@ -121,7 +122,7 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 		store: store, periods: periods, forms: forms, health: health, today: today,
 		placement: holidayPlacement{store: store, traeger: traeger, mail: mail}, calendar: schoolCalendar,
 	}
-	return review, NewHolidayPlaces(store, periods, traeger, mail), NewHolidayAllocation(review)
+	return review, NewHolidayPlaces(store, periods, traeger, mail), NewHolidayAllocation(review), &HolidayRegistrationRecords{review: review, store: store}
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
@@ -570,7 +571,7 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	}
 	h.complete(period, read, overrides)
 	detail := read[0]
-	if texts, ok := enrollment.HolidayConsentTextsOf(detail.ConsentVersion); ok {
+	if texts, ok := enrollment.HolidayConsentTextsOf(detail.ConsentVersion, detail.RetentionDays); ok {
 		detail.ConsentTexts = &texts
 	}
 	if detail.Contacts, err = h.store.ReadHolidayContacts(ctx, reviewer.OrganizationID, registrationID); err != nil {
@@ -642,6 +643,7 @@ func (h *HolidayRegistrationReview) complete(period enrollment.HolidayPeriod, re
 		registration := &read[r]
 		cancelled := registration.Status == enrollment.HolidayRegistrationCancelled
 		registration.Frozen = !cancelled && h.frozen(period, overrides[registration.ID])
+		registration.DeletesOn, registration.HealthDeletesOn = holidayDeletionDays(period, registration.RetentionDays)
 		if registration.Children == nil {
 			registration.Children = []enrollment.HolidayRegistrationChild{}
 		}

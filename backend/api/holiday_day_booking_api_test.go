@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,8 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Monday 4 to Friday 8 January 2027, the week by days of the fixture.
@@ -112,7 +117,7 @@ func (d dayFixture) registration(email, name string, bookings ...map[string]any)
 		}},
 		"emergency_contacts": []map[string]any{{"name": "Oma Tag", "phone": "05402 1234", "relationship": "Großmutter"}},
 		"privacy_consent":    true, "binding_confirmed": true, "custody_confirmed": true, "declaration_name": "Eva Tag",
-		"consent_version": enrollment.HolidayConsentVersionCurrent, "captcha_token": "valid-token",
+		"consent_version": enrollment.HolidayConsentVersionCurrent, "retention_days": holidayDefaultRetentionDays, "captcha_token": "valid-token",
 	}
 }
 
@@ -201,6 +206,44 @@ func TestHolidayDayBookingPlacesEachDayAndBillsItsDays(t *testing.T) {
 
 	assert.Equal(t, []string{dayMonday + ".." + dayMonday, dayTuesday + ".." + dayTuesday}, d.hostWindows(t, d.office.schools[0]),
 		"the host school's Soll keeps to the booked days")
+
+	rec = traegerJSON(t, d.traeger, d.office.token, http.MethodPost, holidayConfirmPath(d.period.ID, max.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, map[string]int{dayMonday: 1, dayTuesday: 1, dayWednesday: 1}, d.hostedDays(t),
+		"the hosted week counts the confirmed children per booked day; Ida waits and counts nowhere")
+}
+
+// hostedDays reads the children per booked day of the week by days from the
+// list of hosted weeks, as the planning views of the host school read it.
+func (d dayFixture) hostedDays(t *testing.T) map[string]int {
+	t.Helper()
+	today := &atomic.Value{}
+	today.Store(calendar.NewDate(2027, 1, 1))
+	router := newHolidayHostRouter(t, d.holidayRegistrationFixture, today)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, d.db, d.office.schools[0], "Paul", "Planung")
+	token := testpkg.MintTestJWT(t, sessiontoken.AppClaims{
+		ID: int(account.ID), Sub: account.Email, Username: "planung", FirstName: "Paul", LastName: "Planung",
+		Roles: []string{"admin"}, TenantID: d.office.schools[0], Permissions: []string{permissions.SchedulesRead},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/holiday-weeks/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, week := range decodeSchoolPortalData[[]hostedWeekBody](t, rec.Body.Bytes()) {
+		if week.ID != d.offer.Weeks[0].ID {
+			continue
+		}
+		assert.Equal(t, "08:00", week.CareStartsAt)
+		assert.Equal(t, "13:00", week.CareEndsAt)
+		days := map[string]int{}
+		for _, day := range week.DayParticipants {
+			days[day.Date] = day.Participants
+		}
+		return days
+	}
+	t.Fatal("the week by days is missing from the hosted weeks")
+	return nil
 }
 
 // hostWindows reads the booked care windows the host school sees for the
