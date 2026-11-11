@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { DataTableStatusBadge } from "./data-table";
-import { LocationBadge } from "./location-badge";
-import { OccupancyBadges } from "./planning/occupancy-badges";
+import { LocationBadge } from "~/components/students/presence/location-badge";
+import { OccupancyBadges } from "~/components/activities/occupancy-badges";
 import { OriginChip } from "./planning/origin-chip";
 import { VisibilityBadge } from "./visibility-badge";
-import { PresenceBadge } from "./presence-badge";
+import { PresenceBadge } from "~/components/students/presence/presence-badge";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";

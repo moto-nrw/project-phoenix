@@ -28,7 +28,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { formatBytes } from "~/lib/files-api";
+import { formatBytes } from "~/lib/file-format";
 import { createLogger } from "~/lib/logger";
 import {
   downloadDeclarationExport,

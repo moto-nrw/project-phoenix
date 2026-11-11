@@ -70,7 +70,7 @@ import {
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { schoolClassesLabel } from "~/lib/school-class-label";
 import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
-import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
+import { StudentPresenceBadge } from "@/components/students/presence/student-presence-badge";
 import {
   LOCATION_STATUSES,
   parseLocation,

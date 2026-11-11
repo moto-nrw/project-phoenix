@@ -12,6 +12,7 @@ import {
   usePortalBottomNavIndicator,
 } from "~/components/ui/portal-bottom-nav";
 import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
 import { isParentNavActive, isParentSettingsPath } from "./parent-nav-active";
@@ -45,7 +46,7 @@ function NavBadge({
   return (
     <NotificationBadge
       count={count}
-      tone="parents"
+      tone={COUNTER_TONE.parents}
       size="sm"
       ariaLabel={ariaLabel}
       className="absolute -top-1 -right-2"
@@ -185,7 +186,7 @@ function ParentMainBottomNav({ badges, gates, childCount }: ParentNavCounts) {
                       count > 0 ? (
                         <NotificationBadge
                           count={count}
-                          tone="parents"
+                          tone={COUNTER_TONE.parents}
                           ariaLabel={t(
                             item.badge === "news" ? "openCount" : "unreadCount",
                             { count },

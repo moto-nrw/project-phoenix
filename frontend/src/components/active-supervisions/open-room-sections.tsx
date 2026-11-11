@@ -13,7 +13,7 @@ import {
   SectionCard,
   SectionCollapseToggle,
 } from "~/components/ui/section-card";
-import { OccupancyBadges } from "~/components/ui/planning/occupancy-badges";
+import { OccupancyBadges } from "~/components/activities/occupancy-badges";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { blockTimeRange } from "~/lib/block-children";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";

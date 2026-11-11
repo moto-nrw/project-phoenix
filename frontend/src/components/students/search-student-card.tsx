@@ -21,7 +21,7 @@ import {
 import React from "react";
 
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { StudentPresenceBadge } from "~/components/ui/student-presence-badge";
+import { StudentPresenceBadge } from "~/components/students/presence/student-presence-badge";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import {
   StudentCard,

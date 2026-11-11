@@ -3,6 +3,7 @@
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
@@ -279,26 +280,31 @@ const ENROLLMENTS_COUNTER: CounterNoun = {
 };
 
 const ROW_BADGE_LABELS: Readonly<
-  Record<string, CounterNoun & { readonly tone: "staff" | "parents" }>
+  Record<
+    string,
+    CounterNoun & {
+      readonly tone: (typeof COUNTER_TONE)["staff" | "parents"];
+    }
+  >
 > = {
   "/anfragen": {
-    tone: "staff",
+    tone: COUNTER_TONE.staff,
     one: "offene Anfrage",
     noun: "offene Anfragen",
   },
   "/messages": {
-    tone: "parents",
+    tone: COUNTER_TONE.parents,
     one: "ungelesene Nachricht",
     noun: "ungelesene Nachrichten",
   },
   // Wie die Zeile benannt, sonst klingt er wie der Eltern-Chat (#6566).
   "/team-chat": {
-    tone: "staff",
+    tone: COUNTER_TONE.staff,
     one: "ungelesene Nachricht im Team-Chat",
     noun: "ungelesene Nachrichten im Team-Chat",
   },
   "/tagesinformationen": {
-    tone: "staff",
+    tone: COUNTER_TONE.staff,
     one: "offene Tagesinformation",
     noun: "offene Tagesinformationen",
   },
@@ -1390,7 +1396,7 @@ function SidebarContent({
   // der Summe der Gruppe Eltern derselbe Zähler.
   const enrollmentsBadge: SidebarRowBadge = {
     count: enrollmentsUnreadCount,
-    tone: "staff",
+    tone: COUNTER_TONE.staff,
     ariaLabel: counterAriaLabel(enrollmentsUnreadCount, ENROLLMENTS_COUNTER),
   };
   const showEnrollments = userLeadsSchool && enrollmentsVisibility === "open";
@@ -1553,7 +1559,9 @@ function SidebarContent({
                     containsActive={group.entries.some(isEntryActive)}
                     badge={combineSidebarRowBadges(
                       group.entries.map(entryBadge),
-                      group.key === "eltern" ? "parents" : "staff",
+                      group.key === "eltern"
+                        ? COUNTER_TONE.parents
+                        : COUNTER_TONE.staff,
                     )}
                     collapsed={collapsed}
                     labelsMounted={labelsMounted}

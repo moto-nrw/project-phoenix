@@ -40,7 +40,7 @@ type Story = StoryObj<typeof meta>;
 
 export const WithCount: Story = {
   args: {
-    badge: { count: 3, tone: "parents", ariaLabel: "3 ungelesene Nachrichten" },
+    badge: { count: 3, tone: "blue", ariaLabel: "3 ungelesene Nachrichten" },
   },
 };
 
@@ -53,7 +53,7 @@ export const RailWithCount: Story = {
     ),
   ],
   args: {
-    badge: { count: 3, tone: "parents", ariaLabel: "3 ungelesene Nachrichten" },
+    badge: { count: 3, tone: "blue", ariaLabel: "3 ungelesene Nachrichten" },
     collapsed: true,
     labelsMounted: false,
     labelsVisible: false,
@@ -68,7 +68,7 @@ const RAIL: Decorator = (Story) => (
 
 const COUNT = {
   count: 3,
-  tone: "parents",
+  tone: "blue",
   ariaLabel: "3 ungelesene Nachrichten",
 } as const;
 

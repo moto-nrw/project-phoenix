@@ -73,7 +73,7 @@ const schoolDateTestFiles = [
   "src/lib/date-helpers.school-time.test.ts",
   "src/components/rooms/room-detail-content.timezone.test.tsx",
   // Presence badges show „seit …“ in Berlin time (#6563).
-  "src/components/ui/presence-badges.timezone.test.tsx",
+  "src/components/students/presence/presence-badges.timezone.test.tsx",
 ];
 
 // Shared desktop viewport and resource isolation for every DOM project.

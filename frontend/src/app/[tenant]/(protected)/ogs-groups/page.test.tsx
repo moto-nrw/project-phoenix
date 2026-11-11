@@ -281,7 +281,7 @@ vi.mock("~/lib/substitution-api", () => ({
 
 // Mock LocationBadge (kept even though page now imports StudentPresenceBadge,
 // so co-tests that transitively render LocationBadge don't explode).
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
 }));
 
@@ -291,7 +291,7 @@ vi.mock("@/components/ui/location-badge", () => ({
 // pipeline doesn't drop the per-room color (regression guard for #1324).
 // The badge reads today's plan from the student itself (#6572); the mock
 // exposes that reading the same way.
-vi.mock("@/components/ui/student-presence-badge", async () => {
+vi.mock("@/components/students/presence/student-presence-badge", async () => {
   const { getStudentPresenceBadgePlanning } = await vi.importActual<
     typeof import("~/lib/day-planning-helper")
   >("~/lib/day-planning-helper");
@@ -315,7 +315,7 @@ vi.mock("@/components/ui/student-presence-badge", async () => {
 });
 
 // Mock EmptyStudentResults
-vi.mock("~/components/ui/empty-student-results", () => ({
+vi.mock("~/components/students/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 

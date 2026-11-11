@@ -186,12 +186,12 @@ vi.mock("~/components/rooms/transit-students-section", () => ({
 }));
 
 // Mock LocationBadge
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
 }));
 
 // Mock EmptyStudentResults
-vi.mock("~/components/ui/empty-student-results", () => ({
+vi.mock("~/components/students/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
