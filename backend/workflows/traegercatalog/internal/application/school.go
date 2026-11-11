@@ -40,7 +40,7 @@ func (c *Catalog) schoolState(ctx context.Context, snap snapshot, lock bool) (st
 // applySchool brings one school to the release, or withdraws its copies,
 // through the owners' copy commands. The caller runs it in the school's
 // tenant transaction; a returned error rolls the whole school back.
-func (c *Catalog) applySchool(ctx context.Context, snap snapshot, next release, action string) (traegercatalog.SchoolPlan, map[int64]int64, error) {
+func (c *Catalog) applySchool(ctx context.Context, snap snapshot, next release, action string) (traegercatalog.SchoolPlan, map[int64]careplan.TraegerOfferingApplied, error) {
 	plan := traegercatalog.SchoolPlan{Action: action, Phase: []enrollment.TraegerFieldChange{}, Offerings: []traegercatalog.OfferingPlan{}}
 	if action == traegercatalog.ActionWithdraw {
 		return plan, nil, c.withdrawSchool(ctx, snap, &plan)
@@ -70,10 +70,8 @@ func (c *Catalog) applySchool(ctx context.Context, snap snapshot, next release, 
 		return plan, nil, err
 	}
 	bySource := map[int64]careplan.TraegerOfferingApplied{}
-	copyIDs := map[int64]int64{}
 	for _, row := range batch.Applied {
 		bySource[row.SourceID] = row
-		copyIDs[row.SourceID] = row.CopyID
 	}
 	for _, offering := range snap.offerings {
 		row := bySource[offering.ID]
@@ -85,7 +83,7 @@ func (c *Catalog) applySchool(ctx context.Context, snap snapshot, next release, 
 		}
 		plan.Offerings = append(plan.Offerings, offeringPlan)
 	}
-	return plan, copyIDs, nil
+	return plan, bySource, nil
 }
 
 // withdrawSchool withdraws the offering copies first, then the phase copy,

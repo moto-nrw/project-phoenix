@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
@@ -70,6 +71,9 @@ func (s *TraegerOfferings) UpdateTraegerOffering(ctx context.Context, organizati
 	if err != nil {
 		return careplan.TraegerOffering{}, err
 	}
+	if err := validateTraegerFinancialTransition(current.Released, normalized); err != nil {
+		return careplan.TraegerOffering{}, err
+	}
 	if _, err := s.store.UpdateTraegerOfferingDraft(ctx, organizationID, id, normalized); err != nil {
 		return careplan.TraegerOffering{}, err
 	}
@@ -98,7 +102,13 @@ func (s *TraegerOfferings) ReleaseTraegerOfferings(ctx context.Context, organiza
 	}
 	versions := map[int64]careplan.TraegerOffering{}
 	for index, offering := range offerings {
-		if offering.WithdrawnAt != nil || (offering.Released != nil && reflect.DeepEqual(*offering.Released, offering.Draft)) {
+		if offering.WithdrawnAt != nil {
+			continue
+		}
+		if err := validateTraegerFinancialTransition(offering.Released, offering.Draft); err != nil {
+			return nil, err
+		}
+		if offering.Released != nil && reflect.DeepEqual(*offering.Released, offering.Draft) {
 			continue
 		}
 		next := 1
@@ -122,6 +132,9 @@ func (s *TraegerOfferings) RecordTraegerOfferingOutcomes(ctx context.Context, or
 		for _, outcome := range schools {
 			if outcome.SchoolID <= 0 || seen[outcome.SchoolID] {
 				return careOfferingInvalidf("outcome school %d is invalid or repeated", outcome.SchoolID)
+			}
+			if outcome.AppliedCopyID != nil && (*outcome.AppliedCopyID <= 0 || outcome.AppliedVersion == nil) {
+				return careOfferingInvalidf("an applied copy needs a positive identifier and its applied version")
 			}
 			seen[outcome.SchoolID] = true
 			switch outcome.Outcome {
@@ -238,7 +251,7 @@ func traegerTextProblems(template careplan.TraegerContractTemplate) []string {
 	if link := strings.TrimSpace(template.StatuteURL); link != "" && !webAddress(link) {
 		problems = append(problems, "the statute link is not a web address")
 	}
-	if len(template.SpecialTerminationNote) > 1000 || len(template.StatuteTitle) > 200 || len(template.StatuteURL) > 500 || len(template.ContractPartner) > 300 {
+	if utf8.RuneCountInString(template.SpecialTerminationNote) > 1000 || utf8.RuneCountInString(template.StatuteTitle) > 200 || utf8.RuneCountInString(template.StatuteURL) > 500 || utf8.RuneCountInString(template.ContractPartner) > 300 {
 		problems = append(problems, "a text of the contract template is too long")
 	}
 	return problems
@@ -275,4 +288,19 @@ func traegerOfferingFieldsOf(offering careplan.CareOffering) careplan.TraegerOff
 func validTraegerPriceDay(day string) bool {
 	_, ok := offeringDayWeekday(day)
 	return ok
+}
+
+// Removing released financial terms needs the owners' dedicated lifecycle
+// commands. A catalog release must never silently retain obsolete terms.
+func validateTraegerFinancialTransition(previous *careplan.TraegerOfferingDraft, next careplan.TraegerOfferingDraft) error {
+	if previous == nil {
+		return nil
+	}
+	if len(previous.Prices) > 0 && len(next.Prices) == 0 {
+		return careOfferingInvalidf("released module prices cannot be removed; set replacement prices or withdraw the offering")
+	}
+	if previous.ContractTemplate != nil && next.ContractTemplate == nil {
+		return careOfferingInvalidf("a released contract template cannot be removed; replace it or withdraw the offering")
+	}
+	return nil
 }

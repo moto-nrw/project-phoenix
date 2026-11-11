@@ -63,6 +63,7 @@ type traegerOfferingRow struct {
 }
 
 type traegerOfferingSchoolRow struct {
+	AppliedCopyID  *int64          `bun:"applied_copy_id"`
 	Applied        json.RawMessage `bun:"applied"`
 	OfferingID     int64           `bun:"offering_id"`
 	SchoolID       int64           `bun:"school_id"`
@@ -129,7 +130,7 @@ func (s *TraegerOfferingStore) withSchools(ctx context.Context, db bun.IDB, orga
 		ids = append(ids, row.ID)
 	}
 	var schools []traegerOfferingSchoolRow
-	if err := db.NewRaw(`SELECT school.traeger_care_offering_id AS offering_id, school.school_id, school.applied_version,
+	if err := db.NewRaw(`SELECT school.traeger_care_offering_id AS offering_id, school.school_id, school.applied_version, school.applied_copy_id,
 		school.outcome, school.error_code, school.recorded_at, version.fields AS applied
 		FROM enrollment.traeger_care_offering_schools AS school
 		LEFT JOIN enrollment.traeger_care_offering_versions AS version
@@ -166,7 +167,7 @@ func (s *TraegerOfferingStore) withSchools(ctx context.Context, db bun.IDB, orga
 }
 
 func (row traegerOfferingSchoolRow) value() careplan.TraegerOfferingSchool {
-	school := careplan.TraegerOfferingSchool{SchoolID: row.SchoolID, AppliedVersion: row.AppliedVersion, RecordedAt: row.RecordedAt}
+	school := careplan.TraegerOfferingSchool{SchoolID: row.SchoolID, AppliedVersion: row.AppliedVersion, AppliedCopyID: row.AppliedCopyID, RecordedAt: row.RecordedAt}
 	if row.Outcome != nil {
 		school.Outcome = *row.Outcome
 	}
@@ -314,24 +315,7 @@ func (s *TraegerOfferingStore) RecordTraegerOfferingOutcomes(ctx context.Context
 	if count != len(ids) {
 		return careplan.ErrTraegerOfferingNotFound
 	}
-	type outcomeRow struct {
-		OfferingID     int64   `json:"offering_id"`
-		SchoolID       int64   `json:"school_id"`
-		AppliedVersion *int    `json:"applied_version"`
-		Outcome        string  `json:"outcome"`
-		ErrorCode      *string `json:"error_code"`
-	}
-	rows := []outcomeRow{}
-	for id, schools := range outcomes {
-		for _, outcome := range schools {
-			row := outcomeRow{OfferingID: id, SchoolID: outcome.SchoolID, AppliedVersion: outcome.AppliedVersion, Outcome: outcome.Outcome}
-			if outcome.ErrorCode != "" {
-				code := outcome.ErrorCode
-				row.ErrorCode = &code
-			}
-			rows = append(rows, row)
-		}
-	}
+	rows := traegerOfferingOutcomeRows(outcomes)
 	if len(rows) == 0 {
 		return nil
 	}
@@ -340,17 +324,43 @@ func (s *TraegerOfferingStore) RecordTraegerOfferingOutcomes(ctx context.Context
 		return err
 	}
 	if _, err := db.NewRaw(`INSERT INTO enrollment.traeger_care_offering_schools AS target
-			(organization_id, traeger_care_offering_id, school_id, applied_version, outcome, error_code, recorded_at)
-		SELECT ?, outcome.offering_id, outcome.school_id, outcome.applied_version, outcome.outcome, outcome.error_code, now()
-		FROM jsonb_to_recordset(?::jsonb) AS outcome(offering_id bigint, school_id bigint, applied_version int, outcome text, error_code text)
+			(organization_id, traeger_care_offering_id, school_id, applied_version, applied_copy_id, outcome, error_code, recorded_at)
+		SELECT ?, outcome.offering_id, outcome.school_id, outcome.applied_version, outcome.applied_copy_id, outcome.outcome, outcome.error_code, now()
+		FROM jsonb_to_recordset(?::jsonb) AS outcome(offering_id bigint, school_id bigint, applied_version int, applied_copy_id bigint, outcome text, error_code text)
 		ORDER BY outcome.offering_id, outcome.school_id
 		ON CONFLICT (organization_id, traeger_care_offering_id, school_id) DO UPDATE SET
 			applied_version = CASE WHEN EXCLUDED.outcome IN ('applied', 'withdrawn') THEN EXCLUDED.applied_version ELSE target.applied_version END,
+			applied_copy_id = CASE WHEN EXCLUDED.outcome IN ('applied', 'withdrawn') THEN EXCLUDED.applied_copy_id ELSE target.applied_copy_id END,
 			outcome = EXCLUDED.outcome, error_code = EXCLUDED.error_code, recorded_at = EXCLUDED.recorded_at`,
 		organizationID, string(encoded)).Exec(ctx); err != nil {
 		return fmt.Errorf("care plan postgres: record träger care offering outcomes: %w", err)
 	}
 	return nil
+}
+
+type traegerOfferingOutcomeRow struct {
+	AppliedCopyID  *int64  `json:"applied_copy_id"`
+	OfferingID     int64   `json:"offering_id"`
+	SchoolID       int64   `json:"school_id"`
+	AppliedVersion *int    `json:"applied_version"`
+	Outcome        string  `json:"outcome"`
+	ErrorCode      *string `json:"error_code"`
+}
+
+func traegerOfferingOutcomeRows(outcomes map[int64][]careplan.TraegerOfferingOutcome) []traegerOfferingOutcomeRow {
+
+	rows := []traegerOfferingOutcomeRow{}
+	for id, schools := range outcomes {
+		for _, outcome := range schools {
+			row := traegerOfferingOutcomeRow{OfferingID: id, SchoolID: outcome.SchoolID, AppliedVersion: outcome.AppliedVersion, AppliedCopyID: outcome.AppliedCopyID, Outcome: outcome.Outcome}
+			if outcome.ErrorCode != "" {
+				code := outcome.ErrorCode
+				row.ErrorCode = &code
+			}
+			rows = append(rows, row)
+		}
+	}
+	return rows
 }
 
 // The copies of Träger offerings in one school (ADR 0195 section 4). These

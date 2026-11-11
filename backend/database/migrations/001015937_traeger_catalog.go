@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerCatalogVersion = "1.15.929"
+const traegerCatalogVersion = "1.15.937"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -142,6 +142,7 @@ CREATE TABLE enrollment.traeger_care_offering_schools (
 	traeger_care_offering_id BIGINT NOT NULL,
 	school_id BIGINT NOT NULL,
 	applied_version INT,
+	applied_copy_id BIGINT CHECK (applied_copy_id IS NULL OR (applied_copy_id > 0 AND applied_version IS NOT NULL)),
 	outcome VARCHAR(16),
 	error_code TEXT,
 	recorded_at TIMESTAMPTZ,

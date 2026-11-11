@@ -12989,6 +12989,12 @@
           "nullable": true
         },
         {
+          "name": "applied_copy_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
           "name": "outcome",
           "type": "character varying",
           "udt": "varchar",

@@ -181,7 +181,7 @@ func finishTraegerWithdrawals(batch traegerOfferingBatch, current []careplan.Car
 		}
 		batch.final = append(batch.final, row)
 	}
-	return batch
+	return pruneDeletedTraegerTriggers(batch)
 }
 
 func (c *CareOfferingCatalog) traegerWithdrawalReferences(ctx context.Context, ids []int64) (map[int64]bool, error) {
@@ -229,4 +229,33 @@ func (c *CareOfferingCatalog) resyncTraegerBatch(ctx context.Context, saved []ca
 		return pickups.ReconcileOfferingPickupForOfferings(ctx, ids)
 	}
 	return nil
+}
+
+// Deleted source rows cascade their trigger links in the database. Validate
+// and save the same final links before that cascade runs.
+func pruneDeletedTraegerTriggers(batch traegerOfferingBatch) traegerOfferingBatch {
+	if len(batch.deleteIDs) == 0 {
+		return batch
+	}
+	deleted := make(map[int64]bool, len(batch.deleteIDs))
+	for _, id := range batch.deleteIDs {
+		deleted[id] = true
+	}
+	for index := range batch.writes {
+		batch.writes[index].Offering.AutoAddTriggerOfferingIDs = survivingTraegerTriggers(batch.writes[index].Offering.AutoAddTriggerOfferingIDs, deleted)
+	}
+	for index := range batch.final {
+		batch.final[index].AutoAddTriggerOfferingIDs = survivingTraegerTriggers(batch.final[index].AutoAddTriggerOfferingIDs, deleted)
+	}
+	return batch
+}
+
+func survivingTraegerTriggers(ids []int64, deleted map[int64]bool) []int64 {
+	result := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if !deleted[id] {
+			result = append(result, id)
+		}
+	}
+	return result
 }

@@ -46,7 +46,7 @@ func (c *Catalog) draftHash(snap snapshot, targets []target) string {
 	for _, t := range targets {
 		baselines := make([]any, 0, len(snap.offerings))
 		for _, offering := range snap.offerings {
-			baselines = append(baselines, []any{offering.ID, recordedVersion(offering, t.schoolID)})
+			baselines = append(baselines, []any{offering.ID, recordedVersion(offering, t.schoolID), recordedCopyID(offering, t.schoolID)})
 		}
 		plan = append(plan, []any{t.schoolID, t.action, baselines})
 	}
@@ -79,6 +79,7 @@ func (c *Catalog) Preview(ctx context.Context, actor traegercatalog.Actor, traeg
 
 func (c *Catalog) previewSchool(ctx context.Context, snap snapshot, next release, t target) (traegercatalog.SchoolPlan, string, error) {
 	var plan traegercatalog.SchoolPlan
+	var copies map[int64]careplan.TraegerOfferingApplied
 	var state string
 	err := c.deps.Runtime.WithinSchool(ctx, t.schoolID, func(ctx context.Context) error {
 		var err error
@@ -88,7 +89,7 @@ func (c *Catalog) previewSchool(ctx context.Context, snap snapshot, next release
 		if state, err = c.schoolState(ctx, snap, false); err != nil {
 			return err
 		}
-		if plan, _, err = c.applySchool(ctx, snap, next, t.action); err != nil {
+		if plan, copies, err = c.applySchool(ctx, snap, next, t.action); err != nil {
 			return err
 		}
 		return errPreviewDiscard
@@ -105,14 +106,14 @@ func (c *Catalog) previewSchool(ctx context.Context, snap snapshot, next release
 		return plan, "", err
 	}
 	if t.action != traegercatalog.ActionWithdraw && plan.Outcome == traegercatalog.PreviewReady {
-		c.planBilling(snap, next, t.schoolID, &plan)
+		c.planBilling(snap, next, t.schoolID, &plan, copies)
 	}
 	return plan, state, nil
 }
 
 // planBilling names per offering the month a new tariff starts and whether
 // the contract template is written (ADR 0195 section 6).
-func (c *Catalog) planBilling(snap snapshot, next release, schoolID int64, plan *traegercatalog.SchoolPlan) {
+func (c *Catalog) planBilling(snap snapshot, next release, schoolID int64, plan *traegercatalog.SchoolPlan, copies map[int64]careplan.TraegerOfferingApplied) {
 	byID := map[int64]careplan.TraegerOffering{}
 	for _, offering := range snap.offerings {
 		byID[offering.ID] = offering
@@ -122,7 +123,7 @@ func (c *Catalog) planBilling(snap snapshot, next release, schoolID int64, plan 
 		if !ok || offering.WithdrawnAt != nil {
 			continue
 		}
-		billing := billingFor(offering, next.offerings[offering.ID], schoolID, snap.phase.Draft, next.month)
+		billing := billingFor(offering, next.offerings[offering.ID], schoolID, snap.phase.Draft, next.month, copies[offering.ID])
 		plan.Offerings[index].PricesFrom = billing.pricesFrom
 		plan.Offerings[index].ContractTemplate = billing.template
 	}

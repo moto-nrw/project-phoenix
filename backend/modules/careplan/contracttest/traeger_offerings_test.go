@@ -2,6 +2,7 @@ package contracttest_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -279,11 +280,14 @@ func TestTraegerOfferingOutcomesAreBatchedAndKeepAppliedTerms(t *testing.T) {
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	one := 1
 	outcomes := map[int64][]careplan.TraegerOfferingOutcome{}
+	copiedIDs := map[int64]int64{}
 	require.NoError(t, testpkg.WithinTraeger(counter.Context(ctx), own, func(ctx context.Context) error {
 		for index := range 5 {
 			created, err := offerings.CreateTraegerOffering(ctx, own, phase, traegerOfferingDraft(fmt.Sprintf("Modul %d", index), 20))
 			require.NoError(t, err)
-			outcomes[created.ID] = []careplan.TraegerOfferingOutcome{{SchoolID: school, AppliedVersion: &one, Outcome: "applied"}}
+			copyID := testpkg.UniqueTestTenantID(t)
+			copiedIDs[created.ID] = copyID
+			outcomes[created.ID] = []careplan.TraegerOfferingOutcome{{SchoolID: school, AppliedVersion: &one, AppliedCopyID: &copyID, Outcome: "applied"}}
 			if index == 0 || index == 4 {
 				_, err = offerings.ReleaseTraegerOfferings(ctx, own, phase, 0)
 				require.NoError(t, err)
@@ -297,6 +301,7 @@ func TestTraegerOfferingOutcomesAreBatchedAndKeepAppliedTerms(t *testing.T) {
 			err := offerings.RecordTraegerOfferingOutcomes(ctx, own, map[int64][]careplan.TraegerOfferingOutcome{id: {schools[0], schools[0]}})
 			assert.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid)
 			assert.Zero(t, counter.Total(), "duplicate schools fail before persistence")
+			require.NoError(t, offerings.RecordTraegerOfferingOutcomes(ctx, own, map[int64][]careplan.TraegerOfferingOutcome{id: {{SchoolID: school, Outcome: "rejected"}}}), "a financial refusal keeps the prior baseline")
 			changed := traegerOfferingDraft("New terms", 30)
 			changed.Prices[0].MonthlyCents = 1800
 			_, err = offerings.UpdateTraegerOffering(ctx, own, id, changed)
@@ -313,9 +318,17 @@ func TestTraegerOfferingOutcomesAreBatchedAndKeepAppliedTerms(t *testing.T) {
 			require.Len(t, row.Schools, 1)
 			require.NotNil(t, row.Schools[0].Applied)
 			assert.Equal(t, 1, *row.Schools[0].AppliedVersion)
+			require.NotNil(t, row.Schools[0].AppliedCopyID)
+			assert.Equal(t, copiedIDs[row.ID], *row.Schools[0].AppliedCopyID)
 			assert.Equal(t, int64(1600), row.Schools[0].Applied.Prices[0].MonthlyCents)
 			assert.Equal(t, int64(1800), row.Released.Prices[0].MonthlyCents)
 		}
+		withdrawnID := rows[0].ID
+		require.NoError(t, offerings.RecordTraegerOfferingOutcomes(ctx, own, map[int64][]careplan.TraegerOfferingOutcome{withdrawnID: {{SchoolID: school, Outcome: "withdrawn"}}}))
+		withdrawn, err := offerings.TraegerOffering(ctx, own, withdrawnID)
+		require.NoError(t, err)
+		assert.Nil(t, withdrawn.Schools[0].AppliedVersion)
+		assert.Nil(t, withdrawn.Schools[0].AppliedCopyID)
 		return nil
 	}))
 }
@@ -386,4 +399,95 @@ func TestTraegerOfferingBatchKeepsDeviationsAndBookedWithdrawals(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, row.IsActive)
 	assert.Nil(t, row.Traeger)
+}
+
+func TestTraegerOfferingBatchPrunesWithdrawnAutomaticTriggers(t *testing.T) {
+	t.Parallel()
+	db, _, phase := setupCareTest(t)
+	catalog := testCareOfferingCatalog(t, db)
+	batchCommand, ok := catalog.(careplan.TraegerOfferingBatch)
+	require.True(t, ok)
+	ctx := testpkg.Ctx(t)
+	first, second := testpkg.UniqueTestTenantID(t), testpkg.UniqueTestTenantID(t)
+	fields := traegerOfferingDraft("Automatisch", 20).Fields
+	fields.DaysOfWeekMode = "parent_choice"
+	inputs := []careplan.TraegerOfferingCopy{
+		{SourceID: first, Version: 1, PhaseID: phase.ID, Fields: traegerOfferingDraft("Auslöser", 20).Fields},
+		{SourceID: second, Version: 1, PhaseID: phase.ID, Fields: fields},
+	}
+	copies := map[int64]int64{}
+	require.NoError(t, fixtureEnrollmentCommand(ctx, func(ctx context.Context) error {
+		batch, err := batchCommand.ApplyTraegerOfferings(ctx, inputs, nil)
+		if err != nil {
+			return err
+		}
+		for _, row := range batch.Applied {
+			copies[row.SourceID] = row.CopyID
+		}
+		row, err := catalog.FindOffering(ctx, copies[second])
+		if err != nil {
+			return err
+		}
+		row.AutoAddTriggerOfferingIDs = []int64{copies[first]}
+		_, err = catalog.UpdateOffering(ctx, row)
+		return err
+	}))
+	require.NoError(t, fixtureEnrollmentCommand(ctx, func(ctx context.Context) error {
+		_, err := batchCommand.ApplyTraegerOfferings(ctx, inputs[1:], []int64{first})
+		return err
+	}))
+	row, err := catalog.FindOffering(ctx, copies[second])
+	require.NoError(t, err)
+	assert.Empty(t, row.AutoAddTriggerOfferingIDs)
+	_, err = catalog.FindOffering(ctx, copies[first])
+	assert.ErrorIs(t, err, careplan.ErrCareOfferingNotFound)
+}
+
+func TestTraegerOfferingRefusesRemovalOfReleasedFinancialTerms(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	own, phase := newOfferingTraeger(t, "Veröffentlichte Konditionen")
+	offerings := careplanCompose.NewTraegerOfferings()
+	ctx := testpkg.ContextWithTenantRuntime(t.Context(), testpkg.TenantRuntime(t, db))
+	draft := traegerOfferingDraft("Mit Vertrag", 20)
+	draft.ContractTemplate = &careplan.TraegerContractTemplate{TermKind: "school_year", NoticeTo: "month_end"}
+	var offeringID int64
+	require.NoError(t, testpkg.WithinTraeger(ctx, own, func(ctx context.Context) error {
+		created, err := offerings.CreateTraegerOffering(ctx, own, phase, draft)
+		if err != nil {
+			return err
+		}
+		offeringID = created.ID
+		_, err = offerings.ReleaseTraegerOfferings(ctx, own, phase, 0)
+		if err != nil {
+			return err
+		}
+		withoutPrices := draft
+		withoutPrices.Prices = nil
+		_, err = offerings.UpdateTraegerOffering(ctx, own, created.ID, withoutPrices)
+		assert.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid, "released prices cannot disappear silently")
+		withoutTemplate := draft
+		withoutTemplate.ContractTemplate = nil
+		_, err = offerings.UpdateTraegerOffering(ctx, own, created.ID, withoutTemplate)
+		assert.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid, "released templates cannot disappear silently")
+		return nil
+	}))
+	for _, clear := range []string{"prices", "template"} {
+		legacy := draft
+		if clear == "prices" {
+			legacy.Prices = nil
+		} else {
+			legacy.ContractTemplate = nil
+		}
+		encoded, err := json.Marshal(legacy)
+		require.NoError(t, err)
+		// Simulate a draft stored before removal validation was installed.
+		_, err = db.ExecContext(t.Context(), `UPDATE enrollment.traeger_care_offerings SET draft=?::jsonb WHERE organization_id=? AND id=?`, string(encoded), own, offeringID)
+		require.NoError(t, err)
+		err = testpkg.WithinTraeger(ctx, own, func(ctx context.Context) error {
+			_, err := offerings.ReleaseTraegerOfferings(ctx, own, phase, 0)
+			return err
+		})
+		require.ErrorIs(t, err, careplan.ErrCareOfferingConfigInvalid, "release rejects removal of %s from a legacy draft", clear)
+	}
 }

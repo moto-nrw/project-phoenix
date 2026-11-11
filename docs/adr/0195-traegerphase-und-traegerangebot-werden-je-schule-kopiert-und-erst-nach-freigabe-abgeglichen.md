@@ -172,7 +172,8 @@ Beim Träger, je Owner gleich gebaut:
   freigegebenen Felder als JSON, `released_at`, `released_by`. Eine Version
   ändert sich nie; ein Trigger lehnt jede Änderung ab.
 - **Schulauswahl** (`*_schools`): `organization_id`, Objekt, `school_id`,
-  dazu das letzte Ergebnis je Schule: `applied_version`, `outcome`
+  dazu das letzte Ergebnis je Schule: `applied_version`, am Angebot
+  `applied_copy_id` (die damit abgerechnete Schulkopie), `outcome`
   (`applied`, `rejected`, `stale`, `withdrawn`), `error_code`,
   `recorded_at`. Eine Trägerphase gilt für ausgewählte Schulen oder mit
   `all_schools` für alle, auch für später hinzukommende. Ein Trägerangebot
@@ -293,6 +294,15 @@ Transaktionen laufen nie zugleich.
 6. Tarif und Vertragsvorlage der Schule pflegt das Büro im Bereich
    Abrechnung bzw. Verträge weiter von Hand. Ein Abgleich schreibt sie nur,
    wenn sich Preis bzw. Vertragsvorlage am Trägerangebot geändert haben.
+   Eine neu angelegte Kopie bekommt ihre eigenen Konditionen auch dann,
+   wenn nach einem Trägerwechsel noch alte Ergebniszeilen bestehen.
+   `applied_copy_id` verbindet den Finanzstand mit genau dieser Kopie;
+   Version und Kopie werden zusammen mit den Konditionen gespeichert.
+   Solange die aktuelle Kopie nicht dieser ID entspricht, bleibt auch nach
+   einem Teilfehler die Initialisierung in Vorschau und Wiederholung nötig.
+   Veröffentlichte Preise und Vertragsvorlagen können im Katalog ersetzt,
+   aber nicht ersatzlos entfernt werden. Pflegen und Freigeben lehnen eine
+   solche Entfernung ab; das Zurückziehen des Angebots bleibt möglich.
    Ein geänderter Preis wird ein neuer Tarif ab dem 1. des Folgemonats, ein
    erster Preis gilt ab dem Monat des Leistungsbeginns, frühestens ab dem
    laufenden Monat. Ausgestellte Verträge und Rechnungen bleiben

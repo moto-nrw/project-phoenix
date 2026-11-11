@@ -43,6 +43,7 @@ type fakeOwners struct {
 	recordError         error
 	recordCalls         int
 	releaseDraft        *careplan.TraegerOfferingDraft
+	copyAlreadyExists   bool
 }
 
 func newFakeOwners() *fakeOwners {
@@ -224,7 +225,7 @@ func (o fakeSchoolOfferings) TraegerOfferingCopyStates(context.Context, []int64,
 }
 
 func (o fakeSchoolOfferings) ApplyTraegerOffering(_ context.Context, copy careplan.TraegerOfferingCopy) (careplan.TraegerOfferingApplied, error) {
-	return careplan.TraegerOfferingApplied{SourceID: copy.SourceID, CopyID: copy.PhaseID + 1, Created: true}, nil
+	return careplan.TraegerOfferingApplied{SourceID: copy.SourceID, CopyID: copy.PhaseID + 1, Created: !o.f.copyAlreadyExists}, nil
 }
 
 func (o fakeSchoolOfferings) WithdrawTraegerOffering(context.Context, int64) (careplan.TraegerOfferingWithdrawal, error) {
@@ -344,21 +345,22 @@ func TestTargetsAreSchoolsOfTheTraeger(t *testing.T) {
 func TestBillingFollowsTheRecordedVersion(t *testing.T) {
 	t.Parallel()
 	one := 1
+	copyID := newFakeOwners().schools[0]*100 + 1
 	before := careplan.TraegerOfferingDraft{Prices: []careplan.TraegerCarePrice{{Weekday: "mon", MonthlyCents: 1600}}}
 	offering := careplan.TraegerOffering{ReleasedVersion: &one, Released: &before, Schools: []careplan.TraegerOfferingSchool{
-		{SchoolID: 10, AppliedVersion: &one, Applied: &before, Outcome: "applied"},
+		{SchoolID: 10, AppliedVersion: &one, AppliedCopyID: &copyID, Applied: &before, Outcome: "applied"},
 	}}
 	today := calendar.NewDate(2026, 11, 11)
 	phase := enrollment.TraegerPhaseFields{ServiceStartDate: "2026-08-01"}
-	same := billingFor(offering, offeringRelease{version: 2, draft: before}, 10, phase, today)
+	same := billingFor(offering, offeringRelease{version: 2, draft: before}, 10, phase, today, careplan.TraegerOfferingApplied{CopyID: copyID})
 	assert.Nil(t, same.pricesFrom, "unchanged prices write no tariff")
 	dearer := careplan.TraegerOfferingDraft{Prices: []careplan.TraegerCarePrice{{Weekday: "mon", MonthlyCents: 1700}}}
-	changed := billingFor(offering, offeringRelease{version: 2, draft: dearer}, 10, phase, today)
+	changed := billingFor(offering, offeringRelease{version: 2, draft: dearer}, 10, phase, today, careplan.TraegerOfferingApplied{CopyID: copyID})
 	require.NotNil(t, changed.pricesFrom)
 	assert.Equal(t, calendar.NewDate(2026, 12, 1), *changed.pricesFrom, "a changed price starts the next month")
-	held := billingFor(offering, offeringRelease{version: 1, draft: dearer}, 10, phase, today)
+	held := billingFor(offering, offeringRelease{version: 1, draft: dearer}, 10, phase, today, careplan.TraegerOfferingApplied{CopyID: copyID})
 	assert.Nil(t, held.pricesFrom, "a school that holds the version gets nothing")
-	fresh := billingFor(offering, offeringRelease{version: 2, draft: dearer}, 20, phase, today)
+	fresh := billingFor(offering, offeringRelease{version: 2, draft: dearer}, 20, phase, today, careplan.TraegerOfferingApplied{CopyID: copyID})
 	require.NotNil(t, fresh.pricesFrom)
 	assert.Equal(t, calendar.NewDate(2026, 11, 1), *fresh.pricesFrom, "a new copy is priced from the current month at the earliest")
 }
@@ -452,15 +454,16 @@ func TestTargetsRecoverUnfinishedCopies(t *testing.T) {
 func TestBillingPreservesTermsAcrossMissedReleases(t *testing.T) {
 	t.Parallel()
 	one, three := 1, 3
+	copyID := newFakeOwners().schools[0]*100 + 1
 	terms := careplan.TraegerOfferingDraft{
 		Prices:           []careplan.TraegerCarePrice{{Weekday: "mon", MonthlyCents: 1600}},
 		ContractTemplate: &careplan.TraegerContractTemplate{TermKind: "open_ended"},
 	}
 	offering := careplan.TraegerOffering{ReleasedVersion: &three, Released: &terms, Schools: []careplan.TraegerOfferingSchool{
-		{SchoolID: 10, AppliedVersion: &one, Applied: &terms, Outcome: enrollment.TraegerOutcomeApplied},
+		{SchoolID: 10, AppliedVersion: &one, AppliedCopyID: &copyID, Applied: &terms, Outcome: enrollment.TraegerOutcomeApplied},
 	}}
 	plan := billingFor(offering, offeringRelease{version: 4, draft: terms}, 10,
-		enrollment.TraegerPhaseFields{ServiceStartDate: "2026-08-01"}, calendar.NewDate(2026, 11, 11))
+		enrollment.TraegerPhaseFields{ServiceStartDate: "2026-08-01"}, calendar.NewDate(2026, 11, 11), careplan.TraegerOfferingApplied{CopyID: copyID})
 	assert.Nil(t, plan.pricesFrom, "a capacity-only catch-up preserves the school's tariff")
 	assert.False(t, plan.template, "a capacity-only catch-up preserves the school's contract template")
 }
@@ -519,4 +522,73 @@ func TestRolloutRejectsPreviewWithChangedBillingBaseline(t *testing.T) {
 	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
 	assert.ErrorIs(t, err, traegercatalog.ErrPreviewStale)
 	assert.Empty(t, f.applied, "a concurrent financial commit needs a new preview even when copy stamps stayed unchanged")
+}
+
+func TestRolloutInitializesRecreatedCopiesDespiteHistoricalAppliedVersions(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	one := 1
+	f.offerings[0].Draft.ContractTemplate = &careplan.TraegerContractTemplate{TermKind: "school_year"}
+	terms := f.offerings[0].Draft
+	f.offerings[0].ReleasedVersion, f.offerings[0].Released = &one, &terms
+	f.offerings[0].Schools = []careplan.TraegerOfferingSchool{{SchoolID: 10, AppliedVersion: &one, Applied: &terms, Outcome: "applied"}}
+	catalog := f.catalog(t)
+	templates := map[int64][]ports.ModuleTemplate{}
+	catalog.deps.ContractTemplates = func(_ context.Context, _, _, schoolID int64, inputs []ports.ModuleTemplate) (func(context.Context) error, error) {
+		templates[schoolID] = inputs
+		return func(context.Context) error { return nil }, nil
+	}
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	require.NotNil(t, preview.Schools[0].Offerings[0].PricesFrom, "a recreated copy needs its own tariff")
+	assert.True(t, preview.Schools[0].Offerings[0].ContractTemplate)
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	require.NoError(t, err)
+	require.Len(t, f.prices, 2, "both newly created school copies get prices")
+	require.Len(t, templates[10], 1)
+	assert.Equal(t, int64(1001), templates[10][0].CareOfferingID)
+}
+
+func TestRolloutRetriesFinancialInitializationForTheCurrentCopy(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	one, oldCopy := 1, int64(900)
+	terms := f.offerings[0].Draft
+	terms.ContractTemplate = &careplan.TraegerContractTemplate{TermKind: "school_year"}
+	f.offerings[0].Draft = terms
+	f.offerings[0].ReleasedVersion, f.offerings[0].Released = &one, &terms
+	f.offerings[0].Schools = []careplan.TraegerOfferingSchool{{SchoolID: 10, AppliedVersion: &one, AppliedCopyID: &oldCopy, Applied: &terms, Outcome: "applied"}}
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	f.billingError = &ports.Refusal{Code: "parent_billing.care_tariff_month_billed", Err: errors.New("billing refused")}
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	require.NoError(t, err)
+	assert.Empty(t, f.prices)
+	f.copyAlreadyExists, f.billingError = true, nil
+	preview, err = catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	require.NotNil(t, preview.Schools[0].Offerings[0].PricesFrom, "the old copy's financial baseline cannot initialize the recreated copy")
+	assert.True(t, preview.Schools[0].Offerings[0].ContractTemplate)
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	require.NoError(t, err)
+	require.Len(t, f.prices, 2)
+	require.NotNil(t, f.offered[70][0].AppliedCopyID)
+	assert.Equal(t, int64(1001), *f.offered[70][0].AppliedCopyID)
+}
+
+func TestRolloutRejectsPreviewWhenOnlyTheFinancialCopyChanges(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	f.copyAlreadyExists = true
+	one, previousCopy, currentCopy := 1, int64(900), int64(1001)
+	terms := f.offerings[0].Draft
+	f.offerings[0].Schools = []careplan.TraegerOfferingSchool{{SchoolID: 10, AppliedVersion: &one, AppliedCopyID: &previousCopy, Applied: &terms, Outcome: "applied"}}
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	f.offerings[0].Schools[0].AppliedCopyID = &currentCopy
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	assert.ErrorIs(t, err, traegercatalog.ErrPreviewStale, "a changed copy baseline changes the confirmed financial plan")
+	assert.Empty(t, f.applied)
 }

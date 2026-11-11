@@ -15,7 +15,7 @@ import (
 type schoolRun struct {
 	target      target
 	result      traegercatalog.SchoolResult
-	copies      map[int64]int64
+	copies      map[int64]careplan.TraegerOfferingApplied
 	leftTraeger bool
 	prices      []ports.ModulePrices
 	templates   func(context.Context) error
@@ -175,12 +175,13 @@ func (c *Catalog) prepareBilling(ctx context.Context, actor traegercatalog.Actor
 	prices := []ports.ModulePrices{}
 	templates := []ports.ModuleTemplate{}
 	for _, offering := range snap.offerings {
-		copyID := run.copies[offering.ID]
+		copy := run.copies[offering.ID]
+		copyID := copy.CopyID
 		if copyID == 0 {
 			continue
 		}
 		released := next.offerings[offering.ID]
-		plan := billingFor(offering, released, run.target.schoolID, next.phase, next.month)
+		plan := billingFor(offering, released, run.target.schoolID, next.phase, next.month, copy)
 		if plan.pricesFrom != nil {
 			prices = append(prices, ports.ModulePrices{SchoolID: run.target.schoolID, CareOfferingID: copyID,
 				ModuleName: released.draft.Fields.Name, ValidFrom: *plan.pricesFrom, Prices: released.draft.Prices})
@@ -266,6 +267,8 @@ func offeringOutcome(run schoolRun, offering careplan.TraegerOffering, next rele
 	case run.result.Outcome == enrollment.TraegerOutcomeApplied:
 		version := next.offerings[offering.ID].version
 		outcome.AppliedVersion = &version
+		copyID := run.copies[offering.ID].CopyID
+		outcome.AppliedCopyID = &copyID
 	}
 	return outcome, recordedVersion(offering, run.target.schoolID) != nil || run.result.Outcome != enrollment.TraegerOutcomeWithdrawn
 }

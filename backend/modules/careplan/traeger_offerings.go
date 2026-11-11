@@ -86,12 +86,14 @@ type TraegerOfferingDraft struct {
 type TraegerOfferingSchool struct {
 	// Applied is the immutable draft of AppliedVersion, used to compare billing
 	// terms even when this school missed several releases.
-	Applied        *TraegerOfferingDraft `json:"-"`
-	SchoolID       int64                 `json:"school_id"`
-	AppliedVersion *int                  `json:"applied_version,omitempty"`
-	Outcome        string                `json:"outcome,omitempty"`
-	ErrorCode      string                `json:"error_code,omitempty"`
-	RecordedAt     *time.Time            `json:"recorded_at,omitempty"`
+	Applied *TraegerOfferingDraft `json:"-"`
+	// AppliedCopyID ties the financial baseline to the school copy it priced.
+	AppliedCopyID  *int64     `json:"-"`
+	SchoolID       int64      `json:"school_id"`
+	AppliedVersion *int       `json:"applied_version,omitempty"`
+	Outcome        string     `json:"outcome,omitempty"`
+	ErrorCode      string     `json:"error_code,omitempty"`
+	RecordedAt     *time.Time `json:"recorded_at,omitempty"`
 }
 
 // TraegerOffering is a Träger care offering with its draft, its released
@@ -110,6 +112,7 @@ type TraegerOffering struct {
 
 // TraegerOfferingOutcome records the outcome of one school's copy.
 type TraegerOfferingOutcome struct {
+	AppliedCopyID  *int64
 	SchoolID       int64
 	AppliedVersion *int
 	Outcome        string
