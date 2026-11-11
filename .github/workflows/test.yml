@@ -360,11 +360,6 @@ jobs:
             free -m
           fi
 
-          # Packages with a time budget above the default start first, the
-          # longest first: go test starts test binaries in command-line order,
-          # and a long package started late runs alone at the end (#6784).
-          mapfile -t packages < <(printf '%s\n' "${packages[@]}" | node ../scripts/backend-package-budgets.mjs order)
-
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
           "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \

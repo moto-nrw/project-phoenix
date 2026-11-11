@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { budgetOf, check, loadBudgets, order, packageTimes } from "./backend-package-budgets.mjs";
+import { budgetOf, check, loadBudgets, packageTimes } from "./backend-package-budgets.mjs";
 
 const M = "github.com/moto-nrw/project-phoenix/";
 const budgets = {
@@ -23,11 +23,6 @@ test("budget entries need a reason and more than the default", () => {
   assert.throws(() => loadBudgets(file), /above defaultSeconds/);
   writeFileSync(file, JSON.stringify({ defaultSeconds: 90, packages: { api: { seconds: 120 } } }));
   assert.throws(() => loadBudgets(file), /needs a reason/);
-});
-
-test("order starts budgeted packages first, the largest budget first", () => {
-  const input = [`${M}a`, `${M}api`, `${M}b`, `${M}modules/dataimport/importtest`];
-  assert.deepEqual(order(budgets, input), [`${M}modules/dataimport/importtest`, `${M}api`, `${M}a`, `${M}b`]);
 });
 
 test("packageTimes reads the package events, not the test events", () => {

@@ -20,10 +20,6 @@ on:
       - 'scripts/backend-architecture/**'
       - 'scripts/backend-test-matrix.sh'
       - '.github/workflows/backend-build-cache.yml'
-  # TEMP for #6784: proves the key on the pull request; removed before merge.
-  pull_request:
-    paths:
-      - '.github/workflows/backend-build-cache.yml'
 
 permissions: {}
 

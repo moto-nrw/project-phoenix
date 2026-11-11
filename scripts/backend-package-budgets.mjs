@@ -1,15 +1,9 @@
 #!/usr/bin/env node
 // Wall-clock budgets for backend test packages in CI (#6784).
 //
-//   node scripts/backend-package-budgets.mjs order  < import-paths
-//   node scripts/backend-package-budgets.mjs check  go-test.json
+//   node scripts/backend-package-budgets.mjs check go-test.json
 //
-// order: prints the import paths from stdin with every package that has its
-// own budget first, the largest budget first, the rest in input order. go test
-// starts test binaries in command-line order, so the long packages no longer
-// start late and run alone at the end of the job.
-//
-// check: reads `gotestsum --jsonfile` (go test -json events), compares each
+// Reads `gotestsum --jsonfile` (go test -json events), compares each
 // package's elapsed seconds with its budget and fails when one is over. The
 // budget file is backend-package-budgets.json next to this script: a default
 // for every package and an entry with a reason for each larger one. Raise an
@@ -43,13 +37,6 @@ export function budgetOf(budgets, importPath) {
   return budgets.packages[relative(importPath)]?.seconds ?? budgets.defaultSeconds;
 }
 
-export function order(budgets, importPaths) {
-  const listed = importPaths.filter((p) => relative(p) in budgets.packages);
-  const rest = importPaths.filter((p) => !(relative(p) in budgets.packages));
-  listed.sort((a, b) => budgetOf(budgets, b) - budgetOf(budgets, a));
-  return [...listed, ...rest];
-}
-
 // Elapsed seconds per package from go test -json: the package-level
 // pass/fail/skip event (no Test field) carries the binary's run time.
 export function packageTimes(jsonLines) {
@@ -77,13 +64,8 @@ export function check(budgets, times) {
 function main() {
   const [command, file] = process.argv.slice(2);
   const budgets = loadBudgets();
-  if (command === "order") {
-    const input = readFileSync(0, "utf8").split("\n").filter((l) => l.trim() !== "");
-    process.stdout.write(order(budgets, input).join("\n") + "\n");
-    return;
-  }
   if (command !== "check" || !file) {
-    console.error("usage: backend-package-budgets.mjs order < paths | check go-test.json");
+    console.error("usage: backend-package-budgets.mjs check go-test.json");
     process.exit(2);
   }
   const { rows, over } = check(budgets, packageTimes(readFileSync(file, "utf8")));
