@@ -281,7 +281,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // workflows/parentportal/compose (+1) add exactly 6 LOC.
 // ADR 0209: the new composition of workflows/holidayallocation (+13).
 // #6702 lowered devicescan (-8), schoolmembership (-7).
-const moduleComposeBudgetTotal = 13284
+const moduleComposeBudgetTotal = 13283
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -345,7 +345,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
 	// Raised by ADR 0187: the operator directory of the Träger export CLI (+11).
-	"modules/identityaccess/compose": 1373, // raised by ADR 0077
+	"modules/identityaccess/compose": 1372, // raised by ADR 0077
 	"modules/mealplan/compose":       102,  // raised by ADR 0078 and ADR 0168
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).

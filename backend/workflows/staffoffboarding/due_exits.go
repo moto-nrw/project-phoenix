@@ -155,13 +155,7 @@ func (d *DueExits) lockActedAccounts(ctx context.Context, staffIDs []int64) erro
 			accounts = append(accounts, *person.AccountID)
 		}
 	}
-	slices.Sort(accounts)
-	for _, accountID := range slices.Compact(accounts) {
-		if _, err := deps.PreviewAccess(ctx, accountID); err != nil {
-			return err
-		}
-	}
-	return nil
+	return deps.LockAccounts(ctx, accounts)
 }
 
 // runPlan does what is due for one planned exit. exitErr is a failed

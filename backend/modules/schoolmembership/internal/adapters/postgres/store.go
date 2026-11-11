@@ -173,6 +173,9 @@ func (s *Store) ListStaff(ctx context.Context, filter schoolmembership.StaffFilt
 	if filter.PlannedExitOnly {
 		query = query.Where(`"staff".planned_exit_day IS NOT NULL`)
 	}
+	if filter.ForMutation {
+		query = query.For(staffRowLock + " OF staff")
+	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"staff".id ASC`), "list staff")
 	if err != nil {
 		return nil, stats, err

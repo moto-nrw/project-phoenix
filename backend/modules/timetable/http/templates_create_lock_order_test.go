@@ -215,3 +215,21 @@ func TestTemplateCreateRollsBackAFailedMaterialization(t *testing.T) {
 	require.NoError(t, s.db.NewRaw(`SELECT count(*) FROM schedule.planning_tracks WHERE tenant_id = ? AND name = ?`, testpkg.Tenant(t), mat.name).Scan(s.ctx, &partial))
 	assert.Zero(t, partial, "the failed run's writes are rolled back with its savepoint")
 }
+
+func TestTemplateCreateSurvivesAnOversizedMaterializationWindow(t *testing.T) {
+	t.Parallel()
+	mat := testTimetableData(testpkg.SetupTestDB(t), fixedTemplateClock).materialization
+	s := buildTemplateModule(t, mat, fixedTemplateClock)
+	defer s.cleanupFn()
+	body := createTemplateBody(s, "Oversized materialization window")
+	body["materialize_from"], body["materialize_to"] = "2026-05-04", "2026-08-31"
+	w := doTemplateJSON(t, templateRouter(s.ctx, s.res, s.db), http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	response := decodeTemplateData[createTemplateResponse](t, w)
+	require.NotZero(t, response.TemplateID)
+	assert.Zero(t, response.InstancesCreated)
+	var saved int
+	require.NoError(t, s.db.NewRaw(`SELECT count(*) FROM activities.groups WHERE tenant_id = ? AND id = ?`,
+		testpkg.Tenant(t), response.TemplateID).Scan(s.ctx, &saved))
+	assert.Equal(t, 1, saved, "optional materialization must not roll back the template")
+}

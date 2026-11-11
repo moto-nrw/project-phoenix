@@ -181,6 +181,39 @@ func TestModuleLocksStaffInsideTheCallersTransaction(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestModuleLocksStaffBatchInOneOrderedTenantRead(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	first := createStaff(t, ctx, db, module, "Batch", "First", schoolmembership.StaffFields{StaffNotes: "Employment included"})
+	second := createStaff(t, ctx, db, module, "Batch", "Second", schoolmembership.StaffFields{})
+	retired := createStaff(t, ctx, db, module, "Batch", "Retired", schoolmembership.StaffFields{})
+	require.NoError(t, module.DeleteStaff(ctx, retired.ID))
+	_, otherTenant := otherTenantContext(t, db)
+	foreign := testpkg.CreateTestStaffForTenant(t, db, otherTenant, "Batch", "Foreign")
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	err := tenant.WithinCurrentTenant(counter.Context(ctx), func(txCtx context.Context) error {
+		rows, err := module.ListStaff(txCtx, schoolmembership.StaffFilter{IDs: []int64{foreign.ID, retired.ID, second.ID, first.ID, second.ID}, ForMutation: true})
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "duplicates, retired and foreign memberships are omitted")
+		assert.Equal(t, first.ID, rows[0].ID)
+		assert.Equal(t, second.ID, rows[1].ID)
+		assert.Equal(t, first.StaffNotes, rows[0].StaffNotes)
+		for _, row := range rows {
+			assert.True(t, tenant.HoldsLock(txCtx, tenant.LockStaffRows, tenant.LockIDKey(row.ID)))
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.Len(t, counter.Selects("users.staff_school_memberships"), 1, "the whole staff set uses one locking query")
+	counter.Reset()
+	rows, err := module.ListStaff(counter.Context(ctx), schoolmembership.StaffFilter{IDs: []int64{}, ForMutation: true})
+	require.ErrorIs(t, err, schoolmembership.ErrInvalidMembership)
+	assert.Empty(t, rows)
+	assert.Zero(t, counter.Total(), "an empty set does not query")
+}
+
 func TestModuleReportsMembershipConflicts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

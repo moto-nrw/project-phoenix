@@ -69,6 +69,7 @@ Kiosk-Sitzungsspiegel, Aktivität anlegen und Betreuerrouten, Materialisierung.
 | Stelle | Klasse | Aufrufer / Transaktion |
 |---|---|---|
 | `store.go` `FindStaff` | StaffRows | `findStaffRow` |
+| `store.go` `ListStaff` mit `StaffFilter.ForMutation` | StaffRows | Personal-Import: ein geordnetes `FOR NO KEY UPDATE` für alle Treffer des Chunks; Beschäftigungsdaten gebündelt |
 | `staff_person_merge.go` `StaffMergeMemberships` | StaffRows (alle, aufsteigend, `application.StaffPersonMerge`) | Merge, jetzt vor den Personen |
 | `store.go` `CreateStaff` (Merge-Gate geteilt) | StaffPersonMerge | Staff anlegen; Identität nimmt das Gate vor Person/Staff |
 | `student_enrollment.go` Klassen-Gate exklusiv | StudentClassWrites | Jahrgangswechsel (erste Sperre) |
@@ -79,7 +80,7 @@ Kiosk-Sitzungsspiegel, Aktivität anlegen und Betreuerrouten, Materialisierung.
 | Presence `LockStaffSupervision` | Leaf | Austritt |
 | Presence `lockStaffForSupervision` | StaffWorkTime | Betreuerschreiber: alle Saldo-Gates vor allen Staff-Zeilen |
 | `workflows/staffpersonmerge` Gate | StaffPersonMerge | Merge (exklusiv) |
-| Austritt `PreviewAccess` | Account | Austritt; geplante Austritte sperren Konten vor ihren Gates; Zugang schließen: Konto vor Person |
+| Austritt `PreviewAccess`, Identity `LockStaffOffboardingAccounts` | Account | Austritt; geplante Austritte sperren alle Konten mit einer geordneten Abfrage vor ihren Gates, ohne Zugriffsvorschauen zu laden; Zugang schließen: Konto vor Person |
 | Personal-Import | StaffPersonMerge | Upsert nimmt das Merge-Gate vor der ersten Aktualisierung |
 | Personal-Import Aktualisieren/Upsert | StaffRows | jeder Chunk sperrt die Staff-Zeilen aller Treffer aufsteigend vor seiner ersten Zeile (`BatchWriteConfig`) |
 | Identitätskette | StaffPersonMerge | Merge-Gate vor Person und Staff-Zeile |

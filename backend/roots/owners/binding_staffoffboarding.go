@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	identitycompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	staffoffboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -45,6 +46,7 @@ func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffof
 		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff, ListStaff: membership.ListStaff,
 		Membership: deps.Retirement, Workforce: work, Timetable: deps.Timetable, People: deps.People,
 		LockSupervision: deps.LockSupervision,
+		LockAccounts:    identitycompose.NewStaffOffboardingAccountLocks(deps.DB).LockStaffOffboardingAccounts,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {
 			// The preview locks the account, the first lock of a staff exit
 			// (Konto → Schule → Profil, tenant.LockAccount, #6702).

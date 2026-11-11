@@ -153,7 +153,6 @@ var (
 // StaffMembership is the School Membership slice of the staff import.
 type StaffMembership interface {
 	FindStaff(context.Context, int64) (Staff, error)
-	FindStaffForMutation(context.Context, int64) (Staff, error)
 	FindStaffByPerson(context.Context, int64) (Staff, error)
 	ListStaff(context.Context, StaffFilter) ([]Staff, error)
 	CreateStaff(context.Context, CreateStaff) (Staff, error)

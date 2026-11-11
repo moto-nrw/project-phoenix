@@ -86,6 +86,7 @@ type Dependencies struct {
 	Timetable          Timetable
 	People             People
 	PreviewAccess      func(context.Context, int64) (AccessPreview, error)
+	LockAccounts       func(context.Context, []int64) error
 	ExecuteAccess      func(context.Context, int64, string) (AccessResult, error)
 	LockSupervision    func(context.Context, int64, string) ([]int64, error)
 	AppendAudit        func(context.Context, Actor, Result) error
@@ -131,7 +132,7 @@ type Workflow struct{ deps Dependencies }
 func New(deps Dependencies) (*Workflow, error) {
 	if deps.UnitOfWork == nil || deps.Authorize == nil || deps.Today == nil || deps.FindStaff == nil || deps.ListStaff == nil ||
 		deps.Membership == nil || deps.Workforce == nil || deps.Timetable == nil || deps.People == nil ||
-		deps.PreviewAccess == nil || deps.ExecuteAccess == nil || deps.LockSupervision == nil ||
+		deps.PreviewAccess == nil || deps.LockAccounts == nil || deps.ExecuteAccess == nil || deps.LockSupervision == nil ||
 		deps.AppendAudit == nil || deps.Cleanup == nil || deps.GroupAccessChanged == nil || deps.TimeTrackingChanged == nil || deps.Observe == nil {
 		return nil, errors.New("staff offboarding: all dependencies are required")
 	}

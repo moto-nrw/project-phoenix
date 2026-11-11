@@ -38,6 +38,7 @@ var rowLockAdmissionRoots = []string{
 }
 
 var rowLockAdmissionFiles = []string{
+	"modules/identityaccess/internal/adapters/postgres/account_login_batch.go",
 	"api/timetable_advisory_locks.go",
 	"modules/studentpresence/internal/application/presence/presence_guards.go",
 	"modules/peopledirectory/internal/adapters/peoplepostgres/person.go",
@@ -131,6 +132,9 @@ const (
 // call that passes false or "" takes no ordered lock (a shared class-write
 // gate, an unlocked read). A nil entry is a documented reader of a gate.
 var rowLockAdmitted = map[string][]rowLockAdmitter{
+	"modules/identityaccess/internal/adapters/postgres/account_login_batch.go#Store.LockLoginAccounts": {{"modules/identityaccess/internal/application/staff_offboarding_account_locks.go", "LockStaffOffboardingAccounts", ""}},
+
+	membershipStore + "store.go#Store.ListStaff":                           {{membershipApplication + "staff_row_lock.go", "listStaffForMutation", ""}},
 	membershipStore + "store.go#Store.FindStaff":                           {{"modules/schoolmembership/internal/application/staff_row_lock.go", "findStaffRow", ""}},
 	membershipStore + "store.go#Store.CreateStaff":                         {{membershipApplication, "*", "CreateStaff"}},
 	membershipStore + "store.go#Store.FindTeacher":                         {{membershipApplication, "*", "FindTeacher"}},

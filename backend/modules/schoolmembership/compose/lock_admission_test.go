@@ -76,6 +76,14 @@ func TestMembershipLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 	}
 	for _, tc := range []lockAdmissionCase{
 		{
+			name: "staff batch", class: tenant.LockStaffRows, key: tenant.LockIDKey(staff.ID),
+			hold: rowLock(`SELECT id FROM users.staff_school_memberships WHERE id = ? FOR UPDATE`, staff.ID),
+			path: func(ctx context.Context) error {
+				_, err := module.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{leaver.ID, staff.ID}, ForMutation: true})
+				return err
+			},
+		},
+		{
 			name: "staff row", class: tenant.LockStaffRows, key: tenant.LockIDKey(staff.ID),
 			hold: rowLock(`SELECT id FROM users.staff_school_memberships WHERE id = ? FOR UPDATE`, staff.ID),
 			path: func(ctx context.Context) error { _, err := module.FindStaffForMutation(ctx, staff.ID); return err },

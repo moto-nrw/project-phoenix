@@ -3,6 +3,7 @@ package integration
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -45,6 +46,10 @@ func TestStaffImportUpdatesPeopleInAnyFileOrder(t *testing.T) {
 		rows[i].Position = "Leitung"
 	}
 	runner.run(t, rows, importModels.ImportModeUpdate, false, allUpdated(3))
+	require.Len(t, counter.Matching(func(sql string) bool {
+		return strings.Contains(sql, "users.staff_school_memberships") &&
+			strings.Contains(sql, `"staff".id in (`) && strings.Contains(sql, "for no key update")
+	}), 1, "the chunk locks its staff set with one ordered query")
 	var notes int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.staff_school_memberships s JOIN users.persons p ON p.id = s.person_id
 		JOIN users.staff_employment_profiles ep ON ep.membership_id = s.id AND ep.tenant_id = s.tenant_id

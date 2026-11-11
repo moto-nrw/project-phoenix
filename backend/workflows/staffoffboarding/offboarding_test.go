@@ -80,6 +80,12 @@ func newFixture(t *testing.T) fixture {
 		Today:     func() string { return "2027-10-02" },
 		FindStaff: membership.FindStaff, ListStaff: membership.ListStaff,
 		Membership: retirement, Workforce: workOffboarding, Timetable: timetableOffboarding, People: people,
+		LockAccounts: func(_ context.Context, ids []int64) error {
+			if len(ids) == 0 {
+				return nil
+			}
+			return errors.New("fixture subject has no account")
+		},
 		PreviewAccess: func(context.Context, int64) (staffoffboarding.AccessPreview, error) {
 			return staffoffboarding.AccessPreview{}, errors.New("fixture subject has no account")
 		},

@@ -2,8 +2,10 @@ package application
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // lockCreatedTemplateStaff takes, after the gates and catalogue rows and
@@ -42,17 +44,29 @@ func (s *TemplateService) liveWindowStaff(ctx context.Context, in CreateTemplate
 	if !ok {
 		return nil, nil
 	}
-	candidates, err := roster.staffForMaterialization(ctx, *in.MaterializeFrom, *in.MaterializeTo)
-	if err != nil || len(candidates) == 0 {
+	// The optional run is best effort, including this preflight. Roll back
+	// a failed query before saving the template so its transaction stays usable.
+	var ids []int64
+	err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+		candidates, err := roster.staffForMaterialization(ctx, *in.MaterializeFrom, *in.MaterializeTo)
+		if err != nil || len(candidates) == 0 {
+			return err
+		}
+		live, err := s.deps.Directories.StaffPersons(ctx, candidates, false)
+		if err != nil {
+			return &ports.ScheduleError{Op: "create template: load materialization staff", Err: err}
+		}
+		for id := range live {
+			ids = append(ids, id)
+		}
+		return nil
+	})
+	if errors.Is(err, tenant.ErrSavepointControl) {
 		return nil, err
 	}
-	live, err := s.deps.Directories.StaffPersons(ctx, candidates, false)
 	if err != nil {
-		return nil, &ports.ScheduleError{Op: "create template: load materialization staff", Err: err}
-	}
-	ids := make([]int64, 0, len(live))
-	for id := range live {
-		ids = append(ids, id)
+		s.getLogger().Warn("template create: materialization preflight failed", "error", err.Error())
+		return nil, nil
 	}
 	return ids, nil
 }

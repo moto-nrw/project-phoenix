@@ -2,8 +2,6 @@ package importpkg
 
 import (
 	"context"
-	"errors"
-	"slices"
 
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
@@ -40,18 +38,14 @@ func (c *StaffImportConfig) BatchWriteConfig(ctx context.Context, rows []importM
 	if err := c.lockStaffPersonMerge(ctx); err != nil {
 		return nil, err
 	}
-	slices.Sort(ids)
-	c.lockedStaff = make(map[int64]ports.Staff, len(ids))
-	for _, id := range slices.Compact(ids) {
-		staff, err := c.Membership.FindStaffForMutation(ctx, id)
-		if errors.Is(err, ports.ErrStaffNotFound) {
-			// Gone since the match: the row's update reports it.
-			continue
-		}
-		if err != nil {
-			return nil, copyErrorf("Mitarbeiter sperren: %w", err)
-		}
-		c.lockedStaff[id] = staff
+	staff, err := c.Membership.ListStaff(ctx, ports.StaffFilter{IDs: ids, ForMutation: true})
+	if err != nil {
+		return nil, copyErrorf("Mitarbeiter sperren: %w", err)
+	}
+	c.lockedStaff = make(map[int64]ports.Staff, len(staff))
+	// Missing rows are the row's own update failure, as before.
+	for _, member := range staff {
+		c.lockedStaff[member.ID] = member
 	}
 	return c, nil
 }

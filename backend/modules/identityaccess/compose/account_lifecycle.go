@@ -5,9 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/uptrace/bun"
 )
 
 // The account lifecycle flows (#3225) and the role administration (#3314)
@@ -87,10 +89,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	return lifecycle, roles, nil
 }
 
-// --- port adapters ---------------------------------------------------------
-
-// --- engine methods -------------------------------------------------------
-
-// The guardian invitation lifecycle answers with the invitation sentinels
-// the school invitation flows share; invitationError falls through to the
-// lifecycle mapping for the rest.
+// NewStaffOffboardingAccountLocks composes only the account lock step.
+func NewStaffOffboardingAccountLocks(db *bun.DB) identityaccess.StaffOffboardingAccountLocks {
+	return application.StaffOffboardingAccountLocks{Accounts: postgres.NewStore(db)}
+}

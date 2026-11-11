@@ -344,3 +344,8 @@ type SchoolMembershipLockStore interface {
 type GuardianInvitationLockStore interface {
 	LockGuardianInvitationAccounts(ctx context.Context, inviterID int64, email string) error
 }
+
+// StaffOffboardingAccountLocks is the account-only prelock of a planned exit.
+type StaffOffboardingAccountLocks interface {
+	LockLoginAccounts(context.Context, []int64) ([]int64, domain.OperationStats, error)
+}

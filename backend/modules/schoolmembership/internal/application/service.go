@@ -128,6 +128,9 @@ func (s *Service) ListStaff(ctx context.Context, filter schoolmembership.StaffFi
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.PersonIDs = uniquePositive(filter.PersonIDs)
 	filter.TenantIDs = uniquePositive(filter.TenantIDs)
+	if filter.ForMutation {
+		return s.listStaffForMutation(ctx, filter)
+	}
 	err = s.runRead(ctx, "list_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaff(txCtx, filter)
