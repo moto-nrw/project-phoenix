@@ -2,6 +2,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -40,4 +41,13 @@ func (s *OperationStats) Add(other OperationStats) {
 	s.Queries += other.Queries
 	s.Rows += other.Rows
 	s.StatementDuration += other.StatementDuration
+}
+
+// GuardianStudentAccessGrant is the access half of one new relationship a
+// batch grant writes (#5552).
+type GuardianStudentAccessGrant struct {
+	TenantID       int64
+	RelationshipID int64
+	AccountID      *int64
+	Permissions    json.RawMessage
 }

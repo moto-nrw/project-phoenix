@@ -99,6 +99,7 @@ const RUN: BillingRunDetail = {
   paymentTextMissingDebtorNumbers: 0,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
+  fingerprint: "",
   letters: {
     paymentDueOn: "2026-09-23",
     notes: "",

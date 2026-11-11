@@ -103,14 +103,16 @@ type BillingCorrectionRequest struct {
 func (req *BillingCorrectionRequest) Bind(*http.Request) error { return nil }
 
 // BillingReleaseRequest is the body of POST
-// /traeger/billing-runs/{id}/release: the number of invoices and the sum of
-// the preview the Abrechnung checked.
+// /traeger/billing-runs/{id}/release: the number of invoices, the sum and
+// the fingerprint of the preview the Abrechnung checked (#6506).
 type BillingReleaseRequest struct {
 	DocumentCount int   `json:"document_count"`
 	TotalCents    int64 `json:"total_cents"`
 	// DocumentKind is the kind of document the Abrechnung saw (#4688);
 	// missing skips the check.
 	DocumentKind string `json:"document_kind"`
+	// Fingerprint is the fingerprint of the checked preview; required.
+	Fingerprint string `json:"fingerprint"`
 }
 
 // Bind accepts the body.

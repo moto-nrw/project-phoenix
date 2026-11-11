@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -31,14 +32,35 @@ func sessionPID(t *testing.T, ctx context.Context, tx bun.Tx) int {
 	return pid
 }
 
-// waitBlockedBy waits, within a hard deadline, until a session waits for a
-// lock that the test's own holder session holds; it looks at no session but
-// those pg_blocking_pids names the holder for.
-func waitBlockedBy(t *testing.T, db *bun.DB, holder int) {
+// namedImportPool is a private pool over dsn whose sessions carry an
+// application_name of their own, so a test can find its upload's sessions
+// and no others (Befundklasse 13). A positive readTimeout replaces pgdriver's
+// read timeout.
+func namedImportPool(t *testing.T, dsn string, readTimeout time.Duration) (*bun.DB, string) {
+	t.Helper()
+	parsed, err := url.Parse(dsn)
+	require.NoError(t, err)
+	name := fmt.Sprintf("import-test-%d-%d", testpkg.Tenant(t), time.Now().UnixNano())
+	query := parsed.Query()
+	query.Set("application_name", name)
+	if readTimeout > 0 {
+		query.Set("read_timeout", readTimeout.String())
+	}
+	parsed.RawQuery = query.Encode()
+	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(testpkg.OpenPostgresSQL(parsed.String())))
+	t.Cleanup(func() { _ = pool.Close() })
+	return pool, name
+}
+
+// waitBlockedBy waits, within a hard deadline, until a session of the
+// upload's own pool (application name upload) waits for a lock the test's
+// holder session holds: pg_blocking_pids of the upload's PID names the
+// holder's PID. No other session counts.
+func waitBlockedBy(t *testing.T, db *bun.DB, upload string, holder int) {
 	t.Helper()
 	require.Eventually(t, func() bool {
 		var blocked int
-		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity WHERE ?::int = ANY(pg_blocking_pids(pid))`, holder).
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity WHERE application_name = ? AND ?::int = ANY(pg_blocking_pids(pid))`, upload, holder).
 			Scan(context.Background(), &blocked)
 		return err == nil && blocked > 0
 	}, 10*time.Second, 5*time.Millisecond, "the upload waits for the holder session")
@@ -103,19 +125,26 @@ func TestStudentLeafBatchesFormNoNewDeadlockPair(t *testing.T) {
 	} {
 		t.Run(run.name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), run.options)
+			pool, name := namedImportPool(t, testpkg.PackageTestDSN(t), 0)
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), run.options)
 			require.NoError(t, err)
 			actor := newImporter(t, db)
 			reused := testpkg.CreateTestGuardianProfileWithExactEmail(t, db, testpkg.Tenant(t), testpkg.GuardianProfileWithEmail{
 				FirstName: "Eltern", LastName: "Wieder", Email: fmt.Sprintf("wieder.%d@example.test", testpkg.Tenant(t))})
 			rows := namedStudentBatch("Sperre", studentChunkRows)
 			rows[6].Guardians[0].Email = *reused.Email
+			// Rows 1, 3 and 5 carry guardians without e-mail, which the batch
+			// path bundles after the rows (#5552 step 5c): they lock nothing
+			// another writer can see, so the pair stays as it was.
+			for _, i := range []int{1, 3, 5} {
+				rows[i].Guardians[0].Email = ""
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			holder, pid := holdStaffMembership(t, ctx, db, actor.staffID)
-			done := uploadStudents(t, module, db, actor, rows, "pair.csv")
-			waitBlockedBy(t, db, pid)
+			done := uploadStudents(t, module, pool, actor, rows, "pair.csv")
+			waitBlockedBy(t, db, name, pid)
 
 			lockCtx, lockCancel := context.WithTimeout(ctx, 3*time.Second)
 			defer lockCancel()
@@ -135,8 +164,10 @@ func TestStudentLeafBatchesFormNoNewDeadlockPair(t *testing.T) {
 			require.Zero(t, observation.BatchFallbacks)
 			if run.options.RowPathOnly {
 				require.Zero(t, commandCount(observation, "record_privacy_consents"))
+				require.Zero(t, commandCount(observation, "create_new_student_guardians"))
 			} else {
 				require.Equal(t, 1, commandCount(observation, "record_privacy_consents"), "the batch path ran")
+				require.Equal(t, 1, commandCount(observation, "create_new_student_guardians"), "the guardians without e-mail were bundled")
 			}
 		})
 	}
@@ -151,7 +182,7 @@ func TestStudentLeafBatchesAddNoWait(t *testing.T) {
 	t.Parallel()
 	const readTimeout, hold, limit = time.Second, 700 * time.Millisecond, 800 * time.Millisecond
 	db := testpkg.SetupIsolatedTestDB(t)
-	pool := shortReadTimeoutPool(t, readTimeout)
+	pool, name := namedImportPool(t, testpkg.IsolatedTestDSN(t), readTimeout)
 	for _, bounded := range []bool{true, false} {
 		t.Run(fmt.Sprintf("bounded=%t", bounded), func(t *testing.T) {
 			testpkg.OwnTenant(t)
@@ -164,7 +195,7 @@ func TestStudentLeafBatchesAddNoWait(t *testing.T) {
 			defer cancel()
 			holder, pid := holdStaffMembership(t, ctx, db, actor.staffID)
 			done := uploadStudents(t, module, pool, actor, namedStudentBatch("Warte", studentChunkRows), "wait.csv")
-			waitBlockedBy(t, db, pid)
+			waitBlockedBy(t, db, name, pid)
 			// The hold time is the subject of the test.
 			time.Sleep(hold)
 			require.NoError(t, holder.Rollback())

@@ -83,6 +83,7 @@ func newStudentImport(
 			// The leaf batch slices stay outside the owners' capabilities
 			// (#5552); without them every chunk takes the row path.
 			PrivacyConsentBatches: privacyConsentBatches(presence),
+			GuardianBatches:       guardianBatches(persons),
 			ConsentHistoryBatches: consentHistoryBatches(consentHistory),
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
@@ -162,6 +163,19 @@ func personBatches(persons peopledirectory.Capability) importPorts.PersonBatches
 		return nil
 	}
 	if bound, ok := composed.Owner.(peopledirectory.PersonBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// guardianBatches binds People Directory's new-guardian batch slice, which
+// stays outside its capability (#5552, step 5c), like personBatches.
+func guardianBatches(persons peopledirectory.Capability) importPorts.NewGuardianBatches {
+	composed, ok := persons.(*peopleCompose.Directory)
+	if !ok {
+		return nil
+	}
+	if bound, ok := composed.Owner.(peopledirectory.NewGuardianBatches); ok {
 		return bound
 	}
 	return nil
