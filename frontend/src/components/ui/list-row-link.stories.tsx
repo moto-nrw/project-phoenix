@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { FramedList } from "./framed-list";
@@ -126,4 +127,22 @@ export const Unread: Story = {
       </li>
     </FramedList>
   ),
+};
+
+/** Tastaturfokus auf der einzelnen Karte. */
+export const FramedFocused: Story = {
+  args: { framed: true },
+  play: async ({ canvasElement }) => {
+    await userEvent.tab();
+    await expect(within(canvasElement).getByRole("link")).toHaveFocus();
+  },
+};
+
+/** Einzelne Karte ohne Ziel: eine Schaltfläche. */
+export const FramedButton: Story = {
+  args: { framed: true, href: undefined, onClick: fn() },
+};
+
+export const FramedDisabled: Story = {
+  args: { framed: true, href: undefined, onClick: fn(), disabled: true },
 };

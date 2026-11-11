@@ -6,12 +6,11 @@ import { Alert } from "~/components/ui/alert";
 import { SectionLabel } from "~/components/ui/section-label";
 import React, { useRef, useCallback, useState, useMemo } from "react";
 import {
-  PortalBottomNav,
-  PortalBottomNavButton,
   PortalBottomNavLink,
   PortalNavSheetLink,
   usePortalBottomNavIndicator,
 } from "~/components/ui/portal-bottom-nav";
+import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
@@ -27,10 +26,7 @@ import {
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
-import {
-  canReadStudents,
-  STUDENT_READ_PERMISSIONS,
-} from "~/lib/student-access";
+import { canReadStudents } from "~/lib/student-access";
 import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
@@ -46,9 +42,7 @@ import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
 import {
-  useAttendanceLogEnabled,
   useChildSearchOnlyNavigation,
-  useDisplayEnabled,
   useOpenCareGroupMode,
   useStaffMessagingEnabled,
   usePresenceMode,
@@ -78,6 +72,17 @@ import {
   STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
+  staffNavHiddenForAdmin,
+  staffNavItemPermitted,
+  useStaffNavSettings,
+  STAFF_NAV_BINARY_HIDDEN_HREFS,
+  STAFF_NAV_ITEMS,
+  STAFF_NAV_ITEMS_BY_HREF,
+  staffNavBorrowedActiveHref,
+  staffNavPathActive,
+  staffNavSettingOn,
+} from "./staff-nav-items";
+import {
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
@@ -85,13 +90,6 @@ import {
   type StaffNavEntry,
   type StaffNavSectionKey,
 } from "~/lib/staff-navigation";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "~/components/ui/drawer";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { LogoutModal } from "~/components/auth/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
@@ -101,39 +99,25 @@ import { accountsConcept } from "~/lib/concepts/accounts";
 import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { activitiesConcept } from "~/lib/concepts/activities";
 import { announcementsConcept } from "~/lib/concepts/announcements";
-import { calendarConcept } from "~/lib/concepts/calendar";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
-import { childrenConcept } from "~/lib/concepts/children";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { databaseConcept } from "~/lib/concepts/database";
-import { dayReportConcept } from "~/lib/concepts/dayReport";
 import { devicesConcept } from "~/lib/concepts/devices";
-import { emergencyConcept } from "~/lib/concepts/emergency";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
-import { filesConcept } from "~/lib/concepts/files";
-import { groupAccessConcept } from "~/lib/concepts/groupAccess";
 import { groupsConcept } from "~/lib/concepts/groups";
-import { helpConcept } from "~/lib/concepts/help";
-import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
-import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
 import { logoutConcept } from "~/lib/concepts/logout";
 import { operatorsConcept } from "~/lib/concepts/operators";
 import { organizationsConcept } from "~/lib/concepts/organizations";
 import { peopleConcept } from "~/lib/concepts/people";
 import { reportsConcept } from "~/lib/concepts/reports";
-import { requestsConcept } from "~/lib/concepts/requests";
 import { rfidConcept } from "~/lib/concepts/rfid";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import { schoolsConcept } from "~/lib/concepts/schools";
-import { settingsConcept } from "~/lib/concepts/settings";
 import {
   StaffSettingsBottomNav,
   useIsStaffSettingsPage,
 } from "./staff-settings-nav";
-import { staffConcept } from "~/lib/concepts/staff";
-import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { supervisionConcept } from "~/lib/concepts/supervision";
-import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 // Icon component for consistent SVG rendering
 const Icon = ({ path, className }: { path: string; className?: string }) => (
@@ -154,7 +138,10 @@ function MobileNavIcon({
   active,
   className,
 }: {
-  readonly item: Pick<NavItem, "concept" | "iconKey">;
+  readonly item: {
+    readonly concept?: MotoConcept;
+    readonly iconKey?: keyof typeof navigationIcons;
+  };
   readonly active: boolean;
   readonly className?: string;
 }) {
@@ -162,7 +149,7 @@ function MobileNavIcon({
   if (!concept) {
     return (
       <Icon
-        path={navigationIcons[item.iconKey] ?? navigationIcons.home}
+        path={navigationIcons[item.iconKey ?? "home"]}
         className={className}
       />
     );
@@ -331,7 +318,8 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
 interface AdditionalNavItem {
   href: string;
   label: string;
-  iconKey: keyof typeof navigationIcons;
+  // Bild ohne Konzept; die Seiten der geteilten Liste haben immer eines.
+  iconKey?: keyof typeof navigationIcons;
   concept?: MotoConcept;
   requiresAdmin?: boolean;
   // Show for admins or anyone holding this tenant permission (matches the
@@ -342,8 +330,6 @@ interface AdditionalNavItem {
   openCarePermission?: string;
   // All listed permissions are required (matching RequiresAllPermissions).
   requiresAllPermissions?: readonly string[];
-  requiresSupervision?: boolean;
-  requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
   hideForAdmin?: boolean; // Hide from admin users (for caregiver-specific features)
   activePaths?: string[];
@@ -416,62 +402,9 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
  * zeigen, wird aus dem Menü entfernt; leere Gruppen fallen weg.
  */
 const PAGE_ITEMS: readonly AdditionalNavItem[] = [
-  {
-    // Startseite aller Rollen (#2180). Unten in der Leiste bleibt für
-    // Betreuungskräfte der laufende Tag (Tagesplan, Gruppe, Aufsicht,
-    // Suchen, Aktivitäten); die Startseite ist über das Mehr-Menü und das
-    // Logo erreichbar.
-    ...STAFF_FLAT_PAGES.dashboard,
-    iconKey: "home",
-    concept: dashboardConcept,
-    alwaysShow: true,
-  },
-  {
-    // Tagesplan (#2383): Laufzeit-Gating (binary, timetable.enabled,
-    // schedules:read) unten in isHrefEnabled, wie beim Reiter.
-    ...STAFF_FLAT_PAGES.tagesplan,
-    iconKey: "betreuungsplan",
-    concept: carePlanConcept,
-    hideForAdmin: true,
-  },
-  {
-    // Wie in der Seitenleiste: das Recht des Schülerverzeichnisses (#4573,
-    // ADR 0091).
-    ...STAFF_FLAT_PAGES.studentSearch,
-    iconKey: "search",
-    concept: childrenConcept,
-    requiresPermission: STUDENT_READ_PERMISSIONS,
-  },
-  {
-    // Wie in der Seitenleiste: das Recht von GET /api/rooms (#4573).
-    ...STAFF_FLAT_PAGES.rooms,
-    iconKey: "rooms",
-    concept: roomsConcept,
-    requiresPermission: "rooms:read",
-  },
-  {
-    // Wie in der Seitenleiste: das Recht von GET /api/activities (#4573).
-    ...STAFF_FLAT_PAGES.activities,
-    iconKey: "activities",
-    concept: activitiesConcept,
-    requiresPermission: ["activities:list", "activities:read"],
-  },
-  {
-    // Gemeinsame Übersicht für alle drei Vertretungsvorgänge; die Seite
-    // öffnet nur mit substitutions:read (#4573).
-    ...STAFF_FLAT_PAGES.substitutions,
-    iconKey: "substitutions",
-    concept: groupAccessConcept,
-    requiresPermission: "substitutions:read",
-  },
-  {
-    // Anfragen-Modul (#2429). Gating unten in isHrefEnabled über
-    // canOpenRequestsPage: requiresPermission kann das
-    // users:absence+users:read-Paar nicht ausdrücken.
-    ...STAFF_FLAT_PAGES.anfragen,
-    iconKey: "tray",
-    concept: requestsConcept,
-  },
+  // Die Seiten mit eigenem Eintrag: dieselbe Liste wie in der Seitenleiste
+  // (staff-nav-items.ts), mit Recht, Schulschalter und Bild.
+  ...STAFF_NAV_ITEMS,
   // Eltern: Nachrichten für alle, der Rest je Recht und Schulschalter
   // (isHrefEnabled), dieselben Regeln wie in der Seitenleiste.
   ...PARENT_SUB_PAGES.map((page) => ({
@@ -480,34 +413,6 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     iconKey: "parents" as const,
     concept: STAFF_NAV_CONCEPTS[page.href],
   })),
-  {
-    // Wie in der Seitenleiste: die Route liest nur mit time_tracking:own.
-    ...STAFF_FLAT_PAGES.timeTracking,
-    iconKey: "clock",
-    concept: timeTrackingConcept,
-    requiresPermission: "time_tracking:own",
-  },
-  {
-    // Eigener Dienstplan (#3821); das Modul-Gate folgt in entriesToItems.
-    ...STAFF_FLAT_PAGES.ownShiftPlan,
-    iconKey: "dienstplan",
-    concept: staffPlanConcept,
-    requiresPermission: "time_tracking:own",
-  },
-  {
-    ...STAFF_FLAT_PAGES.calendar,
-    iconKey: "calendar",
-    concept: calendarConcept,
-    // Match the backend calendar:own gate on GET /api/calendar/my.
-    requiresPermission: "calendar:own",
-  },
-  {
-    // Wie in der Seitenleiste: dasselbe Recht wie GET /api/staff (#4573).
-    ...STAFF_FLAT_PAGES.staff,
-    iconKey: "staff",
-    concept: staffConcept,
-    requiresPermission: ["users:read", "staff:manage", "staff:stammdaten"],
-  },
   // Team-Chat (#2598) ist Opt-in (isHrefEnabled); die Tagesinformationen
   // (#2180) sind wie die Route an users:read gebunden. Auf kleinen
   // Bildschirmen ist das Menü der einzige Zugang zu beiden.
@@ -530,62 +435,6 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresPermission: page.nonAdminPermission,
     openCarePermission: page.openCarePermission,
   })),
-  {
-    // Tagesauswertung (#1456): Opt-in über gdpr.attendance_log_enabled
-    // (isHrefEnabled), Recht wie die Route.
-    ...STAFF_FLAT_PAGES.dayLog,
-    iconKey: "calendar",
-    concept: dayReportConcept,
-    requiresPermission: "users:read",
-  },
-  {
-    ...STAFF_FLAT_PAGES.statistics,
-    iconKey: "chart",
-    concept: reportsConcept,
-    requiresAllPermissions: ["config:read", "users:read"],
-  },
-  {
-    ...STAFF_FLAT_PAGES.holidayWeeks,
-    iconKey: "calendar",
-    concept: holidayWeeksConcept,
-    requiresPermission: "config:read",
-  },
-  {
-    // Dateiablage (#2596): jeder mit Tenant-Zugang; welche Ordner sichtbar
-    // sind, entscheidet das Backend pro Ordner.
-    ...STAFF_FLAT_PAGES.dateien,
-    iconKey: "book",
-    concept: filesConcept,
-    alwaysShow: true,
-  },
-  {
-    // Info-Displays: Opt-in über display.enabled (isHrefEnabled).
-    ...STAFF_FLAT_PAGES.infoDisplays,
-    iconKey: "device",
-    concept: infoDisplaysConcept,
-    requiresPermission: ["display:read", "display:manage"],
-  },
-  {
-    // Wie in der Seitenleiste: der Export verlangt users:read (#4573).
-    ...STAFF_FLAT_PAGES.emergency,
-    iconKey: "emergency",
-    concept: emergencyConcept,
-    requiresPermission: "users:read",
-  },
-  {
-    ...STAFF_FLAT_PAGES.help,
-    iconKey: "book",
-    concept: helpConcept,
-    alwaysShow: true,
-    newTab: true,
-  },
-  {
-    ...STAFF_FLAT_PAGES.settings,
-    iconKey: "settings",
-    concept: settingsConcept,
-    // Wie in der Seitenleiste: das Recht der Einstellungsrouten (#3469).
-    requiresPermission: "config:manage",
-  },
 ];
 
 const PAGE_ITEMS_BY_HREF = new Map(PAGE_ITEMS.map((item) => [item.href, item]));
@@ -664,16 +513,14 @@ const TENANT_SCOPED_HREFS = new Set<string>([
   ...DATABASE_PAGE_HREFS,
 ]);
 
-// Nav-Einträge, die im binären Anwesenheitsmodus verborgen bleiben (#2915).
-// Gleiche fachliche Regel wie die Desktop-Sidebar (dortiges
-// BINARY_HIDDEN_HREFS plus das separat gegatete Aufsicht-Accordion): Räume,
-// Aktivitäten und Aufsicht sind Raum-/Besuchs-Konzepte ohne Bedeutung, wenn
-// eine Schule nur in der Schule / nicht in der Schule erfasst. Die Seiten
-// sperrt der BinaryModeGuard — ein Nav-Eintrag dorthin endet auf einer
+// Nav-Einträge, die im binären Anwesenheitsmodus verborgen bleiben (#2915):
+// die Seiten der geteilten Liste und der Bereich Aufsicht, den die
+// Seitenleiste als Akkordeon eigens ausblendet. Raum- und Besuchsseiten haben
+// keine Bedeutung, wenn eine Schule nur in der Schule / nicht in der Schule
+// erfasst; der BinaryModeGuard sperrt sie, ein Eintrag endete auf einer
 // 404-Seite.
 const BINARY_HIDDEN_HREFS = new Set<string>([
-  "/rooms",
-  "/activities",
+  ...STAFF_NAV_BINARY_HIDDEN_HREFS,
   "/active-supervisions",
 ]);
 
@@ -743,14 +590,8 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const changeRequestAccess = useChangeRequestAccess();
 
   // Get supervision state
-  const {
-    hasGroups,
-    isSupervising,
-    isLoadingGroups,
-    isLoadingSupervision,
-    overviewEnabled,
-    supervisedRooms,
-  } = useOptionalSupervision();
+  const { isLoadingSupervision, overviewEnabled, supervisedRooms } =
+    useOptionalSupervision();
   // Ein offener Raum ohne eigene Aufsicht gehört zu „Räume“, nicht zur
   // Aufsicht (#4372), wie in der Seitenleiste.
   const isViewingSharedOpenRoom =
@@ -777,15 +618,14 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/home") {
         return pathname === "/home" || pathname === "/";
       }
-      if (isViewingSharedOpenRoom) return href === "/rooms";
-      // „Unterwegs“ öffnet sich auch aus „Alle Kinder“ (#5026), wie in der
-      // Seitenleiste.
-      if (
-        pathname === "/rooms/unterwegs" &&
-        searchParams.get("from")?.startsWith("/students/search")
-      ) {
-        return href === "/students/search";
-      }
+      // Offener Raum → Räume, „Unterwegs“ aus „Alle Kinder“ → Alle Kinder:
+      // dieselbe Regel wie in der Seitenleiste.
+      const borrowedActiveHref = staffNavBorrowedActiveHref(
+        pathname,
+        searchParams.get("from"),
+        isViewingSharedOpenRoom,
+      );
+      if (borrowedActiveHref !== null) return href === borrowedActiveHref;
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page
       // reached with ?from=/messages must still highlight the Eltern entry —
@@ -803,12 +643,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (activePaths?.some((p) => pathname.startsWith(p))) {
         return true;
       }
-      // /calendar-periods gehört zum Betreuungsplan (activePaths), nicht zum
-      // Kalender — ohne Exakt-Match leuchtet /calendar per Präfix mit.
-      if (href === "/calendar") {
-        return pathname === "/calendar" || pathname.startsWith("/calendar/");
-      }
-      return pathname.startsWith(href);
+      return staffNavPathActive(href, pathname);
     },
     [pathname, searchParams, isViewingSharedOpenRoom],
   );
@@ -889,8 +724,6 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const moduleNav = useModuleNavigation();
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
-  const hasGroupSupervision = !isLoadingGroups && hasGroups;
-  const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
   // Gruppenübergaben (#1940) sind nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
@@ -901,8 +734,8 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Betreuungsplan-Flag für den Tagesplan-Eintrag (#2383): vom Tenant-Resolve,
   // damit es auch ohne config:read aufgelöst ist.
   const tagesplanEnabled = useTimetableEnabled();
-  const displayEnabled = useDisplayEnabled();
-  const attendanceLogEnabled = useAttendanceLogEnabled();
+  // Schulschalter der Seiten aus der geteilten Liste.
+  const navSettings = useStaffNavSettings();
   // Schulschalter wie in der Desktop-Sidebar (#4996): timetable.enabled vom
   // Tenant-Resolve, die Elternmitteilungen aus dem Navigationskontext. Die
   // Navigation lädt dafür nicht das ganze Settings-Schema.
@@ -985,6 +818,12 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // `locked`: das Modul der Seite ist nicht gebucht, die Person sieht den
   // Eintrag mit Schloss. Die Schuleinstellung des Moduls (Speiseplan,
   // Mitteilungen) zählt dann nicht, nur das Recht (#4894).
+  const navViewer = {
+    session,
+    isAdmin: userIsAdmin,
+    isCaregiver: userIsCaregiver,
+    openCareGroupMode,
+  };
   const isHrefEnabled = (href: string, locked = false): boolean => {
     if (href === DATABASE_SECTION.href && databaseLandingHref === undefined) {
       return false;
@@ -1011,12 +850,16 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (href === "/active-supervisions") {
       return (userCanOpenSupervision || overviewEnabled) && !isBinaryMode;
     }
-    if (
-      href === "/tagesplan" &&
-      (isBinaryMode ||
-        !tagesplanEnabled ||
-        !hasPermission(session, "schedules:read"))
-    ) {
+    // Tagesplan: das Recht der Route auch für die Rolle Admin (die
+    // Seitenleiste lässt es dort aus, #6708). Binärmodus und Schulschalter
+    // prüft die geteilte Liste unten.
+    if (href === "/tagesplan" && !hasPermission(session, "schedules:read")) {
+      return false;
+    }
+    // Schulschalter der Seite (Info-Displays, Tagesauswertung, Tagesplan),
+    // aus der geteilten Liste.
+    const sharedItem = STAFF_NAV_ITEMS_BY_HREF.get(href);
+    if (sharedItem && !staffNavSettingOn(sharedItem, navSettings)) {
       return false;
     }
     // Binärer Anwesenheitsmodus (#2915): auch im Mehr-Menü kein Link auf eine
@@ -1039,8 +882,6 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Schalter taucht der Eintrag gar nicht erst auf, genau wie in der
     // Seitenleiste.
     if (href === "/team-chat" && !staffMessagingEnabled) return false;
-    if (href === "/info-displays" && !displayEnabled) return false;
-    if (href === "/day-log" && !attendanceLogEnabled) return false;
     // Eltern-Seiten: dieselben Regeln wie die Sidebar-Gruppe.
     if (href === "/messages") {
       return locked || userIsAdmin || hasPermission(session, "users:read");
@@ -1068,55 +909,17 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   const isAdditionalItemVisible = (item: AdditionalNavItem): boolean => {
     if (!isHrefEnabled(item.href, item.locked)) return false;
-    // Hide items marked as hideForAdmin for admin users
-    if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
-      return false;
-    }
     // Die Leitung muss ein nicht gebuchtes Modul unabhängig vom Recht seiner
     // Zielseite finden können: der Eintrag erklärt zuerst die Buchung. Für
-    // offene Seiten bleiben die Routenrechte unten unverändert maßgeblich.
-    if (item.locked) return true;
-    if (item.alwaysShow) return true;
-    if (item.requiresAdmin) return userIsAdmin;
-    if (
-      openCareGroupMode &&
-      item.openCarePermission &&
-      hasPermission(session, item.openCarePermission)
-    ) {
-      return true;
-    }
-    if (item.requiresAllPermissions) {
-      return (
-        userIsAdmin ||
-        item.requiresAllPermissions.every((permission) =>
-          hasPermission(session, permission),
-        )
-      );
-    }
-    if (item.requiresPermission) {
-      const required =
-        typeof item.requiresPermission === "string"
-          ? [item.requiresPermission]
-          : item.requiresPermission;
-      return (
-        userIsAdmin ||
-        required.some((permission) => hasPermission(session, permission))
-      );
-    }
-    if (item.requiresSupervision && !userIsAdmin) {
-      return hasGroupSupervision || hasRoomSupervision;
-    }
-    if (item.requiresActiveSupervision && !userIsAdmin) {
-      return hasRoomSupervision;
-    }
-    return true;
+    // offene Seiten bleiben die Routenrechte maßgeblich.
+    if (item.locked) return !staffNavHiddenForAdmin(item, navViewer);
+    return staffNavItemPermitted(item, navViewer);
   };
 
   // Static navigation - 4 main items + overflow drawer. Operator mode uses a
   // dedicated item list (the 4 sibling Verwaltung pages + Einstellungen) since
   // the bottom nav has only one Verwaltung slot.
   const displayMainItems: NavItem[] = filteredMainItemsByMode;
-  const showOverflowMenu = true;
   // Avoid duplicates between main and additional
   const mainHrefs = new Set(
     displayMainItems.filter((i) => i.href !== "#").map((i) => i.href),
@@ -1197,22 +1000,50 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
       .join()}`,
   );
 
-  const moreLabel = "Mehr";
-
   return (
     <>
       {/* Spacer to prevent content from being hidden behind fixed nav */}
       <div className="h-16 lg:hidden" />
 
-      {/* shadcn/UI Drawer - Full-width on mobile */}
-      <Drawer open={isOverflowMenuOpen} onOpenChange={setIsOverflowMenuOpen}>
-        <DrawerContent className="bg-white">
+      <LogoutModal
+        isOpen={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+      />
+      {mode === "teacher" && canStartStaffPreview ? (
+        <StaffPreviewModal
+          isOpen={staffPreviewModalOpen}
+          onClose={() => setStaffPreviewModalOpen(false)}
+        />
+      ) : null}
+
+      <PortalMoreBottomNav
+        listClassName="gap-1"
+        barClassName="px-2"
+        fade={false}
+        indicator={indicator}
+        className={className}
+        open={isOverflowMenuOpen}
+        onOpenChange={setIsOverflowMenuOpen}
+        moreItemActive={isAnyAdditionalNavActive}
+        more={{
+          ref: moreButtonRef,
+          label: "Mehr",
+          icon: (
+            <Icon
+              path={navigationIcons.more}
+              className="h-5 w-5 flex-shrink-0"
+            />
+          ),
+          "data-setup-tour": "nav-more",
+          paddingClassName: ITEM_PADDING,
+          labelClassName: ITEM_LABEL,
+          quiet: true,
+          shrinkActive: true,
+        }}
+        sheetTitle="Navigation"
+        sheetDescription="Wähle eine Seite"
+        sheet={
           <div className="min-h-0 w-full flex-1 overflow-y-auto">
-            {/* Hidden header for accessibility only */}
-            <DrawerHeader className="sr-only">
-              <DrawerTitle>Navigation</DrawerTitle>
-              <DrawerDescription>Wähle eine Seite</DrawerDescription>
-            </DrawerHeader>
             <div className="px-4 pt-6 pb-4">
               <div className="space-y-5">
                 {/* Rückweg ins Träger-Portal (#5687): ganz oben, unter 1024 px
@@ -1391,26 +1222,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
             </div>
             <div className="pb-8" />
           </div>
-        </DrawerContent>
-      </Drawer>
-
-      <LogoutModal
-        isOpen={logoutModalOpen}
-        onClose={() => setLogoutModalOpen(false)}
-      />
-      {mode === "teacher" && canStartStaffPreview ? (
-        <StaffPreviewModal
-          isOpen={staffPreviewModalOpen}
-          onClose={() => setStaffPreviewModalOpen(false)}
-        />
-      ) : null}
-
-      <PortalBottomNav
-        listClassName="gap-1"
-        barClassName="px-2"
-        fade={false}
-        indicator={indicator}
-        className={className}
+        }
       >
         {displayMainItems.map((item, index) => {
           const isActive = isActiveRoute(item.href, item.activePaths);
@@ -1439,27 +1251,7 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
             />
           );
         })}
-
-        {showOverflowMenu && (
-          <PortalBottomNavButton
-            ref={moreButtonRef}
-            label={moreLabel}
-            icon={
-              <Icon
-                path={navigationIcons.more}
-                className="h-5 w-5 flex-shrink-0"
-              />
-            }
-            active={isOverflowMenuOpen || isAnyAdditionalNavActive}
-            onClick={() => setIsOverflowMenuOpen(true)}
-            data-setup-tour="nav-more"
-            paddingClassName={ITEM_PADDING}
-            labelClassName={ITEM_LABEL}
-            quiet
-            shrinkActive
-          />
-        )}
-      </PortalBottomNav>
+      </PortalMoreBottomNav>
     </>
   );
 }

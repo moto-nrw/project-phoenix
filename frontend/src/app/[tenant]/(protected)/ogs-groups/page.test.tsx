@@ -96,7 +96,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 // Mock OverflowMenu — das Kebab-Menü sitzt seit der Kopfkarte in PageIntro
-// statt in PageHeaderSearchLayout. Der echte OverflowMenu gibt seine Einträge
+// statt in TenantPageSearchRow. Der echte OverflowMenu gibt seine Einträge
 // erst nach einem Klick frei; hier werden sie flach gerendert, damit die
 // bestehenden "Gruppe übergeben"-Assertions weiter greifen.
 vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
@@ -128,12 +128,12 @@ vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
   ),
 }));
 
-// Mock PageHeaderSearchLayout — renders filters, activeFilters, and the
+// Mock TenantPageSearchRow — renders filters, activeFilters, and the
 // overflow-menu items so the existing "Gruppe übergeben" assertions keep
 // working. The real OverflowMenu requires a click to expose its items, but
 // for tests we render them flat so getByLabelText still finds them.
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     title,
     filters,
     activeFilters,

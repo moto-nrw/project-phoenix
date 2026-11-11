@@ -193,8 +193,8 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     actionButton,
     mobileActionButton,
   }: {

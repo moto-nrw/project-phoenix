@@ -2,12 +2,12 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { expect, screen, userEvent, within } from "storybook/test";
 
 import { backConcept } from "~/lib/concepts/back";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { documentsConcept } from "~/lib/concepts/documents";
 import { helpConcept } from "~/lib/concepts/help";
-import { languageConcept } from "~/lib/concepts/language";
+import { homeConcept } from "~/lib/concepts/home";
+import { messagesConcept } from "~/lib/concepts/messages";
 import { moreConcept } from "~/lib/concepts/more";
-import { notificationsConcept } from "~/lib/concepts/notifications";
-import { passkeysConcept } from "~/lib/concepts/passkeys";
-import { privacyConcept } from "~/lib/concepts/privacy";
 import { settingsConcept } from "~/lib/concepts/settings";
 import {
   PortalOverflowBottomNav,
@@ -17,53 +17,49 @@ import {
 const ITEMS: readonly PortalOverflowNavItem[] = [
   {
     key: "back",
-    href: "/",
-    label: "Zurück",
+    href: "#back",
+    label: "Zurück zur App",
     concept: backConcept,
     active: false,
   },
   {
-    key: "general",
-    href: "/settings",
-    label: "Allgemein",
-    concept: settingsConcept,
+    key: "home",
+    href: "#home",
+    label: "Start",
+    concept: homeConcept,
     active: true,
   },
   {
-    key: "notifications",
-    href: "/settings/notifications",
-    label: "Benachrichtigungen",
-    concept: notificationsConcept,
+    key: "messages",
+    href: "#messages",
+    label: "Nachrichten",
+    concept: messagesConcept,
     active: false,
   },
   {
-    key: "language",
-    href: "/settings/language",
-    label: "Sprache",
-    concept: languageConcept,
-    active: false,
-  },
-];
-
-const CROWDED: readonly PortalOverflowNavItem[] = [
-  ...ITEMS,
-  {
-    key: "privacy",
-    href: "/settings/privacy",
-    label: "Datenschutz",
-    concept: privacyConcept,
+    key: "calendar",
+    href: "#calendar",
+    label: "Kalender",
+    concept: calendarConcept,
     active: false,
   },
   {
-    key: "passkeys",
-    href: "/settings/passkeys",
-    label: "Passkeys",
-    concept: passkeysConcept,
+    key: "documents",
+    href: "#documents",
+    label: "Dokumente",
+    concept: documentsConcept,
+    active: false,
+  },
+  {
+    key: "settings",
+    href: "#settings",
+    label: "Einstellungen",
+    concept: settingsConcept,
     active: false,
   },
   {
     key: "help",
-    href: "/help",
+    href: "#help",
     label: "Hilfe",
     concept: helpConcept,
     active: false,
@@ -75,38 +71,48 @@ const CROWDED: readonly PortalOverflowNavItem[] = [
 const meta = {
   title: "components/ui/PortalOverflowBottomNav",
   component: PortalOverflowBottomNav,
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+  },
+  decorators: [
+    (Story) => (
+      <div className="min-h-[640px] bg-gray-50">
+        <Story />
+      </div>
+    ),
+  ],
   args: {
     items: ITEMS,
     navItemAttribute: "data-story-nav-item",
     moreConcept,
   },
-  decorators: [
-    (StoryFn) => (
-      <div className="min-h-[200px] bg-gray-50">
-        <StoryFn />
-      </div>
-    ),
-  ],
 } satisfies Meta<typeof PortalOverflowBottomNav>;
 
 export default meta;
+
 type Story = StoryObj<typeof meta>;
 
-/** Bis fünf Ziele stehen alle in der Leiste. */
-export const FitsBar: Story = {};
-
-/** Ab sechs Zielen stehen die ersten vier in der Leiste, der Rest hinter „Mehr“. */
-export const Crowded: Story = {
-  args: { items: CROWDED },
+/** Bis fünf Ziele: alle in der Leiste, kein „Mehr“. */
+export const Few: Story = {
+  args: { items: ITEMS.slice(0, 4) },
 };
 
+/** Ab sechs Zielen: vier in der Leiste, der Rest hinter „Mehr“. */
+export const Crowded: Story = {};
+
+/** Das aktive Ziel steht hinter „Mehr“: „Mehr“ leuchtet. */
+export const ActiveBehindMore: Story = {
+  args: {
+    items: ITEMS.map((item) => ({ ...item, active: item.key === "settings" })),
+  },
+};
+
+/** Das geöffnete „Mehr“-Blatt. */
 export const MoreOpened: Story = {
-  args: { items: CROWDED },
   play: async ({ canvasElement }) => {
+    // Ab 1024 px blendet CSS die Leiste aus; dort gibt es nichts zu öffnen.
     const more = within(canvasElement).queryByRole("button", { name: "Mehr" });
-    // Ab 1024 px blendet CSS die Leiste aus; dort bleibt das Bild leer.
-    if (more === null) return;
+    if (!more) return;
     await userEvent.click(more);
     await expect(await screen.findByRole("dialog")).toBeVisible();
   },

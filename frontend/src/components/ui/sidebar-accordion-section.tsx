@@ -1,26 +1,22 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
-import {
-  NotificationBadge,
-  type NotificationBadgeTone,
-} from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import { NavSceneFallback } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
   SIDEBAR_ICON_CLASSES,
-  sidebarLabelClasses,
   sidebarRowClasses,
 } from "~/components/ui/sidebar-geometry";
+import {
+  SidebarRowContent,
+  type SidebarRowBadge,
+} from "~/components/ui/sidebar-row";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 interface SidebarAccordionSectionProps {
-  readonly icon?: string;
-  readonly concept?: MotoConcept;
+  readonly concept: MotoConcept;
   readonly label: string;
-  readonly activeColor?: string;
   readonly isExpanded: boolean;
   readonly onToggle: () => void;
   readonly isActive: boolean;
@@ -29,12 +25,11 @@ interface SidebarAccordionSectionProps {
   readonly emptyText?: string;
   readonly children?: ReactNode;
   readonly hasChildren: boolean;
-  // Aggregate section badge for unread messages and pending requests. The
-  // count stays visible while the section is collapsed.
-  readonly badgeCount?: number;
-  readonly badgeTone?: NotificationBadgeTone;
-  // Was gezählt wird, für Vorleseprogramme (Standard: Nachrichten).
-  readonly badgeNoun?: string;
+  /**
+   * Sammelzähler des Bereichs (ungelesene Anmeldungen). Sichtbar, solange der
+   * Bereich zu ist; offen tragen die Unterpunkte ihre Zähler selbst.
+   */
+  readonly badge?: SidebarRowBadge | null;
   // Eingeklappte Leiste (#2825/#2923): dieselbe Zeile, nur ohne Text. Der
   // Bereichsinhalt passt nicht in den Streifen, deshalb bleibt er dort
   // geschlossen; der Klick klappt die Leiste auf (die Elternkomponente
@@ -49,10 +44,8 @@ interface SidebarAccordionSectionProps {
 }
 
 export function SidebarAccordionSection({
-  icon,
   concept,
   label,
-  activeColor,
   isExpanded,
   onToggle,
   isActive,
@@ -61,18 +54,13 @@ export function SidebarAccordionSection({
   emptyText = "Keine Einträge",
   children,
   hasChildren,
-  badgeCount = 0,
-  badgeTone = "blue",
-  badgeNoun = "ungelesene Nachrichten",
+  badge,
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
   tourId,
 }: SidebarAccordionSectionProps) {
   const bodyId = useId();
-  const iconColorClass =
-    (isIconActive ?? isActive) && activeColor ? activeColor : "";
-  const conceptDefinition = concept ?? null;
   const showActiveIcon = isIconActive ?? isActive;
   // Im Streifen ist der Bereichsinhalt nie offen.
   const bodyExpanded = isExpanded && !collapsed;
@@ -82,112 +70,49 @@ export function SidebarAccordionSection({
   // dort ganz ohne Markierung da, obwohl man in ihm ist — etwa auf
   // /database/rooms oder /ogs-groups?group=… (#2923).
   const rowActive = collapsed ? showActiveIcon : isActive;
-  const collapsedLabel =
-    badgeCount > 0 ? `${label}, ${badgeCount} ${badgeNoun}` : label;
+  // Sammelzähler auf der geschlossenen Kopfzeile; sobald der Bereich offen
+  // ist, übernehmen die Zähler der Unterpunkte.
+  const shownBadge =
+    badge != null && badge.count > 0 && !bodyExpanded ? badge : null;
+  const collapsedLabel = shownBadge
+    ? `${label}, ${shownBadge.ariaLabel}`
+    : label;
 
   return (
     <div>
       {/* Kopfzeile des Bereichs — ein Kasten mit Icon, Bezeichnung, Chevron.
           Kit-Button (variant="ghost", size="md") mit dem Zeilenraster der
-          Seitenleiste: Grundverhalten, Hover und Fokusring kommen aus dem Kit,
-          Höhe, Abstände und Aktiv-Zustand aus sidebar-geometry — derselben
-          Quelle wie bei den Navigationslinks daneben. */}
+          Seitenleiste: Grundverhalten, Tastatur, Hover und Fokusring kommen
+          aus dem Kit, Höhe, Abstände und Aktiv-Zustand aus sidebar-geometry —
+          derselben Quelle wie bei den Navigationslinks daneben. */}
       <Button
         type="button"
         variant="ghost"
         size="md"
         onClick={onToggle}
         data-setup-tour={tourId}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onToggle();
-          }
-        }}
         className={`${sidebarRowClasses({ isActive: rowActive })} cursor-pointer`}
         data-active={rowActive ? "true" : "false"}
         aria-controls={bodyId}
         aria-expanded={bodyExpanded}
         {...(collapsed ? { title: label, "aria-label": collapsedLabel } : {})}
       >
-        {conceptDefinition ? (
-          <MotoNavIcon
-            scene
-            concept={conceptDefinition}
-            active={showActiveIcon}
-            className={SIDEBAR_ICON_CLASSES}
-          />
-        ) : (
-          <NavSceneFallback>
-            <svg
-              className={`${SIDEBAR_ICON_CLASSES} ${iconColorClass}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d={icon}
-              />
-            </svg>
-          </NavSceneFallback>
-        )}
-        {labelsMounted && (
-          <>
-            <span className={sidebarLabelClasses(labelsVisible)}>{label}</span>
-            {/* Sammelzähler auf der geschlossenen Kopfzeile; sobald der
-                Bereich offen ist, übernehmen die Zähler der Unterpunkte.
-                Für die Dauer der Blende steht er neben dem Zähler im
-                Streifen; der ausblendende ist `aria-hidden`, sonst läse ein
-                Vorleseprogramm die Zahl zweimal (#2923). */}
-            {!bodyExpanded && badgeCount > 0 && (
-              <span
-                aria-hidden={!labelsVisible}
-                className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-              >
-                <NotificationBadge
-                  count={badgeCount}
-                  tone={badgeTone}
-                  ariaLabel={`${badgeCount} ${badgeNoun}`}
-                />
-              </span>
-            )}
-            <svg
-              className={`ml-2 h-4 w-4 shrink-0 text-gray-400 motion-safe:transition-[transform,opacity] motion-safe:duration-200 ${bodyExpanded ? "rotate-180" : ""} ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </>
-        )}
-        {/* Im Streifen wandert der Zähler als Punkt auf die Ecke des Icons,
-            in Größe und Lage wie an der Zeile (#6566) —
-            eingeblendet, während die Bezeichnung ausblendet, damit sich
-            nichts überlagert. */}
-        {collapsed && badgeCount > 0 && (
-          <span
-            aria-hidden={labelsVisible}
-            className={`absolute top-1 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
-          >
-            <NotificationBadge
-              count={badgeCount}
-              tone={badgeTone}
-              size="sm"
-              ariaLabel={`${badgeCount} ${badgeNoun}`}
+        <SidebarRowContent
+          icon={
+            <MotoNavIcon
+              scene
+              concept={concept}
+              active={showActiveIcon}
+              className={SIDEBAR_ICON_CLASSES}
             />
-          </span>
-        )}
+          }
+          label={label}
+          badge={shownBadge}
+          chevronOpen={bodyExpanded}
+          collapsed={collapsed}
+          labelsMounted={labelsMounted}
+          labelsVisible={labelsVisible}
+        />
       </Button>
 
       {/* Bereichsinhalt — Höhenwechsel über CSS-Grid */}

@@ -4,7 +4,7 @@ import { LayoutGrid, List } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import type { CollectionView } from "~/lib/hooks/use-collection-view";
 
 const VIEW_ITEMS = [

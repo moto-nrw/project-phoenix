@@ -11,13 +11,13 @@ import {
   PortalOverflowBottomNav,
   type PortalOverflowNavItem,
 } from "~/components/ui/portal-overflow-bottom-nav";
+import { moreConcept } from "~/lib/concepts/more";
 import {
   SettingsReturnPathMemory,
   useSettingsReturnHref,
 } from "~/components/ui/settings-return-path";
 import { Skeleton } from "~/components/ui/skeleton";
 import { backConcept } from "~/lib/concepts/back";
-import { moreConcept } from "~/lib/concepts/more";
 import { STAFF_FLAT_PAGES } from "~/lib/section-navigation";
 import {
   useTenantRoutingModeSafe,
@@ -182,8 +182,8 @@ export function StaffSettingsBottomNav() {
   return (
     <PortalOverflowBottomNav
       items={[back, ...items]}
-      navItemAttribute="data-staff-settings-nav-item"
       moreConcept={moreConcept}
+      navItemAttribute="data-staff-settings-nav-item"
     />
   );
 }

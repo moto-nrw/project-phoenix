@@ -73,3 +73,36 @@ export const RailWithCount: Story = {
     labelsVisible: false,
   },
 };
+
+export const ClosedContainsActive: Story = {
+  args: { containsActive: true },
+};
+
+export const RailClosed: Story = {
+  decorators: [
+    (Story) => (
+      <div className="w-11">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    collapsed: true,
+    labelsMounted: false,
+    labelsVisible: false,
+  },
+};
+
+/** Mitten in der Blende zum Streifen: Zähler rechts und Punkt stehen beide im Baum. */
+export const FadingWithCount: Story = {
+  args: {
+    badge: {
+      count: 5,
+      tone: "blue",
+      ariaLabel: "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
+    },
+    collapsed: true,
+    labelsMounted: true,
+    labelsVisible: false,
+  },
+};

@@ -3,23 +3,15 @@
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-} from "~/components/ui/drawer";
 import { LogoutModal } from "~/components/auth/logout-modal";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
-  PortalBottomNav,
-  PortalBottomNavButton,
   PortalBottomNavLink,
   PortalNavSheetButton,
   PortalNavSheetLink,
   usePortalBottomNavIndicator,
 } from "~/components/ui/portal-bottom-nav";
+import { PortalMoreBottomNav } from "~/components/ui/portal-more-bottom-nav";
 import { COUNTER_TONE } from "~/lib/counter-tones";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
@@ -104,14 +96,11 @@ function ParentMainBottomNav({ badges, gates, childCount }: ParentNavCounts) {
     (item) => item.kind === "action" || !item.gate || gates[item.gate],
   );
 
-  // "Mehr" leuchtet auch, wenn eine seiner Unterseiten offen ist. Ohne das
-  // steht ein Elternteil bei den Elternbriefen oder dem Essensplan vor einer
-  // Navigation, in der nichts markiert ist, und weiss nicht mehr, wo es ist.
-  const moreActive =
-    moreOpen ||
-    moreItems.some(
-      (item) => item.kind === "link" && isParentNavActive(item.href, pathname),
-    );
+  // Eine Unterseite von „Mehr“ ist offen (Elternbriefe, Essensplan): dann
+  // leuchtet „Mehr“, sonst wüsste ein Elternteil nicht mehr, wo es ist.
+  const moreItemActive = moreItems.some(
+    (item) => item.kind === "link" && isParentNavActive(item.href, pathname),
+  );
 
   // Die Fläche liegt unter dem aktiven Feld, ohne aktives Feld unter „Mehr".
   const indicator = usePortalBottomNavIndicator(() => {
@@ -121,15 +110,96 @@ function ParentMainBottomNav({ badges, gates, childCount }: ParentNavCounts) {
     return activeIndex === -1
       ? moreButtonRef.current
       : (navRefs.current[activeIndex] ?? null);
-  }, `${pathname}|${isCompact}|${moreActive}`);
+  }, `${pathname}|${isCompact}|${moreOpen}|${moreItemActive}`);
 
   return (
     <>
-      <PortalBottomNav
+      <PortalMoreBottomNav
         label={t("mainNav")}
         listClassName="gap-1"
         fade={false}
         indicator={indicator}
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        moreItemActive={moreItemActive}
+        more={{
+          ref: moreButtonRef,
+          label: t(PARENT_MORE_ENTRY.tKey),
+          concept: PARENT_MORE_ENTRY.concept,
+          "data-parent-nav-item": PARENT_MORE_ENTRY.key,
+          paddingClassName: ITEM_PADDING,
+          labelClassName: ITEM_LABEL,
+          quiet: true,
+          badge: (
+            <NavBadge
+              count={moreCount}
+              ariaLabel={t("noticeCount", { count: moreCount })}
+            />
+          ),
+        }}
+        sheetTitle={t("more")}
+        sheetDescription={t("more")}
+        sheetMounted={!logoutModalOpen}
+        sheet={
+          <ul className="space-y-2 px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+            {moreItems.map((item) => {
+              if (item.kind === "action") {
+                return (
+                  <li key={item.key}>
+                    <PortalNavSheetButton
+                      label={t(item.tKey)}
+                      concept={item.concept}
+                      data-parent-nav-item={item.key}
+                      onClick={() => {
+                        setMoreOpen(false);
+                        setLogoutModalOpen(true);
+                      }}
+                    />
+                  </li>
+                );
+              }
+
+              const active =
+                !item.external && isParentNavActive(item.href, pathname);
+              const count = item.badge ? (badges[item.badge] ?? 0) : 0;
+              return (
+                <li
+                  key={item.key}
+                  data-parent-nav-group={
+                    item.key === PINNED_GROUP_START ? "account" : undefined
+                  }
+                  className={
+                    item.key === PINNED_GROUP_START
+                      ? "mt-5 border-t border-gray-200 pt-5"
+                      : undefined
+                  }
+                >
+                  <PortalNavSheetLink
+                    href={item.external ? item.href : parentPath(item.href)}
+                    label={t(item.tKey)}
+                    concept={item.concept}
+                    active={active}
+                    newTab={item.external}
+                    data-parent-nav-item={item.key}
+                    onClick={() => setMoreOpen(false)}
+                    badge={
+                      count > 0 ? (
+                        <NotificationBadge
+                          count={count}
+                          tone={COUNTER_TONE.parents}
+                          ariaLabel={t(
+                            item.badge === "news" ? "openCount" : "unreadCount",
+                            { count },
+                          )}
+                        />
+                      ) : null
+                    }
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        }
       >
         {PARENT_PRIMARY_NAV.map((item, index) => {
           const count = item.badge ? (badges[item.badge] ?? 0) : 0;
@@ -165,98 +235,7 @@ function ParentMainBottomNav({ badges, gates, childCount }: ParentNavCounts) {
             />
           );
         })}
-
-        <PortalBottomNavButton
-          ref={moreButtonRef}
-          label={t(PARENT_MORE_ENTRY.tKey)}
-          concept={PARENT_MORE_ENTRY.concept}
-          active={moreActive}
-          onClick={() => setMoreOpen(true)}
-          data-parent-nav-item={PARENT_MORE_ENTRY.key}
-          aria-haspopup="dialog"
-          aria-expanded={moreOpen}
-          paddingClassName={ITEM_PADDING}
-          labelClassName={ITEM_LABEL}
-          quiet
-          badge={
-            <NavBadge
-              count={moreCount}
-              ariaLabel={t("noticeCount", { count: moreCount })}
-            />
-          }
-        />
-      </PortalBottomNav>
-
-      {!logoutModalOpen && (
-        <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
-          <DrawerContent className="bg-white">
-            <DrawerHeader className="sr-only">
-              <DrawerTitle>{t("more")}</DrawerTitle>
-              <DrawerDescription>{t("more")}</DrawerDescription>
-            </DrawerHeader>
-            <ul className="space-y-2 px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
-              {moreItems.map((item) => {
-                if (item.kind === "action") {
-                  return (
-                    <li key={item.key}>
-                      <PortalNavSheetButton
-                        label={t(item.tKey)}
-                        concept={item.concept}
-                        data-parent-nav-item={item.key}
-                        onClick={() => {
-                          setMoreOpen(false);
-                          setLogoutModalOpen(true);
-                        }}
-                      />
-                    </li>
-                  );
-                }
-
-                const active =
-                  !item.external && isParentNavActive(item.href, pathname);
-                const count = item.badge ? (badges[item.badge] ?? 0) : 0;
-                return (
-                  <li
-                    key={item.key}
-                    data-parent-nav-group={
-                      item.key === PINNED_GROUP_START ? "account" : undefined
-                    }
-                    className={
-                      item.key === PINNED_GROUP_START
-                        ? "mt-5 border-t border-gray-200 pt-5"
-                        : undefined
-                    }
-                  >
-                    <PortalNavSheetLink
-                      href={item.external ? item.href : parentPath(item.href)}
-                      label={t(item.tKey)}
-                      concept={item.concept}
-                      active={active}
-                      newTab={item.external}
-                      data-parent-nav-item={item.key}
-                      onClick={() => setMoreOpen(false)}
-                      badge={
-                        count > 0 ? (
-                          <NotificationBadge
-                            count={count}
-                            tone={COUNTER_TONE.parents}
-                            ariaLabel={t(
-                              item.badge === "news"
-                                ? "openCount"
-                                : "unreadCount",
-                              { count },
-                            )}
-                          />
-                        ) : null
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          </DrawerContent>
-        </Drawer>
-      )}
+      </PortalMoreBottomNav>
       <LogoutModal
         isOpen={logoutModalOpen}
         onClose={() => {

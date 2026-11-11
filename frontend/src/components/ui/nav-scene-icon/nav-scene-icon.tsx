@@ -153,10 +153,11 @@ export function NavSceneIcon({
 }
 
 /**
- * Die Standardbewegung für Icons ohne Szene: das ganze Icon hüpft einmal.
- * Für die alten Pfad-Icons der Operator-Navigation, die kein Konzept tragen.
+ * Die Standardbewegung für Glyphen ohne eigene Szene: das ganze Icon hüpft
+ * einmal. Seit #6580 trägt jede Zeile ein Konzept; Pfad-Icons gibt es in den
+ * Seitenleisten nicht mehr.
  */
-export function NavSceneFallback({
+function NavSceneFallback({
   className,
   children,
 }: Readonly<{ className?: string; children: ReactNode }>) {

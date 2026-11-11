@@ -16,7 +16,7 @@ This kit is the MOTO design system.
 | Concern | Location |
 |---|---|
 | UI components | `frontend/src/components/ui/` |
-| Header / list-page kit | `frontend/src/components/ui/page-header/` |
+| Search row parts, kebab menu | `frontend/src/components/ui/page-header/` |
 | Brand colors | meaning: `lib/location-helper.ts` `LOCATION_COLORS` (sole source); hex: `lib/kit-palette.ts` |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
@@ -46,7 +46,7 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. `ui-kit/no-tabs-as-value-switcher` fails a value switcher built from `ui/Tabs`.
 
-**One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons, `nativeAnchor` for a document link), `StatCard` for every figure, `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-hand-rolled-page-card` fails a page that spells the surface out again.
+**One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`nativeAnchor` for a document link, `newTab` for a new tab; frame, padding, hover and focus ring come from `card-surface.ts`), `StatCard` for every figure, `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-hand-rolled-page-card` fails a page that spells the surface out again.
 
 **One create button per surface, also when it is empty.** The create action stays in the head (`TenantPage` `actions`, `SectionCard` `action`), where it also sits when the list is filled. The empty state shows title and description without a second create button and may point to the head in text; on the database pages that includes the mobile FAB. `empty.action` / `EmptyState` `action` is only for a different step, such as „Filter zurücksetzen" while a search or filter is active (#5034). Outside production `TenantPage` logs `tenant_page_empty_action_repeats_head_action` when an empty-state control carries the name of a head control.
 
@@ -62,7 +62,7 @@ The full conversion spec, including what to do when a page's head lives in a vie
 
 | Pattern | File | Why it's canonical |
 | --- | --- | --- |
-| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational |
+| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `TenantPage` `search`/`filters` + filter chips + `DataTable`; compact and operational |
 | Detail page | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx` | `ui/Tabs` + `detail-modal-components` field layout |
 | Dense dashboard | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative |
 | Page scaffold | `frontend/src/components/ui/tenant-page.tsx` | the root every tenant page renders |
@@ -149,7 +149,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Legend, also with counts | `PlanLegend` — entries with `value`, `variant="dot"`, `size="md"` | `~/components/ui/planning/plan-legend` |
 | Empty / no-results state, result of a step | `EmptyState` — `variant` `compact`/`dashed`, `tone` (result medallion), `progress`, `action` | `~/components/ui/empty-state` |
 | Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (über `PagePathProvider`) oder `BackLink` (fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
-| Portal sidebar, bottom bar | `PortalSidebar(Frame)`; `PortalBottomNav`; rows `ui/sidebar-*`. Lint `no-hand-rolled-portal-nav` | `~/components/ui/portal-sidebar`, `~/components/ui/portal-bottom-nav` |
+| Portal sidebar, bottom bar | `PortalSidebar(Frame)`; `PortalBottomNav`, `PortalMoreBottomNav`; rows `ui/sidebar-*`. Lint `no-hand-rolled-portal-nav` | `~/components/ui/portal-sidebar`, `ui/portal-bottom-nav`, `ui/portal-more-bottom-nav` |
 | Icon in a sidebar row (any portal) | `MotoNavIcon` with `scene` / `NavSceneIcon`: the glyph's animated scene; a glyph new to a sidebar needs a scene: `.claude/rules/sidebar-icon-scenes.md` | `~/components/ui/moto-nav-icon`, `~/components/ui/nav-scene-icon/nav-scene-icon` |
 | Interner Link (Seitenleiste, untere Leiste, Brotkrumen, Kopfmenüs, Seiteninhalt) | `NavigationLink` (#6570): lädt erst bei Hover, Fokus oder Touch-Beginn vor (#2976); meldet den Wechsel beim Klick an die Portalhülle, verwirft die Meldung bei abgebrochenem Klick. In Button-Optik: `ButtonLink`, gebaut darauf. Plain `next/link` für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. Ziel, aktuelle Adresse, „Pfad dieser Seite“: `~/components/ui/navigation-url`. | `~/components/ui/navigation-link` |
 | Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavigationLink` (und damit `ButtonLink`) meldet den ausstehenden Wechsel selbst (#2828). Nicht nachbauen, keine eigene Ladehülle über mehrere Seiten. | `~/components/ui/navigation-progress` |
@@ -157,8 +157,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Sticky save bar | `StickyActionBar summary?` | `~/components/ui/sticky-action-bar` |
 | Selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
-| List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
-| Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
+| List search, filters, count; page tabs | `TenantPage` `search`, `filters`, `badge`, `filterPanel`, `tabs` (the only page head; tests mock `TenantPageSearchRow`); search elsewhere: `SearchBar` | `~/components/ui/tenant-page` |
 | Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…); menu behind a text button | `OverflowMenu` — entry `description`, `selected`; `triggerButton` + `triggerContent` for a kit button, `wrapperClassName` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
@@ -294,7 +293,6 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
 - **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. `size="sm"` is the same height as `base` (`px-5 py-3`), not a small button; the normal action size is `md` ([Buttons](#buttons)).
 - **The last surface of a `TenantPage` grows to the bottom of the screen.** The unlayered `.moto-tenant-body` rule in `globals.css` sets `flex: 1 0 auto` on it and its wrappers, which beats any `flex-1 min-h-0` utility. A surface whose height comes from a wrapper and that scrolls inside must carry `moto-scroll-surface`, the documented exit from the rule. Otherwise it grows to its full content height and the fixed-height wrapper clips it or it spills past the wrapper (#3328, #3330). Current users: the chats (`useChatViewportLock`), and `MasterDetailLayout` and `DatabaseListLayout` on desktop (`useFillHeight`). Surfaces nested inside a scroll surface do not count for the rule, so its wrappers keep their own `flex-direction`. On a phone, prefer page scrolling: no fixed height, no exit, the card grows with its list (both database layouts do this below `md`). Do not work around the rule with inline `flex` styles. Browser check: `pnpm run test:layout` (`frontend/e2e/layout/`); add a case there for every new user of the exit.
-- **`NavigationTabs` collapses to a dropdown on mobile**: page navigation only; value switcher: `SegmentedControl`.
 
 ## UI skills: this rule outranks all of them
 

@@ -551,7 +551,7 @@ function StaffPageContent() {
     return matchesLocationFilter(location, locationFilter);
   });
 
-  // Prepare filter configurations for PageHeaderWithSearch. Der Status-Filter
+  // Prepare filter configurations for the TenantPage search row. Der Status-Filter
   // gehört zur Karten-Ansicht, der Beschäftigungstyp zur Zeitkonten-Tabelle —
   // beide gleichzeitig anzuzeigen würde Filter anbieten, die auf die sichtbare
   // Ansicht nicht wirken.
