@@ -17,11 +17,15 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
-import { MenuLayerProvider } from "./listbox-dropdown";
-import { SHEET_SCOPE_SELECTOR, useOverlay } from "./overlay-stack";
+import { MenuLayerProvider, useAnchoredPanel } from "./anchored-panel";
+import { OverlayOwnerProvider, SHEET_SCOPE_SELECTOR } from "./overlay-stack";
+import {
+  clampPanelStart,
+  PANEL_GAP,
+  PANEL_VIEWPORT_MARGIN,
+  spaceAroundAnchor,
+} from "./panel-geometry";
 
-const VIEWPORT_MARGIN = 8;
-const PANEL_GAP = 4;
 const DEFAULT_MAX_HEIGHT = 420;
 // Inside a slide-over the panel portals into its focus trap; a body portal
 // would sit outside the trap and lose keyboard access. That keeps the panel in
@@ -112,11 +116,6 @@ export function AnchoredPopover<
   const bodyRef = useRef<HTMLDivElement>(null);
   const hasFocusedOnOpenRef = useRef(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
-  // In the overlay stack (#6732): a press in a calendar opened from the panel
-  // is not outside, and a calendar open below leaves Escape to the panel.
-  const { isInsideOverlayAbove, isTopmost } = useOverlay(open, "popover", {
-    elementRef: panelRef,
-  });
   const portalContainer =
     typeof document === "undefined"
       ? null
@@ -137,19 +136,15 @@ export function AnchoredPopover<
     const rect = trigger.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const maxWidth = Math.max(viewportWidth - VIEWPORT_MARGIN * 2, 0);
+    const maxWidth = Math.max(viewportWidth - PANEL_VIEWPORT_MARGIN * 2, 0);
     const width = Math.min(preferredWidth ?? rect.width, maxWidth);
     const desiredLeft = align === "end" ? rect.right - width : rect.left;
-    const left = Math.min(
-      Math.max(desiredLeft, VIEWPORT_MARGIN),
-      Math.max(viewportWidth - width - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
-    );
-    const spaceBelow =
-      viewportHeight - rect.bottom - PANEL_GAP - VIEWPORT_MARGIN;
-    const spaceAbove = rect.top - PANEL_GAP - VIEWPORT_MARGIN;
+    const left = clampPanelStart(desiredLeft, width, viewportWidth);
+    const space = spaceAroundAnchor(rect, viewportHeight);
     const openAbove =
-      spaceBelow < Math.min(DEFAULT_MAX_HEIGHT, 280) && spaceAbove > spaceBelow;
-    const availableHeight = Math.max(openAbove ? spaceAbove : spaceBelow, 0);
+      space.below < Math.min(DEFAULT_MAX_HEIGHT, 280) &&
+      space.above > space.below;
+    const availableHeight = Math.max(openAbove ? space.above : space.below, 0);
     const scope = trigger.closest(portalScopeSelector);
     const scopeRect = scope?.getBoundingClientRect();
     const coordinateLeft = scopeRect ? left - scopeRect.left : left;
@@ -173,92 +168,26 @@ export function AnchoredPopover<
     setPanelStyle(style);
   }, [align, portalScopeSelector, preferredWidth]);
 
+  // The engine closes on a press outside and on Escape and moves the panel
+  // with its trigger. A list of suggestions leaves Escape to its field.
+  const { owner } = useAnchoredPanel({
+    open,
+    onClose: (reason) => close(reason === "escape"),
+    anchorRef: triggerRef,
+    panelRef,
+    closeOnEscape: panelRole === "dialog",
+    outsidePress: swallowOutsideClick ? "click" : "press",
+    scroll: "follow",
+    reposition: updatePosition,
+  });
+
   useLayoutEffect(() => {
     if (!open) {
       setPanelStyle(null);
       return;
     }
-    // Only motion of an ancestor moves the trigger; the panel's own hover
-    // transitions do not.
-    const updateAfterMotion = (event: Event) => {
-      if (
-        event.target instanceof Node &&
-        event.target.contains(triggerRef.current)
-      ) {
-        updatePosition();
-      }
-    };
     updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    // Ein Auslöser in einem Dialog, der noch einblendet, steht erst nach der
-    // Animation an seinem Platz.
-    window.addEventListener("animationend", updateAfterMotion, true);
-    window.addEventListener("transitionend", updateAfterMotion, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("animationend", updateAfterMotion, true);
-      window.removeEventListener("transitionend", updateAfterMotion, true);
-    };
   }, [open, updatePosition]);
-
-  useEffect(() => {
-    if (!open) return;
-    const belongsToPopoverMenu = (target: EventTarget | null) => {
-      const element =
-        target instanceof Element
-          ? target
-          : target instanceof Node
-            ? target.parentElement
-            : null;
-      return (
-        element
-          ?.closest("[data-overflow-menu-owner]")
-          ?.getAttribute("data-overflow-menu-owner") === panelId
-      );
-    };
-    const isOutside = (target: Node) =>
-      !triggerRef.current?.contains(target) &&
-      !panelRef.current?.contains(target) &&
-      !belongsToPopoverMenu(target) &&
-      !isInsideOverlayAbove(target);
-    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
-      if (isOutside(event.target as Node)) close(false);
-    };
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!isOutside(event.target as Node)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      close(false);
-    };
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (belongsToPopoverMenu(event.target)) return;
-      if (event.key === "Escape" && isTopmost()) close();
-    };
-    if (swallowOutsideClick) {
-      document.addEventListener("click", handleOutsideClick, true);
-    } else {
-      document.addEventListener("mousedown", handlePointerDown);
-      document.addEventListener("touchstart", handlePointerDown, {
-        passive: true,
-      });
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("click", handleOutsideClick, true);
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("touchstart", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [
-    close,
-    isInsideOverlayAbove,
-    isTopmost,
-    open,
-    panelId,
-    swallowOutsideClick,
-  ]);
 
   useEffect(() => {
     if (!open) {
@@ -355,15 +284,7 @@ export function AnchoredPopover<
       data-overflow-menu-scope="true"
       {...panelHandlers}
       onKeyDown={(event) => {
-        if (event.key === "Tab" && focusPanelOnOpen) {
-          leavePanelOnTab(event);
-          return;
-        }
-        if (event.key !== "Escape" || !isTopmost()) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.nativeEvent.stopImmediatePropagation();
-        close();
+        if (event.key === "Tab" && focusPanelOnOpen) leavePanelOnTab(event);
       }}
       className={panelClassName}
       style={panelStyleWithVisibility}
@@ -389,9 +310,11 @@ export function AnchoredPopover<
       })}
       {panel && portalContainer
         ? createPortal(
-            <MenuLayerProvider zIndex={Z_INDEX.popoverMenu}>
-              {panel}
-            </MenuLayerProvider>,
+            <OverlayOwnerProvider owner={owner}>
+              <MenuLayerProvider zIndex={Z_INDEX.popoverMenu}>
+                {panel}
+              </MenuLayerProvider>
+            </OverlayOwnerProvider>,
             portalContainer,
           )
         : null}

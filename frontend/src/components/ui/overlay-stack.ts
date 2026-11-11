@@ -1,8 +1,12 @@
 import {
+  createContext,
+  createElement,
   useCallback,
+  useContext,
   useLayoutEffect,
   useRef,
   useSyncExternalStore,
+  type ReactNode,
   type RefObject,
 } from "react";
 
@@ -22,7 +26,15 @@ import { zLayerValue, type ZLayer } from "./overlay-styles";
  * panel or tour that was topmost then; one that opens later lies above the
  * popover when it lies above that host. Escape belongs to
  * the topmost overlay only, so one key press never closes two of them.
+ *
+ * An overlay opened from inside a panel belongs to that panel: a select menu
+ * in a calendar, a calendar in an anchored popover. The panel hands itself
+ * down through `OverlayOwnerProvider`, and every overlay registered below it
+ * records it as owner. A panel recognises its own sub-panels through that
+ * mark (`isInsideOwnedOverlay`), not through roles or DOM attributes.
  */
+
+type SurfaceRef = RefObject<Element | null>;
 
 /** Levels that register as overlays. */
 export type OverlayLayer = Extract<
@@ -39,7 +51,10 @@ interface OverlayEntry {
    */
   readonly host: OverlayEntry | null;
   readonly takesEscape: boolean;
-  readonly elementRef: RefObject<Element | null> | undefined;
+  /** The overlay's surfaces: its panel, and for a select also its trigger. */
+  readonly surfaces: readonly SurfaceRef[];
+  /** The panel this overlay was opened from, resolved when asked. */
+  readonly ownerRef: RefObject<OverlayEntry | null> | null;
 }
 
 let entries: readonly OverlayEntry[] = [];
@@ -118,21 +133,23 @@ function takesEscapeFrom(other: OverlayEntry, own: OverlayEntry): boolean {
  * components, `useOverlay` does this with the overlay's open state.
  */
 export function pushOverlay(layer: OverlayLayer): () => void {
-  const entry = addEntry(layer, true, undefined);
+  const entry = addEntry(layer, true, [], null);
   return () => removeEntry(entry);
 }
 
 function addEntry(
   layer: OverlayLayer,
   takesEscape: boolean,
-  elementRef: RefObject<Element | null> | undefined,
+  surfaces: readonly SurfaceRef[],
+  ownerRef: RefObject<OverlayEntry | null> | null,
 ): OverlayEntry {
   const entry: OverlayEntry = {
     layer,
     order: nextOrder++,
     host: layer === "popover" ? topmostHost() : null,
     takesEscape,
-    elementRef,
+    surfaces,
+    ownerRef,
   };
   entries = [...entries, entry];
   emit();
@@ -144,6 +161,42 @@ function removeEntry(entry: OverlayEntry) {
   entries = entries.filter((other) => other !== entry);
   emit();
 }
+
+function containsTarget(entry: OverlayEntry, target: Node): boolean {
+  return entry.surfaces.some(
+    (surface) => surface.current?.contains(target) === true,
+  );
+}
+
+/** Whether `entry` was opened from inside `owner`, directly or further down. */
+function isOwnedBy(entry: OverlayEntry, owner: OverlayEntry): boolean {
+  const seen = new Set<OverlayEntry>();
+  let current = entry.ownerRef?.current ?? null;
+  while (current !== null && !seen.has(current)) {
+    if (current === owner) return true;
+    seen.add(current);
+    current = current.ownerRef?.current ?? null;
+  }
+  return false;
+}
+
+const OverlayOwnerContext =
+  createContext<RefObject<OverlayEntry | null> | null>(null);
+
+/** The panel that overlays opened inside `children` belong to. */
+export function OverlayOwnerProvider({
+  owner,
+  children,
+}: Readonly<{ owner: OverlayOwner; children: ReactNode }>) {
+  return createElement(
+    OverlayOwnerContext.Provider,
+    { value: owner },
+    children,
+  );
+}
+
+/** Handle of a registered overlay, passed to `OverlayOwnerProvider`. */
+export type OverlayOwner = RefObject<OverlayEntry | null>;
 
 function isModalOpenSnapshot(): boolean {
   return entries.some((entry) => entry.layer === "modal");
@@ -162,8 +215,11 @@ interface OverlayOptions {
    * the overlay below it.
    */
   readonly takesEscape?: boolean;
-  /** The overlay's surface, for `isInsideOverlayAbove` of the ones below. */
-  readonly elementRef?: RefObject<Element | null>;
+  /**
+   * The overlay's surface, for `isInsideOverlayAbove` of the ones below. A
+   * select passes its trigger and its menu.
+   */
+  readonly elementRef?: SurfaceRef | readonly SurfaceRef[];
   /**
    * Called when the popover lost its place: its host closed or rests, or a
    * dialog, side panel or tour opened above it. The calendars close then,
@@ -175,9 +231,11 @@ interface OverlayOptions {
 /**
  * Registers an overlay while `active`. `isTopmost` answers at event time
  * whether no other open overlay above it takes its Escape (see
- * `takesEscapeFrom`); an Escape handler asks it before it closes anything. `isInsideOverlayAbove` tells
- * an outside-click guard that a press landed in an overlay opened over this
- * one, such as a calendar in a popover.
+ * `takesEscapeFrom`); an Escape handler asks it before it closes anything.
+ * `isInsideOverlayAbove` tells that a target lies in an overlay opened over
+ * this one, `isInsideOwnedOverlay` that it lies in one opened from inside
+ * this one (a calendar in a popover). `owner` goes to `OverlayOwnerProvider`
+ * around the overlay's content.
  */
 export function useOverlay(
   active: boolean,
@@ -191,8 +249,11 @@ export function useOverlay(
 ): {
   readonly isTopmost: () => boolean;
   readonly isInsideOverlayAbove: (target: EventTarget | null) => boolean;
+  readonly isInsideOwnedOverlay: (target: EventTarget | null) => boolean;
+  readonly owner: OverlayOwner;
 } {
   const entryRef = useRef<OverlayEntry | null>(null);
+  const ownerRef = useContext(OverlayOwnerContext);
   const onCoveredRef = useRef(onCovered);
   useLayoutEffect(() => {
     onCoveredRef.current = onCovered;
@@ -200,7 +261,13 @@ export function useOverlay(
 
   useLayoutEffect(() => {
     if (!active) return undefined;
-    const entry = addEntry(layer, takesEscape, elementRef);
+    const surfaces =
+      elementRef === undefined
+        ? []
+        : Array.isArray(elementRef)
+          ? elementRef
+          : [elementRef as SurfaceRef];
+    const entry = addEntry(layer, takesEscape, surfaces, ownerRef);
     entryRef.current = entry;
     const unsubscribe = subscribe(() => {
       if (isCovered(entry)) onCoveredRef.current?.();
@@ -210,7 +277,7 @@ export function useOverlay(
       entryRef.current = null;
       removeEntry(entry);
     };
-  }, [active, layer, takesEscape, elementRef]);
+  }, [active, layer, takesEscape, elementRef, ownerRef]);
 
   useScrollLock(active && lockScroll);
 
@@ -227,13 +294,24 @@ export function useOverlay(
     if (own === null || !(target instanceof Node)) return false;
     return entries.some(
       (other) =>
-        other !== own &&
-        isAbove(other, own) &&
-        other.elementRef?.current?.contains(target) === true,
+        other !== own && isAbove(other, own) && containsTarget(other, target),
     );
   }, []);
 
-  return { isTopmost, isInsideOverlayAbove };
+  const isInsideOwnedOverlay = useCallback((target: EventTarget | null) => {
+    const own = entryRef.current;
+    if (own === null || !(target instanceof Node)) return false;
+    return entries.some(
+      (other) => isOwnedBy(other, own) && containsTarget(other, target),
+    );
+  }, []);
+
+  return {
+    isTopmost,
+    isInsideOverlayAbove,
+    isInsideOwnedOverlay,
+    owner: entryRef,
+  };
 }
 
 /**

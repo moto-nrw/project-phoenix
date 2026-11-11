@@ -89,6 +89,28 @@ export function isValidISODate(s: string): boolean {
 }
 
 /**
+ * A typed German date "TT.MM.JJJJ" as "YYYY-MM-DD", or null when the text is
+ * not complete or names no real day (31.02.).
+ */
+export function parseGermanDate(value: string): string | null {
+  const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
+  if (!match) return null;
+  const isoDate = `${match[3]}-${match[2]}-${match[1]}`;
+  return isValidISODate(isoDate) ? isoDate : null;
+}
+
+/** A complete wall-clock time "HH:mm" from 00:00 to 23:59. */
+export const CLOCK_TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/**
+ * `time`, raised to `min` when it lies before it. "HH:mm" compares correctly
+ * as a string; without a minimum the time stays as it is.
+ */
+export function atLeastClockTime(time: string, min?: string): string {
+  return min && time < min ? min : time;
+}
+
+/**
  * ISO-8601 calendar week number of a "YYYY-MM-DD" date (Mon-based; week 1 is
  * the week holding the first Thursday). Schools plan in calendar weeks, so a
  * date field that decides a school week shows its KW beside the date.

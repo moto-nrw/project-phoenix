@@ -1,11 +1,8 @@
 "use client";
 
-import { Z_INDEX } from "./overlay-styles";
 import { ChevronDown } from "lucide-react";
 import {
-  createContext,
   useCallback,
-  useContext,
   type CSSProperties,
   useEffect,
   useId,
@@ -27,6 +24,13 @@ import {
 
 import { CheckboxIndicator } from "./checkbox";
 import { MODAL_SCOPE_SELECTOR, SCROLL_AREA_PROPS } from "./overlay-stack";
+import { useAnchoredPanel, useMenuLayer } from "./anchored-panel";
+import {
+  clampPanelStart,
+  PANEL_GAP,
+  PANEL_VIEWPORT_MARGIN,
+  spaceAroundAnchor,
+} from "./panel-geometry";
 
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
@@ -251,9 +255,7 @@ interface ListboxDropdownProps<K extends string> {
 }
 
 const TYPEAHEAD_RESET_MS = 500;
-const MENU_OFFSET_PX = 4;
 const MENU_MAX_HEIGHT_PX = 288; // matches the previous max-h-72 menu cap
-const MENU_VIEWPORT_MARGIN_PX = 8;
 
 /** Closest ancestor that scrolls vertically (a slide-over or modal body). */
 function scrollParentOf(element: HTMLElement): HTMLElement | null {
@@ -342,22 +344,6 @@ function consumeEscape(event: KeyboardEvent<HTMLButtonElement>): void {
   event.nativeEvent.stopImmediatePropagation();
 }
 
-// The level of select menus portaled from inside a surface that itself lies
-// above `Z_INDEX.menu`, such as an `AnchoredPopover` (#6569).
-const MenuLayerContext = createContext<number>(Z_INDEX.menu);
-
-/** Lifts the menus of all selects inside `children` to `zIndex`. */
-export function MenuLayerProvider({
-  zIndex,
-  children,
-}: Readonly<{ zIndex: number; children: ReactNode }>) {
-  return (
-    <MenuLayerContext.Provider value={zIndex}>
-      {children}
-    </MenuLayerContext.Provider>
-  );
-}
-
 export function ListboxDropdown<K extends string>({
   value,
   options,
@@ -396,7 +382,7 @@ export function ListboxDropdown<K extends string>({
   renderOptionActions,
   renderOption,
 }: ListboxDropdownProps<K>) {
-  const menuLayer = useContext(MenuLayerContext);
+  const menuLayer = useMenuLayer();
   const menuZIndex = menuZIndexProp ?? menuLayer;
   const generatedListboxId = useId();
   const listboxId = id ? `${id}-listbox` : generatedListboxId;
@@ -486,41 +472,25 @@ export function ListboxDropdown<K extends string>({
     if (disabled && !wasDisabled) setOpen(false);
   }, [disabled, setOpen]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (event: MouseEvent) => {
-      const target = event.target as Node;
-      // The menu is portaled to document.body, so it is NOT inside
-      // containerRef — a press on an option must not count as outside.
-      if (containerRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open, setOpen]);
-
   const updateMenuPosition = useCallback(() => {
     const trigger = buttonRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
     const viewportWidth = window.innerWidth;
-    const spaceBelow =
-      viewportHeight - rect.bottom - MENU_OFFSET_PX - MENU_VIEWPORT_MARGIN_PX;
-    const spaceAbove = rect.top - MENU_OFFSET_PX - MENU_VIEWPORT_MARGIN_PX;
+    const space = spaceAroundAnchor(rect, viewportHeight);
     const menuHeight = Math.min(
       menuRef.current?.scrollHeight ?? MENU_MAX_HEIGHT_PX,
       MENU_MAX_HEIGHT_PX,
     );
-    const openUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+    const openUpward = space.below < menuHeight && space.above > space.below;
     // Cap the menu to the space actually available on the chosen side. A hard
     // minimum height could push the menu past the viewport edge in short
     // viewports or with the mobile keyboard open, leaving lower options
     // unreachable; the browser then never gives the ul a scroll region there.
-    const available = Math.max(openUpward ? spaceAbove : spaceBelow, 0);
+    const available = Math.max(openUpward ? space.above : space.below, 0);
     const maxHeight = Math.min(MENU_MAX_HEIGHT_PX, available);
-    const maxWidth = viewportWidth - 2 * MENU_VIEWPORT_MARGIN_PX;
+    const maxWidth = viewportWidth - 2 * PANEL_VIEWPORT_MARGIN;
     // The rendered width, needed to clamp the horizontal anchor: the menu is
     // only as wide as the trigger at minimum, but its content may be wider, so
     // anchoring at the trigger edge alone can push it past the viewport on
@@ -528,10 +498,6 @@ export function ListboxDropdown<K extends string>({
     const menuWidth = Math.min(
       Math.max(menuRef.current?.offsetWidth ?? rect.width, rect.width),
       maxWidth,
-    );
-    const edgeInset = Math.max(
-      viewportWidth - MENU_VIEWPORT_MARGIN_PX - menuWidth,
-      MENU_VIEWPORT_MARGIN_PX,
     );
     const style: CSSProperties = {
       position: "fixed",
@@ -552,53 +518,45 @@ export function ListboxDropdown<K extends string>({
     // Clamp both anchors so the opposite edge stays inside the viewport; the
     // margin floor still wins when the menu is as wide as the viewport allows.
     if (menuAlign === "end") {
-      style.right = Math.min(
-        Math.max(viewportWidth - rect.right, MENU_VIEWPORT_MARGIN_PX),
-        edgeInset,
+      style.right = clampPanelStart(
+        viewportWidth - rect.right,
+        menuWidth,
+        viewportWidth,
       );
     } else {
-      style.left = Math.min(
-        Math.max(rect.left, MENU_VIEWPORT_MARGIN_PX),
-        edgeInset,
-      );
+      style.left = clampPanelStart(rect.left, menuWidth, viewportWidth);
     }
     if (openUpward) {
-      style.bottom = viewportHeight - rect.top + MENU_OFFSET_PX;
+      style.bottom = viewportHeight - rect.top + PANEL_GAP;
     } else {
-      style.top = rect.bottom + MENU_OFFSET_PX;
+      style.top = rect.bottom + PANEL_GAP;
     }
     setMenuStyle(style);
   }, [menuAlign, menuZIndex]);
 
+  // The engine closes the menu on a press outside and moves it with its
+  // trigger; Escape stays with the trigger and the options, which hold the
+  // focus. Scrolls inside the option list do not move the menu: a re-placement
+  // would re-scroll the (possibly hover-moved) focus and undo the open reveal.
+  useAnchoredPanel({
+    open,
+    onClose: () => setOpen(false),
+    anchorRef: containerRef,
+    panelRef: menuRef,
+    closeOnEscape: false,
+    outsidePress: "tap",
+    scroll: "follow",
+    reposition: updateMenuPosition,
+  });
+
   // Layout effect so the first visible frame is already positioned (the menu
-  // renders hidden until menuStyle is set). Scroll listens in capture phase to
-  // catch ancestor scroll containers (modal bodies), not just the window.
-  // Scrolls *inside* the option list are ignored: scrollIntoView on open/keyboard
-  // would otherwise re-fire updateMenuPosition → new menuStyle → a layout
-  // re-scroll of the (possibly hover-moved) focusIndex, undoing the open reveal.
+  // renders hidden until menuStyle is set).
   useLayoutEffect(() => {
     if (!open) {
       setMenuStyle(null);
       return;
     }
-    const handleScroll = (event: Event) => {
-      const target = event.target;
-      if (
-        menuRef.current &&
-        target instanceof Node &&
-        (target === menuRef.current || menuRef.current.contains(target))
-      ) {
-        return;
-      }
-      updateMenuPosition();
-    };
     updateMenuPosition();
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", handleScroll, true);
-    return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", handleScroll, true);
-    };
   }, [open, options, updateMenuPosition]);
 
   // A layout change can push the trigger out of the visible area while the

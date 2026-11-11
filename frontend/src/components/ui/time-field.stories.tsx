@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import { TimeField } from "./time-field";
 
@@ -29,3 +30,16 @@ type Story = StoryObj<typeof meta>;
 export const Empty: Story = { args: { initial: "" } };
 
 export const Filled: Story = { args: { initial: "13:30" } };
+
+/** Offene Uhrzeit-Auswahl (#6576, Baseline des Pixel-Vergleichs). */
+export const Opened: Story = {
+  args: { initial: "13:30" },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", { name: "Uhrzeit auswählen" }),
+    );
+    await expect(
+      await screen.findByRole("dialog", { name: "Uhrzeit auswählen" }),
+    ).toBeVisible();
+  },
+};

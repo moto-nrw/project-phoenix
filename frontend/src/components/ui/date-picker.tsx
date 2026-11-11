@@ -1,46 +1,42 @@
 "use client";
 
 import { FieldLabel } from "./field-label";
-import { Z_INDEX, Z_LAYER } from "./overlay-styles";
-import {
-  Suspense,
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-  useId,
-} from "react";
+import { Z_LAYER } from "./overlay-styles";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import type { Matcher } from "react-day-picker";
 import type { Locale } from "date-fns";
-import { addMonths } from "date-fns/addMonths";
 import { format } from "date-fns/format";
-import { subMonths } from "date-fns/subMonths";
 import { de } from "date-fns/locale/de";
-import "react-day-picker/style.css";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  formatDate,
+  isValidISODate,
+  parseGermanDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { cn } from "~/lib/utils";
 import {
   MODAL_SCOPE_SELECTOR,
+  OverlayOwnerProvider,
   SCROLL_AREA_PROPS,
   SHEET_SCOPE_SELECTOR,
-  useOverlay,
 } from "./overlay-stack";
+import { useAnchoredPanel } from "./anchored-panel";
+import { PANEL_GAP, PANEL_VIEWPORT_MARGIN } from "./panel-geometry";
+import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import {
-  DAY_PICKER_CLASSNAMES,
-  DayPickerSkeleton,
-  LazyDayPicker,
-  preloadDayPicker,
-} from "~/components/ui/lazy-day-picker";
+  CalendarMonthHeader,
+  CalendarShell,
+  resolveCalendarLabels,
+  type CalendarLabels,
+} from "./calendar-shell";
 import {
-  CALENDAR_PANEL_MARGIN,
   clampCalendarWidth,
   computeCalendarPanelPosition,
   type PanelGeometry,
@@ -80,28 +76,9 @@ const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
   lg: "px-4 py-[11px] text-base",
 };
 
-// Labels default to German here because the staff and operator portals are
-// German-only; the parent portal and public enrollment form pass translated
-// strings alongside a matching `locale`. The DatePickerLabels contract itself
-// lives in ~/lib/date-picker-labels so the hook that builds it stays inside
-// src/lib.
-const DEFAULT_LABELS = {
-  clear: "Datum löschen",
-  previousMonth: "Vorheriger Monat",
-  nextMonth: "Nächster Monat",
-  month: "Monat",
-  year: "Jahr",
-  selectedDays: (count: number) => `${count} Tage ausgewählt`,
-} as const;
-
-function resolveLabels(labels?: DatePickerLabels) {
-  return { ...DEFAULT_LABELS, ...labels };
-}
-
 // Geometry lives in calendar-panel-position.ts so this picker and the range
 // picker cannot drift apart again.
 type PopoverPosition = PanelGeometry & { readonly maxHeight?: number };
-const CALENDAR_TRIGGER_GAP = 4;
 const MIN_USABLE_CALENDAR_HEIGHT = 240;
 
 function computePopoverPosition(
@@ -113,9 +90,7 @@ function computePopoverPosition(
   // A 240px panel keeps the header and several full week rows usable. Below
   // that floor, the normal flip-up rule is safer than a tiny scroll slit.
   const availableBelow =
-    viewport.height -
-    CALENDAR_PANEL_MARGIN -
-    (rect.bottom + CALENDAR_TRIGGER_GAP);
+    viewport.height - PANEL_VIEWPORT_MARGIN - (rect.bottom + PANEL_GAP);
   const canStayBelow =
     prefersBelow && availableBelow >= MIN_USABLE_CALENDAR_HEIGHT;
   const position = canStayBelow
@@ -132,7 +107,7 @@ function computePopoverPosition(
         ...position,
         maxHeight: Math.max(
           0,
-          viewport.height - position.top - CALENDAR_PANEL_MARGIN,
+          viewport.height - position.top - PANEL_VIEWPORT_MARGIN,
         ),
       }
     : position;
@@ -259,7 +234,7 @@ export function DatePicker({
     (popoverPosition !== null &&
       popoverPosition.width < COMPACT_CARD_MAX_WIDTH);
   const locale = isMultiple ? de : (props.locale ?? de);
-  const labels = resolveLabels(isMultiple ? undefined : props.labels);
+  const labels = resolveCalendarLabels(isMultiple ? undefined : props.labels);
   const displayValue = isMultiple
     ? formatMultipleDateLabel(props.values, labels.selectedDays)
     : props.value
@@ -293,38 +268,6 @@ export function DatePicker({
     if (isDisabled) setIsOpen(false);
   }, [isDisabled]);
 
-  // The open calendar takes its place in the overlay stack (#6732): over the
-  // overlay it opened from, under one that opens later. It closes when that
-  // overlay closes or rests, or when a dialog, side panel or tour opens above
-  // it, as the click that usually opens them would have.
-  const closeCovered = useCallback(() => setIsOpen(false), []);
-  const { isTopmost } = useOverlay(isOpen && !isDisabled, "popover", {
-    elementRef: popoverRef,
-    onCovered: closeCovered,
-  });
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || !isTopmost()) return;
-      const target = event.target;
-      if (
-        target instanceof Element &&
-        target.closest(
-          '[role="combobox"][aria-expanded="true"], [role="listbox"]',
-        )
-      ) {
-        return;
-      }
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      setIsOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("keydown", closeOnEscape, true);
-    return () => document.removeEventListener("keydown", closeOnEscape, true);
-  }, [isOpen, isTopmost]);
-
   const syncPopoverPosition = useCallback(() => {
     if (!containerRef.current) return;
     setPopoverPosition(
@@ -350,75 +293,30 @@ export function DatePicker({
     setIsOpen(true);
   };
 
-  // Keep the position correct while the viewport changes. Any scroll (including
-  // inside a filter panel or modal) closes the calendar: the trigger would
-  // otherwise slide away from a portal that lives outside that scroll container
-  // — the same trade-off the operator status dropdown makes.
-  useEffect(() => {
-    if (!isPopover || !isOpen) return;
-    const close = (event: Event) => {
-      // Scrolling the year list (101 entries) must not count: that menu is a
-      // portal of our own header, and closing on its scroll would make the
-      // dropdown unusable.
-      const target = event.target;
-      // The panel itself becomes scrollable on short viewports. Its internal
-      // scroll must not count as page movement, or lower calendar weeks would
-      // disappear again before their day buttons can be reached.
-      if (target instanceof Node && popoverRef.current?.contains(target)) {
-        return;
-      }
-      if (
-        target instanceof Element &&
-        target.closest('[role="listbox"]') !== null
-      ) {
-        return;
-      }
+  // The engine closes the calendar on a press outside and on Escape. It takes
+  // its place in the overlay stack (#6732): over the overlay it opened from,
+  // under one that opens later. It closes when that overlay closes or rests,
+  // or when a dialog, side panel or tour opens above it, as the click that
+  // usually opens them would have. Any scroll outside the calendar (page,
+  // filter panel, modal) closes the floating calendar: the trigger would
+  // otherwise slide away from a portal that lives outside that scroll
+  // container. Its own scroll on a short viewport and the scroll of its
+  // month and year lists do not count.
+  const closeCovered = useCallback(() => setIsOpen(false), []);
+  const { owner } = useAnchoredPanel({
+    open: isOpen && !isDisabled,
+    onClose: (reason) => {
       setIsOpen(false);
-    };
-    window.addEventListener("resize", syncPopoverPosition);
-    window.addEventListener("scroll", close, true);
-    return () => {
-      window.removeEventListener("resize", syncPopoverPosition);
-      window.removeEventListener("scroll", close, true);
-    };
-  }, [isPopover, isOpen, syncPopoverPosition]);
+      if (reason === "escape") triggerRef.current?.focus();
+    },
+    anchorRef: containerRef,
+    panelRef: popoverRef,
+    scroll: isPopover ? "close" : "follow",
+    reposition: isPopover ? syncPopoverPosition : undefined,
+    onCovered: closeCovered,
+  });
 
-  useEffect(() => {
-    function handleOutsideInteraction(event: Event) {
-      const target = event.target as Node;
-      // The portalled calendar is NOT inside containerRef, so it has to be
-      // treated as "inside" explicitly. Without this the pointerdown handler
-      // unmounts the calendar before the day button's click lands and picking a
-      // date silently does nothing.
-      if (popoverRef.current?.contains(target)) {
-        return;
-      }
-      // The month/year dropdowns portal their menus to body too, so an option
-      // click lands outside both refs. Without this the calendar would close on
-      // pointerdown and the month change would never apply.
-      if (
-        target instanceof Element &&
-        target.closest('[role="listbox"]') !== null
-      ) {
-        return;
-      }
-      if (containerRef.current && !containerRef.current.contains(target)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", handleOutsideInteraction, true);
-    document.addEventListener("mousedown", handleOutsideInteraction, true);
-    return () => {
-      document.removeEventListener(
-        "pointerdown",
-        handleOutsideInteraction,
-        true,
-      );
-      document.removeEventListener("mousedown", handleOutsideInteraction, true);
-    };
-  }, []);
-
-  const calendar = isMultiple ? (
+  const calendarContent = isMultiple ? (
     <MultipleDatePickerCalendar
       values={props.values}
       onChangeDates={props.onChangeDates}
@@ -445,6 +343,10 @@ export function DatePicker({
       }}
     />
   );
+  // Selects in the calendar head belong to the calendar.
+  const calendar = (
+    <OverlayOwnerProvider owner={owner}>{calendarContent}</OverlayOwnerProvider>
+  );
 
   // A portaled panel must remain inside a modal's FocusScope: portaling to
   // document.body puts its day and month controls outside the trap, which
@@ -458,6 +360,22 @@ export function DatePicker({
       : (containerRef.current?.closest(MODAL_SCOPE_SELECTOR) ?? document.body);
   const needsPortalledFocusScope =
     containerRef.current?.closest(SHEET_SCOPE_SELECTOR) !== null;
+
+  const floatingPanel = popoverPosition ? (
+    <div
+      ref={popoverRef}
+      className={`fixed ${Z_LAYER.popover} max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain`}
+      style={{
+        top: popoverPosition.top,
+        left: popoverPosition.left,
+        width: popoverPosition.width,
+        maxHeight: popoverPosition.maxHeight,
+        pointerEvents: "auto",
+      }}
+    >
+      {calendar}
+    </div>
+  ) : null;
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
@@ -581,34 +499,10 @@ export function DatePicker({
         ? createPortal(
             needsPortalledFocusScope ? (
               <FocusScope asChild loop trapped>
-                <div
-                  ref={popoverRef}
-                  className={`fixed ${Z_LAYER.popover} max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain`}
-                  style={{
-                    top: popoverPosition.top,
-                    left: popoverPosition.left,
-                    width: popoverPosition.width,
-                    maxHeight: popoverPosition.maxHeight,
-                    pointerEvents: "auto",
-                  }}
-                >
-                  {calendar}
-                </div>
+                {floatingPanel}
               </FocusScope>
             ) : (
-              <div
-                ref={popoverRef}
-                className={`fixed ${Z_LAYER.popover} max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain`}
-                style={{
-                  top: popoverPosition.top,
-                  left: popoverPosition.left,
-                  width: popoverPosition.width,
-                  maxHeight: popoverPosition.maxHeight,
-                  pointerEvents: "auto",
-                }}
-              >
-                {calendar}
-              </div>
+              floatingPanel
             ),
             portalContainer,
           )
@@ -651,7 +545,7 @@ function DatePickerCalendar({
   readonly disabledDay?: Matcher;
   readonly monthYearNavigation?: boolean;
   readonly locale: Locale;
-  readonly labels: Required<DatePickerLabels>;
+  readonly labels: CalendarLabels;
   readonly compact: boolean;
   readonly calendarLayout: CalendarLayout;
   readonly required?: boolean;
@@ -674,7 +568,7 @@ function DatePickerCalendar({
       {...SCROLL_AREA_PROPS}
       className={getCalendarContainerClass(calendarLayout, compact)}
     >
-      <CalendarNavHeader
+      <CalendarMonthHeader
         compact={compact}
         month={month}
         onMonthChange={setMonth}
@@ -684,23 +578,16 @@ function DatePickerCalendar({
         locale={locale}
         labels={labels}
       />
-      <Suspense fallback={<DayPickerSkeleton month={month} />}>
-        <LazyDayPicker
-          today={parseISODate(today)}
-          mode="single"
-          selected={value ?? undefined}
-          required={required}
-          disabled={buildSingleDisabledMatchers(minDate, maxDate, disabledDay)}
-          month={month}
-          onMonthChange={setMonth}
-          onSelect={(date: Date | undefined) => onChange(date ?? null)}
-          locale={locale}
-          weekStartsOn={1}
-          showOutsideDays
-          hideNavigation
-          classNames={DAY_PICKER_CLASSNAMES}
-        />
-      </Suspense>
+      <CalendarShell
+        mode="single"
+        selected={value ?? undefined}
+        required={required}
+        disabled={buildSingleDisabledMatchers(minDate, maxDate, disabledDay)}
+        month={month}
+        onMonthChange={setMonth}
+        onSelect={(date: Date | undefined) => onChange(date ?? null)}
+        locale={locale}
+      />
     </div>
   );
 }
@@ -721,23 +608,16 @@ function MultipleDatePickerCalendar({
       {...SCROLL_AREA_PROPS}
       className={getCalendarContainerClass(calendarLayout, compact)}
     >
-      <CalendarNavHeader month={month} onMonthChange={setMonth} />
-      <Suspense fallback={<DayPickerSkeleton month={month} />}>
-        <LazyDayPicker
-          today={parseISODate(today)}
-          mode="multiple"
-          selected={values}
-          disabled={disabledDates}
-          month={month}
-          onMonthChange={setMonth}
-          onSelect={(dates) => onChangeDates(dates ?? [])}
-          locale={de}
-          weekStartsOn={1}
-          showOutsideDays
-          hideNavigation
-          classNames={DAY_PICKER_CLASSNAMES}
-        />
-      </Suspense>
+      <CalendarMonthHeader month={month} onMonthChange={setMonth} />
+      <CalendarShell
+        mode="multiple"
+        selected={values}
+        disabled={disabledDates}
+        month={month}
+        onMonthChange={setMonth}
+        onSelect={(dates: Date[] | undefined) => onChangeDates(dates ?? [])}
+        locale={de}
+      />
     </div>
   );
 }
@@ -939,7 +819,7 @@ export function ISODateInput({
       return;
     }
 
-    const isoDate = parseGermanDateInput(trimmed);
+    const isoDate = parseGermanDate(trimmed);
     let nextError: string | null = null;
     if (!isoDate) {
       if (showIncompleteError || trimmed.length >= 10) {
@@ -1016,13 +896,6 @@ export function ISODateInput({
   );
 }
 
-function parseGermanDateInput(value: string): string | null {
-  const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
-  if (!match) return null;
-  const isoDate = `${match[3]}-${match[2]}-${match[1]}`;
-  return isValidISODate(isoDate) ? isoDate : null;
-}
-
 function validateStoredISODate(
   value: string,
   min: string | undefined,
@@ -1041,8 +914,7 @@ function validateStoredISODate(
 
 function formatISODateInputValue(value: string): string {
   const isoDate = value.slice(0, 10);
-  if (!isValidISODate(isoDate)) return value;
-  return `${isoDate.slice(8, 10)}.${isoDate.slice(5, 7)}.${isoDate.slice(0, 4)}`;
+  return isValidISODate(isoDate) ? formatDate(isoDate) : value;
 }
 
 // Accepts both a bare "YYYY-MM-DD" and a full backend timestamp
@@ -1054,173 +926,6 @@ function toDateOrNull(value: string | undefined): Date | null {
   if (!value) return null;
   const day = value.slice(0, 10);
   return isValidISODate(day) ? parseISODate(day) : null;
-}
-
-// Month names come from the active date-fns locale, never a hardcoded list, so
-// the dropdown matches the calendar grid in every language.
-function buildMonthLabels(locale: Locale): string[] {
-  return Array.from({ length: 12 }, (_, index) =>
-    format(new Date(2000, index, 1), "MMMM", { locale }),
-  );
-}
-
-// Year span offered by the dropdowns when the caller sets no bounds. Back far
-// enough for any birthday, forward far enough for a planning horizon.
-const DEFAULT_YEARS_BACK = 100;
-const DEFAULT_YEARS_AHEAD = 5;
-
-// One above the calendar's own portal (`Z_LAYER.popover`), so the month/year
-// menu opens on top of the calendar surface instead of behind it.
-const NAV_MENU_Z_INDEX = Z_INDEX.popoverMenu;
-
-// min-w keeps a 46px-wide year trigger from producing an unclickably narrow
-// list. Surface and options are the kit listbox's own.
-const NAV_MENU_CLASS = "min-w-24";
-
-const NAV_SELECT_CLASS =
-  "w-full min-w-0 cursor-pointer gap-1.5 overflow-hidden px-2.5 leading-5 font-medium";
-
-// The offered years always include the month currently on screen, so a value
-// outside the caller's bounds (legacy data) still shows its own year instead of
-// silently snapping to the nearest allowed one.
-function buildYearOptions(
-  month: Date,
-  minDate?: Date,
-  maxDate?: Date,
-): number[] {
-  const thisYear = new Date().getFullYear();
-  const first = Math.min(
-    minDate?.getFullYear() ?? thisYear - DEFAULT_YEARS_BACK,
-    month.getFullYear(),
-  );
-  const last = Math.max(
-    maxDate?.getFullYear() ?? thisYear + DEFAULT_YEARS_AHEAD,
-    month.getFullYear(),
-  );
-  return Array.from({ length: last - first + 1 }, (_, index) => first + index);
-}
-
-// Shared caption for both calendars: month arrows plus, when the target date
-// can be years away (birthdays), month and year dropdowns in place of the
-// static caption. Day-level bounds stay with the DayPicker matchers, so
-// navigating to a partly out-of-range month simply shows disabled days.
-function CalendarNavHeader({
-  compact = false,
-  month,
-  onMonthChange,
-  monthYearNavigation = false,
-  minDate,
-  maxDate,
-  locale = de,
-  labels = DEFAULT_LABELS,
-}: {
-  readonly compact?: boolean;
-  readonly month: Date;
-  readonly onMonthChange: (month: Date) => void;
-  readonly monthYearNavigation?: boolean;
-  readonly minDate?: Date;
-  readonly maxDate?: Date;
-  readonly locale?: Locale;
-  readonly labels?: Required<DatePickerLabels>;
-}) {
-  const monthLabels = useMemo(() => buildMonthLabels(locale), [locale]);
-
-  return (
-    <div
-      className={`grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center ${
-        compact ? "mb-3 gap-1" : "mb-4 gap-2"
-      }`}
-    >
-      <button
-        type="button"
-        aria-label={labels.previousMonth}
-        onClick={() => onMonthChange(subMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
-      </button>
-      {monthYearNavigation ? (
-        // Kit dropdowns, not native <select>: a native select opens an
-        // OS-level popup, which cannot be styled to match the kit and does not
-        // exist in the DOM (so it never appears in a screenshot or a test).
-        // The menu z-index has to clear the calendar's own portal.
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_5rem] items-center gap-1">
-          <ListboxDropdown
-            ariaLabel={labels.month}
-            value={String(month.getMonth())}
-            options={monthLabels.map((label, index) => ({
-              value: String(index),
-              label,
-            }))}
-            onChange={(next) =>
-              onMonthChange(new Date(month.getFullYear(), Number(next), 1))
-            }
-            containerClassName="relative min-w-0"
-            size="compact"
-            className={NAV_SELECT_CLASS}
-            menuClassName={NAV_MENU_CLASS}
-            menuZIndex={NAV_MENU_Z_INDEX}
-            portalScopeSelector="[data-date-picker-panel]"
-            triggerRole="combobox"
-          />
-          <ListboxDropdown
-            ariaLabel={labels.year}
-            value={String(month.getFullYear())}
-            options={buildYearOptions(month, minDate, maxDate).map((year) => ({
-              value: String(year),
-              label: String(year),
-            }))}
-            onChange={(next) =>
-              onMonthChange(new Date(Number(next), month.getMonth(), 1))
-            }
-            containerClassName="relative min-w-0"
-            size="compact"
-            className={NAV_SELECT_CLASS}
-            menuClassName={NAV_MENU_CLASS}
-            menuZIndex={NAV_MENU_Z_INDEX}
-            portalScopeSelector="[data-date-picker-panel]"
-            triggerRole="combobox"
-          />
-        </div>
-      ) : (
-        <span className="truncate text-sm font-medium text-gray-900">
-          {format(month, "MMMM yyyy", { locale })}
-        </span>
-      )}
-      <button
-        type="button"
-        aria-label={labels.nextMonth}
-        onClick={() => onMonthChange(addMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-      </button>
-    </div>
-  );
 }
 
 // Combines the optional lower/upper bounds into react-day-picker matchers.

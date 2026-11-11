@@ -16,7 +16,7 @@ import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
-import { SHEET_SCOPE_SELECTOR } from "../overlay-stack";
+import { SHEET_SCOPE_SELECTOR, useOverlay } from "../overlay-stack";
 import type {
   OverflowMenuCheckboxItem,
   OverflowMenuEntry,
@@ -138,6 +138,10 @@ export function OverflowMenu({
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // On the overlay stack, so the panel the menu opened from (an
+  // `AnchoredPopover`) counts a press in it as its own. Escape stays with the
+  // menu's own handler.
+  useOverlay(isOpen, "popover", { takesEscape: false, elementRef: menuRef });
   const focusOnOpenRef = useRef(false);
   const openAnchorRef = useRef<{ top: number; left: number } | null>(null);
   const menuId = useId();
