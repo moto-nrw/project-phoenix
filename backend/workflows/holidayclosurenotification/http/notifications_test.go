@@ -68,6 +68,10 @@ type closureWorld struct {
 	mail         owners.HolidayClosureMail
 }
 
+// newClosureWorld builds the world on the package's shared database. A test
+// that runs the Worker's ProcessDue, which leases the due commands of every
+// Träger, builds it on a clone of its own, so it takes no other test's
+// command away.
 func newClosureWorld(t *testing.T, name string) closureWorld {
 	t.Helper()
 	return newClosureWorldIn(t, name, testpkg.SetupTestDB(t))
@@ -151,7 +155,7 @@ func (w closureWorld) events(t *testing.T) []string {
 // family once, a click of the Büro afterwards finds the same command.
 func TestSchoolClosingDayTellsParentsOnlyAfterOneClick(t *testing.T) {
 	t.Parallel()
-	w := newClosureWorld(t, "Träger Hinweis Klick")
+	w := newClosureWorldIn(t, "Träger Hinweis Klick", testpkg.SetupIsolatedTestDB(t)) // ProcessDue sweeps every Träger
 	w.createClosingDay(t, "2030-08-20", "2030-08-20")
 	assert.Empty(t, w.schoolNotices(t), "no booked week, no family: no proposal")
 	w.createClosingDay(t, "2030-07-10", "2030-07-10")
@@ -209,7 +213,7 @@ func TestSchoolClosingDayTellsParentsOnlyAfterOneClick(t *testing.T) {
 // time write one command and one mail per family.
 func TestConcurrentClicksOfSchoolAndBueroSendOneMailPerFamily(t *testing.T) {
 	t.Parallel()
-	w := newClosureWorld(t, "Träger Hinweis gleichzeitig")
+	w := newClosureWorldIn(t, "Träger Hinweis gleichzeitig", testpkg.SetupIsolatedTestDB(t)) // ProcessDue sweeps every Träger
 	w.createClosingDay(t, "2030-07-09", "2030-07-10")
 	notice := w.schoolNotices(t)[0]
 	var wg sync.WaitGroup
@@ -237,7 +241,7 @@ func TestConcurrentClicksOfSchoolAndBueroSendOneMailPerFamily(t *testing.T) {
 // mail alone. An unknown outcome is not repeated blindly.
 func TestFailedNoticeIsTakenUpAgainWithoutASecondMail(t *testing.T) {
 	t.Parallel()
-	w := newClosureWorld(t, "Träger Hinweis nachholen")
+	w := newClosureWorldIn(t, "Träger Hinweis nachholen", testpkg.SetupIsolatedTestDB(t)) // ProcessDue sweeps every Träger
 	w.createClosingDay(t, "2030-07-11", "2030-07-11")
 	notice := w.schoolNotices(t)[0]
 	_, err := w.notices.NotifyFromSchool(w.ctx, w.school, 0, notice.ID, notice.Revision, notice.Token)
