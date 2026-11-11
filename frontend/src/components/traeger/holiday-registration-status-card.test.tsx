@@ -455,7 +455,7 @@ describe("HolidayRegistrationStatusCard", () => {
       expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("10 4711");
       fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
       await waitFor(() =>
-        expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("10 4711"),
+        expect(mockConfirmDebtorNumber).toHaveBeenCalledWith(""),
       );
     });
 
@@ -494,7 +494,7 @@ describe("HolidayRegistrationStatusCard", () => {
       expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("20 0815");
       fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
       await waitFor(() =>
-        expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("20 0815"),
+        expect(mockConfirmDebtorNumber).toHaveBeenCalledWith(""),
       );
     });
 
@@ -784,6 +784,76 @@ describe("HolidayRegistrationStatusCard", () => {
         ),
       ).toBeInTheDocument();
       expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(mockConfirm).not.toHaveBeenCalled();
+    });
+
+    it.each([false, true])(
+      "confirms an untouched inherited legacy number with required=%s",
+      async (required) => {
+        mockConfirm.mockResolvedValue({
+          ...HOLIDAY_CONTRIBUTION,
+          frozen: true,
+        });
+        render(
+          <ToastProvider>
+            <HolidayRegistrationStatusCard
+              periodId="5"
+              registration={HOLIDAY_REGISTRATION}
+              contribution={{
+                ...HOLIDAY_CONTRIBUTION,
+                siblingDebtorNumber: "LEGACY 1",
+              }}
+              debtorNumberRequired={required}
+              debtorNumberFormat={FIVE}
+              exemption={false}
+              onExemptionChange={vi.fn()}
+              onChanged={vi.fn()}
+              onReload={vi.fn(() => Promise.resolve())}
+              onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+            />
+          </ToastProvider>,
+        );
+        const field = screen.queryByRole("textbox", {
+          name: /^Debitorennummer/,
+        });
+        if (required) expect(field).toHaveValue("LEGACY 1");
+        else expect(field).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+        await waitFor(() => expect(mockConfirm).toHaveBeenCalledTimes(1));
+        expect(mockConfirmDebtorNumber).toHaveBeenCalledWith("");
+      },
+    );
+
+    it("checks a manually entered number even when a legacy number is inherited", async () => {
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={HOLIDAY_REGISTRATION}
+            contribution={{
+              ...HOLIDAY_CONTRIBUTION,
+              siblingDebtorNumber: "LEGACY 1",
+            }}
+            debtorNumberRequired
+            debtorNumberFormat={FIVE}
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onReload={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>,
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: /^Debitorennummer/ }),
+        { target: { value: "LEGACY 2" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      expect(
+        await screen.findByText(
+          "Die Debitorennummer hat 5 Ziffern, zum Beispiel 20815.",
+        ),
+      ).toBeInTheDocument();
       expect(mockConfirm).not.toHaveBeenCalled();
     });
 

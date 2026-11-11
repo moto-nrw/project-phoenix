@@ -109,7 +109,7 @@ export function DebtorNumberLengthField({
             role="group"
             aria-labelledby={`${fieldId}-label`}
             aria-describedby={`${fieldId}-example ${fieldId}-note`}
-            className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-gray-700"
+            className="flex max-w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-2 text-sm text-gray-700"
           >
             <span
               id={`${fieldId}-label`}
@@ -119,7 +119,7 @@ export function DebtorNumberLengthField({
             </span>
             <span className="flex items-center gap-2 whitespace-nowrap">
               von
-              <span className="w-14">
+              <span className="w-14 shrink-0">
                 <Input
                   id={`${fieldId}-min`}
                   name={minSetting.key}
@@ -138,8 +138,10 @@ export function DebtorNumberLengthField({
                   onBlur={() => void commit("min")}
                 />
               </span>
+            </span>
+            <span className="flex items-center gap-2 whitespace-nowrap">
               bis
-              <span className="w-14">
+              <span className="w-14 shrink-0">
                 <Input
                   id={`${fieldId}-max`}
                   name={maxSetting.key}
@@ -161,7 +163,10 @@ export function DebtorNumberLengthField({
               Ziffern
             </span>
           </div>
-          <p id={`${fieldId}-example`} className="text-sm text-gray-600">
+          <p
+            id={`${fieldId}-example`}
+            className="max-w-full min-w-0 text-sm wrap-anywhere text-gray-600"
+          >
             Beispiel{" "}
             <span className="font-semibold text-gray-900 tabular-nums">
               {example}

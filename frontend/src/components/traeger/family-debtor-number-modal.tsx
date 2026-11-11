@@ -10,9 +10,11 @@ import { FormModal } from "~/components/ui/form-modal";
 import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
+  DEBTOR_NUMBER_MAX_LENGTH,
   type DebtorNumberFormat,
   NO_DEBTOR_NUMBER_FORMAT,
   debtorNumberFormatError,
+  debtorNumberFormatHint,
 } from "~/lib/debtor-number-format";
 import { createLogger } from "~/lib/logger";
 import {
@@ -20,7 +22,7 @@ import {
   setFamilyDebtorNumber,
 } from "~/lib/traeger-billing-families-api";
 import { familyName } from "./billing-family-format";
-import { DebtorNumberInput } from "./family-debtor-number";
+import { Input } from "~/components/ui/input";
 
 const logger = createLogger({ component: "FamilyDebtorNumberModal" });
 
@@ -123,14 +125,19 @@ export function FamilyDebtorNumberModal({
             <span className="break-all">{family.familyEmail}</span>
           </p>
         ) : null}
-        <DebtorNumberInput
-          inputRef={fieldRef}
+        <Input
+          ref={fieldRef}
           id="family-debtor-number"
-          format={format}
+          name="debtor_number"
+          label="Debitorennummer"
+          autoComplete="off"
+          controlSize="compact"
+          inputMode={format.digitsOnly ? "numeric" : undefined}
+          maxLength={DEBTOR_NUMBER_MAX_LENGTH}
           value={value}
-          hint="Die Nummer der Familie bei der Kasse der Gemeinde. moto schlägt sie bei jeder neuen Ferienanmeldung der Familie vor. Ausgestellte Rechnungen behalten ihre Nummer."
+          hint={`${debtorNumberFormatHint(format)} Die Nummer der Familie bei der Kasse der Gemeinde. moto schlägt sie bei jeder neuen Ferienanmeldung der Familie vor. Ausgestellte Rechnungen behalten ihre Nummer.`.trim()}
           error={formErrors.fieldError("debtor_number") ?? undefined}
-          onChange={setValue}
+          onChange={(event) => setValue(event.target.value)}
         />
       </form>
     </FormModal>

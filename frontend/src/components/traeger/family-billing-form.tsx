@@ -19,9 +19,11 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
+  DEBTOR_NUMBER_MAX_LENGTH,
   type DebtorNumberFormat,
   NO_DEBTOR_NUMBER_FORMAT,
   debtorNumberFormatError,
+  debtorNumberFormatHint,
 } from "~/lib/debtor-number-format";
 import { createLogger } from "~/lib/logger";
 import {
@@ -34,7 +36,6 @@ import {
   saveFamilyBilling,
 } from "~/lib/traeger-billing-terms-api";
 import { PAYMENT_METHOD_LABELS } from "./billing-payment-format";
-import { DebtorNumberInput } from "./family-debtor-number";
 
 const logger = createLogger({ component: "FamilyBillingForm" });
 
@@ -443,13 +444,18 @@ export function FamilyBillingForm({
         error={fieldError("due_day")}
         onChange={(dueDay) => set({ dueDay })}
       />
-      <DebtorNumberInput
+      <Input
         id={id("debtor-number")}
-        format={format}
+        name="debtor_number"
+        label="Debitorennummer"
+        autoComplete="off"
+        controlSize="compact"
+        inputMode={format.digitsOnly ? "numeric" : undefined}
+        maxLength={DEBTOR_NUMBER_MAX_LENGTH}
         value={draft.debtorNumber}
-        hint="Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Monats- und Ferienrechnung und in der Sollstellung. Hat eine Ferienanmeldung eine eigene Nummer, gilt diese."
+        hint={`${debtorNumberFormatHint(format)} Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Monats- und Ferienrechnung und in der Sollstellung. Hat eine Ferienanmeldung eine eigene Nummer, gilt diese.`.trim()}
         error={fieldError("debtor_number")}
-        onChange={(debtorNumber) => set({ debtorNumber })}
+        onChange={(event) => set({ debtorNumber: event.target.value })}
       />
       {deviates ? (
         <Button

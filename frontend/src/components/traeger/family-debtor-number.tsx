@@ -7,17 +7,9 @@
 // welche Nummer gilt. moto überschreibt nie still.
 
 import { History } from "lucide-react";
-import { type Ref } from "react";
 import { Button } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { InsetPanel } from "~/components/ui/inset-panel";
-import { Input } from "~/components/ui/input";
-import {
-  DEBTOR_NUMBER_MAX_LENGTH,
-  type DebtorNumberFormat,
-  NO_DEBTOR_NUMBER_FORMAT,
-  debtorNumberFormatHint,
-} from "~/lib/debtor-number-format";
 import type {
   FamilyDebtorNumberChoice,
   FamilyDebtorNumberConflict,
@@ -29,55 +21,6 @@ import type {
  */
 export const DEBTOR_NUMBER_TEXT_CLASS =
   "font-medium text-gray-900 tabular-nums";
-
-/**
- * The field of a debtor number (#6675). With the Träger's format the helper
- * text names it first, and phones open the number keyboard; the format is
- * checked on save, by the form and then by the backend.
- */
-export function DebtorNumberInput({
-  id,
-  inputRef,
-  value,
-  onChange,
-  format = NO_DEBTOR_NUMBER_FORMAT,
-  hint,
-  required,
-  error,
-  describedBy,
-}: Readonly<{
-  id: string;
-  inputRef?: Ref<HTMLInputElement>;
-  value: string;
-  onChange: (value: string) => void;
-  format?: DebtorNumberFormat;
-  /** What the number is for, after the format. */
-  hint: string;
-  required?: boolean;
-  error?: string;
-  /** Further descriptions, such as the family's known number. */
-  describedBy?: string;
-}>) {
-  const formatHint = debtorNumberFormatHint(format);
-  return (
-    <Input
-      ref={inputRef}
-      id={id}
-      name="debtor_number"
-      label="Debitorennummer"
-      required={required}
-      autoComplete="off"
-      controlSize="compact"
-      inputMode={format.digitsOnly ? "numeric" : undefined}
-      maxLength={DEBTOR_NUMBER_MAX_LENGTH}
-      value={value}
-      hint={formatHint ? `${formatHint} ${hint}` : hint}
-      aria-describedby={describedBy}
-      error={error}
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
-}
 
 /**
  * The number the family already has, below the field (#6692): one calm row
