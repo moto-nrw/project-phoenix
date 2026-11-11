@@ -358,3 +358,26 @@ func TestFailingPlannedExitClosesAccessAndIsReported(t *testing.T) {
 	require.NotNil(t, plan.NextAttemptAt)
 	require.True(t, plan.NextAttemptAt.Equal(f.now.Add(time.Hour)))
 }
+
+// Two exits due in one run share the school transaction, so the first
+// exit's membership row is still locked when the second offboarding takes
+// its staff-shift gate. The run takes every gate and then every membership
+// row up front, ascending (#6583); without that the lock order refuses the
+// second exit and it fails every hour.
+func TestTwoPlannedExitsDueInOneRunBothComplete(t *testing.T) {
+	t.Parallel()
+	f, planner := newPlannerFixture(t)
+	ctx := testpkg.Ctx(t)
+	other := testpkg.CreateTestStaff(t, testpkg.SetupTestDB(t), "Lifecycle", "Second")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-10"))
+	require.NoError(t, err)
+	_, err = planner.Plan(ctx, other.ID, plannedExitDate("2027-10-10"))
+	require.NoError(t, err)
+
+	f.today = "2027-10-11"
+	require.NoError(t, planner.RunDue(ctx))
+	require.Empty(t, planner.lastRun.Failed, "both exits run in the same transaction")
+	require.True(t, f.retired(t))
+	_, err = f.membership.FindStaff(ctx, other.ID)
+	require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound, "the second exit retired its member too")
+}

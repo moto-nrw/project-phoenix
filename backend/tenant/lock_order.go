@@ -18,9 +18,12 @@ import (
 // The order spans owners: Workforce's staff-shift gate comes before
 // Timetable's recurrence gate and day locks, because a sick report holds the
 // gate while its cascade writes the days, and plan writers that read sick
-// reports hold days, never the gate after a day. Row locks (block rows by
-// ascending id, assignment rows, foreign-key key shares) come after every
-// class listed here.
+// reports hold days, never the gate after a day. The staff rows come after
+// the days and before every other row (#6583): offboarding holds a staff row
+// while it locks that person's blocks, so a day writer takes the staff rows
+// of every person it plans or references before its first block row. Other
+// row locks (block rows by ascending id, assignment rows, the remaining
+// foreign-key key shares) come after every class listed here.
 type LockClass uint8
 
 const (
@@ -35,7 +38,21 @@ const (
 	// LockScheduleDay is Timetable's day-wide staffing lock; keys are
 	// calendar days in YYYY-MM-DD form, which sort like the days.
 	LockScheduleDay
+	// LockStaffRows is School Membership's row lock on a staff member
+	// (users.staff_school_memberships); keys are staff ids (LockIDKey). The
+	// foreign-key key share a row referencing the staff member takes
+	// (instance_staff, supervisors, shifts, deviation events) belongs to this
+	// class too: the writer holds the row lock before it inserts, so the key
+	// share is never the first lock on that row. The class position is
+	// enforced; its keys are not ordered among themselves yet, because
+	// composed writers (a re-plan and its materialization, a template write
+	// and its supervisors) learn their people one by one. Writers that know
+	// their roster take it ascending (Timetable's LockStaffAssignments).
+	LockStaffRows
 )
+
+// unorderedKeys are the classes whose keys may come in any order.
+var unorderedKeys = map[LockClass]bool{LockStaffRows: true}
 
 func (c LockClass) String() string {
 	switch c {
@@ -47,6 +64,8 @@ func (c LockClass) String() string {
 		return "grade-transition gate"
 	case LockScheduleDay:
 		return "schedule day"
+	case LockStaffRows:
+		return "staff row"
 	default:
 		return fmt.Sprintf("lock class %d", c)
 	}
@@ -100,8 +119,8 @@ func lockCheckpoint(ctx context.Context) func() {
 
 // OrderLock admits one ordered lock of the ambient transaction before the
 // caller acquires it. It returns ErrLockOrder when the transaction already
-// holds a lock of a later class, or a later key of the same class, and does
-// not hold this one. Outside a transaction opened by this runtime there is
+// holds a lock of a later class, or a later key of the same ordered class,
+// and does not hold this one. Outside a transaction opened by this runtime there is
 // nothing to compare against, so every request is admitted.
 func OrderLock(ctx context.Context, class LockClass, key string) error {
 	ledger, ok := ctx.Value(lockLedgerKey{}).(*lockLedger)
@@ -114,10 +133,25 @@ func OrderLock(ctx context.Context, class LockClass, key string) error {
 	if _, held := ledger.held[request]; held {
 		return nil
 	}
-	if ledger.started && (class < ledger.last.class || (class == ledger.last.class && key < ledger.last.key)) {
+	if ledger.started && (class < ledger.last.class || (class == ledger.last.class && key < ledger.last.key && !unorderedKeys[class])) {
 		return fmt.Errorf("%w: %s %q after %s %q", ErrLockOrder, class, key, ledger.last.class, ledger.last.key)
 	}
 	ledger.held[request] = struct{}{}
 	ledger.last, ledger.started = request, true
 	return nil
+}
+
+// HoldsLock reports whether the ambient transaction already holds the
+// ordered lock. A caller that would only take the same lock again skips the
+// statement (#6583). Outside a transaction opened by this runtime nothing is
+// held.
+func HoldsLock(ctx context.Context, class LockClass, key string) bool {
+	ledger, ok := ctx.Value(lockLedgerKey{}).(*lockLedger)
+	if !ok || ledger == nil {
+		return false
+	}
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	_, held := ledger.held[heldLock{class: class, key: key}]
+	return held
 }

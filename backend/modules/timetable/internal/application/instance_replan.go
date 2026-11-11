@@ -164,6 +164,14 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 	if err != nil {
 		return nil, nil, err
 	}
+	// The caller deletes these occurrences and then plans their people
+	// again (materialization, reapplied substitutes). Offboarding holds a
+	// staff row while it locks that person's blocks, so the people of the
+	// operational occurrences are locked now, before the delete holds their
+	// rows (#6583, tenant.LockStaffRows).
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, operationalStaffOf(staffRows, eligible, calendar.TodayDate())); err != nil {
+		return nil, nil, err
+	}
 	staffByInstance := IndexInstanceStaffRows(staffRows)
 	snapshots := make([]deviationSnapshot, 0)
 	for _, inst := range eligible {
@@ -173,6 +181,23 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 		}
 	}
 	return snapshots, occurrences, nil
+}
+
+// operationalStaffOf lists the people staffed on the occurrences from today
+// on. Offboarding removed a retired person's rows there, so each is live;
+// history keeps retired people and is left alone.
+func operationalStaffOf(rows []*scheduleModel.InstanceStaff, instances []*scheduleModel.ActivityInstance, today calendar.Date) []int64 {
+	operational := make(map[int64]bool, len(instances))
+	for _, inst := range instances {
+		operational[inst.ID] = !calendar.Date(inst.Date).Before(today)
+	}
+	staff := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if operational[row.InstanceID] {
+			staff = append(staff, row.StaffID)
+		}
+	}
+	return staff
 }
 
 func replannableOccurrence(inst *scheduleModel.ActivityInstance, activityGroupID *int64, weekendFollowsFriday bool) bool {

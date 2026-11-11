@@ -202,7 +202,7 @@ func revisionRows[Row, Revision any](rows []Row, convert func(Row) Revision) []R
 // lockStaffForRetirement locks the live membership and composes the whole
 // staff member: the work-time binding is part of the revision.
 func (s *Service) lockStaffForRetirement(ctx context.Context, staffID int64, stats *domain.OperationStats) (schoolmembership.Staff, bool, error) {
-	staff, found, queryStats, err := s.store.FindStaff(ctx, staffID, "UPDATE", false)
+	staff, found, queryStats, err := s.findStaffRow(ctx, staffID, "UPDATE", false)
 	stats.Add(queryStats)
 	if err != nil || !found {
 		return schoolmembership.Staff{}, found, err

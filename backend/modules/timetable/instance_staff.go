@@ -62,6 +62,15 @@ type InstanceStaffCommand interface {
 	DeleteUpcomingInstanceStaff(context.Context, int64, string) (int64, error)
 }
 
+// InstanceStaffLocks takes the staff row locks of the staff members a day
+// writer is about to plan, ascending, before the writer locks its first block
+// row (#6583, tenant.LockStaffRows). The owner's instance staff capability
+// implements it beside InstanceStaffCommand; the owner's own day writers use
+// it, so it is not part of the owner facade.
+type InstanceStaffLocks interface {
+	LockStaffAssignments(context.Context, []int64) error
+}
+
 type InstanceStaffCapability interface {
 	InstanceStaffQuery
 	InstanceStaffCommand

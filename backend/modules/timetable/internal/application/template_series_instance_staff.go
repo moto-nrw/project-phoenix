@@ -63,6 +63,12 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	if pass.sickDays, err = sickDaysIn(ctx, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
 		return err
 	}
+	// The staff rows of everyone the pass may add, before the first block
+	// row (#6583): offboarding holds a staff row while it locks that person's
+	// occurrences, so taking it after an occurrence closes a cycle.
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, plannedStaffOf(staffIDs, pass)); err != nil {
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: lock staff", Err: err}
+	}
 	for _, inst := range instances {
 		if err := s.reconcileOccurrenceStaff(ctx, inst, staffIDs, pass); err != nil {
 			return err
@@ -104,6 +110,19 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 		pass.existing[instanceStudentPair{instanceID: row.InstanceID, studentID: row.StaffID}] = row
 	}
 	return pass, nil
+}
+
+// plannedStaffOf lists the given staff members the template still plans:
+// only they can gain an occurrence row. A supervisor row exists only for live
+// staff, since offboarding removes a retired person's rows.
+func plannedStaffOf(staffIDs []int64, pass *instanceStaffReconciliation) []int64 {
+	planned := make([]int64, 0, len(staffIDs))
+	for _, staffID := range staffIDs {
+		if len(pass.byStaff[staffID]) > 0 {
+			planned = append(planned, staffID)
+		}
+	}
+	return planned
 }
 
 func supervisorsByStaff(rows []*activityContract.SupervisorPlanned) map[int64][]*activityContract.SupervisorPlanned {
@@ -348,13 +367,18 @@ func (s *TemplateService) lockOccurrenceDays(ctx context.Context, instances []*s
 	if len(instances) == 0 {
 		return nil
 	}
-	if s.deps.Deviations == nil {
-		return &ports.ScheduleError{Op: "reconcile predecessor staff: lock days", Err: errors.New("day locks are not configured")}
+	return lockTemplateDays(ctx, s.deps.Deviations, "reconcile predecessor staff: lock days", occurrenceDays(instances))
+}
+
+// lockTemplateDays takes the day locks of the days once each, ascending.
+func lockTemplateDays(ctx context.Context, deviations ports.SeriesDeviations, op string, days []calendar.Date) error {
+	if deviations == nil {
+		return &ports.ScheduleError{Op: op, Err: errors.New("day locks are not configured")}
 	}
 	tenantID := tenant.FromContext(ctx)
-	for _, day := range ascendingDays(occurrenceDays(instances)) {
-		if err := s.deps.Deviations.LockDeviationDays(ctx, tenantID, day, day); err != nil {
-			return &ports.ScheduleError{Op: "reconcile predecessor staff: lock days", Err: err}
+	for _, day := range ascendingDays(days) {
+		if err := deviations.LockDeviationDays(ctx, tenantID, day, day); err != nil {
+			return &ports.ScheduleError{Op: op, Err: err}
 		}
 	}
 	return nil
