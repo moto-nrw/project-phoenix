@@ -122,6 +122,44 @@ func seedHolidayDayRegistrations(rt *Runtime, auth AuthRef, token string, period
 		return fmt.Errorf("confirm the registration by days: %w", err)
 	}
 	fmt.Println("  Träger-Büro: registration by days confirmed with two days at the day price")
+	return seedHolidayOwnChild(rt, weekID, families[0].child, families[0].last)
+}
+
+// seedHolidayOwnChild makes the confirmed child of the registration by days
+// a student of the hosting school and picks the holiday group for its week
+// (#6678): the registration names the hosting school as the home school, so
+// the child stays in its own group, its booked days are planned with the
+// times of the time model, and its file shows what the registration says.
+// The step fails when no own child is planned.
+func seedHolidayOwnChild(rt *Runtime, weekID int64, firstName, lastName string) error {
+	holidayGroup, _ := rt.Values[seedHolidayGroupKey].(int64)
+	ownGroupID := firstSeedGroupID(rt.FixedSeeder)
+	if holidayGroup == 0 || ownGroupID == 0 {
+		return fmt.Errorf("the hosting school has no holiday group or no group of its own")
+	}
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/students", map[string]any{
+		"first_name": firstName, "last_name": lastName, "school_class": "Klasse 2b",
+		"group_id": ownGroupID, "birthday": "2018-02-14", "pickup_status": "pickup",
+	}); err != nil {
+		return fmt.Errorf("create the school's own holiday child: %w", err)
+	}
+	raw, err := rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-weeks/%d/guest-group", weekID),
+		map[string]any{"group_id": fmt.Sprint(holidayGroup)})
+	if err != nil {
+		return fmt.Errorf("pick the holiday group of the week booked by days: %w", err)
+	}
+	var transfer struct {
+		Data struct {
+			OwnChildren int `json:"own_children"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &transfer); err != nil {
+		return fmt.Errorf("decode the holiday group choice: %w", err)
+	}
+	if transfer.Data.OwnChildren == 0 {
+		return fmt.Errorf("no child of the hosting school was planned for its booked holiday days")
+	}
+	fmt.Printf("  Ausrichtende OGS: %d own child(ren) planned for the booked holiday days\n", transfer.Data.OwnChildren)
 	return nil
 }
 
