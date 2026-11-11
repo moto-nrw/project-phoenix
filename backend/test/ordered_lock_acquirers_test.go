@@ -9,20 +9,22 @@ import (
 	"testing"
 )
 
-// The advisory locks of the cross-owner lock order (#6232) are taken in one
-// place each, and that place admits the lock through tenant.OrderLock before
-// it waits: Timetable's day locks and recurrence gate, the grade-transition
-// gate (taken by Timetable and by School Structure) and Workforce's
-// staff-shift gate. A second place that hashes one of these
-// keys would wait outside the order check, and a sick report, a
-// materialization or a series write could close a 40P01 cycle again; review
-// found such cycles three times in #6300. So the key builders may appear only
-// in the files below, and every acquiring file calls tenant.OrderLock.
+// The locks of the cross-owner lock order (#6232) are taken in one place
+// each, and that place admits the lock through tenant.OrderLock before it
+// waits: Timetable's day locks and recurrence gate, the grade-transition gate
+// (taken by Timetable and by School Structure), Workforce's staff-shift gate
+// and School Membership's staff row lock (#6583). A second place that takes
+// one of these locks would wait outside the order check, and a sick report,
+// a materialization, a series write or an offboarding could close a 40P01
+// cycle again; review found such cycles three times in #6300. So the key
+// builders may appear only in the files below, and every acquiring file calls
+// tenant.OrderLock.
 //
 // The order itself is enforced at run time: tenant.OrderLock refuses a lock
 // against the order before it waits (tenant/lock_order_test.go), and the
-// concurrent tests in workflows/shiftplansync/compose/sick_report_races_test.go
-// and modules/timetable/compose/pickup_extension_failure_points_test.go run
+// concurrent tests in workflows/shiftplansync/compose/sick_report_races_test.go,
+// modules/timetable/compose/pickup_extension_failure_points_test.go and
+// modules/peopledirectory/contracttest/staff_offboarding_day_writer_race_test.go run
 // the real writers against each other.
 var orderedLockKeyBuilders = map[string]struct {
 	definition string
@@ -43,6 +45,11 @@ var orderedLockKeyBuilders = map[string]struct {
 	"TenantRecurrenceLockKey(": {
 		definition: "modules/timetable/internal/domain/schedulerecords/recurrence_lock.go",
 		acquirers:  []string{"modules/timetable/internal/adapters/postgres/native_compose_bindings_recurrence_lock.go"},
+	},
+	// School Membership's staff row lock (#6583): every read of a staff row
+	// passes findStaffRow, which admits the lock before it waits.
+	"store.FindStaff(": {
+		acquirers: []string{"modules/schoolmembership/internal/application/staff_row_lock.go"},
 	},
 	`"staff-shift:`: {
 		acquirers: []string{

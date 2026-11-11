@@ -75,7 +75,7 @@ func (s *Service) findStaff(ctx context.Context, id int64, lock string) (result 
 	err = run(ctx, "find_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindStaff(txCtx, id, lock, false)
+		result, found, queryStats, err = s.findStaffRow(txCtx, id, lock, false)
 		stats.Add(queryStats)
 		if err == nil && !found {
 			result = schoolmembership.Staff{}
@@ -486,7 +486,7 @@ func (s *Service) DeleteExternalCaregiverRecord(ctx context.Context, id int64) e
 // --- plumbing ---
 
 func (s *Service) requireStaffLocked(ctx context.Context, id int64, stats *domain.OperationStats) error {
-	_, found, queryStats, err := s.store.FindStaff(ctx, id, "UPDATE", false)
+	_, found, queryStats, err := s.findStaffRow(ctx, id, "UPDATE", false)
 	stats.Add(queryStats)
 	if err != nil {
 		return err
