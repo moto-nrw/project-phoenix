@@ -4,7 +4,10 @@ import {
   enrollmentWindowIsOrdered,
   phaseHasPublicForm,
 } from "~/lib/enrollment-phase-rules";
-import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
+import type {
+  CareBeyondPhaseEnd,
+  CareOfferingSelectionMode,
+} from "~/lib/enrollment-phase-api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -52,7 +55,6 @@ import { useSession } from "next-auth/react";
 import { hasPermission } from "~/lib/auth-utils";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { PhaseCareBeyondEndDialog } from "~/components/enrollment/phase-care-beyond-end-dialog";
-import type { CareBeyondPhaseEnd } from "~/lib/enrollment-phase-api";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";

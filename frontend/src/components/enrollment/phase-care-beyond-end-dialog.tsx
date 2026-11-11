@@ -38,7 +38,7 @@ export function PhaseCareBeyondEndDialog({
   const footer = canEndCare ? (
     <>
       <Button type="button" variant="outline" size="md" onClick={onClose}>
-        Später
+        Schließen
       </Button>
       <Button type="button" variant="primary" size="md" onClick={onEndCare}>
         Betreuung beenden
@@ -60,7 +60,7 @@ export function PhaseCareBeyondEndDialog({
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">
-          {`Die Anmeldephase „${phaseName}“ endet jetzt am ${formatDate(phaseEnd)}. Bei ${count} ist die Betreuung länger eingetragen. moto beendet sie nicht von selbst.`}
+          {`Die Anmeldephase „${phaseName}“ endet jetzt am ${formatDate(phaseEnd)}. Bei ${count} ist die Betreuung länger eingetragen. moto beendet sie nicht von selbst. Diese Liste sehen Sie nur jetzt.`}
         </p>
         <FramedList maxHeight="md">
           {students.map((child) => (
@@ -94,7 +94,7 @@ export function PhaseCareBeyondEndDialog({
           <Alert
             type="warning"
             announce="off"
-            message="Die Betreuung beenden darf nur, wer Kinder verwalten darf. Bitte geben Sie diese Liste an diese Person weiter."
+            message="Die Betreuung beenden darf nur, wer Kinder verwalten darf. Notieren Sie die Namen und geben Sie sie an diese Person weiter."
           />
         )}
       </div>

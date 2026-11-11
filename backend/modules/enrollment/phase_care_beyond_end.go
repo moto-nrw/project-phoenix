@@ -35,16 +35,13 @@ type PhaseCareStudent struct {
 	FirstName   string
 	LastName    string
 	SchoolClass string
-	Status      string
+	// InCare is true while the child's care has not ended: its start is
+	// still ahead (pending) or it is cared for (active). A child whose care
+	// ended or who graduated is history.
+	InCare bool
 	// CareEnd is the child's last care day; zero when none is set.
 	CareEnd calendar.Date
 }
-
-// Student states a phase edit reports on; they mirror People Directory's.
-const (
-	PhaseCareStudentPending = "pending"
-	PhaseCareStudentActive  = "active"
-)
 
 // PhaseCareStudents reads the care state of the given children in the
 // caller's transaction. People Directory owns the rows; the edit only reads.

@@ -54,7 +54,7 @@ func confirmedChild(childID, studentID int64) enrollment.PhaseResponseChild {
 // A phase shortened from 31.07. to 30.06. names exactly the children whose
 // care this edit cut off (#6598): pending or active, a care end after the
 // new and not after the old end, not yet passed, and not reached by an
-// approval in another phase. It sorts them by name.
+// approval in another phase. It sorts them by name in German order.
 func TestCareBeyondShortenedEnd_ListsTheChildrenTheEditCutOff(t *testing.T) {
 	t.Parallel()
 
@@ -66,8 +66,8 @@ func TestCareBeyondShortenedEnd_ListsTheChildrenTheEditCutOff(t *testing.T) {
 		confirmedChild(502, 602), // pending, end inside the cut: listed
 		confirmedChild(503, 603), // already ends on the new end
 		confirmedChild(504, 604), // end later than the old phase end: set by hand
-		confirmedChild(505, 605), // inactive
-		confirmedChild(506, 606), // alumnus
+		confirmedChild(505, 605), // care ended (inactive)
+		confirmedChild(506, 606), // graduated (alumnus)
 		confirmedChild(507, 607), // another phase reaches the end
 		confirmedChild(508, 608), // another phase ends earlier: listed
 		confirmedChild(509, 609), // no care end
@@ -75,16 +75,16 @@ func TestCareBeyondShortenedEnd_ListsTheChildrenTheEditCutOff(t *testing.T) {
 		{IsPhaseChild: true, Child: &enrollment.RequestChild{ID: 511}},                                 // no child record
 	}
 	students := beyondEndStudents{
-		{ID: 601, FirstName: "Mia", LastName: "Lang", SchoolClass: "2b", Status: enrollment.PhaseCareStudentActive, CareEnd: oldEnd},
-		{ID: 602, FirstName: "Ali", LastName: "Berg", SchoolClass: "1a", Status: enrollment.PhaseCareStudentPending, CareEnd: "2028-07-10"},
-		{ID: 603, Status: enrollment.PhaseCareStudentActive, CareEnd: newEnd},
-		{ID: 604, Status: enrollment.PhaseCareStudentActive, CareEnd: oldEnd.AddDays(1)},
-		{ID: 605, Status: "inactive", CareEnd: oldEnd},
-		{ID: 606, Status: "alumnus", CareEnd: oldEnd},
-		{ID: 607, Status: enrollment.PhaseCareStudentActive, CareEnd: oldEnd},
-		{ID: 608, FirstName: "Ben", LastName: "Lang", SchoolClass: "3c", Status: enrollment.PhaseCareStudentActive, CareEnd: oldEnd},
-		{ID: 609, Status: enrollment.PhaseCareStudentActive},
-		{ID: 610, Status: enrollment.PhaseCareStudentActive, CareEnd: oldEnd},
+		{ID: 601, FirstName: "Mia", LastName: "Lang", SchoolClass: "2b", InCare: true, CareEnd: oldEnd},
+		{ID: 602, FirstName: "Ali", LastName: "Ärmel", SchoolClass: "1a", InCare: true, CareEnd: "2028-07-10"},
+		{ID: 603, InCare: true, CareEnd: newEnd},
+		{ID: 604, InCare: true, CareEnd: oldEnd.AddDays(1)},
+		{ID: 605, CareEnd: oldEnd},
+		{ID: 606, CareEnd: oldEnd},
+		{ID: 607, InCare: true, CareEnd: oldEnd},
+		{ID: 608, FirstName: "Ben", LastName: "Lang", SchoolClass: "3c", InCare: true, CareEnd: oldEnd},
+		{ID: 609, InCare: true},
+		{ID: 610, InCare: true, CareEnd: oldEnd},
 	}
 	periods := []*enrollment.StudentCarePeriod{
 		{StudentID: 601, PhaseID: phaseID, ServiceEndDate: enrollment.Date(newEnd)},
@@ -102,7 +102,7 @@ func TestCareBeyondShortenedEnd_ListsTheChildrenTheEditCutOff(t *testing.T) {
 	got, err := s.careBeyondShortenedEnd(context.Background(), before, after)
 	require.NoError(t, err)
 	assert.Equal(t, []enrollment.CareBeyondPhaseEnd{
-		{StudentID: 602, FirstName: "Ali", LastName: "Berg", SchoolClass: "1a", CareEnd: "2028-07-10", PhaseEnd: newEnd},
+		{StudentID: 602, FirstName: "Ali", LastName: "Ärmel", SchoolClass: "1a", CareEnd: "2028-07-10", PhaseEnd: newEnd},
 		{StudentID: 608, FirstName: "Ben", LastName: "Lang", SchoolClass: "3c", CareEnd: oldEnd, PhaseEnd: newEnd},
 		{StudentID: 601, FirstName: "Mia", LastName: "Lang", SchoolClass: "2b", CareEnd: oldEnd, PhaseEnd: newEnd},
 	}, got)

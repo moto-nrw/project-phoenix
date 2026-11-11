@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -19,7 +18,7 @@ import (
 // the same gate, so the list matches every committed care end.
 //
 // A child is listed when
-//   - it is pending or active; a child whose care ended is history,
+//   - it is in care (pending or active); a child whose care ended is history,
 //   - its care end lies after the new phase end and not after the old one:
 //     this edit opened the gap, not an earlier edit or a later end the
 //     school set by hand,
@@ -58,11 +57,10 @@ func (s *Phases) careBeyondShortenedEnd(ctx context.Context, before, after *enro
 }
 
 // cutByEdit reports whether the edit from oldEnd to newEnd cut off the
-// child's care: it is pending or active, its care end lies after the new and
-// not after the old end, has not passed, and no approval in another phase
-// reaches it.
+// child's care: it is in care, its care end lies after the new and not after
+// the old end, has not passed, and no approval in another phase reaches it.
 func cutByEdit(student enrollment.PhaseCareStudent, oldEnd, newEnd, today calendar.Date, otherReach map[int64]calendar.Date) bool {
-	if student.Status != enrollment.PhaseCareStudentPending && student.Status != enrollment.PhaseCareStudentActive {
+	if !student.InCare {
 		return false
 	}
 	end := student.CareEnd
@@ -113,12 +111,10 @@ func (s *Phases) otherPhaseReach(ctx context.Context, phaseID int64, studentIDs 
 	return reach, nil
 }
 
-// compareCareBeyondEnd orders the children by last name, first name and id.
+// compareCareBeyondEnd orders the children like every other name list
+// (German collation, last name first), then by id.
 func compareCareBeyondEnd(a, b enrollment.CareBeyondPhaseEnd) int {
-	if c := strings.Compare(a.LastName, b.LastName); c != 0 {
-		return c
-	}
-	if c := strings.Compare(a.FirstName, b.FirstName); c != 0 {
+	if c := compareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName); c != 0 {
 		return c
 	}
 	switch {

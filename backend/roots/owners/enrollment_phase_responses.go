@@ -67,11 +67,11 @@ func (d phaseCareStudents) PhaseCareStudents(ctx context.Context, studentIDs []i
 	}
 	students, err := d.query.ListStudentsByID(ctx, studentIDs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("phase care students: list students: %w", err)
 	}
 	names, err := d.query.ListStudentNamesByID(ctx, studentIDs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("phase care students: list names: %w", err)
 	}
 	byID := make(map[int64]peopledirectory.StudentName, len(names))
 	for _, name := range names {
@@ -81,7 +81,8 @@ func (d phaseCareStudents) PhaseCareStudents(ctx context.Context, studentIDs []i
 	for _, student := range students {
 		value := enrollmentOwner.PhaseCareStudent{
 			ID: student.ID, FirstName: byID[student.ID].FirstName, LastName: byID[student.ID].LastName,
-			SchoolClass: student.SchoolClass, Status: student.Status,
+			SchoolClass: student.SchoolClass,
+			InCare:      student.Status == peopledirectory.StudentStatusPending || student.Status == peopledirectory.StudentStatusActive,
 		}
 		if student.EnrolledUntil != "" {
 			end, err := timezone.ParseDate(student.EnrolledUntil)

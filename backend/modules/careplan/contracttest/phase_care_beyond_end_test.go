@@ -41,11 +41,17 @@ func shortenPhase(t *testing.T, env *decisionTestEnv, endDays int) enrollmentTes
 // careState reads the child's status and care end.
 func careState(t *testing.T, env *decisionTestEnv, studentID int64) (string, string) {
 	t.Helper()
+	student := directoryStudent(t, env, studentID)
+	return student.Status, student.EnrolledUntil
+}
+
+func directoryStudent(t *testing.T, env *decisionTestEnv, studentID int64) peopledirectory.Student {
+	t.Helper()
 	students, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db,
 		owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, env.db)).ListStudentsByID, []int64{studentID})
 	require.NoError(t, err)
 	require.Len(t, students, 1)
-	return students[0].Status, students[0].EnrolledUntil
+	return students[0]
 }
 
 func reportedChildren(report enrollmentTest.PhaseUpdateReport) []int64 {
@@ -67,12 +73,15 @@ func TestPhaseShortening_NamesActiveChildAndLeavesItsCare(t *testing.T) {
 	env := setupDecisionTest(t)
 	c := approveSourcedChild(t, env, "Gekuerzt")
 	activate(t, env, c)
+	// A child whose care ended on the old phase end is history.
+	ended := approveSourcedChild(t, env, "Beendet")
+	testpkg.SetStudentLifecycle(t, env.db, ended.studentID, peopledirectory.StudentStatusInactive, &ended.start, &ended.end)
 	newEnd := c.end.AddDays(-31)
 
 	report := shortenPhase(t, env, -31)
-	require.Len(t, report.CareBeyondEnd, 1)
+	require.Len(t, report.CareBeyondEnd, 1, "only the child in care is named")
 	assert.Equal(t, enrollmentTest.CareBeyondPhaseEnd{
-		StudentID: c.studentID, FirstName: "Gekuerzt", LastName: "Quelle", SchoolClass: report.CareBeyondEnd[0].SchoolClass,
+		StudentID: c.studentID, FirstName: "Gekuerzt", LastName: "Quelle", SchoolClass: directoryStudent(t, env, c.studentID).SchoolClass,
 		CareEnd: c.end, PhaseEnd: newEnd,
 	}, report.CareBeyondEnd[0])
 	status, careEnd := careState(t, env, c.studentID)

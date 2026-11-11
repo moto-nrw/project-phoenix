@@ -59,7 +59,7 @@ describe("PhaseCareBeyondEndDialog", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "Die Anmeldephase „Schuljahr 2026/27“ endet jetzt am 30.06.2027. Bei 2 Kindern ist die Betreuung länger eingetragen. moto beendet sie nicht von selbst.",
+        "Die Anmeldephase „Schuljahr 2026/27“ endet jetzt am 30.06.2027. Bei 2 Kindern ist die Betreuung länger eingetragen. moto beendet sie nicht von selbst. Diese Liste sehen Sie nur jetzt.",
       ),
     ).toBeVisible();
     expect(screen.getByText("Mia Lang")).toBeVisible();
@@ -75,7 +75,7 @@ describe("PhaseCareBeyondEndDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Betreuung beenden" }));
     expect(onEndCare).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "Später" }));
+    fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -96,7 +96,7 @@ describe("PhaseCareBeyondEndDialog", () => {
 
     expect(
       screen.getByText(
-        "Die Betreuung beenden darf nur, wer Kinder verwalten darf. Bitte geben Sie diese Liste an diese Person weiter.",
+        "Die Betreuung beenden darf nur, wer Kinder verwalten darf. Notieren Sie die Namen und geben Sie sie an diese Person weiter.",
       ),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Schließen" })).toBeVisible();
