@@ -1,7 +1,9 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
+import NavigationLink, {
+  type NavigationLinkProps,
+} from "~/components/ui/navigation-link";
 import {
   NotificationBadge,
   type NotificationBadgeTone,
@@ -131,7 +133,7 @@ function SidebarRowContent({
 }
 
 type SidebarRowLinkProps = Omit<
-  NavLinkProps,
+  NavigationLinkProps,
   "children" | "className" | "aria-current" | "target" | "rel" | "title"
 > &
   SidebarRowCollapseState & {
@@ -161,7 +163,7 @@ export function SidebarRowLink({
   ...linkProps
 }: SidebarRowLinkProps) {
   return (
-    <NavLink
+    <NavigationLink
       {...linkProps}
       data-active={active ? "true" : "false"}
       aria-current={active ? "page" : undefined}
@@ -180,7 +182,7 @@ export function SidebarRowLink({
         labelsMounted={labelsMounted}
         labelsVisible={labelsVisible}
       />
-    </NavLink>
+    </NavigationLink>
   );
 }
 

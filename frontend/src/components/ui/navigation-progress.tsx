@@ -9,7 +9,6 @@ import {
   Suspense,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -19,6 +18,7 @@ import {
   NavigationProgressContext,
   type NavigationProgressStore,
 } from "./navigation-progress-store";
+import { currentUrl, navigationTarget, normalizedUrl } from "./navigation-url";
 
 /**
  * Fortschrittsanzeige für Seitenwechsel (#2828).
@@ -32,8 +32,8 @@ import {
  * Woher der Zustand kommt: `NavigationLink` meldet jeden tatsächlich
  * gestarteten clientseitigen Link-Wechsel vor dem Router-Dispatch. Der
  * Anbieter fängt außerdem `push` und `replace` des App-Routers ab, weil einige
- * Seiten per Schaltfläche wechseln. Für vorgeladene Ziele (NavLink lädt bei
- * Hover, Fokus oder Touch-Beginn vor) ist der Wechsel oft sofort fertig und
+ * Seiten per Schaltfläche wechseln. Für vorgeladene Ziele (`NavigationLink`
+ * lädt bei Hover, Fokus oder Touch-Beginn vor) ist der Wechsel oft sofort fertig und
  * der Balken bleibt unsichtbar.
  *
  * Warum ein eigener Store statt `useState`: der Anbieter umschließt die
@@ -239,17 +239,6 @@ function NavigationProgressRouter({
   readonly store: NavigationProgressStore;
 }) {
   const router: AppRouterInstance | null = useContext(AppRouterContext);
-  useLayoutEffect(() => {
-    window.m = (href) => {
-      const target = navigationTarget(href);
-      if (target === null || target === currentUrl()) return;
-      store.startLinkNavigation(target);
-    };
-
-    return () => {
-      delete window.m;
-    };
-  }, [store]);
   // Alle Nachkommen erhalten einen gleichartigen Router. So deckt die
   // Fortschrittsanzeige bestehende router.push/replace-Aufrufe ab, ohne jede
   // Schaltfläche auf einen eigenen Navigationshelfer umzustellen. Back und
@@ -304,25 +293,6 @@ function navigateTo(
     store.cancelNavigation(id);
     throw error;
   }
-}
-
-function navigationTarget(href: string): string | null {
-  try {
-    const target = new URL(href, window.location.href);
-    if (target.origin !== window.location.origin) return null;
-    return normalizedUrl(target.pathname, target.search);
-  } catch {
-    return null;
-  }
-}
-
-function currentUrl() {
-  return normalizedUrl(window.location.pathname, window.location.search);
-}
-
-function normalizedUrl(pathname: string, search: string) {
-  const normalizedSearch = new URLSearchParams(search).toString();
-  return normalizedSearch === "" ? pathname : `${pathname}?${normalizedSearch}`;
 }
 
 function NavigationProgressCompletion({
