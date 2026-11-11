@@ -171,5 +171,16 @@
   "summaryDays": "Ditët: {days}",
   "contributionDays": "{count, plural, one {# ditë} other {# ditë}}",
   "dayWithoutCare": "Më {date} nuk ka kujdes ({name}).",
-  "noCareDayAria": "{day}, nuk ka kujdes"
+  "noCareDayAria": "{day}, nuk ka kujdes",
+  "account": {
+    "question": "Dëshironi të krijoni një llogari prindi?",
+    "benefit": "Me llogarinë shihni në aplikacionin e prindërve gjendjen e regjistrimit, konfirmimin dhe dokumentet.",
+    "yes": "Po",
+    "no": "Jo",
+    "mailNote": "Do të merrni një email në {email}. Me lidhjen në të vendosni fjalëkalimin.",
+    "required": "Ju lutemi zgjidhni Po ose Jo."
+  },
+  "doneAccountTitle": "Hapi tjetër: llogaria juaj e prindit",
+  "doneAccountText": "Ju dërguam një email të dytë në {email}. Hapni lidhjen në të. Atje vendosni fjalëkalimin ose hyni.",
+  "doneToRegistrations": "Te regjistrimet tuaja për pushimet"
 }

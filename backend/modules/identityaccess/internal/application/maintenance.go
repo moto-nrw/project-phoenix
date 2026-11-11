@@ -32,6 +32,14 @@ func (UnsignedSessions) ParseRefreshToken(string) (identityaccess.RefreshClaims,
 
 func (UnsignedSessions) RefreshExpiry() time.Duration { return 0 }
 
+func (UnsignedSessions) IssueHolidayParentSetupToken(identityaccess.HolidayParentSetupClaims, time.Duration) (string, error) {
+	return "", errMaintenanceOnly
+}
+
+func (UnsignedSessions) ParseHolidayParentSetupToken(string) (identityaccess.HolidayParentSetupClaims, error) {
+	return identityaccess.HolidayParentSetupClaims{}, errMaintenanceOnly
+}
+
 func (UnsignedSessions) IssueAccessToken(identityaccess.SessionClaims) (string, error) {
 	return "", errMaintenanceOnly
 }

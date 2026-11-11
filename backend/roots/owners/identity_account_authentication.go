@@ -71,7 +71,7 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 	}
 	base.Sessions = &identityBindingPorts.SessionDependencies{
 		Schools:             repos.schools,
-		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools, AccountRetention: organizationCompose.NewAccountRetention(observeOrganizationTenancy)},
+		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools, Organizations: repos.schools.Schools, AccountRetention: organizationCompose.NewAccountRetention(observeOrganizationTenancy)},
 		PortalModules:       portalModules,
 		Persons:             PersonDirectory{Persons: repos.persons},
 		Passwords:           passwordVerifier{},
@@ -234,6 +234,8 @@ func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, ids []int64)
 // port over Organisation & Tenancy (ADR 0084).
 type TraegerMembershipDirectory struct {
 	Memberships organizationtenancy.TraegerMembershipQuery
+	// Organizations reads the Träger a parent's access names (ADR 0216).
+	Organizations organizationtenancy.OrganizationQuery
 	organizationtenancy.AccountRetention
 }
 
@@ -251,6 +253,53 @@ func (d TraegerMembershipDirectory) ListAccountTraegerOrganizations(ctx context.
 		result = append(result, identityaccess.TraegerOrganization{ID: organization.ID, Name: organization.Name})
 	}
 	return result, nil
+}
+
+// LiveTraegers keeps the active, undeleted Träger in the given order: the
+// Träger a parent's access may open a session at (ADR 0216). lockShared
+// reads its one Träger under the shared lock a school mutation takes, so a
+// deactivation waits for the caller's transaction.
+func (d TraegerMembershipDirectory) LiveTraegers(ctx context.Context, organizationIDs []int64, lockShared bool) ([]identityaccess.TraegerOrganization, error) {
+	if d.Organizations == nil {
+		return nil, errors.New("the Träger directory is not composed")
+	}
+	var organizations []organizationtenancy.Organization
+	switch {
+	case lockShared && len(organizationIDs) != 1:
+		return nil, errors.New("a shared lock reads exactly one Träger")
+	case lockShared:
+		organization, err := d.Organizations.FindOrganizationForSchoolMutation(ctx, organizationIDs[0])
+		if errors.Is(err, organizationtenancy.ErrOrganizationNotFound) || errors.Is(err, organizationtenancy.ErrInvalidOrganization) {
+			return []identityaccess.TraegerOrganization{}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		organizations = []organizationtenancy.Organization{organization}
+	default:
+		var err error
+		if organizations, err = d.Organizations.ListOrganizationsByID(ctx, organizationIDs); err != nil {
+			return nil, err
+		}
+	}
+	return liveTraegersInOrder(organizations, organizationIDs), nil
+}
+
+func liveTraegersInOrder(organizations []organizationtenancy.Organization, organizationIDs []int64) []identityaccess.TraegerOrganization {
+	live := make(map[int64]identityaccess.TraegerOrganization, len(organizations))
+	for _, organization := range organizations {
+		if organization.Active && !organization.IsDeleted() {
+			live[organization.ID] = identityaccess.TraegerOrganization{ID: organization.ID, Name: organization.Name}
+		}
+	}
+	result := make([]identityaccess.TraegerOrganization, 0, len(live))
+	for _, id := range organizationIDs {
+		if organization, ok := live[id]; ok {
+			result = append(result, organization)
+			delete(live, id)
+		}
+	}
+	return result
 }
 
 type PersonDirectory struct{ Persons personRows }

@@ -76,6 +76,12 @@ type Config struct {
 	// HolidayAnnouncements lists the published holiday periods the start
 	// page announces (#6671), in the administrative transaction.
 	HolidayAnnouncements HolidayRegistrationAnnouncements
+	// HolidayRegistrations claims, lists and names the Träger of the
+	// holiday registrations of a parent account (ADR 0216), in the
+	// administrative transaction; HolidayAccountProofs seals the account
+	// for the prefill.
+	HolidayRegistrations HolidayParentRegistrations
+	HolidayAccountProofs HolidayAccountProofs
 
 	// Document inbox (#4671, ADR 0126): the documents of the Elternabrechnung
 	// in the Träger transaction, the Träger of a school, the address of an

@@ -1,0 +1,26 @@
+{
+  "title": "Regjistrimet për pushimet",
+  "description": "Regjistrimet tuaja për kujdesin gjatë pushimeve dhe gjendja e tyre.",
+  "status": {
+    "received": "Marrë",
+    "confirmed": "Konfirmuar",
+    "cancelled": "Anuluar"
+  },
+  "statusNote": {
+    "received": "Organizatori po e shqyrton regjistrimin tuaj dhe do t’ju shkruajë.",
+    "confirmed": "Organizatori e ka konfirmuar regjistrimin tuaj.",
+    "cancelled": "Ky regjistrim nuk vlen më. Për pyetje drejtohuni te organizatori."
+  },
+  "documentsHint": "Konfirmimin dhe faturën i gjeni te Dokumentet.",
+  "toDocuments": "Te dokumentet",
+  "submittedOn": "Marrë më {date}",
+  "emptyTitle": "Ende asnjë regjistrim për pushimet",
+  "emptyDescription": "Regjistroni fëmijën me adresën e email-it të kësaj llogarie. Atëherë regjistrimi shfaqet këtu.",
+  "errorObject": "regjistrimet tuaja për pushimet",
+  "card": {
+    "title": "Regjistrimet tuaja për pushimet",
+    "showAll": "Shihni të gjitha",
+    "showAllLabel": "Shihni të gjitha regjistrimet për pushimet",
+    "more": "{count, plural, one {edhe # regjistrim} other {edhe # regjistrime}}"
+  }
+}

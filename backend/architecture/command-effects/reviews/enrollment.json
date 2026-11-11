@@ -1809,7 +1809,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
-      "reason": "Read-only account lookup by recipient email for the holiday acceptance renderer (#6672). Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. The root maps Identity's account-not-found error to no eligible account.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.HolidayParentSetups.HasTraegerParentAccess. ADR 0216 point 11: the acceptance mail decides at sending whether its address has a parent account; an account with access at an active Träger counts like a guardian, read in the worker's administrative scope.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.HasTraegerParentAccess",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "reason": "Read-only account lookup by recipient email for the holiday acceptance renderer (#6672). Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. The root maps Identity's account-not-found error to no eligible account. ADR 0216 point 11: the same lookup also decides the setup link for an address without a parent account.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
       "target_owner": "identity-access"
@@ -1819,9 +1829,19 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
-      "reason": "Read-only guardian-role and active-school lookup for the holiday acceptance renderer (#6672), using the parents login predicate. Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. Lookup errors propagate so delivery retries.",
+      "reason": "Read-only guardian-role and active-school lookup for the holiday acceptance renderer (#6672), using the parents login predicate. Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. Lookup errors propagate so delivery retries. ADR 0216 point 11: an account that is no guardian is then checked for access at an active Träger.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindGuardianTenant",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HolidayParentSetupURL",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HolidayParentSetupURL",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken. ADR 0216 point 11: the acceptance mail offers an address without a parent account the setup link; the signature reads and writes nothing and the link is stored nowhere.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken",
       "target_owner": "identity-access"
     },
     {
@@ -2238,6 +2258,16 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParentAccountLinks.HolidayParentAccountLink",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParentAccountLinks.HolidayParentAccountLink",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken. ADR 0216: the offer of a parent account signs the setup link of the registration's address and Träger; the signature reads and writes nothing, so it runs in the registration's Träger transaction, and the link is stored nowhere.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0098",

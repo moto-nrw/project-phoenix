@@ -31,6 +31,7 @@ const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed ass
 // which drops by trigger with its debits. ADR 0212 adds
 // users.message_attachments and users.message_attachment_cleanup, which stay
 // with the messages of the school.
+// ADR 0216 adds auth.traeger_parent_access: the demo seed writes none.
 var demoErasureExceptions = map[string]string{
 	"active.activity_session_attendance":             schoolContentUntil5559,
 	"active.activity_sessions":                       schoolContentUntil5559,
@@ -88,6 +89,7 @@ var demoErasureExceptions = map[string]string{
 	"auth.organization_account_roles":                traegerBueroOnly,
 	"auth.parent_declaration_permission_grants":      schoolContentUntil5559,
 	"auth.traeger_invitations":                       traegerBueroOnly + "; invitations name synthetic example.org addresses",
+	"auth.traeger_parent_access":                     "parents-portal access at a Träger without a school (ADR 0216); only the setup link a holiday registration mails writes it, the demo seed writes none, and a row names nothing but the account and the Träger: the erasure anonymizes the account, which then signs in nowhere",
 	"calendar.appointment_occurrence_overrides":      schoolContentUntil5559,
 	"calendar.appointment_recipient_students":        schoolContentUntil5559,
 	"calendar.appointment_recipients":                schoolContentUntil5559,
@@ -228,7 +230,8 @@ var demoErasureExceptions = map[string]string{
 // ADR 0187: the stored PAIN.008 files of the Träger-Rückgabe (+1).
 // ADR 0212: the photos and files of chat messages and their cleanup intents
 // stay with the messages they belong to (+2).
-const demoErasureExceptionBudget = 189
+// ADR 0216: the parents-portal access at a Träger (+1).
+const demoErasureExceptionBudget = 190
 
 func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 	t.Parallel()

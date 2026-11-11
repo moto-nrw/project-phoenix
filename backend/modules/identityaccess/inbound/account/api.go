@@ -57,7 +57,10 @@ type Resource struct {
 	Invitations Invitations
 	// GuardianInvitations is the Identity & Access guardian invitation
 	// capability the public accept page and the admin resend call (#3332).
-	GuardianInvitations        identityaccess.GuardianInvitations
+	GuardianInvitations identityaccess.GuardianInvitations
+	// HolidayParentSetups redeems the setup link of a parent account at a
+	// Träger (ADR 0216); without it the setup routes answer 500.
+	HolidayParentSetups        identityaccess.HolidayParentSetups
 	CaregiverCapabilityService Caregivers
 	SchoolService              SchoolDirectory
 	// SettingsService is required at construction; unreadable shell policy fails the request.
@@ -225,6 +228,8 @@ func (rs *Resource) mountPublicRoutes(r chi.Router, authRateLimiter func(http.Ha
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 	r.Get("/guardian-invitations/{token}", rs.validateGuardianInvitation)
 	r.Post("/guardian-invitations/{token}/accept", rs.acceptGuardianInvitation)
+	r.Get("/holiday-parent-setups/{token}", rs.previewHolidayParentSetup)
+	r.Post("/holiday-parent-setups/{token}", rs.completeHolidayParentSetup)
 	r.Get("/tenant/resolve", rs.resolveTenant)
 	r.Get("/tenants", rs.listTenants)
 }

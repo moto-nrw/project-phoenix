@@ -47,6 +47,7 @@ func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL 
 		HolidayRegistrationAccepted: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
 			return renderHolidayRegistrationAccepted(ctx, kind, raw, accounts, parentsURL)
 		},
+		HolidayParentAccountOffer: renderHolidayParentAccountOffer,
 	}
 }
 
@@ -182,17 +183,9 @@ func renderHolidayRegistrationAccepted(ctx context.Context, kind string, raw jso
 	if strings.TrimSpace(payload.Recipient) == "" {
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
-	// Never trust a link from the outbox. Account eligibility is checked at
-	// delivery time, after the confirmation's Träger transaction has ended.
-	payload.ParentAppURL = ""
-	if accounts != nil && strings.TrimSpace(parentsURL) != "" {
-		parent, err := accounts.HasParentAccount(ctx, payload.Recipient)
-		if err != nil {
-			return nil, fmt.Errorf("%s: find the parent account: %w", kind, err)
-		}
-		if parent {
-			payload.ParentAppURL = strings.TrimRight(strings.TrimSpace(parentsURL), "/") + "/"
-		}
+	var err error
+	if payload.ParentAppURL, payload.SetupURL, err = holidayAcceptanceLinks(ctx, accounts, parentsURL, payload); err != nil {
+		return nil, fmt.Errorf("%s: %w", kind, err)
 	}
 	subject := "Ferienanmeldung bestätigt"
 	if payload.PeriodName != "" {
@@ -221,6 +214,64 @@ func renderHolidayRegistrationAccepted(ctx context.Context, kind string, raw jso
 			"Waitlisted":   waitlisted,
 			"TraegerText":  payload.TraegerText,
 			"ParentAppURL": payload.ParentAppURL,
+			"SetupURL":     payload.SetupURL,
+		},
+	}, nil
+}
+
+// holidayAcceptanceLinks are the links of the acceptance mail, decided at
+// sending: the parents portal for an address with a parent account, the
+// setup of a parent account at the Träger for every other address (ADR 0216
+// point 11). Links from the outbox are never trusted. Account eligibility is
+// checked at delivery time, after the confirmation's Träger transaction has
+// ended. Without a lookup or a parents URL the mail has no link.
+func holidayAcceptanceLinks(ctx context.Context, accounts enrollment.HolidayAcceptanceAccounts, parentsURL string,
+	payload enrollment.HolidayRegistrationAcceptedMail) (appURL, setupURL string, err error) {
+	if accounts == nil || strings.TrimSpace(parentsURL) == "" {
+		return "", "", nil
+	}
+	parent, err := accounts.HasParentAccount(ctx, payload.Recipient)
+	if err != nil {
+		return "", "", fmt.Errorf("find the parent account: %w", err)
+	}
+	if parent {
+		return strings.TrimRight(strings.TrimSpace(parentsURL), "/") + "/", "", nil
+	}
+	if payload.OrganizationID <= 0 {
+		return "", "", nil
+	}
+	setupURL, err = accounts.HolidayParentSetupURL(payload.Recipient, payload.OrganizationID)
+	if err != nil {
+		return "", "", fmt.Errorf("issue the setup link of a parent account: %w", err)
+	}
+	return "", setupURL, nil
+}
+
+// renderHolidayParentAccountOffer renders the offer of a parent account a
+// holiday registration mails (ADR 0216 point 4). The Träger is the sender;
+// the mail is the same whether or not the address already has an account.
+func renderHolidayParentAccountOffer(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayParentAccountOfferMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday parent account offer: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	if strings.TrimSpace(payload.SetupURL) == "" || strings.TrimSpace(payload.LoginURL) == "" {
+		return nil, fmt.Errorf("%s payload missing setup_url or login_url", kind)
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    "Ihr Elternkonto für die Ferienbetreuung",
+		Template:   "holiday-parent-account-offer.html",
+		Content: map[string]any{
+			"GuardianName": payload.GuardianName,
+			"SchoolName":   payload.TraegerName,
+			"PeriodName":   payload.PeriodName,
+			"SetupURL":     payload.SetupURL,
+			"LoginURL":     payload.LoginURL,
 		},
 	}, nil
 }

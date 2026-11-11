@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html/template"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,4 +51,29 @@ func TestHolidayRegistrationAcceptedTemplate_Renders(t *testing.T) {
 	require.NoError(t, tpl.ExecuteTemplate(&out, "holiday-registration-accepted.html", content))
 	assert.NotContains(t, out.String(), "Hinweise vom Träger", "without a text the mail has its fixed part only")
 	assert.NotContains(t, out.String(), "In der Eltern-App ansehen", "without an account there is no button")
+}
+
+// TestHolidayRegistrationAcceptedTemplate_OffersAParentAccount pins ADR 0216
+// point 11: without a parent account the acceptance mail has one button to
+// set one up and how long its link holds, never both buttons.
+func TestHolidayRegistrationAcceptedTemplate_OffersAParentAccount(t *testing.T) {
+	t.Parallel()
+	tpl, err := template.ParseGlob(filepath.Join(".", "*.html"))
+	require.NoError(t, err, "parse all email templates")
+	content := map[string]any{
+		"GuardianName": "Jana Gastfamilie", "SchoolName": "Gemeinde Bissendorf", "PeriodName": "Herbstferien",
+		"Children": []map[string]any{{"Name": "Ole Gastfamilie", "Weeks": []string{"12.10.2026 bis 16.10.2026"}}},
+		"SetupURL": "https://eltern.example.org/ferienkonto/setup-token",
+	}
+
+	var out bytes.Buffer
+	require.NoError(t, tpl.ExecuteTemplate(&out, "holiday-registration-accepted.html", content))
+	body := out.String()
+	for _, want := range []string{"Elternkonto einrichten", "Der Link gilt 30 Tage.", "Mit einem Elternkonto sehen Sie den Stand Ihrer Anmeldung in der Eltern-App."} {
+		assert.Contains(t, body, template.HTMLEscapeString(want))
+	}
+	assert.Contains(t, body, `href="https://eltern.example.org/ferienkonto/setup-token"`)
+	assert.NotContains(t, body, "In der Eltern-App ansehen")
+	assert.Equal(t, 1, strings.Count(body, `class="button"`), "one button")
+	assert.NotContains(t, body, "—", "no em dash")
 }

@@ -52,10 +52,13 @@ vi.mock("~/lib/holiday-registration-api", () => ({
 vi.mock("~/components/holiday-registration/holiday-registration-form", () => ({
   HolidayRegistrationForm: ({
     onStepChange,
+    parentAccount,
   }: {
     onStepChange?: (step: HolidayRegistrationStep) => void;
+    parentAccount?: string;
   }) => (
     <div>
+      <p>{`Elternkonto: ${parentAccount ?? "keins"}`}</p>
       {(["form", "summary", "done"] as const).map((step) => (
         <button key={step} type="button" onClick={() => onStepChange?.(step)}>
           {`Schritt ${step}`}
@@ -142,5 +145,20 @@ describe("HolidayRegistrationPage", () => {
     expect(
       screen.queryByText("Sie haben schon die Eltern-App?"),
     ).not.toBeInTheDocument();
+  });
+
+  it("lets the form ask for an account only without a parent session (#6673)", async () => {
+    session.current = { data: null, status: "unauthenticated" };
+    await renderPage();
+    expect(screen.getByText("Elternkonto: ask")).toBeInTheDocument();
+  });
+
+  it("tells the form that a parent is signed in (#6673)", async () => {
+    session.current = {
+      data: { user: { scope: "parent" } },
+      status: "authenticated",
+    };
+    await renderPage();
+    expect(screen.getByText("Elternkonto: signed-in")).toBeInTheDocument();
   });
 });

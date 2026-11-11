@@ -89,6 +89,7 @@ export function HolidayRegistrationSummary({
   submitting,
   canSubmit,
   securityCheck,
+  accountQuestion,
   onBack,
   onSubmit,
   onBenefitsDeclaredChange,
@@ -101,6 +102,8 @@ export function HolidayRegistrationSummary({
   /** The security check is solved; until then the send button waits. */
   canSubmit: boolean;
   securityCheck: ReactNode;
+  /** The question for a parent account (#6673), above the send row. */
+  accountQuestion?: ReactNode;
   onBack: () => void;
   onSubmit: () => void;
   onBenefitsDeclaredChange: (declared: boolean) => void;
@@ -290,6 +293,8 @@ export function HolidayRegistrationSummary({
           {uploadText("upload.pendingSubmit")}
         </p>
       ) : null}
+
+      {accountQuestion}
 
       {/* The security check sits in the row of the send button: one step,
           no gap below the contribution. */}

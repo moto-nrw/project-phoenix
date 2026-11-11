@@ -95,10 +95,13 @@ type HolidayRegistrationGuardian struct {
 }
 
 // HolidayRegistrationFamily is the prefill of a holiday registration.
-// Guardian is nil when no child is offered.
+// Guardian is nil when no child is offered. AccountProof is the sealed proof
+// of the signed-in account for the link (ADR 0216 point 2), for every
+// account, also one without a child the link offers.
 type HolidayRegistrationFamily struct {
-	Guardian *HolidayRegistrationGuardian
-	Children []HolidayRegistrationChild
+	Guardian     *HolidayRegistrationGuardian
+	Children     []HolidayRegistrationChild
+	AccountProof string
 }
 
 // HolidayRegistrationFamily returns the children of the account at the
@@ -131,6 +134,11 @@ func (s *Service) HolidayRegistrationFamily(ctx context.Context, accountID int64
 		})
 		if err != nil {
 			return nil, fmt.Errorf("parent: holiday registration family: %w", err)
+		}
+	}
+	if s.HolidayAccountProofs != nil && scope.PeriodID > 0 {
+		if family.AccountProof, err = s.HolidayAccountProofs.HolidayParentAccountProof(organizationID, scope.PeriodID, accountID); err != nil {
+			return nil, fmt.Errorf("parent: holiday registration account proof: %w", err)
 		}
 	}
 	s.Logger.Debug("parent: holiday registration family",

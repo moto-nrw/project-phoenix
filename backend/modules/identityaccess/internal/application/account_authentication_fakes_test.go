@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/stretchr/testify/require"
@@ -891,6 +892,16 @@ func (fakeCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error) {
 }
 
 func (fakeCodec) RefreshExpiry() time.Duration { return time.Hour }
+
+// The fake codec signs no setup link (ADR 0216); the real codec is covered
+// in the HTTP tests.
+func (fakeCodec) IssueHolidayParentSetupToken(identityaccess.HolidayParentSetupClaims, time.Duration) (string, error) {
+	return "", errors.New("the fake codec signs no setup link")
+}
+
+func (fakeCodec) ParseHolidayParentSetupToken(string) (identityaccess.HolidayParentSetupClaims, error) {
+	return identityaccess.HolidayParentSetupClaims{}, errors.New("the fake codec reads no setup link")
+}
 
 func decodeAccess(t *testing.T, token string) domain.SessionClaims {
 	t.Helper()

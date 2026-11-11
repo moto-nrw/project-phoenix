@@ -48,6 +48,14 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 // whose host schools give no care on days (#6447).
 func newHolidayRegistrationFixtureWithDays(t *testing.T, days owners.HolidayTestSchoolCalendar) holidayRegistrationFixture {
 	t.Helper()
+	return newHolidayRegistrationFixtureIn(t, days, "test")
+}
+
+// newHolidayRegistrationFixtureIn is newHolidayRegistrationFixtureWithDays in
+// the environment appEnv, which gates what the local seeder receives (ADR
+// 0216).
+func newHolidayRegistrationFixtureIn(t *testing.T, days owners.HolidayTestSchoolCalendar, appEnv string) holidayRegistrationFixture {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	unit := testpkg.TenantRuntime(t, db)
 	traeger := traegerPortalWithDays(t, db, unit, days)
@@ -65,7 +73,7 @@ func newHolidayRegistrationFixtureWithDays(t *testing.T, days owners.HolidayTest
 	settings, err := owners.BuildTraegerSettings(testpkg.NewDatabase(t, db), unit, slog.Default(), organizations, nil)
 	require.NoError(t, err)
 	resource := NewHolidayRegistrationHTTP(organizations, delivery.Module, TurnstileKeys{SiteKey: "site-key", SecretKey: "secret-key"},
-		turnstile.URL, testHealthCipher(), days, settings, slog.Default())
+		turnstile.URL, testHealthCipher(), days, settings, owners.NewHolidayParentAccountLinks(holidayTestSetupLinks{}, "https://eltern.example.org/"), appEnv, slog.Default())
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

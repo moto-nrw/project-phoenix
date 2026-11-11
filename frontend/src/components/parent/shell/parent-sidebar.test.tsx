@@ -225,6 +225,18 @@ describe("ParentSidebar", () => {
     await waitFor(() => expect(logoutMock).toHaveBeenCalledOnce());
   });
 
+  it("lists the own holiday registrations next to the documents, also without a child (#6673)", () => {
+    renderSidebar({ childCount: 0, gates: { news: false, mealPlan: false } });
+
+    const link = screen.getByRole("link", { name: /Ferienanmeldungen/ });
+    expect(link).toHaveAttribute("href", "/parents/ferienanmeldungen");
+    expect(link).toHaveAttribute(
+      "data-parent-nav-item",
+      "holidayRegistrations",
+    );
+    expect(screen.getByRole("link", { name: /Dokumente/ })).toBeInTheDocument();
+  });
+
   it("hides Elternbriefe and Speiseplan when no school offers them", () => {
     renderSidebar({ gates: { news: false, mealPlan: false } });
 

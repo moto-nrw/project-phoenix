@@ -167,6 +167,10 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
                 token={token}
                 offer={offer}
                 family={family}
+                // Ohne Eltern-Sitzung fragt das Formular am Ende nach dem
+                // Elternkonto; mit Sitzung trägt die Anmeldung den Nachweis
+                // des Kontos aus der Vorbefüllung (#6673).
+                parentAccount={parentSession ? "signed-in" : "ask"}
                 onFormChanged={reloadOffer}
                 onStepChange={setStep}
               />

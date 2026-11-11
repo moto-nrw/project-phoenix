@@ -1,0 +1,28 @@
+{{define "holiday-parent-account-offer.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ihr Elternkonto für die Ferienbetreuung</h1>
+
+    <p>Guten Tag {{.GuardianName}},</p>
+
+    <p>Sie haben Ihr Kind{{if .PeriodName}} für <strong>{{.PeriodName}}</strong>{{else}} für die Ferienbetreuung{{end}} angemeldet und möchten ein Elternkonto.</p>
+
+    <p>In der Eltern-App sehen Sie dann den Stand Ihrer Anmeldung. Dort finden Sie auch die Bestätigung und Ihre Dokumente.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.SetupURL}}">Elternkonto einrichten</a>
+    </div>
+
+    <p style="font-size: 14px; color: #6b7280;">Der Link gilt 30 Tage.</p>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Der Knopf geht nicht? Dann kopieren Sie diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.SetupURL}}">{{.SetupURL}}</a>
+    </div>
+
+    <p class="security-note">Sie haben schon ein Elternkonto? Dann <a href="{{.LoginURL}}">melden Sie sich einfach an</a>.{{if .SchoolName}} Fragen beantwortet Ihnen {{.SchoolName}} gern.{{end}}</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

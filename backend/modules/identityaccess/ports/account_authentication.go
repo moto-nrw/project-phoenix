@@ -25,6 +25,12 @@ type TraegerMemberships interface {
 	// account mapped to its own school; it receives no membership details.
 	HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error)
 	ListAccountTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error)
+	// LiveTraegers returns those of the Träger that are active and not
+	// deleted, in the given order (ADR 0216: the parents-portal access at a
+	// Träger). lockShared reads exactly one Träger and pins its row in shared
+	// mode until the caller's transaction ends, so a deactivation cannot
+	// commit under a mint or a refresh.
+	LiveTraegers(ctx context.Context, organizationIDs []int64, lockShared bool) ([]identityaccess.TraegerOrganization, error)
 }
 
 // PortalModules answers whether a school booked the module of a portal
@@ -56,6 +62,11 @@ type TokenCodec interface {
 	IssueAccessToken(claims identityaccess.SessionClaims) (string, error)
 	ParseAccessTokenAllowExpired(token string) (identityaccess.SessionClaims, error)
 	AccessExpiry() time.Duration
+	// IssueHolidayParentSetupToken signs the setup link of a parent account
+	// at a Träger (ADR 0216); ParseHolidayParentSetupToken verifies its
+	// signature, purpose and expiry.
+	IssueHolidayParentSetupToken(claims identityaccess.HolidayParentSetupClaims, ttl time.Duration) (string, error)
+	ParseHolidayParentSetupToken(token string) (identityaccess.HolidayParentSetupClaims, error)
 }
 
 // AuthAudit appends authentication events and resolves pending wipes.

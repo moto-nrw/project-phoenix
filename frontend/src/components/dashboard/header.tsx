@@ -282,6 +282,11 @@ export function Header() {
       matchesPathPrefix(pathname, "/documents")
     )
       return tParentNav("documents");
+    if (
+      pathname === "/parents/ferienanmeldungen" ||
+      pathname === "/ferienanmeldungen"
+    )
+      return tParentNav("holidayRegistrations");
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
     if (

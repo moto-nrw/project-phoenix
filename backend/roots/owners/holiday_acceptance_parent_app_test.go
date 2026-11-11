@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +42,7 @@ func renderAcceptance(t *testing.T, accounts HolidayAcceptanceAccounts, parentsU
 	t.Helper()
 	raw, err := json.Marshal(mail)
 	require.NoError(t, err)
-	renderer := enrollmentCompose.NewMailRenderers(holidayAcceptanceAccounts{accounts: accounts}, parentsURL).HolidayRegistrationAccepted
+	renderer := enrollmentCompose.NewMailRenderers(newHolidayAcceptanceAccounts(accounts, parentsURL), parentsURL).HolidayRegistrationAccepted
 	return renderer(context.Background(), enrollmentOwner.MailKindHolidayRegistrationAccepted, raw)
 }
 
@@ -96,4 +97,68 @@ func TestHolidayAcceptanceLinksTheParentsPortalOnlyForAParentAccount(t *testing.
 	failing = &acceptanceAccounts{known: accounts.known, guardianFailure: errors.New("guardian lookup unavailable")}
 	_, err = renderAcceptance(t, failing, "https://eltern.example.org", mail)
 	require.Error(t, err, "a failed guardian lookup also fails the attempt")
+}
+
+// setupAccounts are acceptanceAccounts that also serve the setup link of a
+// parent account at a Träger and know the accounts with access at one.
+type setupAccounts struct {
+	*acceptanceAccounts
+	traegerParents map[int64]bool
+}
+
+func (a setupAccounts) IssueHolidayParentSetupToken(email string, organizationID int64) (string, error) {
+	return fmt.Sprintf("setup-%d-%s", organizationID, email), nil
+}
+
+func (a setupAccounts) PreviewHolidayParentSetup(context.Context, string) (identityaccess.HolidayParentSetupPreview, error) {
+	return identityaccess.HolidayParentSetupPreview{}, errors.New("not served in this test")
+}
+
+func (a setupAccounts) CompleteHolidayParentSetup(context.Context, string, identityaccess.GuardianRegistration) (bool, error) {
+	return false, errors.New("not served in this test")
+}
+
+func (a setupAccounts) HasTraegerParentAccess(_ context.Context, accountID int64) (bool, error) {
+	return a.traegerParents[accountID], nil
+}
+
+// TestHolidayAcceptanceOffersAParentAccountToEveryoneWithoutOne pins ADR 0216
+// point 11: the acceptance mail links the parents portal for an account the
+// portal signs in, also one with access at a Träger only, and offers every
+// other address the setup of a parent account at the mail's Träger, also for
+// a registration from before. A link in the outbox is never trusted, and a
+// mail enqueued without its Träger offers no setup.
+func TestHolidayAcceptanceOffersAParentAccountToEveryoneWithoutOne(t *testing.T) {
+	t.Parallel()
+	// IDs of fakes, no database rows.
+	traegerParentID, staffID, organizationID := int64(51), int64(52), int64(71)
+	accounts := setupAccounts{
+		acceptanceAccounts: &acceptanceAccounts{known: map[string]int64{"traeger@example.org": traegerParentID, "erzieherin@example.org": staffID}},
+		traegerParents:     map[int64]bool{traegerParentID: true},
+	}
+	mail := enrollmentOwner.HolidayRegistrationAcceptedMail{
+		Recipient: "traeger@example.org", GuardianName: "Jana Gastfamilie", TraegerName: "Gemeinde Bissendorf",
+		PeriodName: "Herbstferien", OrganizationID: organizationID, SetupURL: "https://evil.example.org/",
+	}
+
+	rendered, err := renderAcceptance(t, accounts, "https://eltern.example.org", mail)
+	require.NoError(t, err)
+	content := rendered.Content.(map[string]any)
+	assert.Equal(t, "https://eltern.example.org/", content["ParentAppURL"], "an account with access at a Träger is a parent account")
+	assert.Empty(t, content["SetupURL"])
+
+	for _, recipient := range []string{"ohne@example.org", "erzieherin@example.org"} {
+		mail.Recipient = recipient
+		rendered, err = renderAcceptance(t, accounts, "https://eltern.example.org/", mail)
+		require.NoError(t, err)
+		content = rendered.Content.(map[string]any)
+		assert.Empty(t, content["ParentAppURL"], recipient)
+		assert.Equal(t, "https://eltern.example.org/ferienkonto/setup-71-"+recipient, content["SetupURL"],
+			"%s gets the setup of a parent account at the mail's Träger, never the link of the outbox", recipient)
+	}
+
+	mail.OrganizationID = 0
+	rendered, err = renderAcceptance(t, accounts, "https://eltern.example.org", mail)
+	require.NoError(t, err)
+	assert.Empty(t, rendered.Content.(map[string]any)["SetupURL"], "a mail enqueued without its Träger offers no setup")
 }

@@ -17,12 +17,22 @@ func NewHolidayPeriods(today func() calendar.Date, schoolCalendar enrollment.Hol
 // NewHolidayWeekHosts builds the read of the host school of each holiday week for the Elternabrechnung (#6624).
 func NewHolidayWeekHosts() enrollment.HolidayWeekHosts { return postgres.NewHolidayPeriodStore() }
 
-// NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722); schoolCalendar (#4702) may be nil only for links and quotes; wishModes (#4703); retention (#6691); rateLimitRefusals reports refusals to the monitoring (#6726), nil reports nowhere.
-func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar, wishModes enrollment.HolidayWishModes, retention enrollment.HolidayRetentionSettings, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger, rateLimitRefusals func(bucket string)) enrollment.HolidayRegistrations {
+// NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722); schoolCalendar (#4702) may be nil only for links and quotes; wishModes (#4703); retention (#6691); accountLinks (ADR 0216) may be nil only where nothing is submitted; rateLimitRefusals reports refusals to the monitoring (#6726), nil reports nowhere.
+func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar, wishModes enrollment.HolidayWishModes, retention enrollment.HolidayRetentionSettings, accountLinks enrollment.HolidayParentAccountLinks, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger, rateLimitRefusals func(bucket string)) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
 		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(), Forms: postgres.NewHolidayPeriodStore(),
-		Proofs: postgres.NewHolidayRegistrationStore(), Places: postgres.NewHolidayRegistrationStore(), Criteria: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Calendar: schoolCalendar, WishModes: wishModes, Retention: retention, Random: random, Fingerprint: fingerprint, Logger: logger, RateLimitRefusals: rateLimitRefusals,
+		Proofs: postgres.NewHolidayRegistrationStore(), Places: postgres.NewHolidayRegistrationStore(), Criteria: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Calendar: schoolCalendar, WishModes: wishModes, Retention: retention, ParentAccountLinks: accountLinks, Random: random, Fingerprint: fingerprint, Logger: logger, RateLimitRefusals: rateLimitRefusals,
 	})
+}
+
+// NewHolidayParentAccountProofs seals a signed-in account for the prefill (ADR 0216 point 2).
+func NewHolidayParentAccountProofs(health enrollment.HolidayHealthCipher) enrollment.HolidayParentAccountProofs {
+	return applicationNative.NewHolidayParentAccountProofs(health, nil)
+}
+
+// NewHolidayParentRegistrations claims and reads a parent account's registrations in the administrative transaction (ADR 0216 points 3 and 9).
+func NewHolidayParentRegistrations() enrollment.HolidayParentRegistrations {
+	return postgres.NewHolidayRegistrationStore()
 }
 
 // NewHolidayRegistrationAnnouncements builds the read of the published periods the parents app announces (#6671, ADR 0207), in the administrative transaction.

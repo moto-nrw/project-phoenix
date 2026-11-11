@@ -8,13 +8,13 @@
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { SectionLabel } from "~/components/ui/section-label";
-import { StatusBadge } from "~/components/ui/status-badge";
 import type {
   HolidayReceiptPlacement,
   HolidayRegistrationWeek,
 } from "~/lib/holiday-registration-api";
 import type { ChildDraft } from "./holiday-registration-model";
 import { useWeekLabels } from "./holiday-registration-sections";
+import { HolidayPlacementBadge } from "./holiday-placement-badge";
 
 export function HolidayRegistrationPlacements({
   childDrafts,
@@ -57,25 +57,13 @@ export function HolidayRegistrationPlacements({
                     const state =
                       own.find((placement) => placement.weekId === week.id)
                         ?.placement ?? "placed";
-                    const badge = {
-                      placed: { label: t("placementPlaced"), tone: "green" },
-                      waitlisted: {
-                        label: t("placementWaitlisted"),
-                        tone: "warning",
-                      },
-                      pending: { label: t("placementPending"), tone: "purple" },
-                    } as const;
                     return (
                       <li
                         key={week.id}
                         className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-700"
                       >
                         <span>{labels.range(week)}</span>
-                        <StatusBadge
-                          label={badge[state].label}
-                          tone={badge[state].tone}
-                          size="xs"
-                        />
+                        <HolidayPlacementBadge placement={state} />
                       </li>
                     );
                   })}
