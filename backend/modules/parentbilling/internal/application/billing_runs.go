@@ -331,18 +331,29 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 // and holds it against what the Abrechnung checked: count, sum and content
 // (#6506), before a number is reserved or an invoice written.
 func (b *BillingRuns) checkedPreview(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun, release parentbilling.BillingRelease) (preview, error) {
-	current, err := b.preview(ctx, reviewer, run)
+	current, _, fingerprint, err := b.fingerprintedPreview(ctx, reviewer, run)
 	if err != nil {
 		return preview{}, err
 	}
-	kind, legalRemedy, err := b.kinds.reviewed(ctx, reviewer.OrganizationID, run.Service)
-	if err != nil {
-		return preview{}, err
-	}
-	if err := checkRelease(current, holidayPreviewFingerprint(run, current, kind.DocumentKind, legalRemedy), release); err != nil {
+	if err := checkRelease(current, fingerprint, release); err != nil {
 		return preview{}, err
 	}
 	return current, nil
+}
+
+// fingerprintedPreview is the preview of a calculated run with the kind of
+// document its release would freeze now and the fingerprint of both
+// (#6506): the review shows it, the release compares it.
+func (b *BillingRuns) fingerprintedPreview(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun) (preview, parentbilling.DocumentKindState, string, error) {
+	current, err := b.preview(ctx, reviewer, run)
+	if err != nil {
+		return preview{}, parentbilling.DocumentKindState{}, "", err
+	}
+	kind, legalRemedy, err := b.kinds.reviewed(ctx, reviewer.OrganizationID, run.Service)
+	if err != nil {
+		return preview{}, parentbilling.DocumentKindState{}, "", err
+	}
+	return current, kind, holidayPreviewFingerprint(run, current, kind.DocumentKind, legalRemedy), nil
 }
 
 // releasedKind is the kind of document the release freezes: the kind the
@@ -649,15 +660,11 @@ func (b *BillingRuns) releasedDetail(ctx context.Context, organizationID int64, 
 // and whether it lacks the legal remedy (#4688), and the drafts without a
 // debtor number.
 func (b *BillingRuns) previewDetail(ctx context.Context, reviewer parentbilling.HolidayReviewer, detail *parentbilling.BillingRunDetail) error {
-	current, err := b.preview(ctx, reviewer, detail.BillingRun)
+	current, kind, fingerprint, err := b.fingerprintedPreview(ctx, reviewer, detail.BillingRun)
 	if err != nil {
 		return err
 	}
-	kind, legalRemedy, err := b.kinds.reviewed(ctx, reviewer.OrganizationID, detail.Service)
-	if err != nil {
-		return err
-	}
-	detail.Fingerprint = holidayPreviewFingerprint(detail.BillingRun, current, kind.DocumentKind, legalRemedy)
+	detail.Fingerprint = fingerprint
 	detail.Documents, detail.Unbilled, detail.DueDates = current.documents, current.unbilled, current.dueDates.InPaymentOrder()
 	detail.DocumentKindState = kind
 	for i := range detail.Documents {

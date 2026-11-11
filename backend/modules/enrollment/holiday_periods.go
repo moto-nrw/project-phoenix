@@ -76,14 +76,13 @@ var ErrHolidayWeekDayLimit = errors.New("a booked child would take more care day
 
 // HolidayWeekDayLimitRefusal names the week, by its position in the written
 // period, whose new dates would give a child more care days than the bound,
-// the date that grew the week ("starts_on" when it starts earlier, else
-// "ends_on"), the bound and the days the child would take. It unwraps to
-// ErrHolidayWeekDayLimit.
+// whether it grew by starting earlier (else by ending later), the bound and
+// the days the child would take. It unwraps to ErrHolidayWeekDayLimit.
 type HolidayWeekDayLimitRefusal struct {
-	Week  int
-	Field string
-	Limit int
-	Days  int
+	Week          int
+	StartsEarlier bool
+	Limit         int
+	Days          int
 }
 
 func (r *HolidayWeekDayLimitRefusal) Error() string {

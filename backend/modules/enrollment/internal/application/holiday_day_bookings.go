@@ -128,7 +128,7 @@ func (h *HolidayPeriods) refuseRaisedDayLimit(ctx context.Context, organizationI
 			continue
 		}
 		week := holidayRaisingWeek(bookings, moved, current, written)
-		return &enrollment.HolidayWeekDayLimitRefusal{Week: week, Field: holidayGrownDate(input.Weeks[week], current), Limit: refusal.Limit, Days: refusal.Days}
+		return &enrollment.HolidayWeekDayLimitRefusal{Week: week, StartsEarlier: holidayStartsEarlier(input.Weeks[week], current), Limit: refusal.Limit, Days: refusal.Days}
 	}
 	return nil
 }
@@ -151,13 +151,11 @@ func holidayRaisingWeek(bookings []enrollment.HolidayBookingInput, moved map[int
 	return max(week, 0)
 }
 
-// holidayGrownDate names the date that grew a moved week: its start when it
-// starts earlier than stored, else its end.
-func holidayGrownDate(week enrollment.HolidayWeekInput, current enrollment.HolidayPeriod) string {
-	if before, ok := holidayStoredWeek(current, week.ID); ok && week.StartsOn.Before(before.StartsOn) {
-		return "starts_on"
-	}
-	return "ends_on"
+// holidayStartsEarlier reports whether a moved week starts earlier than
+// stored; otherwise its end grew it.
+func holidayStartsEarlier(week enrollment.HolidayWeekInput, current enrollment.HolidayPeriod) bool {
+	before, ok := holidayStoredWeek(current, week.ID)
+	return ok && week.StartsOn.Before(before.StartsOn)
 }
 
 func holidayStoredWeek(period enrollment.HolidayPeriod, weekID int64) (enrollment.HolidayWeek, bool) {

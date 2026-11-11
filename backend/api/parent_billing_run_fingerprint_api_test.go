@@ -91,8 +91,8 @@ func TestHolidayReleaseRefusesAmountsMovedBetweenFamilies(t *testing.T) {
 }
 
 // TestHolidayReleaseRefusesAChangedRecipientOrPaymentOfTheSameSum: a debtor
-// number entered and a payment term changed after the review keep every
-// amount, and still make the release refuse.
+// number entered, a payment term, a payment method and a recipient changed
+// after the review keep every amount, and still make the release refuse.
 func TestHolidayReleaseRefusesAChangedRecipientOrPaymentOfTheSameSum(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Lauf Zahlung")
@@ -112,7 +112,24 @@ func TestHolidayReleaseRefusesAChangedRecipientOrPaymentOfTheSameSum(t *testing.
 	changed := billingRun(t, f, billing, run.ID)
 	require.Equal(t, current.PreviewCents, changed.PreviewCents)
 	refusedAsChanged(t, f, billing, run.ID, current)
+
+	setTerms(t, f.traeger, billing, "holiday", map[string]any{"payment_method": "direct_debit", "due_days": 30})
+	debit := billingRun(t, f, billing, run.ID)
+	require.Equal(t, changed.PreviewCents, debit.PreviewCents)
+	refusedAsChanged(t, f, billing, run.ID, changed)
+	setTerms(t, f.traeger, billing, "holiday", map[string]any{"payment_method": "transfer", "due_days": 30})
+	changed = billingRun(t, f, billing, run.ID)
+
+	rec = f.editDetails(t, f.siblings, map[string]any{
+		"guardian": map[string]any{"first_name": "Eva", "last_name": "Muster", "email": "eva.neu@example.org", "phone": "0151 1234567"},
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	recipient := billingRun(t, f, billing, run.ID)
+	require.Equal(t, changed.PreviewCents, recipient.PreviewCents)
+	require.Equal(t, "eva.neu@example.org", recipient.Documents[0].RecipientEmail)
+	refusedAsChanged(t, f, billing, run.ID, changed)
 	assertNothingIssued(t, f, run.ID)
+	changed = recipient
 
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(changed))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
