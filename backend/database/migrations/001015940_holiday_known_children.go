@@ -14,7 +14,7 @@ func init() {
 		Version:     holidayKnownChildrenVersion,
 		Description: "Ferien: Hinweis auf ein an einer Schule des Trägers bekanntes Kind protokollieren (#6683)",
 		DependsOn: []string{
-			holidayHostOwnContactsVersion,    // the newest migration on development
+			messageAttachmentsVersion,        // the newest migration on development
 			holidayCriteriaAllocationVersion, // the audit CHECKs this one extends
 		},
 	})
