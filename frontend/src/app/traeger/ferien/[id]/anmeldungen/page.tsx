@@ -120,7 +120,8 @@ function exportOptions(
   filtered: boolean,
   canSeeHealth: boolean,
 ): readonly ExportMenuOption[] {
-  // Not "Auswahl": the ticked rows are for merging siblings, not for this.
+  // Not "Auswahl": the ticked rows are for merging siblings and for the
+  // bulk confirmation (#6674), not for this.
   const scope = filtered ? "Gefilterte" : "Alle";
   return [
     ...LIST_FORMATS,
