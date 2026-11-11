@@ -2797,7 +2797,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
       "Auf `Betreuungsangebote` steht `Erst eine Anmeldephase anlegen`? Dann fehlt die Phase noch. Angebote gibt es nur innerhalb einer Phase.",
       "Oben steht `Anschlussphase fehlt`? Dann laufen die Buchungen aus. Wählen Sie `Anschlussphase erstellen`.",
-      "Beim Speichern steht `Der neue Zeitraum passt nicht zu einer geänderten Buchung`? Ein Kind wechselt sein Angebot ab einem Tag im alten Zeitraum. Der neue Zeitraum würde diese Buchung leeren. Passen Sie zuerst die Angebote des Kindes an.",
+      "Beim Speichern steht `Der neue Zeitraum passt nicht zur geänderten Buchung von …`? Das genannte Kind wechselt sein Angebot ab einem Tag im alten Zeitraum. Der neue Zeitraum würde diese Buchung leeren. Passen Sie zuerst die Angebote dieses Kindes an.",
       "Fehlt `Anmeldungen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],
     related: [

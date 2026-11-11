@@ -458,7 +458,7 @@ export const parameters = {
   "enrollment.legal_document_invalid": ["max_mb"],
   "enrollment.message_required": [],
   "enrollment.offering_adjustment_invalid": [],
-  "enrollment.phase_booking_bounds_conflict": [],
+  "enrollment.phase_booking_bounds_conflict": ["child"],
   "enrollment.phase_care_offering_conflict": [],
   "enrollment.phase_eligibility_setting_required": [],
   "enrollment.phase_has_effective_bookings": [],

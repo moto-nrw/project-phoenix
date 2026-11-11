@@ -299,7 +299,7 @@ func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, m
 	err := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))
 	var conflict *careplan.PhaseBookingBoundsConflictError
 	if errors.As(err, &conflict) {
-		return fmt.Errorf("%w: request child %d, care offering %d", enrollmentOwner.ErrPhaseBookingBoundsConflict, conflict.RequestChildID, conflict.CareOfferingID)
+		return &enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}
 	}
 	return err
 }

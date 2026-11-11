@@ -2274,7 +2274,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseBookings.FollowPhaseBookingBounds",
-      "binding_digest": "36c0cd8dc119cfbca069879ac4632adb",
+      "binding_digest": "91ae440d3a743297db8f2b4442af9c67",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseBookings.FollowPhaseBookingBounds",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PhaseBookingBounds.FollowPhaseBookingBounds",

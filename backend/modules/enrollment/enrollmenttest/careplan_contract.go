@@ -64,6 +64,10 @@ var (
 	ErrPhaseBookingBoundsConflict             = enrollment.ErrPhaseBookingBoundsConflict
 )
 
+// PhaseBookingBoundsConflictError names the application a refused phase
+// edit would leave with an empty booking.
+type PhaseBookingBoundsConflictError = enrollment.PhaseBookingBoundsConflictError
+
 // NewCareOfferingRows serves Care Plan's catalog administration in
 // enrollment rows, as the enrollment routes use it.
 func NewCareOfferingRows(catalog compose.CareOfferingCatalogAdministration) *CareOfferingRows {

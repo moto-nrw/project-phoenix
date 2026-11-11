@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -165,3 +166,19 @@ type PhaseBookingMove struct {
 	EndAfter    calendar.Date
 	Today       calendar.Date
 }
+
+// PhaseBookingBoundsConflictError names the application whose booking a
+// phase edit would leave empty (#6597). Care Plan reports the request child;
+// the phase administration adds its name, so the refusal can say whose
+// offerings to adjust first.
+type PhaseBookingBoundsConflictError struct {
+	RequestChildID int64
+	ChildName      string
+}
+
+func (e *PhaseBookingBoundsConflictError) Error() string {
+	return fmt.Sprintf("%s: request child %d", ErrPhaseBookingBoundsConflict, e.RequestChildID)
+}
+
+// Unwrap lets callers match the refusal with errors.Is.
+func (e *PhaseBookingBoundsConflictError) Unwrap() error { return ErrPhaseBookingBoundsConflict }

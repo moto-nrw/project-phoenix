@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -30,5 +31,24 @@ func (s *Phases) followBookingBounds(ctx context.Context, before, after *enrollm
 	if errors.Is(err, enrollment.ErrPhaseBookingBoundsConflict) && s.deps.Runtime.MarkRollback != nil {
 		s.deps.Runtime.MarkRollback(ctx)
 	}
+	var conflict *enrollment.PhaseBookingBoundsConflictError
+	if errors.As(err, &conflict) {
+		conflict.ChildName = s.applicationChildName(ctx, after.ID, conflict.RequestChildID)
+	}
 	return fmt.Errorf("phase update: move booking bounds: %w", err)
+}
+
+// applicationChildName names the child of a request child of the phase for
+// a refusal. A failed lookup leaves the name empty; the refusal stands.
+func (s *Phases) applicationChildName(ctx context.Context, phaseID, requestChildID int64) string {
+	rows, err := s.deps.Records.PhaseResponseChildren(ctx, phaseID, enrollment.ChildStatuses())
+	if err != nil {
+		return ""
+	}
+	for _, row := range rows {
+		if row.Child != nil && row.Child.ID == requestChildID {
+			return strings.TrimSpace(row.Child.FirstName + " " + row.Child.LastName)
+		}
+	}
+	return ""
 }

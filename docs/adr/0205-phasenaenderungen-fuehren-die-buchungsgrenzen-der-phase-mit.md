@@ -44,8 +44,8 @@ auslaufen.
    Vergangenheit wird heute, ein Ende in der Vergangenheit endet heute.
 4. **Keine leere Buchung.** Würde eine Buchung dadurch enden, bevor sie
    beginnt, lehnt der Befehl vor dem Schreiben ab
-   (`enrollment.phase_booking_bounds_conflict`, 409). Die Phasenänderung
-   rollt ganz zurück.
+   (`enrollment.phase_booking_bounds_conflict`, 409, mit dem Namen des
+   Kindes in `details.child`). Die Phasenänderung rollt ganz zurück.
 
 ## Sperren
 

@@ -758,7 +758,9 @@
     {
       "code": "enrollment.phase_booking_bounds_conflict",
       "class": "business_rejection",
-      "parameters": [],
+      "parameters": [
+        "child"
+      ],
       "legacy": "enrollment.phase_booking_bounds_conflict"
     },
     {

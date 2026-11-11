@@ -205,6 +205,10 @@ func TestPhaseUpdate_RefusesEmptyBookingAtomically(t *testing.T) {
 
 	err := testpkg.TenantCommand1(t, ctx, env.db, boundsPhases(t, env, nil).UpdatePhase, movedSourcePhase(env, 40, 0))
 	require.ErrorIs(t, err, enrollmentTest.ErrPhaseBookingBoundsConflict)
+	var conflict *enrollmentTest.PhaseBookingBoundsConflictError
+	require.ErrorAs(t, err, &conflict)
+	assert.Equal(t, c.childID, conflict.RequestChildID, "the refusal names the application")
+	assert.Equal(t, "Leer Quelle", conflict.ChildName, "the refusal names the child")
 
 	phase, err := testpkg.TenantQuery1(t, ctx, env.db, env.reposEnrollment.Enrollment().Phase, env.sourcePhase.ID)
 	require.NoError(t, err)

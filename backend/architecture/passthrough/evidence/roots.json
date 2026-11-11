@@ -5539,7 +5539,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, move enrollmentOwner.PhaseBookingMove) error {\n\terr := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))\n\tvar conflict *careplan.PhaseBookingBoundsConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn fmt.Errorf(\"%w: request child %d, care offering %d\", enrollmentOwner.ErrPhaseBookingBoundsConflict, conflict.RequestChildID, conflict.CareOfferingID)\n\t}\n\treturn err\n}",
+      "evidence": "func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, move enrollmentOwner.PhaseBookingMove) error {\n\terr := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))\n\tvar conflict *careplan.PhaseBookingBoundsConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn \u0026enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseBookings.FollowPhaseBookingBounds",
       "owner": "roots"
