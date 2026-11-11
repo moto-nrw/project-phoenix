@@ -19,6 +19,8 @@ import { formatMonth } from "./care-billing-format";
 import { mealPositionLabel } from "./care-meal-format";
 import { formatEuro } from "./contribution-format";
 import { InvoiceLine } from "./invoice-line";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 /** A Mensa month on an invoice: „2 Mittagessen im Januar 2026 à 4,80 €“. */
 export function MealPositionLine({
@@ -168,6 +170,9 @@ export function CareRunMealsCard({
   }
   return (
     <SectionCard
+      leading={
+        <ConceptIconTile concept={mealPlanConcept} className="max-sm:hidden" />
+      }
       title="Mensa"
       titleBadge={
         <span className="text-moto-orange-strong text-sm font-medium">

@@ -63,6 +63,7 @@ import {
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { billingConcept } from "~/lib/concepts/billing";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
@@ -76,6 +77,7 @@ import {
   startBillingRun,
 } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "TraegerBillingRunPage" });
 
@@ -280,6 +282,13 @@ export default function TraegerBillingRunPage() {
   return (
     <TenantPage
       title={run?.periodName ?? "Abrechnungslauf"}
+      leading={
+        <ConceptIconTile
+          concept={holidayWeeksConcept}
+          size="page"
+          className="max-sm:hidden"
+        />
+      }
       back
       backHref={traegerPath("/traeger/abrechnung")}
       backLabel="Zurück zu den Abrechnungsläufen"
@@ -388,6 +397,12 @@ export default function TraegerBillingRunPage() {
       {run ? (
         <>
           <SectionCard
+            leading={
+              <ConceptIconTile
+                concept={billingConcept}
+                className="max-sm:hidden"
+              />
+            }
             title="Abrechnungslauf"
             description={runDescription(run)}
             actions={

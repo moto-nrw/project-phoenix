@@ -53,6 +53,7 @@ import {
   type TraegerDocumentRelease,
 } from "~/lib/traeger-documents-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "TraegerDocumentPage" });
 
@@ -151,6 +152,13 @@ export default function TraegerDocumentPage() {
   return (
     <TenantPage
       title={document?.title ?? "Dokument"}
+      leading={
+        <ConceptIconTile
+          concept={documentsConcept}
+          size="page"
+          className="max-sm:hidden"
+        />
+      }
       back
       backHref={traegerPath("/traeger/dokumente")}
       backLabel="Zurück zu den Dokumenten"

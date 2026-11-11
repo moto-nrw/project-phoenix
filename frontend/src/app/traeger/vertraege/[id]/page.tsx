@@ -54,6 +54,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { parentsConcept } from "~/lib/concepts/parents";
 import {
   formatBerlinDate,
@@ -73,6 +74,7 @@ import {
   resendCareContract,
 } from "~/lib/traeger-care-contracts-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "TraegerVertragPage" });
 
@@ -299,6 +301,13 @@ export default function TraegerVertragPage() {
   return (
     <TenantPage
       title={contract ? childName(contract) : "Vertrag"}
+      leading={
+        <ConceptIconTile
+          concept={careContractsConcept}
+          size="page"
+          className="max-sm:hidden"
+        />
+      }
       back
       backHref={LIST_HREF}
       backLabel="Zurück zu den Verträgen"
@@ -472,6 +481,12 @@ export default function TraegerVertragPage() {
                 </DataGrid>
               </SectionCard>
               <SectionCard
+                leading={
+                  <ConceptIconTile
+                    concept={careTimesConcept}
+                    className="max-sm:hidden"
+                  />
+                }
                 title="Gebuchte Betreuung"
                 description={
                   contract.versions.length > 1

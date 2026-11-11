@@ -26,12 +26,13 @@ import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { parentsConcept } from "~/lib/concepts/parents";
+import { billingConcept } from "~/lib/concepts/billing";
+import { documentsConcept } from "~/lib/concepts/documents";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -40,6 +41,7 @@ import {
   fetchBillingFamily,
 } from "~/lib/traeger-billing-families-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "TraegerBillingFamilyPage" });
 
@@ -215,7 +217,7 @@ export default function TraegerBillingFamilyPage() {
   return (
     <TenantPage
       title={family ? familyName(family) : "Familie"}
-      leading={<MotoConceptIcon concept={parentsConcept} size={28} />}
+      leading={<ConceptIconTile concept={parentsConcept} size="page" />}
       back
       backHref={traegerPath("/traeger/abrechnung/familien")}
       backLabel="Zurück zu den Familien"
@@ -252,6 +254,12 @@ export default function TraegerBillingFamilyPage() {
         <>
           <BillingAmountCards amounts={family} />
           <SectionCard
+            leading={
+              <ConceptIconTile
+                concept={billingConcept}
+                className="max-sm:hidden"
+              />
+            }
             title="Empfänger und Zahlung"
             description="An diese Adresse gehen die Schreiben. Wer zahlt und der Zahlungsweg stehen auf jeder Rechnung."
           >
@@ -299,6 +307,12 @@ export default function TraegerBillingFamilyPage() {
             </DataGrid>
           </SectionCard>
           <SectionCard
+            leading={
+              <ConceptIconTile
+                concept={documentsConcept}
+                className="max-sm:hidden"
+              />
+            }
             title="Dokumente"
             description="Rechnungen, Stornos und Gutschriften, das neueste zuerst. Jede Zeile öffnet ihren Abrechnungslauf."
           >

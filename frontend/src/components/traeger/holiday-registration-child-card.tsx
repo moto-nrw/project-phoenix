@@ -17,6 +17,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { childrenConcept } from "~/lib/concepts/children";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -48,6 +49,7 @@ import {
   childSchoolLabel,
   formatHolidayWeek,
 } from "./holiday-registration-format";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "HolidayRegistrationChildCard" });
 
@@ -145,6 +147,9 @@ export function HolidayRegistrationChildCard({
 
   return (
     <SectionCard
+      leading={
+        <ConceptIconTile concept={childrenConcept} className="max-sm:hidden" />
+      }
       title={`${child.firstName} ${child.lastName}`}
       description={`Geboren am ${formatDate(child.birthDate)}, ${childSchoolLabel(child, names)}`}
       footer={

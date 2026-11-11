@@ -54,6 +54,7 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { billingConcept } from "~/lib/concepts/billing";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -76,6 +77,7 @@ import {
 } from "~/lib/traeger-care-billing-api";
 import { includeCareInvoice } from "~/lib/traeger-care-review-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "TraegerCareRunPage" });
 
@@ -343,6 +345,13 @@ export default function TraegerCareRunPage() {
 
   return (
     <TenantPage
+      leading={
+        <ConceptIconTile
+          concept={billingConcept}
+          size="page"
+          className="max-sm:hidden"
+        />
+      }
       title={
         run ? `Monatsbeitrag ${formatMonth(run.billingMonth)}` : "Monatslauf"
       }
@@ -461,6 +470,12 @@ export default function TraegerCareRunPage() {
             </>
           ) : null}
           <SectionCard
+            leading={
+              <ConceptIconTile
+                concept={billingConcept}
+                className="max-sm:hidden"
+              />
+            }
             title="Monatslauf"
             description={
               preview

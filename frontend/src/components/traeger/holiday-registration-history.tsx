@@ -17,6 +17,8 @@ import type {
 } from "~/lib/traeger-holiday-registrations-api";
 import { editedFieldsText } from "./holiday-registration-edit-fields";
 import { formatHolidayWeek } from "./holiday-registration-format";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const ACTION_LABELS: Readonly<
   Record<HolidayRegistrationEvent["action"], string>
@@ -102,7 +104,15 @@ export function HolidayRegistrationHistory({
   registration: HolidayRegistrationDetail;
 }>) {
   return (
-    <SectionCard title="Verlauf">
+    <SectionCard
+      leading={
+        <ConceptIconTile
+          concept={changeHistoryConcept}
+          className="max-sm:hidden"
+        />
+      }
+      title="Verlauf"
+    >
       {registration.history.length === 0 ? (
         <p className="text-sm text-gray-700">
           Das Träger-Büro hat diese Anmeldung noch nicht geändert.

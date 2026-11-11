@@ -58,6 +58,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
+import { childrenConcept } from "~/lib/concepts/children";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { pickupConcept } from "~/lib/concepts/pickup";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
@@ -78,6 +82,8 @@ import {
 } from "~/lib/traeger-holiday-registrations-api";
 import { splitHolidaySibling } from "~/lib/traeger-sibling-groups-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 
 const PDF_LABELS: AttachmentLabels = {
   open: "Öffnen",
@@ -361,6 +367,13 @@ export default function TraegerHolidayRegistrationPage() {
   return (
     <TenantPage
       title={title}
+      leading={
+        <ConceptIconTile
+          concept={holidayWeeksConcept}
+          size="page"
+          className="max-sm:hidden"
+        />
+      }
       back
       backHref={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
       backLabel="Zurück zu den Anmeldungen"
@@ -407,6 +420,12 @@ export default function TraegerHolidayRegistrationPage() {
           />
           {contribution?.siblings?.length ? (
             <SectionCard
+              leading={
+                <ConceptIconTile
+                  concept={childrenConcept}
+                  className="max-sm:hidden"
+                />
+              }
               title="Geschwister"
               description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung."
               action={
@@ -487,6 +506,12 @@ export default function TraegerHolidayRegistrationPage() {
             />
           ) : (
             <SectionCard
+              leading={
+                <ConceptIconTile
+                  concept={parentsConcept}
+                  className="max-sm:hidden"
+                />
+              }
               title="Eltern"
               description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
               action={editAction("guardians", "Angaben der Eltern ändern")}
@@ -525,6 +550,12 @@ export default function TraegerHolidayRegistrationPage() {
           <HolidayDeclarationTextsCard registration={registration} />
           {registration.secondGuardian && editing !== "guardians" ? (
             <SectionCard
+              leading={
+                <ConceptIconTile
+                  concept={parentsConcept}
+                  className="max-sm:hidden"
+                />
+              }
               title="Zweite sorgeberechtigte Person"
               action={editAction(
                 "guardians",
@@ -609,7 +640,15 @@ export default function TraegerHolidayRegistrationPage() {
             </SectionCard>
           ) : null}
           {registration.form.legalBlocks?.some((block) => block.enabled) ? (
-            <SectionCard title="Hinweise und Einwilligungen">
+            <SectionCard
+              leading={
+                <ConceptIconTile
+                  concept={confirmationsConcept}
+                  className="max-sm:hidden"
+                />
+              }
+              title="Hinweise und Einwilligungen"
+            >
               <div className="space-y-4">
                 {registration.form.legalBlocks
                   .filter((block) => block.enabled)
@@ -650,6 +689,12 @@ export default function TraegerHolidayRegistrationPage() {
             <ContactsEditor {...editorProps} />
           ) : (
             <SectionCard
+              leading={
+                <ConceptIconTile
+                  concept={pickupConcept}
+                  className="max-sm:hidden"
+                />
+              }
               title="Notfallkontakte und Abholung"
               action={editAction(
                 "contacts",

@@ -24,6 +24,7 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -43,6 +44,7 @@ import {
   type HolidayRegistrationAction,
   type HolidayRegistrationDetail,
 } from "~/lib/traeger-holiday-registrations-api";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "HolidayRegistrationStatusCard" });
 
@@ -572,7 +574,16 @@ export function HolidayRegistrationStatusCard({
     </div>
   ) : undefined;
   return (
-    <SectionCard title="Status" footer={actions}>
+    <SectionCard
+      leading={
+        <ConceptIconTile
+          concept={enrollmentsConcept}
+          className="max-sm:hidden"
+        />
+      }
+      title="Status"
+      footer={actions}
+    >
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
         {/* The children's cards sit far below on a phone: the status names a
