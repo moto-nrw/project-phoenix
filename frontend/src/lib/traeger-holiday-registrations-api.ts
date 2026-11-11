@@ -705,6 +705,33 @@ export async function fetchHolidayRegistration(
 }
 
 /**
+ * The registered children a school of the Träger knows (#6683): child ID to
+ * the one school that manages a child with the same names and date of birth
+ * today. Only a hint; moto links nothing. The backend records every
+ * comparison, so a page asks only for what it shows: the whole period, or
+ * one registration.
+ */
+export async function fetchHolidayKnownChildren(
+  periodId: string,
+  registrationId?: string,
+): Promise<ReadonlyMap<string, string>> {
+  const query = registrationId
+    ? `?registration_id=${encodeURIComponent(registrationId)}`
+    : "";
+  const known = await traegerRequest<{
+    children?: { child_id: number; school_id: number }[] | null;
+  } | null>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/registrations/known-children${query}`,
+  );
+  return new Map(
+    (known?.children ?? []).map((child) => [
+      String(child.child_id),
+      String(child.school_id),
+    ]),
+  );
+}
+
+/**
  * The health information of a registration (#4722). The backend answers 403
  * without the right „Gesundheitsangaben sehen“ and records every read.
  */

@@ -40,7 +40,9 @@ const {
   mockDownloadPdf,
   mockDownloadBlob,
   contributionOverride,
+  mockKnown,
 } = vi.hoisted(() => ({
+  mockKnown: vi.fn(),
   mockRegistration: vi.fn(),
   mockConfirm: vi.fn(),
   mockHealth: vi.fn(),
@@ -61,6 +63,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
   downloadHolidayRegistrationPdf: (...args: unknown[]) =>
     mockDownloadPdf(...args),
+  fetchHolidayKnownChildren: (periodId: string, registrationId?: string) =>
+    mockKnown(periodId, registrationId),
 }));
 vi.mock("~/lib/file-download", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/file-download")>()),
@@ -87,6 +91,8 @@ import TraegerHolidayRegistrationPage from "./page";
 
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
+    mockKnown.mockReset();
+    mockKnown.mockResolvedValue(new Map());
     mockRegistration.mockReset().mockResolvedValue(HOLIDAY_REGISTRATION);
     mockConfirm.mockReset().mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
@@ -373,6 +379,31 @@ describe("TraegerHolidayRegistrationPage", () => {
       screen.getByRole("link", { name: /Zurück zu den Anmeldungen/ }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");
   });
+  it("asks to check the school of a child another school knows (#6683)", async () => {
+    mockKnown.mockResolvedValue(new Map([["10", "32"]]));
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Schule „OGS Süd“ führt ein Kind mit gleichem Namen und Geburtsdatum. Angemeldet ist Ben als Feriengast. Bitte prüfen Sie die Schule.",
+      ),
+    ).toBeInTheDocument();
+    // Only this registration is compared, once.
+    expect(mockKnown).toHaveBeenCalledTimes(1);
+    expect(mockKnown).toHaveBeenCalledWith("5", "7");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Schule von Ben Muster ändern" }),
+    );
+    // The office lands in the edit of Ben's details, at his school.
+    expect(
+      await screen.findByRole("combobox", { name: /^Schule/ }),
+    ).toHaveTextContent("Andere Schule (Feriengast)");
+  });
+
   it("asks for the debtor number at the confirmation while the switch is on (#5621)", async () => {
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: true });
     render(

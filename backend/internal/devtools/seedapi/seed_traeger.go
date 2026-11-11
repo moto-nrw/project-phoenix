@@ -386,6 +386,9 @@ func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, perio
 	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
 		return err
 	}
+	if err := seedHolidayKnownChild(rt, auth, token, periodID, registration); err != nil {
+		return err
+	}
 	return seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings)
 }
 

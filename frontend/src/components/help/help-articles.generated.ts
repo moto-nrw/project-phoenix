@@ -12419,7 +12419,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
         "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
         "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
-        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export und jedes PDF steht dort.",
+        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export und jedes PDF steht dort, und jeder Abgleich der Kinder mit den Kindern Ihrer Schulen.",
         "Das PDF enthält alle Angaben der Eltern, die gebuchten Wochen, den Status und die Erklärung der Eltern mit dem genauen Text, Namen und Zeitpunkt. Nachweise und der Verlauf stehen nicht darin.",
         "Gesundheitsangaben stehen nur im PDF, wenn Sie `PDF mit Gesundheitsangaben` wählen. Diesen Eintrag sieht nur die Rolle Verwaltung. Nach 92 Tagen sind die Gesundheitsangaben gelöscht. Dann enthält auch das PDF keine mehr.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen. Nur wenn ein Kind von der Warteliste nachrückt, rechnet moto den Beitrag mit der neuen Woche neu.",
@@ -12435,6 +12435,8 @@ export const traegerHolidayRegistrationReviewTopic =
         "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
       ],
       differences: [
+        "In der Liste steht beim Kind `Bekannt an` mit einer Schule? Diese Schule Ihres Trägers führt ein Kind mit gleichem Namen und Geburtsdatum. Die Eltern haben es aber als Feriengast oder an einer anderen Schule angemeldet. In der Anmeldung steht dazu ein Hinweis beim Kind. Prüfen Sie die Schule und wählen Sie dort `Schule ändern`. moto verknüpft nichts von selbst und zeigt keine Daten der Schule.",
+        "Beim Kind steht `An der Schule bekannt`? Die Schule aus der Anmeldung führt ein Kind mit gleichem Namen und Geburtsdatum. Sie müssen nichts tun.",
         "Auf dem Handy fehlt der Haken für alle Anmeldungen? Setzen Sie die Haken dort einzeln.",
         "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
         "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn in den Einstellungen unter `Abrechnungsvorgaben` an.",

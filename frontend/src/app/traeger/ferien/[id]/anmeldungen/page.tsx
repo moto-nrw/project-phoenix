@@ -2,12 +2,13 @@
 
 // Ferienanmeldungen eines Zeitraums prüfen (#4663): alle Anmeldungen mit
 // Status, Schule, Woche und Zeitmodell, mit Filtern, Hinweis auf mögliche
-// Doppelanmeldungen und Export als CSV oder Excel. Anmeldungen derselben
+// Doppelanmeldungen, Hinweis auf an einer Schule bekannte Kinder (#6683) und
+// Export als CSV oder Excel. Anmeldungen derselben
 // Familie führt das Büro hier als Geschwister zusammen (#5628); gleiche
 // E-Mail oder gleicher Nachname sind nur ein Hinweis. Ausgewählte
 // Anmeldungen bestätigt das Büro hier auch gesammelt (#6674).
 
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, School } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -35,6 +36,11 @@ import {
   HOLIDAY_WISH_FILTER_OPTIONS,
   holidayWishView,
 } from "~/components/traeger/holiday-wish";
+import {
+  knownChildView,
+  knownChildrenKey,
+  useHolidayKnownChildren,
+} from "~/components/traeger/holiday-known-child";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -214,6 +220,7 @@ function columns(
   debtorNumber: boolean,
   siblings: SiblingView,
   wishRule: boolean,
+  known: ReadonlyMap<string, string>,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
   return [
     {
@@ -262,6 +269,11 @@ function columns(
         <ul className="space-y-2">
           {registration.children.map((child) => {
             const wish = holidayWishView(child, wishRule);
+            // A cancelled registration needs no check of the school.
+            const knownChild =
+              registration.status === "cancelled"
+                ? null
+                : knownChildView(child, known.get(child.id), names);
             return (
               <li key={child.id}>
                 <div className="flex flex-wrap items-center gap-2">
@@ -276,6 +288,15 @@ function columns(
                       tone={wish.tone}
                       label={wish.label}
                       icon={wish.icon}
+                    />
+                  ) : null}
+                  {knownChild ? (
+                    <StatusBadge
+                      tone={knownChild.tone}
+                      label={knownChild.label}
+                      icon={School}
+                      title={knownChild.title}
+                      wrap
                     />
                   ) : null}
                   {child.duplicateRegistrationIds.length > 0 ? (
@@ -590,6 +611,13 @@ export default function TraegerHolidayRegistrationsPage() {
 
   const names = schoolNames(schools);
   const registrationsShown = list?.registrations ?? [];
+  const known = useHolidayKnownChildren(
+    periodId,
+    undefined,
+    knownChildrenKey(
+      registrationsShown.flatMap((registration) => registration.children),
+    ),
+  );
 
   const openBulkConfirmation = () => {
     if (merging || loading || selected.size === 0) return;
@@ -865,6 +893,7 @@ export default function TraegerHolidayRegistrationsPage() {
           debtorNumberColumn,
           siblings,
           wishRule,
+          known,
         )}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}

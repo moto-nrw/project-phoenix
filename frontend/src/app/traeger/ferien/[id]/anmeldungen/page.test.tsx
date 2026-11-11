@@ -24,6 +24,7 @@ import {
 const { mockConfirmationSettings } = vi.hoisted(() => ({
   mockConfirmationSettings: vi.fn(),
 }));
+const { mockFetchKnown } = vi.hoisted(() => ({ mockFetchKnown: vi.fn() }));
 const {
   mockPush,
   mockFetchList,
@@ -67,6 +68,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
     withHealth: boolean,
   ) => mockDownloadPdfs(periodId, filter, withHealth),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
+  fetchHolidayKnownChildren: (periodId: string, registrationId?: string) =>
+    mockFetchKnown(periodId, registrationId),
 }));
 const { mockFetchGroups, mockMerge } = vi.hoisted(() => ({
   mockFetchGroups: vi.fn(),
@@ -106,6 +109,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
     mockDownload.mockReset();
     mockDownloadBlob.mockReset();
     mockFetchList.mockResolvedValue(HOLIDAY_REGISTRATION_LIST);
+    mockFetchKnown.mockReset();
+    mockFetchKnown.mockResolvedValue(new Map());
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockFetchGroups.mockReset();
     mockMerge.mockReset();
@@ -156,6 +161,124 @@ describe("TraegerHolidayRegistrationsPage", () => {
       timeModel: "",
       wish: "",
     });
+  });
+
+  it("names the school that knows a registered child (#6683)", async () => {
+    // Lia is registered at OGS Nord and known there; Ben came as a holiday
+    // guest, but OGS Süd knows him.
+    mockFetchKnown.mockResolvedValue(
+      new Map([
+        ["9", "31"],
+        ["10", "32"],
+      ]),
+    );
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    expect(await table.findByText("Bekannt an OGS Süd")).toHaveClass(
+      "max-w-full",
+      "min-w-0",
+      "whitespace-normal",
+    );
+    expect(table.getByText("An der Schule bekannt")).toBeInTheDocument();
+    // The whole period is compared once, not per filter.
+    expect(mockFetchKnown).toHaveBeenCalledTimes(1);
+    expect(mockFetchKnown).toHaveBeenCalledWith("5", undefined);
+  });
+
+  it("shows no school hint on a cancelled registration (#6683)", async () => {
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+        (registration) => ({ ...registration, status: "cancelled" as const }),
+      ),
+    });
+    mockFetchKnown.mockResolvedValue(new Map([["10", "32"]]));
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    // Anker: die stornierte Zeile ist geladen, und der Abgleich ist da.
+    expect(await table.findByText("Storniert")).toBeInTheDocument();
+    await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(1));
+    expect(table.queryByText("Bekannt an OGS Süd")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { firstName: "Benedikt" },
+    { lastName: "Meier" },
+    { birthDate: "2016-09-13" },
+  ])(
+    "refreshes school matches after a loaded identity changes: %o",
+    async (correction) => {
+      let finish!: (matches: ReadonlyMap<string, string>) => void;
+      mockFetchKnown
+        .mockResolvedValueOnce(new Map([["10", "32"]]))
+        .mockReturnValueOnce(
+          new Promise<ReadonlyMap<string, string>>((resolve) => {
+            finish = resolve;
+          }),
+        );
+      renderPage();
+      expect(await screen.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+
+      mockFetchList.mockResolvedValue({
+        ...HOLIDAY_REGISTRATION_LIST,
+        registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+          (registration) => ({
+            ...registration,
+            children: registration.children.map((child) =>
+              child.id === "10" ? { ...child, ...correction } : child,
+            ),
+          }),
+        ),
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: "Feriengäste" }),
+      );
+
+      await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(2));
+      const table = within(await screen.findByRole("table"));
+      expect(
+        table.getByText(
+          `${correction.firstName ?? "Ben"} ${correction.lastName ?? "Muster"}`,
+        ),
+      ).toBeInTheDocument();
+      expect(table.queryByText("Bekannt an OGS Süd")).not.toBeInTheDocument();
+
+      await act(async () => finish(new Map([["10", "31"]])));
+      expect(await table.findByText("Bekannt an OGS Nord")).toBeInTheDocument();
+    },
+  );
+
+  it("loads school matches for newly loaded children", async () => {
+    mockFetchKnown
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([["11", "32"]]));
+    renderPage();
+    await within(await screen.findByRole("table")).findByText("Ben Muster");
+    await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(1));
+
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+        (registration) => ({
+          ...registration,
+          children: [
+            ...registration.children,
+            { ...registration.children[1]!, id: "11", firstName: "Nora" },
+          ],
+        }),
+      ),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Feriengäste" }));
+
+    const table = within(await screen.findByRole("table"));
+    expect(await table.findByText("Nora Muster")).toBeInTheDocument();
+    expect(await table.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+    expect(mockFetchKnown).toHaveBeenCalledTimes(2);
+    expect(mockFetchKnown).toHaveBeenLastCalledWith("5", undefined);
   });
 
   it("shows the debtor number column only while the Träger asks for it (#5621)", async () => {
@@ -232,6 +355,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
         wish: "",
       }),
     );
+    await within(await screen.findByRole("table")).findByText("Ben Muster");
+    expect(mockFetchKnown).toHaveBeenCalledTimes(1);
   });
 
   it("opens a registration from the list", async () => {

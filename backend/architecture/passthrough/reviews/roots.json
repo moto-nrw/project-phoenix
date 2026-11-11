@@ -681,6 +681,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0214",
+      "id": "api/holidayKnownChildren.KnownHolidayChildren",
+      "reason": "ADR 0214 (#6683): Consumer-port adapter of Enrollment's known children port; it translates the Träger projection's known children, read in its administrative unit, into Enrollment's HolidayKnownChild vocabulary."
+    },
+    {
       "decision": "0090",
       "id": "api/holidayProofUnits.UploadHolidayProof",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -1254,6 +1259,11 @@
       "decision": "0109",
       "id": "api/traegerPersonDirectory.PersonsByID",
       "reason": "ADR 0109 (#4655): root translation of the People Directory persons behind staff IDs into the Träger projection's person vocabulary."
+    },
+    {
+      "decision": "0214",
+      "id": "api/traegerRegisteredChildren.RegisteredChildren",
+      "reason": "ADR 0214 (#6683): Consumer-port adapter of the Träger projection's registered children port; it translates Enrollment's registered holiday children into the projection's RegisteredChild vocabulary."
     },
     {
       "decision": "0090",
