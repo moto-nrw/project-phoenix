@@ -28131,6 +28131,28 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Template creation prelocks the complete resolved supervisor roster through InstanceStaffLocks.LockStaffAssignments in ascending staff-ID order before inserting supervisor rows (#6583). FindStaffForMutation is the existing guarded staff-row lock, joins the caller tenant transaction and enforces the lock ledger; already-held rows are skipped. No foreign mutation or separate coordination protocol is added (ADR 0067).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Template creation prelocks the complete resolved supervisor roster through InstanceStaffLocks.LockStaffAssignments in ascending staff-ID order before inserting supervisor rows (#6583). FindStaffForMutation is the existing guarded staff-row lock, joins the caller tenant transaction and enforces the lock ledger; already-held rows are skipped. No foreign mutation or separate coordination protocol is added (ADR 0067).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
       "classification": "query",
       "effect": "query",
@@ -28139,6 +28161,28 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Template creation reaches the existing tenant transaction runner through InstanceStaffLocks.LockStaffAssignments while prelocking its supervisor roster (#6583). The lock command joins the template transaction and propagates failures without a separate commit, tenant switch or detached scope (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Template creation reaches the existing tenant transaction runner through InstanceStaffLocks.LockStaffAssignments while prelocking its supervisor roster (#6583). The lock command joins the template transaction and propagates failures without a separate commit, tenant switch or detached scope (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -41565,6 +41609,28 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Template creation prelocks the complete resolved supervisor roster through InstanceStaffLocks.LockStaffAssignments in ascending staff-ID order before inserting supervisor rows (#6583). FindStaffForMutation is the existing guarded staff-row lock, joins the caller tenant transaction and enforces the lock ledger; already-held rows are skipped. No foreign mutation or separate coordination protocol is added (ADR 0067).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Template creation prelocks the complete resolved supervisor roster through InstanceStaffLocks.LockStaffAssignments in ascending staff-ID order before inserting supervisor rows (#6583). FindStaffForMutation is the existing guarded staff-row lock, joins the caller tenant transaction and enforces the lock ledger; already-held rows are skipped. No foreign mutation or separate coordination protocol is added (ADR 0067).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
       "classification": "query",
       "effect": "query",
@@ -41573,6 +41639,28 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Template creation reaches the existing tenant transaction runner through InstanceStaffLocks.LockStaffAssignments while prelocking its supervisor roster (#6583). The lock command joins the template transaction and propagates failures without a separate commit, tenant switch or detached scope (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Template creation reaches the existing tenant transaction runner through InstanceStaffLocks.LockStaffAssignments while prelocking its supervisor roster (#6583). The lock command joins the template transaction and propagates failures without a separate commit, tenant switch or detached scope (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
