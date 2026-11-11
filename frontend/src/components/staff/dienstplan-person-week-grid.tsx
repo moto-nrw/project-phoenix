@@ -516,6 +516,7 @@ export function DienstplanPersonWeekGrid({
                             day={care}
                             href={holidayCareHref}
                             stacked
+                            compactOnMobile
                           />
                         )}
                       </div>

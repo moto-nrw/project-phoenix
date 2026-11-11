@@ -129,6 +129,7 @@ describe("DienstplanPersonWeekGrid holiday care", () => {
       />,
     );
 
+    // Je Tag die volle Fassung; die schmale unter `sm` zeigt nur das Symbol.
     expect(screen.getAllByText("0 Kinder · 07:45–13:00")).toHaveLength(4);
     expect(
       screen.getByTitle("Schließtag: Pädagogischer Tag"),
