@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayKnownChildrenVersion = "1.15.930"
+const holidayKnownChildrenVersion = "1.15.940"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayKnownChildrenVersion,
 		Description: "Ferien: Hinweis auf ein an einer Schule des Trägers bekanntes Kind protokollieren (#6683)",
 		DependsOn: []string{
-			holidayRegistrationRetentionDaysVersion, // the newest migration on development
-			holidayCriteriaAllocationVersion,        // the audit CHECKs this one extends
+			holidayHostOwnContactsVersion,    // the newest migration on development
+			holidayCriteriaAllocationVersion, // the audit CHECKs this one extends
 		},
 	})
 	Migrations.MustRegister(holidayKnownChildrenUp, holidayKnownChildrenDown)
