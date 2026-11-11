@@ -145,6 +145,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` fest.",
     ],
     troubleshootingDetails: [
+      "Eine Änderung führt zu zu vielen Tagen je Kind? Prüfen Sie die Anmeldungen vor dem Speichern. Bei gleicher Eltern-E-Mail, gleichem Namen und Geburtsdatum zählen die Tage zusammen. Das gilt auch, wenn Sie diese Angaben ändern.",
       "`Umbuchen` fehlt? Die Anmeldung ist eingefroren oder storniert. Eine eingefrorene Anmeldung öffnen Sie mit `Wieder öffnen`.",
       "Eine stornierte Anmeldung lässt sich nicht wieder öffnen. Die Eltern melden das Kind dann neu an.",
       "Die Debitorennummer lässt sich nicht mehr ändern? Für die Anmeldung gibt es schon eine Rechnung. Die Rechnung behält die Nummer, mit der sie ausgestellt wurde.",

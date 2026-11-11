@@ -145,6 +145,9 @@ export default function TraegerHolidayPlacesPage() {
               key={week.weekId}
               periodId={id}
               week={week}
+              noCareDays={
+                period?.weeks.find((w) => w.id === week.weekId)?.noCareDays
+              }
               hostSchoolName={names.get(week.hostSchoolId) ?? "Schule"}
               editing={editing === week.weekId}
               onEdit={() => setEditing(week.weekId)}

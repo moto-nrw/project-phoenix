@@ -342,7 +342,11 @@ func (s *HolidayPeriodStore) HolidayWeeksBookedTogether(ctx context.Context, org
 	return pairs, nil
 }
 
-const holidayChildBookingsQuery = `SELECT booking.holiday_registration_child_id AS child_id,
+// holidayChildBookingsQuery reads the bookings of the period's registrations
+// that are not cancelled, ordered by the child they belong to: the same
+// enrollment.HolidayChildKey over all registrations (#6446).
+const holidayChildBookingsQuery = `SELECT lower(btrim(registration.guardian_email)) AS guardian_email,
+		lower(child.first_name) AS first_name, lower(child.last_name) AS last_name, child.birth_date,
 		booking.holiday_period_week_id AS week_id, booking.holiday_week_time_model_id AS time_model_id, booking.days::text AS days
 	FROM enrollment.holiday_registration_bookings AS booking
 	JOIN enrollment.holiday_registration_children AS child
@@ -350,35 +354,43 @@ const holidayChildBookingsQuery = `SELECT booking.holiday_registration_child_id 
 	JOIN enrollment.holiday_registrations AS registration
 		ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
 	WHERE booking.organization_id = ? AND booking.holiday_period_id = ? AND registration.status <> 'cancelled'
-	ORDER BY booking.holiday_registration_child_id, booking.holiday_period_week_id`
+	ORDER BY 1, 2, 3, 4, booking.holiday_period_week_id, booking.id`
 
 // HolidayChildBookings lists the bookings of each child of the period whose
-// registration is not cancelled, one list per child (#6506).
+// registration is not cancelled, one list per child (#6506). A child is an
+// enrollment.HolidayChildKey, so the bookings of its registrations are one
+// list (#6446).
 func (s *HolidayPeriodStore) HolidayChildBookings(ctx context.Context, organizationID, periodID int64) ([][]enrollment.HolidayBookingInput, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []struct {
-		ChildID     int64   `bun:"child_id"`
-		WeekID      int64   `bun:"week_id"`
-		TimeModelID int64   `bun:"time_model_id"`
-		Days        *string `bun:"days"`
+		GuardianEmail string        `bun:"guardian_email"`
+		FirstName     string        `bun:"first_name"`
+		LastName      string        `bun:"last_name"`
+		BirthDate     calendar.Date `bun:"birth_date"`
+		WeekID        int64         `bun:"week_id"`
+		TimeModelID   int64         `bun:"time_model_id"`
+		Days          *string       `bun:"days"`
 	}
 	if err := db.NewRaw(holidayChildBookingsQuery, organizationID, periodID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: read holiday child bookings: %w", err)
 	}
 	var children [][]enrollment.HolidayBookingInput
+	var last enrollment.HolidayChildKey
 	for i, row := range rows {
 		days, err := holidayDaysOf(row.Days)
 		if err != nil {
 			return nil, err
 		}
-		if i == 0 || rows[i-1].ChildID != row.ChildID {
+		key := enrollment.NewHolidayChildKey(row.GuardianEmail, row.FirstName, row.LastName, row.BirthDate)
+		if i == 0 || key != last {
 			children = append(children, nil)
+			last = key
 		}
-		last := len(children) - 1
-		children[last] = append(children[last], enrollment.HolidayBookingInput{WeekID: row.WeekID, TimeModelID: row.TimeModelID, Days: days})
+		at := len(children) - 1
+		children[at] = append(children[at], enrollment.HolidayBookingInput{WeekID: row.WeekID, TimeModelID: row.TimeModelID, Days: days})
 	}
 	return children, nil
 }

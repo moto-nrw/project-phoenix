@@ -86,20 +86,20 @@ func TestHolidayDayLimitCountsTheCareDaysOfEveryBooking(t *testing.T) {
 	assert.Len(t, enrollment.HolidayWeekCareDays(firstFitMonday, calendar.NewDate(2027, 1, 10)), 5, "Saturday and Sunday are no care days")
 
 	twoDays := []enrollment.HolidayBookingInput{{WeekID: 1, Days: []calendar.Date{firstFitMonday, firstFitTuesday}}}
-	require.NoError(t, refuseHolidayDayLimit(0, twoDays, period, 0))
+	require.NoError(t, refuseHolidayDayLimit(0, twoDays, period, 0, 0))
 	shortWeek := []enrollment.HolidayBookingInput{{WeekID: 2}}
 	assert.Equal(t, 4, holidayBookedDayCount(shortWeek, period), "a week from Tuesday counts four care days")
 
-	err := refuseHolidayDayLimit(1, append(twoDays, shortWeek...), period, 0)
+	err := refuseHolidayDayLimit(1, append(twoDays, shortWeek...), period, 0, 0)
 	var refusal *enrollment.HolidayChildDayLimitRefusal
 	require.True(t, errors.As(err, &refusal))
 	assert.Equal(t, enrollment.HolidayChildDayLimitRefusal{Child: 1, Limit: 3, Days: 6}, *refusal)
 	assert.ErrorIs(t, err, enrollment.ErrHolidayChildDayLimit)
 
-	assert.NoError(t, refuseHolidayDayLimit(0, shortWeek, period, 6), "a child over a lowered bound may lower its days")
-	assert.Error(t, refuseHolidayDayLimit(0, append(twoDays, shortWeek...), period, 4), "but not raise them")
+	assert.NoError(t, refuseHolidayDayLimit(0, shortWeek, period, 6, 0), "a child over a lowered bound may lower its days")
+	assert.Error(t, refuseHolidayDayLimit(0, append(twoDays, shortWeek...), period, 4, 0), "but not raise them")
 	period.MaxDaysPerChild = nil
-	assert.NoError(t, refuseHolidayDayLimit(0, append(twoDays, shortWeek...), period, 0), "no bound, no refusal")
+	assert.NoError(t, refuseHolidayDayLimit(0, append(twoDays, shortWeek...), period, 0, 0), "no bound, no refusal")
 }
 
 // A booking of a week by days names at least one of its care days and only
