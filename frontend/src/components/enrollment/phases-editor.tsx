@@ -26,6 +26,7 @@ import {
   Link2,
   Pencil,
   Power,
+  QrCode,
   Trash2,
 } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -74,6 +75,9 @@ import {
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { useSchoolQrLogo } from "~/components/qr-code/qr-brand-logo";
+import { LazyQrCodeDialog } from "~/components/qr-code/qr-code-button";
+import { ENROLLMENT_QR_CODE } from "~/components/enrollment/public-link-copy-button";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
@@ -1214,6 +1218,8 @@ function PhaseActions({
 }: PhaseActionsProps) {
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [qrCodeOpen, setQrCodeOpen] = useState(false);
+  const brandLogo = useSchoolQrLogo();
   const toast = useToast();
   const { showMessage } = useApiErrorDisplay();
   const { copy } = useClipboardCopy(`PhaseActions:${phase.id}`);
@@ -1270,6 +1276,11 @@ function PhaseActions({
                   label: "Elternlink kopieren",
                   icon: <Copy className="h-4 w-4" aria-hidden />,
                   onClick: () => void copyPhaseUrl(phaseUrl),
+                },
+                {
+                  label: "QR-Code anzeigen",
+                  icon: <QrCode className="h-4 w-4" aria-hidden />,
+                  onClick: () => setQrCodeOpen(true),
                 },
               ]
             : []),
@@ -1359,6 +1370,15 @@ function PhaseActions({
         phase={phase}
         gradeLevelMax={gradeLevelMax}
       />
+      {qrCodeOpen && phaseUrl ? (
+        <LazyQrCodeDialog
+          isOpen
+          onClose={() => setQrCodeOpen(false)}
+          url={phaseUrl}
+          {...ENROLLMENT_QR_CODE}
+          brandLogo={brandLogo}
+        />
+      ) : null}
     </>
   );
 }

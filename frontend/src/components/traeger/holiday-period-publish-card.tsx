@@ -17,6 +17,8 @@ import { parentsPortalUrl } from "~/lib/parent-url";
 import { type HolidayPeriod, publishHolidayPeriod } from "~/lib/traeger-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { holidayPeriodComplete } from "./holiday-period-model";
+import { TRAEGER_QR_LOGO } from "~/components/qr-code/qr-brand-logo";
+import { QrCodeButton } from "~/components/qr-code/qr-code-button";
 
 const logger = createLogger({ component: "HolidayPeriodPublishCard" });
 
@@ -160,6 +162,14 @@ function HolidayRegistrationLink({
           showMessage(
             "Der Link konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.",
           )
+        }
+        action={
+          <QrCodeButton
+            url={url}
+            title="QR-Code für die Ferienanmeldung"
+            fileName="qr-code-ferienanmeldung"
+            brandLogo={TRAEGER_QR_LOGO}
+          />
         }
       />
     </div>
