@@ -3,13 +3,10 @@
 import type { ReactNode } from "react";
 import { Check, X } from "lucide-react";
 import {
-  BriefcaseIcon,
   BuildingsIcon,
   BusIcon,
   FileTextIcon,
   HeartIcon,
-  HouseIcon,
-  LockKeyIcon,
   NotePencilIcon,
   UserIcon,
   UsersThreeIcon,
@@ -29,21 +26,11 @@ export {
 // InfoSection - Shared component for information section containers
 // =============================================================================
 
-type AccentColor =
-  "blue" | "orange" | "indigo" | "purple" | "red" | "amber" | "green" | "gray";
-
 interface InfoSectionProps {
   readonly title: string;
   /** Optional leading glyph; a titled group without one renders text only. */
   readonly icon?: ReactNode;
   readonly children: ReactNode;
-  /**
-   * Historic accent selector. Section surfaces are neutral now (no colored
-   * backgrounds behind icons), so this only keeps existing call sites
-   * compiling unchanged; it no longer drives any color. Icon color comes
-   * from the icon itself (MotoDuotoneIcon sets its own tone).
-   */
-  readonly accentColor?: AccentColor;
 }
 
 /**
@@ -89,19 +76,13 @@ export function InfoText({ children }: InfoTextProps) {
 // =============================================================================
 
 export const DetailIcons = {
-  // Domain-flavored glyphs: self-colored via MotoDuotoneIcon, independent of
-  // any wrapping accentColor (see InfoSection above).
+  // Domain-flavored glyphs: self-colored via MotoDuotoneIcon.
   person: <MotoDuotoneIcon icon={UserIcon} tone="greenVivid" size="100%" />,
   group: <MotoDuotoneIcon icon={UsersThreeIcon} tone="greenDeep" size="100%" />,
   heart: <MotoDuotoneIcon icon={HeartIcon} tone="coral" size="100%" />,
   notes: <MotoDuotoneIcon icon={NotePencilIcon} tone="teal" size="100%" />,
   document: <MotoDuotoneIcon icon={FileTextIcon} tone="neutral" size="100%" />,
-  home: <MotoDuotoneIcon icon={HouseIcon} tone="neutral" size="100%" />,
-  lock: <MotoDuotoneIcon icon={LockKeyIcon} tone="purple" size="100%" />,
   building: <MotoDuotoneIcon icon={BuildingsIcon} tone="petrol" size="100%" />,
-  briefcase: (
-    <MotoDuotoneIcon icon={BriefcaseIcon} tone="neutral" size="100%" />
-  ),
   bus: <MotoDuotoneIcon icon={BusIcon} tone="cyan" size="100%" />,
   // Generic UI feedback: plain Lucide icons inheriting currentColor, so
   // callers that tint them via a wrapping text-color class keep working.

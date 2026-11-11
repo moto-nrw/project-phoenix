@@ -458,7 +458,6 @@ export function CaregiverBlockerResolutionPanel({
               size={18}
             />
           }
-          accentColor="purple"
         >
           <div className="space-y-2">
             {supervisions.map((item) => {
@@ -508,7 +507,6 @@ export function CaregiverBlockerResolutionPanel({
               size={18}
             />
           }
-          accentColor="indigo"
         >
           <div className="space-y-2">
             {substitutions.map((item) => {
@@ -558,7 +556,6 @@ export function CaregiverBlockerResolutionPanel({
               size={18}
             />
           }
-          accentColor="orange"
         >
           <div className="space-y-2">
             {activities.map((item) => {
@@ -630,7 +627,6 @@ export function CaregiverBlockerResolutionPanel({
               size={18}
             />
           }
-          accentColor="green"
         >
           <div className="space-y-2">
             {groups.map((item) => {

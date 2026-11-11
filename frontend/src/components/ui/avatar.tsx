@@ -8,13 +8,12 @@ import { getInitials } from "~/lib/format-utils";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 
-type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
+type AvatarSize = "sm" | "md" | "lg" | "xl";
 
 interface AvatarProps {
   readonly imageUrl?: string | null;
   readonly name: string;
   readonly size?: AvatarSize;
-  readonly shape?: "circle" | "rounded";
   /** Use when the avatar repeats adjacent visible text. */
   readonly decorative?: boolean;
   /** Fläche der Initialen: `green` für Kinder, `neutral` für Erwachsene. */
@@ -29,7 +28,6 @@ const FALLBACK_BG = MOTO_COLOR_PALETTE.green.soft;
 const FALLBACK_TEXT = MOTO_COLOR_PALETTE.green.strong;
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
-  xs: "w-6 h-6 text-xs",
   sm: "w-8 h-8 text-sm",
   md: "w-11 h-11 text-base",
   lg: "w-16 h-16 text-xl",
@@ -37,7 +35,6 @@ const SIZE_CLASSES: Record<AvatarSize, string> = {
 };
 
 const IMAGE_SIZES_ATTR: Record<AvatarSize, string> = {
-  xs: "24px",
   sm: "32px",
   md: "44px",
   lg: "64px",
@@ -48,7 +45,6 @@ export function Avatar({
   imageUrl,
   name,
   size = "sm",
-  shape = "circle",
   decorative = false,
   tone = "green",
   className,
@@ -72,9 +68,8 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "relative flex flex-shrink-0 items-center justify-center overflow-hidden font-semibold",
+        "relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold",
         sizeClass,
-        shape === "circle" ? "rounded-full" : "rounded-xl",
         className,
       )}
       style={showImage ? { background: "transparent" } : fallbackStyle}

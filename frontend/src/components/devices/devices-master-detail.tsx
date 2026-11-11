@@ -243,7 +243,6 @@ function DeviceStammdatenTab({
             size={18}
           />
         }
-        accentColor="gray"
       >
         <DataGrid>
           <DataField label="Geräte-ID" mono>
@@ -289,7 +288,6 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
           size={18}
         />
       }
-      accentColor="purple"
     >
       <div className="space-y-2">
         <div className="flex items-center gap-2">

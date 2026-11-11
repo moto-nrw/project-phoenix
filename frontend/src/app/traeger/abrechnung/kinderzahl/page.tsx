@@ -27,7 +27,10 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -352,10 +355,7 @@ export default function TraegerKinderzahlPage() {
           <ResponsiveActionList>
             {(checksExpanded ? toCheck : toCheck.slice(0, INITIAL_CHECKS)).map(
               (family) => (
-                <li
-                  key={family.recipientEmail}
-                  className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-                >
+                <ResponsiveActionRow key={family.recipientEmail}>
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900">
                       {familyName(family)}
@@ -379,7 +379,7 @@ export default function TraegerKinderzahlPage() {
                       Prüfen
                     </Button>
                   </div>
-                </li>
+                </ResponsiveActionRow>
               ),
             )}
           </ResponsiveActionList>

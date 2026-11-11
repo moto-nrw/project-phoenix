@@ -44,32 +44,32 @@ export const WithoutTitle: Story = {
 
 export const WideContent: Story = {
   args: {
-    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-4xl",
+    size: "xl",
   },
 };
 
-// Die Breiten, die Aufrufer bisher über `widthClass` setzen (#6571).
+// Eine Story je Größe, die Aufrufer setzen.
 export const SizeMd: Story = {
   args: {
-    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-lg",
+    size: "md",
   },
 };
 
 export const SizeMdWide: Story = {
   args: {
-    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-xl",
+    size: "md-wide",
   },
 };
 
 export const SizeLg: Story = {
   args: {
-    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-2xl",
+    size: "lg",
   },
 };
 
 export const SizeLgWide: Story = {
   args: {
-    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-3xl",
+    size: "lg-wide",
   },
 };
 

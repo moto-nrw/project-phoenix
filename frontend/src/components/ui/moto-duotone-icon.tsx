@@ -3,7 +3,6 @@ import type { CSSProperties } from "react";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
 import { cn } from "~/lib/utils";
-export { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
 
 export interface MotoDuotoneIconProps {
   readonly icon: PhosphorIcon;

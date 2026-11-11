@@ -35,7 +35,6 @@ export const BrokenImageFallsBackToInitials: Story = {
 export const Sizes: Story = {
   render: () => (
     <div className="flex items-end gap-4">
-      <Avatar name="Anna Musterfrau" size="xs" />
       <Avatar name="Anna Musterfrau" size="sm" />
       <Avatar name="Anna Musterfrau" size="md" />
       <Avatar name="Anna Musterfrau" size="lg" />

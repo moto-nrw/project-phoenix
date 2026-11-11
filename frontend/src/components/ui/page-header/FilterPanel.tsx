@@ -421,7 +421,6 @@ export function FilterPanel({
                   key={section.title}
                   title={section.title}
                   icon={section.icon}
-                  accentColor="gray"
                 >
                   <div className="grid gap-3 md:grid-cols-2">
                     {section.filters.map(renderFilterField)}
