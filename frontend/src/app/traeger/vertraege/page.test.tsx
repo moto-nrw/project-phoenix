@@ -450,6 +450,55 @@ describe("TraegerVertraegePage", () => {
   // #6652: after a confirmed send a failed reload is a load error above the
   // list, not a failed send or a page error that replaces the contracts.
   describe("reload after a write (#6652)", () => {
+    it("keeps created drafts created when the reload fails", async () => {
+      api.createCareContracts.mockResolvedValue({
+        created: [DRAFT],
+        skipped: [],
+      });
+      renderPage();
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: /^Entwurf/ }),
+      );
+      await waitFor(() =>
+        expect(api.fetchCareContracts).toHaveBeenLastCalledWith(
+          expect.objectContaining({ status: "entwurf" }),
+        ),
+      );
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Verträge erstellen/ }),
+      );
+      const createButton = await screen.findByRole("button", {
+        name: "1 Entwurf erstellen",
+      });
+      api.fetchCareContracts.mockClear();
+      api.fetchCareContracts
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue({
+          contracts: [DRAFT, SENT],
+          counts: { entwurf: 1, versendet: 1 },
+          hasMore: false,
+        });
+
+      fireEvent.click(createButton);
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Verträge",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(api.createCareContracts).toHaveBeenCalledTimes(1);
+      // Anker: the confirmed rows stay listed.
+      expect(screen.getAllByText("Lina Muster")[0]).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Verträge")),
+      ).not.toBeInTheDocument();
+    });
+
     it("keeps sent drafts sent when the reload fails", async () => {
       api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
       renderPage();

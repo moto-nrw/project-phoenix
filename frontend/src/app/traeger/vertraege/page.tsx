@@ -313,7 +313,7 @@ export default function TraegerVertraegePage() {
   // confirmed rows, not a failed send (#6652). A reload that a newer filter
   // overtook fails silently; the newer load answers for it. The reload
   // replaces a page that was still loading more.
-  const afterSend = useRefreshAfterWrite(
+  const afterWrite = useRefreshAfterWrite(
     "die Anzeige der Verträge",
     async () => {
       const currentRequest = ++request.current;
@@ -374,7 +374,7 @@ export default function TraegerVertraegePage() {
       );
     }
     setSelected(new Set());
-    await afterSend.refresh();
+    await afterWrite.refresh();
     setSending(false);
   };
 
@@ -395,7 +395,9 @@ export default function TraegerVertraegePage() {
       );
     }
     context.current = null;
-    if (status === "entwurf") await load();
+    // Die Entwürfe sind angelegt; ein Fehler beim Nachladen lässt die
+    // bestätigte Liste stehen (#6652). Ein anderer Filter lädt neu.
+    if (status === "entwurf") await afterWrite.refresh();
     else setStatus("entwurf");
   };
 
@@ -534,7 +536,7 @@ export default function TraegerVertraegePage() {
         ) : null
       }
     >
-      <LoadErrorAlert error={afterSend.error} className="mb-4" />
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       {data && data.modes.length > 0 ? (
         <SectionCard
           title="Wann gilt der Vertrag?"
