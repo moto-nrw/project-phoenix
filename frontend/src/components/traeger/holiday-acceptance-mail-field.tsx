@@ -78,7 +78,7 @@ export function HolidayAcceptanceMailField({
             name="acceptance_mail_text"
             label="Text der Annahme-Mail"
             hint="Freiwillig. Zum Beispiel: was die Kinder mitbringen sollen."
-            rows={8}
+            rows={10}
             maxLength={MAX_ACCEPTANCE_MAIL_TEXT}
             placeholder={
               "Zum Beispiel:\nBei Betreuung bis 16 Uhr bitte Mittagessen mitgeben.\nBitte an Wechselkleidung, Sportsachen und Regenkleidung denken."
