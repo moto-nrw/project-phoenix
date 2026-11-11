@@ -157,6 +157,10 @@ describe("ClosingDaysEditor", () => {
         participants: 12,
         guests: 0,
         guestGroupId: null,
+        bookingUnit: "week",
+        careStartsAt: "08:00",
+        careEndsAt: "16:00",
+        dayParticipants: new Map(),
       },
       {
         id: "2",
@@ -166,6 +170,10 @@ describe("ClosingDaysEditor", () => {
         participants: 4,
         guests: 0,
         guestGroupId: null,
+        bookingUnit: "week",
+        careStartsAt: "08:00",
+        careEndsAt: "16:00",
+        dayParticipants: new Map(),
       },
     ]);
     render(<ClosingDaysEditor />);
