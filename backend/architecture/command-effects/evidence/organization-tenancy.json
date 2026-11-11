@@ -1,6 +1,70 @@
 {
   "entries": [
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Retrieval.Download",
+      "binding_digest": "f27df615b5f4d0cda2d45ddb4ba31862",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturn.Download",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.DecryptDataReturnArchive",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Retrieval.Download",
+      "binding_digest": "951e8e41423bfd6d68656c3d229368db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturn.Download",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.OpenDataReturnKey",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Grant",
+      "binding_digest": "447998eb5d144238b8d6808f6ffd3b7e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Grant",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.NewDataReturnToken",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Grant",
+      "binding_digest": "4cfdd843a3275b5cb581d5e127cd1582",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Grant",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.SealDataReturnKey",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
+      "binding_digest": "052053e34cda9864e91939983617ceda",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.EncryptDataReturnArchive",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
+      "binding_digest": "d2929d3e784cebc940a6bb57285be6cd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.NewDataReturnArchiveKey",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
+      "binding_digest": "447998eb5d144238b8d6808f6ffd3b7e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.NewDataReturnToken",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
+      "binding_digest": "4cfdd843a3275b5cb581d5e127cd1582",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.SealDataReturnKey",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/delivery/objects.Local.TenantObjects",
       "binding_digest": "44e291de9d1078e6d8a989fcf24a6cac",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.ErasureFiles.TenantObjects",

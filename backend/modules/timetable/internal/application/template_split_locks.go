@@ -5,9 +5,42 @@ import (
 	"errors"
 	"slices"
 
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+// Lock old and successor people together before capping any supervisor or
+// writing the successor. The later deviation snapshot is too late: it could
+// wait for A while holding B or a supervisor row offboarding needs from A.
+func (s *TemplateSplitService) lockSplitStaff(ctx context.Context, in TemplateSplitInput, supervisors []*activityContract.SupervisorPlanned, until *calendar.Date) error {
+	from := in.EffectiveDate.String()
+	spontaneous := false
+	instances, err := listLegacyInstances(ctx, s.deps.InstanceRepo.Reads, ports.LegacyInstanceFilter{
+		ActivityGroupID: &in.TemplateID, FromDate: &from, Status: "planned", IsSpontaneous: &spontaneous,
+	}, "split template: load old occurrences")
+	if err != nil {
+		return err
+	}
+	rows, err := staffOfInstances(ctx, s.deps.InstanceStaff, instanceRowIDs(instances))
+	if err != nil {
+		return err
+	}
+	staffIDs := make([]int64, 0, len(rows)+len(supervisors))
+	for _, row := range rows {
+		staffIDs = append(staffIDs, row.StaffID)
+	}
+	for _, row := range supervisors {
+		staffIDs = append(staffIDs, row.StaffID)
+	}
+	for _, row := range buildSuccessorStaffRows(in, supervisors, until) {
+		staffIDs = append(staffIDs, row.StaffID)
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaff, staffIDs); err != nil {
+		return &ports.ScheduleError{Op: "split template: lock staff", Err: err}
+	}
+	return nil
+}
 
 // lockSplitDays runs under recurrence, BEFORE any split writes. The mandatory
 // order is recurrence (when needed) -> all affected days ascending -> rows.

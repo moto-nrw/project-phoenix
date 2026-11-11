@@ -15,6 +15,10 @@
   "window": "Kayıt {opens} ile {closes} arasında",
   "binding": "Kayıt bağlayıcıdır.",
   "requiredHint": "* ile işaretli alanlar zorunludur.",
+  "accountHintTitle": "Veli uygulamasını zaten kullanıyor musunuz?",
+  "accountHintText": "Giriş yapın. Bilgileriniz hazır doldurulmuş olur.",
+  "accountHintLogin": "Giriş yap",
+  "backToParentApp": "Veli uygulamasına dön",
   "notesTitle": "Kurumdan notlar",
   "closedTitle": "Kayıt açık değil",
   "closedText": "Çocuğunuzu {opens} ile {closes} arasında kaydedebilirsiniz.",
@@ -161,10 +165,11 @@
   "fullDaysHint": "Zaten dolu: {days}",
   "fullDayAria": "{day}, zaten dolu",
   "fullDaysChosen": "Bu günler zaten dolu: {days} Bu günlerle çocuğunuz tüm hafta için bekleme listesine girer. Bu günler olmadan belki hemen yer alır.",
-  "dayLimitHint": "Bu tatilde her çocuk en fazla {limit} gün gelebilir. Günler farklı haftalarda olabilir.",
+  "dayLimitHint": "Bu tatilde her çocuk en fazla {limit} gün gelebilir. Çocuğun tüm kayıtları birlikte sayılır. Günler farklı haftalarda olabilir.",
   "dayLimitCount": "Seçilen: {count} gün.",
   "dayLimitOver": "Seçilen: {count} gün. Bu çok fazla. Lütfen daha az gün seçin.",
   "summaryDays": "Günler: {days}",
   "contributionDays": "{count} gün",
-  "dayWithoutCare": "{date} tarihinde bakım yok ({name})."
+  "dayWithoutCare": "{date} tarihinde bakım yok ({name}).",
+  "noCareDayAria": "{day}, bakım yok"
 }

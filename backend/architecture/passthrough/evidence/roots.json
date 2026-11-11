@@ -1157,6 +1157,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (b parentBillingBillingRegistrations) HolidayWeekHosts(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayWeekHost, error) {\n\tweeks, err := b.hosts.HolidayWeekHosts(ctx, reviewer.OrganizationID, periodID)\n\tif err != nil {\n\t\treturn nil, parentBillingHolidayError(err)\n\t}\n\thosts := make([]parentbilling.HolidayWeekHost, len(weeks))\n\tfor i, week := range weeks {\n\t\thosts[i] = parentbilling.HolidayWeekHost{WeekID: week.WeekID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID}\n\t}\n\treturn hosts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingBillingRegistrations.HolidayWeekHosts",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (c parentBillingCareContracts) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {\n\tparties, err := c.contracts.BillingRecipients(ctx, organizationID, contractIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecipients := make(map[int64]parentbilling.CareRecipient, len(parties))\n\tfor contractID, party := range parties {\n\t\trecipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}\n\t}\n\treturn recipients, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingCareContracts.Recipients",
@@ -5542,6 +5549,13 @@
       "evidence": "func (p enrollmentPersons) UpdatePerson(ctx context.Context, person *enrollmentCompose.Person) error {\n\treturn p.people.SetPersonDetails(ctx, person.ID, peopledirectory.PersonDetails{FirstName: person.FirstName, LastName: person.LastName, Birthday: decisionBirthday(person.Birthday)})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPersons.UpdatePerson",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, move enrollmentOwner.PhaseBookingMove) error {\n\terr := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))\n\tvar conflict *careplan.PhaseBookingBoundsConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn \u0026enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseBookings.FollowPhaseBookingBounds",
       "owner": "roots"
     },
     {

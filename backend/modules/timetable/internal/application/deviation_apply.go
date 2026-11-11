@@ -164,6 +164,9 @@ func (s *staffDeviations) cancelDeviation(ctx context.Context, instanceID int64,
 // selected block's acknowledgement, reconciles stale acks on the other covered
 // blocks, and gathers time-conflict advisories.
 func (s *staffDeviations) executeDeviationPlan(ctx context.Context, instanceID int64, in timetable.ApplyDeviationsInput, plan *deviationPlan) (*timetable.ApplyDeviationsResult, error) {
+	if err := s.lockDeviationStaff(ctx, plan.staff); err != nil {
+		return nil, err
+	}
 	affected, touched, err := s.writeDeviationOps(ctx, in.ActorAccountID, plan)
 	if err != nil {
 		return nil, err
@@ -241,6 +244,17 @@ func (s *staffDeviations) writeDeviationOps(ctx context.Context, actor *int64, p
 		affected = append(affected, affectedOf(op.write.Instance, op.write.Action))
 	}
 	return affected, touched, nil
+}
+
+// lockDeviationStaff takes the staff rows of the referenced staff members
+// after the day locks and before the first block row (#6583,
+// tenant.LockStaffRows): offboarding holds a staff row while it locks that
+// person's blocks, so a save must not hold a block while it waits for one.
+func (s *staffDeviations) lockDeviationStaff(ctx context.Context, staffIDs []int64) error {
+	if err := lockStaffRows(ctx, s.deps.InstanceStaff, staffIDs); err != nil {
+		return timetable.DeviationInternal("lock staff failed", err)
+	}
+	return nil
 }
 
 // reconcileOtherAcks clears stale "deliberately unstaffed" acknowledgements on

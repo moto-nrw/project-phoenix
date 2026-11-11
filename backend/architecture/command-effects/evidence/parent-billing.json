@@ -457,6 +457,14 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayWeekHosts",
+      "binding_digest": "54517a65ea7d4c49f428491c286c16fe",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayWeekHosts",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayWeekHosts.HolidayWeekHosts",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.AsksDebtorNumber",
       "binding_digest": "db60dc26922e4178b3e6a438cd0ce069",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.AsksDebtorNumber",

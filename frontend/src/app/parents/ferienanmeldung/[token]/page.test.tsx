@@ -24,8 +24,15 @@ const offer: HolidayRegistrationOffer = {
   form: { version: 1, fields: [] },
 };
 
+const session = vi.hoisted(() => ({
+  current: { data: null, status: "unauthenticated" } as {
+    data: { user: { scope: string } } | null;
+    status: "authenticated" | "unauthenticated";
+  },
+}));
+
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: null, status: "unauthenticated" }),
+  useSession: () => session.current,
 }));
 
 vi.mock("~/components/parent/language-switcher", () => ({
@@ -96,5 +103,44 @@ describe("HolidayRegistrationPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Schritt form" }));
     expect(screen.getByText(HINT)).toBeInTheDocument();
+  });
+
+  it("offers the login of the parents app at the start to a visitor without a session (#6671)", async () => {
+    session.current = { data: null, status: "unauthenticated" };
+    await renderPage();
+
+    expect(
+      screen.getByText("Sie haben schon die Eltern-App?"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Anmelden" })).toHaveAttribute(
+      "href",
+      "/login?next=%2Fferienanmeldung%2Flink-key",
+    );
+    // A visitor without a session did not come from the app.
+    expect(
+      screen.queryByRole("link", { name: "Zurück zur Eltern-App" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Schritt summary" }));
+    // Anker: the offer header is still rendered; the hint belongs to the form.
+    expect(screen.getByText("Winterferien 2027")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Sie haben schon die Eltern-App?"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a signed-in parent the way back to the app instead of the login hint (#6671)", async () => {
+    session.current = {
+      data: { user: { scope: "parent" } },
+      status: "authenticated",
+    };
+    await renderPage();
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zur Eltern-App" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      screen.queryByText("Sie haben schon die Eltern-App?"),
+    ).not.toBeInTheDocument();
   });
 });

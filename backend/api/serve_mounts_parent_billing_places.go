@@ -51,7 +51,7 @@ func parentBillingPlacesError(err error) error {
 	var noCareDay *enrollmentOwner.HolidayWeekNoCareDayRefusal
 	switch {
 	case errors.As(err, &dayLimit):
-		return &parentbilling.HolidayChildDayLimitRefusal{Limit: dayLimit.Limit, Days: dayLimit.Days, Err: err}
+		return &parentbilling.HolidayChildDayLimitRefusal{Limit: dayLimit.Limit, Days: dayLimit.Days, Elsewhere: dayLimit.Elsewhere, Err: err}
 	case errors.As(err, &noCareDay):
 		return &parentbilling.HolidayWeekNoCareDayRefusal{
 			Week: noCareDay.Week, WeekID: noCareDay.WeekID,

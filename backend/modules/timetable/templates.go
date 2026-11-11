@@ -353,6 +353,10 @@ type TemplateAdministration interface {
 	// AlignPlannedInstanceStaff aligns the still-planned occurrences from
 	// date on with the template's supervisors for the given staff.
 	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error
+	// LockSeriesSeedDays takes the day locks of a one-off block's current
+	// and new day, ascending, before a series conversion writes the
+	// template's supervisor rows, whose staff rows follow the days (#6583).
+	LockSeriesSeedDays(ctx context.Context, days ...calendar.Date) error
 }
 
 // OfferingRosterResyncInput describes one template's offering-source rule

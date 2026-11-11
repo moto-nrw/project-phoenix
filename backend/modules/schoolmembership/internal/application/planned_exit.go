@@ -16,7 +16,7 @@ import (
 // over; re-entering the same day keeps them.
 func (s *Service) SavePlannedExit(ctx context.Context, plan schoolmembership.PlanExit) (result schoolmembership.PlannedExit, err error) {
 	err = s.runWrite(ctx, "save_planned_exit", func(txCtx context.Context, stats *domain.OperationStats) error {
-		staff, found, lockStats, err := s.store.FindStaff(txCtx, plan.StaffID, "UPDATE", false)
+		staff, found, lockStats, err := s.findStaffRow(txCtx, plan.StaffID, "UPDATE", false)
 		stats.Add(lockStats)
 		if err = liveStaff(found, err); err != nil {
 			return err
@@ -35,7 +35,7 @@ func (s *Service) SavePlannedExit(ctx context.Context, plan schoolmembership.Pla
 // DeletePlannedExit withdraws the planned exit of a live member.
 func (s *Service) DeletePlannedExit(ctx context.Context, staffID int64) error {
 	return s.runWrite(ctx, "delete_planned_exit", func(txCtx context.Context, stats *domain.OperationStats) error {
-		staff, found, lockStats, err := s.store.FindStaff(txCtx, staffID, "UPDATE", false)
+		staff, found, lockStats, err := s.findStaffRow(txCtx, staffID, "UPDATE", false)
 		stats.Add(lockStats)
 		if err = liveStaff(found, err); err != nil {
 			return err
@@ -54,7 +54,7 @@ func (s *Service) DeletePlannedExit(ctx context.Context, staffID int64) error {
 // alone: the progress belonged to the old day.
 func (s *Service) RecordPlannedExitProgress(ctx context.Context, progress schoolmembership.PlannedExitProgress) error {
 	return s.runWrite(ctx, "record_planned_exit_progress", func(txCtx context.Context, stats *domain.OperationStats) error {
-		staff, found, lockStats, err := s.store.FindStaff(txCtx, progress.StaffID, "UPDATE", false)
+		staff, found, lockStats, err := s.findStaffRow(txCtx, progress.StaffID, "UPDATE", false)
 		stats.Add(lockStats)
 		if err = liveStaff(found, err); err != nil {
 			return err

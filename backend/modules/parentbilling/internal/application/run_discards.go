@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
-// Discarding an empty open run (#6626). An open run stores nothing it would
+// Discarding an empty open run (#6626; holiday runs #6628). An open run stores nothing it would
 // issue: its invoices or notices are a preview computed on every read
 // (ADR 0119 point 2, ADR 0182). When that preview has nothing to issue and
 // nothing to settle, the run can never be released, so it would hold its
@@ -22,7 +22,8 @@ import (
 //     the lock of the release (the monthly billing of the Träger, then the
 //     run), so a price, rule, cost share or release that commits first is
 //     seen, and one that waits finds the run discarded.
-//   - A discarded run never changes and reads no contract again.
+//   - A discarded run never changes and reads no contract or registration
+//     again.
 
 // runEventDiscard is the trail action of a discard.
 const runEventDiscard = "discard"
@@ -143,4 +144,57 @@ func (n *CareFeeNotices) DiscardCareNoticeRun(ctx context.Context, reviewer pare
 		return parentbilling.CareNoticeRunDetail{}, fmt.Errorf("parent billing: record notice run discard: %w", err)
 	}
 	return n.detail(ctx, reviewer.OrganizationID, discarded)
+}
+
+var _ parentbilling.HolidayRunDiscard = (*BillingRuns)(nil)
+
+// emptyHolidayPreview tells whether a holiday run has nothing to issue and
+// nothing to settle (#6628): no invoice, no cancelled invoice to issue
+// again and no confirmed registration still waiting for its contribution.
+// Corrections the run recorded for a registration it no longer bills issue
+// nothing.
+func emptyHolidayPreview(current preview) bool {
+	return len(current.documents) == 0 && current.unbilled == 0
+}
+
+// DiscardBillingRun discards a calculated holiday run whose preview is
+// empty (#6628). It takes the locks of the release in its order: the run,
+// then the invoices of its period, so a release, a cancellation that asks
+// for a new invoice or a sibling change that commits first is seen, and one
+// that waits finds the run discarded. The caller rolls back when this
+// fails.
+func (b *BillingRuns) DiscardBillingRun(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64) (parentbilling.BillingRunDetail, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
+	run, err := b.lockCalculated(ctx, reviewer.OrganizationID, runID)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
+	if err := b.store.LockPeriodBilling(ctx, reviewer.OrganizationID, run.Service, run.HolidayPeriodID); err != nil {
+		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
+	}
+	current, err := b.preview(ctx, reviewer, run)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
+	if !emptyHolidayPreview(current) {
+		return parentbilling.BillingRunDetail{}, parentbilling.ErrBillingRunNotEmpty
+	}
+	discarded, err := b.store.MarkRunDiscarded(ctx, reviewer.OrganizationID, run.ID)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
+	if err := b.store.InsertRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventDiscard,
+		map[string]any{"holiday_period_id": run.HolidayPeriodID}); err != nil {
+		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: record billing run discard: %w", err)
+	}
+	return b.detail(ctx, reviewer, discarded)
+}
+
+// discardedHolidayDetail shows a discarded holiday run: its period without
+// a preview, so it reads no registration and no person again.
+func discardedHolidayDetail(detail *parentbilling.BillingRunDetail) {
+	detail.Documents = []parentbilling.BillingDocument{}
+	detail.DueDates = []parentbilling.RunDueDate{}
 }

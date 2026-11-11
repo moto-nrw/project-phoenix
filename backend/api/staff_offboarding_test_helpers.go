@@ -46,3 +46,43 @@ func ReassignInstanceStaffForTest(ctx context.Context, staff timetable.InstanceS
 	})
 	return err
 }
+
+// MarkStaffAbsentForTest saves one Vertretungsplan change that marks the
+// staff members absent on the block, through the Timetable owner's
+// deviation writes.
+func MarkStaffAbsentForTest(ctx context.Context, module TimetableTestModule, instanceID int64, staffIDs ...int64) error {
+	absences := make([]timetable.DeviationAbsenceInput, 0, len(staffIDs))
+	for _, staffID := range staffIDs {
+		absences = append(absences, timetable.DeviationAbsenceInput{StaffID: staffID})
+	}
+	_, err := module.TimetableData.Deviations.ApplyDeviations(ctx, instanceID, timetable.ApplyDeviationsInput{Absences: absences})
+	return err
+}
+
+// SubstituteStaffForTest saves one Sammel-Vertretung in which substituteID
+// covers absentID on the days.
+func SubstituteStaffForTest(ctx context.Context, module TimetableTestModule, absentID, substituteID int64, days ...calendar.Date) error {
+	_, err := module.TimetableData.Deviations.ApplyBulkSubstitution(ctx, timetable.BulkSubstitutionInput{
+		AbsentStaffID: absentID, SubstituteStaffID: &substituteID, Dates: days,
+	})
+	return err
+}
+
+// MaterializeDayForTest materializes the school's templates on one day, as
+// the planner's manual run does.
+func MaterializeDayForTest(ctx context.Context, module TimetableTestModule, day calendar.Date) error {
+	_, err := module.Materialization.MaterializeForTenant(ctx, day, day, timetable.MaterializationSourceManual)
+	return err
+}
+
+// ReplanTemplateDayForTest re-plans one template's occurrences of one day.
+func ReplanTemplateDayForTest(ctx context.Context, module TimetableTestModule, templateID int64, day calendar.Date) error {
+	_, err := module.Instance.ReplanWeek(ctx, day, day, &templateID, nil)
+	return err
+}
+
+// AlignSeriesStaffForTest aligns the template's planned occurrences from
+// the day on with its supervisors, for the staff members.
+func AlignSeriesStaffForTest(ctx context.Context, module TimetableTestModule, templateID int64, staffIDs []int64, from calendar.Date) error {
+	return module.TimetableData.Templates.AlignPlannedInstanceStaff(ctx, templateID, staffIDs, from)
+}

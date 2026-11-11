@@ -413,7 +413,7 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	if err != nil {
 		return nil, nil, fmt.Errorf("enrollment: read holiday registration: %w", err)
 	}
-	child, found := holidayChild(read, childID)
+	child, key, found := holidayChildWithKey(read, childID)
 	if !found {
 		return nil, nil, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
@@ -437,9 +437,13 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	if err := refuseHolidayBookingsWithoutCare(bookings, marked, kept); err != nil {
 		return nil, nil, err
 	}
-	// The period is locked: no other change of this child reads its days
-	// until this one commits (#4701).
-	if err := refuseHolidayDayLimit(0, bookings, period, holidayBookedDayCount(kept, period)); err != nil {
+	// The period is locked: nothing else counts this child's days until
+	// this rebooking commits (#4701, #6446).
+	held, err := holidayDaysElsewhere(ctx, h.store, organizationID, period, []enrollment.HolidayChildKey{key}, childID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := refuseHolidayDayLimit(0, bookings, period, holidayBookedDayCount(kept, period), held[key]); err != nil {
 		return nil, nil, err
 	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
@@ -455,14 +459,8 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 
 // holidayChild finds a child among the read registrations.
 func holidayChild(read []enrollment.HolidayRegistrationDetail, childID int64) (enrollment.HolidayRegistrationChild, bool) {
-	for _, registration := range read {
-		for _, child := range registration.Children {
-			if child.ID == childID {
-				return child, true
-			}
-		}
-	}
-	return enrollment.HolidayRegistrationChild{}, false
+	child, _, found := holidayChildWithKey(read, childID)
+	return child, found
 }
 
 // change locks the period and the registration, runs apply and records the

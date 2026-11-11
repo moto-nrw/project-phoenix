@@ -1,13 +1,20 @@
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@sentry/nextjs", () => ({
+  captureException: vi.fn(),
+  addBreadcrumb: vi.fn(),
+}));
+
+import * as Sentry from "@sentry/nextjs";
 import {
   ToastProvider,
   useApiErrorDisplay,
   useApiFormError,
   useApiLoadError,
 } from "~/contexts/ToastContext";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
 import { ERROR_DISPLAYED } from "~/lib/error-log";
 
 function wrapper({ children }: { readonly children: ReactNode }) {
@@ -27,6 +34,10 @@ const rejection = () =>
     details: { max_capacity: 20, current_occupancy: 20 },
     instance: "req-9",
   });
+
+beforeEach(() => {
+  vi.mocked(Sentry.captureException).mockClear();
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -170,5 +181,83 @@ describe("error_displayed entries (#2512)", () => {
 
     expect(assign).toHaveBeenCalledTimes(1);
     expect(displayedEntries(warn)).toEqual([]);
+  });
+});
+
+describe("a crash shown to the user reaches Sentry", () => {
+  it("reports an exception on every surface once, as the error itself", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const toast = renderHook(() => useApiErrorDisplay(), { wrapper });
+    const form = renderHook(() => useApiFormError(), { wrapper });
+    const load = renderHook(() => useApiLoadError(), { wrapper });
+    const toastCrash = new TypeError("undefined is not an object");
+    const formCrash = new TypeError("Anna is undefined");
+    const loadCrash = new RangeError("Invalid time value");
+
+    await act(async () => {
+      await toast.result.current.show(toastCrash, { object: "das Kind" });
+      await form.result.current.show(formCrash, { object: "das Kind" });
+      await load.result.current.show(loadCrash, { object: "die Liste" });
+      // SWR hands the still displayed failed load a new error per retry.
+      await load.result.current.show(new RangeError("Invalid time value"), {
+        object: "die Liste",
+      });
+    });
+
+    expect(vi.mocked(Sentry.captureException).mock.calls).toEqual([
+      [toastCrash, { tags: { surface: "toast" } }],
+      [formCrash, { tags: { surface: "form" } }],
+      [loadCrash, { tags: { surface: "load" } }],
+    ]);
+  });
+
+  it("reports a crash of a retried load whose first failure was an API answer", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const load = renderHook(() => useApiLoadError(), { wrapper });
+    const crash = new RangeError("Invalid time value");
+
+    await act(async () => {
+      await load.result.current.show(
+        new ApiError("boom", 500, { instance: "r" }),
+        { object: "die Liste" },
+      );
+      await load.result.current.show(crash, { object: "die Liste" });
+      await load.result.current.show(new RangeError("Invalid time value"), {
+        object: "die Liste",
+      });
+    });
+
+    expect(vi.mocked(Sentry.captureException).mock.calls).toEqual([
+      [crash, { tags: { surface: "load" } }],
+    ]);
+  });
+
+  it("creates no event for an API failure, a dropped connection or a check of the screen", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const toast = renderHook(() => useApiErrorDisplay(), { wrapper });
+    const form = renderHook(() => useApiFormError(), { wrapper });
+
+    await act(async () => {
+      for (const failure of [
+        rejection(),
+        new ApiError("x", 400, { code: "general.input" }),
+        new ApiError("x", 403, { code: "general.permission" }),
+        new ApiError("down", 503, { instance: "r" }),
+        new ApiError("boom", 500, { instance: "r" }),
+        unavailableApiError(new TypeError("Failed to fetch")),
+        new TypeError("Failed to fetch"),
+        new TypeError("Load failed"),
+      ]) {
+        await toast.result.current.show(failure, { object: "das Kind" });
+      }
+    });
+    act(() => {
+      toast.result.current.showMessage("Die Datei ist zu groß.");
+      form.result.current.invalid("Bitte prüfen Sie den Vornamen.", {
+        first_name: "Pflichtfeld",
+      });
+    });
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });

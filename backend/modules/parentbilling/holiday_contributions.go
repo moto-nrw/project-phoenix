@@ -102,12 +102,14 @@ var (
 )
 
 // HolidayChildDayLimitRefusal is a refused rebooking over the care days of
-// its period (#4701): the bound and the days asked for. It unwraps to
+// its period (#4701): the bound and the days asked for in all, Elsewhere of
+// them in other registrations of the same child (#6446). It unwraps to
 // ErrHolidayChildDayLimit.
 type HolidayChildDayLimitRefusal struct {
-	Limit int
-	Days  int
-	Err   error
+	Limit     int
+	Days      int
+	Elsewhere int
+	Err       error
 }
 
 func (r *HolidayChildDayLimitRefusal) Error() string {

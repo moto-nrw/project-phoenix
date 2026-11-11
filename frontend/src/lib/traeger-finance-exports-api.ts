@@ -122,10 +122,28 @@ export interface ExportProtocolEntry {
    * accounts of the day of the export (#4821).
    */
   readonly resolvedPositions: number;
+  /**
+   * Holiday weeks of a document the file booked on the cost center of the
+   * holiday care instead of the school that hosts the week (#6624).
+   */
+  readonly costCenterFallbacks: readonly CostCenterFallback[];
   readonly exportedByYou: boolean;
   readonly exportedByAccount: boolean;
   readonly exportedAt: string;
   readonly submittedAt: string | null;
+}
+
+/** Why a holiday position booked on the cost center of the holiday care. */
+type CostCenterFallbackReason = "no_host_school" | "no_school_cost_center";
+
+export interface CostCenterFallback {
+  readonly number: string;
+  /** "YYYY-MM-DD", null for a line without a week. */
+  readonly weekStartsOn: string | null;
+  readonly weekEndsOn: string | null;
+  readonly reason: CostCenterFallbackReason;
+  /** The cost center the file booked on, empty for none. */
+  readonly costCenter: string;
 }
 
 export interface ExportRun {
@@ -205,10 +223,19 @@ interface BackendEntry {
   repeat_of?: number;
   datev_all?: boolean;
   resolved_positions?: number;
+  cost_center_fallbacks?: BackendCostCenterFallback[] | null;
   exported_by_account_id: number | null;
   exported_by_you: boolean;
   exported_at: string;
   submitted_at: string | null;
+}
+
+interface BackendCostCenterFallback {
+  number: string;
+  week_starts_on: string | null;
+  week_ends_on: string | null;
+  reason: CostCenterFallbackReason;
+  cost_center: string;
 }
 
 interface BackendRun {
@@ -308,6 +335,15 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
     repeatOf: entry.repeat_of ?? null,
     datevAll: entry.datev_all ?? false,
     resolvedPositions: entry.resolved_positions ?? 0,
+    costCenterFallbacks: (entry.cost_center_fallbacks ?? []).map(
+      (fallback) => ({
+        number: fallback.number,
+        weekStartsOn: fallback.week_starts_on,
+        weekEndsOn: fallback.week_ends_on,
+        reason: fallback.reason,
+        costCenter: fallback.cost_center,
+      }),
+    ),
     exportedByYou: entry.exported_by_you,
     exportedByAccount: entry.exported_by_account_id !== null,
     exportedAt: entry.exported_at,

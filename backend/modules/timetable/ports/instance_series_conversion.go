@@ -13,6 +13,7 @@ type TemplateSeriesSeeding interface {
 	CreateTemplate(ctx context.Context, cmd timetable.CreateTemplateCommand) (*timetable.CreateTemplateResult, error)
 	TemplateAssignmentsOn(ctx context.Context, templateID int64, date calendar.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error)
 	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error
+	LockSeriesSeedDays(ctx context.Context, days ...calendar.Date) error
 }
 
 // InstanceSeriesConversionDependencies are the capabilities the conversion
