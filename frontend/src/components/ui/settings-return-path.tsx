@@ -2,6 +2,7 @@
 
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
+import { isInternalPath } from "./navigation-url";
 
 /**
  * Der Rückweg aus den Einstellungen (#5685, #5750): die zuletzt geöffnete
@@ -13,12 +14,7 @@ import { useEffect, useSyncExternalStore } from "react";
 function storedReturnPath(storageKey: string): string | null {
   try {
     const stored = globalThis.sessionStorage.getItem(storageKey);
-    // Nur ein Pfad dieser Seite: "//host" und "/\host" wären fremde Adressen.
-    return stored?.startsWith("/") &&
-      !stored.startsWith("//") &&
-      !stored.startsWith("/\\")
-      ? stored
-      : null;
+    return stored !== null && isInternalPath(stored) ? stored : null;
   } catch {
     return null;
   }

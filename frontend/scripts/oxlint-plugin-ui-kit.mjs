@@ -713,7 +713,6 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
   "select",
   "textarea",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -2522,7 +2521,7 @@ const noEmDashEmptyValue = {
 //
 // Jede Aktion nutzt Button, ButtonLink oder buttonClassName aus dem Kit.
 //
-//   no-hand-rolled-button — natives <button>, <a>, <Link>, <NavLink>,
+//   no-hand-rolled-button — natives <button>, <a>, <Link>,
 //     <NavigationLink> oder ein Element mit role="button", das wie ein Knopf
 //     aussieht: Hintergrund- oder Ring-/Rahmenfarbe plus Radius plus Polster
 //     oder Höhe, jeweils ohne Zustandspräfix.
@@ -2543,15 +2542,13 @@ const NATIVE_ACTION_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
 ]);
 const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
 const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
-const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavigationLink"]);
 const DEFAULT_ACTION_COMPONENTS = new Map([
   ["next/link", "Link"],
-  ["~/components/ui/nav-link", "NavLink"],
   ["~/components/ui/navigation-link", "NavigationLink"],
 ]);
 
@@ -3093,7 +3090,7 @@ const noButtonOverride = makeRatchetRule({
 // prüft, auch in Ternär-Zweigen und Konstanten derselben Datei. Zustände
 // (hover:, active:, aria-pressed:) dürfen grau tönen. Keine Knöpfe in diesem
 // Sinn (frontend-ui-kit.md, Buttons): Schalter, Reiter, Menü- und
-// Auswahleinträge (role), Navigationszeilen (aria-current, NavLink,
+// Auswahleinträge (role), Navigationszeilen (aria-current,
 // NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
 // Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
 
@@ -3107,7 +3104,7 @@ const NOT_BUTTON_ROLES = new Set([
   "option",
   "radio",
 ]);
-const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
+const NAVIGATION_ROWS = new Set(["NavigationLink"]);
 
 function isNavigationOrControl(node, name, bindings) {
   const role = staticAttributeValue(jsxAttribute(node, "role"));
@@ -3580,7 +3577,6 @@ const INTERACTIVE_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
