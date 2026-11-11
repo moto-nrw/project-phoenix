@@ -45,6 +45,7 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 		SupervisorRepo:       deps.Supervisors,
 		Directories:          deps.Directories,
 		InstanceRepo:         deps.Instances,
+		InstanceStaff:        deps.InstanceStaff,
 		TimeframeRepo:        deps.Timeframes,
 		Materialization:      deps.Materialization,
 		Deviations:           deps.Deviations,
