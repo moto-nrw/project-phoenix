@@ -87,22 +87,14 @@ function isLastOpenedRangePicker(picker: HTMLElement | null): boolean {
 // The overlay stack's order: a higher `Z_LAYER` level wins (a dialog lies
 // above a slide-over), on the same level the overlay opened later, which
 // portals to the end of body. A picker on the page lies below every overlay.
-// The panel of an `AnchoredPopover` portals to body on the popover level, so
-// a picker inside it lies above dialogs and slide-overs.
-const ANCHORED_POPOVER_SELECTOR = '[data-overflow-menu-scope="true"]';
-
 function overlayLevel(overlay: Element | null): number {
   if (!overlay) return -1;
-  if (overlay.matches(ANCHORED_POPOVER_SELECTOR)) return zLayerValue("popover");
   return zLayerValue(overlay.matches(MODAL_SCOPE_SELECTOR) ? "modal" : "sheet");
 }
 
 function isBehindActiveOverlay(picker: HTMLElement | null): boolean {
   if (!picker) return false;
-  const host =
-    picker.parentElement?.closest(
-      `${ANCHORED_POPOVER_SELECTOR}, ${ACTIVE_OVERLAY_SELECTOR}`,
-    ) ?? null;
+  const host = picker.parentElement?.closest(ACTIVE_OVERLAY_SELECTOR) ?? null;
   const hostLevel = overlayLevel(host);
   return Array.from(
     document.querySelectorAll<HTMLElement>(ACTIVE_OVERLAY_SELECTOR),
@@ -154,20 +146,15 @@ export function DateRangePicker({
   // the panel stays open but hidden and inert until that overlay closes.
   // Overlays portal straight into body, so its child list is enough to watch.
   const [isCovered, setIsCovered] = useState(false);
-  const isCoveredRef = useRef(false);
   useEffect(() => {
     if (!isOpen) return;
-    const update = () => {
-      const covered = isBehindActiveOverlay(containerRef.current);
-      isCoveredRef.current = covered;
-      setIsCovered(covered);
-    };
+    const update = () =>
+      setIsCovered(isBehindActiveOverlay(containerRef.current));
     update();
     const observer = new MutationObserver(update);
     observer.observe(document.body, { childList: true });
     return () => {
       observer.disconnect();
-      isCoveredRef.current = false;
       setIsCovered(false);
     };
   }, [isOpen]);
@@ -181,9 +168,6 @@ export function DateRangePicker({
       if (panelRef.current?.contains(target)) {
         return;
       }
-      // Covered by a higher overlay: a press there uses that overlay, the
-      // calendar waits underneath until it closes.
-      if (isCoveredRef.current) return;
       if (containerRef.current && !containerRef.current.contains(target)) {
         setIsOpen(false);
       }
