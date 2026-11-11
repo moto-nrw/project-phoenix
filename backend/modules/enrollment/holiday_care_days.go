@@ -35,6 +35,15 @@ type HolidayNoCareDay struct {
 	Date calendar.Date `json:"date"`
 	Kind string        `json:"kind"`
 	Name string        `json:"name"`
+	// ClosingDays names the closing days that close the day, so a changed
+	// Träger closing day can leave its own stored version out (#6457).
+	ClosingDays []HolidayClosingDayRef `json:"-"`
+}
+
+// HolidayClosingDayRef names a closing day of a school or of its Träger.
+type HolidayClosingDayRef struct {
+	ID      int64
+	Traeger bool
 }
 
 // HolidaySchoolCalendar is Enrollment's port onto the days its host schools

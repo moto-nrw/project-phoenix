@@ -17,22 +17,12 @@
     },
     {
       "decision": "0090",
-      "id": "modules/schoolcalendar/internal/application/Service.CreateClosingDay",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/schoolcalendar/internal/application/Service.CreateDateframe",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
       "id": "modules/schoolcalendar/internal/application/Service.DeleteCalendarPeriod",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/schoolcalendar/internal/application/Service.DeleteClosingDay",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

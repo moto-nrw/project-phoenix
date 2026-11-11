@@ -77,6 +77,14 @@
       "name": "enrollment.traeger_phases",
       "write_owner": "enrollment"
     },
+    {
+      "name": "enrollment.holiday_closure_sends",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_closure_family_keys",
+      "write_owner": "enrollment"
+    },
     { "name": "enrollment.holiday_form_documents", "write_owner": "enrollment" },
     {
       "name": "enrollment.change_request_messages",

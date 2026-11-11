@@ -57,6 +57,24 @@ func TestHolidaySchoolCalendarNamesEachHostSchoolsDaysWithoutCare(t *testing.T) 
 		days, err = source.HolidayNoCareDays(txCtx, []int64{pforzheim, iserlohn}, calendar.NewDate(2026, 5, 11), calendar.NewDate(2026, 6, 5))
 		return err
 	}))
+	// Each closing day names its source (#6457); a holiday names none.
+	sources := map[int64][][]enrollment.HolidayClosingDayRef{}
+	for school, list := range days {
+		for i := range list {
+			sources[school] = append(sources[school], list[i].ClosingDays)
+			list[i].ClosingDays = nil
+		}
+	}
+	for _, refs := range sources[pforzheim] {
+		for _, ref := range refs {
+			assert.True(t, ref.Traeger, "Pforzheim's only closing day is the Träger's bridge day")
+		}
+	}
+	for _, refs := range sources[iserlohn] {
+		for _, ref := range refs {
+			assert.False(t, ref.Traeger, "Iserlohn's closing days are its own")
+		}
+	}
 	assert.Equal(t, []enrollment.HolidayNoCareDay{
 		{Date: calendar.NewDate(2026, 5, 14), Kind: enrollment.HolidayNoCareHoliday, Name: "Christi Himmelfahrt"},
 		{Date: calendar.NewDate(2026, 5, 15), Kind: enrollment.HolidayNoCareClosingDay, Name: "Brückentag"},

@@ -1,22 +1,20 @@
 package api
 
 import (
-	"context"
+	"log/slog"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	schoolCalendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	holidayClosureHTTP "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/http"
 )
 
 // mountTraegerClosingDayRoutes serves the closing days of a Träger (#4702) at
@@ -25,9 +23,9 @@ import (
 // holiday bookings it affects (#6434); /traeger/holiday-closures previews
 // them and lists the closed days nobody told yet, behind the planning right.
 func mountTraegerClosingDayRoutes(root chi.Router, schools traegercalendar.Schools, organizations HolidayOrganizations,
-	delivery deliveryRuntime.Capability, holidayCalendar enrollmentOwner.HolidaySchoolCalendar,
+	mail owners.HolidayClosureMail, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, holidays owners.HolidayClosureHolidays,
 ) {
-	closures := enrollmentCompose.NewHolidayClosures(holidayCalendar, newHolidayOfficeTraeger(organizations), holidayTraegerMail{delivery: delivery}, nil)
+	closures := newHolidayClosures(organizations, mail, holidayCalendar, holidays)
 	requireManage := common.RequiresPermission(identityaccess.TraegerRightSettingsManage)
 	resource := schoolCalendarHTTP.NewTraegerClosingDayResource(
 		schoolCalendarCompose.NewTraegerClosingDays(schools, owners.NewTraegerClosingDayHolidayNotices(closures)),
@@ -36,36 +34,34 @@ func mountTraegerClosingDayRoutes(root chi.Router, schools traegercalendar.Schoo
 	root.Mount("/traeger/holiday-closures", enrollmentAPI.NewHolidayClosureResource(closures, requireManage).TraegerRouter(ProtectedTraegerRoutes))
 }
 
-// holidayOfficeTraeger names the Träger and its host schools in a mail the
-// Träger-Büro triggers: the notice of a closing day (#6434) and the mail that
-// a booking moved up the waiting list after a cancellation, a rebooking or a
-// higher capacity (#4699, #6437). It reads both in the caller's Träger
-// transaction: the schools like the host-school check of the holiday
-// calendar, the name through Organisation & Tenancy's read of it, because that
-// transaction reads no row of the organization itself.
-type holidayOfficeTraeger struct {
-	organizations HolidayOrganizations
-	names         organizationtenancy.TraegerNames
+// newHolidayClosures builds Enrollment's closing day notices over the
+// Träger directory, the outbox and the host schools' calendar.
+func newHolidayClosures(organizations HolidayOrganizations, mail owners.HolidayClosureMail, holidayCalendar enrollmentOwner.HolidaySchoolCalendar,
+	holidays owners.HolidayClosureHolidays,
+) enrollmentOwner.HolidayClosures {
+	return owners.NewHolidayClosures(holidayCalendar, holidays, newHolidayOfficeTraeger(organizations), mail)
 }
 
-func newHolidayOfficeTraeger(organizations HolidayOrganizations) holidayOfficeTraeger {
-	return holidayOfficeTraeger{organizations: organizations, names: organizationTenancyCompose.NewTraegerMasterData()}
+// mountHolidayClosureNotificationRoutes serves the notices after a school
+// closing day changed (#6442, #6457, ADR 0196): the school's proposals and
+// click at /api/holiday-closure-notices behind the rights that change
+// closing days, and the Träger-Büro's list "Eltern noch nicht informiert"
+// at /traeger/holiday-closures/pending behind "Einstellungen verwalten".
+func mountHolidayClosureNotificationRoutes(root, tenant chi.Router, organizations HolidayOrganizations,
+	mail owners.HolidayClosureMail, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, holidays owners.HolidayClosureHolidays, logger *slog.Logger,
+) {
+	notices := owners.NewHolidayClosureNotifications(newHolidayClosures(organizations, mail, holidayCalendar, holidays), organizations, mail,
+		logger.With("workflow", "holiday-closure-notification"))
+	resource := holidayClosureHTTP.NewResource(notices, common.RequiresPermission(permissions.SchedulesUpdate),
+		common.RequiresPermission(permissions.SchedulesUpdate), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
+	tenant.Mount("/holiday-closure-notices", resource.SchoolRouter(ProtectedTenantRoutes))
+	root.Mount("/traeger/holiday-closures/pending", resource.TraegerRouter(ProtectedTraegerRoutes))
 }
 
-func (d holidayOfficeTraeger) HolidayTraeger(ctx context.Context, organizationID int64) (enrollmentOwner.HolidayTraeger, error) {
-	name, err := d.names.TraegerName(ctx, organizationID)
-	if err != nil {
-		return enrollmentOwner.HolidayTraeger{}, err
-	}
-	schools, err := d.organizations.ListSchoolsByOrganization(ctx, organizationID)
-	if err != nil {
-		return enrollmentOwner.HolidayTraeger{}, err
-	}
-	traeger := enrollmentOwner.HolidayTraeger{Name: name, Schools: []enrollmentOwner.HolidaySchool{}}
-	for _, school := range schools {
-		if !school.IsDeleted() {
-			traeger.Schools = append(traeger.Schools, enrollmentOwner.HolidaySchool{ID: school.ID, Name: school.Name})
-		}
-	}
-	return traeger, nil
+// newHolidayOfficeTraeger names the Träger and its host schools in a mail
+// the Träger-Büro triggers: the notice of a closing day (#6434) and the mail
+// that a booking moved up the waiting list after a cancellation, a rebooking
+// or a higher capacity (#4699, #6437).
+func newHolidayOfficeTraeger(organizations HolidayOrganizations) enrollmentOwner.HolidayTraegerDirectory {
+	return owners.NewHolidayOfficeTraeger(organizations)
 }

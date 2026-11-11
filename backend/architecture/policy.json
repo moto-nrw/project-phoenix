@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 101,
+  "policy_epoch": 102,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -191,6 +191,10 @@
     },
     {
       "id": "reminder-delivery",
+      "kind": "workflow"
+    },
+    {
+      "id": "holiday-closure-notification",
       "kind": "workflow"
     },
     {

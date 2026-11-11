@@ -1825,6 +1825,38 @@
       "target_owner": "identity-access"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0196",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "reason": "ADR 0196 section 3.4: School Calendar locks current school memberships and calendars in one statement and reads the authorized calendars in one statement. Its application capability validates revisions, resolves each federal state from stored settings or the bound registry default and computes no-care dates. It joins the caller's Träger transaction; the workflow retains its lock order and preparation boundary. The root only maps types and errors. No nested school unit or cross-owner write.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureCareCalendar.HolidayClosureNoCareDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosure",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",
+      "reason": "Read-only target: draws the Träger's family key candidate for the keyed fingerprint of a closing day mail (ADR 0196). No persistent, lock or scope effect (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosureOperation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosureOperation",
+      "reason": "Read-only target: draws the Träger's family key candidate for the keyed fingerprint of a closing day mail (ADR 0196). No persistent, lock or scope effect (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
       "classification": "platform",
@@ -2339,6 +2371,17 @@
       "target_owner": "audit-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "reason": "Platform erasure command in the existing administrative retention transaction (ADR 0098; ADR 0067 addendum, conditions 1 to 3; ADR 0196 section 8): Enrollment returns exactly the registrations deleted in its statement; Delivery erases their mail copies with explicit organization/registration pairs and its own admin guard. No scope switch, independent commit, foreign read or coordinated lock order. Failure rolls back registrations, send evidence and outbox together; TestHolidayMailErasureFailureRollsBackRegistrationRetention verifies it.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
       "classification": "query",
       "effect": "query",
@@ -2393,7 +2436,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
-      "reason": "Reads the host school's closing days, those its Träger planned for it included, in a school transaction of its own detached from the caller's Träger transaction (ADR 0105, #4702); no write.",
+      "reason": "Reads the host school's closing days, those its Träger planned for it included, in a school transaction of its own detached from the caller's Träger transaction (ADR 0105, #4702); no write. Since #6457 it also names each closing day's ID and source, so a changed Träger closing day leaves its stored version out; still read only.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
       "target_owner": "school-calendar"
@@ -2433,7 +2476,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
-      "reason": "Read-only platform helper: validates the host school ID before its school transaction is opened (#4702).",
+      "reason": "Read-only platform helper: validates the host school ID before its school transaction is opened (#4702). Unchanged since #6457, which only adds the closing day sources to the result.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
       "target_owner": "tenant-runtime"
@@ -2444,7 +2487,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
-      "reason": "Platform protocol participation (scope): opens a read-only school transaction of each host school, detached from the caller's Träger transaction, to read its closing days (ADR 0105, #4702).",
+      "reason": "Platform protocol participation (scope): opens a read-only school transaction of each host school, detached from the caller's Träger transaction, to read its closing days (ADR 0105, #4702). Unchanged since #6457, which only adds the closing day sources to the result.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
       "target_owner": "tenant-runtime"
@@ -2512,66 +2555,6 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayOfficeTraeger.HolidayTraeger",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization. #6434, #6437: the closure notice and the mail that a booking moved up after a change in the Träger-Büro name the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayOfficeTraeger.HolidayTraeger",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization. #6434, #6437: the closure notice and the mail that a booking moved up after a change in the Träger-Büro name the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayOfficeTraeger.HolidayTraeger",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted. #6434, #6437: the closure notice and the mail that a booking moved up after a change in the Träger-Büro name the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayOfficeTraeger.HolidayTraeger",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.TraegerName",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayOfficeTraeger.HolidayTraeger",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerNames.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerNames.TraegerName",
-      "target_owner": "organization-tenancy"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.holidayOfficeTraeger.HolidayTraeger",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy/internal/ports.TraegerMasterDataStore.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.TraegerMasterDataStore.TraegerName",
-      "target_owner": "organization-tenancy"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "classification": "query",
       "effect": "query",
@@ -2629,6 +2612,66 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted. ADR 0110: the public holiday registration resolves the Träger of its link and its undeleted schools in the administrative transaction of the link lookup.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Lists the Träger's schools in the caller's Träger transaction to check the current membership (ADR 0196 section 3.1); read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Lists the Träger's schools in the caller's Träger transaction to check the current membership (ADR 0196 section 3.1); read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted. #6434, #6437: the closure notice and the mail that a booking moved up after a change in the Träger-Büro name the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.TraegerName",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerNames.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerNames.TraegerName",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy/internal/ports.TraegerMasterDataStore.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.TraegerMasterDataStore.TraegerName",
       "target_owner": "organization-tenancy"
     },
     {
@@ -3834,6 +3877,38 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplatesSourcedFromOffering",
       "target_owner": "care-plan"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HolidayClosureMail.EnqueueTraegerMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.EnqueueTraegerMail",
+      "reason": "Platform protocol participation (durable): enrollment reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.HolidayClosureMail.EnqueueTraegerMail. The closing day notice is a mail of the Träger, enqueued in the caller's Träger transaction with the told days and the send record (ADR 0196); transaction and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HolidayClosureMail.RetryFailedTraegerEmails",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.RetryFailedTraegerEmails",
+      "reason": "Platform protocol participation (durable): enrollment makes the dead letters with a known failure of a confirmed closing day operation due again through Delivery's Träger mail capability, in the caller's Träger transaction (ADR 0196 section 5); same idempotency key, no new mail, unknown outcomes stay (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.RetryFailedTraegerEmails",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HolidayClosureMail.TraegerMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.TraegerMailStates",
+      "reason": "Reads the outbox state of the operation's Träger mails by idempotency key in the caller's Träger transaction, without recipient or payload (ADR 0196 section 5); read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",

@@ -188,18 +188,30 @@ func (c holidaySchoolCalendar) schoolClosingDays(ctx context.Context, schoolID i
 			return nil, fmt.Errorf("holiday school calendar: %w", err)
 		}
 		for day := max(start, from); !day.After(min(end, to)); day = day.AddDays(1) {
-			result = append(result, enrollment.HolidayNoCareDay{Date: day, Kind: enrollment.HolidayNoCareClosingDay, Name: closing.Reason})
+			result = append(result, enrollment.HolidayNoCareDay{Date: day, Kind: enrollment.HolidayNoCareClosingDay, Name: closing.Reason,
+				ClosingDays: []enrollment.HolidayClosingDayRef{{ID: closing.ID, Traeger: closing.Traeger}}})
 		}
 	}
 	return result, nil
 }
 
 // mergeNoCareDays orders the days by date and keeps one entry per date; a
-// statutory holiday names a day that is also a closing day.
+// statutory holiday names a day that is also a closing day. The entry names
+// every closing day of its date, so a changed Träger closing day can leave
+// its own stored version out (#6457).
 func mergeNoCareDays(holidays, closing []enrollment.HolidayNoCareDay) []enrollment.HolidayNoCareDay {
 	merged := append(slices.Clone(holidays), closing...)
 	slices.SortStableFunc(merged, func(a, b enrollment.HolidayNoCareDay) int { return a.Date.Compare(b.Date) })
-	return slices.CompactFunc(merged, func(a, b enrollment.HolidayNoCareDay) bool { return a.Date == b.Date })
+	result := make([]enrollment.HolidayNoCareDay, 0, len(merged))
+	for _, day := range merged {
+		if n := len(result); n > 0 && result[n-1].Date == day.Date {
+			result[n-1].ClosingDays = append(result[n-1].ClosingDays, day.ClosingDays...)
+			continue
+		}
+		day.ClosingDays = slices.Clone(day.ClosingDays)
+		result = append(result, day)
+	}
+	return result
 }
 
 // NewSchoolClosingDayReads binds the current-membership projection (ADR 0194).

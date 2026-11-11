@@ -286,10 +286,11 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0214: the registered children and the trail of the known child hint of
 // modules/enrollment/compose (+10) and the namesakes constructor of
 // modules/peopledirectory/compose (+13) add exactly 23 LOC.
+// ADR 0196: the holiday closure notices (-1).
 // ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
 // (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
 // comments); modules/careplan/compose stays.
-const moduleComposeBudgetTotal = 13367
+const moduleComposeBudgetTotal = 13366
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -412,7 +413,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schedulerruntime/compose":   45,
 	// Raised by ADR 0142: the Elternsprechtag constructor (+7) and by
 	// ADR 0144: the school vacation constructor (+11).
-	"modules/schoolcalendar/compose":        159,
+	"modules/schoolcalendar/compose":        158,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).
