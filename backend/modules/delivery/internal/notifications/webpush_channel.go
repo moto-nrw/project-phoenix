@@ -46,9 +46,9 @@ type webPushPayload struct {
 }
 
 const (
-	// maxPushPayloadBytes is a defensive bound well under the ~4KB Web Push
-	// limit; our payloads are a few hundred bytes.
-	maxPushPayloadBytes = 3800
+	// maxPushPayloadBytes is the largest payload one Web Push record holds;
+	// our payloads are a few hundred bytes.
+	maxPushPayloadBytes = deliveryContract.WebPushMaxPayloadBytes
 	// Keep outbound work bounded without serializing a large tenant's devices.
 	maxConcurrentPushSends = 8
 	pushSendTimeout        = 10 * time.Second
@@ -486,7 +486,7 @@ func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, 
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
 	defer cancel()
-	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, payload, &webpush.Options{Subscriber: c.vapid.webPushSubscriber(), VAPIDPublicKey: c.vapid.PublicKey, VAPIDPrivateKey: c.vapid.PrivateKey, TTL: ttl, Urgency: urgency})
+	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, payload, &webpush.Options{Subscriber: c.vapid.webPushSubscriber(), VAPIDPublicKey: c.vapid.PublicKey, VAPIDPrivateKey: c.vapid.PrivateKey, RecordSize: deliveryContract.WebPushRecordSize, TTL: ttl, Urgency: urgency})
 	if err != nil {
 		return err
 	}
