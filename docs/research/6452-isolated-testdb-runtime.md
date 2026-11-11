@@ -282,9 +282,9 @@ die Löschung beginnt nach 250 ms Budget keinen Auftrag mehr.
    `TestDemoVisitorErasureNeverWaitsForALock` festgelegt.
 2. Zwei Tests wiederholen den Lauf, bis beide Aufträge gelöscht sind, höchstens
    einen Lauf je Auftrag (`eraseTheRest`).
-3. Das Paket läuft mit `testpkg.PerTestDatabases()`: 113 seiner 146 Tests
-   brauchen ohnehin einen Clone, im Modus ohne Slot laufen acht davon
-   gleichzeitig.
+3. Verworfen: das Paket mit `testpkg.PerTestDatabases()` laufen lassen, also
+   acht Clones gleichzeitig ohne Slot. Die Messungen unten zeigen den Gewinn,
+   die CI den Grund für die Rücknahme, siehe „Per-Test-Datenbanken in der CI“.
 4. `TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone` nutzt einen Clone für
    seine 40 Subtests.
 5. Sechs Tests, die zeigen, was die Löschung tut, sobald ein Lock frei wird,
@@ -389,7 +389,22 @@ auf. Offen bleibt die Umstellung des Alt-Containers nach
 `docs/agents/operations.md` („Test database“); sie betrifft andere Sessions
 und ist hier nicht geschehen.
 
-Der Preis: 32 Clones mehr je Paketlauf und etwa doppelt so viel aufsummierte
-Datenbankarbeit, weil die Lifecycles einander bremsen. Bis zu acht statt
-einem Clone dieses Pakets bestehen gleichzeitig. Eine Messung ohne fremde Last
-und unter macOS fehlt; die CI-Paketzeit dient als Gegenprobe.
+### Per-Test-Datenbanken in der CI
+
+Der erste CI-Lauf mit Per-Test-Datenbanken
+([Run 43010242879](https://github.com/moto-nrw/project-phoenix/actions/runs/43010242879))
+war rot: `ERROR: out of shared memory (SQLSTATE=53200)` in zwei Export-Tests
+dieses Pakets und in `modules/identityaccess/behavior`, einem fremden Paket.
+Der CI-Server läuft mit `max_connections=100` und
+`max_locks_per_transaction=64`. Ein Export liest alle Katalogtabellen in einer
+Transaktion und hält so lange ein Lock je Tabelle; das Export-Fixture löscht
+zusätzlich alle Katalog-Schemas. Acht davon gleichzeitig erschöpfen die
+Lock-Tabelle des ganzen Servers.
+
+Nachgestellt auf einem eigenen `postgres:17-alpine` mit Standardwerten: das
+Paket allein blieb grün (203 Ergebnisse, 20,3 s). Mit
+`max_locks_per_transaction=32` scheiterten von 34 Export-Tests 21 bis 23.
+Ein Mutex nur um das Löschen der Schemas senkte das auf 3 bis 7, beseitigte
+es also nicht. Der Slot begrenzt genau diese Last auf einen Export-Test je
+Paket. Das Paket bleibt deshalb auf der Paket-Datenbank mit einem Slot; die
+Messwerte der Per-Test-Läufe stehen oben nur als Vergleich.
