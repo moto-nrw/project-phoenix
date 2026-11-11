@@ -8,14 +8,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayAcceptanceMailVersion = "1.15.921"
+const holidayAcceptanceMailVersion = "1.15.927"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayAcceptanceMailVersion,
 		Description: "Ferien: Annahme-Mail an Eltern beim Bestätigen, mit Text des Trägers (#6672)",
 		DependsOn: []string{
-			dataReturnErasureOrderLockVersion,           // the newest migration on development
+			holidayBookingExceptionSourceVersion,        // the newest migration on development
 			holidayClosureNoticesVersion,                // the outbox CHECK this one extends
 			parentBillingDiscardEmptyHolidayRunsVersion, // the erasure this one extends
 		},

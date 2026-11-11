@@ -9,7 +9,7 @@ import (
 )
 
 // TestHolidayAcceptanceErasureIsTheErasureOf918WithTheMail keeps the erasure
-// of 1.15.921 the one of 1.15.918 whose statement for the mails of a
+// of 1.15.927 the one of 1.15.918 whose statement for the mails of a
 // registration also names the acceptance mail of #6672.
 func TestHolidayAcceptanceErasureIsTheErasureOf918WithTheMail(t *testing.T) {
 	t.Parallel()
