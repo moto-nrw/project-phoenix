@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import React, {
   createContext,
   useCallback,
@@ -535,12 +536,18 @@ function useApiErrorCore(
     loadLogged.current = false;
   }, []);
   const logShown = useCallback(
-    (fields: Parameters<typeof logDisplayedError>[1]) => {
+    (error: unknown, fields: Parameters<typeof logDisplayedError>[1]) => {
       if (surface === "load") {
         if (loadLogged.current) return;
         loadLogged.current = true;
       }
       logDisplayedError(surface, fields);
+      // An exception thrown in the browser is a defect of the client, and no
+      // one else reports it: logs stay breadcrumbs, and the backend and the
+      // BFF report only their own failures. API answers create no event.
+      if (fields.error_class === "crash") {
+        Sentry.captureException(error, { tags: { surface } });
+      }
     },
     [surface],
   );
@@ -604,7 +611,7 @@ function useApiErrorCore(
           return;
         }
         setFieldErrors({});
-        logShown(errorLogFields(error));
+        logShown(error, errorLogFields(error));
         const message = emergencyErrorByLocale[locale].replace(
           "{object}",
           options.object,
@@ -632,7 +639,7 @@ function useApiErrorCore(
         return presentation;
       }
       const logged = errorLogFields(error);
-      logShown({
+      logShown(error, {
         ...logged,
         // The class of the code; an exception keeps the class of its cause.
         error_class: presentation.errorClass ?? logged.error_class,
