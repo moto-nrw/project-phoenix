@@ -111,7 +111,11 @@ export function useSchoolAbsenceReports({
       "absence_report_withdraw_failed",
       () => void confirmWithdraw(),
     );
-    if (done) setWithdrawTarget(null);
+    // Schließt nur die eigene Rückfrage: wurde sie inzwischen von außen
+    // geschlossen und für ein anderes Kind geöffnet, bleibt diese offen.
+    if (done) {
+      setWithdrawTarget((current) => (current === target ? null : current));
+    }
   };
 
   return {
