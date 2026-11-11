@@ -297,7 +297,7 @@ export function StatCard(
             ? `${label}: ${loading ? "…" : value}, Liste öffnen`
             : undefined
         }
-        className={`focus-visible:ring-moto-blue group block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${props.variant === "row" ? "rounded-xl" : "h-full rounded-2xl"}`}
+        className={`focus-visible:ring-moto-blue group block cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${props.variant === "row" ? "rounded-xl" : "h-full rounded-2xl"}`}
       >
         {card}
       </Link>

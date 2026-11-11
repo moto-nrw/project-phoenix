@@ -232,5 +232,6 @@ describe("ChoiceModal", () => {
       vi.advanceTimersByTime(300);
     });
     expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).not.toHaveClass("animate-modalExit");
   });
 });

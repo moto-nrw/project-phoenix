@@ -74,7 +74,13 @@ export function ChoiceModal({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title={title} footer={footer}>
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={title}
+      footer={footer}
+      isDismissDisabled={isBusy}
+    >
       <FormErrorAlert message={error} className="mb-4" />
       {description && (
         <p className="mb-4 text-sm text-gray-600">{description}</p>

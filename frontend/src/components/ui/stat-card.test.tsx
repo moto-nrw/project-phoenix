@@ -6,6 +6,14 @@ import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
 import { StatCard } from "./stat-card";
 
 describe("StatCard", () => {
+  it("zeigt bei einer verlinkten Kachel den Mauszeiger", () => {
+    render(<StatCard label="Stunden" value="12" href="/stunden" />);
+
+    expect(screen.getByRole("link", { name: /Stunden/ })).toHaveClass(
+      "cursor-pointer",
+    );
+  });
+
   it("zeigt Beschriftung, Wert und Hinweis", () => {
     render(<StatCard label="Stunden" value="12h 30min" hint="Diese Woche" />);
 
