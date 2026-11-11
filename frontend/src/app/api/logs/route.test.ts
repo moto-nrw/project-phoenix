@@ -19,13 +19,19 @@ vi.mock("~/server/auth", async () =>
 
 const { POST } = await import("./route");
 
-function createRequest(body: unknown): NextRequest {
+function createRequest(
+  body: unknown,
+  headers: Record<string, string> = {},
+): NextRequest {
   return new NextRequest("http://localhost:3000/api/logs", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
 }
+
+const SAFARI_USER_AGENT =
+  "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 
 describe("POST /api/logs", () => {
   beforeEach(() => {
@@ -89,6 +95,54 @@ describe("POST /api/logs", () => {
       provenance: "client_log",
       via_api: true,
     });
+    output.mockRestore();
+  });
+
+  it("writes the browser's User-Agent header to every entry", async () => {
+    const output = vi.spyOn(console, "log").mockImplementation(() => {});
+    const response = await POST(
+      createRequest(
+        {
+          entries: [
+            { level: "warn", msg: "error_displayed", user_agent: "spoofed" },
+            { level: "info", msg: "second_entry" },
+          ],
+        },
+        { "User-Agent": SAFARI_USER_AGENT },
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(
+      output.mock.calls.map(
+        ([line]) =>
+          (JSON.parse(String(line)) as { user_agent?: string }).user_agent,
+      ),
+    ).toEqual([SAFARI_USER_AGENT, SAFARI_USER_AGENT]);
+    output.mockRestore();
+  });
+
+  it("caps the User-Agent and keeps no client value without the header", async () => {
+    const output = vi.spyOn(console, "log").mockImplementation(() => {});
+    await POST(
+      createRequest(
+        { entries: [{ level: "info", msg: "long_agent" }] },
+        { "User-Agent": "A".repeat(2000) },
+      ),
+    );
+    await POST(
+      createRequest({
+        entries: [{ level: "info", msg: "no_agent", user_agent: "spoofed" }],
+      }),
+    );
+    const [long, missing] = output.mock.calls.map(
+      ([line]) => JSON.parse(String(line)) as Record<string, unknown>,
+    );
+    expect(long).toMatchObject({
+      msg: "long_agent",
+      user_agent: "A".repeat(512),
+    });
+    expect(missing).toMatchObject({ msg: "no_agent" });
+    expect(missing).not.toHaveProperty("user_agent");
     output.mockRestore();
   });
 
