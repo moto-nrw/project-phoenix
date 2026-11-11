@@ -177,14 +177,45 @@ describe("NavigationTabs — 3+ items (mobile dropdown)", () => {
 
     fireEvent.click(dropdownTrigger!);
 
-    // All three items should now appear in the dropdown menu
-    // The dropdown renders buttons for each item
-    const allButtons = screen.getAllByRole("button");
-    const dropdownItems = allButtons.filter(
-      (btn) =>
-        btn.className.includes("w-full") && btn.className.includes("text-left"),
-    );
+    // All three items should now appear in the dropdown menu.
+    const dropdownItems = screen.getAllByRole("menuitemradio");
     expect(dropdownItems).toHaveLength(3);
+  });
+
+  it("announces the dropdown state and closes it with Escape", () => {
+    const onChange = vi.fn();
+    render(
+      <NavigationTabs
+        items={threeItems}
+        activeTab="a"
+        onTabChange={onChange}
+      />,
+    );
+
+    const dropdownTrigger = screen
+      .getAllByRole("button")
+      .find(
+        (button) =>
+          button.closest(".md\\:hidden") !== null &&
+          button.textContent === "Alpha",
+      );
+    expect(dropdownTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(dropdownTrigger).toHaveAttribute("aria-haspopup", "menu");
+
+    fireEvent.click(dropdownTrigger!);
+
+    expect(dropdownTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menu")).toHaveAttribute(
+      "aria-labelledby",
+      dropdownTrigger!.id,
+    );
+    expect(screen.getAllByRole("menuitemradio")).toHaveLength(3);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(dropdownTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(dropdownTrigger).toHaveFocus();
   });
 
   it("calls onTabChange and closes dropdown when an item is clicked", () => {
@@ -207,13 +238,7 @@ describe("NavigationTabs — 3+ items (mobile dropdown)", () => {
     fireEvent.click(dropdownTrigger!);
 
     // Click "Gamma" in the dropdown
-    const dropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    const dropdownItems = screen.getAllByRole("menuitemradio");
     const gammaItem = dropdownItems.find((btn) => btn.textContent === "Gamma");
     expect(gammaItem).toBeTruthy();
     fireEvent.click(gammaItem!);
@@ -221,13 +246,7 @@ describe("NavigationTabs — 3+ items (mobile dropdown)", () => {
     expect(onChange).toHaveBeenCalledWith("c");
 
     // Dropdown menu should be closed (no more full-width items)
-    const remainingDropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    const remainingDropdownItems = screen.queryAllByRole("menuitemradio");
     expect(remainingDropdownItems).toHaveLength(0);
   });
 
@@ -251,13 +270,7 @@ describe("NavigationTabs — 3+ items (mobile dropdown)", () => {
     fireEvent.click(dropdownTrigger!);
 
     // Beta should have active styling
-    const dropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    const dropdownItems = screen.getAllByRole("menuitemradio");
     const betaItem = dropdownItems.find((btn) => btn.textContent === "Beta");
     expect(betaItem?.className).toContain("font-semibold");
     expect(betaItem?.className).toContain("bg-gray-50");
@@ -287,26 +300,14 @@ describe("NavigationTabs — 3+ items (mobile dropdown)", () => {
     fireEvent.click(dropdownTrigger!);
 
     // Verify dropdown is open
-    let dropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    let dropdownItems = screen.getAllByRole("menuitemradio");
     expect(dropdownItems.length).toBeGreaterThan(0);
 
     // Click outside (on document body)
     fireEvent.mouseDown(document.body);
 
     // Dropdown should close
-    dropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    dropdownItems = screen.queryAllByRole("menuitemradio");
     expect(dropdownItems).toHaveLength(0);
   });
 
@@ -329,24 +330,12 @@ describe("NavigationTabs — 3+ items (mobile dropdown)", () => {
 
     // Open
     fireEvent.click(dropdownTrigger!);
-    let dropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    let dropdownItems = screen.getAllByRole("menuitemradio");
     expect(dropdownItems.length).toBeGreaterThan(0);
 
     // Close by clicking trigger again
     fireEvent.click(dropdownTrigger!);
-    dropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    dropdownItems = screen.queryAllByRole("menuitemradio");
     expect(dropdownItems).toHaveLength(0);
   });
 });
@@ -371,13 +360,7 @@ describe("NavigationTabs — with 5 items", () => {
       );
     fireEvent.click(dropdownTrigger!);
 
-    const dropdownItems = screen
-      .getAllByRole("button")
-      .filter(
-        (btn) =>
-          btn.className.includes("w-full") &&
-          btn.className.includes("text-left"),
-      );
+    const dropdownItems = screen.getAllByRole("menuitemradio");
     expect(dropdownItems).toHaveLength(5);
   });
 });

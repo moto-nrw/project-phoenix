@@ -7,8 +7,10 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useId,
 } from "react";
 import type { NavigationTabsProps } from "./types";
+import { Button } from "../button";
 
 export function NavigationTabs({
   items,
@@ -180,6 +182,9 @@ function MobileTabDropdown({
 }>) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerId = useId();
+  const menuId = useId();
 
   // Close on click outside
   useEffect(() => {
@@ -196,17 +201,38 @@ function MobileTabDropdown({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    };
+
+    document.addEventListener("keydown", handleEscape, true);
+    return () => document.removeEventListener("keydown", handleEscape, true);
+  }, [isOpen]);
+
   return (
     <div className="relative md:hidden" ref={dropdownRef}>
-      <button
+      <Button
+        ref={triggerRef}
+        id={triggerId}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-base font-semibold shadow-sm transition-all ${
-          isOpen ? "bg-gray-50" : "hover:bg-gray-50"
-        }`}
+        variant="surface"
+        size="base"
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-controls={isOpen ? menuId : undefined}
+        className="gap-2"
       >
         <span className="text-gray-900">{activeLabel}</span>
         <svg
+          aria-hidden="true"
           className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
@@ -219,10 +245,13 @@ function MobileTabDropdown({
             d="M19 9l-7 7-7-7"
           />
         </svg>
-      </button>
+      </Button>
 
       {isOpen && (
         <div
+          id={menuId}
+          role="menu"
+          aria-labelledby={triggerId}
           className={`moto-popover-surface absolute top-full left-0 ${Z_LAYER.dropdown} mt-1 min-w-48 overflow-hidden rounded-xl border py-1`}
         >
           {items.map((item) => {
@@ -231,6 +260,8 @@ function MobileTabDropdown({
               <button
                 key={item.id}
                 type="button"
+                role="menuitemradio"
+                aria-checked={isActive}
                 onClick={() => {
                   onTabChange(item.id);
                   setIsOpen(false);
