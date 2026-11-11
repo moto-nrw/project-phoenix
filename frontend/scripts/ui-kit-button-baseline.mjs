@@ -39,12 +39,6 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/page-header/NavigationTabs.tsx",
-    lines: [201],
-    reason: "Reiter: Auslöser des mobilen Reiter-Menüs",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
     lines: [461],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
