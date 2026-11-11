@@ -1,17 +1,19 @@
-export type NotificationBadgeTone =
-  "staff" | "parents" | "feedback" | "danger" | "blue";
+/**
+ * Palette names, not audiences: which audience gets which hue is the
+ * caller's decision (#6582, `~/lib/counter-tones`).
+ */
+export type NotificationBadgeTone = "orange" | "blue" | "coral" | "red";
 export type NotificationBadgeSize = "sm" | "md";
 
 // The count is small bold text, so WCAG AA wants 4.5:1 against the pill.
 // bg-moto-orange (#F78C10) carries white at 2.41:1 — below even the 3:1
-// non-text floor — so the staff tone uses the -strong ramp step (5.63:1).
+// non-text floor — so the orange tone uses the -strong ramp step (5.63:1).
 // See the contrast note on TEXT_SAFE_SHADES in kit-palette.ts.
 const TONE_CLASSES: Record<NotificationBadgeTone, string> = {
-  staff: "bg-moto-orange-strong text-white",
-  parents: "bg-moto-blue-strong text-white",
-  feedback: "bg-moto-coral-strong text-white",
-  danger: "bg-moto-red text-white",
+  orange: "bg-moto-orange-strong text-white",
   blue: "bg-moto-blue-strong text-white",
+  coral: "bg-moto-coral-strong text-white",
+  red: "bg-moto-red text-white",
 };
 
 const SIZE_CLASSES: Record<NotificationBadgeSize, string> = {

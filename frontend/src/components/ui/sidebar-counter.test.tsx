@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 import { UsersIcon } from "@phosphor-icons/react";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 import { SidebarAccordionSection } from "./sidebar-accordion-section";
 import { SidebarGroup } from "./sidebar-group";
@@ -32,7 +33,7 @@ const SURFACES: ReadonlyArray<
         icon={ICON}
         label="Anmeldungen"
         active={false}
-        badge={{ count: 3, tone: "staff", ariaLabel: LABEL }}
+        badge={{ count: 3, tone: "orange", ariaLabel: LABEL }}
         {...railProps(state)}
       />
     ),
@@ -46,7 +47,7 @@ const SURFACES: ReadonlyArray<
         isOpen={false}
         onToggle={() => undefined}
         containsActive={false}
-        badge={{ count: 3, tone: "staff", ariaLabel: LABEL }}
+        badge={{ count: 3, tone: "orange", ariaLabel: LABEL }}
         {...railProps(state)}
       >
         <span>Inhalt</span>
@@ -57,14 +58,13 @@ const SURFACES: ReadonlyArray<
     "Bereich",
     (state) => (
       <SidebarAccordionSection
+        concept={enrollmentsConcept}
         label="Anmeldungen"
         isExpanded={false}
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={3}
-        badgeTone="staff"
-        badgeNoun="ungelesene Anmeldungen"
+        badge={{ count: 3, tone: "orange", ariaLabel: LABEL }}
         {...railProps(state)}
       />
     ),
@@ -103,12 +103,17 @@ describe("Sidebar-Zähler (#6566)", () => {
   it("zeigt am Bereich bei 0 keinen Zählerplatz", () => {
     render(
       <SidebarAccordionSection
+        concept={enrollmentsConcept}
         label="Anmeldungen"
         isExpanded={false}
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={0}
+        badge={{
+          count: 0,
+          tone: "orange",
+          ariaLabel: "0 ungelesene Anmeldungen",
+        }}
       />,
     );
 
@@ -129,7 +134,7 @@ describe("Sidebar-Zähler (#6566)", () => {
         containsActive={false}
         badge={{
           count: 2,
-          tone: "staff",
+          tone: "orange",
           ariaLabel: "2 offene Tagesinformationen",
         }}
       >
@@ -152,7 +157,7 @@ describe("Sidebar-Zähler (#6566)", () => {
         containsActive={false}
         badge={{
           count: 5,
-          tone: "parents",
+          tone: "blue",
           ariaLabel: "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
         }}
         {...railProps("rail")}
@@ -171,14 +176,13 @@ describe("Sidebar-Zähler (#6566)", () => {
   it("nennt im Streifen den Bereich und seinen Zähler", () => {
     render(
       <SidebarAccordionSection
+        concept={enrollmentsConcept}
         label="Anmeldungen"
         isExpanded={false}
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={3}
-        badgeTone="staff"
-        badgeNoun="ungelesene Anmeldungen"
+        badge={{ count: 3, tone: "orange", ariaLabel: LABEL }}
         {...railProps("rail")}
       />,
     );
@@ -195,25 +199,25 @@ describe("combineSidebarRowBadges (#6566)", () => {
   it("nennt einen einzelnen Zähler unverändert", () => {
     expect(
       combineSidebarRowBadges(
-        [null, { count: 1, tone: "staff", ariaLabel: "1 offene Anfrage" }],
-        "staff",
+        [null, { count: 1, tone: "orange", ariaLabel: "1 offene Anfrage" }],
+        "orange",
       ),
-    ).toEqual({ count: 1, tone: "staff", ariaLabel: "1 offene Anfrage" });
+    ).toEqual({ count: 1, tone: "orange", ariaLabel: "1 offene Anfrage" });
   });
 
   it("zählt zusammen und nennt jeden Teil", () => {
     expect(
       combineSidebarRowBadges(
         [
-          { count: 2, tone: "parents", ariaLabel: "2 ungelesene Nachrichten" },
-          { count: 3, tone: "staff", ariaLabel: "3 ungelesene Anmeldungen" },
-          { count: 1, tone: "staff", ariaLabel: "1 offene Anfrage" },
+          { count: 2, tone: "blue", ariaLabel: "2 ungelesene Nachrichten" },
+          { count: 3, tone: "orange", ariaLabel: "3 ungelesene Anmeldungen" },
+          { count: 1, tone: "orange", ariaLabel: "1 offene Anfrage" },
         ],
-        "parents",
+        "blue",
       ),
     ).toEqual({
       count: 6,
-      tone: "parents",
+      tone: "blue",
       ariaLabel:
         "2 ungelesene Nachrichten, 3 ungelesene Anmeldungen und 1 offene Anfrage",
     });
@@ -222,8 +226,8 @@ describe("combineSidebarRowBadges (#6566)", () => {
   it("hat ohne Zähler keinen Zähler", () => {
     expect(
       combineSidebarRowBadges(
-        [null, { count: 0, tone: "staff", ariaLabel: "0 offene Anfragen" }],
-        "staff",
+        [null, { count: 0, tone: "orange", ariaLabel: "0 offene Anfragen" }],
+        "orange",
       ),
     ).toBeNull();
   });

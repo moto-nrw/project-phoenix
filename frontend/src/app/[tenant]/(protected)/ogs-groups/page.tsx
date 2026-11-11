@@ -59,8 +59,8 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
-import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
-import { EmptyStudentResults } from "~/components/ui/empty-student-results";
+import { StudentPresenceBadge } from "@/components/students/presence/student-presence-badge";
+import { EmptyStudentResults } from "~/components/students/empty-student-results";
 import {
   StudentCard,
   PickupTimeRow,
@@ -850,7 +850,7 @@ function OGSGroupPageContent() {
     };
   }, [students]);
 
-  // Prepare filter configurations for PageHeaderWithSearch
+  // Prepare filter configurations for the TenantPage search row
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
       {
@@ -1059,7 +1059,7 @@ function OGSGroupPageContent() {
   const selectionScope = `${selectedGroupId ?? ""}|${searchTerm}|${attendanceFilter}`;
 
   // Loading joins the access-unknown state below instead of an early return
-  // before the header, so the real PageHeaderWithSearch (title, tabs,
+  // before the header, so the real TenantPage head (title, tabs,
   // actions) renders immediately and only the student-grid area
   // skeletonizes. Permission/access early-returns below only run once
   // showSkeleton clears.

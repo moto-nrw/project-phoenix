@@ -40,7 +40,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [461],
+    lines: [472],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -76,7 +76,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
-    lines: [158],
+    lines: [157],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",
   },
   {
@@ -150,12 +150,6 @@ export const buttonRatchetAllowlist = [
   // #5608: Seit die Regel `moto-content-surface`, Farben per `style` und
   // `label`/`span` mit `cursor-pointer` erkennt, sieht sie diese Kacheln und
   // Felder. Sie sind keine Knöpfe im Sinn von #5529.
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/ui/tile-card.tsx",
-    lines: [94, 149],
-    reason: "TileCard selbst: der Kit-Baustein für klickbare Kacheln",
-  },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/color-swatch-input.tsx",

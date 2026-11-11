@@ -32,13 +32,12 @@ import { hasPermission } from "~/lib/auth-utils";
 import {
   filesService,
   FOLDER_VISIBILITY_LABELS,
-  formatBytes,
-  isViewableInBrowser,
   type FileFolder,
   type FolderFiles,
   type FolderOverview,
   type StoredFile,
 } from "~/lib/files-api";
+import { formatBytes, isViewableInBrowser } from "~/lib/file-format";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";

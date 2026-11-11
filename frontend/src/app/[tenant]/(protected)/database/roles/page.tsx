@@ -15,7 +15,6 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { formatCount } from "~/lib/format-utils";
 import { Alert } from "~/components/ui/alert";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type {
   ActiveFilter,
@@ -395,33 +394,29 @@ function RolesPageContent() {
           />
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={rolesConcept.icon}
-                tone={rolesConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredRoles.length,
-            label: "Rollen",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Rollen suchen…",
-          }}
-          filters={filters}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={rolesConcept.icon}
+              tone={rolesConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredRoles.length,
+          label: "Rollen",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Rollen suchen…",
+        },
+        filters,
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+        },
+      }}
     >
       {unclassifiedCount > 0 && (
         <div className="mb-6">

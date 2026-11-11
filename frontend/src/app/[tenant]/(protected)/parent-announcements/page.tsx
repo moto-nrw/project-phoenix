@@ -94,7 +94,7 @@ import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { AttachmentList } from "~/components/ui/attachment-list";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { Textarea } from "~/components/ui/textarea";
-import { formatBytes } from "~/lib/files-api";
+import { formatBytes } from "~/lib/file-format";
 import {
   berlinClockFromISO,
   berlinDateTimeISO,

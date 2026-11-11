@@ -25,7 +25,7 @@ import {
 import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
 import { PlanBlock } from "~/components/ui/planning/plan-block";
 import { TIMETABLE_NEUTRAL_COLOR } from "~/components/timetable/timetable-colors";
-import { OverbookedBadge } from "~/components/ui/planning/occupancy-badges";
+import { OverbookedBadge } from "~/components/activities/occupancy-badges";
 import {
   formatPresentAgainstLimit,
   type Occupancy,

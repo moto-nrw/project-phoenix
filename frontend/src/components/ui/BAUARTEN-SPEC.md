@@ -304,9 +304,10 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    mit dem Literal `disabled: true` fällt durch; `disabled: busy` ist ein
    Zustand und passiert. Auswahlfeld-Optionen (`value` + `label`) sind keine
    Menüeinträge.
-7. Erweiterung von `tenant-page-scaffold.test.ts`: jede Seite deklariert ihre
-   Bauart, und die Zuordnung ist vollständig. **Umgesetzt** (#3118): die
-   Zuordnung liegt zentral im Test (`BAUART`), damit eine neue Seite ohne
+7. Jede Seite deklariert ihre Bauart, und die Zuordnung ist vollständig.
+   **Umgesetzt** (#3118): die Zuordnung liegt zentral in
+   `app/[tenant]/(protected)/bauart.test.ts` (`BAUART`, seit #6582 neben den
+   Seiten), damit eine neue Seite ohne
    Eintrag und ein Eintrag ohne Seite gleichermaßen durchfallen. Eine Route
    mit dynamischem Segment (`[id]`) ist immer eine Objektansicht. Seiten,
    die in keine der vier Bauarten passen, stehen mit Begründung in

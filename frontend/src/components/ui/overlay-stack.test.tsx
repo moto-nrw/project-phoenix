@@ -35,6 +35,34 @@ describe("overlay stack", () => {
     expect(sheet.result.current.isTopmost()).toBe(false);
   });
 
+  it("keeps Escape with a dialog while a popover is open above it", () => {
+    const modal = renderHook(() => useOverlay(true, "modal"));
+    const popover = renderHook(() => useOverlay(true, "popover"));
+
+    // A popover's own Escape listener reaches the dialog below as well, as
+    // before popovers were on the stack (#6732).
+    expect(modal.result.current.isTopmost()).toBe(true);
+    expect(popover.result.current.isTopmost()).toBe(true);
+    popover.unmount();
+    modal.unmount();
+  });
+
+  it("puts a dialog opened later above a popover, but not a side panel below the popover's dialog", () => {
+    const modal = renderHook(() => useOverlay(true, "modal"));
+    const popover = renderHook(() => useOverlay(true, "popover"));
+    const sheet = renderHook(() => useOverlay(true, "sheet"));
+
+    expect(popover.result.current.isTopmost()).toBe(true);
+
+    const upper = renderHook(() => useOverlay(true, "modal"));
+    expect(popover.result.current.isTopmost()).toBe(false);
+
+    upper.unmount();
+    sheet.unmount();
+    popover.unmount();
+    modal.unmount();
+  });
+
   it("leaves an inactive overlay out of the stack", () => {
     const open = renderHook(() => useOverlay(true, "sheet"));
     const closed = renderHook(() => useOverlay(false, "modal"));

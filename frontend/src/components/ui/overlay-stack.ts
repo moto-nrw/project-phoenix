@@ -3,6 +3,7 @@ import {
   useLayoutEffect,
   useRef,
   useSyncExternalStore,
+  type RefObject,
 } from "react";
 
 import { zLayerValue, type ZLayer } from "./overlay-styles";
@@ -10,21 +11,35 @@ import { zLayerValue, type ZLayer } from "./overlay-styles";
 /**
  * The overlay stack: which kit overlays are open, which one is on top, the
  * page scroll lock, and whether an element lies in an overlay. `Modal`,
- * `SlideOver` and `CoachMark` register here instead of keeping their own
- * counters or asking the DOM.
+ * `SlideOver`, `CoachMark`, `AnchoredPopover` and the calendars of
+ * `DatePicker` and `DateRangePicker` register here instead of keeping their
+ * own counters or asking the DOM.
  *
  * Order comes from the level each overlay takes in `Z_LAYER`: the coach
  * mark sits above a dialog, a dialog above a side panel. On the same level
- * the overlay opened last is on top. Escape belongs to the topmost overlay
- * only, so one key press never closes two of them.
+ * the overlay opened last is on top. A popover (calendar, anchored popover)
+ * opens over everything open at that moment. Its host is the dialog, side
+ * panel or tour that was topmost then; one that opens later lies above the
+ * popover when it lies above that host. Escape belongs to
+ * the topmost overlay only, so one key press never closes two of them.
  */
 
 /** Levels that register as overlays. */
-export type OverlayLayer = Extract<ZLayer, "sheet" | "modal" | "coach">;
+export type OverlayLayer = Extract<
+  ZLayer,
+  "sheet" | "modal" | "coach" | "popover"
+>;
 
 interface OverlayEntry {
   readonly layer: OverlayLayer;
   readonly order: number;
+  /**
+   * For a popover: the dialog, side panel or tour that was topmost when it
+   * opened, or null on the page.
+   */
+  readonly host: OverlayEntry | null;
+  readonly takesEscape: boolean;
+  readonly elementRef: RefObject<Element | null> | undefined;
 }
 
 let entries: readonly OverlayEntry[] = [];
@@ -43,8 +58,59 @@ function subscribe(listener: () => void) {
 }
 
 function isAbove(a: OverlayEntry, b: OverlayEntry): boolean {
-  const byLevel = zLayerValue(a.layer) - zLayerValue(b.layer);
-  return byLevel === 0 ? a.order > b.order : byLevel > 0;
+  if (a.layer !== "popover" && b.layer !== "popover") {
+    const byLevel = zLayerValue(a.layer) - zLayerValue(b.layer);
+    return byLevel === 0 ? a.order > b.order : byLevel > 0;
+  }
+  // A popover opens over everything open at that moment. An overlay that
+  // opens after a popover lies above it if it lies above the popover's host:
+  // a dialog over a calendar's side panel covers the calendar, a side panel
+  // under a calendar's dialog does not.
+  const aIsLater = a.order > b.order;
+  const later = aIsLater ? a : b;
+  const earlier = aIsLater ? b : a;
+  const laterIsAbove =
+    later.layer === "popover" ||
+    earlier.host === null ||
+    isAbove(later, earlier.host);
+  return aIsLater === laterIsAbove;
+}
+
+/** The topmost dialog, side panel or tour: the host of a popover. */
+function topmostHost(): OverlayEntry | null {
+  const hosts = entries.filter((entry) => entry.layer !== "popover");
+  return (
+    hosts.find((entry) =>
+      hosts.every((other) => other === entry || !isAbove(other, entry)),
+    ) ?? null
+  );
+}
+
+/**
+ * Whether a popover lost its place: its host closed or rests, or a dialog,
+ * side panel or tour opened above it. A click that opens one of those closes
+ * the popover before; opened by key or by code, the popover closes the same
+ * way. Popovers stay open over each other; the order decides Escape.
+ */
+function isCovered(entry: OverlayEntry): boolean {
+  if (!entries.includes(entry)) return false;
+  if (entry.host !== null && !entries.includes(entry.host)) return true;
+  return entries.some(
+    (other) => other.layer !== "popover" && isAbove(other, entry),
+  );
+}
+
+/**
+ * Whether `other` takes an Escape that `own` would otherwise take. A dialog,
+ * side panel or tour leaves Escape only to another of them: a popover's own
+ * Escape listener reaches the dialog below as well, as before popovers were
+ * on the stack. A popover leaves Escape to every overlay above it that
+ * closes on Escape.
+ */
+function takesEscapeFrom(other: OverlayEntry, own: OverlayEntry): boolean {
+  if (!other.takesEscape) return false;
+  if (own.layer !== "popover" && other.layer === "popover") return false;
+  return isAbove(other, own);
 }
 
 /**
@@ -52,12 +118,22 @@ function isAbove(a: OverlayEntry, b: OverlayEntry): boolean {
  * components, `useOverlay` does this with the overlay's open state.
  */
 export function pushOverlay(layer: OverlayLayer): () => void {
-  const entry = addEntry(layer);
+  const entry = addEntry(layer, true, undefined);
   return () => removeEntry(entry);
 }
 
-function addEntry(layer: OverlayLayer): OverlayEntry {
-  const entry: OverlayEntry = { layer, order: nextOrder++ };
+function addEntry(
+  layer: OverlayLayer,
+  takesEscape: boolean,
+  elementRef: RefObject<Element | null> | undefined,
+): OverlayEntry {
+  const entry: OverlayEntry = {
+    layer,
+    order: nextOrder++,
+    host: layer === "popover" ? topmostHost() : null,
+    takesEscape,
+    elementRef,
+  };
   entries = [...entries, entry];
   emit();
   return entry;
@@ -81,39 +157,83 @@ export function useIsModalOpen(): boolean {
 interface OverlayOptions {
   /** Locks the page scroll while the overlay is open (see `useScrollLock`). */
   readonly lockScroll?: boolean;
+  /**
+   * Whether the overlay closes on Escape. One that does not leaves Escape to
+   * the overlay below it.
+   */
+  readonly takesEscape?: boolean;
+  /** The overlay's surface, for `isInsideOverlayAbove` of the ones below. */
+  readonly elementRef?: RefObject<Element | null>;
+  /**
+   * Called when the popover lost its place: its host closed or rests, or a
+   * dialog, side panel or tour opened above it. The calendars close then,
+   * like on a click outside.
+   */
+  readonly onCovered?: () => void;
 }
 
 /**
  * Registers an overlay while `active`. `isTopmost` answers at event time
- * whether no other open overlay lies above it; an Escape handler asks it
- * before it closes anything.
+ * whether no other open overlay above it takes its Escape (see
+ * `takesEscapeFrom`); an Escape handler asks it before it closes anything. `isInsideOverlayAbove` tells
+ * an outside-click guard that a press landed in an overlay opened over this
+ * one, such as a calendar in a popover.
  */
 export function useOverlay(
   active: boolean,
   layer: OverlayLayer,
-  { lockScroll = false }: OverlayOptions = {},
-): { readonly isTopmost: () => boolean } {
+  {
+    lockScroll = false,
+    takesEscape = true,
+    elementRef,
+    onCovered,
+  }: OverlayOptions = {},
+): {
+  readonly isTopmost: () => boolean;
+  readonly isInsideOverlayAbove: (target: EventTarget | null) => boolean;
+} {
   const entryRef = useRef<OverlayEntry | null>(null);
+  const onCoveredRef = useRef(onCovered);
+  useLayoutEffect(() => {
+    onCoveredRef.current = onCovered;
+  });
 
   useLayoutEffect(() => {
     if (!active) return undefined;
-    const entry = addEntry(layer);
+    const entry = addEntry(layer, takesEscape, elementRef);
     entryRef.current = entry;
+    const unsubscribe = subscribe(() => {
+      if (isCovered(entry)) onCoveredRef.current?.();
+    });
     return () => {
+      unsubscribe();
       entryRef.current = null;
       removeEntry(entry);
     };
-  }, [active, layer]);
+  }, [active, layer, takesEscape, elementRef]);
 
   useScrollLock(active && lockScroll);
 
   const isTopmost = useCallback(() => {
     const own = entryRef.current;
     if (own === null) return false;
-    return entries.every((other) => other === own || !isAbove(other, own));
+    return entries.every(
+      (other) => other === own || !takesEscapeFrom(other, own),
+    );
   }, []);
 
-  return { isTopmost };
+  const isInsideOverlayAbove = useCallback((target: EventTarget | null) => {
+    const own = entryRef.current;
+    if (own === null || !(target instanceof Node)) return false;
+    return entries.some(
+      (other) =>
+        other !== own &&
+        isAbove(other, own) &&
+        other.elementRef?.current?.contains(target) === true,
+    );
+  }, []);
+
+  return { isTopmost, isInsideOverlayAbove };
 }
 
 /**

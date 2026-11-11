@@ -99,7 +99,7 @@ export function RemindersBell() {
           <Bell className="h-5 w-5" />
           <NotificationBadge
             count={count}
-            tone="danger"
+            tone="red"
             size="sm"
             ariaLabel={`${count} Erinnerungen`}
             className="absolute -top-0.5 -right-0.5"

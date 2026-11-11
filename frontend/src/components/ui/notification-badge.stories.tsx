@@ -9,7 +9,7 @@ const meta = {
 export default meta;
 type Story = StoryObj;
 
-const TONES = ["staff", "parents", "feedback", "danger", "blue"] as const;
+const TONES = ["orange", "coral", "red", "blue"] as const;
 
 export const AllTones: Story = {
   render: () => (

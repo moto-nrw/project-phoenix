@@ -4,7 +4,7 @@ import { LogOut, Trash2, Undo2, XCircle } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
