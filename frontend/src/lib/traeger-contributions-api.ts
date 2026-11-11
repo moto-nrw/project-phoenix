@@ -306,6 +306,11 @@ export async function fetchHolidayFamilyDebtorNumber(
 export interface FamilyDebtorNumberConflict {
   readonly familyNumber: string;
   readonly enteredNumber: string;
+  /**
+   * The family whose number differs: the registration's or, in a sibling
+   * group, a sibling's; "" when the backend names none.
+   */
+  readonly familyEmail: string;
 }
 
 /**
@@ -326,5 +331,10 @@ export function familyDebtorNumberConflictOf(
   if (typeof familyNumber !== "string" || typeof enteredNumber !== "string") {
     return null;
   }
-  return { familyNumber, enteredNumber };
+  const familyEmail = error.details?.family_email;
+  return {
+    familyNumber,
+    enteredNumber,
+    familyEmail: typeof familyEmail === "string" ? familyEmail : "",
+  };
 }

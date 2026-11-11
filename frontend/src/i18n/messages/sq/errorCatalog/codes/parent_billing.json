@@ -27,6 +27,8 @@
   "cost_bearer_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "cost_takeover_with_exemption": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "debtor_number_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "debtor_number_digits": "Numri i debitorit ka {digits} shifra, për shembull {example}.",
+  "debtor_number_digit_range": "Numri i debitorit ka {min_digits} deri {max_digits} shifra, për shembull {example}.",
   "family_debtor_number_conflict": "Familja ka tashmë numrin e debitorit {family_debtor_number}. Zgjidhni cili numër vlen.",
   "debtor_number_locked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "family_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

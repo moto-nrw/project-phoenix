@@ -5,5 +5,8 @@
   ],
   "api/traeger/billing-families/debtor-number": [
     "PUT traeger /traeger/billing-families/debtor-number"
+  ],
+  "api/traeger/billing-families/debtor-number-format": [
+    "GET traeger /traeger/billing-families/debtor-number-format"
   ]
 }

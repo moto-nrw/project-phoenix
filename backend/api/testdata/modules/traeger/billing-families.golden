@@ -1,3 +1,4 @@
 GET /traeger/billing-families/ -> basis
+GET /traeger/billing-families/debtor-number-format -> basis
 GET /traeger/billing-families/{id} -> basis
 PUT /traeger/billing-families/debtor-number -> basis

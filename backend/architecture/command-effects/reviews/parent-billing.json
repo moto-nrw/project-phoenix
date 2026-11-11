@@ -537,6 +537,46 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the Träger allows only digits (parent_billing.debtor_number_digits_only or the registry default), the format of the Träger's debtor numbers, read in its Träger transaction before a debtor number is written or a form names the format (#6675).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerInts: the two lengths of a debtor number (parent_billing.debtor_number_min_digits and parent_billing.debtor_number_max_digits or the registry defaults), the format of the Träger's debtor numbers, read in its Träger transaction before a debtor number is written or a form names the format (#6675).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the Träger allows only digits (parent_billing.debtor_number_digits_only or the registry default), the format of the Träger's debtor numbers, read in its Träger transaction before a debtor number is written or a form names the format (#6675).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerInts: the two lengths of a debtor number (parent_billing.debtor_number_min_digits and parent_billing.debtor_number_max_digits or the registry defaults), the format of the Träger's debtor numbers, read in its Träger transaction before a debtor number is written or a form names the format (#6675).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "classification": "leaf",
@@ -616,6 +656,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, standard revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction by the release of a holiday run, which copies the standard revenue account onto its documents (#4821).",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the Träger allows only digits (parent_billing.debtor_number_digits_only or the registry default), the format of the Träger's debtor numbers, read in its Träger transaction before a debtor number is written or a form names the format (#6675).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerInts: the two lengths of a debtor number (parent_billing.debtor_number_min_digits and parent_billing.debtor_number_max_digits or the registry defaults), the format of the Träger's debtor numbers, read in its Träger transaction before a debtor number is written or a form names the format (#6675).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
       "target_owner": "settings-platform"
     },
     {
@@ -719,7 +779,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.SetHolidayDebtorNumber",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber: Enrollment checks the debtor number, locks the period and the confirmed registration, changes the number and appends its audit entry with the number before and after in the caller's Träger transaction; the Elternabrechnung has checked under its period billing lock that no issued invoice bills the registration and the route rolls back on any refusal (ADR 0119, #5621).",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber: Enrollment checks the debtor number, locks the period and the confirmed registration, changes the number and appends its audit entry with the number before and after in the caller's Träger transaction; the Elternabrechnung has checked under its period billing lock that no issued invoice bills the registration and the route rolls back on any refusal (ADR 0119, #5621). The binding answers the number before the change from the newest history entry of the answer, so the family takes the correction of a typo without a choice (#6692).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",
       "target_owner": "enrollment"

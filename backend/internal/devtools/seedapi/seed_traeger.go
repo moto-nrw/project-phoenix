@@ -374,11 +374,14 @@ func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID i
 	return seedHolidayWaitlist(rt, auth, token, periodID, sibling)
 }
 
-// seedHolidayAfterConfirmation corrects the confirmed siblings' details
-// (#5629), confirms the second registration with the cost takeover by a
+// seedHolidayAfterConfirmation switches the Träger to five-digit debtor
+// numbers (#6675), corrects the confirmed siblings' details (#5629), confirms the second registration with the cost takeover by a
 // cost bearer (#5627) and merges a third sibling's registration with the
 // siblings (#5628).
 func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, periodID, siblings, duplicate int64, registration map[string]any) error {
+	if err := seedDebtorNumberFormat(rt, auth); err != nil {
+		return err
+	}
 	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
 		return err
 	}
@@ -453,7 +456,7 @@ func seedHolidayCostTakeover(rt *Runtime, auth AuthRef, periodID, registrationID
 
 // seedCostTakeoverDebtorNumber is the invented debtor number of the family
 // whose contribution the cost bearer pays.
-const seedCostTakeoverDebtorNumber = "10 4712"
+const seedCostTakeoverDebtorNumber = "10472"
 
 // seedDebtorNumberSettingKey is the Träger switch that asks for the debtor
 // number of the family at the confirmation (#5621); the demo Träger works

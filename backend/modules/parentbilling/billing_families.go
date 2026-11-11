@@ -163,4 +163,7 @@ type BillingFamilies interface {
 	// a family without a care contract (#6692); empty removes it. A key that
 	// names no family of the Träger is ErrFamilyNotFound.
 	SetFamilyDebtorNumber(ctx context.Context, reviewer HolidayReviewer, input FamilyDebtorNumberInput) (FamilyDebtorNumber, error)
+	// DebtorNumberFormat is the format every number the office enters must
+	// have (#6675), so a form can name it.
+	DebtorNumberFormat(ctx context.Context, reviewer HolidayReviewer) (DebtorNumberFormat, error)
 }

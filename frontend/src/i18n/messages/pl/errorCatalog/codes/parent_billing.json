@@ -27,6 +27,8 @@
   "cost_bearer_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "cost_takeover_with_exemption": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "debtor_number_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "debtor_number_digits": "Numer dłużnika ma {digits} cyfr, na przykład {example}.",
+  "debtor_number_digit_range": "Numer dłużnika ma od {min_digits} do {max_digits} cyfr, na przykład {example}.",
   "family_debtor_number_conflict": "Rodzina ma już numer dłużnika {family_debtor_number}. Wybierz, który numer obowiązuje.",
   "debtor_number_locked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "family_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

@@ -31,11 +31,31 @@
       "legacy": "parent_billing.debtor_number_invalid"
     },
     {
+      "code": "parent_billing.debtor_number_digits",
+      "class": "input",
+      "parameters": [
+        "digits",
+        "example"
+      ],
+      "legacy": "parent_billing.debtor_number_digits"
+    },
+    {
+      "code": "parent_billing.debtor_number_digit_range",
+      "class": "input",
+      "parameters": [
+        "min_digits",
+        "max_digits",
+        "example"
+      ],
+      "legacy": "parent_billing.debtor_number_digit_range"
+    },
+    {
       "code": "parent_billing.family_debtor_number_conflict",
       "class": "business_rejection",
       "parameters": [
         "family_debtor_number",
-        "debtor_number"
+        "debtor_number",
+        "family_email"
       ],
       "legacy": "parent_billing.family_debtor_number_conflict"
     },

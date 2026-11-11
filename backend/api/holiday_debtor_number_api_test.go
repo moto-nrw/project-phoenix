@@ -92,7 +92,7 @@ func TestConfirmationWithoutTheSwitchTakesTheDebtorNumberAsItComes(t *testing.T)
 
 	rec := confirmationSettings(t, f, f.office.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"debtor_number_required":false,"cost_bearers":[]}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())), "the switch is off by default")
+	assert.JSONEq(t, `{"debtor_number_required":false,"debtor_number_format":{"digits_only":false,"min_digits":0,"max_digits":0},"cost_bearers":[]}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())), "the switch is off by default")
 
 	rec = f.confirmWith(t, f.siblings, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -115,7 +115,7 @@ func TestConfirmationWithTheSwitchRequiresTheDebtorNumber(t *testing.T) {
 	askForDebtorNumber(t, f, true)
 	rec := confirmationSettings(t, f, f.office.token)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.JSONEq(t, `{"debtor_number_required":true,"cost_bearers":[]}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
+	assert.JSONEq(t, `{"debtor_number_required":true,"debtor_number_format":{"digits_only":false,"min_digits":0,"max_digits":0},"cost_bearers":[]}`, string(decodeSchoolPortalRaw(t, rec.Body.Bytes())))
 
 	for name, body := range map[string]map[string]any{
 		"without":     nil,
@@ -162,10 +162,9 @@ func TestDebtorNumberChangesUntilAnInvoiceIsIssued(t *testing.T) {
 	assertDebtorNumberRefused(t, f.changeDebtorNumber(t, f.office.token, f.siblings, strings.Repeat("1", 36)))
 	require.Equal(t, http.StatusOK, f.act(t, f.siblings, "freeze").Code)
 	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "10 4712")
-	require.Equal(t, http.StatusConflict, rec.Code, "the family has 10 4711 since the first change (#6692): %s", rec.Body.String())
-	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayDebtorNumberPath(f.period.ID, f.siblings),
-		map[string]any{"debtor_number": "10 4712", "family_debtor_number": "replace"})
-	require.Equal(t, http.StatusOK, rec.Code, "freezing locks cancellations and rebookings, not the number: %s", rec.Body.String())
+	require.Equal(t, http.StatusOK, rec.Code, "freezing locks cancellations and rebookings, not the number; the family took 10 4711 "+
+		"from this registration, so the change corrects both without a choice (#6692): %s", rec.Body.String())
+	assert.Equal(t, "10 4712", f.familyNumber(t, "eva.muster@example.org"))
 	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "10 4712")
 	require.Equal(t, http.StatusOK, rec.Code, "the same number again changes nothing: %s", rec.Body.String())
 

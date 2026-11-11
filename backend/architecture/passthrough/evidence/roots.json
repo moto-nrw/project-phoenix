@@ -1234,13 +1234,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (b parentBillingHolidayRegistrations) SetHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {\n\tdetail, err := b.review.SetHolidayDebtorNumber(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, debtorNumber)\n\tif err != nil {\n\t\treturn parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingRegistration(detail), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (p parentBillingLetterPost) EnqueueDocumentNotice(ctx context.Context, notice parentbilling.BillingDocumentNotice) error {\n\tpayload, err := json.Marshal(notice)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"document notice payload: %w\", err)\n\t}\n\t_, err = p.delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{OrganizationID: notice.OrganizationID, Template: parentbilling.PushKindBillingDocument, IdempotencyKey: fmt.Sprintf(\"parent-billing-document:%d\", notice.DocumentID), Payload: payload, Related: deliveryContract.RelatedEntity{Type: parentbilling.PushRelatedBillingDocument, ID: notice.DocumentID}})\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingLetterPost.EnqueueDocumentNotice",

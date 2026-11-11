@@ -445,14 +445,12 @@ func (rs *HolidayResource) resolveLink(ctx context.Context, token string) (capab
 // refusals keep the codes of the registration review (ADR 0114).
 func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
-	var familyConflict *capability.FamilyDebtorNumberConflict
 	var dayLimit *capability.HolidayChildDayLimitRefusal
 	var noCareDay *capability.HolidayWeekNoCareDayRefusal
+	if renderDebtorNumberRefusal(w, r, err) {
+		return
+	}
 	switch {
-	case errors.As(err, &familyConflict):
-		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingFamilyDebtorNumberConflict, map[string]any{
-			"family_debtor_number": familyConflict.FamilyDebtorNumber, "debtor_number": familyConflict.DebtorNumber,
-		}))
 	case errors.As(err, &dayLimit):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentHolidayChildDayLimit,
 			map[string]any{"limit": dayLimit.Limit, "days": dayLimit.Days, "elsewhere": dayLimit.Elsewhere, "child": 1}))

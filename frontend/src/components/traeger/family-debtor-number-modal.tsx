@@ -8,27 +8,32 @@ import { useEffect, useRef, useState } from "react";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
 import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
-import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  type DebtorNumberFormat,
+  NO_DEBTOR_NUMBER_FORMAT,
+  debtorNumberFormatError,
+} from "~/lib/debtor-number-format";
 import { createLogger } from "~/lib/logger";
 import {
   type BillingFamily,
   setFamilyDebtorNumber,
 } from "~/lib/traeger-billing-families-api";
 import { familyName } from "./billing-family-format";
+import { DebtorNumberInput } from "./family-debtor-number";
 
 const logger = createLogger({ component: "FamilyDebtorNumberModal" });
 
-/** The longest debtor number the backend keeps. */
-const DEBTOR_NUMBER_MAX_LENGTH = 35;
-
 export function FamilyDebtorNumberModal({
   family,
+  format = NO_DEBTOR_NUMBER_FORMAT,
   onClose,
   onSaved,
 }: Readonly<{
   /** The family to change; null keeps the dialog closed. */
   family: BillingFamily | null;
+  /** The format of the Träger's numbers (#6675). */
+  format?: DebtorNumberFormat;
   onClose: () => void;
   /** After a save; the page reads the families again. */
   onSaved: () => Promise<unknown>;
@@ -51,6 +56,13 @@ export function FamilyDebtorNumberModal({
   const submit = async () => {
     if (!family) return;
     formErrors.clear();
+    const formatError = debtorNumberFormatError(value, format);
+    if (formatError) {
+      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
+        debtor_number: formatError,
+      });
+      return;
+    }
     const result = await pending.run(async (op) => {
       try {
         await setFamilyDebtorNumber(family.familyEmail, value.trim());
@@ -111,29 +123,15 @@ export function FamilyDebtorNumberModal({
             <span className="break-all">{family.familyEmail}</span>
           </p>
         ) : null}
-        <div>
-          <Input
-            ref={fieldRef}
-            id="family-debtor-number"
-            name="debtor_number"
-            label="Debitorennummer"
-            autoComplete="off"
-            controlSize="compact"
-            maxLength={DEBTOR_NUMBER_MAX_LENGTH}
-            value={value}
-            aria-describedby="family-debtor-number-hint"
-            error={formErrors.fieldError("debtor_number") ?? undefined}
-            onChange={(event) => setValue(event.target.value)}
-          />
-          <p
-            id="family-debtor-number-hint"
-            className="mt-1 text-xs text-gray-600"
-          >
-            Die Nummer der Familie bei der Kasse der Gemeinde. moto schlägt sie
-            bei jeder neuen Ferienanmeldung der Familie vor. Ausgestellte
-            Rechnungen behalten ihre Nummer.
-          </p>
-        </div>
+        <DebtorNumberInput
+          inputRef={fieldRef}
+          id="family-debtor-number"
+          format={format}
+          value={value}
+          hint="Die Nummer der Familie bei der Kasse der Gemeinde. moto schlägt sie bei jeder neuen Ferienanmeldung der Familie vor. Ausgestellte Rechnungen behalten ihre Nummer."
+          error={formErrors.fieldError("debtor_number") ?? undefined}
+          onChange={setValue}
+        />
       </form>
     </FormModal>
   );

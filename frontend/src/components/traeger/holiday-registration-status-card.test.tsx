@@ -749,10 +749,77 @@ describe("HolidayRegistrationStatusCard", () => {
     });
   });
 
+  describe("format of the debtor number (#6675)", () => {
+    const FIVE = { digitsOnly: true, minDigits: 5, maxDigits: 5 };
+
+    it("names the format at the field, opens the number keyboard and refuses another format before it confirms", async () => {
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={HOLIDAY_REGISTRATION}
+            contribution={HOLIDAY_CONTRIBUTION}
+            debtorNumberRequired
+            debtorNumberFormat={FIVE}
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onReload={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>,
+      );
+
+      const field = screen.getByRole("textbox", { name: /^Debitorennummer/ });
+      expect(field).toHaveAttribute("inputmode", "numeric");
+      expect(field).toHaveAccessibleDescription(
+        "Die Nummer hat 5 Ziffern, zum Beispiel 20815. Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.",
+      );
+      fireEvent.change(field, { target: { value: "20 815" } });
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+      expect(
+        await screen.findByText(
+          "Die Debitorennummer hat 5 Ziffern, zum Beispiel 20815.",
+        ),
+      ).toBeInTheDocument();
+      expect(field).toHaveAttribute("aria-invalid", "true");
+      expect(mockConfirm).not.toHaveBeenCalled();
+    });
+
+    it("keeps the plain field without a format", () => {
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={HOLIDAY_REGISTRATION}
+            contribution={HOLIDAY_CONTRIBUTION}
+            debtorNumberRequired
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onReload={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={vi.fn(() => Promise.resolve())}
+          />
+        </ToastProvider>,
+      );
+
+      const field = screen.getByRole("textbox", { name: /^Debitorennummer/ });
+      expect(field).not.toHaveAttribute("inputmode");
+      expect(field).toHaveAccessibleDescription(
+        "Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.",
+      );
+    });
+  });
+
   describe("debtor number of the family (#6692)", () => {
     const conflict = new ApiError("conflict", 409, {
       code: "parent_billing.family_debtor_number_conflict",
-      details: { family_debtor_number: "10 4711", debtor_number: "99" },
+      details: {
+        family_debtor_number: "10 4711",
+        debtor_number: "99",
+        family_email: "papa.muster@example.org",
+      },
     });
 
     function renderWithFamily(
@@ -787,7 +854,7 @@ describe("HolidayRegistrationStatusCard", () => {
       expect(field).toHaveValue("");
       expect(field).not.toBeRequired();
       expect(field).toHaveAccessibleDescription(
-        /Bekannte Debitorennummer dieser Familie: 10 4711 ?\. Bitte prüfen\./,
+        /Bekannte Nummer dieser Familie: 10 4711 ?\. Bitte prüfen\./,
       );
       fireEvent.click(
         screen.getByRole("button", {
@@ -796,9 +863,7 @@ describe("HolidayRegistrationStatusCard", () => {
       );
       expect(field).toHaveValue("10 4711");
       expect(field).toHaveFocus();
-      expect(
-        screen.queryByText(/Bekannte Debitorennummer dieser Familie/),
-      ).toBeNull();
+      expect(screen.queryByText(/Bekannte Nummer dieser Familie/)).toBeNull();
       expect(mockConfirm).not.toHaveBeenCalled();
 
       fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
@@ -826,6 +891,10 @@ describe("HolidayRegistrationStatusCard", () => {
       });
       expect(dialog).toHaveTextContent("10 4711");
       expect(dialog).toHaveTextContent("99");
+      // #6692: in a sibling group the family can be the sibling's.
+      expect(dialog).toHaveTextContent(
+        "Für die Familie papa.muster@example.org ist schon eine andere Nummer gemerkt.",
+      );
       const confirmChoice = screen
         .getAllByRole("button", { name: "Bestätigen" })
         .find((button) => dialog.contains(button))!;

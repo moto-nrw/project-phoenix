@@ -28,6 +28,10 @@ func (h *HolidayContributions) HolidayConfirmationSettings(ctx context.Context, 
 	if err != nil {
 		return parentbilling.HolidayConfirmationSettings{}, err
 	}
+	format, err := debtorNumberFormatOf(ctx, h.settings, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.HolidayConfirmationSettings{}, err
+	}
 	bearers, err := h.store.ListCostBearers(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return parentbilling.HolidayConfirmationSettings{}, fmt.Errorf("parent billing: list cost bearers: %w", err)
@@ -38,7 +42,7 @@ func (h *HolidayContributions) HolidayConfirmationSettings(ctx context.Context, 
 			active = append(active, parentbilling.CostBearerChoice{ID: bearer.ID, Name: bearer.Name})
 		}
 	}
-	return parentbilling.HolidayConfirmationSettings{DebtorNumberRequired: required, CostBearers: active}, nil
+	return parentbilling.HolidayConfirmationSettings{DebtorNumberRequired: required, DebtorNumberFormat: format, CostBearers: active}, nil
 }
 
 // ChangeHolidayDebtorNumber changes the debtor number of a confirmed
@@ -54,7 +58,7 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	if err := validFamilyChoice(familyChoice); err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
 	}
-	debtorNumber, err := debtorNumberOf(debtorNumber)
+	debtorNumber, err := h.debtorNumberOf(ctx, reviewer.OrganizationID, debtorNumber)
 	if err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
 	}
@@ -84,7 +88,7 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	// registration leaves the family's.
 	if registration.DebtorNumber != "" {
 		number := registration.DebtorNumber
-		if err := h.rememberFamilies(ctx, reviewer, holders, &number, familyChoice); err != nil {
+		if err := h.rememberFamilies(ctx, reviewer, holders, &number, familyChoice, registration.DebtorNumberBefore); err != nil {
 			return parentbilling.HolidayDebtorNumber{}, err
 		}
 	}

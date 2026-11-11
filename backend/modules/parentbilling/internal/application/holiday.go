@@ -186,7 +186,7 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	if err := validFamilyChoice(familyChoice); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
-	debtorNumber, err := debtorNumberOf(debtorNumber)
+	debtorNumber, err := h.debtorNumberOf(ctx, reviewer.OrganizationID, debtorNumber)
 	if err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
@@ -216,7 +216,7 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	// took it (#6692); the caller rolls everything back on a conflict.
 	number := registration.DebtorNumber
 	if err := h.rememberFamilies(ctx, reviewer, slices.Concat([]parentbilling.HolidayRegistration{registration}, confirmedSharers(others, issued)),
-		&number, familyChoice); err != nil {
+		&number, familyChoice, ""); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
 	frozen, found, err := h.store.HolidayContributions(ctx, reviewer.OrganizationID, registration.ID)

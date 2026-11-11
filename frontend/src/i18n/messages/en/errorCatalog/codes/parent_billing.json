@@ -27,6 +27,8 @@
   "cost_bearer_not_found": "{object} could not be changed. Please check its current status.",
   "cost_takeover_with_exemption": "{object} could not be changed. Please check its current status.",
   "debtor_number_invalid": "{object} could not be saved. Please check your entries.",
+  "debtor_number_digits": "The debtor number has {digits} digits, for example {example}.",
+  "debtor_number_digit_range": "The debtor number has {min_digits} to {max_digits} digits, for example {example}.",
   "family_debtor_number_conflict": "The family already has the debtor number {family_debtor_number}. Please choose which number applies.",
   "debtor_number_locked": "{object} could not be changed. Please check its current status.",
   "family_not_found": "{object} could not be changed. Please check its current status.",

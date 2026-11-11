@@ -42,9 +42,9 @@ func NewParentDocuments() *application.ParentDocuments {
 	return application.NewParentDocuments(postgres.NewStore())
 }
 
-// NewBillingFamilies builds the invoices and amounts per family (#4691) and the finance exports with their protocol (#4693), whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
-func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
-	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
+// NewBillingFamilies builds the invoices and amounts per family (#4691), checking a debtor number in the format of the Träger (#6675), and the finance exports with their protocol (#4693), whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
+func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools, formats parentbilling.DebtorNumberFormats) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
+	return application.NewBillingFamilies(postgres.NewStore(), formats), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
 }
 
 // MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686) and the discard of an empty open run (#6626).
@@ -65,9 +65,9 @@ func NewCareLetters(letterheads parentbilling.BillingLetterheads, contracts pare
 	return application.NewCareLetters(postgres.NewStore(), ports, rendering.NewRenderer(), rendering.NewRenderer(), calendar.TodayDate)
 }
 
-// NewBillingTerms builds the payment terms, the bundling, the family deviations and the due dates of the runs (#4689) over the contracts the root binds, and the DATEV booking batch of both payment methods (#4694) over the DATEV settings of the Träger.
-func NewBillingTerms(contracts parentbilling.CareContracts, datev parentbilling.DatevBillingSettings) (parentbilling.BillingTerms, parentbilling.DatevExport) {
-	return application.NewBillingTerms(postgres.NewStore(), contracts), application.NewDatevExport(datev, calendar.TodayDate, calendar.Now)
+// NewBillingTerms builds the payment terms, the bundling, the family deviations with the debtor number in the format of the Träger (#6675) and the due dates of the runs (#4689) over the contracts the root binds, and the DATEV booking batch of both payment methods (#4694) over the DATEV settings of the Träger.
+func NewBillingTerms(contracts parentbilling.CareContracts, datev parentbilling.DatevBillingSettings, formats parentbilling.DebtorNumberFormats) (parentbilling.BillingTerms, parentbilling.DatevExport) {
+	return application.NewBillingTerms(postgres.NewStore(), contracts, formats), application.NewDatevExport(datev, calendar.TodayDate, calendar.Now)
 }
 
 // NewCareFeeNotices builds the Jahresbescheide of the monthly care (#6219, ADR 0182) over the monthly computation and the letterhead of the Träger, which carries the template of the fee notice; the root binds the ports.
@@ -82,8 +82,8 @@ func NewCareNoticeLetters(letterheads parentbilling.BillingLetterheads, contract
 }
 
 // NewSEPAMandates builds the SEPA mandates and the creditor of the Träger (#4695, ADR 0171) over the contracts and the field cipher the root binds.
-func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher) parentbilling.SEPAMandates {
-	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)
+func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher, formats parentbilling.DebtorNumberFormats) parentbilling.SEPAMandates {
+	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, formats, calendar.TodayDate)
 }
 
 // NewSEPAExportFields opens the sealed IBAN, account holder and mandate text for the return export of a Träger (#3838, #6412); only the administrative export CLI binds it, never HTTP.

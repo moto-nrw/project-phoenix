@@ -27,6 +27,8 @@
   "cost_bearer_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "cost_takeover_with_exemption": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "debtor_number_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "debtor_number_digits": "Номер дебітора має {digits} цифр, наприклад {example}.",
+  "debtor_number_digit_range": "Номер дебітора має від {min_digits} до {max_digits} цифр, наприклад {example}.",
   "family_debtor_number_conflict": "Сім'я вже має номер дебітора {family_debtor_number}. Виберіть, який номер діє.",
   "debtor_number_locked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "family_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",

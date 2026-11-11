@@ -425,6 +425,38 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "binding_digest": "bccd00ba0a2f1885af1ad5835f726bb3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "binding_digest": "b018d1684e50924c96d0b046a495a57b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "binding_digest": "bccd00ba0a2f1885af1ad5835f726bb3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "binding_digest": "b018d1684e50924c96d0b046a495a57b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DebtorNumberFormats.DebtorNumberFormat",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "binding_digest": "e4e8a4e182c95b65aee0af7bee7b381f",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",
@@ -486,6 +518,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "binding_digest": "bccd00ba0a2f1885af1ad5835f726bb3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DebtorNumberFormat",
+      "binding_digest": "b018d1684e50924c96d0b046a495a57b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DebtorNumberFormat",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
       "target_owner": "settings-platform"
     },
     {
@@ -562,7 +610,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
-      "binding_digest": "cac8a11a458ebb7241d568033435478f",
+      "binding_digest": "6251dcd66a12d469f0082f0ac45531d8",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.SetHolidayDebtorNumber",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",

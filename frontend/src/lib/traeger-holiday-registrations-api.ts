@@ -12,6 +12,11 @@ import {
  * here as strings.
  */
 
+import {
+  type BackendDebtorNumberFormat,
+  type DebtorNumberFormat,
+  debtorNumberFormatOf,
+} from "~/lib/debtor-number-format";
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import {
@@ -1042,6 +1047,8 @@ export interface CostBearerChoice {
 export interface HolidayConfirmationSettings {
   /** The Träger asks for the debtor number of the family. */
   readonly debtorNumberRequired: boolean;
+  /** The format the number must have (#6675); none without the setting. */
+  readonly debtorNumberFormat?: DebtorNumberFormat;
   /** The active cost bearers of the Träger, by name (#5627). */
   readonly costBearers?: readonly CostBearerChoice[];
 }
@@ -1049,10 +1056,12 @@ export interface HolidayConfirmationSettings {
 export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
   const settings = await traegerRequest<{
     debtor_number_required: boolean;
+    debtor_number_format?: BackendDebtorNumberFormat | null;
     cost_bearers?: { id: number; name: string }[] | null;
   }>("/api/traeger/holiday-contributions/confirmation-settings");
   return {
     debtorNumberRequired: settings.debtor_number_required,
+    debtorNumberFormat: debtorNumberFormatOf(settings.debtor_number_format),
     costBearers: (settings.cost_bearers ?? []).map((bearer) => ({
       id: String(bearer.id),
       name: bearer.name,

@@ -1,6 +1,7 @@
 package parentbilling
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -33,17 +34,89 @@ const MaxDebtorNumberLength = 35
 // NormalizeDebtorNumber is the one check of a debtor number the Träger
 // enters, at a family, at a confirmation and at a change of a holiday
 // registration: trimmed, at most MaxDebtorNumberLength characters, one
-// line. An empty result means none. The format check of the finance
-// system (#6675) extends this function.
-func NormalizeDebtorNumber(raw string) (string, error) {
+// line, and in the format of the Träger's finance system (#6675). An empty
+// result means none; the format applies only to a number. A number in
+// another format is a DebtorNumberFormatError. Stored numbers are never
+// checked again: only what the office enters passes here.
+func NormalizeDebtorNumber(raw string, format DebtorNumberFormat) (string, error) {
 	number := strings.TrimSpace(raw)
 	switch {
-	case strings.ContainsAny(number, "\r\n\v\f\u0085  "):
+	case strings.ContainsAny(number, "\r\n\v\f\u0085\u2028\u2029"):
 		return "", fmt.Errorf("must be one line")
 	case utf8.RuneCountInString(number) > MaxDebtorNumberLength:
 		return "", fmt.Errorf("must be at most %d characters", MaxDebtorNumberLength)
+	case number != "" && !format.Admits(number):
+		return "", &DebtorNumberFormatError{Format: format}
 	}
 	return number, nil
+}
+
+// DebtorNumberFormat is the format of a debtor number in the finance system
+// of a Träger (#6675): with DigitsOnly, only the digits 0 to 9 and between
+// MinDigits and MaxDigits of them. The zero value admits every number.
+type DebtorNumberFormat struct {
+	DigitsOnly bool `json:"digits_only"`
+	MinDigits  int  `json:"min_digits"`
+	MaxDigits  int  `json:"max_digits"`
+}
+
+// NewDebtorNumberFormat builds the format from the Träger's three settings.
+// The two lengths are saved one after the other, so they count in either
+// order; each is held within 1 and MaxDebtorNumberLength. Off has no
+// lengths.
+func NewDebtorNumberFormat(digitsOnly bool, first, second int) DebtorNumberFormat {
+	if !digitsOnly {
+		return DebtorNumberFormat{}
+	}
+	low, high := min(first, second), max(first, second)
+	return DebtorNumberFormat{DigitsOnly: true, MinDigits: max(1, min(low, MaxDebtorNumberLength)),
+		MaxDigits: max(1, min(high, MaxDebtorNumberLength))}
+}
+
+// Admits reports whether number has the format.
+func (f DebtorNumberFormat) Admits(number string) bool {
+	if !f.DigitsOnly {
+		return true
+	}
+	if len(number) < f.MinDigits || len(number) > f.MaxDigits {
+		return false
+	}
+	for _, digit := range number {
+		if digit < '0' || digit > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// exampleDigits are the digits an example number takes from the front.
+const exampleDigits = "20815471136925814703692581470369258"
+
+// Example is a number in the format, as the office reads it in a hint or a
+// refusal: five digits where the lengths allow it, else the nearest length.
+// Without a format it is empty.
+func (f DebtorNumberFormat) Example() string {
+	if !f.DigitsOnly {
+		return ""
+	}
+	return exampleDigits[:max(f.MinDigits, min(5, f.MaxDigits))]
+}
+
+// DebtorNumberFormatError refuses a number in another format than the one
+// of the Träger, naming the format so the refusal can say what it expects.
+type DebtorNumberFormatError struct {
+	Format DebtorNumberFormat
+}
+
+func (e *DebtorNumberFormatError) Error() string {
+	return fmt.Sprintf("must have %d to %d digits and nothing else", e.Format.MinDigits, e.Format.MaxDigits)
+}
+
+// DebtorNumberFormats reads the format of a Träger's debtor numbers: its
+// values of the parent_billing.debtor_number_* settings or their defaults.
+// It joins the caller's Träger transaction.
+type DebtorNumberFormats interface {
+	DebtorNumberFormat(ctx context.Context, organizationID int64) (DebtorNumberFormat, error)
 }
 
 // Which number applies when the number entered at a holiday registration
@@ -62,6 +135,9 @@ const (
 // the family has, as long as the Träger-Büro has not said which applies. It
 // names both, so the office can choose.
 type FamilyDebtorNumberConflict struct {
+	// FamilyEmail is the family whose number differs: the family of the
+	// registration or, in a sibling group, the family of a sibling.
+	FamilyEmail        string
 	FamilyDebtorNumber string
 	DebtorNumber       string
 }

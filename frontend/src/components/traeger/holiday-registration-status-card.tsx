@@ -21,12 +21,13 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
-import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
 import {
+  DEBTOR_NUMBER_TEXT_CLASS,
+  DebtorNumberInput,
   FamilyDebtorNumberConflictDialog,
   FamilyDebtorNumberHint,
 } from "~/components/traeger/family-debtor-number";
@@ -35,6 +36,11 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import {
+  type DebtorNumberFormat,
+  NO_DEBTOR_NUMBER_FORMAT,
+  debtorNumberFormatError,
+} from "~/lib/debtor-number-format";
 import { createLogger } from "~/lib/logger";
 import { traegerPath } from "~/lib/traeger-url";
 import {
@@ -101,8 +107,21 @@ function benefitsText(
 const DEBTOR_NUMBER_HINT =
   "Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.";
 
-/** The longest debtor number the backend keeps (#5621). */
-const DEBTOR_NUMBER_MAX_LENGTH = 35;
+/**
+ * The field hints of a number the form refuses before it asks the backend:
+ * none where the Träger wants one (#5621), another format (#6675).
+ */
+function debtorNumberHints(
+  value: string,
+  required: boolean,
+  format: DebtorNumberFormat,
+): Record<string, string> | null {
+  if (required && !value.trim()) {
+    return { debtor_number: "Bitte geben Sie die Debitorennummer ein." };
+  }
+  const formatError = debtorNumberFormatError(value, format);
+  return formatError ? { debtor_number: formatError } : null;
+}
 
 /** What the card says about the debtor number, before and after the invoice. */
 function debtorNumberText(set: boolean, invoiced: boolean): string {
@@ -128,6 +147,7 @@ function DebtorNumberField({
   debtorNumber,
   familyNumber,
   required,
+  format,
   invoiced,
   editing,
   onEditingChange,
@@ -139,6 +159,8 @@ function DebtorNumberField({
   /** The number the family has at the Träger (#6692); "" for none. */
   familyNumber: string;
   required: boolean;
+  /** The format of the Träger's numbers (#6675). */
+  format: DebtorNumberFormat;
   invoiced: boolean;
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
@@ -165,10 +187,9 @@ function DebtorNumberField({
   const submit = async (choice?: FamilyDebtorNumberChoice) => {
     if (saving) return;
     formErrors.clear();
-    if (required && !value.trim()) {
-      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
-        debtor_number: "Bitte geben Sie die Debitorennummer ein.",
-      });
+    const hints = debtorNumberHints(value, required, format);
+    if (hints) {
+      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", hints);
       return;
     }
     setSaving(true);
@@ -212,20 +233,21 @@ function DebtorNumberField({
         }}
       >
         <FormErrorAlert message={formErrors.error} />
-        <div className="sm:max-w-md">
-          <Input
-            ref={fieldRef}
+        <div className="sm:max-w-xl">
+          <DebtorNumberInput
+            inputRef={fieldRef}
             id="holiday-debtor-number"
-            name="debtor_number"
-            label="Debitorennummer"
             required={required}
-            autoComplete="off"
-            controlSize="compact"
-            maxLength={DEBTOR_NUMBER_MAX_LENGTH}
+            format={format}
             value={value}
-            aria-describedby="holiday-debtor-number-family holiday-debtor-number-hint"
+            hint={DEBTOR_NUMBER_HINT}
+            describedBy={
+              familyNumber && value.trim() !== familyNumber
+                ? "holiday-debtor-number-family"
+                : undefined
+            }
             error={formErrors.fieldError("debtor_number") ?? undefined}
-            onChange={(event) => setValue(event.target.value)}
+            onChange={setValue}
           />
           <FamilyDebtorNumberHint
             id="holiday-debtor-number-family"
@@ -236,12 +258,6 @@ function DebtorNumberField({
               fieldRef.current?.focus();
             }}
           />
-          <p
-            id="holiday-debtor-number-hint"
-            className="mt-1 text-xs text-gray-600"
-          >
-            {DEBTOR_NUMBER_HINT}
-          </p>
         </div>
         <EditActions
           onCancel={() => onEditingChange(false)}
@@ -265,7 +281,9 @@ function DebtorNumberField({
       <DataGrid columns={2}>
         <DataField label="Debitorennummer">
           {debtorNumber ? (
-            <span className="font-mono wrap-anywhere">{debtorNumber}</span>
+            <span className={`wrap-anywhere ${DEBTOR_NUMBER_TEXT_CLASS}`}>
+              {debtorNumber}
+            </span>
           ) : (
             "Noch keine Nummer."
           )}
@@ -328,7 +346,7 @@ function PayerChoice({
       <legend className="mb-2 text-sm font-medium text-gray-700">
         Wer bezahlt den Beitrag?
       </legend>
-      <div className="flex flex-col gap-2 sm:max-w-md">
+      <div className="flex flex-col gap-2 sm:max-w-xl">
         {options.map((option) => {
           const id = `holiday-registration-payer-${option.value}`;
           return (
@@ -390,6 +408,7 @@ export function HolidayRegistrationStatusCard({
   contribution,
   previewPending = false,
   debtorNumberRequired = false,
+  debtorNumberFormat = NO_DEBTOR_NUMBER_FORMAT,
   familyDebtorNumber = "",
   exemption,
   onExemptionChange,
@@ -409,6 +428,8 @@ export function HolidayRegistrationStatusCard({
   previewPending?: boolean;
   /** The Träger asks for the debtor number at the confirmation (#5621). */
   debtorNumberRequired?: boolean;
+  /** The format of the Träger's debtor numbers (#6675). */
+  debtorNumberFormat?: DebtorNumberFormat;
   /**
    * The number the family already has at the Träger (#6692), proposed at the
    * field; "" for none.
@@ -487,10 +508,13 @@ export function HolidayRegistrationStatusCard({
   const confirm = async (choice?: FamilyDebtorNumberChoice) => {
     if (confirmBlocked) return;
     confirmErrors.clear();
-    if (debtorNumberRequired && !debtorNumber.trim()) {
-      confirmErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
-        debtor_number: "Bitte geben Sie die Debitorennummer ein.",
-      });
+    const hints = debtorNumberHints(
+      debtorNumber,
+      debtorNumberRequired,
+      debtorNumberFormat,
+    );
+    if (hints) {
+      confirmErrors.invalid("Bitte prüfen Sie Ihre Angaben.", hints);
       return;
     }
     setRunning("confirm");
@@ -682,20 +706,22 @@ export function HolidayRegistrationStatusCard({
           >
             <FormErrorAlert message={confirmErrors.error} />
             {asksDebtorNumber ? (
-              <div className="sm:max-w-md">
-                <Input
-                  ref={confirmFieldRef}
+              <div className="sm:max-w-xl">
+                <DebtorNumberInput
+                  inputRef={confirmFieldRef}
                   id="holiday-registration-debtor-number"
-                  name="debtor_number"
-                  label="Debitorennummer"
                   required={debtorNumberRequired}
-                  autoComplete="off"
-                  controlSize="compact"
-                  maxLength={DEBTOR_NUMBER_MAX_LENGTH}
+                  format={debtorNumberFormat}
                   value={debtorNumber}
-                  aria-describedby="holiday-registration-debtor-number-family holiday-registration-debtor-number-hint"
+                  hint={DEBTOR_NUMBER_HINT}
+                  describedBy={
+                    familyDebtorNumber &&
+                    debtorNumber.trim() !== familyDebtorNumber
+                      ? "holiday-registration-debtor-number-family"
+                      : undefined
+                  }
                   error={confirmErrors.fieldError("debtor_number") ?? undefined}
-                  onChange={(event) => setDebtorNumber(event.target.value)}
+                  onChange={setDebtorNumber}
                 />
                 <FamilyDebtorNumberHint
                   id="holiday-registration-debtor-number-family"
@@ -706,12 +732,6 @@ export function HolidayRegistrationStatusCard({
                     confirmFieldRef.current?.focus();
                   }}
                 />
-                <p
-                  id="holiday-registration-debtor-number-hint"
-                  className="mt-1 text-xs text-gray-600"
-                >
-                  {DEBTOR_NUMBER_HINT}
-                </p>
               </div>
             ) : null}
           </form>
@@ -723,6 +743,7 @@ export function HolidayRegistrationStatusCard({
             debtorNumber={registration.debtorNumber}
             familyNumber={familyDebtorNumber}
             required={debtorNumberRequired}
+            format={debtorNumberFormat}
             invoiced={invoiced}
             editing={editingDebtorNumber}
             onEditingChange={setEditingDebtorNumber}

@@ -980,6 +980,10 @@ export const ERROR_CATALOG = {
         "Alle Buchungen dieses Laufs sind schon in einer DATEV-Datei. Es wurde keine Datei erstellt.",
       "parent_billing.datev_not_ready":
         "Für die DATEV-Datei fehlen noch Werte. Tragen Sie sie in den Einstellungen unter „DATEV“ ein.",
+      "parent_billing.debtor_number_digit_range":
+        "Die Debitorennummer hat {min_digits} bis {max_digits} Ziffern, zum Beispiel {example}.",
+      "parent_billing.debtor_number_digits":
+        "Die Debitorennummer hat {digits} Ziffern, zum Beispiel {example}.",
       "parent_billing.debtor_number_invalid":
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
@@ -2429,6 +2433,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "The debtor number has {min_digits} to {max_digits} digits, for example {example}.",
+      "parent_billing.debtor_number_digits":
+        "The debtor number has {digits} digits, for example {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -3062,6 +3070,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Номер дебитора состоит из {min_digits}–{max_digits} цифр, например {example}.",
+      "parent_billing.debtor_number_digits":
+        "Номер дебитора состоит из {digits} цифр, например {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -3641,6 +3653,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Numri i debitorit ka {min_digits} deri {max_digits} shifra, për shembull {example}.",
+      "parent_billing.debtor_number_digits":
+        "Numri i debitorit ka {digits} shifra, për shembull {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4208,6 +4224,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Numer dłużnika ma od {min_digits} do {max_digits} cyfr, na przykład {example}.",
+      "parent_billing.debtor_number_digits":
+        "Numer dłużnika ma {digits} cyfr, na przykład {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4780,6 +4800,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Borçlu numarası {min_digits} ile {max_digits} arasında rakamdan oluşur, örneğin {example}.",
+      "parent_billing.debtor_number_digits":
+        "Borçlu numarası {digits} rakamdan oluşur, örneğin {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -5345,6 +5369,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Номер дебітора має від {min_digits} до {max_digits} цифр, наприклад {example}.",
+      "parent_billing.debtor_number_digits":
+        "Номер дебітора має {digits} цифр, наприклад {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":

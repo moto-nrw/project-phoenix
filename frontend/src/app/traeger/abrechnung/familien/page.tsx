@@ -9,9 +9,10 @@
 // mit dem Recht „Abrechnung“ sieht die Seite. Ein Klick öffnet die Familie.
 // Seit #6692 stehen hier auch Familien, die nur zur Ferienbetreuung
 // angemeldet sind, schon vor der ersten Rechnung. Jede Familie hat ihre
-// Debitorennummer; das Büro ändert sie mit dem Stift in ihrer Zelle.
+// Debitorennummer; das Büro ändert sie mit dem Stift in ihrer Zelle. Die
+// Nummer prüft das Format des Trägers (#6675).
 
-import { Pencil } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -28,7 +29,9 @@ import {
 } from "~/components/traeger/billing-family-format";
 import { paymentMethodsText } from "~/components/traeger/billing-payment-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { DEBTOR_NUMBER_TEXT_CLASS } from "~/components/traeger/family-debtor-number";
 import { FamilyDebtorNumberModal } from "~/components/traeger/family-debtor-number-modal";
+import { useDebtorNumberFormat } from "~/components/traeger/use-debtor-number-format";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -58,6 +61,13 @@ const OPEN_FILTER_LABELS: Record<Exclude<OpenFilter, "">, string> = {
   ausgeglichen: "Ohne offene Forderung",
 };
 
+type NumberFilter = "" | "ohne" | "mit";
+
+const NUMBER_FILTER_LABELS: Record<Exclude<NumberFilter, "">, string> = {
+  ohne: "Ohne Debitorennummer",
+  mit: "Mit Debitorennummer",
+};
+
 function euroCell(cents: number) {
   return cents === 0 ? (
     <span className="text-gray-400 tabular-nums">{formatEuro(0)}</span>
@@ -82,8 +92,10 @@ function otherInvoiceNumbers(family: BillingFamily): string[] {
 
 /**
  * The family's own number with its change button in place (#6692); numbers
- * that only older invoices carry stand below it. The button keeps the row
- * click from opening the family.
+ * that only older invoices carry stand below it. The button sits at the
+ * same place in every row, whatever the length of the number; a family
+ * without a number shows „–“ and „Eintragen“. The button keeps the
+ * row click from opening the family.
  */
 function DebtorCell({
   family,
@@ -94,45 +106,61 @@ function DebtorCell({
 }>) {
   const others = otherInvoiceNumbers(family);
   const name = familyName(family) || family.familyEmail;
-  const label = family.familyDebtorNumber
-    ? `Debitorennummer von ${name} ändern`
-    : `Debitorennummer für ${name} eintragen`;
+  const number = family.familyDebtorNumber;
   return (
-    <span className="flex min-w-0 items-start gap-1">
-      <span className="compact:pt-1 block min-w-0 pt-1.5">
-        {family.familyDebtorNumber ? (
-          <span className="block font-mono text-sm font-medium break-all text-gray-900 tabular-nums">
-            {family.familyDebtorNumber}
+    <span className="block w-full max-w-52 min-w-0">
+      <span className="flex min-w-0 items-center justify-between gap-3">
+        {number ? (
+          <span
+            className={`block min-w-0 text-sm break-all ${DEBTOR_NUMBER_TEXT_CLASS}`}
+          >
+            {number}
           </span>
         ) : (
-          <span className="block text-sm text-gray-500">Keine Nummer</span>
+          <span className="block text-sm text-gray-400">–</span>
         )}
-        {others.length > 0 ? (
-          <span className="mt-0.5 block text-xs whitespace-nowrap text-gray-500">
-            Auf Rechnungen:{" "}
-            <span className="font-mono tabular-nums">{others.join(", ")}</span>
+        <span data-row-control className="shrink-0">
+          {number ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Debitorennummer von ${name} ändern`}
+              tooltip="Debitorennummer ändern"
+              onClick={(event) => {
+                event.stopPropagation();
+                onChange(family);
+              }}
+            >
+              <Pencil aria-hidden="true" className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              aria-label={`Debitorennummer für ${name} eintragen`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onChange(family);
+              }}
+            >
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              Eintragen
+            </Button>
+          )}
+        </span>
+      </span>
+      {others.length > 0 ? (
+        // On a phone the line wraps below the number instead of widening
+        // the cell, so the pencil stays next to the number in every row.
+        <span className="block text-xs text-gray-500 max-sm:w-0 max-sm:min-w-full max-sm:whitespace-nowrap">
+          Auf Rechnungen:{" "}
+          <span className="font-medium text-gray-700 tabular-nums">
+            {others.join(", ")}
           </span>
-        ) : null}
-      </span>
-      <span data-row-control className="shrink-0">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={label}
-          tooltip={
-            family.familyDebtorNumber
-              ? "Debitorennummer ändern"
-              : "Debitorennummer eintragen"
-          }
-          onClick={(event) => {
-            event.stopPropagation();
-            onChange(family);
-          }}
-        >
-          <Pencil aria-hidden="true" className="h-4 w-4" />
-        </Button>
-      </span>
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -255,6 +283,12 @@ function familyColumns(
   ];
 }
 
+function matchesNumberFilter(family: BillingFamily, filter: NumberFilter) {
+  if (filter === "ohne") return !family.familyDebtorNumber;
+  if (filter === "mit") return Boolean(family.familyDebtorNumber);
+  return true;
+}
+
 function matchesOpenFilter(family: BillingFamily, filter: OpenFilter) {
   if (filter === "offen") return family.openCents > 0;
   if (filter === "ausgeglichen") return family.openCents === 0;
@@ -266,7 +300,9 @@ export default function TraegerBillingFamiliesPage() {
   const [families, setFamilies] = useState<BillingFamily[] | null>(null);
   const [search, setSearch] = useState("");
   const [openFilter, setOpenFilter] = useState<OpenFilter>("");
+  const [numberFilter, setNumberFilter] = useState<NumberFilter>("");
   const [changing, setChanging] = useState<BillingFamily | null>(null);
+  const format = useDebtorNumberFormat();
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
@@ -297,13 +333,16 @@ export default function TraegerBillingFamiliesPage() {
   const shown =
     families?.filter(
       (family) =>
-        familyMatches(family, search) && matchesOpenFilter(family, openFilter),
+        familyMatches(family, search) &&
+        matchesOpenFilter(family, openFilter) &&
+        matchesNumberFilter(family, numberFilter),
     ) ?? [];
   const withOpen = families?.filter((family) => family.openCents > 0).length;
   const withoutNumber = families?.filter(
     (family) => !family.familyDebtorNumber,
   ).length;
-  const filtered = search.trim() !== "" || openFilter !== "";
+  const filtered =
+    search.trim() !== "" || openFilter !== "" || numberFilter !== "";
 
   const filters: FilterConfig[] = [
     {
@@ -318,19 +357,43 @@ export default function TraegerBillingFamiliesPage() {
         { value: "ausgeglichen", label: OPEN_FILTER_LABELS.ausgeglichen },
       ],
     },
+    {
+      id: "number",
+      label: "Debitorennummer",
+      type: "dropdown",
+      value: numberFilter,
+      onChange: (value) => setNumberFilter(value as NumberFilter),
+      options: [
+        { value: "", label: "Alle Nummern" },
+        { value: "ohne", label: NUMBER_FILTER_LABELS.ohne },
+        { value: "mit", label: NUMBER_FILTER_LABELS.mit },
+      ],
+    },
   ];
-  const activeFilters: ActiveFilter[] = openFilter
-    ? [
-        {
-          id: "open",
-          label: OPEN_FILTER_LABELS[openFilter],
-          onRemove: () => setOpenFilter(""),
-        },
-      ]
-    : [];
+  const activeFilters: ActiveFilter[] = [
+    ...(openFilter
+      ? [
+          {
+            id: "open",
+            label: OPEN_FILTER_LABELS[openFilter],
+            onRemove: () => setOpenFilter(""),
+          },
+        ]
+      : []),
+    ...(numberFilter
+      ? [
+          {
+            id: "number",
+            label: NUMBER_FILTER_LABELS[numberFilter],
+            onRemove: () => setNumberFilter(""),
+          },
+        ]
+      : []),
+  ];
   const resetFilters = () => {
     setSearch("");
     setOpenFilter("");
+    setNumberFilter("");
   };
 
   return (
@@ -347,7 +410,17 @@ export default function TraegerBillingFamiliesPage() {
                 label: families.length === 1 ? "Familie" : "Familien",
               },
               { value: withOpen ?? 0, label: "mit offener Forderung" },
-              { value: withoutNumber ?? 0, label: "ohne Debitorennummer" },
+              {
+                value: withoutNumber ?? 0,
+                label: "ohne Debitorennummer",
+                // Ein Klick zeigt genau diese Familien (#6675).
+                ...(withoutNumber && numberFilter !== "ohne"
+                  ? {
+                      onSelect: () => setNumberFilter("ohne"),
+                      selectLabel: "Familien ohne Debitorennummer zeigen",
+                    }
+                  : {}),
+              },
             ]}
           />
         ) : null
@@ -360,12 +433,16 @@ export default function TraegerBillingFamiliesPage() {
       }}
       filters={filters}
       activeFilters={activeFilters}
-      onClearAllFilters={() => setOpenFilter("")}
+      onClearAllFilters={() => {
+        setOpenFilter("");
+        setNumberFilter("");
+      }}
       error={pageLoad.error}
       loading={!pageLoad.error && !families}
       overlays={
         <FamilyDebtorNumberModal
           family={changing}
+          format={format}
           onClose={() => setChanging(null)}
           onSaved={load}
         />

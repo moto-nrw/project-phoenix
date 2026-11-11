@@ -366,28 +366,61 @@ const MAX_STATS_ITEMS = 3;
 export function TenantPageStats({
   items,
 }: Readonly<{
-  items: readonly { readonly value: ReactNode; readonly label: string }[];
+  items: readonly {
+    readonly value: ReactNode;
+    readonly label: string;
+    /**
+     * Filtert die Seite auf genau diese Zahl („0 ohne Debitorennummer“).
+     * Nur, wo die Seite den passenden Filter hat; das Paar wird dann ein
+     * Textknopf, der Rest der Zeile bleibt Anzeige.
+     */
+    readonly onSelect?: () => void;
+    /** Was der Knopf tut, etwa „Familien ohne Debitorennummer zeigen“. */
+    readonly selectLabel?: string;
+  }[];
 }>) {
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-      {items.slice(0, MAX_STATS_ITEMS).map((item, index) => (
-        // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
-        // die Position macht den Schlüssel eindeutig.
-        <span
-          key={`${index}-${item.label}`}
-          className="inline-flex items-center gap-1.5"
-        >
-          {index > 0 && (
-            <span aria-hidden="true" className="text-gray-300">
-              ·
+      {items.slice(0, MAX_STATS_ITEMS).map((item, index) => {
+        const pair = (
+          <>
+            <span className="font-medium text-gray-900 tabular-nums">
+              {item.value}
             </span>
-          )}
-          <span className="font-medium text-gray-900 tabular-nums">
-            {item.value}
+            <span>{item.label}</span>
+          </>
+        );
+        return (
+          // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
+          // die Position macht den Schlüssel eindeutig.
+          <span
+            key={`${index}-${item.label}`}
+            className="inline-flex items-center gap-1.5"
+          >
+            {index > 0 && (
+              <span aria-hidden="true" className="text-gray-300">
+                ·
+              </span>
+            )}
+            {item.onSelect ? (
+              <Button
+                type="button"
+                variant="link"
+                size="md"
+                // Unterstrichen auch ohne Maus: sonst liest sich der Knopf
+                // wie die übrigen Zahlen der Zeile, die nur Anzeige sind.
+                className="gap-1.5 underline decoration-gray-300 underline-offset-4"
+                aria-label={item.selectLabel}
+                onClick={item.onSelect}
+              >
+                {pair}
+              </Button>
+            ) : (
+              pair
+            )}
           </span>
-          <span>{item.label}</span>
-        </span>
-      ))}
+        );
+      })}
     </span>
   );
 }

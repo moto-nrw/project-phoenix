@@ -37,17 +37,19 @@ type FamilyStore interface {
 
 // BillingFamilies serves parentbilling.BillingFamilies (#4691).
 type BillingFamilies struct {
-	store FamilyStore
+	store   FamilyStore
+	formats parentbilling.DebtorNumberFormats
 }
 
 var _ parentbilling.BillingFamilies = (*BillingFamilies)(nil)
 
-// NewBillingFamilies builds the view of the families.
-func NewBillingFamilies(store FamilyStore) *BillingFamilies {
-	if store == nil {
-		panic("parent billing: the store is required")
+// NewBillingFamilies builds the view of the families over the format of the
+// Träger's debtor numbers (#6675).
+func NewBillingFamilies(store FamilyStore, formats parentbilling.DebtorNumberFormats) *BillingFamilies {
+	if store == nil || formats == nil {
+		panic("parent billing: the store and the debtor number format are required")
 	}
-	return &BillingFamilies{store: store}
+	return &BillingFamilies{store: store, formats: formats}
 }
 
 // ListBillingFamilies lists the families of the Träger by name and records

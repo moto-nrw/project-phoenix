@@ -23,13 +23,18 @@ import (
 //     registration with another number, opens the dialog „Welche
 //     Debitorennummer gilt?“.
 //
+// The numbers have five digits, as the finance system of Bissendorf keeps
+// them; after the siblings' confirmation the demo Träger allows only that
+// format (#6675, seedDebtorNumberFormat). The siblings keep their number in
+// the old format, which shows that a stored number stays as it is.
+//
 // A family is known to the list only once a registration of it is
 // confirmed or a document names it, so the list sets a number after the
 // confirmation.
 const (
-	seedFamilyDebtorNumber         = "20 815"
-	seedConflictRegistrationNumber = "30 100"
-	seedConflictFamilyDebtorNumber = "30 101"
+	seedFamilyDebtorNumber         = "20815"
+	seedConflictRegistrationNumber = "30100"
+	seedConflictFamilyDebtorNumber = "30101"
 )
 
 // seedSiblingsConfirmation confirms the siblings with their number. The
@@ -106,3 +111,29 @@ func seedHolidayFamilyRegistration(rt *Runtime, token string, registration map[s
 	}
 	return id, false, nil
 }
+
+// seedDebtorNumberFormat switches the demo Träger to the format of
+// Bissendorf (#6675): debtor numbers of exactly five digits. It comes after
+// the siblings' confirmation, so their number "10 4711" stays in the old
+// format and shows that stored numbers are never changed.
+func seedDebtorNumberFormat(rt *Runtime, auth AuthRef) error {
+	for _, setting := range []struct {
+		key   string
+		value any
+	}{
+		{seedDebtorNumberDigitsOnlyKey, true}, {seedDebtorNumberMinDigitsKey, 5}, {seedDebtorNumberMaxDigitsKey, 5},
+	} {
+		if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+setting.key, map[string]any{"value": setting.value}); err != nil {
+			return fmt.Errorf("set the format of the debtor number: %w", err)
+		}
+	}
+	fmt.Println("  Träger-Büro: debtor numbers have five digits from now on")
+	return nil
+}
+
+// The settings of the format of a debtor number (#6675).
+const (
+	seedDebtorNumberDigitsOnlyKey = "parent_billing.debtor_number_digits_only"
+	seedDebtorNumberMinDigitsKey  = "parent_billing.debtor_number_min_digits"
+	seedDebtorNumberMaxDigitsKey  = "parent_billing.debtor_number_max_digits"
+)

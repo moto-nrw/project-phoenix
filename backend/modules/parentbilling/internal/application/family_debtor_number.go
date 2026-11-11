@@ -36,14 +36,43 @@ type FamilyMemoryStore interface {
 }
 
 // debtorNumberOf checks a debtor number the office entered through the one
-// rule of the Elternabrechnung (#6675 extends it) as a validation error on
-// debtor_number.
-func debtorNumberOf(raw string) (string, error) {
-	number, err := parentbilling.NormalizeDebtorNumber(raw)
+// rule of the Elternabrechnung, in the format of the Träger (#6675), as a
+// validation error on debtor_number. A number in another format stays a
+// DebtorNumberFormatError inside it, so the refusal names the format.
+func debtorNumberOf(raw string, format parentbilling.DebtorNumberFormat) (string, error) {
+	number, err := parentbilling.NormalizeDebtorNumber(raw, format)
 	if err != nil {
 		return "", validation.Errors{"debtor_number": err}
 	}
 	return number, nil
+}
+
+// debtorNumberFormatOf reads the format of the Träger's debtor numbers.
+func debtorNumberFormatOf(ctx context.Context, formats parentbilling.DebtorNumberFormats, organizationID int64) (parentbilling.DebtorNumberFormat, error) {
+	format, err := formats.DebtorNumberFormat(ctx, organizationID)
+	if err != nil {
+		return parentbilling.DebtorNumberFormat{}, fmt.Errorf("parent billing: read the format of the debtor number: %w", err)
+	}
+	return format, nil
+}
+
+// debtorNumberOf checks a number entered at a holiday registration in the
+// format of the reviewer's Träger.
+func (h *HolidayContributions) debtorNumberOf(ctx context.Context, organizationID int64, raw string) (string, error) {
+	format, err := debtorNumberFormatOf(ctx, h.settings, organizationID)
+	if err != nil {
+		return "", err
+	}
+	return debtorNumberOf(raw, format)
+}
+
+// DebtorNumberFormat answers the format of the Träger's debtor numbers, so
+// the list of families and the form of a family can name it (#6675).
+func (f *BillingFamilies) DebtorNumberFormat(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.DebtorNumberFormat, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.DebtorNumberFormat{}, err
+	}
+	return debtorNumberFormatOf(ctx, f.formats, reviewer.OrganizationID)
 }
 
 // HolidayFamilyDebtorNumber reads the number the family of the registration
@@ -80,10 +109,12 @@ func (h *HolidayContributions) HolidayFamilyDebtorNumber(ctx context.Context, re
 // the same number. With a number set, a family whose number differs needs
 // the office's choice: FamilyDebtorNumberKeep leaves the family's number,
 // FamilyDebtorNumberReplace takes the new one, no choice is a
-// FamilyDebtorNumberConflict. The rows are held first, so two confirmations
-// of a family decide one after the other.
+// FamilyDebtorNumberConflict. A family whose number is corrected, the
+// previous number of a changed registration, takes the correction without
+// a choice: it had the number from this registration. The rows are held
+// first, so two confirmations of a family decide one after the other.
 func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer, registrations []parentbilling.HolidayRegistration,
-	number *string, choice string,
+	number *string, choice, corrected string,
 ) error {
 	memories := familyMemories(registrations, number, calendar.TodayDate())
 	if len(memories) == 0 {
@@ -95,7 +126,7 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 	}
 	if number != nil && *number != "" {
 		for _, family := range held {
-			if family.DebtorNumber == "" || family.DebtorNumber == *number {
+			if family.DebtorNumber == "" || family.DebtorNumber == *number || family.DebtorNumber == corrected {
 				continue
 			}
 			switch choice {
@@ -104,7 +135,8 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 				at := slices.IndexFunc(memories, func(memory parentbilling.FamilyMemory) bool { return memory.FamilyEmail == family.FamilyEmail })
 				memories[at].DebtorNumber = nil
 			default:
-				return &parentbilling.FamilyDebtorNumberConflict{FamilyDebtorNumber: family.DebtorNumber, DebtorNumber: *number}
+				return &parentbilling.FamilyDebtorNumberConflict{FamilyEmail: family.FamilyEmail, FamilyDebtorNumber: family.DebtorNumber,
+					DebtorNumber: *number}
 			}
 		}
 	}
@@ -199,7 +231,11 @@ func (f *BillingFamilies) SetFamilyDebtorNumber(ctx context.Context, reviewer pa
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.FamilyDebtorNumber{}, err
 	}
-	number, err := debtorNumberOf(input.DebtorNumber)
+	format, err := debtorNumberFormatOf(ctx, f.formats, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.FamilyDebtorNumber{}, err
+	}
+	number, err := debtorNumberOf(input.DebtorNumber, format)
 	if err != nil {
 		return parentbilling.FamilyDebtorNumber{}, err
 	}

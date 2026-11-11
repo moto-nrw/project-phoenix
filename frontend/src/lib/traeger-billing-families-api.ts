@@ -7,6 +7,11 @@
  */
 
 import type { BillingDocumentKind } from "./traeger-billing-api";
+import {
+  type BackendDebtorNumberFormat,
+  type DebtorNumberFormat,
+  debtorNumberFormatOf,
+} from "./debtor-number-format";
 import { traegerRequest } from "./traeger-api";
 import type { PaymentMethod } from "./traeger-billing-terms-api";
 
@@ -232,4 +237,16 @@ export async function setFamilyDebtorNumber(
     },
   );
   return saved.debtor_number;
+}
+
+/**
+ * The format of the Träger's debtor numbers (#6675), so a field can name it
+ * and check it before the backend does.
+ */
+export async function fetchDebtorNumberFormat(): Promise<DebtorNumberFormat> {
+  return debtorNumberFormatOf(
+    await traegerRequest<BackendDebtorNumberFormat | null>(
+      `${FAMILIES_PATH}/debtor-number-format`,
+    ),
+  );
 }

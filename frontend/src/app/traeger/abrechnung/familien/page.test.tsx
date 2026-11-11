@@ -4,7 +4,11 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import type { BillingFamily } from "~/lib/traeger-billing-families-api";
 
 const { api, mockPush } = vi.hoisted(() => ({
-  api: { fetchBillingFamilies: vi.fn(), setFamilyDebtorNumber: vi.fn() },
+  api: {
+    fetchBillingFamilies: vi.fn(),
+    setFamilyDebtorNumber: vi.fn(),
+    fetchDebtorNumberFormat: vi.fn(),
+  },
   mockPush: vi.fn(),
 }));
 
@@ -88,6 +92,12 @@ describe("TraegerBillingFamiliesPage", () => {
     api.setFamilyDebtorNumber.mockReset();
     mockPush.mockReset();
     api.fetchBillingFamilies.mockResolvedValue([SCHNEIDER, BERGER]);
+    api.fetchDebtorNumberFormat.mockReset();
+    api.fetchDebtorNumberFormat.mockResolvedValue({
+      digitsOnly: false,
+      minDigits: 0,
+      maxDigits: 0,
+    });
   });
 
   it("lists every family with who pays and its sums", async () => {
@@ -204,5 +214,58 @@ describe("TraegerBillingFamiliesPage", () => {
     await waitFor(() =>
       expect(api.fetchBillingFamilies).toHaveBeenCalledTimes(2),
     );
+  });
+
+  it("offers „Eintragen“ for a family without a number and filters by the count (#6675)", async () => {
+    renderPage();
+
+    await screen.findAllByText("Tom Berger");
+    expect(
+      screen.getAllByRole("button", {
+        name: "Debitorennummer für Tom Berger eintragen",
+      })[0],
+    ).toHaveTextContent("Eintragen");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Familien ohne Debitorennummer zeigen",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryAllByText("Sabine Schneider")).toHaveLength(0),
+    );
+    expect(screen.getAllByText("Tom Berger")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Ohne Debitorennummer")[0]).toBeInTheDocument();
+  });
+
+  it("checks the Träger's format before it saves a number (#6675)", async () => {
+    api.fetchBillingFamilies.mockResolvedValue([MAIER]);
+    api.fetchDebtorNumberFormat.mockResolvedValue({
+      digitsOnly: true,
+      minDigits: 5,
+      maxDigits: 5,
+    });
+    renderPage();
+
+    await screen.findAllByText("Petra Maier");
+    await waitFor(() => expect(api.fetchDebtorNumberFormat).toHaveBeenCalled());
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Debitorennummer von Petra Maier ändern",
+      })[0]!,
+    );
+    const field = await screen.findByLabelText("Debitorennummer");
+    await waitFor(() => expect(field).toHaveAttribute("inputmode", "numeric"));
+    expect(field).toHaveAccessibleDescription(
+      /Die Nummer hat 5 Ziffern, zum Beispiel 20815\./,
+    );
+    fireEvent.change(field, { target: { value: "20 816" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Die Debitorennummer hat 5 Ziffern, zum Beispiel 20815.",
+      ),
+    ).toBeInTheDocument();
+    expect(api.setFamilyDebtorNumber).not.toHaveBeenCalled();
   });
 });

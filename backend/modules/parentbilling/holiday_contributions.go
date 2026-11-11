@@ -272,6 +272,10 @@ type HolidayRegistration struct {
 	SubmittedAt      time.Time
 	BenefitsDeclared bool
 	DebtorNumber     string
+	// DebtorNumberBefore is the number before a change of the number, as
+	// SetHolidayDebtorNumber answers it: the same as DebtorNumber when the
+	// change kept it (#6692, correction of a typo).
+	DebtorNumberBefore string
 	// GuardianFirstName, GuardianLastName and GuardianEmail are the parent
 	// who registered; the mail address is the family (FamilyKey, #6692).
 	GuardianFirstName string
@@ -388,6 +392,9 @@ type HolidayBillingSettings interface {
 	// takes over: its values of parent_billing.sibling_rank and
 	// parent_billing.cost_takeover_order or the defaults (#5664).
 	HolidayChain(ctx context.Context, organizationID int64) (HolidayChainSettings, error)
+	// DebtorNumberFormats is the format of the Träger's debtor numbers
+	// every number the office enters must have (#6675).
+	DebtorNumberFormats
 	// DatevBillingSettings names the standard revenue account the release
 	// copies onto a position without an account of its own (#4821).
 	DatevBillingSettings
@@ -399,6 +406,9 @@ type HolidayConfirmationSettings struct {
 	// DebtorNumberRequired reports that a confirmation needs the debtor
 	// number of the family.
 	DebtorNumberRequired bool `json:"debtor_number_required"`
+	// DebtorNumberFormat is the format the number must have (#6675), so the
+	// field can name it before the office types.
+	DebtorNumberFormat DebtorNumberFormat `json:"debtor_number_format"`
 	// CostBearers are the active cost bearers the Träger-Büro may choose
 	// (#5627), by name; the Träger-Büro needs no right "Abrechnung" for
 	// them.

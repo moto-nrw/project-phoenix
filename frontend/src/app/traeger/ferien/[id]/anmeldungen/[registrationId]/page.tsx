@@ -424,6 +424,7 @@ export default function TraegerHolidayRegistrationPage() {
             contribution={contribution}
             previewPending={previewPending}
             debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
+            debtorNumberFormat={confirmation?.debtorNumberFormat}
             familyDebtorNumber={familyDebtorNumber}
             exemption={exemption}
             onExemptionChange={changeExemption}

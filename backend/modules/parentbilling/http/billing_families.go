@@ -41,6 +41,7 @@ func (rs *BillingFamilyResource) Router(protectedTraegerRoutes func(chi.Router, 
 		billing.Get("/", rs.list)
 		billing.Get("/{id}", rs.detail)
 		billing.Put("/debtor-number", rs.setDebtorNumber)
+		billing.Get("/debtor-number-format", rs.debtorNumberFormat)
 	})
 	return r
 }
@@ -109,8 +110,26 @@ func (rs *BillingFamilyResource) setDebtorNumber(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, saved, "Family debtor number saved successfully")
 }
 
+// debtorNumberFormat answers the format of the Träger's debtor numbers
+// (#6675), so the list and the form of a family can name it.
+func (rs *BillingFamilyResource) debtorNumberFormat(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	format, err := rs.families.DebtorNumberFormat(r.Context(), reviewer)
+	if err != nil {
+		renderFamilyError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, format, "Debtor number format retrieved successfully")
+}
+
 func renderFamilyError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	if renderDebtorNumberFormat(w, r, err) {
+		return
+	}
 	if errors.Is(err, capability.ErrFamilyNotFound) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingFamilyNotFound))
 		return

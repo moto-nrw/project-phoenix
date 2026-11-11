@@ -117,7 +117,8 @@ func TestDifferentNumberNeedsTheChoiceOfTheOffice(t *testing.T) {
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	refusal := decodeProblem(t, rec)
 	assert.Equal(t, common.CodeParentBillingFamilyDebtorNumberConflict, refusal.Code)
-	assert.Equal(t, map[string]any{"family_debtor_number": "10 4711", "debtor_number": "99"}, refusal.Details, "the refusal names both numbers")
+	assert.Equal(t, map[string]any{"family_debtor_number": "10 4711", "debtor_number": "99", "family_email": "eva.muster@example.org"},
+		refusal.Details, "the refusal names both numbers and the family")
 	assert.Equal(t, "received", f.debtorNumberDetail(t, later).Status, "nothing is confirmed without the choice")
 	assert.Zero(t, f.frozenContributions(t, later), "and nothing frozen")
 	assert.Equal(t, "10 4711", f.familyNumber(t, "eva.muster@example.org"))
