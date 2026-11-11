@@ -2,6 +2,7 @@
 
 import { useParentAttachmentLabels } from "~/components/parent/messages/attachment-labels";
 import {
+  attachmentIdArgs,
   guardianMessageAttachments,
   type MessageAttachment,
 } from "~/lib/message-attachments";
@@ -186,7 +187,7 @@ export function ParentGroupThreadView({
         groupThreadId,
         "team",
         clientMessageId,
-        attachments.map((attachment) => attachment.id),
+        ...attachmentIdArgs(attachments),
       );
       attempt.complete(clientMessageId);
       sentFiles.current = [];

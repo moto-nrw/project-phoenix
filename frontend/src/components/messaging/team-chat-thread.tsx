@@ -1,6 +1,9 @@
 "use client";
 
-import type { MessageAttachment } from "~/lib/message-attachments";
+import {
+  attachmentIdArgs,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 
 import { messageKeys } from "~/lib/swr/portal-keys";
@@ -275,7 +278,7 @@ export function TeamChatThread({
           threadID,
           body,
           clientMessageId,
-          attachments.map((attachment) => attachment.id),
+          ...attachmentIdArgs(attachments),
         ),
       // Revalidate stays as a freshness backstop.
       commit: (sent) =>

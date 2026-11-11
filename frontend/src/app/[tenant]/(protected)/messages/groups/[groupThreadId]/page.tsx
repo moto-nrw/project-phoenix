@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  attachmentIdArgs,
   PARENT_MESSAGE_ATTACHMENTS,
   type MessageAttachment,
 } from "~/lib/message-attachments";
@@ -156,7 +157,7 @@ function GroupMessageContent() {
           threadId,
           body,
           clientMessageId,
-          attachments.map((attachment) => attachment.id),
+          ...attachmentIdArgs(attachments),
         ),
       commit: (next) => void mutate(next, { revalidate: false }),
       keepFailed: true,

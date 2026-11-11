@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  attachmentIdArgs,
   PARENT_MESSAGE_ATTACHMENTS,
   type MessageAttachment,
 } from "~/lib/message-attachments";
@@ -426,7 +427,7 @@ function MessageThreadContent() {
           body,
           lastConfirmedId,
           clientMessageId,
-          attachments.map((attachment) => attachment.id),
+          ...attachmentIdArgs(attachments),
         ),
       // The postMessage response carries the rebuilt "current → requested"
       // diff inline on every still-open request (like the GET path), so the

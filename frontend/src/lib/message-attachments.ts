@@ -129,3 +129,15 @@ export async function uploadMessageAttachment(
   }
   return body.data;
 }
+
+/**
+ * Die IDs als letztes Argument eines Sende-Aufrufs: ohne Anhänge entfällt
+ * es, damit eine Nachricht nur mit Text genau wie bisher gesendet wird.
+ */
+export function attachmentIdArgs(
+  attachments: readonly MessageAttachment[],
+): [] | [string[]] {
+  return attachments.length === 0
+    ? []
+    : [attachments.map((attachment) => attachment.id)];
+}

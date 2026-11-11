@@ -8,7 +8,8 @@ import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { RemovableChip } from "~/components/ui/removable-chip";
 import { Textarea } from "~/components/ui/textarea";
-import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiFormError } from "~/contexts/ToastContext";
 import { formatBytes } from "~/lib/files-api";
 import {
   checkAttachmentFiles,
@@ -135,7 +136,8 @@ export function MessageComposer({
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
   const fileInput = useRef<HTMLInputElement>(null);
-  const { show, showMessage } = useApiErrorDisplay();
+  // Eine abgelehnte Datei meldet der Composer selbst, über dem Feld.
+  const attachError = useApiFormError();
 
   // Die Vorschauen gehören dem Composer: beim Verlassen gibt er sie frei.
   useEffect(
@@ -162,7 +164,9 @@ export function MessageComposer({
         pendingRef.current.length,
         files,
       );
-      for (const refusal of refusals) showMessage(refusalText(refusal, labels));
+      const refusal = refusals[0];
+      if (refusal) attachError.invalid(refusalText(refusal, labels));
+      else attachError.clear();
       const added = accepted.map((file): PendingAttachment => {
         pendingSequence += 1;
         return {
@@ -186,11 +190,11 @@ export function MessageComposer({
           })
           .catch((error: unknown) => {
             removePending(item.key);
-            void show(error, { object: labels.fileObject });
+            void attachError.show(error, { object: labels.fileObject });
           });
       }
     },
-    [attachments, labels, removePending, show, showMessage],
+    [attachments, attachError, labels, removePending],
   );
 
   const uploading = pending.some((item) => !item.attachment);
@@ -204,6 +208,7 @@ export function MessageComposer({
     (value.trim().length === 0 && ready.length === 0);
 
   const send = () => {
+    attachError.clear();
     onSend(ready);
     // Die Nachricht trägt die Dateien jetzt; die Vorschauen sind erledigt.
     for (const item of pending) {
@@ -218,6 +223,7 @@ export function MessageComposer({
 
   return (
     <div className="flex flex-col gap-2">
+      <FormErrorAlert message={attachError.error} />
       {pending.length > 0 ? (
         <div className="flex flex-col gap-1.5">
           <ul className="flex flex-wrap gap-2">
@@ -275,7 +281,7 @@ export function MessageComposer({
               accept={MESSAGE_ATTACHMENT_ACCEPT}
               className="sr-only"
               tabIndex={-1}
-              aria-hidden="true"
+              aria-label={labels.attach}
               onChange={(event) => {
                 addFiles(Array.from(event.target.files ?? []));
                 // Dieselbe Datei lässt sich danach erneut wählen.

@@ -2,6 +2,7 @@
 
 import { useParentAttachmentLabels } from "~/components/parent/messages/attachment-labels";
 import {
+  attachmentIdArgs,
   guardianMessageAttachments,
   type MessageAttachment,
 } from "~/lib/message-attachments";
@@ -421,7 +422,7 @@ export function OgsConversation({
           undefined,
           audience,
           clientMessageId,
-          attachments.map((attachment) => attachment.id),
+          ...attachmentIdArgs(attachments),
         ),
       // Claim the token AFTER the POST resolves so this authoritative result
       // wins. A successful send means the thread is loadable, so clear any
