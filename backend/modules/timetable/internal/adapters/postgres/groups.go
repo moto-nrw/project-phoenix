@@ -90,7 +90,9 @@ func (s *Store) FindGroup(ctx context.Context, id int64, lock string) (timetable
 	query := db.NewSelect().Model(&row).ModelTableExpr(`activities.groups AS "group"`).ColumnExpr(`"group".*`).
 		Where(`"group".tenant_id = ?`, tenantID).Where(`"group".id = ?`, id)
 	if lock != "" {
-		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "activities.groups"); err != nil {
+		// An activity's modification check pins its row before the
+		// supervisor writes take their staff rows (#6702).
+		if err := tenant.OrderLock(ctx, tenant.LockReference, "activities.groups"); err != nil {
 			return timetable.Group{}, false, domain.OperationStats{}, err
 		}
 		query = query.For(lock)

@@ -26,11 +26,17 @@ func (s *InstanceLifecycleService) Cancel(ctx context.Context, instanceID int64,
 }
 
 func (s *InstanceLifecycleService) cancel(ctx context.Context, instanceID int64, reason *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {
+	return s.cancelBlock(ctx, instanceID, reason, actorAccountID, true)
+}
+
+// cancelBlock cancels one block; lockStaff is false when the caller already
+// holds the staff rows of every block it cancels (BulkCancelPlanned).
+func (s *InstanceLifecycleService) cancelBlock(ctx context.Context, instanceID int64, reason *string, actorAccountID *int64, lockStaff bool) (*scheduleModel.ActivityInstance, error) {
 	if !s.hasTx(ctx) {
 		var result *scheduleModel.ActivityInstance
 		err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
 			var cancelErr error
-			result, cancelErr = s.cancel(txCtx, instanceID, reason, actorAccountID)
+			result, cancelErr = s.cancelBlock(txCtx, instanceID, reason, actorAccountID, lockStaff)
 			return cancelErr
 		})
 		return result, err
@@ -38,6 +44,11 @@ func (s *InstanceLifecycleService) cancel(ctx context.Context, instanceID int64,
 	instance, err := s.cancellableInstance(ctx, instanceID)
 	if err != nil {
 		return nil, err
+	}
+	if lockStaff {
+		if err := s.lockCancelledBlockStaff(ctx, []cancelledBlock{{id: instance.ID, date: calendar.Date(instance.Date)}}, "cancel instance"); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.lockCancellationState(ctx, instance); err != nil {
 		return nil, err

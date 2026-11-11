@@ -226,7 +226,9 @@ func (s *Service) FindGroupForUpdate(ctx context.Context, id int64) (result time
 	}
 
 	err = s.observeOperation(ctx, "find_group_for_update", func(ctx context.Context, stats *domain.OperationStats) error {
-		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "UPDATE")
+		// NO KEY UPDATE: a supervisor row a concurrent writer inserts takes
+		// a key share on the group and must not wait for this check.
+		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "NO KEY UPDATE")
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr
