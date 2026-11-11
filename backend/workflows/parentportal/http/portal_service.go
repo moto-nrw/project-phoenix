@@ -49,6 +49,11 @@ type PortalService interface {
 	// records each child's read in its school's data access log (#4662).
 	HolidayRegistrationFamily(ctx context.Context, accountID int64, scope parentService.HolidayRegistrationScope) (*parentService.HolidayRegistrationFamily, error)
 
+	// HolidayRegistrationOffers returns the published holiday periods of
+	// the Träger of the account's children whose registration has not
+	// closed, each with the children the account may register (#6671).
+	HolidayRegistrationOffers(ctx context.Context, accountID int64) ([]parentService.HolidayRegistrationOffer, error)
+
 	// ListBillingDocuments lists the documents the Träger of the account's
 	// schools sent to its address, where a relationship grants
 	// parent_portal.enrollments.view at a school of that Träger (#4671).

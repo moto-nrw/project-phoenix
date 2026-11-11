@@ -46,6 +46,8 @@ export const parentKeys = {
   messages: () => "parent-messages",
   groupThreads: () => "parent-group-threads",
   announcements: () => "parent-announcements",
+  /** The holiday periods the start page announces (#6671). */
+  holidayOffers: () => "parent-holiday-offers",
   profile: () => "parent-profile",
   /** The conversation of one child with one audience (#5011, #5200). */
   conversation: (studentId: string, audience: string) =>

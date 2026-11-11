@@ -1,0 +1,7 @@
+{
+  "scenario": "parent.holiday_registrations.growth.mine",
+  "max": 10,
+  "exact": true,
+  "description": "Positive parent-scope HTTP list, N2/N7 published holiday periods of the Träger of a child the account may register; draft, closed period, another Träger's period and an account without the registration right excluded. Includes administrative transaction.",
+  "route": "GET /parent/me/holiday-registrations"
+}

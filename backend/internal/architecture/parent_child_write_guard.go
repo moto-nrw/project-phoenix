@@ -203,6 +203,7 @@ var portClasses = map[string]string{
 	"care.SEPAMandates":                                         "read",
 	"care.SEPAMandates.GrantSEPAMandate":                        "write",
 	"care.SEPAMandates.RevokeSEPAMandate":                       "write",
+	"care.HolidayRegistrationAnnouncements":                     "read",
 	"care.SchoolTraeger":                                        "read",
 	"care.SelfServiceEvents.EmitSelfServicePill":                "write",
 	"care.SelfServiceEvents.WakeChildGuardians":                 "notice",
