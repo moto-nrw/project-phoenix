@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { OccupancyBadges } from "./occupancy-badges";
 
 const meta = {
-  title: "components/ui/planning/OccupancyBadges",
+  title: "components/activities/OccupancyBadges",
   component: OccupancyBadges,
   args: { occupancy: { count: 44, limit: 45 }, nfcEnabled: true },
   decorators: [

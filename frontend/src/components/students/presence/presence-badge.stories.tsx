@@ -5,7 +5,7 @@ import type { StudentLocationContext } from "@/lib/location-helper";
 import { PresenceBadge } from "./presence-badge";
 
 const meta: Meta<typeof PresenceBadge> = {
-  title: "components/ui/PresenceBadge",
+  title: "components/students/presence/PresenceBadge",
   component: PresenceBadge,
 };
 

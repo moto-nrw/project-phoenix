@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { PresenceHint } from "./presence-hint";
 
 const meta = {
-  title: "components/ui/PresenceHint",
+  title: "components/students/presence/PresenceHint",
   component: PresenceHint,
 } satisfies Meta<typeof PresenceHint>;
 
