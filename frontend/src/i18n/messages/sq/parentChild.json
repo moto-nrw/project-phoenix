@@ -46,8 +46,9 @@
   "consents": {
     "title": "Pëlqimet dhe konfirmimet",
     "description": "Këtu shihni pëlqimet për fëmijën tuaj.",
-    "staffDescription": "Vetëm për informacion. Prindërit e ndryshojnë pëlqimin për fotografinë në portalin e prindërve.",
+    "staffDescription": "Prindërit e ndryshojnë pëlqimin për fotografinë në portalin e prindërve. Prindërit pa portal jua thonë juve. Atëherë hiqni shenjën te fotografia nën „Bearbeiten“.",
     "photoDescription": "Këtu mund të ndryshoni pëlqimin për fotografinë.",
+    "photoViaCareDescription": "Për të tërhequr pëlqimin për fotografinë, kontaktoni {careTerm}.",
     "items": {
       "agb": "Kushtet e përgjithshme",
       "data_processing": "Informacioni për privatësinë u pranua",

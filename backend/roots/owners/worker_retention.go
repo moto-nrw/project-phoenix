@@ -298,6 +298,57 @@ func guardianRetentionSteps(guardians guardianRetention, settings settingsModule
 	}}
 }
 
+// studentPhotoCareEndStep ends the photo data of the children whose care is
+// over (#6650): the photo, the photo consent and who recorded it go in the
+// first nightly run after the last care day or the graduation, without a
+// further period. It runs after the deletion of whole children, writes one
+// deletion-log entry per ended child itself and one log line per candidate.
+func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, audit auditModels.Command, logger *slog.Logger) schedulerPorts.RetentionStep {
+	return schedulerPorts.RetentionStep{
+		Kind:         auditModels.DeletionTypeStudentPhotoRetention,
+		LogsSubjects: true,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			result, err := photos.EndStudentPhotosAfterCare(ctx, calendar.TodayDate(), func(ctx context.Context, ended []peopleModule.StudentPhotoCareEnd) error {
+				batch, ok := audit.(interface {
+					AppendAll(context.Context, []any) error
+				})
+				if !ok {
+					return errors.New("student photo retention requires batch audit append")
+				}
+				events := make([]any, 0, len(ended))
+				for _, child := range ended {
+					events = append(events, auditModels.NewStudentPhotoRetentionDeletion(child.TenantID, child.StudentID, child.LastCareDay, child.Graduated, child.PhotoRemoved, child.ConsentEnded))
+				}
+				return batch.AppendAll(ctx, events)
+			})
+			for _, child := range result.Children {
+				outcome := child.Outcome
+				if err != nil {
+					// The step's savepoint rolls back: nothing of this run stays.
+					outcome = "rolled_back"
+				}
+				logger.Info("student photo care end",
+					"tenant_id", tenant.FromContext(ctx),
+					"student_id", child.StudentID,
+					"outcome", outcome,
+				)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: result.Ended}, err
+		},
+	}
+}
+
+// StudentPhotoCareEndOf is People Directory's nightly end of the photos of
+// children whose care is over (#6650), from the directory owner the root
+// built with its photo runtime.
+func StudentPhotoCareEndOf(people peopleModule.Owner) (peopleModule.StudentPhotoCareEndRetention, error) {
+	end, ok := people.(peopleModule.StudentPhotoCareEndRetention)
+	if !ok {
+		return nil, fmt.Errorf("compose student photo care end: people directory %T lacks it", people)
+	}
+	return end, nil
+}
+
 // studentRetentionStep is the automatic deletion of children (#3962). It
 // runs first: the shorter windows of the other steps then apply to the rows
 // of the children that stay (schedulerPorts.RetentionPlan).

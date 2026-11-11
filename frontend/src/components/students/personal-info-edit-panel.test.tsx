@@ -74,15 +74,18 @@ vi.mock("./student-photo-section", () => ({
     onConsentChange,
     onPickPhoto,
     pendingPhotoBlob,
+    uploadsEnabled = true,
   }: {
     consentGiven: boolean;
     onConsentChange: (value: boolean) => void;
     onPickPhoto: (blob: Blob | null) => void;
     pendingPhotoBlob: Blob | null;
+    uploadsEnabled?: boolean;
   }) => (
     <div
       data-testid="photo-section"
       data-pending={pendingPhotoBlob ? "1" : "0"}
+      data-uploads={uploadsEnabled ? "1" : "0"}
     >
       <button
         type="button"
@@ -901,6 +904,43 @@ describe("PersonalInfoEditPanel", () => {
         />,
       );
       expect(screen.getByTestId("photo-section")).toBeInTheDocument();
+    });
+
+    it("lets staff remove a standing consent while photos are off (#6650)", async () => {
+      mockOnSave.mockResolvedValue(undefined);
+      render(
+        <PersonalInfoEditPanel
+          onCancel={mockOnCancel}
+          // So liefert die Akte ein Kind bei ausgeschalteten Fotos: ohne
+          // photo_consent_given, mit der Einwilligung in der Liste.
+          student={createMockStudent({
+            consents: [
+              {
+                key: "photo",
+                state: "granted",
+                changed_at: "2026-09-01T08:00:00Z",
+              },
+            ],
+          })}
+          onSave={mockOnSave}
+        />,
+      );
+
+      const section = screen.getByTestId("photo-section");
+      expect(section).toHaveAttribute("data-uploads", "0");
+      expect(screen.getByTestId("toggle-photo-consent")).toHaveTextContent(
+        "Einwilligung liegt vor",
+      );
+      fireEvent.click(screen.getByTestId("toggle-photo-consent"));
+      fireEvent.click(screen.getByText("Speichern"));
+
+      await waitFor(() => {
+        expect(mockOnSave).toHaveBeenCalledWith(
+          expect.objectContaining({ photo_consent_given: false }),
+        );
+      });
+      expect(uploadStudentPhotoMock).not.toHaveBeenCalled();
+      expect(deleteStudentPhotoMock).not.toHaveBeenCalled();
     });
 
     it("uploads a picked photo only after the save succeeded, then refreshes", async () => {
