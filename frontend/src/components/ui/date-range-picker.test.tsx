@@ -2,6 +2,7 @@ import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
 import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-day-picker", () => ({
@@ -16,6 +17,7 @@ vi.mock("react-day-picker", () => ({
 import { DateRangePicker, RangeCalendarInline } from "./date-range-picker";
 import { CustomSelect } from "./custom-select";
 import { Modal } from "./modal";
+import { SlideOver, SlideOverContent } from "./slide-over";
 
 describe("DateRangePicker", () => {
   it("collapses the label when both dates share month and year", () => {
@@ -131,6 +133,43 @@ describe("DateRangePicker", () => {
     expect(document.querySelectorAll("[data-range-panel]")).toHaveLength(1);
     expect(document.querySelector("[data-range-panel]")).toBe(panels[1]!);
   });
+
+  it("closes the range picker whose calendar receives Escape", async () => {
+    render(
+      <>
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+      </>,
+    );
+    const triggers = screen.getAllByRole("button", {
+      name: /zeitraum wählen/i,
+    });
+    fireEvent.click(triggers[0]!);
+    fireEvent.click(triggers[1]!);
+    await waitFor(() => {
+      expect(document.querySelectorAll("[data-range-panel]")).toHaveLength(2);
+    });
+    const panels = document.querySelectorAll("[data-range-panel]");
+
+    fireEvent.keyDown(panels[1]!, { key: "Escape" });
+
+    expect(document.querySelectorAll("[data-range-panel]")).toHaveLength(1);
+    expect(document.querySelector("[data-range-panel]")).toBe(panels[0]!);
+    expect(triggers[1]).toHaveFocus();
+  });
+
+  it("closes the calendar with Escape when no control has focus", async () => {
+    // Safari fokussiert einen geklickten Button nicht: Escape kommt dann vom body.
+    render(<DateRangePicker value={undefined} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    expect(document.querySelector("[data-range-panel]")).toBeNull();
+  });
 });
 
 describe("DateRangePicker in a dialog", () => {
@@ -202,6 +241,54 @@ describe("DateRangePicker in a dialog", () => {
     preset.focus();
 
     expect(preset).toHaveFocus();
+  });
+
+  it("moves on with Tab inside the dialog like DatePicker", async () => {
+    const user = userEvent.setup();
+    renderInModal();
+    const preset = await screen.findByRole("button", { name: "Letzte 7 Tage" });
+    const previousMonth = screen.getByRole("button", {
+      name: "Vorheriger Monat",
+    });
+    preset.focus();
+
+    await user.tab();
+
+    expect(previousMonth).toHaveFocus();
+    expect(preset.closest("[data-modal-focus-scope]")).not.toBeNull();
+  });
+
+  it("keeps the calendar reachable by Tab inside a slide-over", async () => {
+    const user = userEvent.setup();
+    render(
+      <SlideOver defaultOpen>
+        <SlideOverContent>
+          <DateRangePicker
+            value={undefined}
+            onChange={vi.fn()}
+            presets={[
+              {
+                label: "Letzte 7 Tage",
+                range: () => ({
+                  from: new Date(2026, 8, 3),
+                  to: new Date(2026, 8, 9),
+                }),
+              },
+            ]}
+          />
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    await user.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    const preset = await screen.findByRole("button", { name: "Letzte 7 Tage" });
+    const previousMonth = screen.getByRole("button", {
+      name: "Vorheriger Monat",
+    });
+
+    expect(preset).toHaveFocus();
+    await user.tab();
+
+    expect(previousMonth).toHaveFocus();
   });
 });
 

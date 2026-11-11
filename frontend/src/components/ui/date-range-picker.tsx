@@ -7,6 +7,7 @@ import { cn } from "~/lib/utils";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { FocusScope } from "@radix-ui/react-focus-scope";
 import type { DateRange, Matcher } from "react-day-picker";
 import { addDays } from "date-fns/addDays";
 import { addMonths } from "date-fns/addMonths";
@@ -110,6 +111,15 @@ export function DateRangePicker({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       const target = event.target;
+      // With several calendars open, Escape from inside one belongs to it.
+      // Escape from outside every picker (Safari leaves a clicked button
+      // unfocused) still closes this one.
+      const owner =
+        target instanceof Element
+          ? target.closest("[data-range-picker], [data-range-panel]")
+          : null;
+      if (owner && owner !== containerRef.current && owner !== panelRef.current)
+        return;
       if (
         target instanceof Element &&
         target.closest(
@@ -128,7 +138,11 @@ export function DateRangePicker({
   }, [isOpen]);
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div
+      className={`relative ${className}`}
+      ref={containerRef}
+      data-range-picker
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -296,11 +310,16 @@ function RangeCalendar({
 
   // Like `DatePicker`: inside a modal the panel stays in its FocusScope, or the
   // trap pulls keyboard focus out of the calendar. The modal wrapper has no
-  // transform, so it can host the fixed panel.
-  const portalContainer =
-    triggerRef.current?.closest("[data-modal-focus-scope]") ?? document.body;
+  // transform, so it can host the fixed panel. A slide-over transforms its
+  // content, so its calendar stays at the body with its own FocusScope.
+  // Inside a modal the panel shares the modal's stacking context, exactly like
+  // `DatePicker`: a tour coach mark over an open dialog lies above both alike.
+  const modalScope = triggerRef.current?.closest("[data-modal-focus-scope]");
+  const needsPortalledFocusScope =
+    !modalScope &&
+    triggerRef.current?.closest("[data-date-picker-focus-trap]") != null;
 
-  return createPortal(
+  const panel = (
     <div
       ref={panelRef}
       data-range-panel
@@ -315,8 +334,18 @@ function RangeCalendar({
       }
     >
       <RangeCalendarInline {...props} />
-    </div>,
-    portalContainer,
+    </div>
+  );
+
+  return createPortal(
+    needsPortalledFocusScope ? (
+      <FocusScope asChild loop trapped>
+        {panel}
+      </FocusScope>
+    ) : (
+      panel
+    ),
+    modalScope ?? document.body,
   );
 }
 
