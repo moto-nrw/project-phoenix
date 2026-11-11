@@ -13,7 +13,18 @@ const (
 	ScheduleSourceCareOffering   = "care_offering"
 	ExceptionSourceStaff         = "staff"
 	ExceptionSourceGuardian      = "guardian"
+	// ExceptionSourceHolidayBooking marks a day Enrollment planned from the
+	// booking of a holiday guest (ADR 0120, addendum of 2026-11-11). The
+	// booking is the author; the row names no staff member or guardian.
+	ExceptionSourceHolidayBooking = "holiday_booking"
 )
+
+// SchoolOwnedException reports whether the school, not a guardian, decided
+// the dated exception: a staff row or a day planned from a holiday booking.
+// A guardian cannot overwrite such a day.
+func SchoolOwnedException(source string) bool {
+	return source == ExceptionSourceStaff || source == ExceptionSourceHolidayBooking
+}
 
 var (
 	ErrInvalidStudentSchedule  = errors.New("invalid student arrival or pickup schedule")

@@ -1876,7 +1876,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreateArrivalException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3).",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreateArrivalException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3). ADR 0120 addendum 2026-11-11: the booking is the author (source holiday_booking, no staff author), so the binding no longer resolves the staff member of the account that picked the group.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreateArrivalException",
       "target_owner": "care-plan"
@@ -1887,20 +1887,30 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreatePickupException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3).",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreatePickupException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3). ADR 0120 addendum 2026-11-11: the booking is the author (source holiday_booking, no staff author), so the binding no longer resolves the staff member of the account that picked the group.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreatePickupException",
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.UnplannedHolidayGuests",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID. ADR 0120 (#4666): the booked days of a holiday guest name the staff member of the account that picked the group as their author, as Care Plan requires.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.UnplannedHolidayGuests",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListArrivalExceptions. ADR 0120 addendum 2026-11-11: the hourly reconciliation reads in one statement per table which holiday guests have no planned day, and plans those through CreateArrivalException and CreatePickupException.",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID",
-      "target_owner": "people-directory"
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.UnplannedHolidayGuests",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.UnplannedHolidayGuests",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListPickupExceptions. ADR 0120 addendum 2026-11-11: the hourly reconciliation reads in one statement per table which holiday guests have no planned day, and plans those through CreateArrivalException and CreatePickupException.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
+      "target_owner": "care-plan"
     },
     {
       "adr": "0067",
