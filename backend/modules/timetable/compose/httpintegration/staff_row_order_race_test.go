@@ -213,3 +213,68 @@ func addScenarioTemplate(t *testing.T, s *scenarioSetup, name string) *activityC
 	require.NoError(t, err)
 	return template
 }
+
+// A template update writes its template row after its roster's staff rows;
+// an activity supervisor write against the template's id locks the row in
+// its modification check and its people before it refuses the template.
+// Before #6702 the update could hold a person and wait for the row while the
+// supervisor write held the row and waited for that person: 40P01 for one of
+// them instead of the refusal and the update. Now the update locks the
+// template row before its days and people (tenant.LockReference), so it
+// waits for the supervisor write holding no person.
+func TestTemplateUpdateAndActivitySupervisorWriteDoNotDeadlock(t *testing.T) {
+	t.Parallel()
+	s := makeScenario(t, activityContract.WeekdayMonday, calendar.NewDate(2026, time.April, 20))
+	_, activities, _, _, err := api.NewActivitiesTestModule(testpkg.NewDatabase(t, s.db))
+	require.NoError(t, err)
+	high := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Order", "Template")
+	require.Less(t, s.staffID, high.ID)
+	template := s.template
+
+	locked, releaseStaff := make(chan struct{}), make(chan struct{})
+	barrier := startOrderTx(t, s.db, s.ctx, s.tenantID, func(ctx context.Context, tx bun.Tx) error {
+		// The strength School Membership's staff row lock takes.
+		if _, err := tx.NewRaw(`SELECT id FROM users.staff_school_memberships WHERE id = ? FOR NO KEY UPDATE`, s.staffID).Exec(ctx); err != nil {
+			return err
+		}
+		close(locked)
+		<-releaseStaff
+		return nil
+	})
+	<-locked
+	supervisors := startOrderTx(t, s.db, s.ctx, s.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		allowed, err := activities.CanModifyActivity(ctx, template.ID, s.staffID, false)
+		if err != nil || !allowed {
+			return fmt.Errorf("modification check: allowed=%t: %w", allowed, err)
+		}
+		return activities.UpdateGroupSupervisors(ctx, template.ID, []int64{s.staffID, high.ID})
+	})
+	awaitOrderTxBlockedBy(t, s.db, supervisors, barrier.pid, "the supervisor write")
+	update := startOrderTx(t, s.db, s.ctx, s.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return s.timetableData.Templates.UpdateTemplate(ctx, timetable.UpdateTemplateCommand{
+			TemplateID: template.ID,
+			Fields: timetable.TemplateFields{
+				Name: template.Name + " geändert", Type: template.Type, CategoryID: template.CategoryID, RoomID: s.roomID,
+				MaxParticipants: template.MaxParticipants, CalendarPeriodID: template.CalendarPeriodID,
+			},
+			Weekdays:        []int{activityContract.WeekdayMonday},
+			TimeframeID:     s.timeframe.ID,
+			WeekPattern:     s.schedule.WeekPattern,
+			RosterValidFrom: calendar.NewDate(2026, time.March, 21),
+			StudentIDs:      s.students[:2],
+			StaffIDs:        []int64{high.ID},
+			PrimaryStaffID:  &high.ID,
+			GradeLevelMax:   testpkg.MaxSchoolGradeLevel,
+		})
+	})
+	awaitOrderTxBlockedBy(t, s.db, update, supervisors.pid, "the template update")
+	close(releaseStaff)
+	requireOrderTxCommitted(t, barrier, "the barrier")
+	select {
+	case err := <-supervisors.done:
+		require.ErrorIs(t, err, activityContract.ErrTimetableTemplateProtected, "the supervisor write ends with its refusal, not a deadlock")
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "the supervisor write never finished")
+	}
+	requireOrderTxCommitted(t, update, "the template update")
+}

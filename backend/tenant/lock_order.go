@@ -56,12 +56,13 @@ const (
 	// LockGradeTransitions is School Structure's tenant-wide transition
 	// gate, taken after recurrence.
 	LockGradeTransitions
-	// LockReference is a Timetable catalogue row a writer validates and pins
-	// before it plans (activities.categories, schedule.planning_tracks); keys
-	// name the table and are not ordered among themselves. The catalogue's
-	// own writers (edit, archive, reorder) take nothing after these rows, and
-	// template, activity and spontaneous writers take them after the gates
-	// and before their days and staff rows.
+	// LockReference is a Timetable row a writer validates and pins before it
+	// plans: catalogue rows (activities.categories, schedule.planning_tracks),
+	// the template or activity row it edits (activities.groups) and the
+	// spontaneous start's gates. Keys name the table or gate and are not
+	// ordered among themselves. Writers take them after the gates and before
+	// their days and staff rows; a writer that updates a template row after
+	// its staff rows locks that row first (template update).
 	LockReference
 	// LockScheduleDay is Timetable's day-wide staffing lock; keys are
 	// calendar days in YYYY-MM-DD form, which sort like the days.
