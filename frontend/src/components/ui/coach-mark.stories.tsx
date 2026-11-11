@@ -1,47 +1,53 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 
+import { Button } from "./button";
 import { CoachMark } from "./coach-mark";
+import { SectionCard } from "./section-card";
 
-const meta = {
-  title: "components/ui/CoachMark",
-  parameters: { layout: "fullscreen" },
-} satisfies Meta;
-
-export default meta;
-type Story = StoryObj;
-
-const noop = () => undefined;
-
-function TourStop({ action }: { readonly action?: string }) {
+function Spot({
+  withTarget,
+  action,
+}: {
+  readonly withTarget: boolean;
+  readonly action?: string;
+}) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   return (
-    <div className="h-[480px] p-8">
-      <span
-        ref={setTarget}
-        className="inline-block rounded-lg bg-white px-4 py-2 text-sm"
-      >
-        Kinder
-      </span>
+    <div className="p-12">
+      <SectionCard title="Gruppen">
+        <Button type="button" variant="primary" size="md" ref={setTarget}>
+          Gruppe anlegen
+        </Button>
+      </SectionCard>
       <CoachMark
-        target={target}
-        title="Kinder anlegen"
-        text="Hier legen Sie die Kinder Ihrer Schule an."
+        target={withTarget ? target : null}
+        title="Gruppe anlegen"
+        text="Hier legen Sie die erste Gruppe Ihrer Schule an."
         progress="Schritt 2 von 4"
         action={action}
-        onNext={action ? undefined : noop}
-        onBack={noop}
-        onClose={noop}
+        onNext={action ? undefined : () => {}}
+        onBack={() => {}}
+        onClose={() => {}}
       />
     </div>
   );
 }
 
-export const WithNext: Story = {
-  render: () => <TourStop />,
-};
+const meta = {
+  title: "components/ui/CoachMark",
+  component: Spot,
+  parameters: { layout: "fullscreen" },
+} satisfies Meta<typeof Spot>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const AtTarget: Story = { args: { withTarget: true } };
+
+export const WithoutTarget: Story = { args: { withTarget: false } };
 
 // The hand symbol carries the brand green.
 export const WithAction: Story = {
-  render: () => <TourStop action="Klicken Sie auf „Kinder“." />,
+  args: { withTarget: true, action: "Klicken Sie auf „Gruppe anlegen“." },
 };

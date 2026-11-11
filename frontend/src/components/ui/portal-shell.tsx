@@ -64,14 +64,14 @@ export function PortalShell({
         <NavigationProgressBar />
         <div
           data-portal-background
-          className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
+          className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none ${Z_LAYER.base} ${backgroundClassName}`}
           aria-hidden="true"
         />
         {topLayer}
 
         <div className={headerClassName}>{header}</div>
 
-        <div className="relative z-10 flex flex-1">
+        <div className={`relative ${Z_LAYER.raised} flex flex-1`}>
           {sidebar}
 
           {/*
@@ -84,7 +84,7 @@ export function PortalShell({
            * unter `lg`, deshalb traegt die flache Desktop-Stufe sie nicht.
            */}
           <main className="compact:p-5 compact:max-lg:pb-[calc(7rem+env(safe-area-inset-bottom))] flex min-w-0 flex-1 flex-col p-8 max-md:p-4 max-md:pb-[calc(7rem+env(safe-area-inset-bottom))]">
-            <div className={`relative z-10 ${contentClassName}`}>
+            <div className={`relative ${Z_LAYER.raised} ${contentClassName}`}>
               {children}
             </div>
           </main>

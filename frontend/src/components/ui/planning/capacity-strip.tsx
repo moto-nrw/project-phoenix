@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { Z_LAYER } from "../overlay-styles";
 import { PLANNING_COLORS } from "./planning-colors";
 
 /**
@@ -144,7 +145,7 @@ export function CapacityStrip({
       >
         <div
           role="cell"
-          className={`${stickyLabel ? "sticky left-0 z-10" : ""} ${labelWidthClassName} bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
+          className={`${stickyLabel ? `sticky left-0 ${Z_LAYER.raised}` : ""} ${labelWidthClassName} bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
         >
           {rowLabel}
         </div>
@@ -166,7 +167,7 @@ export function CapacityStrip({
     <tr className={`${borderClass} bg-gray-50 ${className ?? ""}`.trim()}>
       <th
         scope="row"
-        className={`${stickyLabel ? "sticky left-0 z-10" : ""} ${labelWidthClassName} bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
+        className={`${stickyLabel ? `sticky left-0 ${Z_LAYER.raised}` : ""} ${labelWidthClassName} bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
       >
         {rowLabel}
       </th>
