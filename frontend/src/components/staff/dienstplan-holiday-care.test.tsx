@@ -144,7 +144,13 @@ describe("DienstplanResourceGrid holiday care, compact day strip", () => {
     );
     expect(sentences).toHaveLength(4);
     expect(sentences[0]?.closest("button")).not.toBeNull();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    // Der gewählte Tag (Montag) nennt Kinder und Zeit unter dem Streifen,
+    // mit dem einzigen Link.
+    const link = screen.getByRole("link", {
+      name: "Ferienbetreuung · 0 Kinder · 07:45–13:00",
+    });
+    expect(link).toHaveAttribute("href", "/ferienwochen");
+    expect(link.closest("button")).toBeNull();
   });
 });
 

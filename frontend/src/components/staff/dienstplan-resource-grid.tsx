@@ -728,6 +728,10 @@ export function DienstplanResourceGrid({
   // Baum, Screenreader läsen den Plan zweimal vor und die Tabulator-Reihenfolge
   // liefe durch eine unsichtbare Kopie.
   const isCompact = useMediaQuery(BELOW_LG);
+  const mobileCare =
+    mobileColumn && stripMarkers.has(mobileColumn.key)
+      ? holidayCare?.get(mobileColumn.key)
+      : undefined;
 
   return (
     <div>
@@ -760,6 +764,14 @@ export function DienstplanResourceGrid({
                 );
               })}
             </div>
+
+            {/* Im Streifen steht nur das Symbol; für den gewählten Tag nennt
+            diese Zeile Kinder und Betreuungszeit, mit dem Link. */}
+            {mobileCare !== undefined && (
+              <div className="border-b border-gray-100 px-3 py-2">
+                <HolidayCareChip day={mobileCare} href={holidayCareHref} />
+              </div>
+            )}
 
             <ul className="divide-y divide-gray-100">
               {staff.map((member) => (
