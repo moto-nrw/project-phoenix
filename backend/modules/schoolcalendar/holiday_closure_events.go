@@ -184,9 +184,10 @@ type HolidayClosureEventQueue interface {
 	// LockLeasedHolidayClosureEvent locks the command under its lease;
 	// ErrHolidayClosureLeaseLost when another worker took it.
 	LockLeasedHolidayClosureEvent(ctx context.Context, organizationID, eventID int64, leaseToken string) error
-	// HolidayClosureCalendar reads the closing days of a current school of
-	// the Träger in [from, to]; ErrHolidayClosureNoticeNotFound otherwise.
-	HolidayClosureCalendar(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date) (HolidayClosureCalendar, error)
+	// HolidayClosureCalendars reads, in two statements for any number of
+	// schools, the closing days in [from, to] of those schools that are
+	// current schools of the Träger; another school has no entry.
+	HolidayClosureCalendars(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date) (map[int64]HolidayClosureCalendar, error)
 	// HolidayClosureEventSuperseded reports a later change of the same
 	// closing day that replaced the command before it was processed.
 	HolidayClosureEventSuperseded(ctx context.Context, organizationID, eventID int64) (bool, error)

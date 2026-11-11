@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
 )
 
@@ -435,8 +436,9 @@ func TestHolidayClosureNoticesKeepTheirFiltersBeneathRLS(t *testing.T) {
 		_, leased, err := events.LeaseHolidayClosureEvent(ctx, own.organization, time.Minute)
 		require.NoError(t, err)
 		assert.False(t, leased, "A leases no command of B")
-		_, err = events.HolidayClosureCalendar(ctx, own.organization, foreign.school, calendar.NewDate(2030, 7, 8), calendar.NewDate(2030, 7, 12))
-		require.ErrorIs(t, err, schoolcalendar.ErrHolidayClosureNoticeNotFound, "A reads no calendar of B's school")
+		calendars, err := events.HolidayClosureCalendars(ctx, own.organization, []int64{foreign.school}, calendar.NewDate(2030, 7, 8), calendar.NewDate(2030, 7, 12))
+		require.NoError(t, err)
+		assert.Empty(t, calendars, "A reads no calendar of B's school")
 		retired, err := events.RetireHolidayClosureEvents(ctx, own.organization)
 		require.NoError(t, err)
 		assert.Zero(t, retired)
@@ -534,4 +536,64 @@ func TestIndividualNoticeRejectsChangedRecipients(t *testing.T) {
 	require.ErrorIs(t, err, notification.ErrNoticeChanged)
 	assert.Empty(t, w.events(t), "neither click confirms changed recipients")
 	assert.Empty(t, w.mails(t))
+}
+
+// The school's list plans its notices that wait for a click together: more
+// waiting notices read no further statement.
+func TestSchoolNoticesPlanWaitingNoticesTogether(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis Budget")
+	w.createClosingDay(t, "2030-07-09", "2030-07-09")
+	counter := testpkg.CaptureQueriesForContext(t, w.db)
+	read := func(want int) testpkg.QueryMeasurement {
+		t.Helper()
+		counter.Reset()
+		notices, err := w.notices.SchoolNotices(counter.Context(w.ctx), w.school)
+		require.NoError(t, err)
+		require.Len(t, notices, want)
+		return counter.Measurement(counter.Queries())
+	}
+	one := read(1)
+	w.createClosingDay(t, "2030-07-10", "2030-07-10")
+	w.createClosingDay(t, "2030-07-12", "2030-07-12")
+	three := read(3)
+	assert.Len(t, three.Statements, len(one.Statements), "three waiting notices read the statements of one")
+	t.Logf("school notices: %d statements", len(three.Statements))
+	querybudgets.AssertQueryBudget(t, "workflows.holidayclosurenotification.school_notices", three)
+}
+
+// The Büro's one click for all waiting notices confirms each notice of the
+// list it saw once, as its own command; a list that changed since confirms
+// nothing.
+func TestBueroConfirmsAllWaitingNoticesOnce(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger Hinweis Alle")
+	w.createClosingDay(t, "2030-07-09", "2030-07-09")
+	w.createClosingDay(t, "2030-07-11", "2030-07-11")
+	pending, err := w.notices.PendingHolidayClosures(w.ctx, w.organization)
+	require.NoError(t, err)
+	require.Len(t, pending.Notices, 2)
+	stale := pending.Token
+
+	w.createClosingDay(t, "2030-07-12", "2030-07-12")
+	_, err = w.notices.NotifyPendingHolidayClosures(w.ctx, w.organization, 0, stale)
+	require.ErrorIs(t, err, notification.ErrNoticeChanged, "a changed list confirms nothing")
+	assert.Empty(t, w.events(t))
+
+	pending, err = w.notices.PendingHolidayClosures(w.ctx, w.organization)
+	require.NoError(t, err)
+	result, err := w.notices.NotifyPendingHolidayClosures(w.ctx, w.organization, 0, pending.Token)
+	require.NoError(t, err)
+	assert.Equal(t, notification.NotifiedPending{Notices: 3, Families: 6}, result)
+	assert.Len(t, w.events(t), 3, "one command per notice")
+	assert.Len(t, w.mails(t), 6, "each command tells each of the two families once")
+
+	again, err := w.notices.PendingHolidayClosures(w.ctx, w.organization)
+	require.NoError(t, err)
+	for _, notice := range again.Notices {
+		assert.NotEqual(t, string(schoolcalendar.HolidayClosureSuggested), notice.Status, "nothing waits any more")
+	}
+	_, err = w.notices.NotifyPendingHolidayClosures(w.ctx, w.organization, 0, pending.Token)
+	require.ErrorIs(t, err, notification.ErrNoticeChanged, "the same click again confirms nothing twice")
+	assert.Len(t, w.mails(t), 6)
 }

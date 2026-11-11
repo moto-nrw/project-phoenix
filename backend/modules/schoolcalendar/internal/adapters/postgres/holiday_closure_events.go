@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
@@ -116,8 +117,10 @@ const (
 			completed_at = CASE WHEN ? IN ('completed', 'no_mail') THEN CURRENT_TIMESTAMP ELSE NULL END,
 			next_attempt_at = COALESCE(?, next_attempt_at)
 		WHERE organization_id = ? AND id = ? AND state = 'leased' AND lease_token = ?::uuid`
-	holidayClosureCalendarSQL = `SELECT kind, source_id, start_date, end_date, reason, school_name, federal_state, revision
-		FROM calendar.traeger_holiday_closure_calendar(?, ?, ?)`
+	holidayClosureCalendarSQL = `SELECT kind, school_id, source_id, start_date, end_date, reason, school_name, federal_state, revision
+		FROM calendar.traeger_holiday_closure_calendar(?::bigint[], ?, ?)`
+	lockHolidayClosureCalendarsSQL = `SELECT pg_advisory_xact_lock(hashtextextended('school-calendar:holiday-closure:' || id::text, 0))
+		FROM unnest(?::bigint[]) AS id ORDER BY id`
 	supersededHolidayClosureEventSQL = `SELECT EXISTS (SELECT 1 FROM calendar.holiday_closure_proposals
 		WHERE organization_id = ? AND supersedes_event_id = ?)`
 	waitingHolidayClosureEventsSQL = `SELECT event.id, event.organization_id, event.tenant_id, event.operation_id::text AS operation_id,
@@ -536,6 +539,7 @@ func (s *HolidayClosureEventStore) LockLeasedHolidayClosureEvent(ctx context.Con
 
 type holidayClosureCalendarRow struct {
 	Kind         string          `bun:"kind"`
+	SchoolID     int64           `bun:"school_id"`
 	SourceID     int64           `bun:"source_id"`
 	StartDate    *calendar.Date  `bun:"start_date"`
 	EndDate      *calendar.Date  `bun:"end_date"`
@@ -545,26 +549,38 @@ type holidayClosureCalendarRow struct {
 	Revision     *int64          `bun:"revision"`
 }
 
-// HolidayClosureCalendar reads a current school of the Träger through the
-// read channel of the worker.
-func (s *HolidayClosureEventStore) HolidayClosureCalendar(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date) (schoolcalendar.HolidayClosureCalendar, error) {
+// HolidayClosureCalendars reads the current schools of the Träger among
+// schoolIDs through the read channel of the worker: one statement locks
+// their calendars in id order, one reads them.
+func (s *HolidayClosureEventStore) HolidayClosureCalendars(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date) (map[int64]schoolcalendar.HolidayClosureCalendar, error) {
+	result := map[int64]schoolcalendar.HolidayClosureCalendar{}
+	if len(schoolIDs) == 0 {
+		return result, nil
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return schoolcalendar.HolidayClosureCalendar{}, err
+		return nil, err
 	}
-	if _, err := db.NewRaw(lockHolidayClosureCalendarSQL, schoolID).Exec(ctx); err != nil {
-		return schoolcalendar.HolidayClosureCalendar{}, fmt.Errorf("school calendar postgres: lock the notice calendar: %w", err)
+	ids := pgdialect.Array(schoolIDs)
+	if _, err := db.NewRaw(lockHolidayClosureCalendarsSQL, ids).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("school calendar postgres: lock the notice calendars: %w", err)
 	}
 	var rows []holidayClosureCalendarRow
-	if err := db.NewRaw(holidayClosureCalendarSQL, schoolID, from, to).Scan(ctx, &rows); err != nil {
-		return schoolcalendar.HolidayClosureCalendar{}, fmt.Errorf("school calendar postgres: read the calendar of a holiday closure: %w", err)
+	if err := db.NewRaw(holidayClosureCalendarSQL, ids, from, to).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("school calendar postgres: read the calendars of a holiday closure: %w", err)
 	}
-	result, err := holidayClosureCalendarOf(rows)
-	if err != nil {
-		return schoolcalendar.HolidayClosureCalendar{}, err
+	bySchool := map[int64][]holidayClosureCalendarRow{}
+	for _, row := range rows {
+		bySchool[row.SchoolID] = append(bySchool[row.SchoolID], row)
 	}
-	if result.SchoolID != schoolID {
-		return schoolcalendar.HolidayClosureCalendar{}, schoolcalendar.ErrHolidayClosureNoticeNotFound
+	for schoolID, schoolRows := range bySchool {
+		school, err := holidayClosureCalendarOf(schoolRows)
+		if err != nil {
+			return nil, err
+		}
+		if school.SchoolID == schoolID {
+			result[schoolID] = school
+		}
 	}
 	return result, nil
 }

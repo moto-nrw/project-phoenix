@@ -19,7 +19,7 @@ type Queue = schoolcalendar.HolidayClosureEventQueue
 // Closures is what the workflow asks of Enrollment, always in the Träger
 // transaction of the Träger it names.
 type Closures interface {
-	PlanHolidayClosureOperation(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureImpact, error)
+	PlanHolidayClosureOperations(ctx context.Context, organizationID int64, operations []enrollment.HolidayClosureOperation) ([]enrollment.HolidayClosureImpact, error)
 	NotifyHolidayClosureOperation(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureOperationResult, error)
 	HolidayClosureOperationDelivery(ctx context.Context, organizationID int64, operationID string) (enrollment.HolidayClosureDelivery, error)
 }

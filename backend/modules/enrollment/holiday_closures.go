@@ -87,12 +87,16 @@ type HolidayClosureOperation struct {
 }
 
 // HolidayClosureCalendar is Enrollment's port onto the days without care of
-// one current school of the Träger in [from, to], read in the caller's
+// the current schools of the Träger among schoolIDs in [from, to], in a
+// constant number of statements, read in the caller's
 // Träger transaction through School Calendar's narrow read channel
 // (ADR 0196 section 3.4). A notice reads it under Enrollment's lock, so a
 // Träger closing day saved meanwhile counts. The root binds it.
 type HolidayClosureCalendar interface {
-	HolidayClosureNoCareDays(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date, revision *int64) ([]HolidayNoCareDay, error)
+	// HolidayClosureNoCareDays has no entry for a school that is no current
+	// school of the Träger; a school named in revisions whose calendar
+	// revision differs fails with ErrHolidayClosureChanged.
+	HolidayClosureNoCareDays(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date, revisions map[int64]int64) (map[int64][]HolidayNoCareDay, error)
 }
 
 // HolidayClosureOperationResult is what the worker learns of a processed
@@ -230,10 +234,12 @@ type HolidayClosures interface {
 	// that of the preview the caller confirmed; a differing impact with
 	// bookings is ErrHolidayClosureChanged.
 	NotifyHolidayClosure(ctx context.Context, organizationID int64, closure HolidayClosure, token string) (HolidayClosureNotice, error)
-	// PlanHolidayClosureOperation previews what telling the parents of
-	// operation would do now, without writing anything: the same
-	// computation NotifyHolidayClosureOperation sends.
-	PlanHolidayClosureOperation(ctx context.Context, organizationID int64, operation HolidayClosureOperation) (HolidayClosureImpact, error)
+	// PlanHolidayClosureOperations previews what telling the parents of
+	// each operation would do now, without writing anything: the same
+	// computation NotifyHolidayClosureOperation sends. It reads the same
+	// statements for any number of operations; the impacts follow their
+	// order, and an operation of a school that left the Träger has none.
+	PlanHolidayClosureOperations(ctx context.Context, organizationID int64, operations []HolidayClosureOperation) ([]HolidayClosureImpact, error)
 	// NotifyHolidayClosureOperation tells the parents of operation once per
 	// family and makes the operation's mails with a known transport failure
 	// due again.

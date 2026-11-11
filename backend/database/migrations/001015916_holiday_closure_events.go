@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayClosureEventsVersion = "1.15.915"
+const holidayClosureEventsVersion = "1.15.916"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -288,12 +288,13 @@ CREATE POLICY holiday_closure_reader_revisions ON calendar.holiday_closure_revis
 		WHERE school.id = holiday_closure_revisions.tenant_id AND school.deleted_at IS NULL
 			AND school.organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint));
 
--- One header row ('school') when p_school_id is a current school of the
--- calling Träger, then its closing days ('closing') and the Träger's closing
--- days that name it ('traeger_closing') overlapping [p_from, p_to]. Every
--- row repeats the membership check in the same statement.
-CREATE FUNCTION calendar.traeger_holiday_closure_calendar(p_school_id BIGINT, p_from DATE, p_to DATE)
-	RETURNS TABLE (kind TEXT, source_id BIGINT, start_date DATE, end_date DATE, reason TEXT,
+-- One header row ('school') per current school of the calling Träger in
+-- p_school_ids, then their closing days ('closing') and the Träger's closing
+-- days that name them ('traeger_closing') overlapping [p_from, p_to]; every
+-- row names its school. Every row repeats the membership check in the same
+-- statement, so a foreign or deleted school yields no row.
+CREATE FUNCTION calendar.traeger_holiday_closure_calendar(p_school_ids BIGINT[], p_from DATE, p_to DATE)
+	RETURNS TABLE (kind TEXT, school_id BIGINT, source_id BIGINT, start_date DATE, end_date DATE, reason TEXT,
 		school_name TEXT, federal_state JSONB, revision BIGINT)
 	LANGUAGE sql
 	STABLE
@@ -303,30 +304,30 @@ CREATE FUNCTION calendar.traeger_holiday_closure_calendar(p_school_id BIGINT, p_
 		WITH school AS (
 			SELECT school.id, school.name
 			FROM platform.schools AS school
-			WHERE school.id = p_school_id AND school.deleted_at IS NULL
+			WHERE school.id = ANY (p_school_ids) AND school.deleted_at IS NULL
 				AND school.organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint
 		)
-		SELECT 'school'::text, school.id, NULL::date, NULL::date, NULL::text, school.name::text,
+		SELECT 'school'::text, school.id, school.id, NULL::date, NULL::date, NULL::text, school.name::text,
 			(SELECT value FROM config.setting_values AS setting
 				WHERE setting.tenant_id = school.id AND setting.setting_key = 'operations.federal_state'),
 			COALESCE((SELECT revision.revision FROM calendar.holiday_closure_revisions AS revision
 				WHERE revision.tenant_id = school.id), 0)
 		FROM school
 		UNION ALL
-		SELECT 'closing', closing.id, closing.start_date, closing.end_date, closing.reason::text, NULL, NULL, NULL
+		SELECT 'closing', school.id, closing.id, closing.start_date, closing.end_date, closing.reason::text, NULL, NULL, NULL
 		FROM schedule.closing_days AS closing
 		JOIN school ON school.id = closing.tenant_id
 		WHERE closing.start_date <= p_to AND closing.end_date >= p_from
 		UNION ALL
-		SELECT 'traeger_closing', traeger_day.id, traeger_day.start_date, traeger_day.end_date, traeger_day.reason, NULL, NULL, NULL
+		SELECT 'traeger_closing', school.id, traeger_day.id, traeger_day.start_date, traeger_day.end_date, traeger_day.reason, NULL, NULL, NULL
 		FROM schedule.traeger_closing_days AS traeger_day
 		JOIN school ON school.id = ANY (traeger_day.school_ids)
 		WHERE traeger_day.organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint
 			AND traeger_day.start_date <= p_to AND traeger_day.end_date >= p_from
 	$$;
-ALTER FUNCTION calendar.traeger_holiday_closure_calendar(BIGINT, DATE, DATE) OWNER TO phoenix_holiday_closure_reader;
-REVOKE ALL ON FUNCTION calendar.traeger_holiday_closure_calendar(BIGINT, DATE, DATE) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION calendar.traeger_holiday_closure_calendar(BIGINT, DATE, DATE) TO phoenix_tenant;
+ALTER FUNCTION calendar.traeger_holiday_closure_calendar(BIGINT[], DATE, DATE) OWNER TO phoenix_holiday_closure_reader;
+REVOKE ALL ON FUNCTION calendar.traeger_holiday_closure_calendar(BIGINT[], DATE, DATE) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION calendar.traeger_holiday_closure_calendar(BIGINT[], DATE, DATE) TO phoenix_tenant;
 `
 
 // holidayClosureNoticeStatesUpSQL versions Enrollment's notices (ADR 0196
@@ -417,7 +418,7 @@ pending AS (
 INSERT INTO calendar.holiday_closure_proposals
 	(tenant_id, organization_id, source_kind, source_id, operation_id, reason, current_start, current_end, span_from, span_to, revision)
 SELECT pending.tenant_id, pending.organization_id, 'school_closing_day', pending.id,
-	substr(encode(sha256(convert_to('holiday-closure-carry-over:1.15.915:' || pending.organization_id || ':'
+	substr(encode(sha256(convert_to('holiday-closure-carry-over:1.15.916:' || pending.organization_id || ':'
 		|| pending.tenant_id || ':' || pending.id, 'UTF8')), 'hex'), 1, 32)::uuid,
 	left(pending.reason, 255), pending.start_date, pending.end_date, pending.start_date, pending.end_date, 0
 FROM pending
@@ -425,7 +426,7 @@ ON CONFLICT DO NOTHING;
 `
 
 const holidayClosureEventsDownSQL = `
-DROP FUNCTION IF EXISTS calendar.traeger_holiday_closure_calendar(BIGINT, DATE, DATE);
+DROP FUNCTION IF EXISTS calendar.traeger_holiday_closure_calendar(BIGINT[], DATE, DATE);
 DROP POLICY IF EXISTS holiday_closure_reader_closing_days ON schedule.closing_days;
 DROP POLICY IF EXISTS holiday_closure_reader_traeger_closing_days ON schedule.traeger_closing_days;
 DROP POLICY IF EXISTS holiday_closure_reader_federal_state ON config.setting_values;

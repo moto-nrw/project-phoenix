@@ -123,9 +123,26 @@ func closureOperation(school int64) enrollment.HolidayClosureOperation {
 
 // HolidayClosureNoCareDays answers the operation's read channel with the
 // same days.
-func (c closureCalendar) HolidayClosureNoCareDays(ctx context.Context, _ int64, school int64, from, to calendar.Date, _ *int64) ([]enrollment.HolidayNoCareDay, error) {
-	byDay, err := c.HolidayNoCareDays(ctx, []int64{school}, from, to)
-	return byDay[school], err
+func (c closureCalendar) HolidayClosureNoCareDays(ctx context.Context, _ int64, schools []int64, from, to calendar.Date, _ map[int64]int64) (map[int64][]enrollment.HolidayNoCareDay, error) {
+	byDay, err := c.HolidayNoCareDays(ctx, schools, from, to)
+	if err != nil {
+		return nil, err
+	}
+	for _, school := range schools {
+		if _, ok := byDay[school]; !ok {
+			byDay[school] = nil
+		}
+	}
+	return byDay, nil
+}
+
+// planOne previews a single operation.
+func planOne(ctx context.Context, closures enrollment.HolidayClosures, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureImpact, error) {
+	impacts, err := closures.PlanHolidayClosureOperations(ctx, organizationID, []enrollment.HolidayClosureOperation{operation})
+	if err != nil {
+		return enrollment.HolidayClosureImpact{}, err
+	}
+	return impacts[0], nil
 }
 
 func newClosures(mail *capturedMails, days closureCalendar) enrollment.HolidayClosures {
@@ -293,6 +310,36 @@ func TestHolidayClosureRefusesANoticeTheBueroDidNotSee(t *testing.T) {
 	assert.Zero(t, told)
 }
 
+// Several operations planned together (one read for all of them) give each
+// operation exactly the plan it gets alone: its school and its days.
+func TestHolidayClosureOperationsArePlannedTogetherAsAlone(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Schließtag Plan")
+	closures := newClosures(&capturedMails{}, closureCalendar{
+		{Date: calendar.NewDate(2027, 7, 6), Kind: enrollment.HolidayNoCareClosingDay, Name: "Teamtag"},
+		{Date: calendar.NewDate(2027, 7, 8), Kind: enrollment.HolidayNoCareClosingDay, Name: "Ausflug"},
+	})
+	school := hostSchoolOf(t, db, w.week)
+	early, late := closureOperation(school), closureOperation(school)
+	early.To, late.From = calendar.NewDate(2027, 7, 6), calendar.NewDate(2027, 7, 7)
+	elsewhere := closureOperation(school + 1_000_000)
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		together, err := closures.PlanHolidayClosureOperations(ctx, w.organization, []enrollment.HolidayClosureOperation{early, late, elsewhere})
+		require.NoError(t, err)
+		require.Len(t, together, 3)
+		for i, operation := range []enrollment.HolidayClosureOperation{early, late} {
+			alone, err := planOne(ctx, closures, w.organization, operation)
+			require.NoError(t, err)
+			assert.Equal(t, alone, together[i])
+			require.Len(t, together[i].Weeks, 1)
+		}
+		assert.Equal(t, []enrollment.HolidayClosedDay{{Date: calendar.NewDate(2027, 7, 6), Reason: "Teamtag"}}, together[0].Weeks[0].ClosedDays)
+		assert.Equal(t, []enrollment.HolidayClosedDay{{Date: calendar.NewDate(2027, 7, 8), Reason: "Ausflug"}}, together[1].Weeks[0].ClosedDays)
+		assert.Zero(t, together[2].Families, "another school's operation sees none of these bookings")
+	})
+}
+
 // TestHolidayClosureOperationTellsTheSchoolsOwnClosingDays pins the school
 // path of ADR 0196: a confirmed operation of a school closing day tells the
 // parents of the closed days nobody told, once; the plan the school and
@@ -309,7 +356,7 @@ func TestHolidayClosureOperationTellsTheSchoolsOwnClosingDays(t *testing.T) {
 	})
 	operation := closureOperation(hostSchoolOf(t, db, w.week))
 	withinTraeger(t, db, w.organization, func(ctx context.Context) {
-		plan, err := closures.PlanHolidayClosureOperation(ctx, w.organization, operation)
+		plan, err := planOne(ctx, closures, w.organization, operation)
 		require.NoError(t, err)
 		require.Len(t, plan.Weeks, 1)
 		assert.Equal(t, []enrollment.HolidayClosedDay{{Date: calendar.NewDate(2027, 7, 7), Reason: "Pädagogischer Tag"}}, plan.Weeks[0].ClosedDays)
@@ -325,7 +372,7 @@ func TestHolidayClosureOperationTellsTheSchoolsOwnClosingDays(t *testing.T) {
 		require.NoError(t, err)
 		assert.Zero(t, again.Families, "a second click of the same operation tells nobody again")
 		assert.Equal(t, 2, again.Mails, "but still follows the operation's two mails")
-		plan, err = closures.PlanHolidayClosureOperation(ctx, w.organization, operation)
+		plan, err = planOne(ctx, closures, w.organization, operation)
 		require.NoError(t, err)
 		assert.Zero(t, plan.Families, "nothing waits any more")
 	})
@@ -621,7 +668,7 @@ func TestConfirmedHolidayClosureKeepsElapsedDates(t *testing.T) {
 		func() calendar.Date { return calendar.NewDate(2027, 7, 12) })
 	operation := closureOperation(hostSchoolOf(t, db, w.week))
 	withinTraeger(t, db, w.organization, func(ctx context.Context) {
-		preview, err := closures.PlanHolidayClosureOperation(ctx, w.organization, operation)
+		preview, err := planOne(ctx, closures, w.organization, operation)
 		require.NoError(t, err)
 		assert.Zero(t, preview.Families, "an unconfirmed preview excludes elapsed dates")
 		result, err := closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)

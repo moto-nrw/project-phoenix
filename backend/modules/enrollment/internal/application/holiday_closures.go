@@ -114,15 +114,25 @@ func (h *HolidayClosures) NotifyHolidayClosure(ctx context.Context, organization
 	return h.notify(ctx, organizationID, operationID.String(), bookings)
 }
 
-// PlanHolidayClosureOperation previews the notice of a school closing day
-// change without writing anything.
-func (h *HolidayClosures) PlanHolidayClosureOperation(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureImpact, error) {
-	operation.From = max(operation.From, h.today())
-	bookings, err := h.operationChanges(ctx, organizationID, operation)
-	if err != nil {
-		return enrollment.HolidayClosureImpact{}, err
+// PlanHolidayClosureOperations previews the notices of school closing day
+// changes without writing anything, in a constant number of statements for
+// any number of operations; the impacts follow the operations' order.
+func (h *HolidayClosures) PlanHolidayClosureOperations(ctx context.Context, organizationID int64, operations []enrollment.HolidayClosureOperation) ([]enrollment.HolidayClosureImpact, error) {
+	today := h.today()
+	clipped := make([]enrollment.HolidayClosureOperation, len(operations))
+	for i, operation := range operations {
+		operation.From = max(operation.From, today)
+		clipped[i] = operation
 	}
-	return holidayClosureImpact(bookings), nil
+	changes, err := h.operationsChanges(ctx, organizationID, clipped)
+	if err != nil {
+		return nil, err
+	}
+	impacts := make([]enrollment.HolidayClosureImpact, len(changes))
+	for i, bookings := range changes {
+		impacts[i] = holidayClosureImpact(bookings)
+	}
+	return impacts, nil
 }
 
 // NotifyHolidayClosureOperation tells the parents of a confirmed school
@@ -267,19 +277,96 @@ func traegerClosedOn(closure enrollment.HolidayClosure, index closedOn) closedOn
 // operationChanges are the changes of a school closing day operation
 // against the calendar the caller read.
 func (h *HolidayClosures) operationChanges(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) ([]changedBooking, error) {
-	if organizationID <= 0 || operation.SchoolID <= 0 {
-		return nil, errors.New("enrollment: the Träger and the school are required")
-	}
-	from, to := operation.From, operation.To
-	if to.IsZero() || to.Before(from) {
-		return nil, nil
-	}
-	noCare, err := h.operation.HolidayClosureNoCareDays(ctx, organizationID, operation.SchoolID, from, to, operation.Revision)
+	changes, err := h.operationsChanges(ctx, organizationID, []enrollment.HolidayClosureOperation{operation})
 	if err != nil {
 		return nil, err
 	}
-	index := noCareIndex(map[int64][]enrollment.HolidayNoCareDay{operation.SchoolID: noCare}, 0)
-	return h.changes(ctx, organizationID, []int64{operation.SchoolID}, from, to, index)
+	return changes[0], nil
+}
+
+// operationsChanges are the changes of school closing day operations, per
+// operation: one calendar read, one booking read and one read of the told
+// days for all of them over the span they cover together.
+func (h *HolidayClosures) operationsChanges(ctx context.Context, organizationID int64, operations []enrollment.HolidayClosureOperation) ([][]changedBooking, error) {
+	result := make([][]changedBooking, len(operations))
+	span, schools, revisions, err := operationsSpan(organizationID, operations)
+	if err != nil || len(schools) == 0 {
+		return result, err
+	}
+	noCare, err := h.operation.HolidayClosureNoCareDays(ctx, organizationID, schools, span.from, span.to, revisions)
+	if err != nil {
+		return nil, err
+	}
+	all, err := h.changes(ctx, organizationID, schools, span.from, span.to, noCareIndex(noCare, 0))
+	if err != nil {
+		return nil, err
+	}
+	for i, operation := range operations {
+		if _, ok := noCare[operation.SchoolID]; ok && !operation.To.IsZero() && !operation.To.Before(operation.From) {
+			result[i] = changesWithin(all, operation)
+		}
+	}
+	return result, nil
+}
+
+type dateSpan struct{ from, to calendar.Date }
+
+// operationsSpan is the span the operations cover together, their schools
+// and the calendar revisions they require. An operation without days adds
+// nothing.
+func operationsSpan(organizationID int64, operations []enrollment.HolidayClosureOperation) (dateSpan, []int64, map[int64]int64, error) {
+	var span dateSpan
+	var schools []int64
+	revisions := map[int64]int64{}
+	if organizationID <= 0 {
+		return span, nil, nil, errors.New("enrollment: the Träger is required")
+	}
+	for _, operation := range operations {
+		if operation.SchoolID <= 0 {
+			return span, nil, nil, errors.New("enrollment: the Träger and the school are required")
+		}
+		if operation.To.IsZero() || operation.To.Before(operation.From) {
+			continue
+		}
+		if len(schools) == 0 || operation.From.Before(span.from) {
+			span.from = operation.From
+		}
+		if len(schools) == 0 || operation.To.After(span.to) {
+			span.to = operation.To
+		}
+		schools = append(schools, operation.SchoolID)
+		if operation.Revision != nil {
+			revisions[operation.SchoolID] = *operation.Revision
+		}
+	}
+	return span, slices.Compact(slices.Sorted(slices.Values(schools))), revisions, nil
+}
+
+// changesWithin narrows the changes to the operation's school and days.
+func changesWithin(all []changedBooking, operation enrollment.HolidayClosureOperation) []changedBooking {
+	var result []changedBooking
+	for _, booking := range all {
+		if booking.HostSchoolID != operation.SchoolID {
+			continue
+		}
+		narrowed := booking
+		narrowed.closed = daysWithin(booking.closed, operation.From, operation.To)
+		narrowed.reopened = daysWithin(booking.reopened, operation.From, operation.To)
+		if len(narrowed.closed) > 0 || len(narrowed.reopened) > 0 {
+			result = append(result, narrowed)
+		}
+	}
+	return result
+}
+
+func daysWithin(days []enrollment.HolidayClosedDay, from, to calendar.Date) []enrollment.HolidayClosedDay {
+	var result []enrollment.HolidayClosedDay
+	for _, day := range days {
+		if !day.Date.Before(from) && !day.Date.After(to) {
+			result = append(result, day)
+		}
+	}
+	return result
 }
 
 // noCareIndex answers closedOn from the days without care; a Träger closing

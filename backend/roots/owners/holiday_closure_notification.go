@@ -55,18 +55,38 @@ type holidayClosureCalendar struct {
 	reads    schoolcalendar.HolidayClosureEventQueue
 }
 
-func (c holidayClosureCalendar) HolidayClosureNoCareDays(ctx context.Context, organizationID, schoolID int64, from, to calendar.Date, revision *int64) ([]enrollment.HolidayNoCareDay, error) {
-	school, err := c.reads.HolidayClosureCalendar(ctx, organizationID, schoolID, from, to)
+func (c holidayClosureCalendar) HolidayClosureNoCareDays(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date, revisions map[int64]int64) (map[int64][]enrollment.HolidayNoCareDay, error) {
+	schools, err := c.reads.HolidayClosureCalendars(ctx, organizationID, schoolIDs, from, to)
 	if err != nil {
 		return nil, err
 	}
-	if revision != nil && school.Revision != *revision {
-		return nil, enrollment.ErrHolidayClosureChanged
+	for schoolID := range revisions {
+		if _, ok := schools[schoolID]; !ok {
+			return nil, schoolcalendar.ErrHolidayClosureNoticeNotFound
+		}
 	}
-	region, err := holidayClosureRegion(school.FederalState)
-	if err != nil {
-		return nil, err
+	result := make(map[int64][]enrollment.HolidayNoCareDay, len(schools))
+	holidays := map[string][]enrollment.HolidayNoCareDay{}
+	for schoolID, school := range schools {
+		if revision, ok := revisions[schoolID]; ok && school.Revision != revision {
+			return nil, enrollment.ErrHolidayClosureChanged
+		}
+		region, err := holidayClosureRegion(school.FederalState)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := holidays[region]; !ok {
+			if holidays[region], err = c.holidayDays(ctx, region, from, to); err != nil {
+				return nil, err
+			}
+		}
+		result[schoolID] = mergeNoCareDays(holidays[region], closingNoCareDays(school.ClosingDays, from, to))
 	}
+	return result, nil
+}
+
+// holidayDays are the statutory holidays of a federal state in [from, to].
+func (c holidayClosureCalendar) holidayDays(ctx context.Context, region string, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
 	if !c.holidays.ValidHolidayRegion(region) {
 		return nil, fmt.Errorf("%w: unsupported region %q", schoolcalendar.ErrFederalStateUnavailable, region)
 	}
@@ -74,22 +94,28 @@ func (c holidayClosureCalendar) HolidayClosureNoCareDays(ctx context.Context, or
 	if err != nil {
 		return nil, err
 	}
-	holidayDays := make([]enrollment.HolidayNoCareDay, 0, len(listed))
+	days := make([]enrollment.HolidayNoCareDay, 0, len(listed))
 	for _, holiday := range listed {
 		day, err := calendar.ParseDate(holiday.Date)
 		if err != nil {
 			return nil, fmt.Errorf("holiday closure calendar: %w", err)
 		}
-		holidayDays = append(holidayDays, enrollment.HolidayNoCareDay{Date: day, Kind: enrollment.HolidayNoCareHoliday, Name: holiday.Name})
+		days = append(days, enrollment.HolidayNoCareDay{Date: day, Kind: enrollment.HolidayNoCareHoliday, Name: holiday.Name})
 	}
+	return days, nil
+}
+
+// closingNoCareDays are the days in [from, to] of a school's closing days,
+// each naming its source.
+func closingNoCareDays(closingDays []schoolcalendar.HolidayClosureCalendarDay, from, to calendar.Date) []enrollment.HolidayNoCareDay {
 	var closing []enrollment.HolidayNoCareDay
-	for _, closingDay := range school.ClosingDays {
+	for _, closingDay := range closingDays {
 		for day := max(closingDay.StartsOn, from); !day.After(min(closingDay.EndsOn, to)); day = day.AddDays(1) {
 			closing = append(closing, enrollment.HolidayNoCareDay{Date: day, Kind: enrollment.HolidayNoCareClosingDay, Name: closingDay.Reason,
 				ClosingDays: []enrollment.HolidayClosingDayRef{{ID: closingDay.SourceID, Traeger: closingDay.Traeger}}})
 		}
 	}
-	return mergeNoCareDays(holidayDays, closing), nil
+	return closing
 }
 
 // holidayClosureRegion is the stored federal state or the registry default

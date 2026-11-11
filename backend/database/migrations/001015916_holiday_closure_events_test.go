@@ -23,7 +23,7 @@ func TestHolidayClosureReaderIsNarrow(t *testing.T) {
 	var definer, fixedPath bool
 	var owner string
 	require.NoError(t, db.NewRaw(`SELECT prosecdef, proconfig @> ARRAY['search_path=pg_catalog, pg_temp'], pg_get_userbyid(proowner)
-		FROM pg_proc WHERE oid = 'calendar.traeger_holiday_closure_calendar(bigint, date, date)'::regprocedure`).Scan(ctx, &definer, &fixedPath, &owner))
+		FROM pg_proc WHERE oid = 'calendar.traeger_holiday_closure_calendar(bigint[], date, date)'::regprocedure`).Scan(ctx, &definer, &fixedPath, &owner))
 	assert.True(t, definer)
 	assert.True(t, fixedPath)
 	assert.Equal(t, "phoenix_holiday_closure_reader", owner)
@@ -40,7 +40,7 @@ func TestHolidayClosureReaderIsNarrow(t *testing.T) {
 	}
 	for role, allowed := range map[string]bool{"phoenix_tenant": true, "phoenix_auth": false, "phoenix_demo": false} {
 		var may bool
-		require.NoError(t, db.NewRaw(`SELECT has_function_privilege(?, 'calendar.traeger_holiday_closure_calendar(bigint, date, date)', 'EXECUTE')`, role).
+		require.NoError(t, db.NewRaw(`SELECT has_function_privilege(?, 'calendar.traeger_holiday_closure_calendar(bigint[], date, date)', 'EXECUTE')`, role).
 			Scan(ctx, &may))
 		assert.Equal(t, allowed, may, role)
 	}
