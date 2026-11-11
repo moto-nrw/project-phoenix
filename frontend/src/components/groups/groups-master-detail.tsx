@@ -22,6 +22,13 @@ import { configToFormSection } from "@/lib/database/types";
 import type { Group } from "@/lib/group-helpers";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Alert } from "~/components/ui/alert";
+import {
+  holidayGuestGroupHint,
+  type HolidayGuestGroup,
+  type HolidayGuestGroupHint,
+} from "~/lib/holiday-host-api";
+import { berlinTodayISO } from "~/lib/date-helpers";
 
 interface GroupsMasterDetailProps {
   groups: Group[];
@@ -32,14 +39,34 @@ interface GroupsMasterDetailProps {
   onSelect: (id: string | null) => void;
   onSaveGroup: (data: Partial<Group>) => Promise<void>;
   onDeleteClick: () => void;
+  /**
+   * Feriengruppen nach Gruppen-ID, die nächste Woche zuerst (ADR 0120,
+   * Nachtrag 2026-11-11). Eine Gruppe darin bekommt einen Hinweis, damit sie
+   * vor ihrer Woche nicht als leere Gruppe ohne Erklärung dasteht.
+   */
+  holidayGroups?: ReadonlyMap<string, HolidayGuestGroup>;
 }
 
 function keyForGroup(group: Group): string {
   return group.id;
 }
 
-function buildGroupSubtitle(group: Group): string {
-  return group.room_name?.trim() || "Kein Gruppenraum";
+function buildGroupSubtitle(
+  group: Group,
+  hint?: HolidayGuestGroupHint | null,
+): string {
+  const room = group.room_name?.trim() || "Kein Gruppenraum";
+  return hint ? `${room} · ${hint.label}` : room;
+}
+
+function hintFor(
+  group: Group,
+  holidayGroups: ReadonlyMap<string, HolidayGuestGroup> | undefined,
+): HolidayGuestGroupHint | null {
+  const week = holidayGroups?.get(group.id);
+  return week
+    ? holidayGuestGroupHint(week, berlinTodayISO(), group.student_count ?? 0)
+    : null;
 }
 
 export function GroupsMasterDetail({
@@ -49,13 +76,14 @@ export function GroupsMasterDetail({
   onSelect,
   onSaveGroup,
   onDeleteClick,
+  holidayGroups,
 }: GroupsMasterDetailProps) {
   const groupDefinitions = useGroupedItems(groups, "none", {}, "Gruppen");
 
   const renderItem = (group: Group) => (
     <DatabaseListItem
       title={group.name}
-      subtitle={buildGroupSubtitle(group)}
+      subtitle={buildGroupSubtitle(group, hintFor(group, holidayGroups))}
       isSelected={selectedId === group.id}
       onSelect={() => onSelect(group.id)}
     />
@@ -75,6 +103,7 @@ export function GroupsMasterDetail({
   const detailNode = selectedGroup ? (
     <GroupDetailContent
       group={selectedGroup}
+      hint={hintFor(selectedGroup, holidayGroups)}
       onSaveGroup={onSaveGroup}
       onDeleteClick={onDeleteClick}
     />
@@ -102,12 +131,14 @@ export function GroupsMasterDetail({
 
 interface GroupDetailContentProps {
   group: Group;
+  hint: HolidayGuestGroupHint | null;
   onSaveGroup: (data: Partial<Group>) => Promise<void>;
   onDeleteClick: () => void;
 }
 
 function GroupDetailContent({
   group,
+  hint,
   onSaveGroup,
   onDeleteClick,
 }: GroupDetailContentProps) {
@@ -130,6 +161,7 @@ function GroupDetailContent({
           // Eine andere Gruppe beginnt ohne den Fehler der vorigen.
           key={group.id}
           group={group}
+          hint={hint}
           onSaveGroup={handleSaveGroup}
           onResetForm={() => setFormResetCounter((n) => n + 1)}
           formResetKey={`${group.id}:${formResetCounter}`}
@@ -150,7 +182,7 @@ function GroupDetailContent({
             />
           }
           title={group.name}
-          subtitle={buildGroupSubtitle(group)}
+          subtitle={buildGroupSubtitle(group, hint)}
           actions={headerActions}
         />
       }
@@ -163,6 +195,7 @@ function GroupDetailContent({
 
 interface GroupStammdatenTabProps {
   group: Group;
+  hint: HolidayGuestGroupHint | null;
   onSaveGroup: (data: Partial<Group>) => Promise<void>;
   onResetForm: () => void;
   formResetKey: string;
@@ -170,6 +203,7 @@ interface GroupStammdatenTabProps {
 
 function GroupStammdatenTab({
   group,
+  hint,
   onSaveGroup,
   onResetForm,
   formResetKey,
@@ -183,7 +217,7 @@ function GroupStammdatenTab({
 
   return (
     <div className="space-y-6">
-      <GroupSummary group={group} />
+      <GroupSummary group={group} hint={hint} />
       <DatabaseForm
         key={formResetKey}
         sections={sections}
@@ -202,7 +236,13 @@ function GroupStammdatenTab({
   );
 }
 
-function GroupSummary({ group }: { group: Group }) {
+function GroupSummary({
+  group,
+  hint,
+}: {
+  group: Group;
+  hint: HolidayGuestGroupHint | null;
+}) {
   const supervisorNames =
     group.supervisors && group.supervisors.length > 0
       ? group.supervisors.map((s) => s.name).join(", ")
@@ -216,7 +256,12 @@ function GroupSummary({ group }: { group: Group }) {
           tone="gray"
         />
         <StatusBadge label={`${group.student_count ?? 0} Kinder`} tone="gray" />
+        {hint ? <StatusBadge label={hint.label} tone="blue" /> : null}
       </div>
+
+      {hint ? (
+        <Alert type="info" message={hint.message} className="mt-4" />
+      ) : null}
 
       <div className="mt-4">
         <DataGrid>

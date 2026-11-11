@@ -371,6 +371,7 @@ func composeDecisions(
 		Notifications:  testNotifications(repoFactory.Enrollment(), settings, nil),
 		Bookings:       bookings,
 		GuardianAccess: guardianAccess, GuardianAuthorizer: repoFactoryPeople.StudentGuardian,
+		GuardianHold: owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(db), repoFactoryPeople.StudentGuardian, repoFactoryPeople.Student, repoFactoryPeople.GuardianProfile, nil),
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactoryPeople.Person, repoFactoryPeople.Staff, repoFactoryPeople.Student, repoFactoryPeople.StudentGuardian, repoFactoryPeople.GuardianProfile, repoFactoryPeople.GuardianPhoneNumber, students,
 		),
@@ -443,7 +444,7 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 		GuardianProfileRepo: env.reposPeople.GuardianProfile,
 		GuardianPhoneRepo:   env.reposPeople.GuardianPhoneNumber,
 		StudentRepo:         env.reposPeople.Student,
-		GuardianAuthorizer:  env.reposPeople.StudentGuardian,
+		GuardianHold:        owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(env.db), env.reposPeople.StudentGuardian, env.reposPeople.Student, env.reposPeople.GuardianProfile, nil),
 		Decisions:           env.decisions,
 		BookingGates:        env.bookings,
 		Settings:            env.settings,

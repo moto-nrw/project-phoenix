@@ -6,6 +6,8 @@ import { HELP_TOPICS } from "~/lib/help-topics";
  * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche. Dazu
  * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202)
  * und die Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722).
+ * Kinder der eigenen OGS bleiben in ihrer Gruppe; die Karte `Kinder Ihrer
+ * OGS` zeigt, ob moto ihre Anmeldung einem Kind zugeordnet hat (#6678).
  */
 export function holidayWeeksTopic(): HelpTopic {
   return {
@@ -29,7 +31,9 @@ export function holidayWeeksTopic(): HelpTopic {
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",
+      "Kommen Kinder Ihrer OGS? Dann steht unter `Kinder Ihrer OGS`, ob sie eingeplant sind.",
       "Unter `Kinder` steht jedes Kind mit Geburtsdatum, Heimatschule und Zeitmodell.",
+      "Bei einem Kind Ihrer OGS öffnen Sie mit `Akte öffnen` seine Kinderakte.",
       "Gibt der Träger Fragen frei, steht jede in einer eigenen Spalte. Zum Beispiel `Darf allein nach Hause gehen`.",
       "Unter `Zweite sorgeberechtigte Person` stehen Name und Telefon, wenn die Eltern eine zweite Person angegeben haben.",
       "Unter `Gesundheit` stehen Allergien, Medikamente und weitere Hinweise. Dort stehen auch Antworten auf Gesundheitsfragen, die der Träger freigibt.",
@@ -37,21 +41,25 @@ export function holidayWeeksTopic(): HelpTopic {
     result:
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
     notes: [
+      "Die Woche steht auch im `Betreuungsplan` und im `Dienstplan`: im Kopf jedes Tages mit `Ferienbetreuung`, der Zahl der Kinder und der Betreuungszeit. Ein Klick darauf öffnet diese Seite.",
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
       "Bei Tagesbuchung nennt die Spalte `Tage` die gebuchten Tage. Das gilt auch für Excel und CSV.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
-      "Kommt ein Kind Ihrer OGS in die Ferienwoche? Dann stehen seine Gesundheitsangaben auch in seiner Kinderakte. Sie stehen dort unter `Angaben aus der Ferienanmeldung`. Die `Gesundheitsinformationen` des Kindes ändern sich nicht.",
+      "Kinder Ihrer OGS bleiben in ihrer Gruppe. moto trägt für die gebuchten Tage Ankunft und Abholung ein. Der Check-in erwartet das Kind dann an diesen Tagen. Neu bestätigte Kinder plant moto innerhalb einer Stunde ein.",
+      "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
+      "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
       "Nach dem letzten Tag der Woche ist die Woche nicht mehr zu sehen. Die Gesundheitsangaben auch nicht.",
-      "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort.",
+      "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort. Die eingeplanten Tage eines Kindes Ihrer OGS entfernt moto innerhalb einer Stunde.",
     ],
     troubleshootingDetails: [
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
+      "Steht ein Kind unter `Noch nicht zugeordnet`? Dann passen Vorname, Nachname oder Geburtsdatum der Anmeldung zu keinem Kind in moto oder zu mehreren. Ändern Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern. Vorher plant moto für dieses Kind nichts ein.",
       "Steht bei einem Kind unter `Gesundheit` nichts? Dann haben die Eltern nichts angegeben oder nicht zugestimmt. Ältere Anmeldungen geben keine Gesundheitsangaben weiter.",
       "Fehlt `Ferienwochen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],

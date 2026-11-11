@@ -50,7 +50,7 @@ func NewIntake(deps IntakeDependencies) *Intake {
 
 // NewChangeRequests composes the change requests in the tenant runtime.
 func NewChangeRequests(deps ChangeRequestDependencies) enrollment.ChangeRequests {
-	deps.Runtime = tenantRuntime()
+	deps.Runtime, deps.LateInviteIdentities = tenantRuntime(), newStore()
 	return application.NewChangeRequests(deps)
 }
 

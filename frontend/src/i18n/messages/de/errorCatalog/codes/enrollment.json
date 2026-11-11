@@ -129,6 +129,7 @@
   "status_link_invalid": "Dieser Link ist ungültig oder abgelaufen. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
   "student_exists": "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
   "submission_rate_limited": "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
+  "submission_email_rate_limited": "Mit dieser E-Mail-Adresse wurden heute schon viele Anmeldungen gesendet. Bitte versuchen Sie es morgen noch einmal.",
   "waitlist_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
   "window_closed": "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
   "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",

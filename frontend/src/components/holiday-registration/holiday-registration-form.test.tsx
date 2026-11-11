@@ -480,7 +480,8 @@ describe("HolidayRegistrationForm", () => {
         binding_confirmed: true,
         custody_confirmed: true,
         declaration_name: "Eva Maria Muster",
-        consent_version: 3,
+        consent_version: 4,
+        retention_days: 365,
       }),
     );
   });
@@ -1457,7 +1458,8 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
       "link-key",
       expect.objectContaining({
         form_version: 3,
-        consent_version: 3,
+        consent_version: 4,
+        retention_days: 365,
         custom_data: { newsletter: "Aus der Zeitung" },
         health_consent: true,
         children: [
@@ -1529,6 +1531,11 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
         name: /Wie haben Sie von den Ferien erfahren/,
       }),
     ).toHaveValue("Schule");
+    // The privacy text may have changed with the form (#6691): the parent
+    // agrees again to the text the form shows now.
+    expect(
+      screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
+    ).not.toBeChecked();
   });
   it("requires PDF acknowledgements and shows the accepted and declined blocks in the summary", async () => {
     const shown = {

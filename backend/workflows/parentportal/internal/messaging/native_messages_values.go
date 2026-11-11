@@ -58,6 +58,7 @@ type ParentMessage struct {
 	DecisionReason   string                     `json:"decision_reason,omitempty"`
 	GroupThreadID    *int64                     `json:"group_thread_id,omitempty"`
 	GroupThreadTitle string                     `json:"group_thread_title,omitempty"`
+	Attachments      json.RawMessage            `json:"attachments,omitempty"`
 	ReadByStaff      bool                       `json:"read_by_staff,omitempty"`
 	ReadByGuardian   bool                       `json:"read_by_guardian,omitempty"`
 }

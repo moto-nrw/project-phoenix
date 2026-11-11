@@ -49,7 +49,7 @@ func (p parentGroupThreads) ReadGroupThread(ctx context.Context, threadID, accou
 	}
 	messages := make([]parentportal.GroupMessage, 0, len(view.Messages))
 	for _, message := range view.Messages {
-		messages = append(messages, parentportal.GroupMessage{ID: message.ID, Body: message.Body, CreatedAt: message.CreatedAt})
+		messages = append(messages, parentportal.GroupMessage{ID: message.ID, Body: message.Body, CreatedAt: message.CreatedAt, Attachments: message.Attachments})
 	}
 	return &parentportal.GroupThreadView{Thread: parentGroupThread(view.Thread), Messages: messages, StudentIDs: view.StudentIDs}, advanced, nil
 }

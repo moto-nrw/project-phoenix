@@ -229,7 +229,7 @@ func renderUploadFailure(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, capability.ErrPhaseAudienceRestricted):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentFormNotFound))
 	case errors.Is(err, capability.ErrUploadRateLimited):
-		setRateLimitRetryAfter(w)
+		setRateLimitRetryAfter(w, rateLimitRetryAfterSeconds)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

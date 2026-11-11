@@ -23,7 +23,12 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { studentKeys } from "~/lib/swr/portal-keys";
 
-function ContactList({
+/**
+ * Notfallkontakte oder abholberechtigte Personen aus einer Ferienanmeldung,
+ * mit anrufbarer Nummer. Der Feriengast und das eigene Kind der OGS (#6678)
+ * zeigen sie gleich.
+ */
+export function HolidayContactList({
   contacts,
   empty,
 }: Readonly<{ contacts: HolidayGuestContact[]; empty: string }>) {
@@ -131,7 +136,7 @@ export function HolidayGuestSection({
               </DataGrid>
             </InfoSection>
             <InfoSection title="Notfall">
-              <ContactList
+              <HolidayContactList
                 contacts={data.emergencyContacts}
                 empty="Kein Notfallkontakt angegeben."
               />
@@ -140,7 +145,7 @@ export function HolidayGuestSection({
               {data.pickupContacts.length > 0 && (
                 <InfoText>Außer den Eltern dürfen abholen:</InfoText>
               )}
-              <ContactList
+              <HolidayContactList
                 contacts={data.pickupContacts}
                 empty="Nur die Eltern dürfen das Kind abholen."
               />

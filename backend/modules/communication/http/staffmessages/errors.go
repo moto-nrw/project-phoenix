@@ -20,6 +20,11 @@ import (
 // conversations by probing ids. "Not yours" and "not there" must be
 // indistinguishable from outside.
 var staffMessagingErrorRules = []common.ErrorRule{
+	// A send that names an upload it may not carry (#6685).
+	{Target: communication.ErrMessageAttachmentLimit, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeFilesAttachmentLimitReached)
+	}},
+	{Target: communication.ErrMessageAttachmentUnavailable, Render: func(err error) render.Renderer { return common.ErrorInvalidRequest(err) }},
 	{Target: communication.ErrMessageSendConflict, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeCommunicationMessageSendConflict)
 	}},

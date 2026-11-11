@@ -446,6 +446,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0210",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolledIDsByIdentities",
+      "reason": "Owner adapter maps query statistics and errors while preserving index-aligned batch matches; no independent query or write."
+    },
+    {
       "decision": "0090",
       "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolledIDsByNameAndBirthday",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

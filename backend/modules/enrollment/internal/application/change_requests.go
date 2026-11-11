@@ -64,17 +64,21 @@ type ReviewerNames interface {
 // Decisions, BookingGates, Companions, Reviewers and the People ports are
 // optional where the flow degrades without them.
 type ChangeRequestDependencies struct {
-	Requests           ChangeRequestRecords
-	Children           IntakeChildren
-	Guardians          IntakeGuardians
-	LateInvites        DecisionLateInvites
-	Catalog            IntakeCatalog
-	Offerings          IntakeOfferings
-	Bookings           CareBookingChanges
-	Capacity           enrollmentNative.OfferingCapacity
-	Notifications      enrollmentNative.Notifications
-	Students           StudentMatches
-	GuardianAuthorizer GuardianStudentAuthorizer
+	Requests      ChangeRequestRecords
+	Children      IntakeChildren
+	Guardians     IntakeGuardians
+	LateInvites   DecisionLateInvites
+	Catalog       IntakeCatalog
+	Offerings     IntakeOfferings
+	Bookings      CareBookingChanges
+	Capacity      enrollmentNative.OfferingCapacity
+	Notifications enrollmentNative.Notifications
+	Students      StudentMatches
+	// GuardianHold holds the request identity's authority over every pin
+	// and approved student an approval writes, behind the parent guard,
+	// before the approval's phase locks (#6638). Without it no pin and no
+	// family data is authorized.
+	GuardianHold GuardianStudentHold
 	// Decisions applies an approved change to a child the decision flow
 	// already approved; BookingGates wrap those writes.
 	Decisions    enrollmentNative.ApprovedChildChanges
@@ -95,6 +99,15 @@ type ChangeRequestDependencies struct {
 	ParentsURL             string
 	Runtime                Runtime
 	Logger                 *slog.Logger
+
+	// LateInviteIdentities batch-loads the approval's invitation identities.
+	// The owner composition binds its private store in the same transaction.
+	LateInviteIdentities ApprovalLateInvites
+}
+
+// ApprovalLateInvites loads the invitation identities of a whole approval.
+type ApprovalLateInvites interface {
+	LateInvitesByUsedRequestIDs(context.Context, []int64) ([]*enrollmentNative.LateInvite, error)
 }
 
 // ChangeRequests implements the public ChangeRequests capability.
@@ -118,7 +131,7 @@ func NewChangeRequests(deps ChangeRequestDependencies) *ChangeRequests {
 	deps.FrontendURL = strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
 	intake := NewIntake(IntakeDependencies{
 		Requests: deps.Requests, Children: deps.Children, Catalog: deps.Catalog, Offerings: deps.Offerings,
-		Capacity: deps.Capacity, Students: deps.Students, GuardianAuthorizer: deps.GuardianAuthorizer,
+		Capacity: deps.Capacity, Students: deps.Students, GuardianHold: deps.GuardianHold,
 		Settings: deps.Settings, Runtime: deps.Runtime, Logger: deps.Logger, LockTemplateRecurrence: deps.LockTemplateRecurrence,
 	})
 	return &ChangeRequests{deps: deps, intake: intake}

@@ -55,6 +55,9 @@ func TestHolidayAllocationStatementsKeepTheirTraegerBeneathRLS(t *testing.T) {
 		criteria, err := store.ReadHolidayCriteria(ctx, own.organization)
 		require.NoError(t, err)
 		assert.Empty(t, criteria, "A reads no criterion of B")
+		recordCriteria, err := store.ReadHolidayRecordCriteria(ctx, own.organization, foreign.period, foreign.waiting)
+		require.NoError(t, err)
+		assert.Empty(t, recordCriteria, "A exports no criterion of B, including answered ones")
 
 		require.NoError(t, store.WriteHolidayCriteria(ctx, own.organization, []enrollment.HolidayCriterionInput{
 			{ID: criterion, Name: "Übernommen", Question: "Von A?", Scope: enrollment.HolidayCriterionChild, Active: false},

@@ -154,7 +154,7 @@ func seedHolidayCriteriaRegistrations(rt *Runtime, link seedHolidayLink, criteri
 			}},
 			"emergency_contacts": []map[string]any{{"name": "Oma " + family.last, "phone": "05402 000020", "relationship": "Großmutter"}},
 			"privacy_consent":    true, "binding_confirmed": true, "custody_confirmed": true,
-			"declaration_name": family.first + " " + family.last, "consent_version": 3, "captcha_token": seedTurnstileTestToken,
+			"declaration_name": family.first + " " + family.last, "consent_version": seedHolidayConsentVersion, "retention_days": seedHolidayRetentionDays, "captcha_token": seedTurnstileTestToken,
 		}, publicEnrollmentSeedHeaders(120+i))
 		var refused *APIError
 		if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {

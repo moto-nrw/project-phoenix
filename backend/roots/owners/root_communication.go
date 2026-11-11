@@ -65,6 +65,12 @@ type CommunicationMessaging struct {
 	StaffMessaging communication.StaffMessagingRuntime
 	// GroupThreads is the OGS side of the group threads (#4784).
 	GroupThreads communication.ParentGroupThreadCapability
+	// ParentAttachments and StaffAttachments are the photos and files of
+	// the two chat families (#6685); PortalAttachments is the guardian's
+	// side of the first.
+	ParentAttachments communication.MessageAttachmentCapability
+	StaffAttachments  communication.MessageAttachmentCapability
+	PortalAttachments communication.PortalMessageAttachments
 }
 
 // BuildCommunicationMessaging binds the parent messenger and the colleague
@@ -93,13 +99,18 @@ func BuildCommunicationMessaging(
 		LoginImages: settings, ParentsURL: env.Links.ParentsURL, Observe: env.Observe.Communication,
 		GroupAudience: NewParentGroupAudience(db),
 	}
-	messaging, groupThreads := communicationCompose.NewParentMessaging(messagingConfig, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	staffMessaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
+	messaging, groupThreads, parentAttachments := communicationCompose.NewParentMessaging(messagingConfig, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	staffMessaging, staffAttachments := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
+		DB:          db.Pool(),
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(db.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(db.Pool()), ReadRepo: portal.StaffMessageRead,
 		Persons: BindStaffSenderNames(users), Session: session, Settings: settingsValues.NewStaffMessagingValues(settings), Broadcaster: hub,
 		Logger: logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		Preferences: notifications.Preferences, Observe: env.Observe.Communication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	return CommunicationMessaging{Messaging: messaging, StaffMessaging: staffMessaging, GroupThreads: groupThreads}
+	return CommunicationMessaging{
+		Messaging: messaging, StaffMessaging: staffMessaging, GroupThreads: groupThreads,
+		ParentAttachments: parentAttachments, StaffAttachments: staffAttachments,
+		PortalAttachments: communicationCompose.NewPortalMessageAttachments(db.Pool()),
+	}
 }

@@ -26,7 +26,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.ArrivalScheduleService.BulkUpsertArrivalSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -37,7 +37,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.ArrivalScheduleService.BulkUpsertArrivalSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -47,7 +47,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.ArrivalScheduleService.BulkUpsertArrivalSchedules",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.arrivalScheduleService.BulkUpsertArrivalSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -2618,7 +2618,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Owner.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Owner.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -2651,7 +2651,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Owner.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Owner.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -2662,7 +2662,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Owner.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Owner.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -2672,7 +2672,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Owner.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Owner.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -2682,7 +2682,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Owner.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Owner.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -2792,7 +2792,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ReplaceWeekdayPickupNotes",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Owner.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Owner.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -2803,7 +2803,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ReplaceWeekdayPickupNotes",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Owner.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Owner.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -2813,7 +2813,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ReplaceWeekdayPickupNotes",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Owner.ReplaceWeekdayPickupNotes. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Owner.ReplaceWeekdayPickupNotes. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -3076,7 +3076,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayLocker.LockExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Capability.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Capability.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -3087,7 +3087,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayLocker.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -3098,7 +3098,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayLocker.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -3108,7 +3108,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayLocker.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -3118,7 +3118,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayLocker.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -4230,7 +4230,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -4241,7 +4241,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -4251,7 +4251,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ApplyBulkExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.CareOfferings.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -4435,7 +4435,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.Clone",
       "classification": "debt",
       "effect": "lock",
@@ -4447,7 +4447,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.Clone",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -4459,7 +4459,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CloneCatalogForRollover",
       "classification": "debt",
       "effect": "lock",
@@ -4471,7 +4471,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CloneCatalogForRollover",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -4611,7 +4611,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CreateOffering",
       "classification": "debt",
       "effect": "lock",
@@ -4623,7 +4623,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CreateOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -4773,7 +4773,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.DeleteOffering",
       "classification": "debt",
       "effect": "lock",
@@ -4797,7 +4797,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.DeleteOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -5930,7 +5930,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.UpdateOffering",
       "classification": "debt",
       "effect": "lock",
@@ -5965,7 +5965,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.UpdateOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6037,7 +6037,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Clone",
       "classification": "debt",
       "effect": "lock",
@@ -6049,7 +6049,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Clone",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6061,7 +6061,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CreateOffering",
       "classification": "debt",
       "effect": "lock",
@@ -6073,7 +6073,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CreateOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6085,7 +6085,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DeleteOffering",
       "classification": "debt",
       "effect": "lock",
@@ -6109,7 +6109,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DeleteOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6157,7 +6157,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.UpdateOffering",
       "classification": "debt",
       "effect": "lock",
@@ -6192,7 +6192,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.UpdateOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6216,7 +6216,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.Clone",
       "classification": "debt",
       "effect": "lock",
@@ -6228,7 +6228,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.Clone",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6240,7 +6240,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.CloneCatalogForRollover",
       "classification": "debt",
       "effect": "lock",
@@ -6252,7 +6252,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.CloneCatalogForRollover",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6264,7 +6264,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.CreateOffering",
       "classification": "debt",
       "effect": "lock",
@@ -6276,7 +6276,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.CreateOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6288,7 +6288,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.DeleteOffering",
       "classification": "debt",
       "effect": "lock",
@@ -6312,7 +6312,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.DeleteOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -6360,7 +6360,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.UpdateOffering",
       "classification": "debt",
       "effect": "lock",
@@ -6395,7 +6395,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferingCatalog.UpdateOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -10789,7 +10789,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Service.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Service.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -10822,7 +10822,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -10833,7 +10833,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -10843,7 +10843,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -10853,7 +10853,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Service.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -10963,7 +10963,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ReplaceWeekdayPickupNotes",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.Service.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.Service.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -10974,7 +10974,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ReplaceWeekdayPickupNotes",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.Service.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.Service.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -10984,7 +10984,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ReplaceWeekdayPickupNotes",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.Service.ReplaceWeekdayPickupNotes. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.Service.ReplaceWeekdayPickupNotes. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -11674,7 +11674,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -11685,7 +11685,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -11695,7 +11695,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.PickupAdjustments.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -11821,7 +11821,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -11832,7 +11832,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -11842,7 +11842,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAdjustments.ApplyBulkExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.CareOfferingCapability.ApplyBulkExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -12605,7 +12605,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.BulkUpsertPickupSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -12616,7 +12616,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.BulkUpsertPickupSchedules",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -12626,7 +12626,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.BulkUpsertPickupSchedules",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.pickupScheduleService.BulkUpsertPickupSchedules. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -14090,12 +14090,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.ApplyTraegerOffering",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.TraegerOfferingCopies.ApplyTraegerOffering",
-      "reason": "Cross-owner lock of the school's own catalog commands: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.TraegerOfferingCopies.ApplyTraegerOffering. The Träger offering copy creates, updates and deletes the copy through the care-offering catalog, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0212. Rechecked after adding the Träger catalog batch: the binding digest changes with the extended capability surface; the target student/recurrence lock, caller lock order and clock binding stay unchanged.",
+      "reason": "Cross-owner lock of the school's own catalog commands: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.TraegerOfferingCopies.ApplyTraegerOffering. The Träger offering copy creates, updates and deletes the copy through the care-offering catalog, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0215. Rechecked after adding the Träger catalog batch: the binding digest changes with the extended capability surface; the target student/recurrence lock, caller lock order and clock binding stay unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -14113,7 +14113,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.ApplyTraegerOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -14125,7 +14125,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.ApplyTraegerOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -14137,7 +14137,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.ApplyTraegerOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -14149,24 +14149,24 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.TraegerOfferingCopyStates",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.TraegerOfferingCopies.TraegerOfferingCopyStates",
-      "reason": "Cross-owner lock of the school's own phase and catalog commands, reached through the Träger copy commands (ADR 0195 sections 5 and 7): the copy takes the recurrence gate first, then its rows, exactly as a school edit does; no new protocol. Approved for this binding by ADR 0212.",
+      "reason": "Cross-owner lock of the school's own phase and catalog commands, reached through the Träger copy commands (ADR 0195 sections 5 and 7): the copy takes the recurrence gate first, then its rows, exactly as a school edit does; no new protocol. Approved for this binding by ADR 0215.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.TraegerOfferingCopies.WithdrawTraegerOffering",
-      "reason": "Cross-owner lock of the school's own catalog commands: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering. The Träger offering copy creates, updates and deletes the copy through the care-offering catalog, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0212. Rechecked after adding the Träger catalog batch: the binding digest changes with the extended capability surface; the target student/recurrence lock, caller lock order and clock binding stay unchanged.",
+      "reason": "Cross-owner lock of the school's own catalog commands: care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering. The Träger offering copy creates, updates and deletes the copy through the care-offering catalog, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0215. Rechecked after adding the Träger catalog batch: the binding digest changes with the extended capability surface; the target student/recurrence lock, caller lock order and clock binding stay unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -14195,7 +14195,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -14207,7 +14207,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -14219,7 +14219,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.TraegerOfferingCopies.WithdrawTraegerOffering",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -16381,7 +16381,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.WeekdayPickupNoteReplacer.ReplaceWeekdayPickupNotes",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Capability.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Capability.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -16392,7 +16392,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.WeekdayPickupNoteReplacer.ReplaceWeekdayPickupNotes",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Capability.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Capability.ReplaceWeekdayPickupNotes. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -16402,7 +16402,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.WeekdayPickupNoteReplacer.ReplaceWeekdayPickupNotes",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Capability.ReplaceWeekdayPickupNotes. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Capability.ReplaceWeekdayPickupNotes. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -16629,7 +16629,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.DayLocks.LockExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Runtime.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Runtime.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -16640,7 +16640,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.DayLocks.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -16651,7 +16651,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.DayLocks.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -16661,7 +16661,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.DayLocks.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -16671,7 +16671,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.DayLocks.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -16835,7 +16835,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/compose.engineRuntime.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/compose.engineRuntime.LockExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -16846,7 +16846,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockStudent",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudent. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudent. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -16857,7 +16857,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockStudent",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudent. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudent. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -16867,7 +16867,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockStudent",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/compose.engineRuntime.LockStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/compose.engineRuntime.LockStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -16878,7 +16878,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -16889,7 +16889,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -16899,7 +16899,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -16909,7 +16909,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.Runtime.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan/compose.engineRuntime.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -17103,36 +17103,36 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ReconcileOfferingPickupForOfferings",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.traegerBatchPickup.ReconcileOfferingPickupForOfferings",
-      "reason": "The batch pickup reconciliation uses the existing clock and auto-excusal callback. Exact unresolved boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/api.now. The binding remains unresolved under ADR 0083; ADR 0212 records this additional batch entry without changing the callback or its lock order.",
+      "reason": "The batch pickup reconciliation uses the existing clock and auto-excusal callback. Exact unresolved boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/api.now. The binding remains unresolved under ADR 0083; ADR 0215 records this additional batch entry without changing the callback or its lock order.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ReconcileOfferingPickupForOfferings",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.traegerBatchPickup.ReconcileOfferingPickupForOfferings",
-      "reason": "The batch pickup reconciliation uses the existing clock and auto-excusal callback. Exact unresolved boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals. The binding remains unresolved under ADR 0083; ADR 0212 records this additional batch entry without changing the callback or its lock order.",
+      "reason": "The batch pickup reconciliation uses the existing clock and auto-excusal callback. Exact unresolved boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals. The binding remains unresolved under ADR 0083; ADR 0215 records this additional batch entry without changing the callback or its lock order.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.ResyncPickupAutoExcusals",
       "target_owner": ""
     },
     {
       "adr": "0083",
-      "approval_adr": "0212",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ReconcileOfferingPickupForOfferings",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.traegerBatchPickup.ReconcileOfferingPickupForOfferings",
-      "reason": "The batch pickup reconciliation uses the existing clock and auto-excusal callback. Exact unresolved boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.Today. The binding remains unresolved under ADR 0083; ADR 0212 records this additional batch entry without changing the callback or its lock order.",
+      "reason": "The batch pickup reconciliation uses the existing clock and auto-excusal callback. Exact unresolved boundary: unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.Today. The binding remains unresolved under ADR 0083; ADR 0215 records this additional batch entry without changing the callback or its lock order.",
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterializationDependencies.Today",
       "target_owner": ""
@@ -17523,7 +17523,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17534,7 +17534,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17544,7 +17544,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Create",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -17566,7 +17566,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17577,7 +17577,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17587,7 +17587,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.Delete",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -17609,7 +17609,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17620,7 +17620,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17630,7 +17630,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.DeleteByStudentID",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -17652,7 +17652,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -17663,7 +17663,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -17673,7 +17673,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ArrivalScheduleRepository.UpsertSchedule",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.ArrivalSchedule, *modules/careplan.ArrivalSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -20343,7 +20343,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.GuardianAbsenceRecords.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -20354,7 +20354,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.GuardianAbsenceRecords.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -20364,7 +20364,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.GuardianAbsenceRecords.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -20374,7 +20374,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.GuardianAbsenceRecords.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.Capability.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -22106,7 +22106,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupApprovalLocker.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -22117,7 +22117,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupApprovalLocker.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -22127,7 +22127,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupApprovalLocker.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -22137,7 +22137,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupApprovalLocker.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through modules/careplan.CareDayLocker.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"
@@ -22797,7 +22797,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -22808,7 +22808,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Create",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -22818,7 +22818,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Create",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Create. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -22840,7 +22840,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -22851,7 +22851,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Delete",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -22861,7 +22861,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.Delete",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].Delete. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -22883,7 +22883,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -22894,7 +22894,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.DeleteByStudentID",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -22904,7 +22904,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.DeleteByStudentID",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].DeleteByStudentID. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -22926,7 +22926,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -22937,7 +22937,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.UpsertSchedule",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -22947,7 +22947,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupScheduleRepository.UpsertSchedule",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through modules/careplan/internal/application.EffectiveRecords[modules/careplan.PickupSchedule, *modules/careplan.PickupSchedule].UpsertSchedule. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176). Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -23099,7 +23099,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestConflictPlans.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
       "target_owner": "people-directory"
@@ -23110,7 +23110,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestConflictPlans.LockStudentAndExceptionDay",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
       "target_owner": "people-directory"
@@ -23120,7 +23120,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestConflictPlans.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
       "target_owner": "people-directory"
@@ -23130,7 +23130,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestConflictPlans.LockStudentAndExceptionDay",
-      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Read-only newly exposed target: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through roots/owners.requestConflictPlans.LockStudentAndExceptionDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Own-child bulk planning review: the three engine lock adapters now live in Care Plan's postgres package and are promoted by the same runtime. They still call LockEngineStudentDay, careplanning.LockExceptionDay and careplanning.LockStudent with the same database and IDs. The registered WithinTenant boundary, caller transaction and lock order are unchanged.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
       "target_owner": "tenant-runtime"

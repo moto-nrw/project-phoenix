@@ -14,6 +14,8 @@ import {
   ClosingDayChip,
   ClosingDayConfirmModal,
 } from "~/components/planning/closing-day-marker";
+import { HolidayCareChip } from "~/components/planning/holiday-care-marker";
+import type { HolidayCareDay } from "~/lib/holiday-care";
 import { ShiftMoveDialog } from "~/components/staff/shift-move-dialog";
 import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
 import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
@@ -111,6 +113,11 @@ interface DienstplanResourceGridProps {
   /** Alle gespeicherten Schließtag-Zeiträume — für den Zieltag im
    *  „Verschieben nach“-Dialog, der außerhalb der Woche liegen kann. */
   readonly closingDayRanges?: readonly ClosingDayRange[];
+  /** Tage mit Ferienbetreuung für den Träger, keyed YYYY-MM-DD (ADR 0116):
+   *  der Spaltenkopf nennt Kinder und Betreuungszeit. */
+  readonly holidayCare?: ReadonlyMap<string, HolidayCareDay>;
+  /** Ziel der Ferienbetreuungs-Markierung; ohne Ziel ist sie eine Anzeige. */
+  readonly holidayCareHref?: string;
   /** Shift type lookup (id -> type) for per-shift color + label fallback. */
   readonly typesById: Map<string, ShiftType>;
   /** Every shift type (Schichtart) for the legend. Data source: the view. */
@@ -322,6 +329,8 @@ export function DienstplanResourceGrid({
   closingDays,
   closingDaysLoading = false,
   closingDayRanges,
+  holidayCare,
+  holidayCareHref,
   typesById,
   shiftTypes,
   reducedPath = false,
@@ -371,20 +380,38 @@ export function DienstplanResourceGrid({
     () =>
       weekDays.map((date, i) => {
         const closingReason = closingDays?.get(date);
+        const care = holidayCare?.get(date);
+        let headerNote: ReactNode;
+        if (closingReason !== undefined) {
+          headerNote = <ClosingDayChip reason={closingReason} />;
+        } else if (care !== undefined) {
+          headerNote = (
+            <HolidayCareChip day={care} href={holidayCareHref} stacked />
+          );
+        }
         return {
           key: date,
           label: DAY_LABELS[i] ?? "",
           sublabel: formatColumnDate(date),
           isCurrent: date === todayIso,
           isMuted: closingReason !== undefined,
-          headerNote:
-            closingReason === undefined ? undefined : (
-              <ClosingDayChip reason={closingReason} />
-            ),
+          headerNote,
         };
       }),
-    [weekDays, todayIso, closingDays],
+    [weekDays, todayIso, closingDays, holidayCare, holidayCareHref],
   );
+  // Der Tagesstreifen der kompakten Ansicht hat kaum Platz, und jeder Tag ist
+  // dort ein Knopf: die Ferienbetreuung steht nur als Symbol, ohne Link.
+  const stripMarkers = useMemo(() => {
+    const markers = new Map<string, ReactNode>();
+    for (const date of weekDays) {
+      const care = holidayCare?.get(date);
+      if (!closingDays?.has(date) && care !== undefined) {
+        markers.set(date, <HolidayCareChip day={care} text="" />);
+      }
+    }
+    return markers;
+  }, [weekDays, closingDays, holidayCare]);
 
   // Per-day capacity (12–16 window), computed once per data change instead of
   // per footer cell, so opening/closing the move dialog does not re-scan every
@@ -701,6 +728,10 @@ export function DienstplanResourceGrid({
   // Baum, Screenreader läsen den Plan zweimal vor und die Tabulator-Reihenfolge
   // liefe durch eine unsichtbare Kopie.
   const isCompact = useMediaQuery(BELOW_LG);
+  const mobileCare =
+    mobileColumn && stripMarkers.has(mobileColumn.key)
+      ? holidayCare?.get(mobileColumn.key)
+      : undefined;
 
   return (
     <div>
@@ -727,12 +758,20 @@ export function DienstplanResourceGrid({
                     dateLabel={column.sublabel ?? ""}
                     selected={isSelected}
                     onClick={() => setMobileDayIndex(index)}
-                    marker={column.headerNote}
+                    marker={stripMarkers.get(column.key) ?? column.headerNote}
                     today={column.isCurrent}
                   />
                 );
               })}
             </div>
+
+            {/* Im Streifen steht nur das Symbol; für den gewählten Tag nennt
+            diese Zeile Kinder und Betreuungszeit, mit dem Link. */}
+            {mobileCare !== undefined && (
+              <div className="border-b border-gray-100 px-3 py-2">
+                <HolidayCareChip day={mobileCare} href={holidayCareHref} />
+              </div>
+            )}
 
             <ul className="divide-y divide-gray-100">
               {staff.map((member) => (

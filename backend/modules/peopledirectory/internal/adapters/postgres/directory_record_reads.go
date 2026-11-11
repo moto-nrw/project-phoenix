@@ -8,6 +8,7 @@ import (
 
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // selectStudentRecords is the one shape every whole-row read of the child table
@@ -251,4 +252,49 @@ func (s *studentDirectoryReads) ListAllIDs(ctx context.Context) ([]int64, direct
 	}
 	stats.Rows = int64(len(ids))
 	return ids, stats, nil
+}
+
+// ListEnrolledIDsByIdentities preserves input positions and every matching
+// student, so callers can distinguish missing and ambiguous identities.
+func (s *studentDirectoryReads) ListEnrolledIDsByIdentities(ctx context.Context, tenantID int64, identities []directory.StudentIdentity) ([][]int64, directoryStats, error) {
+	matches := make([][]int64, len(identities))
+	if len(identities) == 0 {
+		return matches, directoryStats{}, nil
+	}
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return nil, directoryStats{}, err
+	}
+	firsts, lasts, birthdays := make([]string, len(identities)), make([]string, len(identities)), make([]string, len(identities))
+	for i, identity := range identities {
+		firsts[i], lasts[i], birthdays[i] = strings.TrimSpace(identity.FirstName), strings.TrimSpace(identity.LastName), identity.Birthday.String()
+	}
+	var rows []struct {
+		IdentityIndex int
+		StudentID     int64
+	}
+	query := s.rows.StudentRows(db, tenantID).
+		ColumnExpr(`probe.ord AS identity_index, "student".id AS student_id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
+		Join(`INNER JOIN unnest(?::text[], ?::text[], ?::date[]) WITH ORDINALITY AS probe(first_name, last_name, birthday, ord)
+			ON "person".birthday = probe.birthday
+			AND LOWER(NORMALIZE(TRIM("person".first_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(TRIM(probe.first_name), NFC) COLLATE public.german_name)
+			AND LOWER(NORMALIZE(TRIM("person".last_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(TRIM(probe.last_name), NFC) COLLATE public.german_name)`,
+			pgdialect.Array(firsts), pgdialect.Array(lasts), pgdialect.Array(birthdays)).
+		Where(`"student".tenant_id = ?`, tenantID).
+		Where(`"student".status IN (?)`, bun.List([]string{directory.StudentStatusActive, directory.StudentStatusPending})).
+		Where(`"person".deleted_at IS NULL`).
+		OrderExpr(`probe.ord, "student".id`)
+	stats := directoryStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("student directory projection: list enrolled students by identities: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	for _, row := range rows {
+		matches[row.IdentityIndex-1] = append(matches[row.IdentityIndex-1], row.StudentID)
+	}
+	return matches, stats, nil
 }

@@ -7,6 +7,7 @@
  * Backend int64 ids arrive already stringified.
  */
 
+import type { MessageAttachment } from "~/lib/message-attachments";
 import { ApiError, apiErrorFromText, transportFetch } from "~/lib/api-error";
 
 export type GroupTargetType = "group" | "class" | "activity_group";
@@ -48,6 +49,8 @@ interface GroupMessage {
   sender_name: string;
   body: string;
   created_at: string;
+  /** Fotos und Dateien der Nachricht (#6685). */
+  attachments?: readonly MessageAttachment[];
 }
 
 export interface GroupChild {
@@ -157,10 +160,15 @@ export function postGroupMessage(
   id: string,
   body: string,
   clientMessageId?: string,
+  attachmentIds?: readonly string[],
 ): Promise<GroupThreadDetail> {
   return post<GroupThreadDetail>(
     `${BASE}/${encodeURIComponent(id)}/messages`,
-    { body, client_message_id: clientMessageId },
+    {
+      body,
+      client_message_id: clientMessageId,
+      ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
+    },
     "Nachricht konnte nicht gesendet werden",
   );
 }

@@ -19,6 +19,7 @@ export function parentMessagesTopic(): HelpTopic {
     ],
     result: "Die OGS bekommt Ihre Nachricht sofort.",
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Jedes Kind hat eine eigene Unterhaltung. Oben steht, für welches Kind sie gilt.",
       "Über dem Schreibfeld steht, wer mitliest, zum Beispiel `Lesen können: Sie und alle Mitarbeitenden der OGS.` Auf einem großen Bildschirm steht es auch oben. Andere Bezugspersonen Ihres Kindes lesen Ihre Unterhaltung nicht.",
       "Unter Ihrer Nachricht steht `Gesendet` und später `Von der OGS gelesen`.",

@@ -221,3 +221,68 @@ describe("GroupsMasterDetail", () => {
     expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
   });
 });
+
+describe("GroupsMasterDetail Feriengruppe", () => {
+  // Testuhr: Mittwoch, 09.09.2026. Die Woche liegt im Januar 2027.
+  const holidayGroup: Group = {
+    id: "7",
+    name: "Ferienbetreuung Januar 2027",
+    room_name: "Raum 12",
+    student_count: 0,
+  };
+  const holidayGroups = new Map([
+    [
+      "7",
+      {
+        groupId: "7",
+        weekId: "51",
+        startsOn: "2027-01-04",
+        endsOn: "2027-01-08",
+        guests: 3,
+      },
+    ],
+  ]);
+
+  it("names the week in the list and explains the empty group in the detail", () => {
+    render(
+      <GroupsMasterDetail
+        groups={[baseGroup, holidayGroup]}
+        selectedId="7"
+        selectedGroup={holidayGroup}
+        onSelect={vi.fn()}
+        onSaveGroup={vi.fn()}
+        onDeleteClick={vi.fn()}
+        holidayGroups={holidayGroups}
+      />,
+    );
+
+    expect(
+      screen.getAllByText("Raum 12 · Feriengruppe 04.–08.01.2027"),
+    ).toHaveLength(2);
+    expect(screen.getByText("Feriengruppe 04.–08.01.2027")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "3 Feriengäste kommen am 04.01. in die Gruppe. Bis zum 04.01. steht die Gruppe nicht unter „Gruppen“. Raum und Gruppenleitung können Sie schon jetzt festlegen.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Raum 101")).toBeInTheDocument();
+  });
+
+  it("shows an ordinary group without a hint", () => {
+    render(
+      <GroupsMasterDetail
+        groups={[baseGroup, holidayGroup]}
+        selectedId="1"
+        selectedGroup={baseGroup}
+        onSelect={vi.fn()}
+        onSaveGroup={vi.fn()}
+        onDeleteClick={vi.fn()}
+        holidayGroups={holidayGroups}
+      />,
+    );
+
+    expect(screen.getAllByText("Raum 101")).toHaveLength(3);
+    expect(screen.getByText("12 Kinder")).toBeInTheDocument();
+    expect(screen.queryByText(/Feriengäste kommen/)).not.toBeInTheDocument();
+  });
+});

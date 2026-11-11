@@ -56,3 +56,12 @@ func seedParallelHolidayDraft(client *Client, auth AuthRef, today calendar.Date,
 		return nil
 	}
 }
+
+// seedHolidayConsentVersion and seedHolidayRetentionDays are what a seeded
+// holiday registration agrees to (#6691): the current consent texts with the
+// registry default of holiday_registration.retention_days, which the seed
+// never changes.
+const (
+	seedHolidayConsentVersion = 4
+	seedHolidayRetentionDays  = 365
+)

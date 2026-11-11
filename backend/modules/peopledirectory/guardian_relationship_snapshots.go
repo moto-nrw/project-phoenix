@@ -42,6 +42,7 @@ type GuardianRelationshipReads interface {
 	GuardianRelationshipsForStudent(context.Context, int64) ([]*GuardianRelationshipSnapshot, error)
 	GuardianRelationshipsForProfile(context.Context, int64) ([]*GuardianRelationshipSnapshot, error)
 	GuardianRelationshipForUpdate(context.Context, int64, int64) (*GuardianRelationshipSnapshot, error)
+	GuardianRelationshipsForUpdate(context.Context, []int64, int64) ([]*GuardianRelationshipSnapshot, error)
 	GuardianLinkedChildren(context.Context, []int64) ([]*GuardianLinkedChildSnapshot, error)
 	AccountHasStudentPermission(context.Context, int64, int64, int64, string) (bool, error)
 }

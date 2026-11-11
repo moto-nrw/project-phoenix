@@ -280,10 +280,12 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+5) and their port of
 // workflows/parentportal/compose (+1) add exactly 6 LOC.
 // ADR 0209: the new composition of workflows/holidayallocation (+13).
-// ADR 0212: workflows/traegercatalog (+38), enrollment copy references (+4),
-// and the careplan copy-reference binding (+1); #4704
-// shortened comments of modules/careplan and modules/enrollment (-2).
-const moduleComposeBudgetTotal = 13340
+// ADR 0212: the message attachments of modules/communication/composition
+// (+25) and their port of workflows/parentportal/compose (+1).
+// ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
+// (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
+// comments); modules/careplan/compose stays.
+const moduleComposeBudgetTotal = 13360
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -307,15 +309,15 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0153: the contract offerings constructor (+9).
 	// ADR 0154: the booked care offering constructor (+13).
-	// #4704 added the Träger offering constructors and shortened comments of
-	// the package by more than it added (-1).
-	// ADR 0212: bind the batch copy references (+1).
-	"modules/careplan/compose":             1680,
+	// #4704 (ADR 0215): the Träger offering constructors fit in shortened
+	// comments (±0).
+	"modules/careplan/compose":             1675,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
 	// Raised by ADR 0073: the parent announcement retention.
-	"modules/communication/composition":  351,
+	// ADR 0212: the message attachments (+25).
+	"modules/communication/composition":  376,
 	"modules/dataimport/compose":         85,
 	"modules/dataimport/compose/imports": 29,
 	// ADR 0145: +40 LOC for transport lifecycle, -8 LOC for the retired local wrapper.
@@ -340,10 +342,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
 	// ADR 0207: the constructor of the announced holiday periods (+5).
-	// #4704 added the Träger phase constructor and shortened comments of the
-	// package by more than it added (-1).
-	// ADR 0212: the batched offering selection-reference constructor (+4).
-	"modules/enrollment/compose":                   616,
+	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
+	// less shortened comments and a merged file (-6).
+	"modules/enrollment/compose":                   615,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -454,7 +455,8 @@ var moduleComposeBudgets = map[string]int{
 	// by ADR 0157: the shared document port (+1).
 	// ADR 0159: the notice port (+1).
 	// ADR 0207: the port of the announced holiday periods (+1).
-	"workflows/parentportal/compose":     333,
+	// ADR 0212: the port of the message attachments (+1).
+	"workflows/parentportal/compose":     334,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,
@@ -464,7 +466,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/traegerview/compose": 20,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
-	// Added by ADR 0212: the Träger catalog rollout and its runtime (ADR 0195).
+	// Added by ADR 0215: the Träger catalog rollout and its runtime (ADR 0195).
 	"workflows/traegercatalog/compose":  38,
 	"workflows/studentdeletion/compose": 74,
 }

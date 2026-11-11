@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -347,6 +349,7 @@ func newMealWriteRig(t *testing.T) mealWriteRig {
 		deps.Conversations = NewParentConversationCore(messages.ParentMessageThread, records.Message, messages.ParentMessageRead, broadcaster, slog.Default(),
 			owners.BindParentLeadershipChoice(settings.Settings, owners.BindParentMessageLeadership(people.Staff, identity)))
 		deps.GroupThreads = NewParentGroupThreadTestPort(database)
+		deps.MessageAttachments = owners.BindParentMessageAttachments(communicationCompose.NewPortalMessageAttachments(pool))
 	})
 	require.NoError(t, settings.Settings.SetValue(testpkg.Ctx(t), settingsModule.KeyParentMessageLeadershipEnabled, true, nil, nil))
 	return mealWriteRig{
