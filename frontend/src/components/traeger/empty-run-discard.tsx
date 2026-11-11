@@ -1,5 +1,5 @@
 // Ein offener Lauf ohne Inhalt lässt sich verwerfen (#6626): Monatslauf und
-// Jahreslauf zeigen dieselbe Karte, denselben Dialog und nach dem Verwerfen
+// Jahreslauf zeigen dieselbe Karte und nach dem Verwerfen
 // denselben Abschluss. Ob ein Lauf leer ist, entscheidet der Server unter der
 // Sperre der Freigabe; die Seite blendet die Aktion nur bei leerer Vorschau
 // ein.
@@ -7,7 +7,6 @@
 import { ArchiveX, Inbox } from "lucide-react";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
 
@@ -86,44 +85,5 @@ export function DiscardedRunCard({
       />
       <RunFacts run={run} discardedAt={discardedAt} />
     </SectionCard>
-  );
-}
-
-/** Asks before an empty open run is discarded. */
-export function DiscardRunModal({
-  run,
-  isOpen,
-  discarding,
-  onClose,
-  onConfirm,
-}: {
-  readonly run: RunPeriod;
-  readonly isOpen: boolean;
-  readonly discarding: boolean;
-  readonly onClose: () => void;
-  readonly onConfirm: () => void;
-}) {
-  return (
-    <ConfirmationModal
-      isOpen={isOpen}
-      title="Leeren Lauf verwerfen?"
-      confirmText="Verwerfen"
-      confirmVariant="danger"
-      isConfirmLoading={discarding}
-      loadingText="Wird verworfen …"
-      onClose={onClose}
-      onConfirm={onConfirm}
-    >
-      <div className="space-y-3 text-sm text-gray-700">
-        <p>
-          Der {run.runLabel} für {run.period} stellt nichts aus. Er bleibt als
-          „Verworfen“ in der Liste.
-        </p>
-        <p>
-          Danach ist {run.periodNoun} frei. Sie können sofort einen neuen Lauf
-          starten.
-        </p>
-      </div>
-    </ConfirmationModal>
   );
 }

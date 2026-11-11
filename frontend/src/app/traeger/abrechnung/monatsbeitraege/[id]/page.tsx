@@ -21,7 +21,6 @@ import {
   isEmptyCareRun,
 } from "~/components/traeger/care-billing-format";
 import {
-  DiscardRunModal,
   DiscardedRunCard,
   EmptyRunCard,
   type RunPeriod,
@@ -380,13 +379,27 @@ export default function TraegerCareRunPage() {
       loading={!pageLoad.error && !run}
       overlays={
         run && empty ? (
-          <DiscardRunModal
-            run={runPeriod(run)}
+          <ConfirmationModal
             isOpen={confirmingDiscard}
-            discarding={discarding}
+            title="Leeren Lauf verwerfen?"
+            confirmText="Verwerfen"
+            confirmVariant="danger"
+            isConfirmLoading={discarding}
+            loadingText="Wird verworfen …"
             onClose={() => setConfirmingDiscard(false)}
             onConfirm={() => void discard()}
-          />
+          >
+            <div className="space-y-3 text-sm text-gray-700">
+              <p>
+                Der Monatslauf für {formatMonth(run.billingMonth)} stellt nichts
+                aus. Er bleibt als „Verworfen“ in der Liste.
+              </p>
+              <p>
+                Danach ist der Monat frei. Sie können sofort einen neuen Lauf
+                starten.
+              </p>
+            </div>
+          </ConfirmationModal>
         ) : run ? (
           <ConfirmationModal
             isOpen={confirming}
@@ -427,6 +440,22 @@ export default function TraegerCareRunPage() {
         ) : null
       }
     >
+      {run && !discarded && run.feeNoticeHeld?.length ? (
+        <Alert
+          type="warning"
+          title="Durch aufgehobenen Bescheid gesperrt"
+          message={feeNoticeHeldText(run.feeNoticeHeld)}
+          action={
+            <ButtonLink
+              href={traegerPath("/traeger/abrechnung/jahresbescheide")}
+              variant="surface"
+              size="compact"
+            >
+              Neuen Bescheid ausstellen
+            </ButtonLink>
+          }
+        />
+      ) : null}
       {run && discarded ? (
         <DiscardedRunCard run={runPeriod(run)} discardedAt={run.discardedAt} />
       ) : run && empty ? (
@@ -649,22 +678,6 @@ export default function TraegerCareRunPage() {
                   size="compact"
                 >
                   Kinderzahl prüfen
-                </ButtonLink>
-              }
-            />
-          ) : null}
-          {run.feeNoticeHeld?.length ? (
-            <Alert
-              type="warning"
-              title="Durch aufgehobenen Bescheid gesperrt"
-              message={feeNoticeHeldText(run.feeNoticeHeld)}
-              action={
-                <ButtonLink
-                  href={traegerPath("/traeger/abrechnung/jahresbescheide")}
-                  variant="surface"
-                  size="compact"
-                >
-                  Neuen Bescheid ausstellen
                 </ButtonLink>
               }
             />

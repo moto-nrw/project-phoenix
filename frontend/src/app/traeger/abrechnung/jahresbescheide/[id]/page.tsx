@@ -22,7 +22,6 @@ import {
 } from "~/components/traeger/care-notice-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
-  DiscardRunModal,
   DiscardedRunCard,
   EmptyRunCard,
   type RunPeriod,
@@ -322,13 +321,27 @@ export default function TraegerCareNoticeRunPage() {
       loading={!pageLoad.error && !run}
       overlays={
         run && empty ? (
-          <DiscardRunModal
-            run={runPeriod(run)}
+          <ConfirmationModal
             isOpen={confirmingDiscard}
-            discarding={discarding}
+            title="Leeren Lauf verwerfen?"
+            confirmText="Verwerfen"
+            confirmVariant="danger"
+            isConfirmLoading={discarding}
+            loadingText="Wird verworfen …"
             onClose={() => setConfirmingDiscard(false)}
             onConfirm={() => void discard()}
-          />
+          >
+            <div className="space-y-3 text-sm text-gray-700">
+              <p>
+                Der Jahreslauf für das Jahr {run.year} stellt nichts aus. Er
+                bleibt als „Verworfen“ in der Liste.
+              </p>
+              <p>
+                Danach ist das Jahr frei. Sie können sofort einen neuen Lauf
+                starten.
+              </p>
+            </div>
+          </ConfirmationModal>
         ) : run ? (
           <ConfirmationModal
             isOpen={confirming}

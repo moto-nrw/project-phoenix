@@ -132,4 +132,38 @@ describe("discarding an empty monthly run", () => {
     ).toBeNull();
     expect(screen.queryByText("Dieser Lauf hat nichts abzurechnen")).toBeNull();
   });
+
+  it("keeps the notice hold and recovery link visible for an empty run", async () => {
+    api.fetchCareRun.mockResolvedValue(
+      run({
+        feeNoticeHeld: [
+          {
+            contractId: "41",
+            childFirstName: "Mia",
+            childLastName: "Muster",
+            noticeNumber: "MB-0003",
+          },
+        ],
+      }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByText("Dieser Lauf hat nichts abzurechnen"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Leeren Lauf verwerfen" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByText("Durch aufgehobenen Bescheid gesperrt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Der Jahresbescheid von Mia Muster setzt diesen Monat auf 0,00 €. Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Neuen Bescheid ausstellen" }),
+    ).toHaveAttribute("href", "/traeger/abrechnung/jahresbescheide");
+  });
 });
