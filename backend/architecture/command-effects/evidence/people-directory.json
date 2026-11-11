@@ -10073,15 +10073,7 @@
       "target_owner": ""
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
-      "binding_digest": "d5349101396c74a6f997482c10fd407a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
-      "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
       "binding_digest": "7c42484c8947b0a83e178c2ab5b13541",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
       "source_owner": "people-directory",
@@ -10089,7 +10081,7 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
       "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
       "source_owner": "people-directory",
@@ -10097,7 +10089,7 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
       "binding_digest": "ccd79bd4bb01e567856fe8cd1f8a60c2",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
       "source_owner": "people-directory",
@@ -10105,7 +10097,7 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
       "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
       "source_owner": "people-directory",

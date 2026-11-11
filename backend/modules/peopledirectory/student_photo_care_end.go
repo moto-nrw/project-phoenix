@@ -42,9 +42,27 @@ type StudentPhotoCareEnd struct {
 // binds it; Audit Platform owns the log.
 type StudentPhotoCareEndLog func(ctx context.Context, ended StudentPhotoCareEnd) error
 
-// StudentPhotoCareEndResult reports one run: the children whose photo
-// ended and those deferred because another transaction held their row.
+// Outcomes of one child in a run of StudentPhotoCareEndRetention.
+const (
+	StudentPhotoCareEnded    = "ended"
+	StudentPhotoCareDeferred = "deferred"
+	StudentPhotoCareKept     = "kept"
+	StudentPhotoCareGone     = "gone"
+)
+
+// StudentPhotoCareEndChild is one candidate's outcome in a run: ended,
+// deferred because another transaction held its row, kept because the care
+// is no longer over under the lock, or gone because the child was deleted.
+type StudentPhotoCareEndChild struct {
+	StudentID int64
+	Outcome   string
+}
+
+// StudentPhotoCareEndResult reports one run: how many photos ended, how
+// many children were deferred, and every candidate's outcome, so the caller
+// writes one log line per child and run.
 type StudentPhotoCareEndResult struct {
 	Ended    int
 	Deferred int
+	Children []StudentPhotoCareEndChild
 }

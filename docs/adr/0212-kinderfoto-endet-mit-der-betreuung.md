@@ -45,7 +45,8 @@ ist. Eine schulweise Nachfrist gibt es bewusst nicht.
 
 People Directory besitzt Foto und Einwilligung und stellt
 `StudentPhotoCareEndRetention` bereit; die Root hängt den Schritt nach der
-Löschung ganzer Kinder in den nächtlichen Lauf und bindet das Löschprotokoll.
+Löschung ganzer Kinder in den nächtlichen Lauf, bindet das Löschprotokoll
+und schreibt aus dem Ergebnis eine Logzeile je Kind.
 
 - Kandidaten kommen in jedem Lauf aus der Datenbank. Ein ausgefallener oder
   verschobener Lauf holt alles nach.
@@ -55,7 +56,8 @@ Löschung ganzer Kinder in den nächtlichen Lauf und bindet das Löschprotokoll.
   zwischen Auswahl und Sperre das Foto hält.
 - Die Datei geht erst nach dem Commit; der dauerhafte Aufräumauftrag
   committet mit der geleerten Zeile.
-- Eine Logzeile je Kind und Lauf. Das Löschprotokoll erhält je Kind einen
+- Eine Logzeile je Kandidat und Lauf (beendet, verschoben, behalten,
+  entfallen). Das Löschprotokoll erhält je Kind einen
   Eintrag `student_photo_retention` mit Grund `care_ended`, geschrieben vom
   System.
 - Das Einwilligungsprotokoll erhält **keinen** Widerruf: Niemand hat
@@ -76,10 +78,11 @@ Einen neuen Schreibweg für Eltern gibt es nicht.
 ## Command Effects
 
 Diese ADR bestätigt genau den neuen Eintrag
-`StudentPhotoCareEnd.EndStudentPhotosAfterCare` →
+`Service.EndStudentPhotosAfterCare` →
 `unresolved:callable:…/peopledirectory/internal/application.observe`: die
 vorhandene Beobachtung des Foto-Lebenszyklus, wie in ADR 0098 statisch
-unaufgelöst. Die übrigen vier neuen Einträge sind Plattformteilnahme
-(ADR 0098). Der Schritt nutzt den Foto-Lebenszyklus der vorhandenen
-Directory-Komposition und erzeugt keinen neuen Wertfluss in bestehende
-Bindungen.
+unaufgelöst. Die übrigen drei neuen Einträge sind Plattformteilnahme
+(ADR 0098). Der Schritt ist eine Methode des vorhandenen Owner-Service; die
+Root erreicht ihn über den Owner der vorhandenen Directory-Komposition. Er
+erzeugt keinen neuen Wertfluss in bestehende Bindungen, und die Datei geht
+über den vorhandenen, registrierten Weg `ScheduleUnlink` nach dem Commit.

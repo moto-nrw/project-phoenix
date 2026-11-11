@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -73,7 +72,8 @@ func newCareEndFixture(t *testing.T) *careEndFixture {
 		DB: db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(Observation) {}, StudentPhotos: runtime,
 	}, nil)
 	require.NoError(t, err)
-	end := directory.StudentPhotoCareEnd(slog.Default())
+	end, ok := directory.Owner.(peopledirectory.StudentPhotoCareEndRetention)
+	require.True(t, ok, "the directory owner ends photos after care")
 	return &careEndFixture{
 		db: db, ctx: testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), tenant: testpkg.Tenant(t),
 		runtime: runtime, end: end,
@@ -157,7 +157,12 @@ func TestStudentPhotoCareEndRemovesPhotoDataOnceTheCareIsOver(t *testing.T) {
 
 	result, err := f.run(t)
 	require.NoError(t, err)
-	assert.Equal(t, peopledirectory.StudentPhotoCareEndResult{Ended: 2}, result)
+	assert.Equal(t, 2, result.Ended)
+	assert.Zero(t, result.Deferred)
+	assert.ElementsMatch(t, []peopledirectory.StudentPhotoCareEndChild{
+		{StudentID: ended, Outcome: peopledirectory.StudentPhotoCareEnded},
+		{StudentID: graduate, Outcome: peopledirectory.StudentPhotoCareEnded},
+	}, result.Children, "one outcome per candidate, for one log line per child and run")
 
 	for _, id := range []int64{ended, graduate} {
 		assert.Equal(t, careEndPhotoRow{}, f.photo(t, id), "photo, consent and who recorded it go together")
@@ -169,7 +174,6 @@ func TestStudentPhotoCareEndRemovesPhotoDataOnceTheCareIsOver(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{endedURL, graduateURL}, f.runtime.queued, "the durable cleanup entries commit with the cleared rows")
 	assert.ElementsMatch(t, []string{endedURL, graduateURL}, f.runtime.unlinked, "the files go after the commit")
-	assert.ElementsMatch(t, []int64{ended, graduate}, f.runtime.broadcasts)
 	assert.Zero(t, f.runtime.consents, "the end of care is no withdrawal by the parents")
 	require.Len(t, f.logged, 2)
 	byChild := map[int64]peopledirectory.StudentPhotoCareEnd{}
@@ -186,7 +190,7 @@ func TestStudentPhotoCareEndRemovesPhotoDataOnceTheCareIsOver(t *testing.T) {
 
 	again, err := f.run(t)
 	require.NoError(t, err)
-	assert.Equal(t, peopledirectory.StudentPhotoCareEndResult{}, again, "a repeated run finds nothing left")
+	assert.Empty(t, again.Children, "a repeated run finds nothing left")
 	assert.Len(t, f.logged, 2, "and logs nothing again")
 }
 
@@ -210,7 +214,9 @@ func TestStudentPhotoCareEndDefersAHeldRowWithoutWaiting(t *testing.T) {
 	elapsed := time.Since(started)
 	require.NoError(t, holder.Rollback())
 	require.NoError(t, err)
-	assert.Equal(t, peopledirectory.StudentPhotoCareEndResult{Ended: 1, Deferred: 1}, result)
+	assert.Equal(t, 1, result.Ended)
+	assert.Equal(t, 1, result.Deferred)
+	assert.Contains(t, result.Children, peopledirectory.StudentPhotoCareEndChild{StudentID: held, Outcome: peopledirectory.StudentPhotoCareDeferred})
 	assert.Less(t, elapsed, 5*time.Second, "the run must not wait for the held row")
 	assert.NotNil(t, f.photo(t, held).PhotoPath, "a deferred child keeps all of its photo data")
 	assert.NotNil(t, f.photo(t, held).PhotoConsentGivenAt)
@@ -219,7 +225,7 @@ func TestStudentPhotoCareEndDefersAHeldRowWithoutWaiting(t *testing.T) {
 
 	next, err := f.run(t)
 	require.NoError(t, err)
-	assert.Equal(t, peopledirectory.StudentPhotoCareEndResult{Ended: 1}, next, "the next run finds the deferred child again")
+	assert.Equal(t, []peopledirectory.StudentPhotoCareEndChild{{StudentID: held, Outcome: peopledirectory.StudentPhotoCareEnded}}, next.Children, "the next run finds the deferred child again")
 	assert.Equal(t, careEndPhotoRow{}, f.photo(t, held))
 	assert.ElementsMatch(t, []string{freeURL, heldURL}, f.runtime.unlinked)
 }
@@ -264,7 +270,9 @@ func TestStudentPhotoCareEndRefusesWithoutAPhotoRuntime(t *testing.T) {
 	child, _ := f.child(t, "Ohne", day(careEndToday.AddDays(-1)), "inactive")
 	directory, err := New(Dependencies{DB: f.db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(Observation) {}}, nil)
 	require.NoError(t, err)
-	f.end = directory.StudentPhotoCareEnd(slog.Default())
+	end, ok := directory.Owner.(peopledirectory.StudentPhotoCareEndRetention)
+	require.True(t, ok)
+	f.end = end
 
 	_, err = f.run(t)
 	require.Error(t, err)

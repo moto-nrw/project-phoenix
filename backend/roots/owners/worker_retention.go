@@ -284,9 +284,9 @@ func guardianRetentionSteps(guardians guardianRetention, settings settingsModule
 // studentPhotoCareEndStep ends the photo data of the children whose care is
 // over (#6650): the photo, the photo consent and who recorded it go in the
 // first nightly run after the last care day or the graduation, without a
-// further period. It runs after the deletion of whole children and writes
-// one deletion-log entry per child itself.
-func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, audit auditModels.Command) schedulerPorts.RetentionStep {
+// further period. It runs after the deletion of whole children, writes one
+// deletion-log entry per ended child itself and one log line per candidate.
+func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, audit auditModels.Command, logger *slog.Logger) schedulerPorts.RetentionStep {
 	return schedulerPorts.RetentionStep{
 		Kind:         auditModels.DeletionTypeStudentPhotoRetention,
 		LogsSubjects: true,
@@ -296,9 +296,27 @@ func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, a
 					ended.TenantID, ended.StudentID, ended.LastCareDay, ended.Graduated, ended.PhotoRemoved, ended.ConsentEnded,
 				))
 			})
+			for _, child := range result.Children {
+				logger.Info("student photo care end",
+					"tenant_id", tenant.FromContext(ctx),
+					"student_id", child.StudentID,
+					"outcome", child.Outcome,
+				)
+			}
 			return schedulerPorts.RetentionOutcome{Deleted: result.Ended}, err
 		},
 	}
+}
+
+// StudentPhotoCareEndOf is People Directory's nightly end of the photos of
+// children whose care is over (#6650), from the directory owner the root
+// built with its photo runtime.
+func StudentPhotoCareEndOf(people peopleModule.Owner) (peopleModule.StudentPhotoCareEndRetention, error) {
+	end, ok := people.(peopleModule.StudentPhotoCareEndRetention)
+	if !ok {
+		return nil, fmt.Errorf("compose student photo care end: people directory %T lacks it", people)
+	}
+	return end, nil
 }
 
 // studentRetentionStep is the automatic deletion of children (#3962). It

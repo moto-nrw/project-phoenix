@@ -47,7 +47,9 @@ func TestStudentPhotoCareEndStepRunsOnTheServePool(t *testing.T) {
 	runtime := StudentPhotoRuntime{Cleanup: fileStorageCompose.NewUploadCleanup(admin, "student-photos").Queue, Unlinker: unlinker}
 	directory, err := NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, nil, runtime)
 	require.NoError(t, err)
-	step := studentPhotoCareEndStep(directory.StudentPhotoCareEnd(slog.New(slog.DiscardHandler)), audit)
+	photos, err := StudentPhotoCareEndOf(directory.Owner)
+	require.NoError(t, err)
+	step := studentPhotoCareEndStep(photos, audit, slog.New(slog.DiscardHandler))
 	assert.True(t, step.LogsSubjects, "the step logs each child itself")
 
 	tenantID := testpkg.Tenant(t)
