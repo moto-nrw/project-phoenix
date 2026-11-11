@@ -3,7 +3,7 @@
 // module, so the Träger pages do not pull in the parents' API client.
 
 /** Days the consent texts before version 4 promise: three months (#6691). */
-export const HOLIDAY_LEGACY_RETENTION_DAYS = 92;
+const HOLIDAY_LEGACY_RETENTION_DAYS = 92;
 
 /**
  * Days after the holidays the health information of every registration
