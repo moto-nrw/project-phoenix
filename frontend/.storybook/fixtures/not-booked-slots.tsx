@@ -1,8 +1,12 @@
 import { LockSimpleIcon } from "@phosphor-icons/react";
+import type { Decorator } from "@storybook/nextjs-vite";
 
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import type { NotBookedSlots } from "~/components/ui/not-booked-slot";
+import {
+  NotBookedSlotProvider,
+  type NotBookedSlots,
+} from "~/components/ui/not-booked-slot";
 import { MODULE_LABELS, type ModuleKey } from "~/lib/modules";
 
 /**
@@ -26,3 +30,15 @@ export const STORY_NOT_BOOKED_SLOTS: NotBookedSlots = {
     />
   ),
 };
+
+/** Renders the story with the stand-in explanation, optionally for a page
+ *  whose own module is not booked. */
+export function withNotBookedSlots(
+  pageModule: ModuleKey | null = null,
+): Decorator {
+  return (Story) => (
+    <NotBookedSlotProvider slots={{ ...STORY_NOT_BOOKED_SLOTS, pageModule }}>
+      <Story />
+    </NotBookedSlotProvider>
+  );
+}

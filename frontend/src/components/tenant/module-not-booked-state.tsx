@@ -58,11 +58,7 @@ export function ModuleNotBookedAlert({
  * wird. Kein Fehler, keine 404: die Schule hat das Modul nicht im Vertrag,
  * und der Text sagt, wer als Nächstes handelt.
  */
-export function ModuleNotBookedState({
-  module,
-}: {
-  readonly module: ModuleKey;
-}) {
+function ModuleNotBookedState({ module }: { readonly module: ModuleKey }) {
   const { data: session } = useSession();
   const tenantPath = useTenantAwarePath();
   const leads = seesLockedModules(session);

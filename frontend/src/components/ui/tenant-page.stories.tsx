@@ -2,9 +2,8 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Plus } from "lucide-react";
 import { expect, screen, userEvent, within } from "storybook/test";
 
-import { STORY_NOT_BOOKED_SLOTS } from "~storybook/fixtures/not-booked-slots";
+import { withNotBookedSlots } from "~storybook/fixtures/not-booked-slots";
 import { Button, ButtonLink } from "./button";
-import { NotBookedSlotProvider } from "./not-booked-slot";
 import { SectionCard } from "./section-card";
 import { TenantPage } from "./tenant-page";
 
@@ -116,15 +115,7 @@ export const ModuleNotBookedPage: Story = {
     ),
     children: pageContent,
   },
-  decorators: [
-    (Story) => (
-      <NotBookedSlotProvider
-        slots={{ ...STORY_NOT_BOOKED_SLOTS, pageModule: "dienstplan" }}
-      >
-        <Story />
-      </NotBookedSlotProvider>
-    ),
-  ],
+  decorators: [withNotBookedSlots("dienstplan")],
 };
 
 /**
@@ -141,11 +132,5 @@ export const ModuleNotBookedLoadError: Story = {
     },
     children: pageContent,
   },
-  decorators: [
-    (Story) => (
-      <NotBookedSlotProvider slots={STORY_NOT_BOOKED_SLOTS}>
-        <Story />
-      </NotBookedSlotProvider>
-    ),
-  ],
+  decorators: [withNotBookedSlots()],
 };

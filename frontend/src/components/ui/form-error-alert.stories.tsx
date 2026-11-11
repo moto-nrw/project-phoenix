@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { STORY_NOT_BOOKED_SLOTS } from "~storybook/fixtures/not-booked-slots";
+import { withNotBookedSlots } from "~storybook/fixtures/not-booked-slots";
 import { FormErrorAlert, LoadErrorAlert } from "./form-error-alert";
-import { NotBookedSlotProvider } from "./not-booked-slot";
 
 const meta = {
   title: "components/ui/FormErrorAlert",
@@ -17,14 +16,6 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-const withNotBookedSlots: NonNullable<Story["decorators"]> = [
-  (Story) => (
-    <NotBookedSlotProvider slots={STORY_NOT_BOOKED_SLOTS}>
-      <Story />
-    </NotBookedSlotProvider>
-  ),
-];
-
 const notBookedError = {
   message: "Das Modul ist nicht gebucht.",
   notBookedModule: "zeiterfassung",
@@ -36,7 +27,7 @@ export const FormError: Story = {};
 /** Speichern wird mit `module.not_booked` abgelehnt (#4894). */
 export const FormModuleNotBooked: Story = {
   args: { message: notBookedError },
-  decorators: withNotBookedSlots,
+  decorators: [withNotBookedSlots()],
 };
 
 const retryError = {
@@ -56,5 +47,5 @@ export const LoadErrorResponsive: Story = {
 /** Laden wird mit `module.not_booked` abgelehnt: Erklärung, kein Wiederholen. */
 export const LoadModuleNotBooked: Story = {
   render: () => <LoadErrorAlert error={notBookedError} />,
-  decorators: withNotBookedSlots,
+  decorators: [withNotBookedSlots()],
 };

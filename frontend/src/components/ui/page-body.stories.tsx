@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { STORY_NOT_BOOKED_SLOTS } from "~storybook/fixtures/not-booked-slots";
-import { NotBookedSlotProvider } from "./not-booked-slot";
+import { withNotBookedSlots } from "~storybook/fixtures/not-booked-slots";
 import { PageBody } from "./page-body";
 import { SectionCard } from "./section-card";
 
@@ -57,11 +56,5 @@ export const ModuleNotBooked: Story = {
       notBookedModule: "dienstplan",
     },
   },
-  decorators: [
-    (Story) => (
-      <NotBookedSlotProvider slots={STORY_NOT_BOOKED_SLOTS}>
-        <Story />
-      </NotBookedSlotProvider>
-    ),
-  ],
+  decorators: [withNotBookedSlots()],
 };
