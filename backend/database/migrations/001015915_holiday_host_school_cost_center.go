@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayHostSchoolCostCenterVersion = "1.15.913"
+const holidayHostSchoolCostCenterVersion = "1.15.915"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayHostSchoolCostCenterVersion,
 		Description: "Elternabrechnung: Ferienpositionen auf KOST1 der ausrichtenden Schule, Rückfall im Exportprotokoll (#6624)",
 		DependsOn: []string{
-			parentBillingBookingAccountsVersion, // the frozen accounts (1.15.906) of document_positions and export_files
-			holidayCriteriaAllocationVersion,    // the newest on development (1.15.907)
+			parentBillingBookingAccountsVersion,  // the frozen accounts (1.15.906) of document_positions and export_files
+			parentBillingDiscardEmptyRunsVersion, // the newest on development (1.15.914)
 		},
 	})
 	Migrations.MustRegister(holidayHostSchoolCostCenterUp, holidayHostSchoolCostCenterDown)
