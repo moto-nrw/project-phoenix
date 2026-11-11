@@ -2,12 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   LOCATION_STATUSES,
   LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
   parseLocation,
   normalizeLocation,
   getLocationColor,
-  getLocationBadgeTone,
-  getAccessibleTextColor,
   getLocationDisplay,
   canSeeDetailedLocation,
   isPresentLocation,
@@ -21,6 +18,11 @@ import {
   countedDayStatus,
   type StudentLocationContext,
 } from "./location-helper";
+import {
+  MOTO_COLOR_PALETTE,
+  getPillTone,
+  getAccessibleTextColor,
+} from "~/components/ui/kit-palette";
 
 // =============================================================================
 // CONSTANTS TESTS
@@ -79,6 +81,8 @@ describe("MOTO_COLOR_PALETTE", () => {
         active: "#6DB118",
         strong: "#3F6F12",
         fill: "#4A7F14",
+        fillHover: "#3F6F12",
+        fillActive: "#386410",
       },
       blue: {
         soft: "#EDF3FC",
@@ -185,6 +189,7 @@ describe("MOTO_COLOR_PALETTE", () => {
         light: "#9CA3AF",
         base: "#6B7280",
         strong: "#374151",
+        pillText: "#4B5563",
       },
       stone: {
         soft: "#F5F5F4",
@@ -192,53 +197,59 @@ describe("MOTO_COLOR_PALETTE", () => {
         base: "#78716C",
         strong: "#44403C",
       },
-      roomCategory: {
-        group: "#10B981",
-        theme: "#8B5CF6",
-        sport: "#EC4899",
-      },
+      emerald: { base: "#10B981" },
+      violet: { base: "#8B5CF6" },
+      pink: { base: "#EC4899" },
     });
   });
 });
 
-describe("getLocationBadgeTone", () => {
+describe("getPillTone", () => {
+  it("has a pill tone of its own for every location colour", () => {
+    // A LOCATION_COLORS value without a pill tone would fall back to the
+    // gray-50 pill of an arbitrary room colour.
+    for (const [key, color] of Object.entries(LOCATION_COLORS)) {
+      expect(getPillTone(color).backgroundColor, key).not.toBe("#F9FAFB");
+    }
+  });
+
   it("maps brand colors to soft surfaces and strong text colors", () => {
-    expect(getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM)).toEqual({
+    expect(getPillTone(LOCATION_COLORS.GROUP_ROOM)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.green.soft,
       textColor: MOTO_COLOR_PALETTE.green.strong,
     });
-    expect(getLocationBadgeTone(LOCATION_COLORS.HOME)).toEqual({
+    expect(getPillTone(LOCATION_COLORS.HOME)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
       textColor: "#4B5563",
     });
   });
 
   it("keeps holiday and public-holiday colors in their semantic tones", () => {
-    expect(getLocationBadgeTone(MOTO_COLOR_PALETTE.gold.base)).toEqual({
+    expect(getPillTone(MOTO_COLOR_PALETTE.gold.base)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.gold.soft,
       textColor: MOTO_COLOR_PALETTE.gold.strong,
     });
-    expect(getLocationBadgeTone(MOTO_COLOR_PALETTE.teal.base)).toEqual({
+    expect(getPillTone(MOTO_COLOR_PALETTE.teal.base)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.teal.soft,
       textColor: MOTO_COLOR_PALETTE.teal.strong,
     });
   });
 
   it("keeps a custom room color's hue in the label", () => {
-    // Room colors (#1324) can never match a LOCATION_BADGE_TONES row: the
+    // Room colors (#1324) can never match a PILL_TONES entry: the
     // backend reserves exactly the status hexes, so an admin-picked color is
     // always something else. A flat neutral label would collapse every custom
     // room onto one pill, which is the differentiation the feature exists for. #5b7842 is #A3D977
     // darkened to 4.77:1 on the gray-50 pill.
-    expect(getLocationBadgeTone("#A3D977")).toEqual({
+    expect(getPillTone("#A3D977")).toEqual({
       backgroundColor: "#F9FAFB",
       textColor: "#5b7842",
     });
   });
 
   it("gives two different room colors two different labels", () => {
-    const a = getLocationBadgeTone("#A3D977");
-    const b = getLocationBadgeTone("#D97AA3");
+    const a = getPillTone("#A3D977");
+    const b = getPillTone("#D97AA3");
 
     expect(a.textColor).not.toBe(b.textColor);
   });
@@ -570,7 +581,7 @@ describe("location check helpers", () => {
     it("colours Schule in its own tone, not the home gray", () => {
       expect(getLocationColor("Schule")).toBe(LOCATION_COLORS.AT_SCHOOL);
       expect(LOCATION_COLORS.AT_SCHOOL).not.toBe(LOCATION_COLORS.HOME);
-      expect(getLocationBadgeTone(LOCATION_COLORS.AT_SCHOOL)).toEqual({
+      expect(getPillTone(LOCATION_COLORS.AT_SCHOOL)).toEqual({
         backgroundColor: MOTO_COLOR_PALETTE.petrol.soft,
         textColor: MOTO_COLOR_PALETTE.petrol.strong,
       });
@@ -818,7 +829,7 @@ describe("Im Unterricht", () => {
   it("does not take the color of home or the expected child", () => {
     expect(LOCATION_COLORS.IN_CLASS).not.toBe(LOCATION_COLORS.HOME);
     expect(LOCATION_COLORS.IN_CLASS).not.toBe(LOCATION_COLORS.AT_SCHOOL);
-    expect(getLocationBadgeTone(LOCATION_COLORS.IN_CLASS).backgroundColor).toBe(
+    expect(getPillTone(LOCATION_COLORS.IN_CLASS).backgroundColor).toBe(
       MOTO_COLOR_PALETTE.indigo.soft,
     );
   });

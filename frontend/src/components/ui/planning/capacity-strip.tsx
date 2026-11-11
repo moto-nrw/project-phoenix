@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { PLANNING_COLORS } from "./planning-colors";
 
 /**
  * CapacityStrip is the symmetric summary row of the planning grids: a gray
@@ -87,9 +87,6 @@ interface CapacityStripProps {
   readonly labelWidthClassName?: string;
 }
 
-/** Understaffing-red — only ever used as a text color, never as a fill. */
-const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
-
 function cellDisplay(cell: CapacityStripCell): {
   content: ReactNode;
   title?: string;
@@ -112,7 +109,11 @@ function CellValue({ cell }: { readonly cell: CapacityStripCell }) {
   return (
     <span
       className={cell.understaffed ? "font-semibold" : undefined}
-      style={cell.understaffed ? { color: UNDERSTAFFED_TEXT_COLOR } : undefined}
+      style={
+        cell.understaffed
+          ? { color: PLANNING_COLORS.understaffedText }
+          : undefined
+      }
     >
       {cellDisplay(cell).content}
     </span>

@@ -9,7 +9,7 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { SectionCard } from "~/components/ui/section-card";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
 import { presentConcept } from "~/lib/concepts/present";
 import { roomsConcept } from "~/lib/concepts/rooms";
 import type { MotoConcept } from "~/lib/moto-concepts";

@@ -1,7 +1,8 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/components/ui/kit-palette";
 import type { OverrunEvaluation } from "~/lib/traeger-care-time-overruns-api";
 
 const { api, mockUseSession, clock } = vi.hoisted(() => ({

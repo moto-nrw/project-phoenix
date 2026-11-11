@@ -35,7 +35,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { Textarea } from "~/components/ui/textarea";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
 import type {
   ClassDayHint,
   ClassDayReport,

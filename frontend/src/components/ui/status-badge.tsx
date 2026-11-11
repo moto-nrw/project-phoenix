@@ -1,5 +1,5 @@
-// The one status pill (#1629, #5584). Tones map to the brand hexes from
-// LOCATION_COLORS with matching tinted backgrounds and darkened label colors.
+// The one status pill (#1629, #5584). Tones are the pill tones of the kit
+// palette: a tinted background with a darkened label color.
 // Use this whenever a status is one of a fixed set of semantic outcomes; for
 // data-driven colors (a raw hex from LOCATION_COLORS) use StatusColorBadge,
 // which renders the same pill through StatusPillBase below.
@@ -10,7 +10,7 @@ import { isValidElement, type ComponentType, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { WarningIcon } from "@phosphor-icons/react/ssr";
 
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { PILL_TONES, type PillTone } from "~/components/ui/kit-palette";
 
 export type StatusBadgeTone =
   | "blue"
@@ -26,51 +26,24 @@ export type StatusBadgeTone =
 /** `xs` is for dense grids (plan cells, calendar rows): 12 px, tight padding. */
 export type StatusBadgeSize = "md" | "xs";
 
-const TONES: Record<
-  Exclude<StatusBadgeTone, "outline">,
-  { bg: string; text: string }
-> = {
-  blue: {
-    bg: MOTO_COLOR_PALETTE.blue.soft,
-    text: MOTO_COLOR_PALETTE.blue.strong,
-  },
-  green: {
-    bg: MOTO_COLOR_PALETTE.green.soft,
-    text: MOTO_COLOR_PALETTE.green.strong,
-  },
+// Every tone is a pill tone of the palette (kit-palette.ts), the same one
+// StatusColorBadge draws for that hue's base hex.
+const TONES: Record<Exclude<StatusBadgeTone, "outline">, PillTone> = {
+  blue: PILL_TONES.blue,
+  green: PILL_TONES.green,
   // LOCATION_COLORS.WARNING: "needs attention" (open, missing, pending).
   // Yellow tint plus a warning icon, so it never reads as the orange
   // Schulhof pill next to it (#5617).
-  warning: {
-    bg: MOTO_COLOR_PALETTE.amber.pill,
-    text: MOTO_COLOR_PALETTE.amber.pillText,
-  },
+  warning: PILL_TONES.amber,
   // LOCATION_COLORS.SCHOOLYARD hue. Not for "needs attention": that is
   // `warning`. Only labels without a warning meaning (Feiertag, Demo).
-  orange: {
-    bg: MOTO_COLOR_PALETTE.orange.soft,
-    text: MOTO_COLOR_PALETTE.orange.strong,
-  },
-  red: {
-    bg: MOTO_COLOR_PALETTE.red.soft,
-    text: MOTO_COLOR_PALETTE.red.strong,
-  },
-  // Muss mit LOCATION_BADGE_TONES[neutral.base] uebereinstimmen, sonst
-  // driften der graue StatusBadge und der graue StatusColorBadge auseinander.
-  gray: {
-    bg: MOTO_COLOR_PALETTE.neutral.soft,
-    text: "#4B5563",
-  },
+  orange: PILL_TONES.orange,
+  red: PILL_TONES.red,
+  gray: PILL_TONES.neutral,
   // LOCATION_COLORS.EXCUSED: „Entschuldigt“ keeps its own colour (#5576).
-  purple: {
-    bg: MOTO_COLOR_PALETTE.purple.soft,
-    text: MOTO_COLOR_PALETTE.purple.strong,
-  },
+  purple: PILL_TONES.purple,
   // LOCATION_COLORS.CLASS_TRIP: „Klassenfahrt“ keeps its own colour (#5576).
-  cyan: {
-    bg: MOTO_COLOR_PALETTE.cyan.soft,
-    text: MOTO_COLOR_PALETTE.cyan.strong,
-  },
+  cyan: PILL_TONES.cyan,
 };
 
 // Quiet state without a colour of its own (Entwurf): white with a gray frame.
@@ -215,8 +188,8 @@ export function StatusBadge({
     <StatusPillBase
       {...props}
       icon={props.icon ?? (tone === "warning" ? WarningFillIcon : undefined)}
-      backgroundColor={styles.bg}
-      textColor={styles.text}
+      backgroundColor={styles.backgroundColor}
+      textColor={styles.textColor}
     />
   );
 }

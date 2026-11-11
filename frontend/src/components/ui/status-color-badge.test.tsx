@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
-import { LOCATION_COLORS, getLocationBadgeTone } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getPillTone } from "~/components/ui/kit-palette";
 
 describe("StatusColorBadge", () => {
   it("rendert die Beschriftung", () => {
@@ -38,7 +39,7 @@ describe("StatusColorBadge", () => {
       />,
     );
     const pill = screen.getByText("Entschuldigung");
-    const tone = getLocationBadgeTone(LOCATION_COLORS.EXCUSED);
+    const tone = getPillTone(LOCATION_COLORS.EXCUSED);
     expect(pill.style.backgroundColor).toBe(tone.backgroundColor);
     expect(pill.style.color).toBe(tone.textColor);
   });
@@ -49,7 +50,7 @@ describe("StatusColorBadge", () => {
       render(<StatusColorBadge label="Keine Farbe" color={color} />);
 
       const pill = screen.getByText("Keine Farbe");
-      const tone = getLocationBadgeTone(color);
+      const tone = getPillTone(color);
       expect(pill.style.backgroundColor).toBe(tone.backgroundColor);
       expect(pill.style.color).toBe(tone.textColor);
     },

@@ -30,16 +30,20 @@
 // spelling (getDeltaStatus) map it to "orange" at the boundary.
 //
 // A tone is one brand color, used twice: the progress bar takes it raw (a bar
-// is a fill), the figure takes its accessible shade from location-helper (a
+// is a fill), the figure takes its text-safe shade from the kit palette (a
 // figure is text — the raw hexes miss the contrast minimum on white, brand
-// green by a factor of two). Both come from LOCATION_COLORS, so this component
-// holds no palette values of its own and cannot go stale when the palette moves.
+// green by a factor of two). Both come from MOTO_COLOR_PALETTE, so this
+// component holds no colour values of its own and cannot go stale when the
+// palette moves.
 
 import { cn } from "~/lib/utils";
 import { listRowClasses } from "./list-row-styles";
 import type { ReactNode } from "react";
 import Link from "~/components/ui/navigation-link";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import {
+  MOTO_COLOR_PALETTE,
+  getAccessibleTextColor,
+} from "~/components/ui/kit-palette";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -53,11 +57,11 @@ import { Skeleton } from "~/components/ui/skeleton";
 type StatCardTone = "blue" | "green" | "orange" | "red" | "gray" | "neutral";
 
 const TONE_COLOR: Record<Exclude<StatCardTone, "neutral">, string> = {
-  blue: LOCATION_COLORS.OTHER_ROOM,
-  green: LOCATION_COLORS.GROUP_ROOM,
-  orange: LOCATION_COLORS.SCHOOLYARD,
-  red: LOCATION_COLORS.DANGER,
-  gray: LOCATION_COLORS.UNKNOWN,
+  blue: MOTO_COLOR_PALETTE.blue.base,
+  green: MOTO_COLOR_PALETTE.green.base,
+  orange: MOTO_COLOR_PALETTE.orange.base,
+  red: MOTO_COLOR_PALETTE.red.base,
+  gray: MOTO_COLOR_PALETTE.stone.base,
 };
 
 /** Textfarbe der Zahl; `undefined` lässt die Klasse (Dunkelgrau) gelten. */
@@ -67,7 +71,7 @@ function figureStyle(tone: StatCardTone): { color: string } | undefined {
 }
 
 function barColor(tone: StatCardTone): string {
-  return tone === "neutral" ? LOCATION_COLORS.UNKNOWN : TONE_COLOR[tone];
+  return tone === "neutral" ? TONE_COLOR.gray : TONE_COLOR[tone];
 }
 
 type StatCardProps = {

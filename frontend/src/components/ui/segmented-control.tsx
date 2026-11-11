@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
 
 // Segmented single-choice control: a small, fixed set of mutually exclusive
 // options rendered as one control.
@@ -23,7 +23,7 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 //              item's brand tone. Use when each option carries its own meaning
 //              (Vor Ort = green, Homeoffice = blue, Abwesend = red).
 //
-// Tones map to LOCATION_COLORS (lib/location-helper.ts) — never generic
+// Tones come from the kit palette (kit-palette.ts) — never generic
 // Tailwind hues.
 
 // Not exported: callers reach it through the exported SegmentedControlItem,

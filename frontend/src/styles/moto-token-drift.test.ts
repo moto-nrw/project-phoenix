@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
 
 /**
  * The brand palette exists twice: as `--color-moto-*` custom properties in
  * globals.css (which every `bg-moto-*` / `text-moto-*` utility compiles from)
- * and as MOTO_COLOR_PALETTE in location-helper.ts (which every inline style
- * and every LOCATION_BADGE_TONES entry reads). Nothing forced the two to
+ * and as MOTO_COLOR_PALETTE in components/ui/kit-palette.ts (which every
+ * inline style and every pill tone reads). Nothing forced the two to
  * agree.
  *
  * That is not hypothetical: a component like RoomStatusBadge draws its pill
@@ -17,10 +17,10 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
  * is the missing third edge of that triangle.
  *
  * Naming contract: `--color-moto-<family>` is the family's `base`, and
- * `--color-moto-<family>-<step>` is that step. Families and steps that exist
- * on only one side are ignored on purpose — the CSS carries a few tokens with
- * no TS counterpart (and vice versa); what must never differ is a value
- * present in both.
+ * `--color-moto-<family>-<step>` is that step (camelCase steps in kebab-case).
+ * The palette is the source: every token of a palette family needs its step
+ * there. Palette steps without a token (pill steps, the neutral family) and
+ * CSS families outside the palette (website grays) are fine.
  */
 
 const CSS_VAR = /^\s*--color-moto-([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})\s*;/gm;
@@ -59,7 +59,7 @@ describe("moto palette tokens", () => {
         const slug =
           step === "base"
             ? cssFamily(family)
-            : `${cssFamily(family)}-${step.toLowerCase()}`;
+            : `${cssFamily(family)}-${cssFamily(step)}`;
         const cssHex = cssTokens.get(slug);
         if (cssHex === undefined) continue;
         if (cssHex !== hex.toLowerCase()) {
@@ -71,6 +71,32 @@ describe("moto palette tokens", () => {
     }
 
     expect(mismatches).toEqual([]);
+  });
+
+  // #6573: the palette is the source. A token of a palette family that has
+  // no palette step is a value only the CSS knows, and nothing would keep it
+  // in line.
+  it("knows every token of a palette family in MOTO_COLOR_PALETTE", () => {
+    const paletteSlugs = new Set<string>();
+    const families = Object.keys(MOTO_COLOR_PALETTE).map(cssFamily);
+    for (const [family, steps] of Object.entries(MOTO_COLOR_PALETTE)) {
+      for (const step of Object.keys(steps)) {
+        paletteSlugs.add(
+          step === "base"
+            ? cssFamily(family)
+            : `${cssFamily(family)}-${cssFamily(step)}`,
+        );
+      }
+    }
+
+    const unknown = [...cssTokens.keys()].filter(
+      (slug) =>
+        families.some(
+          (family) => slug === family || slug.startsWith(`${family}-`),
+        ) && !paletteSlugs.has(slug),
+    );
+
+    expect(unknown).toEqual([]);
   });
 
   it("keeps white text on every green fill step at WCAG AA (#5141)", () => {

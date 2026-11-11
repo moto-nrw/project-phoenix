@@ -5,7 +5,7 @@ export type NotificationBadgeSize = "sm" | "md";
 // The count is small bold text, so WCAG AA wants 4.5:1 against the pill.
 // bg-moto-orange (#F78C10) carries white at 2.41:1 — below even the 3:1
 // non-text floor — so the staff tone uses the -strong ramp step (5.63:1).
-// See the contrast note on ACCESSIBLE_TEXT_COLORS in lib/location-helper.ts.
+// See the contrast note on TEXT_SAFE_SHADES in kit-palette.ts.
 const TONE_CLASSES: Record<NotificationBadgeTone, string> = {
   staff: "bg-moto-orange-strong text-white",
   parents: "bg-moto-blue-strong text-white",

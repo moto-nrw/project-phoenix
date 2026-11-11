@@ -48,7 +48,8 @@ import {
   apiErrorFromResponse,
   transportFetch,
 } from "~/lib/api-error";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/components/ui/kit-palette";
 import {
   berlinTodayISO,
   formatDate,

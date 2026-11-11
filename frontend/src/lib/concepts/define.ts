@@ -1,5 +1,5 @@
 import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
+import type { MotoDuotoneTone } from "~/components/ui/kit-palette";
 
 export type MotoConceptKind = "core" | "status" | "function";
 export type MotoConceptSection =

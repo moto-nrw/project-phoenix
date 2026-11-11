@@ -10,11 +10,8 @@ import { PresenceBadge } from "./presence-badge";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
-import {
-  getLocationBadgeTone,
-  LOCATION_COLORS,
-  LOCATION_STATUSES,
-} from "~/lib/location-helper";
+import { LOCATION_COLORS, LOCATION_STATUSES } from "~/lib/location-helper";
+import { getPillTone } from "~/components/ui/kit-palette";
 
 // #2476: a status pill is text on a tinted surface, nothing else. The leading
 // dot repeated what tint and label already said, so every kit pill renders its
@@ -242,7 +239,7 @@ describe("StatusBadge, StatusColorBadge, DataTableStatusBadge without decorative
       expectPlainPill(pill, label);
       // #5584: the DataTable pill shares the StatusBadge base, so it carries
       // the tone of its state instead of a gray-50 surface.
-      const tone = getLocationBadgeTone(color);
+      const tone = getPillTone(color);
       expect(pill.style.color).toBe(tone.textColor);
       expect(pill.style.backgroundColor).toBe(tone.backgroundColor);
       view.unmount();

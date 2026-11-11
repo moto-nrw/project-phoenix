@@ -9,7 +9,7 @@
  * it is told.
  */
 
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { COVERAGE_DELTA_TEXT_COLOR, PLANNING_COLORS } from "./planning-colors";
 
 export type CoverageState = "covered" | "gap" | "acknowledged";
 type CoverageIndicatorSize = "sm" | "md";
@@ -46,9 +46,9 @@ interface CoverageIndicatorProps {
 }
 
 const DOT_COLOR: Record<CoverageState, string> = {
-  covered: MOTO_COLOR_PALETTE.neutral.light,
-  gap: MOTO_COLOR_PALETTE.orange.base,
-  acknowledged: MOTO_COLOR_PALETTE.neutral.base,
+  covered: PLANNING_COLORS.covered,
+  gap: PLANNING_COLORS.gap,
+  acknowledged: PLANNING_COLORS.acknowledged,
 };
 
 const DOT_SIZE_PX: Record<CoverageIndicatorSize, string> = {
@@ -60,22 +60,6 @@ const NUMBER_COLOR_CLASS: Record<CoverageState, string> = {
   covered: "text-gray-600",
   gap: "font-semibold text-gray-900",
   acknowledged: "text-gray-600",
-};
-
-/** Understaffing-red for the "Ist" figure, only ever used as text color. */
-const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
-
-/**
- * Delta tint of the free-form label, text color only, never a fill. Both
- * steps clear 4.5:1 on white; amber.base (1.9:1) is never a text color
- * (#5576, Entscheidung 3), so Überdeckung takes amber.strong (7.1:1).
- */
-export const COVERAGE_DELTA_TEXT_COLOR: Record<
-  Exclude<CoverageTone, "neutral">,
-  string
-> = {
-  under: MOTO_COLOR_PALETTE.red.base,
-  over: MOTO_COLOR_PALETTE.amber.strong,
 };
 
 function defaultDescription({
@@ -136,7 +120,9 @@ export function CoverageIndicator({
       <span className={`${numberSizeClass} tabular-nums ${numberColorClass}`}>
         <span
           style={
-            isUnderstaffed ? { color: UNDERSTAFFED_TEXT_COLOR } : undefined
+            isUnderstaffed
+              ? { color: PLANNING_COLORS.understaffedText }
+              : undefined
           }
         >
           {current}

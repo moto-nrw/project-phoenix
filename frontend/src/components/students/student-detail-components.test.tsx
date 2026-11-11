@@ -40,7 +40,8 @@ import { SectionCard } from "~/components/ui/section-card";
 import { ApiError } from "~/lib/api-error";
 import { fetchStudentCompanions } from "~/lib/student-companion-api";
 import type { Student } from "~/lib/student-helpers";
-import { getLocationBadgeTone, LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getPillTone } from "~/components/ui/kit-palette";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import type { AttendanceActor } from "~/lib/attendance-actor";
 
@@ -307,7 +308,7 @@ describe("Kopf der Kindakte", () => {
       // The badge paints the custom room color's tone: the shared neutral
       // surface for unknown legacy colors, the darkened hue in the label.
       // No dot carries the raw hex any more (#2476).
-      const tone = getLocationBadgeTone("#A3D977");
+      const tone = getPillTone("#A3D977");
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
       expect(badgeContainer).toHaveStyle({
         backgroundColor: tone.backgroundColor,

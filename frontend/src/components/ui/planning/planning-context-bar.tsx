@@ -5,7 +5,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "~/components/ui/button";
 import { StatusDot } from "~/components/ui/status-dot";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { PLANNING_COLORS } from "./planning-colors";
 import { cn } from "~/lib/utils";
 
 /**
@@ -286,9 +286,6 @@ interface PlanningDayChipProps {
   readonly today?: boolean;
 }
 
-/** Punktfarbe des Zählers: dieselbe Lückenfarbe wie im CoverageIndicator. */
-const COUNT_DOT_COLOR = MOTO_COLOR_PALETTE.orange.base;
-
 /**
  * PlanningDayChip is the building block of a week strip in the context row
  * (Wochentagskürzel + Datum + optionale Zähler-Ziffer). It holds no date logic
@@ -397,7 +394,7 @@ export function PlanningDayChip({
               <span
                 aria-hidden
                 className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: COUNT_DOT_COLOR }}
+                style={{ backgroundColor: PLANNING_COLORS.gap }}
               />
               {count}
             </span>

@@ -1,5 +1,6 @@
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
 import type { InstanceStatus } from "~/lib/timetable-types";
 
 /**

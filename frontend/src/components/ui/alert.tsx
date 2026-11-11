@@ -4,7 +4,20 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { CloseIcon } from "~/components/ui/close-icon";
-import { getLocationBadgeTone } from "~/lib/location-helper";
+import { TINT_CLASSES, getPillTone } from "~/components/ui/kit-palette";
+
+/** Tinted surface of each type: the palette tint, with its strong text for
+ *  WCAG AA on the soft surface. */
+function tintClasses(tint: (typeof TINT_CLASSES)[keyof typeof TINT_CLASSES]) {
+  return `${tint.surface} ${tint.text} ${tint.border}`;
+}
+
+const ALERT_TYPE_CLASSES = {
+  error: tintClasses(TINT_CLASSES.red),
+  success: tintClasses(TINT_CLASSES.green),
+  warning: tintClasses(TINT_CLASSES.orange),
+  info: tintClasses(TINT_CLASSES.blue),
+};
 
 export type AlertType = "error" | "success" | "warning" | "info";
 
@@ -46,7 +59,7 @@ interface AlertProps extends Omit<HTMLAttributes<HTMLDivElement>, "color"> {
   /**
    * Hex aus `LOCATION_COLORS`, wenn der Hinweis einen Standort oder Status
    * trägt (Kommt heute nicht, Klassenfahrt). Tönt Fläche und Text wie
-   * `getLocationBadgeTone`; `type` bestimmt weiter Symbol und Ansage.
+   * `getPillTone`; `type` bestimmt weiter Symbol und Ansage.
    */
   readonly color?: string;
   /** Zeigt oben rechts ein Schließen-X; der Aufrufer blendet den Hinweis aus. */
@@ -79,18 +92,9 @@ export function Alert({
   const isAssertive = type === "error" || type === "warning";
   const announcement = announce ?? (isAssertive ? "assertive" : "polite");
 
-  // Brand hexes from LOCATION_COLORS (red DANGER, orange SCHOOLYARD, blue
-  // OTHER_ROOM), with darker foregrounds for WCAG AA on the tinted surfaces.
-  const styles = {
-    error: "bg-moto-red-soft text-moto-red-strong border-moto-red/20",
-    success: "bg-moto-green-soft text-moto-green-strong border-moto-green/20",
-    warning:
-      "bg-moto-orange-soft text-moto-orange-strong border-moto-orange/20",
-    info: "bg-moto-blue-soft text-moto-blue-strong border-moto-blue/20",
-  };
   // Standort- oder Statusfarbe: dieselbe Tönung wie die Pille dieser Farbe,
   // der Rand ist der Grundton mit 20 % Deckkraft wie bei den Typen oben.
-  const tone = color ? getLocationBadgeTone(color) : null;
+  const tone = color ? getPillTone(color) : null;
   const toneStyle: CSSProperties | undefined = tone
     ? {
         backgroundColor: tone.backgroundColor,
@@ -192,7 +196,7 @@ export function Alert({
       }
       aria-live={announcement === "off" ? undefined : announcement}
       aria-atomic={announcement === "off" ? undefined : "true"}
-      className={`flex ${(title && details) || onDismiss ? "items-start" : "items-center"} rounded-xl border shadow-sm ${padding} ${action ? "flex-wrap gap-y-2" : ""} ${onDismiss ? "relative pr-12" : ""} ${tone ? "" : styles[type]} ${className}`}
+      className={`flex ${(title && details) || onDismiss ? "items-start" : "items-center"} rounded-xl border shadow-sm ${padding} ${action ? "flex-wrap gap-y-2" : ""} ${onDismiss ? "relative pr-12" : ""} ${tone ? "" : ALERT_TYPE_CLASSES[type]} ${className}`}
     >
       {leading}
       {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde
