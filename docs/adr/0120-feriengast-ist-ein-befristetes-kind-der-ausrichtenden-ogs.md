@@ -445,7 +445,7 @@ Entscheidung „keine Kontakte für eigene Kinder“ ist ersetzt. Das Team
 betreut Gäste und eigene Kinder in derselben Woche und braucht für beide,
 wen es anruft und wer abholen darf; was die Eltern für die Ferienwoche
 angeben, kann von den Stammdaten abweichen (anderer Abholer, andere
-Nummer). `enrollment.holiday_host_own_contacts` (Migration 1.15.920) steht
+Nummer). `enrollment.holiday_host_own_contacts` (Migration 1.15.923) steht
 neben `holiday_host_guest_contacts` und antwortet unter denselben
 Bedingungen: nur in der Tenant-Transaktion der ausrichtenden Schule, nur
 für bestätigte, platzierte Buchungen, nur bis zum letzten Tag der Woche,
