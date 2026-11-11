@@ -219,6 +219,53 @@ describe("DateRangePicker", () => {
     });
     expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
+
+  it.each([
+    [
+      "Modal",
+      (onClose: () => void) => (
+        <Modal isOpen onClose={onClose} title="Bestätigung">
+          <button type="button">Abbrechen</button>
+        </Modal>
+      ),
+    ],
+    [
+      "Slide-over",
+      (onClose: () => void) => (
+        <SlideOver defaultOpen onOpenChange={(open) => !open && onClose()}>
+          <SlideOverContent>Details</SlideOverContent>
+        </SlideOver>
+      ),
+    ],
+  ])(
+    "leaves body-level Escape to a higher %s",
+    async (_overlayName, renderOverlay) => {
+      const onClose = vi.fn();
+      const onChange = vi.fn();
+      const { rerender } = render(
+        <DateRangePicker value={undefined} onChange={onChange} />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+      await waitFor(() => {
+        expect(
+          document.querySelector("[data-range-panel]"),
+        ).toBeInTheDocument();
+      });
+      rerender(
+        <>
+          <DateRangePicker value={undefined} onChange={onChange} />
+          {renderOverlay(onClose)}
+        </>,
+      );
+
+      fireEvent.keyDown(document.body, { key: "Escape" });
+
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalledOnce();
+      });
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    },
+  );
 });
 
 describe("DateRangePicker in a dialog", () => {

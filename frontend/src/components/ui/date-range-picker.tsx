@@ -69,11 +69,20 @@ const RANGE_PILL_CLASS =
 // Escape belongs to. Keep opening order separately for Safari, which leaves a
 // clicked trigger unfocused and dispatches the key event from document.body.
 const openRangePickers = new Set<HTMLElement>();
+const ACTIVE_OVERLAY_SELECTOR =
+  '[data-modal-focus-scope="true"]:not([aria-hidden="true"]), [data-date-picker-focus-trap="true"]';
 
 function isLastOpenedRangePicker(picker: HTMLElement | null): boolean {
   let lastOpenedPicker: HTMLElement | undefined;
   for (const openPicker of openRangePickers) lastOpenedPicker = openPicker;
   return lastOpenedPicker === picker;
+}
+
+function isBehindActiveOverlay(picker: HTMLElement | null): boolean {
+  if (!picker) return false;
+  return Array.from(
+    document.querySelectorAll<HTMLElement>(ACTIVE_OVERLAY_SELECTOR),
+  ).some((overlay) => !overlay.contains(picker));
 }
 
 /**
@@ -145,11 +154,18 @@ export function DateRangePicker({
       // that higher overlay belongs there, not to the hidden calendar.
       const activeOverlay =
         target instanceof Element
-          ? target.closest(
-              '[data-modal-focus-scope="true"]:not([aria-hidden="true"]), [data-date-picker-focus-trap="true"]',
-            )
+          ? target.closest(ACTIVE_OVERLAY_SELECTOR)
           : null;
       if (activeOverlay && !activeOverlay.contains(containerRef.current)) {
+        return;
+      }
+      // Safari dispatches Escape from body after clicking a button without
+      // focusing it. Look for active overlays independently of that target,
+      // so a hidden calendar cannot intercept Escape meant for the overlay.
+      if (
+        target === document.body &&
+        isBehindActiveOverlay(containerRef.current)
+      ) {
         return;
       }
       if (!owner && !isLastOpenedRangePicker(containerRef.current)) return;
