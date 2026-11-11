@@ -1,13 +1,11 @@
 "use client";
 
-import type { PrefetchResource } from "./data-prefetch-intent";
 import {
   buttonStyles,
   type ButtonSize,
   type ButtonVariant,
 } from "./button-styles";
-import Link from "next/link.js";
-import { useLinkIntentPrefetch } from "./use-link-intent-prefetch";
+import NavigationLink, { type NavigationLinkProps } from "./navigation-link";
 import { cn } from "~/lib/utils";
 
 export function buttonClassName({
@@ -24,13 +22,6 @@ export function buttonClassName({
   return cn(buttonStyles({ variant, size, className, touchTarget }));
 }
 
-// Die kurze Brücke vermeidet, dass ButtonLink den Portal-Anbieter lädt.
-declare global {
-  interface Window {
-    m?: (href: string) => void;
-  }
-}
-
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   ref?: React.Ref<HTMLButtonElement>;
   isLoading?: boolean;
@@ -40,19 +31,12 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   touchTarget?: boolean;
 }
 
-interface ButtonLinkProps extends Omit<
-  React.ComponentProps<typeof Link>,
-  "className" | "href"
-> {
-  readonly href: string;
-  readonly resources?: readonly PrefetchResource[];
+interface ButtonLinkProps extends Omit<NavigationLinkProps, "className"> {
+  readonly ref?: React.Ref<HTMLAnchorElement>;
   readonly variant?: ButtonVariant;
   readonly size?: ButtonSize;
   readonly className?: string;
 }
-type ButtonLinkNavigationEvent = Parameters<
-  NonNullable<ButtonLinkProps["onNavigate"]>
->[0];
 
 export function Button({
   children,
@@ -80,35 +64,25 @@ export function Button({
   );
 }
 
-/** A navigation link styled by the same shared button variants as actions. */
+/**
+ * Ein `NavigationLink` in Button-Optik: Vorladen und Fortschritt wie jeder
+ * interne Link des Kits (#6570).
+ */
 export function ButtonLink({
   variant = "primary",
   size = "base",
   className = "",
-  resources,
-  ...props
+  ...linkProps
 }: Readonly<ButtonLinkProps>) {
-  const intentProps = useLinkIntentPrefetch({ ...props, resources });
   return (
-    <Link
+    <NavigationLink
+      {...linkProps}
+      className={buttonClassName({ variant, size, className })}
       // Kennzeichen für die Bedienhöhe der Kopfkarte (`TenantPage`): sie
       // erfasst Knöpfe über `button`, Links in Button-Optik über dieses
       // Attribut (#5531).
-      className={buttonClassName({ variant, size, className })}
-      {...props}
       data-button-link=""
       data-icon-only={size === "icon" ? "" : undefined}
-      {...intentProps}
-      onNavigate={(event: ButtonLinkNavigationEvent) => {
-        let cancelled: boolean | undefined;
-        props.onNavigate?.({
-          preventDefault() {
-            cancelled = true;
-            event.preventDefault();
-          },
-        });
-        if (!cancelled) window.m?.(props.href);
-      }}
     />
   );
 }
