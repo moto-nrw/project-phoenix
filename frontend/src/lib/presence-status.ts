@@ -5,6 +5,7 @@
  * and filters count by `countedDayStatus`. A new status is one more row in
  * `DAY_STATUSES`; nothing else needs to know it.
  */
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { formatTime } from "~/lib/date-helpers";
 import {
   getStudentPresenceBadgePlanning,
@@ -43,10 +44,6 @@ interface DayStatusFlags {
   readonly excused?: boolean | null;
 }
 
-/** The hint's glyph; the rendering boundary resolves it to a concept module. */
-export type PresenceHintConcept =
-  "sick" | "classTrip" | "excused" | "notArrival";
-
 interface DayStatusRow {
   readonly key: string;
   /** Whether the child carries the status today. */
@@ -59,7 +56,13 @@ interface DayStatusRow {
   /** The neutral line below the location while the child is checked in (#4371). */
   readonly hint: {
     readonly label: string;
-    readonly concept: PresenceHintConcept;
+    /**
+     * Key of the hint's concept glyph. Only the key lives here: list counts
+     * import this table, and the glyph modules stay out of their bundles.
+     * `PresenceHint` maps the key to its module, and the compiler asks for
+     * the glyph of a new key there.
+     */
+    readonly concept: MotoConcept["key"];
     readonly dataAttr: string;
   };
   /** Tooltip for pill and hint. */
@@ -152,6 +155,10 @@ const DAY_STATUS_TABLE = {
 
 export type DayStatusKey = keyof typeof DAY_STATUS_TABLE;
 
+/** The concept keys the table uses for its hint glyphs. */
+export type PresenceHintConcept =
+  (typeof DAY_STATUS_TABLE)[DayStatusKey]["hint"]["concept"];
+
 /** The statuses `countedDayStatus` can return. */
 export type CountedDayStatus = {
   [K in DayStatusKey]: (typeof DAY_STATUS_TABLE)[K]["counted"] extends true
@@ -171,7 +178,9 @@ const BY_HINT_RANK = [...DAY_STATUSES].sort(
 );
 
 /** The hint line for one status; also used by `PresenceHint` on its own. */
-export function dayStatusHint(key: DayStatusKey): DayStatusRow["hint"] {
+export function dayStatusHint(
+  key: DayStatusKey,
+): (typeof DAY_STATUS_TABLE)[DayStatusKey]["hint"] {
   return DAY_STATUS_TABLE[key].hint;
 }
 
