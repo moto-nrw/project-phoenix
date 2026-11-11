@@ -242,6 +242,13 @@ func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.E
 		return err
 	}
 	_, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference)
+	if err != nil {
+		// The begin refuses a package released since the check above (#6665);
+		// the store hides SQL errors, so name that cause when it applies.
+		if open := s.checkDataReturn(ctx, r, "organization", r.OrganizationID); open != nil {
+			return open
+		}
+	}
 	return err
 }
 

@@ -111,8 +111,12 @@ so sensibel wie das Paket selbst.
    Träger, den es nicht mehr gibt oder dessen Löschung begonnen hat (ein
    Löschauftrag der Schule in `platform.school_erasures`, ein gestarteter
    Löschauftrag des Trägers). Ein erfasster Trägerauftrag in der Karenzzeit
-   sperrt nicht: Gerade dann braucht der Kunde die Rückgabe. Freigabe und Löschung desselben Subjekts
-   laufen so nie aneinander vorbei.
+   sperrt nicht: Gerade dann braucht der Kunde die Rückgabe. Die Freigabe
+   eines Trägerpakets sperrt dazu den offenen Löschauftrag mit `FOR SHARE`,
+   bevor sie dessen Start liest; `begin_organization_erasure` zählt die
+   unbereinigten Pakete des Trägers, sobald es den Auftrag mit `FOR UPDATE`
+   hält, und verweigert den Start mit 55006 (#6665). Freigabe und Löschung
+   desselben Subjekts laufen so nie aneinander vorbei.
 
 **Trägerpaket und Schullöschung** (entschieden am 11.11.2026,
 [#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)): Ein

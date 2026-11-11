@@ -564,6 +564,104 @@ func TestReleaseRefusesASubjectWhoseErasureHasBegun(t *testing.T) {
 	require.ErrorContains(t, issueRelease(t.Context(), f.db, f.operator, school, strings.Repeat("6", 32), keep), "erasure of the school or Träger has begun")
 }
 
+// lockedOut runs statement on tx, which has to wait for a lock that holder
+// holds; it returns the statement's result after holder committed.
+func lockedOut(t *testing.T, db *bun.DB, tx, holder bun.Tx, statement string, args ...any) error {
+	t.Helper()
+	var pid int
+	require.NoError(t, tx.NewRaw(`SELECT pg_backend_pid()`).Scan(t.Context(), &pid))
+	done := make(chan error, 1)
+	go func() {
+		_, err := tx.ExecContext(context.Background(), statement, args...)
+		done <- err
+	}()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := db.NewRaw(`SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = ?`, pid).Scan(context.Background(), &waiting)
+		return err == nil && waiting
+	}, 10*time.Second, 20*time.Millisecond, "the statement waits for the other transaction")
+	require.NoError(t, holder.Commit())
+	return <-done
+}
+
+// The release of a Träger package and the start of the Träger's erasure
+// exclude each other in both orders (#6665): whichever commits first, the
+// other waits for it and is refused. An erasure never starts with a
+// retrievable package, and a started erasure never gets one.
+func TestReleaseAndStartOfTheTraegerErasureAreSerialized(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	const begin = `SELECT platform.begin_organization_erasure(?, ?, 'ORDER-6665')`
+	const release = `SELECT platform.data_return_issue(?, 'release', 'organization', ?, ?, 10, ?, ?, 1, ?, 'customer', 'Träger', ?, '\x01'::bytea, ?, ?, 1)`
+	hex64 := strings.Repeat("ab", 32)
+	// dueOrder deactivates a new Träger and records its due erasure order.
+	dueOrder := func(t *testing.T) (organization int64, releaseArgs []any) {
+		t.Helper()
+		require.NoError(t, f.db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, f.school(t)).Scan(t.Context(), &organization))
+		t.Cleanup(func() {
+			for _, statement := range []string{
+				`DELETE FROM platform.data_return_grants WHERE package = 'organization' AND subject_id = ?`,
+				`DELETE FROM platform.organization_erasure_orders WHERE organization_id = ?`,
+			} {
+				_, err := f.db.ExecContext(context.Background(), statement, organization)
+				require.NoError(t, err)
+			}
+		})
+		_, err := f.db.ExecContext(t.Context(), `UPDATE platform.organizations SET active = false WHERE id = ?`, organization)
+		require.NoError(t, err)
+		_, err = f.db.ExecContext(t.Context(), `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on,
+			erase_not_before, recorded_by, records_notice_shown_at, records_choice)
+			VALUES (?, 'ORDER-6665', '2026-01-02', '2026-01-03', ?, now(), 'erasure_chosen')`, organization, f.operator)
+		require.NoError(t, err)
+		archive := fmt.Sprintf("%032x", organization)
+		return organization, []any{f.operator, organization, archive, hex64, hex64, hex64, strings.Repeat("ef", 16) + archive,
+			time.Now().Add(time.Hour), time.Now().Add(30 * 24 * time.Hour)}
+	}
+	state := func(t *testing.T, organization int64) (started bool, packages int) {
+		t.Helper()
+		require.NoError(t, f.db.NewRaw(`SELECT started_at IS NOT NULL, platform.data_return_open_for('organization', organization_id)
+			FROM platform.organization_erasure_orders WHERE organization_id = ?`, organization).Scan(t.Context(), &started, &packages))
+		return started, packages
+	}
+	transactions := func(t *testing.T) (first, second bun.Tx) {
+		t.Helper()
+		first, err := f.db.BeginTx(t.Context(), nil)
+		require.NoError(t, err)
+		second, err = f.db.BeginTx(t.Context(), nil)
+		require.NoError(t, err)
+		t.Cleanup(func() { _, _ = first.Rollback(), second.Rollback() })
+		return first, second
+	}
+
+	t.Run("the release commits first", func(t *testing.T) {
+		t.Parallel()
+		organization, releaseArgs := dueOrder(t)
+		releasing, beginning := transactions(t)
+		_, err := releasing.ExecContext(t.Context(), release, releaseArgs...)
+		require.NoError(t, err, "an order that has not started does not block the release")
+		err = lockedOut(t, f.db, beginning, releasing, begin, organization, f.operator)
+		require.ErrorContains(t, err, "released return package that is not purged")
+		require.NoError(t, beginning.Rollback())
+		started, packages := state(t, organization)
+		require.False(t, started, "the erasure does not start while the package can be retrieved")
+		require.Equal(t, 1, packages)
+	})
+
+	t.Run("the erasure starts first", func(t *testing.T) {
+		t.Parallel()
+		organization, releaseArgs := dueOrder(t)
+		beginning, releasing := transactions(t)
+		_, err := beginning.ExecContext(t.Context(), begin, organization, f.operator)
+		require.NoError(t, err)
+		err = lockedOut(t, f.db, releasing, beginning, release, releaseArgs...)
+		require.ErrorContains(t, err, "erasure of the school or Träger has begun")
+		require.NoError(t, releasing.Rollback())
+		started, packages := state(t, organization)
+		require.True(t, started)
+		require.Zero(t, packages, "a started erasure gets no package")
+	})
+}
+
 // A revocation records who ended the token: here an operator.
 func TestRevocationRecordsItsOrigin(t *testing.T) {
 	t.Parallel()
