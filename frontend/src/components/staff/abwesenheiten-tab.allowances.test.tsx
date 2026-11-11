@@ -11,6 +11,9 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 
 vi.mock("~/components/ui/date-picker", async () =>
   (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
@@ -83,6 +86,21 @@ vi.mock("~/lib/absence-type-api", () => ({
 }));
 
 import { AbwesenheitenTab } from "./abwesenheiten-tab";
+
+// #6652: the second load of the tab (the reload after the write) fails once.
+function failSecondLoad(mock: ReturnType<typeof vi.fn>) {
+  const original = mock.getMockImplementation()!;
+  let calls = 0;
+  mock.mockImplementation((...args: unknown[]) => {
+    calls += 1;
+    return calls === 2
+      ? Promise.reject(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+      : original(...args);
+  });
+}
+const RELOAD_TEXT = `${catalogText("general.unavailable", "die Anzeige der Abwesenheiten")} ${SAVED_BUT_STALE_SUFFIX}`;
 
 // Test clock: 2026-09-09.
 const year = 2026;
@@ -267,6 +285,27 @@ describe("AbwesenheitenTab Kontingente (#3256)", () => {
         reason: "In den Sommerferien krank",
       }),
     );
+  });
+
+  it("keeps a raised claim saved when the reload fails (#6652)", async () => {
+    mocks.setAllowance.mockResolvedValue(undefined);
+    failSecondLoad(mocks.getAbsences);
+    renderTab();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Anspruch ändern: Regenerationstag",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Einen Tag mehr" }));
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "In den Sommerferien krank" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(await screen.findByText(RELOAD_TEXT)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mocks.getAbsences).toHaveBeenCalledTimes(3));
+    expect(mocks.setAllowance).toHaveBeenCalledTimes(1);
   });
 
   it("does not let a claim drop below the days already used", async () => {
