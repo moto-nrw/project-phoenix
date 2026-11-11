@@ -67,6 +67,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
       "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
       "Ein Angebot nur für eine Klassenstufe, zum Beispiel Klasse 1: Setzen Sie den Haken bei `Nur für bestimmte Klassenstufen anbieten` und wählen Sie `Klasse 1`. Ohne Haken können alle Kinder das Angebot wählen.",
+      "Manche Phasen und Angebote legt Ihr Träger für mehrere Schulen an. Sie dürfen alles daran ändern oder sie ausschalten. Ihre Änderungen bleiben, auch wenn der Träger später etwas ändert.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
@@ -79,6 +80,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Oben steht `Anschlussphase fehlt`? Dann laufen die Buchungen aus. Wählen Sie `Anschlussphase erstellen`.",
       "Beim Speichern steht `Der neue Zeitraum passt nicht zur geänderten Buchung von …`? Das genannte Kind wechselt sein Angebot ab einem Tag im alten Zeitraum. Der neue Zeitraum würde diese Buchung leeren. Passen Sie zuerst die Angebote dieses Kindes an.",
       "Fehlt `Anmeldungen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
+      "Eine Phase oder ein Angebot lässt sich nicht löschen, weil es vom Träger kommt? Schalten Sie es stattdessen aus. Entfernen kann es nur Ihr Träger.",
     ],
     related: [
       HELP_TOPICS.leadEnrollmentForm,

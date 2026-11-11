@@ -129,3 +129,17 @@ export function presentError(
 export function errorDisplayLabels(locale: AppLocale) {
   return catalogs[locale].actions;
 }
+
+/**
+ * The catalog text for a code that arrives as data rather than as a failed
+ * request, such as the refusal of one school in a list of results (#4704).
+ * Like `presentError`, it reads no backend sentence.
+ */
+export function errorCodeMessage(
+  code: string,
+  object: string,
+  locale: AppLocale = "de",
+): string {
+  return presentError(new ApiError(code, 400, { code }), object, locale)
+    .message;
+}

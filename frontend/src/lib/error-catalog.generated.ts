@@ -614,6 +614,21 @@ export const ERROR_CATALOG = {
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "enrollment.submission_rate_limited":
         "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
+      "enrollment.traeger_catalog_invalid": "Bitte prüfen Sie Ihre Angaben.",
+      "enrollment.traeger_copy_delete":
+        "Dieser Eintrag kommt vom Träger. Nur das Träger-Büro kann ihn entfernen. Sie können ihn stattdessen deaktivieren.",
+      "enrollment.traeger_copy_rejected":
+        "Die Schule kann diese Angaben so nicht übernehmen. Bitte prüfen Sie die Angaben oder die Einstellungen der Schule.",
+      "enrollment.traeger_offering_not_found":
+        "Dieses Angebot des Trägers gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.traeger_phase_not_found":
+        "Diese Anmeldephase des Trägers gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.traeger_preview_stale":
+        "Seit der Vorschau hat sich etwas geändert. Bitte sehen Sie sich die Vorschau noch einmal an.",
+      "enrollment.traeger_school_outside":
+        "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen neu.",
+      "enrollment.traeger_withdrawn":
+        "Dieser Eintrag ist zurückgezogen. Er lässt sich nicht mehr ändern.",
       "enrollment.upload_content_mismatch":
         "Der Inhalt von „{filename}“ passt nicht zur Dateiart. Bitte wählen Sie eine andere Datei. Umbenennen reicht nicht.",
       "enrollment.upload_expired":
@@ -2301,6 +2316,14 @@ export const ERROR_CATALOG = {
         "This link is invalid or has expired. Please use the link from your email.",
       "enrollment.submission_rate_limited":
         "Too many enrollments were sent. Please try again in an hour.",
+      "enrollment.traeger_catalog_invalid":
+        "{object} could not be changed. Please check its current status.",
+      "enrollment.traeger_offering_not_found":
+        "{object} could not be changed. Please check its current status.",
+      "enrollment.traeger_phase_not_found":
+        "{object} could not be changed. Please check its current status.",
+      "enrollment.traeger_school_outside":
+        "{object} could not be changed. Please check its current status.",
       "enrollment.upload_content_mismatch":
         "The contents of “{filename}” do not match its file type. Please choose another file. Renaming it is not enough.",
       "enrollment.upload_expired":
@@ -2932,6 +2955,14 @@ export const ERROR_CATALOG = {
         "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
       "enrollment.submission_rate_limited":
         "Отправлено слишком много заявок. Попробуйте снова через час.",
+      "enrollment.traeger_catalog_invalid":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "enrollment.traeger_offering_not_found":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "enrollment.traeger_phase_not_found":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
+      "enrollment.traeger_school_outside":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "enrollment.upload_content_mismatch":
         "Содержимое файла «{filename}» не соответствует его типу. Пожалуйста, выберите другой файл. Изменения имени недостаточно.",
       "enrollment.upload_expired":
@@ -3506,6 +3537,14 @@ export const ERROR_CATALOG = {
         "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
       "enrollment.submission_rate_limited":
         "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
+      "enrollment.traeger_catalog_invalid":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "enrollment.traeger_offering_not_found":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "enrollment.traeger_phase_not_found":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+      "enrollment.traeger_school_outside":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "enrollment.upload_content_mismatch":
         "Përmbajtja e skedarit «{filename}» nuk përputhet me llojin e tij. Ju lutemi, zgjidhni një skedar tjetër. Ndryshimi i emrit nuk mjafton.",
       "enrollment.upload_expired":
@@ -4069,6 +4108,14 @@ export const ERROR_CATALOG = {
         "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
       "enrollment.submission_rate_limited":
         "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
+      "enrollment.traeger_catalog_invalid":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "enrollment.traeger_offering_not_found":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "enrollment.traeger_phase_not_found":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+      "enrollment.traeger_school_outside":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "enrollment.upload_content_mismatch":
         "Zawartość pliku „{filename}” nie pasuje do jego typu. Proszę wybrać inny plik. Zmiana nazwy nie wystarczy.",
       "enrollment.upload_expired":
@@ -4638,6 +4685,14 @@ export const ERROR_CATALOG = {
         "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
       "enrollment.submission_rate_limited":
         "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
+      "enrollment.traeger_catalog_invalid":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "enrollment.traeger_offering_not_found":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "enrollment.traeger_phase_not_found":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+      "enrollment.traeger_school_outside":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "enrollment.upload_content_mismatch":
         "“{filename}” dosyasının içeriği dosya türüyle uyuşmuyor. Lütfen başka bir dosya seçin. Adını değiştirmek yeterli değildir.",
       "enrollment.upload_expired":
@@ -5199,6 +5254,14 @@ export const ERROR_CATALOG = {
         "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
       "enrollment.submission_rate_limited":
         "Надіслано забагато заявок. Спробуйте ще раз через годину.",
+      "enrollment.traeger_catalog_invalid":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "enrollment.traeger_offering_not_found":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "enrollment.traeger_phase_not_found":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
+      "enrollment.traeger_school_outside":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "enrollment.upload_content_mismatch":
         "Вміст файлу «{filename}» не відповідає його типу. Будь ласка, виберіть інший файл. Зміни назви недостатньо.",
       "enrollment.upload_expired":
