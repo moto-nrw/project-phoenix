@@ -10,6 +10,7 @@ import { PasskeySettingsSection } from "./passkey-settings-section";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 // The shared error path shows failures through the toast provider (#2517).
 function renderWithToast(
@@ -208,6 +209,70 @@ describe("PasskeySettingsSection", () => {
       expect(
         screen.getByText("Keine Passkeys hinterlegt."),
       ).toBeInTheDocument();
+    });
+  });
+
+  // #6652: a passkey change holds once the write is through; a failed reload
+  // of the list is a load error that says the change is saved.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Liste der Passkeys")} ${SAVED_BUT_STALE_SUFFIX}`;
+    const passkey = {
+      id: "5",
+      name: "Old phone",
+      created_at: "2026-06-15T10:00:00Z",
+    };
+
+    it("keeps a removed passkey removed when the reload fails", async () => {
+      mockListPasskeys
+        .mockReset()
+        .mockResolvedValueOnce([passkey])
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue([]);
+      renderWithToast(<PasskeySettingsSection scope="operator" />);
+
+      fireEvent.click(await screen.findByLabelText("Aktionen für Old phone"));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+      fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Endgültig entfernen" }),
+      );
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockListPasskeys).toHaveBeenCalledTimes(3));
+      expect(mockRevokePasskey).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps an added passkey when the reload fails", async () => {
+      mockListPasskeys
+        .mockReset()
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue([passkey]);
+      renderWithToast(<PasskeySettingsSection />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Hinzufügen" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "E-Mail senden" }));
+      fireEvent.change(await screen.findByLabelText("Code"), {
+        target: { value: "123456" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "das Hinzufügen des Passkeys"),
+        ),
+      ).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockListPasskeys).toHaveBeenCalledTimes(3));
+      expect(mockRegisterPasskey).toHaveBeenCalledTimes(1);
     });
   });
 
