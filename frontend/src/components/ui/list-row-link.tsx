@@ -243,7 +243,8 @@ export function ListRowLink({
     </button>
   );
   if (!framed) return row;
-  // Gerahmt ist die Zeile eine Liste mit einem Eintrag: Rahmen der Karte,
-  // Hover und Fokus der Zeile (wie in `FramedList`), nicht die der Kachel.
+  // Gerahmt teilt die Zeile nur den Rahmen der Karte. Polster und Fokusring
+  // bleiben die der Zeile, beim Überfahren wird nur der Pfeil dunkler; ob sie
+  // wie `TileCard` reagieren soll, klärt #6731.
   return <div className={cn(CARD_FRAME, className)}>{row}</div>;
 }

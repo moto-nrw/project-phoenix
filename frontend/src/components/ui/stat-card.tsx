@@ -37,7 +37,10 @@
 // palette moves.
 
 import { cn } from "~/lib/utils";
-import { listRowClasses } from "./list-row-styles";
+import {
+  LIST_ROW_NEUTRAL_GROUP_HOVER,
+  listRowClasses,
+} from "./list-row-styles";
 import {
   CARD_FOCUS_RING,
   CARD_FRAME,
@@ -202,7 +205,7 @@ export function StatCard(
 
   const card =
     props.variant === "row" ? (
-      <div className={listRowClasses({ hoverFromGroup: true })}>
+      <div className={cn(listRowClasses(), LIST_ROW_NEUTRAL_GROUP_HOVER)}>
         {icon}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
           {label}
