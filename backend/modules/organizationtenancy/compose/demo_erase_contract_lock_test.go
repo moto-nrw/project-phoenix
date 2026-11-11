@@ -49,6 +49,7 @@ func TestDemoErasureIncludesAConcurrentContractSend(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	sender, mailID, eventID := pendingContractSend(t, order)
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error

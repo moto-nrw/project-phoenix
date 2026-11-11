@@ -286,6 +286,12 @@ die Löschung beginnt nach 250 ms Budget keinen Auftrag mehr.
    gleichzeitig.
 4. `TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone` nutzt einen Clone für
    seine 40 Subtests.
+5. Sechs Tests, die zeigen, was die Löschung tut, sobald ein Lock frei wird,
+   stellen den `lock_timeout` des Laufs in ihrem eigenen Clone auf 1 min
+   (`waitForLocks`). Mit den 100 ms der Produktion musste der Test das Warten
+   sehen und den Halter committen, bevor der Lauf aufgab; im Gate nach dem
+   Rebase scheiterte daran `TestDemoErasureIncludesASendOfAConcurrentRelease`
+   (Paket 499 s, vermutlich mit Neuaufbau des Templates).
 
 ### Nachher
 

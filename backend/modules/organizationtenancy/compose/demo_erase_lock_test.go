@@ -272,6 +272,22 @@ func (o demoOrder) hide(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// waitForLocks lets the run in this test's clone wait for a lock instead of
+// deferring the order after 100 ms. A test that shows what the erasure does
+// once the lock it waits for is free has to see the wait and commit the
+// holder before the run gives up; within the 100 ms of production a loaded
+// machine does not manage that (#6452). The production value stays pinned in
+// TestDemoVisitorErasureNeverWaitsForALock.
+func (o demoOrder) waitForLocks(t *testing.T) {
+	t.Helper()
+	for _, function := range []string{
+		"platform.retire_expired_demo_schools(text[])", "platform.erase_closed_demo_visitors()", "platform.erase_retired_demo_school(bigint)",
+	} {
+		_, err := o.db.NewRaw(`ALTER FUNCTION ` + function + ` SET lock_timeout = '1min'`).Exec(t.Context())
+		require.NoError(t, err, function)
+	}
+}
+
 // requireErasedNext runs the next run once nothing holds a lock any more,
 // without naming the order: the run finds deferred work in the database
 // (#5540). It requires that the run hides a school still open and erases the

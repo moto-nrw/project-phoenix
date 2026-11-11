@@ -53,6 +53,7 @@ func TestDemoErasureIncludesAConcurrentMonthlyRelease(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	release, invoiceID := pendingCareRelease(t, order)
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error
