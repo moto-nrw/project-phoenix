@@ -95,6 +95,9 @@ type HolidayGuestTransfer struct {
 	WeekID  int64 `json:"week_id"`
 	GroupID int64 `json:"group_id"`
 	Guests  int   `json:"guests"`
+	// OwnChildren counts the school's own children of the week whose booked
+	// days are planned now (#6678).
+	OwnChildren int `json:"own_children"`
 }
 
 // HolidayGuestChild is the child People Directory keeps for a guest: its
@@ -144,6 +147,9 @@ type HolidayGuestCareDays interface {
 const (
 	HolidayGuestAccessTransfer = "transfer"
 	HolidayGuestAccessSheet    = "sheet"
+	// HolidayGuestAccessOwnChild is a read of what the registrations say
+	// about a child of the hosting school itself (#6678).
+	HolidayGuestAccessOwnChild = "own_child"
 )
 
 // HolidayGuestAccess is one access to holiday guest data for the access log
@@ -160,6 +166,8 @@ type HolidayGuestAccess struct {
 	EndsOn         calendar.Date
 	Guests         int
 	Automatic      bool
+	// WeekIDs names the weeks an own-child read covered.
+	WeekIDs []int64
 }
 
 // HolidayGuestAccessLog writes an access to holiday guest data into the
@@ -186,6 +194,7 @@ type HolidayGuests interface {
 	// has ended.
 	HolidayGuestSheet(ctx context.Context, host HolidayHost, studentID int64) (HolidayGuestSheet, error)
 	HolidayGuestBadgeList
+	HolidayOwnChildren
 }
 
 // HolidayGuestBadgeList lists the hints „Gast aus …“ of a hosting school,

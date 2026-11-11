@@ -163,6 +163,12 @@ const (
 	// and answers to health questions. StudentID is SET; RangeStart and
 	// RangeEnd span the weeks; metadata carries week_ids.
 	ResourceTypeHolidayStudentHealth = "holiday_student_health"
+	// ResourceTypeHolidayStudentRegistration records a staff member reading
+	// what a confirmed holiday registration says about a child of the
+	// hosting school itself: booked care, emergency contacts and who may
+	// collect it (#6678). StudentID names the child; Metadata["week_ids"]
+	// names the weeks.
+	ResourceTypeHolidayStudentRegistration = "holiday_student_registration"
 	// ResourceTypeCareContractApplications records the Träger-Büro reading
 	// the accepted applications of a school to create care contracts
 	// (#4678, ADR 0153): child, guardian and booked offering. StudentID is

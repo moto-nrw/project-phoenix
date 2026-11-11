@@ -463,7 +463,7 @@ func TestSeedTraegerHolidayPeriodStepReadsTheHostedParticipantList(t *testing.T)
 				case "/api/holiday-weeks/51/guest-group":
 					// The holiday guests join the new group (#4666).
 					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
-					_, _ = w.Write([]byte(`{"status":"success","data":{"week_id":51,"group_id":5,"guests":1}}`))
+					_, _ = w.Write([]byte(`{"status":"success","data":{"week_id":51,"group_id":5,"guests":1,"own_children":1}}`))
 				case "/api/holiday-guests/groups":
 					// The group management names the Feriengruppe before its week.
 					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
