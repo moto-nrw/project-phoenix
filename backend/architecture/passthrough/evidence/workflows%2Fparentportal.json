@@ -16,6 +16,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p *Portal) DiscardChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) error {\n\treturn p.MessagingFlows.DiscardChildMessageAttachment(ctx, accountID, studentID, attachmentID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "workflows/parentportal/Portal.DiscardChildMessageAttachment",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
       "evidence": "func (p *Portal) EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []calendar.Date, note, expectedVersion string) (*ExcusedAbsenceRequestSnapshot, error) {\n\treturn p.ChildFlows.EditExcusedRequest(ctx, accountID, studentID, requestID, dates, note, expectedVersion)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/Portal.EditExcusedRequest",
@@ -114,6 +121,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p *Portal) OpenChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) (*StoredMessageAttachment, error) {\n\treturn p.MessagingFlows.OpenChildMessageAttachment(ctx, accountID, studentID, attachmentID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "workflows/parentportal/Portal.OpenChildMessageAttachment",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
       "evidence": "func (p *Portal) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {\n\treturn p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/Portal.PostChildMessage",
@@ -124,6 +138,13 @@
       "evidence": "func (p *Portal) PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64, audience ...string) (*MessageThreadView, error) {\n\ttarget := MessageTarget{GroupThreadID: groupThreadID}\n\tif len(audience) \u003e 0 {\n\t\ttarget.Audience = audience[0]\n\t}\n\treturn p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, target)\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/Portal.PostChildReply",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Portal) PrepareChildMessageAttachment(ctx context.Context, accountID, studentID int64, upload MessageAttachmentUpload) (*StoredMessageAttachment, error) {\n\treturn p.MessagingFlows.PrepareChildMessageAttachment(ctx, accountID, studentID, upload)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "workflows/parentportal/Portal.PrepareChildMessageAttachment",
       "owner": "workflows/parentportal"
     },
     {

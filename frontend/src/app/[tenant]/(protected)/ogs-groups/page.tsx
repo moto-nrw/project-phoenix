@@ -24,6 +24,7 @@ import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { CollectionGrid } from "~/components/ui/collection-grid";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -110,7 +111,13 @@ import {
   useMediaQuery,
 } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
-import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
+import {
+  HOLIDAY_GUEST_SCHOOL_CLASS,
+  holidayGuestGroupHintText,
+} from "~/lib/holiday-host-api";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { groupEmptyState } from "./group-empty-state";
+import { useHolidayGuestGroupHint } from "~/lib/hooks/use-holiday-guest-group-hint";
 import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
@@ -140,7 +147,6 @@ import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
-import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 
@@ -1006,6 +1012,7 @@ function OGSGroupPageContent() {
     [pickupTimes, now],
   );
   const holidayGuestLabel = useHolidayGuestLabels(students);
+  const holidayGroupHint = useHolidayGuestGroupHint(currentGroup?.id);
   const tableColumns = useMemo(
     () =>
       compactColumns<Student>([
@@ -1365,6 +1372,24 @@ function OGSGroupPageContent() {
     );
   };
 
+  // Eine Feriengruppe vor ihrer Woche ist absichtlich leer (#6680): Die
+  // Feriengäste stehen erst ab dem ersten Tag in der Gruppe. Der Hinweis
+  // nennt Zahl und Tag, damit die leere Gruppe nicht wie ein Fehler wirkt.
+  const canOpenHolidayWeeks = hasPermission(session, "config:read");
+  const holidayGroupAction = canOpenHolidayWeeks ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={() => router.push("/ferienwochen")}
+    >
+      Zu den Ferienwochen
+    </Button>
+  ) : undefined;
+  const holidayGroupExplanation = canOpenHolidayWeeks
+    ? "Feriengäste stehen erst ab dem ersten Tag der Ferienwoche in der Gruppe. Wer kommt, steht unter Ferienwochen."
+    : "Feriengäste stehen erst ab dem ersten Tag der Ferienwoche in der Gruppe. Wer kommt, weiß Ihre Leitung.";
+
   // Statuszeile aus den bereits geladenen Gruppendaten. Der Gruppenname
   // steht im Titel und wiederholt sich hier nicht.
   let groupStats: string | null = "Keine Gruppe zugeordnet";
@@ -1463,28 +1488,19 @@ function OGSGroupPageContent() {
         // Der Leerzustand kommt aus dem Gerüst, nicht aus der Liste, und
         // nennt den nächsten Schritt statt nur festzustellen, dass nichts da
         // ist.
-        empty={
-          !showSkeleton && !error && students.length === 0
+        empty={groupEmptyState({
+          visible: !showSkeleton && !error && students.length === 0,
+          groupName: currentGroup?.name,
+          severalGroups: allGroups.length > 1,
+          holidayHint: holidayGroupHint
             ? {
-                icon: <MotoConceptIcon concept={childrenConcept} size={48} />,
-                title: `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`,
-                description:
-                  allGroups.length > 1
-                    ? "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche zu, oder wählen Sie oben eine andere Gruppe."
-                    : "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche dieser Gruppe zu.",
-                action: (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => router.push("/students/search")}
-                  >
-                    Zur Kindersuche
-                  </Button>
-                ),
+                title: holidayGuestGroupHintText(holidayGroupHint),
+                description: holidayGroupExplanation,
+                action: holidayGroupAction,
               }
-            : null
-        }
+            : undefined,
+          onOpenSearch: () => router.push("/students/search"),
+        })}
         overlays={
           <>
             {earlyCheckout.dialog}
@@ -1525,6 +1541,27 @@ function OGSGroupPageContent() {
               pendingCount={schoolCheckin.pendingIds.size}
             />
           </div>
+        )}
+
+        {holidayGroupHint && (
+          <Alert
+            type="info"
+            icon={<MotoConceptIcon concept={holidayWeeksConcept} size={20} />}
+            title={holidayGuestGroupHintText(holidayGroupHint)}
+            message={holidayGroupExplanation}
+            action={
+              canOpenHolidayWeeks ? (
+                <Button
+                  type="button"
+                  variant="ghost_tone"
+                  size="compact"
+                  onClick={() => router.push("/ferienwochen")}
+                >
+                  Zu den Ferienwochen
+                </Button>
+              ) : undefined
+            }
+          />
         )}
 
         {/* Student Grid. Bottom padding reserves room for the mobile

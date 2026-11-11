@@ -3235,7 +3235,9 @@ export const groupsCatalogTopic = function groupsCatalogTopic(
 /**
  * `/ferienwochen` (#4666): Die Leitung wählt die Gruppe für die Feriengäste
  * einer Woche. Die bestätigten Gäste kommen dann in die Gruppe und in den
- * Check-in.
+ * Check-in. Vor der Woche ist die Gruppe leer und sagt, wie viele Kinder
+ * dazukommen (#6680). Mit der Wahl plant moto auch die gebuchten Tage der
+ * eigenen Kinder ein (#6678).
  */
 export const holidayGuestGroupTopic =
   function holidayGuestGroupTopic(): HelpTopic {
@@ -3263,6 +3265,8 @@ export const holidayGuestGroupTopic =
         "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe, im Check-in und unter `Alle Kinder`. Bei jedem steht seine Schule, zum Beispiel `Gast aus Grundschule am See`. Ihr Team sieht Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
       notes: [
         "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
+        "Kinder Ihrer OGS plant moto von selbst ein, auch ohne Feriengruppe. Der Stand steht unter `Kinder Ihrer OGS`.",
+        "Öffnen Sie die leere Feriengruppe über einen Link, steht dort, wie viele Kinder dazukommen und ab wann.",
         "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
         "Eine Gruppe nur für die Ferien steht vor der Woche nicht unter `Gruppen`. In der `Datenverwaltung` unter `Gruppendaten` steht bei ihr `Feriengruppe` mit der Woche. Dort legen Sie Raum und Gruppenleitung schon vorher fest.",
         "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
@@ -3285,7 +3289,9 @@ export const holidayGuestGroupTopic =
  * Abholung, die Antworten, die der Träger freigibt (#5202), und die
  * Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722). Der Hinweis
  * „Gast aus …“ nennt die Heimatschule, und Gäste stehen erst ab dem ersten
- * Tag ihrer Woche in den Listen (#5630).
+ * Tag ihrer Woche in den Listen (#5630). Vorher sagt die leere Feriengruppe,
+ * wie viele Kinder dazukommen (#6680). Kinder der eigenen OGS bleiben in
+ * ihrer Gruppe und zeigen die Angaben der Anmeldung in ihrer Akte (#6678).
  */
 export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
   return {
@@ -3319,6 +3325,8 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     notes: [
       "Denselben Hinweis `Gast aus …` sehen Sie unter `Alle Kinder`, in der Aufsicht und auf der Karte des Kindes. Steht nur `Feriengast` da, haben die Eltern keine Schule genannt.",
       "Die Gesundheitsangaben stehen auch in den `Gesundheitsinformationen` des Feriengasts. Sie sehen sie also auch in der Gruppe und in der `Gesundheitsliste`.",
+      "Vor der Ferienwoche ist die Feriengruppe leer. Dort steht dann, wie viele Kinder dazukommen und ab wann. Zum Beispiel `Feriengruppe: 3 Kinder kommen ab 04.01.2027 dazu.`",
+      "Kinder Ihrer OGS sind keine Feriengäste. Sie bleiben in ihrer Gruppe. Notfall, Abholung und Zeiten aus der Anmeldung stehen in ihrer Kinderakte unter `Angaben aus der Ferienanmeldung`.",
       "Mehr als Betreuung, Notfall, Abholung, Gesundheit und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
       "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
     ],
@@ -3328,6 +3336,7 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Angaben aus der Ferienanmeldung`? Dann gibt der Träger keine Frage frei.",
       "Fehlt `Gesundheit`? Dann haben die Eltern nichts angegeben oder der Weitergabe nicht zugestimmt.",
+      "Ist die Feriengruppe leer? Vor dem ersten Tag der Ferienwoche ist das richtig. Die Feriengäste kommen am ersten Tag von selbst dazu.",
       "Fehlt die Feriengruppe unter `Gruppen`? Hat sie keine eigenen Kinder, steht sie dort erst ab dem ersten Tag der Woche.",
       "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
       "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
@@ -3341,6 +3350,8 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
  * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche. Dazu
  * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202)
  * und die Gesundheitsangaben, wenn die Eltern zugestimmt haben (#4722).
+ * Kinder der eigenen OGS bleiben in ihrer Gruppe; die Karte `Kinder Ihrer
+ * OGS` zeigt, ob moto ihre Anmeldung einem Kind zugeordnet hat (#6678).
  */
 export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
   return {
@@ -3364,7 +3375,9 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",
+      "Kommen Kinder Ihrer OGS? Dann steht unter `Kinder Ihrer OGS`, ob sie eingeplant sind.",
       "Unter `Kinder` steht jedes Kind mit Geburtsdatum, Heimatschule und Zeitmodell.",
+      "Bei einem Kind Ihrer OGS öffnen Sie mit `Akte öffnen` seine Kinderakte.",
       "Gibt der Träger Fragen frei, steht jede in einer eigenen Spalte. Zum Beispiel `Darf allein nach Hause gehen`.",
       "Unter `Zweite sorgeberechtigte Person` stehen Name und Telefon, wenn die Eltern eine zweite Person angegeben haben.",
       "Unter `Gesundheit` stehen Allergien, Medikamente und weitere Hinweise. Dort stehen auch Antworten auf Gesundheitsfragen, die der Träger freigibt.",
@@ -3378,16 +3391,19 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
-      "Kommt ein Kind Ihrer OGS in die Ferienwoche? Dann stehen seine Gesundheitsangaben auch in seiner Kinderakte. Sie stehen dort unter `Angaben aus der Ferienanmeldung`. Die `Gesundheitsinformationen` des Kindes ändern sich nicht.",
+      "Kinder Ihrer OGS bleiben in ihrer Gruppe. moto trägt für die gebuchten Tage Ankunft und Abholung ein. Der Check-in erwartet das Kind dann an diesen Tagen. Neu bestätigte Kinder plant moto innerhalb einer Stunde ein.",
+      "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
+      "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
       "Nach dem letzten Tag der Woche ist die Woche nicht mehr zu sehen. Die Gesundheitsangaben auch nicht.",
-      "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort.",
+      "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort. Die eingeplanten Tage eines Kindes Ihrer OGS entfernt moto innerhalb einer Stunde.",
     ],
     troubleshootingDetails: [
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
+      "Steht ein Kind unter `Noch nicht zugeordnet`? Dann passen Vorname, Nachname oder Geburtsdatum der Anmeldung zu keinem Kind in moto oder zu mehreren. Ändern Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern. Vorher plant moto für dieses Kind nichts ein.",
       "Steht bei einem Kind unter `Gesundheit` nichts? Dann haben die Eltern nichts angegeben oder nicht zugestimmt. Ältere Anmeldungen geben keine Gesundheitsangaben weiter.",
       "Fehlt `Ferienwochen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],
@@ -6310,6 +6326,7 @@ export const parentGroupMessageTopic =
         "Steht bei einem Kind `Kein Eltern-Zugang`? Dann bekommt diese Familie die Nachricht nicht.",
       ],
       notes: [
+        "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie an eine weitere Nachricht bis zu 5 Dateien an, je höchstens 10 MB. Alle Eltern der Gruppennachricht sehen die Datei.",
         "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
         "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
         "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
@@ -6343,6 +6360,7 @@ export const parentGroupMessagesTopic =
       result:
         "Ihre Antwort steht danach im Chat mit der OGS zu Ihrem Kind. Andere Eltern sehen sie nicht.",
       notes: [
+        "Fotos öffnen Sie mit einem Tipp groß. Andere Dateien laden Sie mit dem Pfeil herunter. An Ihre Antwort können Sie mit `Foto oder Datei anhängen` selbst Dateien hängen.",
         "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
         "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
         "Unter `Antwort an die OGS` steht, wer Ihre Antwort lesen kann.",
@@ -6809,6 +6827,7 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
       "Eltern können nur an die Leitung schreiben, wenn unter `Einstellungen` der Schalter `Nachrichten nur an die Leitung (Eltern)` an ist und jemand das Recht `Vertrauliche Elternnachrichten lesen` hat. Das Recht vergeben Sie unter `Rollen`.",
     ],
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß. Die Eltern sehen die Dateien in der Eltern-App.",
       "Über dem Schreibfeld steht, wer die Unterhaltung lesen kann: die eine Bezugsperson und alle Mitarbeitenden oder nur die Leitung. Andere Bezugspersonen des Kindes lesen nicht mit.",
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
@@ -6839,6 +6858,7 @@ export const parentMessagesTopic = function parentMessagesTopic(): HelpTopic {
     ],
     result: "Die OGS bekommt Ihre Nachricht sofort.",
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Jedes Kind hat eine eigene Unterhaltung. Oben steht, für welches Kind sie gilt.",
       "Über dem Schreibfeld steht, wer mitliest, zum Beispiel `Lesen können: Sie und alle Mitarbeitenden der OGS.` Auf einem großen Bildschirm steht es auch oben. Andere Bezugspersonen Ihres Kindes lesen Ihre Unterhaltung nicht.",
       "Unter Ihrer Nachricht steht `Gesendet` und später `Von der OGS gelesen`.",
@@ -9500,6 +9520,7 @@ export const teacherMessagesTopic = function teacherMessagesTopic(): HelpTopic {
     ],
     result: "Das OGS-Team bekommt Ihre Nachricht sofort.",
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Vor Ihrer eigenen Nachricht steht `Sie:`.",
       "Hier melden Sie, was die OGS wissen muss, zum Beispiel eine falsche Abholzeit.",
       "Die OGS kann Sie in einen Gruppenchat aufnehmen. Er steht dann mit seinem Namen in Ihrer Liste. Mit `Mitglieder` und `Gruppenchat verlassen` gehen Sie wieder heraus.",
@@ -9972,6 +9993,7 @@ export const teamChatTopic = function teamChatTopic(): HelpTopic {
       "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
     ],
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Unter Ihrer Nachricht in einem Gruppenchat steht, wie viele sie gelesen haben. Tippen Sie darauf, dann sehen Sie die Namen.",
       "Eltern können den Team-Chat nicht sehen. Für Eltern nutzen Sie `Nachrichten` im Bereich `Eltern`.",
       "Mit `Nur ungelesen` sehen Sie nur Unterhaltungen mit neuen Nachrichten.",
@@ -12253,7 +12275,7 @@ export const traegerHolidayRegistrationReviewTopic =
       question:
         "Wie bestätige, ändere, storniere und buche ich Ferienanmeldungen um?",
       summary:
-        "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um. Geschwister aus zwei Anmeldungen führen Sie zusammen.",
+        "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um, auch mehrere Anmeldungen auf einmal. Geschwister aus zwei Anmeldungen führen Sie zusammen.",
       image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
       imageAlt:
         "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
@@ -12291,6 +12313,20 @@ export const traegerHolidayRegistrationReviewTopic =
           ],
         },
         {
+          title: "Mehrere auf einmal bestätigen",
+          description:
+            "moto bestätigt nur Anmeldungen, die keine Angabe mehr brauchen. Die Familie bezahlt dann den Beitrag. Bei offenen Anmeldungen prüfen Sie zuerst den Grund.",
+          steps: [
+            "Filtern Sie nach dem Status `Eingegangen`.",
+            "Setzen Sie einen Haken bei jeder Anmeldung. Mit dem Haken in der Kopfzeile wählen Sie alle aus.",
+            "Wählen Sie oben `Ausgewählte bestätigen`.",
+            "Das Fenster zeigt unter `Wird bestätigt`, welche Anmeldungen moto bestätigt. Darunter steht, welche offen bleiben und warum.",
+            "Wählen Sie zum Beispiel `12 bestätigen`. moto bestätigt eine Anmeldung nach der anderen. Lassen Sie die Seite so lange offen. Mit `Anhalten` hören Sie nach der laufenden Anmeldung auf.",
+            "Am Ende steht, welche Anmeldungen bestätigt sind und welche offen bleiben. Prüfen Sie bei offenen Anmeldungen den Grund und den nächsten Schritt. Schon bestätigte oder stornierte Anmeldungen zählen nicht als offen.",
+            "Steht bei einer Anmeldung `Ergebnis unklar`, prüfen Sie dort zuerst den Status. Mit `Fertig` lädt moto die Liste neu, auch bei unklarem Ergebnis.",
+          ],
+        },
+        {
           title: "Debitorennummer nachtragen oder ändern",
           description:
             "Das geht bei einer bestätigten Anmeldung, bis der Abrechnungslauf ihre Rechnung ausgestellt hat.",
@@ -12317,7 +12353,7 @@ export const traegerHolidayRegistrationReviewTopic =
           steps: [
             "In der Spalte `Geschwister` steht ein Hinweis wie `Vielleicht Geschwister: gleiche E-Mail` oder `Vielleicht Geschwister: gleicher Nachname`. Der Hinweis ändert nichts.",
             "Prüfen Sie, ob die Kinder wirklich Geschwister sind.",
-            "Setzen Sie in der Liste einen Haken bei jeder Anmeldung der Familie.",
+            "Setzen Sie in der Liste einen Haken bei jeder Anmeldung der Familie. Die Leiste über der Liste zeigt, wie viele ausgewählt sind.",
             "Wählen Sie `Als Geschwister zusammenführen`.",
             "In der Spalte `Geschwister` steht jetzt `Geschwister` mit den Nummern der anderen Anmeldungen.",
           ],
@@ -12371,6 +12407,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
       notes: [
         "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
+        "Offen bleibt eine Anmeldung, wenn ein Platz noch offen ist, die Eltern Leistungsbezug angeben, ein Kind vielleicht doppelt angemeldet ist oder die Debitorennummer fehlt. Eine Anmeldung von Geschwistern übernimmt die Debitorennummer der Geschwister.",
         "Beim Bestätigen bekommen die Eltern eine E-Mail mit den Kindern, Wochen und Zeitmodellen. Darin steht auch Ihr `Text der Annahme-Mail` aus dem Ferienzeitraum. Jede Anmeldung bekommt diese E-Mail nur einmal.",
         "Beim Stornieren bekommen Eltern keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
         "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann steht bei einer Woche zuerst `Platz offen`. Bestätigen geht erst, wenn Ihr Büro im Reiter `Vergabe` entschieden hat. Unter `Angaben für die Vergabe` sehen Sie die Antworten der Eltern und prüfen sie mit `Prüfen`.",
@@ -12397,6 +12434,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
       ],
       differences: [
+        "Auf dem Handy fehlt der Haken für alle Anmeldungen? Setzen Sie die Haken dort einzeln.",
         "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
         "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn in den Einstellungen unter `Abrechnungsvorgaben` an.",
         "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` fest.",

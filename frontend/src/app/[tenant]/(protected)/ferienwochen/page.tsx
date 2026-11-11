@@ -6,7 +6,9 @@ import { HolidayHealthCell } from "~/components/holiday/holiday-health-lines";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
@@ -14,10 +16,12 @@ import { holidayDayList } from "~/lib/holiday-days";
 import { formatDate } from "~/lib/date-helpers";
 import {
   downloadHolidayParticipants,
+  fetchHolidayOwnChildAssignments,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
   formatHolidayHostAnswer,
   type HolidayHomeSchoolCount,
+  type HolidayOwnChildAssignment,
   type HolidayParticipant,
   type HolidayParticipantList,
   type HolidayTimeModelCount,
@@ -25,10 +29,12 @@ import {
 } from "~/lib/holiday-host-api";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { holidayKeys } from "~/lib/swr/portal-keys";
 import { HolidayGuestGroupCard } from "./holiday-guest-group-card";
+import { HolidayOwnChildrenCard } from "./holiday-own-children-card";
 
 const logger = createLogger({ component: "FerienwochenPage" });
 
@@ -36,6 +42,7 @@ const logger = createLogger({ component: "FerienwochenPage" });
 // once a minute: cancellations and rebookings show up, and a week drops out
 // after its last day without a reload.
 const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
+const NO_ASSIGNMENTS: readonly HolidayOwnChildAssignment[] = [];
 
 // Ferienwochen (#4665): die ausrichtende OGS sieht vor und während ihrer
 // Woche die Kinder, deren Anmeldung der Träger bestätigt hat, mit Zahlen je
@@ -50,6 +57,10 @@ const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
 // Die Gesundheitsangaben der Kinder, deren Eltern der Weitergabe zugestimmt
 // haben, stehen in einer Spalte „Gesundheit“; Export und Druck tragen sie
 // nicht (#4722).
+//
+// Kinder der eigenen OGS bleiben in ihrer Gruppe (#6678). Die Seite zeigt,
+// welche Anmeldung welchem Kind in moto zugeordnet ist, verlinkt die
+// Kinderakte und nennt Anmeldungen, die zu keinem Kind passen.
 //
 // Bauart 3 (Werkzeug): eine Liste zum Vorbereiten und Ausdrucken, kein
 // Objekt, das hier bearbeitet wird.
@@ -81,8 +92,29 @@ function secondGuardianCell(child: HolidayParticipant) {
   );
 }
 
+/** Die Kinderakte eines eigenen Kindes, oder dass seine Anmeldung offen ist. */
+function studentFileCell(
+  assignment: HolidayOwnChildAssignment | undefined,
+  studentPath: (studentId: string) => string,
+) {
+  if (!assignment) return "–";
+  if (assignment.studentId === null) {
+    return <StatusBadge tone="warning" label="Nicht zugeordnet" />;
+  }
+  return (
+    <NavigationLink
+      className="whitespace-nowrap underline"
+      href={studentPath(assignment.studentId)}
+    >
+      Akte öffnen
+    </NavigationLink>
+  );
+}
+
 const participantColumns = (
   list: HolidayParticipantList,
+  assignments: ReadonlyMap<string, HolidayOwnChildAssignment>,
+  studentPath: (studentId: string) => string,
 ): DataTableColumn<HolidayParticipant>[] => {
   const names = new Map(list.timeModels.map((model) => [model.id, model.name]));
   const withSecondGuardian = list.participants.some(
@@ -151,6 +183,16 @@ const participantColumns = (
         return typeof value === "boolean" ? String(value) : value;
       },
     })),
+    ...(assignments.size > 0
+      ? [
+          {
+            key: "studentFile",
+            header: "Kinderakte",
+            render: (child: HolidayParticipant) =>
+              studentFileCell(assignments.get(child.childId), studentPath),
+          },
+        ]
+      : []),
     ...(withHealth
       ? [
           {
@@ -221,6 +263,16 @@ export default function FerienwochenPage() {
     // week's heading while its list loads.
     { ...REFRESH, keepPreviousData: false },
   );
+
+  // Welche Anmeldung eines eigenen Kindes welchem Kind in moto gehört
+  // (#6678). Scheitert das Laden, bleibt die Liste ohne diese Angabe stehen:
+  // sie ergänzt die Teilnehmerliste nur.
+  const ownChildren = useSWRAuth(
+    selectedWeek ? holidayKeys.ownChildren(selectedWeek.id) : null,
+    () => fetchHolidayOwnChildAssignments(selectedWeek?.id ?? ""),
+    { ...REFRESH, keepPreviousData: false },
+  );
+  const assignments = ownChildren.data ?? NO_ASSIGNMENTS;
 
   const weeksError = useSwrLoadError(weeks.error, "die Ferienwochen", () =>
     weeks.mutate(),
@@ -324,17 +376,39 @@ export default function FerienwochenPage() {
             key={selectedWeek.id}
             week={selectedWeek}
             canAssign={canAssignGuests}
-            onAssigned={() => void weeks.mutate()}
+            onAssigned={() => {
+              void weeks.mutate();
+              void ownChildren.mutate();
+            }}
           />
-          <ParticipantList list={list} />
+          <HolidayOwnChildrenCard
+            participants={list.participants}
+            assignments={assignments}
+          />
+          <ParticipantList list={list} assignments={assignments} />
         </div>
       )}
     </TenantPage>
   );
 }
 
-function ParticipantList({ list }: { readonly list: HolidayParticipantList }) {
-  const columns = useMemo(() => participantColumns(list), [list]);
+function ParticipantList({
+  list,
+  assignments,
+}: Readonly<{
+  list: HolidayParticipantList;
+  assignments: readonly HolidayOwnChildAssignment[];
+}>) {
+  const tenantPath = useTenantAwarePath();
+  const columns = useMemo(
+    () =>
+      participantColumns(
+        list,
+        new Map(assignments.map((entry) => [entry.childId, entry])),
+        (studentId) => tenantPath(`/students/${encodeURIComponent(studentId)}`),
+      ),
+    [list, assignments, tenantPath],
+  );
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

@@ -104,7 +104,7 @@ func (s *Service) findChildConversation(txCtx context.Context, view *MessageThre
 
 // normalizeMessageInput validates a guardian message: its audience, the team
 // audience of a group-thread answer, and the body.
-func normalizeMessageInput(body, audience string, groupThreadID int64) (string, string, error) {
+func normalizeMessageInput(body, audience string, groupThreadID int64, hasAttachments bool) (string, string, error) {
 	audience, err := normalizeAudience(audience)
 	if err != nil {
 		return "", "", err
@@ -112,7 +112,7 @@ func normalizeMessageInput(body, audience string, groupThreadID int64) (string, 
 	if groupThreadID > 0 && audience != AudienceTeam {
 		return "", "", ErrInvalidAudience
 	}
-	body, err = normalizeParentMessageBody(body)
+	body, err = normalizeParentMessageBody(body, hasAttachments)
 	if err != nil {
 		return "", "", err
 	}

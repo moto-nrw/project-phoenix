@@ -149,6 +149,8 @@ func mountSchoolPortalRoutes(
 	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 	// separate surface from /messages (which is parent-facing).
 	staffMessaging := staffMessagingAPI.NewResource(chat.StaffMessaging)
+	// Fotos und Dateien im Team-Chat, in beiden Portalen (#6685).
+	staffAttachments := newMessageAttachmentRoutes(chat.StaffAttachments, logger.With("handler", "staff-message-attachments"))
 	// Tagesinformationen (#2180) are Timetable's: the owner composes the
 	// service over its own repository, the calendar periods for the week
 	// pattern and the People Directory names of the acknowledgement list
@@ -172,10 +174,11 @@ func mountSchoolPortalRoutes(
 	parentLetters := announcementAPI.NewResource(announcements, newDeclarationReports())
 	parentLetters.Classes = classLetterCaller{caller.Caller()}
 	school.ParentLetters = parentLetters
-	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutes))
+	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutesWith(staffAttachments.Register)))
 	tenant.Mount("/staff-notices", staffNotices.Router(ProtectedTenantRoutes))
 	tenant.Mount("/timetable", timetableResource.Router(ProtectedTenantRoutesWith(classdayHTTP.NewSlotListResource(classDay.SlotLists).Register)))
 	tenant.Mount("/notifications", notificationRoutes.Router())
+	root.Mount("/school-staff-messages", schoolMessageAttachmentRouter(staffAttachments))
 	root.Mount("/school", school.RouterWithAuthRateLimiter(limiters.authMiddleware(), SchoolSessionChain, ProtectedSchoolRoutes))
 	return nil
 }
@@ -240,7 +243,7 @@ func mountSchoolRoutes(
 	settings settingsCompose.SettingsService, caller *owners.CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, settingsWrites SettingsWrites,
-	holidaySchools HolidayHostSchools, holidayCare owners.HolidayGuestCarePlan, holidayAccessLog owners.DataAccessAppender,
+	holidaySchools HolidayHostSchools, holidayStudents owners.HolidayOwnChildStudents, holidayCare owners.HolidayGuestCarePlan, holidayAccessLog owners.DataAccessAppender,
 	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
 	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
 	appEnv string, weekProtocolSeed schedulerPorts.WeekProtocolEvenings, healthData enrollmentOwner.HolidayHealthCipher,
@@ -259,7 +262,7 @@ func mountSchoolRoutes(
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
 	// The hosting school's holiday participant lists (#4665) and holiday
 	// guests (#4666).
-	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayCare, holidayAccessLog, healthData)
+	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayStudents, holidayCare, holidayAccessLog, healthData)
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the root composes it and the IoT service hands it back here
 	// (#2676).

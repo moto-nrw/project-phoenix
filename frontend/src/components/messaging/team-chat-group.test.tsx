@@ -53,6 +53,10 @@ function portalFor(
   return {
     kind,
     api,
+    attachments: {
+      uploadUrl: "/upload",
+      downloadUrl: (id: string) => `/files/${id}`,
+    },
     cacheScope: `test-${kind}`,
     inboxHref: "/team-chat",
     threadHref: (id) => `/team-chat/${id}`,

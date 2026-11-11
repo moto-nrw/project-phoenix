@@ -18,6 +18,7 @@ export const {
   delWithBody: createDeleteWithBodyHandler,
   jsonProxy: createTenantJsonProxy,
   proxyFile,
+  proxyUpload,
   proxyGet,
   proxyPost,
   proxyPut,

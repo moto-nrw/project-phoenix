@@ -42,6 +42,9 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		case r.URL.Path == "/api/messages/group-threads" && r.Method == seedHTTPMethodPost:
 			groupThreads = append(groupThreads, decode())
 			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread":{"id":"%d"}}}`, 60+len(groupThreads))
+		case r.URL.Path == "/parent/me/messages/children/44/attachments" || r.URL.Path == "/api/messages/attachments":
+			// The files of the seeded messages (#6685).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"500"}}`)
 		case r.URL.Path == "/parent/me/messages/children/44" && r.Method == seedHTTPMethodPost:
 			childMessages = append(childMessages, decode())
 			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread_id":"91","messages":[{"id":"90"},{"id":"%d"}]}}`, 91+len(childMessages))
@@ -107,6 +110,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/students/44",
 		"/api/groups/7",
 		"/api/messages/group-threads",
+		// The second group message carries the material list (#6685).
+		"/api/messages/attachments",
 		"/api/messages/group-threads/61/messages",
 		"/api/messages/group-threads",
 		"/api/messages/group-threads/62/close",
@@ -139,6 +144,9 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/parent/me/messages/children/44", "/api/messages/threads/91",
 		"/parent/me/messages/children/44", "/api/messages/threads/91",
 		"/parent/me/messages/children/44", "/api/messages/threads/91",
+		// The turn with files (#6685): the signed slip, then two photos.
+		"/parent/me/messages/children/44/attachments", "/parent/me/messages/children/44",
+		"/api/messages/attachments", "/api/messages/attachments", "/api/messages/threads/91",
 		"/api/messages/threads/91/unread",
 		"/parent/me/messages/children/44",
 		// The same parent's conversation with the leadership only (#5200).
@@ -151,14 +159,17 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/calendar/appointments", "/api/calendar/appointments",
 	}, paths)
 
-	require.Len(t, childMessages, 5)
+	require.Len(t, childMessages, 6)
 	assert.Equal(t, "61", childMessages[0]["group_thread_id"], "the parent answers the open group thread")
 	conversation := childMessages[1:4]
-	require.Len(t, staffReplies, len(conversation)+1, "the OGS answers every message of both conversations")
-	leadership := childMessages[4]
+	require.Len(t, staffReplies, len(conversation)+2, "the OGS answers every message of both conversations")
+	// The turn with files (#6685): the parent sends the slip, the OGS two photos.
+	assert.Equal(t, []any{"500"}, childMessages[4]["attachment_ids"], "the parent's message carries the uploaded slip")
+	assert.Equal(t, []any{"500", "500"}, staffReplies[len(conversation)]["attachment_ids"], "the OGS answers with two photos")
+	leadership := childMessages[5]
 	assert.Equal(t, "leadership", leadership["audience"], "the last message goes to the leadership only")
 	assert.Nil(t, leadership["group_thread_id"])
-	assert.NotEmpty(t, staffReplies[len(conversation)]["body"], "the leadership answers it")
+	assert.NotEmpty(t, staffReplies[len(conversation)+1]["body"], "the leadership answers it")
 	for i, message := range conversation {
 		assert.Equal(t, seedParentConversationTurns[i].parent, message["body"])
 		assert.Nil(t, message["group_thread_id"])

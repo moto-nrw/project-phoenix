@@ -1178,7 +1178,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			holidayGuestGroupID = body.GroupID
-			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"week_id":51,"group_id":%s,"guests":1}}`, body.GroupID)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"week_id":51,"group_id":%s,"guests":1,"own_children":1}}`, body.GroupID)
 			return
 		}
 		if r.URL.Path == "/api/holiday-guests/groups" {
@@ -1723,6 +1723,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					"status_url": fmt.Sprintf("https://parents.example.test/status/status-token-%d", idCounter),
 				},
 			})
+			return
+		}
+		// An upload for a message answers with the attachment (#6685).
+		if strings.HasSuffix(r.URL.Path, "/attachments") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter)}})
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/parent/me/messages/children/") && r.Method == seedHTTPMethodPost {

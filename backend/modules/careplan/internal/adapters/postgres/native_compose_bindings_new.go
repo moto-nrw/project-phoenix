@@ -25,8 +25,11 @@ func BindCareLocks(db *bun.DB, studentLock careplanning.StudentLock, studentNotF
 }
 
 func CarePlanDatabase(db *bun.DB) Database {
-	return func(ctx context.Context) (bun.IDB, int64, error) {
-		raw, present := tenant.TransactionFromContext(ctx)
-		return ResolveDatabase(raw, present, tenant.FromContext(ctx))
-	}
+	return AmbientCarePlanDatabase
+}
+
+// AmbientCarePlanDatabase joins only an existing school-scoped transaction.
+func AmbientCarePlanDatabase(ctx context.Context) (bun.IDB, int64, error) {
+	raw, present := tenant.TransactionFromContext(ctx)
+	return ResolveDatabase(raw, present, tenant.FromContext(ctx))
 }

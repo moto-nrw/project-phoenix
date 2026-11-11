@@ -41,6 +41,7 @@ func (r *messageRepository) Create(ctx context.Context, message *communication.P
 	message.CreatedAt = value.CreatedAt
 	message.UpdatedAt = value.UpdatedAt
 	message.TenantID = value.TenantID
+	message.Attachments = value.Attachments
 	return nil
 }
 
@@ -112,7 +113,7 @@ func messageValue(message *communication.PortalParentMessage) (*domain.ParentMes
 		RequestType: message.RequestType, RequestStatus: message.RequestStatus,
 		Payload: payload, RefTable: message.RefTable, RefID: message.RefID,
 		AppliedAt: message.AppliedAt, AppliedBy: message.AppliedBy,
-		DecisionReason: message.DecisionReason, GroupThreadID: message.GroupThreadID,
+		DecisionReason: message.DecisionReason, GroupThreadID: message.GroupThreadID, Attachments: message.Attachments,
 		CreatedAt: message.CreatedAt, UpdatedAt: message.UpdatedAt,
 	}, nil
 }
@@ -133,7 +134,7 @@ func messageModel(value *domain.ParentMessage) (*communication.PortalParentMessa
 		EventActorKind: value.EventActorKind, RequestType: value.RequestType,
 		RequestStatus: value.RequestStatus, Payload: payload,
 		RefTable: value.RefTable, RefID: value.RefID, AppliedAt: value.AppliedAt,
-		AppliedBy: value.AppliedBy, DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID,
+		AppliedBy: value.AppliedBy, DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID, Attachments: value.Attachments,
 	}
 	message.ClientMessageID, message.SendReplayed = value.ClientMessageID, value.SendReplayed
 	message.ID = value.ID
