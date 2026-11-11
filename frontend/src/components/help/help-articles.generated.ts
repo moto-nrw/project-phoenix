@@ -12105,7 +12105,7 @@ export const traegerHolidayPeriodTopic =
         "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
       notes: [
         "Der `Text der Annahme-Mail` ist freiwillig. Ohne Text bekommen Eltern die E-Mail ohne Hinweise. Sie können den Text bis zum Bestätigen jederzeit ändern. Schon verschickte E-Mails ändern sich nicht.",
-        "Eltern mit Elternkonto sehen in der Annahme-Mail den Knopf `In der Eltern-App ansehen`.",
+        "Eltern mit Elternkonto sehen in der Annahme-Mail den Knopf `Eltern-App öffnen`.",
         "Mit `Ferienwunsch aus der OGS-Anmeldung berücksichtigen` warten Kinder Ihrer Schulen ohne Ferienwunsch auf der Warteliste hinter den anderen.",
         "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
