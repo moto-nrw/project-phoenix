@@ -208,19 +208,18 @@ func (r *announcementRepository) AccountMayAnswerForStudent(ctx context.Context,
 }
 
 // SetResponse replaces a child's answer for a poll. A transaction-scoped
-// advisory lock serializes replacements for one poll and child. The
-// audience/relationship guard is held through the projection as a share
-// lock on the guardian rows for the rest of the transaction, so a revocation
-// either committed before the check (and is seen) or waits behind the
-// answer; the liveness/selection guard is part of each write. A correction
-// or deadline that changes in between therefore rolls the transaction back
-// instead of storing a stale answer, exactly as the single-statement guard
-// did before the audience rows moved out of the write.
+// advisory lock serializes replacements for one poll and child. The caller
+// runs it behind the parent child write guard (#6638), which holds the
+// guardian's membership, relationship and poll permission until commit; this
+// write re-asks the poll's audience in the same transaction, and the
+// liveness/selection guard is part of each statement. A correction, deadline
+// or audience change in between therefore rolls the answer back instead of
+// storing a stale one.
 func (r *announcementRepository) SetResponse(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
 	if err := r.store.LockResponse(ctx, announcementID, studentID); err != nil {
 		return false, err
 	}
-	allowed, err := r.HoldAnswerPermission(ctx, tenantID, announcementID, accountID, studentID)
+	allowed, err := r.AccountMayAnswerForStudent(ctx, tenantID, announcementID, accountID, studentID)
 	if err != nil || !allowed {
 		return false, err
 	}

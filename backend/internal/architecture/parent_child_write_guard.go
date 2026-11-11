@@ -113,7 +113,6 @@ var childWriteGuardExemptions = map[string]string{
 	"messaging.Service.MarkAnnouncementRead":           "the account's read receipt of an announcement of its audience",
 	"messaging.Service.AcknowledgeAnnouncement":        "the account's acknowledgement of an announcement of its audience",
 	"messaging.Service.SubmitAnnouncementSurvey":       "one survey answer per account of the announcement's audience",
-	"messaging.Service.RespondToAnnouncement":          "poll answer for a child: HoldAnswerPermission share-locks relationship, profile and membership in the answer's own transaction",
 	"messaging.Service.ShareRequestInTx":               "delegated: care calls it through RequestSharer, a write sink of care, only inside its guarded units",
 }
 

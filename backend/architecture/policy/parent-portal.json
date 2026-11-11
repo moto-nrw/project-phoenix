@@ -82,6 +82,17 @@
       "target_role": "contract"
     },
     {
+      "id": "parent-portal.application.people-directory.contract",
+      "description": "The child write guard runs People Directory's guardian hold, the one parent guard protocol that Enrollment's renewals run as well (#6638).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
       "id": "parent-portal.to.care-plan",
       "description": "Parent Portal HTTP calls the Care Plan public capability.",
       "scopes": [
