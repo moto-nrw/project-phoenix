@@ -29,6 +29,7 @@ type (
 type ParentAnnouncementFixtures interface {
 	Create(context.Context, *ParentAnnouncementFixture) error
 	FindByID(context.Context, int64) (*ParentAnnouncementFixture, error)
+	Update(context.Context, *ParentAnnouncementFixture) error
 	Delete(context.Context, int64) error
 	SetPublished(context.Context, int64, *time.Time) error
 	ReplaceTargets(context.Context, int64, int64, []*ParentAnnouncementTargetFixture) error

@@ -37,6 +37,12 @@ func (f ParentAnnouncementFixtures) FindByID(ctx context.Context, id int64) (*Pa
 	return announcementFixtureFromRow(row), err
 }
 
+// Update changes a draft through the store's draft write, the same write the
+// staff edit takes after retracting an announcement.
+func (f ParentAnnouncementFixtures) Update(ctx context.Context, value *ParentAnnouncementFixture) error {
+	return f.repo.Update(ctx, announcementFixtureToRow(value))
+}
+
 func (f ParentAnnouncementFixtures) Delete(ctx context.Context, id int64) error {
 	return f.repo.Delete(ctx, id)
 }
