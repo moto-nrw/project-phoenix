@@ -151,6 +151,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// belong to the Träger, no school to count them for.
 	{http.MethodPut, "/traeger/billing-terms/{service}"}:            notCaptured,
 	{http.MethodPut, "/traeger/family-billing/"}:                    notCaptured,
+	{http.MethodPut, "/traeger/billing-families/debtor-number"}:     notCaptured,
 	{http.MethodDelete, "/traeger/family-billing/{id}"}:             notCaptured,
 	{http.MethodPut, "/traeger/billing-run-due-dates/care/{id}"}:    notCaptured,
 	{http.MethodPut, "/traeger/billing-run-due-dates/holiday/{id}"}: notCaptured,

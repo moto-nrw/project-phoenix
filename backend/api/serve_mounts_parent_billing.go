@@ -750,7 +750,8 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 	registration := parentbilling.HolidayRegistration{
 		ID: detail.ID, Status: detail.Status, SubmittedAt: detail.SubmittedAt, BenefitsDeclared: detail.BenefitsDeclared,
 		DebtorNumber: detail.DebtorNumber, Children: make([]parentbilling.HolidayChild, len(detail.Children)),
-		MovedUp: promotedRegistrations(detail.Promotions),
+		MovedUp:           promotedRegistrations(detail.Promotions),
+		GuardianFirstName: detail.GuardianFirstName, GuardianLastName: detail.GuardianLastName, GuardianEmail: detail.GuardianEmail,
 	}
 	for i, child := range detail.Children {
 		bookings := make([]parentbilling.HolidayBooking, len(child.Bookings))

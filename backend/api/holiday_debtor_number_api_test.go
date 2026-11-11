@@ -162,6 +162,9 @@ func TestDebtorNumberChangesUntilAnInvoiceIsIssued(t *testing.T) {
 	assertDebtorNumberRefused(t, f.changeDebtorNumber(t, f.office.token, f.siblings, strings.Repeat("1", 36)))
 	require.Equal(t, http.StatusOK, f.act(t, f.siblings, "freeze").Code)
 	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "10 4712")
+	require.Equal(t, http.StatusConflict, rec.Code, "the family has 10 4711 since the first change (#6692): %s", rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayDebtorNumberPath(f.period.ID, f.siblings),
+		map[string]any{"debtor_number": "10 4712", "family_debtor_number": "replace"})
 	require.Equal(t, http.StatusOK, rec.Code, "freezing locks cancellations and rebookings, not the number: %s", rec.Body.String())
 	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "10 4712")
 	require.Equal(t, http.StatusOK, rec.Code, "the same number again changes nothing: %s", rec.Body.String())

@@ -63,7 +63,12 @@ vi.mock("~/lib/file-download", async (importOriginal) => ({
   downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
 }));
 const { mockContribution } = vi.hoisted(() => ({ mockContribution: vi.fn() }));
+const { mockFamilyDebtorNumber } = vi.hoisted(() => ({
+  mockFamilyDebtorNumber: vi.fn(),
+}));
 vi.mock("~/lib/traeger-contributions-api", () => ({
+  // The number the family already has (#6692).
+  fetchHolidayFamilyDebtorNumber: () => mockFamilyDebtorNumber(),
   // A test sets the contribution through the override (#5629) or the
   // mock (#5628).
   fetchHolidayContribution: () =>
@@ -85,6 +90,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
     mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
+    mockFamilyDebtorNumber.mockResolvedValue("");
     mockHealth.mockReset();
     mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
     mockEdit.mockReset();
@@ -278,6 +284,24 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(
       await screen.findByRole("textbox", { name: /Debitorennummer/ }),
     ).toBeRequired();
+  });
+
+  it("proposes the number the family already has at the confirmation (#6692)", async () => {
+    mockFamilyDebtorNumber.mockResolvedValue("20 815");
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    const field = await screen.findByRole("textbox", {
+      name: /^Debitorennummer/,
+    });
+    expect(field).not.toBeRequired();
+    expect(field).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Debitorennummer 20 815 übernehmen" }),
+    ).toBeInTheDocument();
   });
 
   it("shows and changes the debtor number of a confirmed registration with its history (#5621)", async () => {

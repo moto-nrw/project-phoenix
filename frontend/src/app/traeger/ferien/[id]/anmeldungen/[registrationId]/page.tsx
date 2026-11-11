@@ -67,6 +67,7 @@ import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
   fetchHolidayContribution,
+  fetchHolidayFamilyDebtorNumber,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
@@ -169,6 +170,9 @@ export default function TraegerHolidayRegistrationPage() {
   // Whether the Träger asks for the debtor number (#5621).
   const [confirmation, setConfirmation] =
     useState<HolidayConfirmationSettings | null>(null);
+  // The number the family already has at the Träger, proposed at the
+  // confirmation (#6692).
+  const [familyDebtorNumber, setFamilyDebtorNumber] = useState("");
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
@@ -196,6 +200,7 @@ export default function TraegerHolidayRegistrationPage() {
         loadedContribution,
         loadedHealth,
         loadedConfirmation,
+        loadedFamilyDebtorNumber,
       ] = await Promise.all([
         fetchHolidayRegistration(periodId, registrationId),
         fetchHolidayContribution(periodId, registrationId),
@@ -203,9 +208,11 @@ export default function TraegerHolidayRegistrationPage() {
           ? fetchHolidayRegistrationHealth(periodId, registrationId)
           : Promise.resolve(null),
         fetchHolidayConfirmationSettings(),
+        fetchHolidayFamilyDebtorNumber(periodId, registrationId),
       ]);
       latestContribution.current++;
       setConfirmation(loadedConfirmation);
+      setFamilyDebtorNumber(loadedFamilyDebtorNumber);
       setRegistration(loadedRegistration);
       setHealth(loadedHealth);
       setContribution(loadedContribution);
@@ -417,6 +424,7 @@ export default function TraegerHolidayRegistrationPage() {
             contribution={contribution}
             previewPending={previewPending}
             debtorNumberRequired={confirmation?.debtorNumberRequired ?? false}
+            familyDebtorNumber={familyDebtorNumber}
             exemption={exemption}
             onExemptionChange={changeExemption}
             costBearers={confirmation?.costBearers}

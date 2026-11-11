@@ -129,7 +129,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, ""); err != nil {
+		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, "", ""); err != nil {
 			return err
 		}
 		if err = rules.DeleteContributionRule(txCtx, organization, exemption.ID); err != nil {

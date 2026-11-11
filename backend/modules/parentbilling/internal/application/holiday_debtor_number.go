@@ -47,9 +47,16 @@ func (h *HolidayContributions) HolidayConfirmationSettings(ctx context.Context, 
 // the number before or the number after, and the change sees an invoice
 // the release committed. In a sibling group the other confirmed
 // registrations take the number too, or lose it with a removal (#5628).
-func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayDebtorNumber, error) {
+func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber, familyChoice string) (parentbilling.HolidayDebtorNumber, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayDebtorNumber{}, errTraegerRequired
+	}
+	if err := validFamilyChoice(familyChoice); err != nil {
+		return parentbilling.HolidayDebtorNumber{}, err
+	}
+	debtorNumber, err := debtorNumberOf(debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayDebtorNumber{}, err
 	}
 	if err := h.requireDebtorNumber(ctx, reviewer.OrganizationID, debtorNumber); err != nil {
 		return parentbilling.HolidayDebtorNumber{}, err
@@ -68,13 +75,16 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	// A sibling group pays with one number (#5628): the other confirmed
 	// registrations of the group that no issued invoice bills take it, or
 	// lose it with this one.
-	if group, grouped := groupOf(groups, registrationID); grouped {
-		ids := slices.DeleteFunc(slices.Clone(group.RegistrationIDs), func(id int64) bool { return id == registrationID })
-		others, err := h.readSiblings(ctx, reviewer, periodID, ids, nil)
-		if err != nil {
-			return parentbilling.HolidayDebtorNumber{}, err
-		}
-		if err := h.shareDebtorNumber(ctx, reviewer, periodID, others, registration.DebtorNumber, issued); err != nil {
+	sharers, err := h.shareGroupDebtorNumber(ctx, reviewer, periodID, registration, groups, issued)
+	if err != nil {
+		return parentbilling.HolidayDebtorNumber{}, err
+	}
+	holders := slices.Concat([]parentbilling.HolidayRegistration{registration}, sharers)
+	// A new number is the family's too (#6692); removing the number of a
+	// registration leaves the family's.
+	if registration.DebtorNumber != "" {
+		number := registration.DebtorNumber
+		if err := h.rememberFamilies(ctx, reviewer, holders, &number, familyChoice); err != nil {
 			return parentbilling.HolidayDebtorNumber{}, err
 		}
 	}
@@ -103,4 +113,25 @@ func (h *HolidayContributions) asksDebtorNumber(ctx context.Context, organizatio
 		return false, fmt.Errorf("parent billing: read whether the Träger asks for the debtor number: %w", err)
 	}
 	return required, nil
+}
+
+// shareGroupDebtorNumber gives the number of the registration to the other
+// confirmed registrations of its sibling group that no issued invoice bills
+// (#5628) and answers them; a registration without a group has none.
+func (h *HolidayContributions) shareGroupDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64,
+	registration parentbilling.HolidayRegistration, groups []parentbilling.HolidaySiblingGroup, issued map[int64]bool,
+) ([]parentbilling.HolidayRegistration, error) {
+	group, grouped := groupOf(groups, registration.ID)
+	if !grouped {
+		return nil, nil
+	}
+	ids := slices.DeleteFunc(slices.Clone(group.RegistrationIDs), func(id int64) bool { return id == registration.ID })
+	others, err := h.readSiblings(ctx, reviewer, periodID, ids, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.shareDebtorNumber(ctx, reviewer, periodID, others, registration.DebtorNumber, issued); err != nil {
+		return nil, err
+	}
+	return confirmedSharers(others, issued), nil
 }

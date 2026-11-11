@@ -85,6 +85,7 @@
   "summaryText": "Regjistrimi vlen vetëm pasi ta dërgoni.",
   "contributionTitle": "Pagesa",
   "contributionText": "Kaq kushton kujdesi gjatë pushimeve. Pagesa vlen sapo organizatori ta konfirmojë regjistrimin.",
+  "contributionDebtorNumberText": "Për faturën, organizatori mund të caktojë një numër klienti të komunës (numri i debitorit). Ai e ruan atë për regjistrimet e mëvonshme të pushimeve.",
   "contributionLoading": "Pagesa po llogaritet …",
   "contributionError": "Pagesa nuk mund të shfaqet tani. Megjithatë mund ta dërgoni regjistrimin. Organizatori ju tregon pastaj pagesën.",
   "contributionRetry": "Provo përsëri",

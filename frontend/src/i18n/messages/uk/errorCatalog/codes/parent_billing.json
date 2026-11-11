@@ -27,6 +27,7 @@
   "cost_bearer_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "cost_takeover_with_exemption": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "debtor_number_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "family_debtor_number_conflict": "Сім'я вже має номер дебітора {family_debtor_number}. Виберіть, який номер діє.",
   "debtor_number_locked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "family_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_quote_invalid": "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",

@@ -1,2 +1,3 @@
 GET /traeger/billing-families/
 GET /traeger/billing-families/{id}
+PUT /traeger/billing-families/debtor-number

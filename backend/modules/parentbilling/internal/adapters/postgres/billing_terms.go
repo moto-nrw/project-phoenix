@@ -40,32 +40,38 @@ func (r serviceTermsRow) terms() parentbilling.ServiceTerms {
 type familyBillingRow struct {
 	bun.BaseModel `bun:"table:parent_billing.family_billing"`
 
-	ID                 int64     `bun:"id,pk,autoincrement" json:"id"`
-	OrganizationID     int64     `bun:"organization_id" json:"-"`
-	FamilyEmail        string    `bun:"family_email" json:"family_email"`
-	CareContractID     int64     `bun:"care_contract_id" json:"care_contract_id"`
-	RecipientKind      string    `bun:"recipient_kind" json:"recipient_kind"`
-	SecondFirstName    string    `bun:"second_first_name" json:"second_first_name"`
-	SecondLastName     string    `bun:"second_last_name" json:"second_last_name"`
-	PayerFirstName     string    `bun:"payer_first_name" json:"payer_first_name"`
-	PayerLastName      string    `bun:"payer_last_name" json:"payer_last_name"`
-	PayerEmail         string    `bun:"payer_email" json:"payer_email"`
-	PayerStreet        string    `bun:"payer_street" json:"payer_street"`
-	PayerPostalCode    string    `bun:"payer_postal_code" json:"payer_postal_code"`
-	PayerCity          string    `bun:"payer_city" json:"payer_city"`
-	PaymentMethod      *string   `bun:"payment_method" json:"payment_method"`
-	DueDay             *int      `bun:"due_day" json:"due_day"`
-	DebtorNumber       *string   `bun:"debtor_number" json:"debtor_number"`
-	UpdatedByAccountID *int64    `bun:"updated_by_account_id" json:"-"`
-	UpdatedAt          time.Time `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
+	ID              int64   `bun:"id,pk,autoincrement" json:"id"`
+	OrganizationID  int64   `bun:"organization_id" json:"-"`
+	FamilyEmail     string  `bun:"family_email" json:"family_email"`
+	CareContractID  *int64  `bun:"care_contract_id" json:"care_contract_id"`
+	RecipientKind   string  `bun:"recipient_kind" json:"recipient_kind"`
+	SecondFirstName string  `bun:"second_first_name" json:"second_first_name"`
+	SecondLastName  string  `bun:"second_last_name" json:"second_last_name"`
+	PayerFirstName  string  `bun:"payer_first_name" json:"payer_first_name"`
+	PayerLastName   string  `bun:"payer_last_name" json:"payer_last_name"`
+	PayerEmail      string  `bun:"payer_email" json:"payer_email"`
+	PayerStreet     string  `bun:"payer_street" json:"payer_street"`
+	PayerPostalCode string  `bun:"payer_postal_code" json:"payer_postal_code"`
+	PayerCity       string  `bun:"payer_city" json:"payer_city"`
+	PaymentMethod   *string `bun:"payment_method" json:"payment_method"`
+	DueDay          *int    `bun:"due_day" json:"due_day"`
+	DebtorNumber    *string `bun:"debtor_number" json:"debtor_number"`
+	HolderFirstName string  `bun:"holder_first_name" json:"holder_first_name"`
+	HolderLastName  string  `bun:"holder_last_name" json:"holder_last_name"`
+	// LastUsedOn is set on a row of the holiday care (#6692); NULL on a
+	// deviation set from a contract alone.
+	LastUsedOn         *calendar.Date `bun:"last_used_on,type:date" json:"last_used_on"`
+	UpdatedByAccountID *int64         `bun:"updated_by_account_id" json:"-"`
+	UpdatedAt          time.Time      `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
 }
 
 func (r familyBillingRow) family() parentbilling.FamilyBilling {
 	family := parentbilling.FamilyBilling{
-		ID: r.ID, FamilyEmail: r.FamilyEmail, ContractID: r.CareContractID, RecipientKind: r.RecipientKind,
+		ID: r.ID, FamilyEmail: r.FamilyEmail, ContractID: idOf(r.CareContractID), RecipientKind: r.RecipientKind,
 		SecondFirstName: r.SecondFirstName, SecondLastName: r.SecondLastName, PayerFirstName: r.PayerFirstName,
 		PayerLastName: r.PayerLastName, PayerEmail: r.PayerEmail, DueDay: r.DueDay, UpdatedAt: r.UpdatedAt,
-		DebtorNumber: textOf(r.DebtorNumber),
+		DebtorNumber: textOf(r.DebtorNumber), HolderFirstName: r.HolderFirstName, HolderLastName: r.HolderLastName,
+		LastUsedOn: r.LastUsedOn,
 	}
 	if r.PaymentMethod != nil {
 		family.PaymentMethod = *r.PaymentMethod
@@ -82,7 +88,7 @@ type familyBillingEventRow struct {
 	ID              int64  `bun:"id,pk,autoincrement"`
 	OrganizationID  int64  `bun:"organization_id"`
 	FamilyBillingID int64  `bun:"family_billing_id"`
-	CareContractID  int64  `bun:"care_contract_id"`
+	CareContractID  *int64 `bun:"care_contract_id"`
 	Action          string `bun:"action"`
 	ActorAccountID  *int64 `bun:"actor_account_id"`
 }
@@ -161,7 +167,7 @@ func (s *Store) SaveFamilyBilling(ctx context.Context, organizationID, accountID
 		return parentbilling.FamilyBilling{}, err
 	}
 	row := &familyBillingRow{
-		OrganizationID: organizationID, FamilyEmail: family.FamilyEmail, CareContractID: family.ContractID,
+		OrganizationID: organizationID, FamilyEmail: family.FamilyEmail, CareContractID: idRef(family.ContractID),
 		RecipientKind: family.RecipientKind, SecondFirstName: family.SecondFirstName, SecondLastName: family.SecondLastName,
 		PayerFirstName: family.PayerFirstName, PayerLastName: family.PayerLastName, PayerEmail: family.PayerEmail,
 		DueDay: family.DueDay, DebtorNumber: textRef(family.DebtorNumber), UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now(),
@@ -224,7 +230,7 @@ func (s *Store) InsertFamilyBillingEvents(ctx context.Context, organizationID, a
 	}
 	rows := make([]familyBillingEventRow, len(families))
 	for i, family := range families {
-		rows[i] = familyBillingEventRow{OrganizationID: organizationID, FamilyBillingID: family.ID, CareContractID: family.ContractID,
+		rows[i] = familyBillingEventRow{OrganizationID: organizationID, FamilyBillingID: family.ID, CareContractID: idRef(family.ContractID),
 			Action: action, ActorAccountID: accountRef(accountID)}
 	}
 	if _, err := db.NewInsert().Model(&rows).Exec(ctx); err != nil {
@@ -330,6 +336,22 @@ func accountRef(accountID int64) *int64 {
 	return &accountID
 }
 
+// idRef is a reference by ID, NULL for none.
+func idRef(id int64) *int64 {
+	if id <= 0 {
+		return nil
+	}
+	return &id
+}
+
+// idOf is a referenced ID, zero for NULL.
+func idOf(id *int64) int64 {
+	if id == nil {
+		return 0
+	}
+	return *id
+}
+
 // textRef is a copied text, NULL when empty.
 func textRef(value string) *string {
 	if value == "" {
@@ -428,7 +450,7 @@ func (s *Store) SetFamilyDebtorNumbers(ctx context.Context, organizationID, acco
 	}
 	rows := make([]familyBillingRow, len(numbers))
 	for i, number := range numbers {
-		rows[i] = familyBillingRow{OrganizationID: organizationID, FamilyEmail: number.FamilyEmail, CareContractID: number.ContractID,
+		rows[i] = familyBillingRow{OrganizationID: organizationID, FamilyEmail: number.FamilyEmail, CareContractID: idRef(number.ContractID),
 			RecipientKind: parentbilling.RecipientApplicant, DebtorNumber: textRef(number.DebtorNumber),
 			UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now()}
 	}
@@ -443,7 +465,7 @@ func (s *Store) SetFamilyDebtorNumbers(ctx context.Context, organizationID, acco
 	}
 	families := make([]parentbilling.FamilyBilling, len(saved))
 	for i, row := range saved {
-		families[i] = parentbilling.FamilyBilling{ID: row.ID, ContractID: row.CareContractID}
+		families[i] = parentbilling.FamilyBilling{ID: row.ID, ContractID: idOf(row.CareContractID)}
 	}
 	return s.InsertFamilyBillingEvents(ctx, organizationID, accountID, "save", families)
 }

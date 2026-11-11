@@ -1,10 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { BillingFamily } from "~/lib/traeger-billing-families-api";
 
 const { api, mockPush } = vi.hoisted(() => ({
-  api: { fetchBillingFamilies: vi.fn() },
+  api: { fetchBillingFamilies: vi.fn(), setFamilyDebtorNumber: vi.fn() },
   mockPush: vi.fn(),
 }));
 
@@ -31,6 +31,10 @@ const SCHNEIDER: BillingFamily = {
   openInvoiceCount: 1,
   documentCount: 2,
   lastIssuedOn: "2026-09-02",
+  familyEmail: "sabine@example.org",
+  familyDebtorNumber: "10 4711",
+  holidayOnly: false,
+  hasDocuments: true,
   issuedCents: 11250,
   cancelledCents: 0,
   creditedCents: 500,
@@ -43,6 +47,8 @@ const BERGER: BillingFamily = {
   recipientFirstName: "Tom",
   recipientLastName: "Berger",
   recipientEmail: "tom@example.org",
+  familyEmail: "tom@example.org",
+  familyDebtorNumber: "",
   debtorNumbers: [],
   payments: [{ kind: "cost_bearer", costBearerName: "Jugendamt Enzkreis" }],
   openInvoiceCount: 0,
@@ -50,6 +56,22 @@ const BERGER: BillingFamily = {
   issuedCents: 0,
   creditedCents: 0,
   openCents: 0,
+};
+
+const MAIER: BillingFamily = {
+  ...BERGER,
+  id: "0",
+  recipientFirstName: "Petra",
+  recipientLastName: "Maier",
+  recipientEmail: "petra.maier@example.org",
+  familyEmail: "petra.maier@example.org",
+  familyDebtorNumber: "20 815",
+  holidayOnly: true,
+  hasDocuments: false,
+  payments: [],
+  invoiceCount: 0,
+  documentCount: 0,
+  lastIssuedOn: "",
 };
 
 function renderPage() {
@@ -63,6 +85,7 @@ function renderPage() {
 describe("TraegerBillingFamiliesPage", () => {
   beforeEach(() => {
     api.fetchBillingFamilies.mockReset();
+    api.setFamilyDebtorNumber.mockReset();
     mockPush.mockReset();
     api.fetchBillingFamilies.mockResolvedValue([SCHNEIDER, BERGER]);
   });
@@ -126,17 +149,60 @@ describe("TraegerBillingFamiliesPage", () => {
     expect(mockPush).toHaveBeenCalledWith("/abrechnung/familien/4");
   });
 
-  it("says when no run is released yet", async () => {
+  it("says when no family is known yet", async () => {
+    // #6692: a family stands here from the confirmed holiday registration
+    // on, not only from the first released run.
     api.fetchBillingFamilies.mockResolvedValue([]);
     renderPage();
 
     expect(
-      (await screen.findAllByText("Noch keine Rechnung."))[0],
+      (await screen.findAllByText("Noch keine Familie."))[0],
     ).toBeInTheDocument();
     expect(
       screen.getAllByText(
-        "Familien stehen hier, sobald ein Abrechnungslauf freigegeben ist.",
+        "Eine Familie steht hier, sobald Sie eine Ferienanmeldung bestätigen oder eine Rechnung freigeben.",
       )[0],
     ).toBeInTheDocument();
+  });
+
+  it("lists a holiday family before its first invoice and does not open it", async () => {
+    api.fetchBillingFamilies.mockResolvedValue([SCHNEIDER, MAIER]);
+    renderPage();
+
+    const name = (await screen.findAllByText("Petra Maier"))[0]!;
+    expect(screen.getAllByText("Nur Ferien")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("20 815")[0]).toBeInTheDocument();
+    expect(screen.getByText("ohne Debitorennummer")).toBeInTheDocument();
+    const row = name.closest("tr")!;
+    fireEvent.click(row);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(row).not.toHaveClass("cursor-pointer");
+  });
+
+  it("changes the debtor number of a family in its cell", async () => {
+    api.fetchBillingFamilies.mockResolvedValue([MAIER]);
+    api.setFamilyDebtorNumber.mockResolvedValue("20 816");
+    renderPage();
+
+    await screen.findAllByText("Petra Maier");
+    fireEvent.click(
+      screen.getAllByRole("button", {
+        name: "Debitorennummer von Petra Maier ändern",
+      })[0]!,
+    );
+    const field = await screen.findByLabelText("Debitorennummer");
+    expect(field).toHaveValue("20 815");
+    fireEvent.change(field, { target: { value: " 20 816 " } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.setFamilyDebtorNumber).toHaveBeenCalledWith(
+        "petra.maier@example.org",
+        "20 816",
+      ),
+    );
+    await waitFor(() =>
+      expect(api.fetchBillingFamilies).toHaveBeenCalledTimes(2),
+    );
   });
 });

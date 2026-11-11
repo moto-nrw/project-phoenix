@@ -27,6 +27,7 @@
   "cost_bearer_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "cost_takeover_with_exemption": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "debtor_number_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "family_debtor_number_conflict": "Ailenin zaten {family_debtor_number} borçlu numarası var. Lütfen hangi numaranın geçerli olduğunu seçin.",
   "debtor_number_locked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "family_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",

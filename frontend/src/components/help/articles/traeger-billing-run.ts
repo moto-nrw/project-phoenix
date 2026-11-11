@@ -168,13 +168,15 @@ export function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Rechnungen und Beträge einer Familie ansehen",
         description:
-          "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse.",
+          "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon, wenn ihre Anmeldung bestätigt ist.",
         steps: [
           "Wählen Sie in der Navigation `Abrechnung`.",
           "Wählen Sie oben den Reiter `Familien`.",
           "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
           "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen.",
-          "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
+          "Unter `Debitorennummer` steht die Nummer der Familie. Steht auf älteren Rechnungen eine andere, sehen Sie sie darunter. `Nur Ferien` heißt: Die Familie hat keinen Betreuungsvertrag.",
+          "Um die Nummer zu ändern, öffnen Sie das Menü der Zeile und wählen `Debitorennummer ändern` oder `Debitorennummer eintragen`. Tragen Sie die Nummer ein und wählen Sie `Speichern`. Ausgestellte Rechnungen behalten ihre Nummer.",
+          "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand. Eine Familie ohne Rechnung öffnet sich nicht.",
           "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
         ],
       },
@@ -187,7 +189,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
       "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
       "Logo, Farbe, Absender und Fußzeile im Schreiben kommen aus `Briefkopf und Vorlagen`. Die Ansprechperson kommt aus `Allgemein`, die Bankverbindung aus `Abrechnungsvorgaben`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Rechnung. Hat die Rechnung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung`.",
-      "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus `Empfänger und Zahlung`. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
+      "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus dem Reiter `Familien`. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
       "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
       "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
       "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",

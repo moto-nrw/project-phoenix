@@ -31,6 +31,15 @@
       "legacy": "parent_billing.debtor_number_invalid"
     },
     {
+      "code": "parent_billing.family_debtor_number_conflict",
+      "class": "business_rejection",
+      "parameters": [
+        "family_debtor_number",
+        "debtor_number"
+      ],
+      "legacy": "parent_billing.family_debtor_number_conflict"
+    },
+    {
       "code": "parent_billing.debtor_number_locked",
       "class": "business_rejection",
       "parameters": [],

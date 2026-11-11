@@ -1,0 +1,108 @@
+package api
+
+import (
+	"errors"
+	"fmt"
+	"maps"
+	"slices"
+)
+
+// The debtor number of a family (#6692). The seed shows the three states of
+// the confirmation and of Abrechnung → Familien with invented families:
+//
+//   - Petra Sommer registers only for the holiday care. The Träger-Büro
+//     confirms her registration with seedFamilyDebtorNumber, so the family
+//     stands under Familien as „Nur Ferien“ with that number although no
+//     invoice exists yet. Her second registration is received and proposes
+//     the number at the field.
+//   - Jana Wechsel's first registration is confirmed with
+//     seedConflictRegistrationNumber; then the Abrechnung changes the number
+//     of the family in the list of families to seedConflictFamilyDebtorNumber.
+//     The registration and the family now differ: changing the
+//     registration's number, or confirming her second, received
+//     registration with another number, opens the dialog „Welche
+//     Debitorennummer gilt?“.
+//
+// A family is known to the list only once a registration of it is
+// confirmed or a document names it, so the list sets a number after the
+// confirmation.
+const (
+	seedFamilyDebtorNumber         = "20 815"
+	seedConflictRegistrationNumber = "30 100"
+	seedConflictFamilyDebtorNumber = "30 101"
+)
+
+// seedSiblingsConfirmation confirms the siblings with their number. The
+// family of a seeded parent may have another number from its care contract;
+// the registration keeps its own and the family keeps that one (#6692).
+var seedSiblingsConfirmation = map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber,
+	"family_debtor_number": "keep"}
+
+// seedHolidayFamilyDebtorNumbers registers and confirms the families above in
+// the seeded period. A server that refuses a registration (captcha, rate
+// limit) keeps the period without them.
+func seedHolidayFamilyDebtorNumbers(rt *Runtime, auth AuthRef, token string, periodID int64, registration map[string]any) error {
+	first, refused, err := seedHolidayFamilyRegistration(rt, token, registration, "Petra", "Sommer", "petra.sommer@example.org", "Ida")
+	if err != nil || refused {
+		return err
+	}
+	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, first)
+	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedFamilyDebtorNumber}); err != nil {
+		return fmt.Errorf("confirm the holiday family's first registration: %w", err)
+	}
+	if _, refused, err := seedHolidayFamilyRegistration(rt, token, registration, "Petra", "Sommer", "Petra.Sommer@example.org", "Ole"); err != nil || refused {
+		return err
+	}
+	fmt.Println("  Ferienanmeldung: holiday family remembered with its debtor number, its next registration proposes it")
+
+	conflict, refused, err := seedHolidayFamilyRegistration(rt, token, registration, "Jana", "Wechsel", "jana.wechsel@example.org", "Emil")
+	if err != nil || refused {
+		return err
+	}
+	confirm = fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, conflict)
+	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedConflictRegistrationNumber}); err != nil {
+		return fmt.Errorf("confirm the registration of the family with two numbers: %w", err)
+	}
+	if _, refused, err := seedHolidayFamilyRegistration(rt, token, registration, "Jana", "Wechsel", "jana.wechsel@example.org", "Mats"); err != nil || refused {
+		return err
+	}
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/billing-families/debtor-number", map[string]any{
+		"family_email": "jana.wechsel@example.org", "debtor_number": seedConflictFamilyDebtorNumber,
+	}); err != nil {
+		return fmt.Errorf("set the debtor number of a family in the list of families: %w", err)
+	}
+	fmt.Println("  Abrechnung: debtor number of a holiday family set in the list of families")
+	return nil
+}
+
+// seedHolidayFamilyRegistration sends a registration of one child, booked
+// for the first week, by the given parent. refused is true when the server
+// refuses seeded registrations.
+func seedHolidayFamilyRegistration(rt *Runtime, token string, registration map[string]any, firstName, lastName, email, child string) (int64, bool, error) {
+	body := map[string]any{}
+	maps.Copy(body, registration)
+	delete(body, "second_guardian")
+	body["guardian"] = map[string]any{"first_name": firstName, "last_name": lastName, "email": email, "phone": "0151 0000077"}
+	body["guardian_address"] = map[string]any{"street": "Ferienweg 3", "postal_code": "49143", "city": "Bissendorf"}
+	body["declaration_name"] = firstName + " " + lastName
+	children := registration["children"].([]map[string]any)
+	bookings := children[0]["bookings"].([]map[string]any)
+	body["children"] = []map[string]any{{
+		"first_name": child, "last_name": lastName, "birth_date": "2019-05-14", "home_school_id": children[0]["home_school_id"],
+		"bookings": bookings[:1], "custom_data": children[0]["custom_data"],
+	}}
+	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, body)
+	var refused *APIError
+	if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
+		fmt.Println("  Ferienanmeldung: the server refuses the holiday family, no remembered debtor number")
+		return 0, true, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("register the holiday family %s: %w", lastName, err)
+	}
+	id, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return 0, false, fmt.Errorf("read the holiday family's registration: %w", err)
+	}
+	return id, false, nil
+}

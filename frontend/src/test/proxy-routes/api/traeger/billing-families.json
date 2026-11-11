@@ -2,5 +2,8 @@
   "api/traeger/billing-families": ["GET traeger /traeger/billing-families"],
   "api/traeger/billing-families/[id]": [
     "GET traeger /traeger/billing-families/id%2F1"
+  ],
+  "api/traeger/billing-families/debtor-number": [
+    "PUT traeger /traeger/billing-families/debtor-number"
   ]
 }

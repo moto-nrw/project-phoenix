@@ -6,9 +6,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // BillingFamilyResource serves the invoices and amounts per family of a
@@ -38,6 +40,7 @@ func (rs *BillingFamilyResource) Router(protectedTraegerRoutes func(chi.Router, 
 		billing := r.With(rs.requireBilling, withTx)
 		billing.Get("/", rs.list)
 		billing.Get("/{id}", rs.detail)
+		billing.Put("/debtor-number", rs.setDebtorNumber)
 	})
 	return r
 }
@@ -73,9 +76,47 @@ func (rs *BillingFamilyResource) detail(w http.ResponseWriter, r *http.Request) 
 	common.Respond(w, r, http.StatusOK, family, "Billing family retrieved successfully")
 }
 
+// FamilyDebtorNumberRequest is the body of PUT
+// /traeger/billing-families/debtor-number (#6692): the family by its key and
+// its number, empty for none.
+type FamilyDebtorNumberRequest struct {
+	FamilyEmail  string `json:"family_email"`
+	DebtorNumber string `json:"debtor_number"`
+}
+
+// Bind accepts the body; the owner checks the family and the number.
+func (req *FamilyDebtorNumberRequest) Bind(*http.Request) error { return nil }
+
+// setDebtorNumber sets the number of a family, also of one without a care
+// contract (#6692). Any refusal rolls the Träger transaction back.
+func (rs *BillingFamilyResource) setDebtorNumber(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	req := &FamilyDebtorNumberRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	saved, err := rs.families.SetFamilyDebtorNumber(r.Context(), reviewer,
+		capability.FamilyDebtorNumberInput{FamilyEmail: req.FamilyEmail, DebtorNumber: req.DebtorNumber})
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderFamilyError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, saved, "Family debtor number saved successfully")
+}
+
 func renderFamilyError(w http.ResponseWriter, r *http.Request, err error) {
+	var fields validation.Errors
 	if errors.Is(err, capability.ErrFamilyNotFound) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingFamilyNotFound))
+		return
+	}
+	if errors.As(err, &fields) {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingDebtorNumberInvalid))
 		return
 	}
 	renderBillingError(w, r, err)

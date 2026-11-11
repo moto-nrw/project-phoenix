@@ -85,6 +85,7 @@
   "summaryText": "The registration only counts once you send it.",
   "contributionTitle": "Fee",
   "contributionText": "This is what holiday care costs. The fee applies once the provider confirms the registration.",
+  "contributionDebtorNumberText": "For the invoice, the provider may give you a customer number of the municipality (debtor number). It keeps this number for later holiday registrations.",
   "contributionLoading": "Calculating the fee …",
   "contributionError": "The fee cannot be shown right now. You can still send the registration. The provider will then tell you the fee.",
   "contributionRetry": "Try again",

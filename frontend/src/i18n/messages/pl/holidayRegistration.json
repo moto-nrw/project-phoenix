@@ -85,6 +85,7 @@
   "summaryText": "Zgłoszenie jest ważne dopiero po wysłaniu.",
   "contributionTitle": "Opłata",
   "contributionText": "Tyle kosztuje opieka w ferie. Opłata obowiązuje, gdy organizator potwierdzi zgłoszenie.",
+  "contributionDebtorNumberText": "Na potrzeby rachunku organizator może nadać numer klienta gminy (numer dłużnika). Zapamiętuje go na potrzeby późniejszych zgłoszeń na ferie.",
   "contributionLoading": "Obliczanie opłaty …",
   "contributionError": "Nie można teraz pokazać opłaty. Mimo to można wysłać zgłoszenie. Organizator poda wtedy opłatę.",
   "contributionRetry": "Spróbuj ponownie",

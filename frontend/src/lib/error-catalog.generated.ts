@@ -1008,6 +1008,8 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie eine ganze Zahl von 1 bis 20 an.",
       "parent_billing.family_children_not_found":
         "Zu diesem Vertrag gibt es keine Familie mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.family_debtor_number_conflict":
+        "Die Familie hat schon die Debitorennummer {family_debtor_number}. Bitte wählen Sie, welche Nummer gilt.",
       "parent_billing.family_not_found":
         "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
       "parent_billing.family_unknown":
@@ -2439,6 +2441,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Please enter a whole number from 1 to 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "The family already has the debtor number {family_debtor_number}. Please choose which number applies.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
       "parent_billing.letter_mail_block_unreadable":
@@ -3070,6 +3074,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Пожалуйста, укажите целое число от 1 до 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "У семьи уже есть номер дебитора {family_debtor_number}. Выберите, какой номер действует.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "parent_billing.letter_mail_block_unreadable":
@@ -3647,6 +3653,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "Familja ka tashmë numrin e debitorit {family_debtor_number}. Zgjidhni cili numër vlen.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "parent_billing.letter_mail_block_unreadable":
@@ -4212,6 +4220,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Proszę podać liczbę całkowitą od 1 do 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "Rodzina ma już numer dłużnika {family_debtor_number}. Wybierz, który numer obowiązuje.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "parent_billing.letter_mail_block_unreadable":
@@ -4782,6 +4792,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Lütfen 1 ile 20 arasında bir tam sayı girin.",
+      "parent_billing.family_debtor_number_conflict":
+        "Ailenin zaten {family_debtor_number} borçlu numarası var. Lütfen hangi numaranın geçerli olduğunu seçin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "parent_billing.letter_mail_block_unreadable":
@@ -5345,6 +5357,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Будь ласка, вкажіть ціле число від 1 до 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "Сім'я вже має номер дебітора {family_debtor_number}. Виберіть, який номер діє.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "parent_billing.letter_mail_block_unreadable":

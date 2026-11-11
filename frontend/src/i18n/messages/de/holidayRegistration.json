@@ -85,6 +85,7 @@
   "summaryText": "Erst mit dem Absenden ist die Anmeldung gültig.",
   "contributionTitle": "Beitrag",
   "contributionText": "So viel kostet die Ferienbetreuung. Der Beitrag gilt, sobald der Träger die Anmeldung bestätigt.",
+  "contributionDebtorNumberText": "Für die Rechnung kann der Träger eine Kundennummer der Gemeinde vergeben (Debitorennummer). Er merkt sie sich für spätere Ferienanmeldungen.",
   "contributionLoading": "Der Beitrag wird berechnet …",
   "contributionError": "Der Beitrag lässt sich gerade nicht anzeigen. Sie können trotzdem absenden. Der Träger nennt Ihnen dann den Beitrag.",
   "contributionRetry": "Noch einmal versuchen",

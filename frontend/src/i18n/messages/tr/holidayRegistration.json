@@ -85,6 +85,7 @@
   "summaryText": "Kayıt ancak gönderildikten sonra geçerlidir.",
   "contributionTitle": "Ücret",
   "contributionText": "Tatil bakımı bu kadar tutar. Ücret, kurum kaydı onayladığında geçerli olur.",
+  "contributionDebtorNumberText": "Fatura için kurum, belediyenin bir müşteri numarasını (borçlu numarası) verebilir. Bu numarayı sonraki tatil kayıtları için saklar.",
   "contributionLoading": "Ücret hesaplanıyor …",
   "contributionError": "Ücret şu anda gösterilemiyor. Kaydı yine de gönderebilirsiniz. Kurum size ücreti bildirir.",
   "contributionRetry": "Tekrar dene",

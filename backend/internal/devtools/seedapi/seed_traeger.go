@@ -321,7 +321,7 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("write the payment text of the letters: %w", err)
 	}
 	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, siblings)
-	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber}); err != nil {
+	if _, err := rt.Client.PostWithAuth(auth, confirm, seedSiblingsConfirmation); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number")
@@ -385,7 +385,10 @@ func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, perio
 	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
 		return err
 	}
-	return seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings)
+	if err := seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings); err != nil {
+		return err
+	}
+	return seedHolidayFamilyDebtorNumbers(rt, auth, token, periodID, registration)
 }
 
 // seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed

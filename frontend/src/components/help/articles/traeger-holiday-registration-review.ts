@@ -42,7 +42,9 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Bringt die Familie den Nachweis auf Papier, scannen Sie ihn. Wählen Sie unter `Nachweis für den Leistungsbezug` den Knopf `Nachweis hochladen` und dann die Datei. Erlaubt sind PDF, JPEG und PNG bis 10 MB.",
           "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
           "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht.",
-          "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
+          "Kennt moto die Nummer der Familie schon, steht unter dem Feld `Bekannte Debitorennummer dieser Familie`. Prüfen Sie die Nummer und wählen Sie `Übernehmen`. Das Feld füllt sich, bestätigt ist aber noch nichts.",
+          "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie.",
+          "Weicht die Nummer von der gemerkten ab, fragt moto `Welche Debitorennummer gilt?`. Wählen Sie `Neue Nummer für die Familie merken` oder `Gemerkte Nummer behalten`. Dann wählen Sie noch einmal `Bestätigen`.",
           "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
         ],
       },
@@ -54,6 +56,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Öffnen Sie die bestätigte Anmeldung.",
           "Wählen Sie unter `Status` den Knopf `Debitorennummer eintragen` oder `Debitorennummer ändern`.",
           "Das Feld `Debitorennummer` öffnet sich in der Karte. Tragen Sie die Nummer ein und wählen Sie `Speichern`.",
+          "Weicht die Nummer von der gemerkten Nummer der Familie ab, wählen Sie im Dialog, welche gilt, und dann `Speichern`.",
         ],
       },
       {
@@ -151,6 +154,8 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Gibt es für ein Geschwister-Kind schon eine Rechnung, bleibt die Rechnung, wie sie ist. moto rechnet den Beitrag trotzdem neu. Unter `Ferienbeitrag` steht dann `Rechnung prüfen`. Stornieren Sie die Rechnung. Der nächste Abrechnungslauf stellt dann den neuen Betrag aus.",
       "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
       "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
+      "Eine Familie ist die E-Mail-Adresse der Eltern, die anmelden. Groß- und Kleinschreibung zählt nicht. Die gemerkte Nummer bleibt, auch wenn die Anmeldung gelöscht ist. Sie sehen und ändern sie unter `Abrechnung` im Reiter `Familien`. Ein anderer Träger und die Schulen sehen sie nicht.",
+      "moto löscht die gemerkte Nummer einer Familie ohne Betreuungsvertrag drei Jahre nach dem Ende des Jahres, in dem sie zuletzt gebraucht wurde. Solange es noch Rechnungen der Familie gibt, bleibt sie.",
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",

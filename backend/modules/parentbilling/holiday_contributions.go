@@ -272,7 +272,12 @@ type HolidayRegistration struct {
 	SubmittedAt      time.Time
 	BenefitsDeclared bool
 	DebtorNumber     string
-	Children         []HolidayChild
+	// GuardianFirstName, GuardianLastName and GuardianEmail are the parent
+	// who registered; the mail address is the family (FamilyKey, #6692).
+	GuardianFirstName string
+	GuardianLastName  string
+	GuardianEmail     string
+	Children          []HolidayChild
 	// MovedUp names the other registrations whose bookings moved up from
 	// the waiting list because of the change that answers with this
 	// registration: a cancellation or a rebooking (#4699).
@@ -472,8 +477,12 @@ type HolidayContributions interface {
 	// ErrCostBearerNotFound, a switched-off one ErrCostBearerInactive, each
 	// before anything is written. debtorNumber is the number of the family; when the
 	// Träger asks for it, a blank one is a validation error on
-	// debtor_number before anything is written (#5621).
-	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (HolidayConfirmation, error)
+	// debtor_number before anything is written (#5621). The number is also
+	// the family's from then on (#6692); familyChoice says which applies
+	// when it differs from the number the family has (FamilyDebtorNumberKeep
+	// or FamilyDebtorNumberReplace), without one that is a
+	// FamilyDebtorNumberConflict.
+	ConfirmHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber, familyChoice string) (HolidayConfirmation, error)
 	// CancelHolidayRegistration cancels the registration through Enrollment
 	// in the caller's Träger transaction (#5662). In a sibling group it
 	// takes the registration out of the group and computes the frozen
@@ -489,6 +498,11 @@ type HolidayContributions interface {
 	// ChangeHolidayDebtorNumber changes the debtor number of a confirmed
 	// registration until an issued invoice bills it; then it is
 	// ErrDebtorNumberLocked (#5621). When the Träger asks for the number, a
-	// blank one is a validation error on debtor_number.
-	ChangeHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber string) (HolidayDebtorNumber, error)
+	// blank one is a validation error on debtor_number. A new number is the
+	// family's too, with familyChoice as at the confirmation (#6692).
+	ChangeHolidayDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64, debtorNumber, familyChoice string) (HolidayDebtorNumber, error)
+	// HolidayFamilyDebtorNumber reads the number the family of the
+	// registration has at the Träger, which the confirmation proposes
+	// (#6692); the read is recorded in the family's trail.
+	HolidayFamilyDebtorNumber(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayFamilyDebtorNumber, error)
 }

@@ -79,6 +79,7 @@ const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_inv
 const CodeParentBillingFamilyBillingNotFound = "parent_billing.family_billing_not_found"
 const CodeParentBillingFamilyChildrenInvalid = "parent_billing.family_children_invalid"
 const CodeParentBillingFamilyChildrenNotFound = "parent_billing.family_children_not_found"
+const CodeParentBillingFamilyDebtorNumberConflict = "parent_billing.family_debtor_number_conflict"
 const CodeParentBillingFamilyNotFound = "parent_billing.family_not_found"
 const CodeParentBillingFamilyUnknown = "parent_billing.family_unknown"
 const CodeParentBillingFamilyWithoutAddress = "parent_billing.family_without_address"
@@ -200,6 +201,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingFamilyBillingNotFound, "business_rejection"},
 	{CodeParentBillingFamilyChildrenInvalid, "input"},
 	{CodeParentBillingFamilyChildrenNotFound, "business_rejection"},
+	{CodeParentBillingFamilyDebtorNumberConflict, "business_rejection"},
 	{CodeParentBillingFamilyNotFound, "business_rejection"},
 	{CodeParentBillingFamilyUnknown, "business_rejection"},
 	{CodeParentBillingFamilyWithoutAddress, "business_rejection"},

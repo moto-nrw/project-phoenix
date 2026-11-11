@@ -16,6 +16,7 @@ import (
 type HolidayStore interface {
 	Store
 	HolidaySiblingStore
+	FamilyMemoryStore
 	// IssuedRegistrations names the registrations of the period that an
 	// invoice of the service already bills.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
@@ -178,9 +179,16 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 // switched-off cost bearer refuse the confirmation before anything is
 // written (#5627). The caller rolls the transaction back when this fails
 // after the confirmation.
-func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (parentbilling.HolidayConfirmation, error) {
+func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber, familyChoice string) (parentbilling.HolidayConfirmation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
+	}
+	if err := validFamilyChoice(familyChoice); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	debtorNumber, err := debtorNumberOf(debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayConfirmation{}, err
 	}
 	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption, costBearerID, true)
 	if err != nil {
@@ -202,6 +210,13 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	}
 	choice := holidayMemberChoice{exemption: benefitsExemption, bearer: bearer}
 	if err := h.freezeConfirmed(ctx, reviewer, periodID, registration, others, issued, choice); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	// The family keeps the number of the registration and of the group that
+	// took it (#6692); the caller rolls everything back on a conflict.
+	number := registration.DebtorNumber
+	if err := h.rememberFamilies(ctx, reviewer, slices.Concat([]parentbilling.HolidayRegistration{registration}, confirmedSharers(others, issued)),
+		&number, familyChoice); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
 	frozen, found, err := h.store.HolidayContributions(ctx, reviewer.OrganizationID, registration.ID)

@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "de129d7c228e086b9124d16b0537e275c849df3b8c16199d0f1dc4af0d9f8e02",
+  "catalogSHA256": "509ccce4b0c350c3e74635cd0c99804dc6fb7a35d479b850ff33f212de42ca4f",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -16669,7 +16669,7 @@
           "name": "care_contract_id",
           "type": "bigint",
           "udt": "int8",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "recipient_kind",
@@ -16754,6 +16754,24 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "holder_first_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "holder_last_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "last_used_on",
+          "type": "date",
+          "udt": "date",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -16766,6 +16784,11 @@
           "column": "organization_id",
           "targetTable": "care_contract.contracts",
           "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
         },
         {
           "column": "updated_by_account_id",
@@ -16803,7 +16826,7 @@
           "name": "care_contract_id",
           "type": "bigint",
           "udt": "int8",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "action",
@@ -16839,6 +16862,11 @@
           "column": "organization_id",
           "targetTable": "care_contract.contracts",
           "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
         }
       ],
       "packages": [

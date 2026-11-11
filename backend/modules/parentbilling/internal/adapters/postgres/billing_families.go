@@ -157,25 +157,11 @@ func (s *Store) InsertRunEvents(ctx context.Context, organizationID, accountID i
 	if err != nil {
 		return err
 	}
-	type entry struct {
-		RunID   int64          `json:"run_id"`
-		Details map[string]any `json:"details"`
-	}
-	entries := func(details map[int64]map[string]any) ([]byte, error) {
-		list := make([]entry, 0, len(details))
-		for runID, detail := range details {
-			if detail == nil {
-				detail = map[string]any{}
-			}
-			list = append(list, entry{RunID: runID, Details: detail})
-		}
-		return json.Marshal(list)
-	}
-	holidayEntries, err := entries(holiday)
+	holidayEntries, err := runEventEntries(holiday)
 	if err != nil {
 		return err
 	}
-	careEntries, err := entries(care)
+	careEntries, err := runEventEntries(care)
 	if err != nil {
 		return err
 	}
@@ -188,4 +174,21 @@ func (s *Store) InsertRunEvents(ctx context.Context, organizationID, accountID i
 		FROM jsonb_to_recordset(?4::jsonb) AS entry(run_id bigint, details jsonb)`,
 		organizationID, action, accountID, string(holidayEntries), string(careEntries))
 	return err
+}
+
+// runEventEntries is the JSON of trail entries by run that the statements
+// above insert with jsonb_to_recordset.
+func runEventEntries(details map[int64]map[string]any) ([]byte, error) {
+	type entry struct {
+		RunID   int64          `json:"run_id"`
+		Details map[string]any `json:"details"`
+	}
+	list := make([]entry, 0, len(details))
+	for runID, detail := range details {
+		if detail == nil {
+			detail = map[string]any{}
+		}
+		list = append(list, entry{RunID: runID, Details: detail})
+	}
+	return json.Marshal(list)
 }

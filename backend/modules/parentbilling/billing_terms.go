@@ -173,8 +173,16 @@ type FamilyBilling struct {
 	DueDay          *int           `json:"due_day"`
 	// DebtorNumber is the number of the family in the finance system of
 	// the Träger (#4693); the release copies it onto the monthly invoice.
-	DebtorNumber string    `json:"debtor_number"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	DebtorNumber string `json:"debtor_number"`
+	// HolderFirstName and HolderLastName name the parent who registered the
+	// family for the holiday care last (#6692). LastUsedOn is the latest day
+	// a holiday registration needs the number; a family without a contract
+	// keeps its row until 1 January of the fourth year after it, or longer
+	// while a document of the family is kept.
+	HolderFirstName string         `json:"holder_first_name"`
+	HolderLastName  string         `json:"holder_last_name"`
+	LastUsedOn      *calendar.Date `json:"last_used_on"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 // FamilyBillingInput is a deviation as the Abrechnung writes it: for the
