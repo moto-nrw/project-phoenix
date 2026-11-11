@@ -174,6 +174,30 @@ describe("StaffPoolSlideOver pending lock (#6593)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  // #6594: Ließe sich die Rückfrage während des Moves schließen, hätte ein
+  // Fehler keine Fläche mehr: er steht nur in der Rückfrage.
+  it("hält die Rückfrage offen, solange der Move läuft, und zeigt danach den Fehler darin", async () => {
+    const { answer } = renderAndMove();
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    expect(cancel).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeDisabled();
+    fireEvent.click(cancel);
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByText("Person verschieben?")).toBeInTheDocument();
+
+    await act(async () => {
+      answer.reject(new ApiError("down", 503, { code: "general.unavailable" }));
+    });
+
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByText("Person verschieben?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
+  });
+
   it("schließt nach dem Move die Rückfrage und frischt auf", async () => {
     const { answer, onClose, onMoved } = renderAndMove();
     // Anker: die Rückfrage ist offen, solange der Move läuft.

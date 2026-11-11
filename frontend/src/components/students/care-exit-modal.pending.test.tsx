@@ -158,4 +158,77 @@ describe("CareExitModal pending lock (#6593)", () => {
 
     expect(mockPreview).toHaveBeenCalledOnce();
   });
+
+  // #6594: „Weiter“ lädt die Vorschau als Vorgang des Panels. Eine späte
+  // Antwort nach Schließen und Wiederöffnen springt nicht auf Schritt 2.
+  describe("Vorschau (Weiter)", () => {
+    async function renderAndContinue() {
+      const answer = deferred<CareExitPreview>();
+      mockPreview.mockReturnValue(answer.promise);
+      const modal = (isOpen: boolean): ReactElement => (
+        <ModalProvider>
+          <CareExitModal
+            isOpen={isOpen}
+            studentIds={["1"]}
+            onClose={vi.fn()}
+            onFinished={vi.fn()}
+          />
+        </ModalProvider>
+      );
+      const view = render(modal(true));
+      fireEvent.click(screen.getByRole("combobox", { name: "Grund" }));
+      fireEvent.click(screen.getByRole("option", { name: "Umzug" }));
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+      return { ...view, answer, modal };
+    }
+
+    it("sperrt das Panel, solange die Vorschau geprüft wird", async () => {
+      const { answer } = await renderAndContinue();
+
+      expectSlideOverSaveLocked(TITLE, ["Abbrechen", "Wird geprüft…"]);
+
+      await act(async () => {
+        answer.resolve(PREVIEW);
+      });
+      expect(await screen.findByText("Mia Muster")).toBeVisible();
+      expectSlideOverUnlocked(TITLE);
+    });
+
+    it("springt nach Schließen und Wiederöffnen nicht durch eine späte Vorschau auf Schritt 2", async () => {
+      const { answer, rerender, modal } = await renderAndContinue();
+
+      rerender(modal(false));
+      rerender(modal(true));
+      expectSlideOverUnlocked(TITLE);
+
+      await act(async () => {
+        answer.resolve(PREVIEW);
+      });
+
+      expect(
+        screen.getByText("Schritt 1 von 2: Tag und Grund festlegen."),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Weiter" })).toBeVisible();
+      expect(screen.queryByText("Mia Muster")).not.toBeInTheDocument();
+    });
+
+    it("zeigt eine späte Ablehnung der Vorschau nicht im wiedergeöffneten Panel", async () => {
+      const { answer, rerender, modal } = await renderAndContinue();
+
+      rerender(modal(false));
+      rerender(modal(true));
+
+      await act(async () => {
+        answer.reject(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        );
+      });
+
+      // Anker: das wiedergeöffnete Panel steht frisch auf Schritt 1.
+      expect(
+        screen.getByText("Schritt 1 von 2: Tag und Grund festlegen."),
+      ).toBeVisible();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
 });

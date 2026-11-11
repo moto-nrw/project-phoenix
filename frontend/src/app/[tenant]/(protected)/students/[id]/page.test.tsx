@@ -1868,6 +1868,77 @@ describe("StudentDetailPage", () => {
       expect(mockToastError).not.toHaveBeenCalled();
     });
 
+    // #6594: Der Ansicht-Knopf im Dialog ist ein Schließweg. Während des
+    // Aufhebens bleibt er gesperrt, sonst hätte die Antwort keine Fläche.
+    it.each([
+      [
+        "sick",
+        "sick-toggle-button",
+        "modal-krankmeldung-aufheben",
+        "Alle Kranktage ansehen",
+      ],
+      [
+        "excused",
+        "excused-toggle-button",
+        "modal-entschuldigung-aufheben",
+        "Alle entschuldigten Tage ansehen",
+      ],
+    ] as const)(
+      "keeps the %s lift dialog open while the lift runs",
+      async (status, toggle, modal, viewAll) => {
+        mockUseStudentData.mockReturnValue({
+          student: { ...mockStudent, [status]: true },
+          loading: false,
+          error: null,
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          hasAbsenceWriteAccess: true,
+          hasSickExcusedWriteAccess: true,
+          supervisors: [],
+          myGroups: ["1"],
+          myGroupRooms: [],
+          mySupervisedRooms: [],
+          refreshData: mockRefreshData,
+        });
+        let fail!: (error: Error) => void;
+        mockUpdateStudent.mockReturnValue(
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+        );
+
+        render(<StudentDetailPage />);
+        fireEvent.click(screen.getByTestId(toggle));
+        const dialog = await screen.findByTestId(modal);
+        fireEvent.click(within(dialog).getByTestId("modal-confirm"));
+
+        const viewAllButton = within(dialog).getByRole("button", {
+          name: viewAll,
+        });
+        expect(viewAllButton).toBeDisabled();
+        fireEvent.click(viewAllButton);
+        expect(screen.getByTestId(modal)).toBeInTheDocument();
+        expect(
+          screen.queryByTestId(`planned-status-modal-${status}`),
+        ).not.toBeInTheDocument();
+
+        await act(async () => {
+          fail(new ApiError("boom", 500, { code: "general.server" }));
+        });
+        expect(
+          await within(dialog).findByText(
+            catalogText(
+              "general.server",
+              status === "sick" ? "die Krankmeldung" : "die Entschuldigung",
+            ),
+          ),
+        ).toBeInTheDocument();
+        expect(
+          within(dialog).getByRole("button", { name: viewAll }),
+        ).toBeEnabled();
+      },
+    );
+
     it("closes sick date picker modal when cancel is clicked", async () => {
       render(<StudentDetailPage />);
 
