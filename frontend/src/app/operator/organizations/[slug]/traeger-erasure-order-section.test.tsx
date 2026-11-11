@@ -18,7 +18,10 @@ import {
   within,
 } from "@testing-library/react";
 import { ApiError } from "~/lib/api-error";
-import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import {
+  SAVED_BUT_STALE_SUFFIX,
+  STALE_DATA_SUFFIX,
+} from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -425,6 +428,8 @@ describe("TraegerErasureOrderSection", () => {
     // Anker: der bestätigte Auftrag bleibt stehen.
     expect(screen.getByText("LOESCH-4657")).toBeInTheDocument();
     expect(screen.getByText(`${loadText} ${STALE_DATA_SUFFIX}`)).toBeVisible();
+    const savedMessage = `${catalogText("general.unavailable", "die Anzeige des Löschauftrags")} ${SAVED_BUT_STALE_SUFFIX}`;
+    expect(await screen.findByText(savedMessage)).toBeVisible();
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Der Löschauftrag ist zurückgenommen.",
     );
@@ -435,9 +440,7 @@ describe("TraegerErasureOrderSection", () => {
     ).not.toBeInTheDocument();
 
     mockGetOrder.mockResolvedValue(null);
-    const alert = screen
-      .getByText(`${loadText} ${STALE_DATA_SUFFIX}`)
-      .closest('[role="alert"]');
+    const alert = screen.getByText(savedMessage).closest('[role="alert"]');
     expect(alert).not.toBeNull();
     fireEvent.click(
       within(alert as HTMLElement).getByRole("button", {

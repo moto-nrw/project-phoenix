@@ -149,6 +149,7 @@ vi.mock("~/lib/swr", () => ({
         isLoading: false,
         error: detailRequest.staleError,
         mutate: detailRequest.mutate,
+        readCurrent: () => ({ error: detailRequest.staleError }),
       };
     }
     if (key?.startsWith("staff-detail-")) {
@@ -1099,56 +1100,66 @@ describe("StaffDetailContent permissions", () => {
     // #6636: das Zurücknehmen ist gelungen, nur das Nachladen scheitert.
     // Der Dialog schließt, kein Fehler des Zurücknehmens; der Ladefehler
     // steht über dem Reiter und sein Wiederholen lädt nur nach.
-    it("meldet ein gescheitertes Nachladen nach dem Zurücknehmen des Austritts als Ladefehler", async () => {
-      detailRequest.plannedExitDate = "2026-12-31";
-      const withdraw = vi
-        .spyOn(staffPlannedExitService, "withdraw")
-        .mockResolvedValue(undefined);
-      let failRecord = true;
-      mockTenantMutate.mockImplementation((key: string) =>
-        key.startsWith("staff-record-") && failRecord
-          ? Promise.reject(
-              new ApiError("down", 503, { code: "general.unavailable" }),
-            )
-          : Promise.resolve(undefined),
-      );
-      mockAdmin(["users:read", "users:delete"]);
+    it.each(["rejected", "cached"])(
+      "meldet ein gescheitertes Nachladen nach dem Zurücknehmen des Austritts als Ladefehler (%s)",
+      async (mode) => {
+        detailRequest.plannedExitDate = "2026-12-31";
+        const withdraw = vi
+          .spyOn(staffPlannedExitService, "withdraw")
+          .mockResolvedValue(undefined);
+        let failRecord = true;
+        mockTenantMutate.mockImplementation((key: string) => {
+          if (key.startsWith("staff-record-")) {
+            detailRequest.staleError = failRecord
+              ? new ApiError("down", 503, { code: "general.unavailable" })
+              : null;
+            if (detailRequest.staleError && mode === "rejected")
+              return Promise.reject(detailRequest.staleError);
+          }
+          return Promise.resolve(undefined);
+        });
+        mockAdmin(["users:read", "users:delete"]);
 
-      render(<StaffDetailContent />);
-      fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
-      fireEvent.click(
-        screen.getByRole("menuitem", { name: "Austritt zurücknehmen" }),
-      );
-      fireEvent.click(
-        within(await screen.findByRole("dialog")).getByRole("button", {
-          name: "Zurücknehmen",
-        }),
-      );
+        render(<StaffDetailContent />);
+        fireEvent.click(
+          screen.getByRole("button", { name: "Weitere Aktionen" }),
+        );
+        fireEvent.click(
+          screen.getByRole("menuitem", { name: "Austritt zurücknehmen" }),
+        );
+        fireEvent.click(
+          within(await screen.findByRole("dialog")).getByRole("button", {
+            name: "Zurücknehmen",
+          }),
+        );
 
-      const message = `${catalogText("general.unavailable", "die Anzeige der Personalakte")} ${SAVED_BUT_STALE_SUFFIX}`;
-      expect(await screen.findByText(message)).toBeInTheDocument();
-      expect(
-        screen.queryByRole("heading", { name: "Austritt zurücknehmen?" }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByText(catalogText("general.unavailable", "den Austritt")),
-      ).not.toBeInTheDocument();
+        const message = `${catalogText("general.unavailable", "die Anzeige der Personalakte")} ${SAVED_BUT_STALE_SUFFIX}`;
+        expect(await screen.findByText(message)).toBeInTheDocument();
+        expect(
+          screen.queryByRole("heading", { name: "Austritt zurücknehmen?" }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            catalogText("general.unavailable", "den Austritt"),
+          ),
+        ).not.toBeInTheDocument();
 
-      failRecord = false;
-      const alert = screen.getByText(message).closest('[role="alert"]');
-      expect(alert).not.toBeNull();
-      fireEvent.click(
-        within(alert as HTMLElement).getByRole("button", {
-          name: "Wiederholen",
-        }),
-      );
-      await waitFor(() =>
-        expect(screen.queryByText(message)).not.toBeInTheDocument(),
-      );
-      // Wiederholen lädt nur nach; zurückgenommen wird nicht noch einmal.
-      expect(withdraw).toHaveBeenCalledTimes(1);
-      expect(withdraw).toHaveBeenCalledWith("42");
-    });
+        failRecord = false;
+        const alert = screen.getByText(message).closest('[role="alert"]');
+        expect(alert).not.toBeNull();
+        fireEvent.click(
+          within(alert as HTMLElement).getByRole("button", {
+            name: "Wiederholen",
+          }),
+        );
+        await waitFor(() =>
+          expect(screen.queryByText(message)).not.toBeInTheDocument(),
+        );
+        // Wiederholen lädt nur nach; zurückgenommen wird nicht noch einmal.
+        expect(withdraw).toHaveBeenCalledTimes(1);
+        expect(withdraw).toHaveBeenCalledWith("42");
+      },
+    );
 
     it("zeigt einen Fehler beim Zurücknehmen des Austritts im offenen Dialog", async () => {
       detailRequest.plannedExitDate = "2026-12-31";

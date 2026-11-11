@@ -25,6 +25,7 @@ import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import {
   STALE_DATA_SUFFIX,
   useRefreshAfterWrite,
+  type RefreshAfterWriteResult,
 } from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -71,7 +72,7 @@ export function TraegerBelegRetentionSection({
 }: {
   readonly organizationId: string;
 }) {
-  const { data, error, isLoading, mutate } = useSWRAuth(
+  const { data, error, isLoading, mutate, readCurrent } = useSWRAuth(
     operatorProvisioningKeys.orgBelegRetention(organizationId),
     () => belegRetentionService.getOverview(organizationId),
     { keepPreviousData: false },
@@ -90,7 +91,10 @@ export function TraegerBelegRetentionSection({
   // or the fields of the previous one.
   const [formSession, setFormSession] = useState(0);
   const [reviewing, setReviewing] = useState<BelegClarification | null>(null);
-  const reload = useCallback(() => mutate(), [mutate]);
+  const reload = useCallback(async () => {
+    await mutate();
+    return { error: readCurrent?.().error };
+  }, [mutate, readCurrent]);
 
   if (loadError && data === undefined)
     return <LoadErrorAlert error={loadError} />;
@@ -402,7 +406,7 @@ function SuspensionsCard({
   readonly suspensions: readonly RetentionSuspension[];
   readonly loading: boolean;
   readonly onAdd: () => void;
-  readonly onChanged: () => Promise<unknown>;
+  readonly onChanged: () => Promise<RefreshAfterWriteResult>;
 }) {
   const [lifting, setLifting] = useState<RetentionSuspension | null>(null);
   const [busy, setBusy] = useState(false);

@@ -643,7 +643,12 @@ function TimetablesContent() {
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
   // Schlank (#4996): das Raster zeigt Zahlen, keine Kinderzeilen. Die
   // Kinderzeilen des geöffneten Termins lädt das Detailpanel nach.
-  const { data, error, isLoading } = useSWRAuth(
+  const {
+    data,
+    error,
+    isLoading,
+    readCurrent: readWeek,
+  } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
     () =>
       timetableService.getWeek(fetchFromISO, fetchToISO, planFilter, {
@@ -662,7 +667,11 @@ function TimetablesContent() {
       },
     },
   );
-  const { data: gapsData, error: gapsError } = useSWRAuth(
+  const {
+    data: gapsData,
+    error: gapsError,
+    readCurrent: readGaps,
+  } = useSWRAuth(
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
     () => timetableService.getGaps(gapsFromISO, fetchToISO),
   );
@@ -1000,6 +1009,7 @@ function TimetablesContent() {
     error: templatesError,
     isLoading: templatesLoading,
     isValidating: templatesValidating,
+    readCurrent: readTemplates,
   } = useSWRAuth(
     // Regeltermine braucht nur die Serienansicht und das Detailpanel eines
     // Termins (#4996); Woche, Tag und Monat laden sie nicht beim Öffnen.
@@ -1914,7 +1924,19 @@ function TimetablesContent() {
     }
     await tenantMutate(swrKey);
     await tenantMutate(gapsSWRKey);
-  }, [gapsSWRKey, swrKey, templatePeriodID, tenantMutate]);
+    return {
+      error:
+        readTemplates?.().error ?? readWeek?.().error ?? readGaps?.().error,
+    };
+  }, [
+    gapsSWRKey,
+    swrKey,
+    templatePeriodID,
+    tenantMutate,
+    readTemplates,
+    readWeek,
+    readGaps,
+  ]);
   const archiveRefresh = useRefreshAfterWrite(
     "die Anzeige der Regeltermine",
     reloadAfterArchive,

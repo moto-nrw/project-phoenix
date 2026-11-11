@@ -41,6 +41,7 @@ import {
 import {
   STALE_DATA_SUFFIX,
   useRefreshAfterWrite,
+  type RefreshAfterWriteResult,
 } from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -144,11 +145,16 @@ export function TraegerErasureOrderSection({
     error,
     isLoading,
     mutate,
+    readCurrent,
   } = useSWRAuth(
     operatorProvisioningKeys.orgErasureOrder(organizationId),
     () => operatorProvisioningService.getTraegerErasureOrder(organizationId),
     { keepPreviousData: false },
   );
+  const reload = useCallback(async () => {
+    await mutate();
+    return { error: readCurrent?.().error };
+  }, [mutate, readCurrent]);
   // A failed reload keeps the confirmed order and stands above it; only
   // without data does the error replace the section (#6636).
   const loadError = useSwrLoadError(
@@ -179,7 +185,7 @@ export function TraegerErasureOrderSection({
         <OpenErasureOrder
           order={order}
           organizationId={organizationId}
-          onChanged={() => mutate()}
+          onChanged={reload}
         />
       </>
     );
@@ -218,7 +224,7 @@ function OpenErasureOrder({
 }: {
   readonly order: TraegerErasureOrder;
   readonly organizationId: string;
-  readonly onChanged: () => Promise<unknown>;
+  readonly onChanged: () => Promise<RefreshAfterWriteResult>;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
