@@ -63,10 +63,12 @@ und schreibt aus dem Ergebnis eine Logzeile je Kind.
 
 - Kandidaten kommen in jedem Lauf aus der Datenbank. Ein ausgefallener oder
   verschobener Lauf holt alles nach.
-- Ein Kind je Savepoint: alles oder nichts. Die Zeilensperre wartet nicht
-  (`FOR UPDATE NOWAIT`); ein gesperrtes Kind wird unverändert verschoben.
-  Unter der Sperre prüft der Lauf die Regel erneut, damit eine Wiederaufnahme
-  zwischen Auswahl und Sperre das Foto hält.
+- Ein Savepoint für die gesamte Menge: Foto, Löschprotokoll und Aufräumauftrag
+  werden mengenbasiert geschrieben oder gemeinsam zurückgerollt. Die Zahl der
+  Datenbankabfragen wächst nicht mit der Kinderzahl. Die Zeilensperre wartet
+  nicht (`FOR UPDATE SKIP LOCKED`); ein gesperrtes Kind wird unverändert
+  verschoben. Unter der Sperre prüft der Lauf die Regel erneut, damit eine
+  Wiederaufnahme zwischen Auswahl und Sperre das Foto hält.
 - Die Datei geht erst nach dem Commit; der dauerhafte Aufräumauftrag
   committet mit der geleerten Zeile.
 - Eine Logzeile je Kandidat und Lauf (beendet, verschoben, behalten,
@@ -98,4 +100,20 @@ unaufgelöst. Die übrigen drei neuen Einträge sind Plattformteilnahme
 (ADR 0098). Der Schritt ist eine Methode des vorhandenen Owner-Service; die
 Root erreicht ihn über den Owner der vorhandenen Directory-Komposition. Er
 erzeugt keinen neuen Wertfluss in bestehende Bindungen, und die Datei geht
-über den vorhandenen, registrierten Weg `ScheduleUnlink` nach dem Commit.
+über den unveränderten, registrierten Nach-Commit-Weg `ScheduleUnlink`.
+`scheduleUnlinks` beauftragt die Dateien vorher mengenbasiert mit
+`QueueUnlinkStoredPhotos`. Der Nachtlauf sendet weiterhin keine Live-Meldung;
+offene Ansichten aktualisieren sich beim nächsten Abruf.
+
+
+Die mengenbasierte Erweiterung bindet `QueueUnlinkStoredPhotos` an File
+Storage `UploadCleanup.QueueAll` als teilnehmenden, geschützten Command
+(ADR 0067). File Storage prüft und dedupliziert die verwalteten Dateinamen,
+behält Tenant und Objekttyp bei und schreibt die Aufträge in einer Anweisung
+in derselben Transaktion. Der Command liest keinen fremden Zustand, nimmt
+keine abgestimmten Sperren und führt keine Nach-Commit-Arbeit aus. Die
+Einzeldatei-Regeln bleiben unverändert. Die drei bisherigen Queue-Bindungen
+erhalten durch den erweiterten Konstruktor einen neuen Nachweis; diese ADR
+bestätigt genau diese unveränderte Einzeldatei-Semantik. Die neuen Store-Port-
+Einträge lesen nur die aktuelle Tenant-Transaktion aus dem Kontext; sie
+öffnen keine eigene Transaktion und wechseln keinen Scope.

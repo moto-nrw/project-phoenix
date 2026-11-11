@@ -87,13 +87,15 @@ func (f *careEndFixture) run(t *testing.T) (peopledirectory.StudentPhotoCareEndR
 	var result peopledirectory.StudentPhotoCareEndResult
 	err := testpkg.WithinTenantTransaction(f.ctx, f.db, f.tenant, func(txCtx context.Context, _ bun.Tx) error {
 		var runErr error
-		result, runErr = f.end.EndStudentPhotosAfterCare(txCtx, careEndToday, func(_ context.Context, ended peopledirectory.StudentPhotoCareEnd) error {
-			if f.failLog != nil {
-				if err := f.failLog(ended); err != nil {
-					return err
+		result, runErr = f.end.EndStudentPhotosAfterCare(txCtx, careEndToday, func(_ context.Context, entries []peopledirectory.StudentPhotoCareEnd) error {
+			for _, ended := range entries {
+				if f.failLog != nil {
+					if err := f.failLog(ended); err != nil {
+						return err
+					}
 				}
+				f.logged = append(f.logged, ended)
 			}
-			f.logged = append(f.logged, ended)
 			return nil
 		})
 		return runErr
@@ -254,6 +256,7 @@ func TestStudentPhotoCareEndNeverLeavesAPartialEnd(t *testing.T) {
 		assert.NotNil(t, row.PhotoConsentGivenAt)
 	}
 	assert.Empty(t, f.runtime.unlinked, "no file goes before a commit")
+	assert.Empty(t, f.runtime.broadcasts, "a rollback sends no refresh")
 
 	f.failLog = nil
 	result, err := f.run(t)
@@ -277,4 +280,50 @@ func TestStudentPhotoCareEndRefusesWithoutAPhotoRuntime(t *testing.T) {
 	_, err = f.run(t)
 	require.Error(t, err)
 	assert.NotNil(t, f.photo(t, child).PhotoPath)
+}
+
+func TestStudentPhotoCareEndExpiresConsentWithoutAFile(t *testing.T) {
+	t.Parallel()
+	f := newCareEndFixture(t)
+	child, _ := f.child(t, "Einwilligung", day(careEndToday.AddDays(-1)), "inactive")
+	_, err := f.db.NewRaw(`UPDATE users.student_profiles SET photo_path = NULL WHERE id = ?`, child).Exec(f.ctx)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinTenantTransaction(f.ctx, f.db, f.tenant, func(ctx context.Context, _ bun.Tx) error {
+		_, err := f.end.EndStudentPhotosAfterCare(ctx, careEndToday, func(context.Context, []peopledirectory.StudentPhotoCareEnd) error { return nil })
+		assert.Empty(t, f.runtime.broadcasts, "no refresh before commit")
+		return err
+	}))
+	assert.Empty(t, f.runtime.broadcasts, "the nightly run does not send live refreshes")
+	assert.Empty(t, f.runtime.queued)
+	assert.Empty(t, f.runtime.unlinked)
+	assert.Equal(t, careEndPhotoRow{}, f.photo(t, child))
+}
+
+func (r *careEndPhotoRuntime) QueueUnlinkStoredPhotos(ctx context.Context, urls []string) error {
+	for _, url := range urls {
+		if err := r.QueueUnlinkStoredPhoto(ctx, url); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func TestStudentPhotoCareEndOuterRollbackKeepsPhotosAndSendsNoRefresh(t *testing.T) {
+	t.Parallel()
+	f := newCareEndFixture(t)
+	child, _ := f.child(t, "Zurück", day(careEndToday.AddDays(-1)), "inactive")
+	rollback := errors.New("rollback outer transaction")
+	err := testpkg.WithinTenantTransaction(f.ctx, f.db, f.tenant, func(ctx context.Context, _ bun.Tx) error {
+		result, err := f.end.EndStudentPhotosAfterCare(ctx, careEndToday, func(context.Context, []peopledirectory.StudentPhotoCareEnd) error { return nil })
+		require.NoError(t, err)
+		assert.Equal(t, 1, result.Ended)
+		assert.Empty(t, f.runtime.unlinked)
+		assert.Empty(t, f.runtime.broadcasts)
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+	assert.NotNil(t, f.photo(t, child).PhotoPath)
+	assert.NotNil(t, f.photo(t, child).PhotoConsentGivenAt)
+	assert.Empty(t, f.runtime.unlinked)
+	assert.Empty(t, f.runtime.broadcasts)
 }

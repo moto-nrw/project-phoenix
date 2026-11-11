@@ -44,7 +44,8 @@ func TestStudentPhotoCareEndStepRunsOnTheServePool(t *testing.T) {
 	audit, _, _, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
 	require.NoError(t, err)
 	unlinker := &recordingPhotoUnlinker{}
-	runtime := StudentPhotoRuntime{Cleanup: fileStorageCompose.NewUploadCleanup(admin, "student-photos").Queue, Unlinker: unlinker}
+	cleanup := fileStorageCompose.NewUploadCleanup(admin, "student-photos")
+	runtime := StudentPhotoRuntime{Cleanup: cleanup.Queue, CleanupBatch: cleanup.QueueAll, Unlinker: unlinker}
 	directory, err := NewPeopleDirectoryWithObserver(db, func(peopleCompose.Observation) {}, nil, runtime)
 	require.NoError(t, err)
 	photos, err := StudentPhotoCareEndOf(directory.Owner)
@@ -55,7 +56,8 @@ func TestStudentPhotoCareEndStepRunsOnTheServePool(t *testing.T) {
 	tenantID := testpkg.Tenant(t)
 	student := testpkg.CreateTestStudent(t, admin, "Ende", "Foto", "4a")
 	url := "/uploads/student-photos/ende-foto.jpg"
-	ctx := context.Background()
+	counter := testpkg.CaptureQueriesForContext(t, serve)
+	ctx := counter.Context(context.Background())
 	_, err = admin.NewRaw(`UPDATE users.student_profiles SET photo_path = ?, photo_consent_given_at = ? WHERE id = ?`,
 		url, calendar.NewDate(2025, time.September, 1).BerlinMidnight(), student.ID).Exec(ctx)
 	require.NoError(t, err)
@@ -71,6 +73,7 @@ func TestStudentPhotoCareEndStepRunsOnTheServePool(t *testing.T) {
 		assert.Empty(t, unlinker.unlinked, "no file goes before the commit")
 		return runErr
 	}))
+	single := counter.Total()
 	assert.Equal(t, 1, outcomeDeleted)
 	assert.Equal(t, []string{url}, unlinker.unlinked, "the file goes after the commit")
 
@@ -103,6 +106,30 @@ func TestStudentPhotoCareEndStepRunsOnTheServePool(t *testing.T) {
 		Where("tenant_id = ? AND object_kind = ?", tenantID, "student-photos").Count(ctx)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, queued, "the durable cleanup entry backs the after-commit unlink")
+
+	// Include the real Audit and File Storage writes in the cohort query budget.
+	for _, name := range []string{"Erstes", "Zweites", "Drittes"} {
+		child := testpkg.CreateTestStudent(t, admin, name, "Foto", "4a")
+		_, err := admin.NewRaw(`UPDATE users.student_profiles SET photo_path = ?, photo_consent_given_at = ? WHERE id = ?`,
+			"/uploads/student-photos/"+name+".jpg", time.Now(), child.ID).Exec(context.Background())
+		require.NoError(t, err)
+		_, err = admin.NewRaw(`UPDATE users.student_school_memberships SET enrolled_until = ?, status = 'inactive' WHERE student_profile_id = ?`,
+			calendar.NewDate(2025, time.July, 31), child.ID).Exec(context.Background())
+		require.NoError(t, err)
+	}
+	counter.Reset()
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, serve, tenantID, func(txCtx context.Context) error {
+		outcome, err := step.Run(txCtx)
+		assert.Equal(t, 3, outcome.Deleted)
+		return err
+	}))
+	assert.Equal(t, single, counter.Total(), "locking, clearing, audit and cleanup statements do not grow with the cohort")
+	queued, err = admin.NewSelect().TableExpr("documents.file_cleanup").Where("tenant_id = ? AND object_kind = ?", tenantID, "student-photos").Count(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 4, queued)
+	logged, err := admin.NewSelect().TableExpr("audit.data_deletions").Where("tenant_id = ? AND deletion_type = ?", tenantID, auditModels.DeletionTypeStudentPhotoRetention).Count(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 4, logged, "bulk append keeps one deletion record per child")
 
 	var trail int
 	require.NoError(t, admin.NewRaw(`SELECT count(*) FROM audit.student_consent_changes WHERE student_id = ?`, student.ID).Scan(ctx, &trail))

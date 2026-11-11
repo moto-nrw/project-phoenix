@@ -12,16 +12,9 @@ import (
 
 var _ peopledirectory.StudentPhotoCareEndRetention = (*Service)(nil)
 
-// errPhotoCareEndUnchanged leaves a child's savepoint without a write: the
-// row no longer qualifies under its lock.
-var errPhotoCareEndUnchanged = errors.New("people directory: photo purpose still holds")
-
-// EndStudentPhotosAfterCare removes, in the caller's tenant transaction, the
-// photo data of every child whose care is over on today (#6650). See
-// peopledirectory.StudentPhotoCareEndRetention for the invariants: one child
-// per savepoint, all or nothing; no lock wait (NOWAIT), a held row is
-// deferred and found again next run; the file only after the commit; no
-// entry in the consent trail.
+// EndStudentPhotosAfterCare removes photo data in one savepoint and a fixed
+// number of statements. Locked children are deferred without waiting; every
+// write, audit entry and durable cleanup intent succeeds or rolls back together.
 func (s *Service) EndStudentPhotosAfterCare(
 	ctx context.Context,
 	today calendar.Date,
@@ -30,39 +23,79 @@ func (s *Service) EndStudentPhotosAfterCare(
 	var result peopledirectory.StudentPhotoCareEndResult
 	photos := s.studentPhotos
 	tenantID, candidates, err := photos.photosPastPurpose(ctx, today, logEnd)
-	if err != nil {
+	if err != nil || len(candidates) == 0 {
 		return result, err
 	}
-	for _, studentID := range candidates {
-		outcome, err := photoCareEndOutcome(photos.endPhotoAfterCare(ctx, tenantID, studentID, today, logEnd))
+	err = observeRun(ctx, photos.observe, "end_student_photos_after_care", photos.tx.RunSavepoint, func(spCtx context.Context, stats *domain.OperationStats) error {
+		records, present, lockStats, err := photos.store.TryLockPhotoRecords(spCtx, candidates)
+		stats.Add(lockStats)
 		if err != nil {
-			return result, fmt.Errorf("people directory: end photo of child %d after care: %w", studentID, err)
+			return err
 		}
-		switch outcome {
-		case peopledirectory.StudentPhotoCareEnded:
-			result.Ended++
-		case peopledirectory.StudentPhotoCareDeferred:
-			result.Deferred++
+		ended, ids, urls, outcomes := photoCareEndBatch(tenantID, candidates, records, present, today)
+		result = outcomes
+		if len(ids) == 0 {
+			return nil
 		}
-		result.Children = append(result.Children, peopledirectory.StudentPhotoCareEndChild{StudentID: studentID, Outcome: outcome})
-	}
-	return result, nil
+		saveStats, err := photos.store.ClearPhotos(spCtx, ids)
+		stats.Add(saveStats)
+		if err != nil {
+			return err
+		}
+		if err := logEnd(spCtx, ended); err != nil {
+			return fmt.Errorf("people directory: log ended photos: %w", err)
+		}
+		if err := photos.scheduleUnlinks(spCtx, urls); err != nil {
+			return err
+		}
+		result.Ended = len(ids)
+		return nil
+	})
+	return result, err
 }
 
-// photoCareEndOutcome sorts a child's result: the expected refusals leave
-// it for a later run or end nothing; every other error aborts the run.
-func photoCareEndOutcome(err error) (string, error) {
+// photoCareEndBatch re-checks each locked record and prepares the bulk write
+// and its log without database work inside the loop.
+func photoCareEndBatch(tenantID int64, candidates []int64, records map[int64]domain.StudentRecord, present map[int64]bool, today calendar.Date) (
+	[]peopledirectory.StudentPhotoCareEnd, []int64, []string, peopledirectory.StudentPhotoCareEndResult,
+) {
+	var result peopledirectory.StudentPhotoCareEndResult
+	var ended []peopledirectory.StudentPhotoCareEnd
+	var ids []int64
+	var urls []string
+	for _, id := range candidates {
+		record, locked := records[id]
+		outcome := photoCareEndOutcome(record, present[id], locked, today)
+		result.Children = append(result.Children, peopledirectory.StudentPhotoCareEndChild{StudentID: id, Outcome: outcome})
+		if outcome == peopledirectory.StudentPhotoCareDeferred {
+			result.Deferred++
+		}
+		if outcome != peopledirectory.StudentPhotoCareEnded {
+			continue
+		}
+		ids = append(ids, id)
+		ended = append(ended, peopledirectory.StudentPhotoCareEnd{
+			TenantID: tenantID, StudentID: id, LastCareDay: lastCareDay(record),
+			Graduated: record.IsAlumnus(), PhotoRemoved: record.PhotoPath != nil,
+			ConsentEnded: record.PhotoConsentGivenAt != nil,
+		})
+		if record.PhotoPath != nil && *record.PhotoPath != "" {
+			urls = append(urls, *record.PhotoPath)
+		}
+	}
+	return ended, ids, urls, result
+}
+
+func photoCareEndOutcome(record domain.StudentRecord, present, locked bool, today calendar.Date) string {
 	switch {
-	case err == nil:
-		return peopledirectory.StudentPhotoCareEnded, nil
-	case errors.Is(err, domain.ErrStudentLockBusy):
-		return peopledirectory.StudentPhotoCareDeferred, nil
-	case errors.Is(err, errPhotoCareEndUnchanged):
-		return peopledirectory.StudentPhotoCareKept, nil
-	case errors.Is(err, domain.ErrStudentNotFound):
-		return peopledirectory.StudentPhotoCareGone, nil
+	case !present:
+		return peopledirectory.StudentPhotoCareGone
+	case !locked:
+		return peopledirectory.StudentPhotoCareDeferred
+	case !domain.PhotoPurposeEndedOn(record, today) || !domain.HoldsPhotoData(record):
+		return peopledirectory.StudentPhotoCareKept
 	default:
-		return "", err
+		return peopledirectory.StudentPhotoCareEnded
 	}
 }
 
@@ -101,64 +134,6 @@ func (s *StudentPhotoService) photosPastPurpose(
 // joinTransaction runs fn in the caller's transaction, which the run
 // already required.
 func joinTransaction(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
-
-// endPhotoAfterCare ends one child's photo in its own savepoint. Every
-// refusal rolls the savepoint back, so the child keeps all of its photo
-// data or loses all of it.
-func (s *StudentPhotoService) endPhotoAfterCare(
-	ctx context.Context,
-	tenantID, studentID int64,
-	today calendar.Date,
-	logEnd peopledirectory.StudentPhotoCareEndLog,
-) error {
-	return observeRun(ctx, s.observe, "end_student_photo_after_care", s.tx.RunSavepoint, func(spCtx context.Context, stats *domain.OperationStats) error {
-		record, err := s.lockPhotoPastPurpose(spCtx, stats, studentID, today)
-		if err != nil {
-			return err
-		}
-		ended := peopledirectory.StudentPhotoCareEnd{
-			TenantID: tenantID, StudentID: studentID, LastCareDay: lastCareDay(record),
-			Graduated: record.IsAlumnus(), PhotoRemoved: record.PhotoPath != nil,
-			ConsentEnded: record.PhotoConsentGivenAt != nil,
-		}
-		saveStats, err := s.store.SavePhoto(spCtx, domain.StudentPhoto{StudentID: studentID, Status: record.Status})
-		stats.Add(saveStats)
-		if err != nil {
-			return err
-		}
-		if err := logEnd(spCtx, ended); err != nil {
-			return fmt.Errorf("people directory: log ended photo: %w", err)
-		}
-		storedURL := ""
-		if record.PhotoPath != nil {
-			storedURL = *record.PhotoPath
-		}
-		// Queues the durable cleanup entry with the cleared row and removes
-		// the file after the commit; an empty URL is a no-op.
-		return s.ScheduleUnlink(spCtx, storedURL)
-	})
-}
-
-// lockPhotoPastPurpose takes the child's row without waiting and re-checks
-// under the lock that the care is over and the row still holds photo data.
-func (s *StudentPhotoService) lockPhotoPastPurpose(
-	ctx context.Context,
-	stats *domain.OperationStats,
-	studentID int64,
-	today calendar.Date,
-) (domain.StudentRecord, error) {
-	record, found, lockStats, err := s.store.TryLockPhotoRecord(ctx, studentID)
-	stats.Add(lockStats)
-	switch {
-	case err != nil:
-		return record, err
-	case !found:
-		return record, domain.ErrStudentNotFound
-	case !domain.PhotoPurposeEndedOn(record, today) || !domain.HoldsPhotoData(record):
-		return record, errPhotoCareEndUnchanged
-	}
-	return record, nil
-}
 
 // lastCareDay is the record's last care day, nil when none is recorded.
 func lastCareDay(record domain.StudentRecord) *calendar.Date {

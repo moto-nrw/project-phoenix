@@ -12,8 +12,8 @@ import (
 // day, without a further period. A child's care is over once its last care
 // day (enrolled_until) lies before today or it graduated (alumnus).
 //
-// The run joins the nightly cleanup's tenant transaction and handles one
-// child per savepoint: it removes the stored photo, the photo consent and
+// The run joins the nightly cleanup's tenant transaction and uses one
+// savepoint for the batch: it removes the stored photo, the photo consent and
 // who recorded it, or nothing. It never waits for a lock: a child whose row
 // another transaction holds is deferred unchanged and found again in the
 // next run, because the candidates come from the database every time. The
@@ -37,10 +37,10 @@ type StudentPhotoCareEnd struct {
 	ConsentEnded bool
 }
 
-// StudentPhotoCareEndLog appends one ended photo to the deletion log
+// StudentPhotoCareEndLog appends the ended photos in one batch to the deletion log
 // (audit.data_deletions) in the transaction of ctx. The composition root
 // binds it; Audit Platform owns the log.
-type StudentPhotoCareEndLog func(ctx context.Context, ended StudentPhotoCareEnd) error
+type StudentPhotoCareEndLog func(ctx context.Context, ended []StudentPhotoCareEnd) error
 
 // Outcomes of one child in a run of StudentPhotoCareEndRetention.
 const (

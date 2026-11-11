@@ -291,10 +291,18 @@ func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, a
 		Kind:         auditModels.DeletionTypeStudentPhotoRetention,
 		LogsSubjects: true,
 		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
-			result, err := photos.EndStudentPhotosAfterCare(ctx, calendar.TodayDate(), func(ctx context.Context, ended peopleModule.StudentPhotoCareEnd) error {
-				return audit.Append(ctx, auditModels.NewStudentPhotoRetentionDeletion(
-					ended.TenantID, ended.StudentID, ended.LastCareDay, ended.Graduated, ended.PhotoRemoved, ended.ConsentEnded,
-				))
+			result, err := photos.EndStudentPhotosAfterCare(ctx, calendar.TodayDate(), func(ctx context.Context, ended []peopleModule.StudentPhotoCareEnd) error {
+				batch, ok := audit.(interface {
+					AppendAll(context.Context, []any) error
+				})
+				if !ok {
+					return errors.New("student photo retention requires batch audit append")
+				}
+				events := make([]any, 0, len(ended))
+				for _, child := range ended {
+					events = append(events, auditModels.NewStudentPhotoRetentionDeletion(child.TenantID, child.StudentID, child.LastCareDay, child.Graduated, child.PhotoRemoved, child.ConsentEnded))
+				}
+				return batch.AppendAll(ctx, events)
 			})
 			for _, child := range result.Children {
 				outcome := child.Outcome
