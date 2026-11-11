@@ -1,6 +1,10 @@
 package records
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
 
 // NewStudentNoteDeletion is the deletion log entry of a student note a staff
 // member deleted: one manual deletion attributed to the account.
@@ -57,7 +61,7 @@ func NewStaffRetentionDeletion(tenantID, staffID int64, recordsDeleted int, pers
 // NewStudentPhotoRetentionDeletion is the deletion log entry of one child
 // whose photo data ended after the care (#6650): the last care day, whether
 // the child graduated, and what went. It holds no file name and no content.
-func NewStudentPhotoRetentionDeletion(tenantID, studentID int64, lastCareDay string, graduated, photoRemoved, consentEnded bool) *DataDeletion {
+func NewStudentPhotoRetentionDeletion(tenantID, studentID int64, lastCareDay *calendar.Date, graduated, photoRemoved, consentEnded bool) *DataDeletion {
 	recordsDeleted := 0
 	if photoRemoved {
 		recordsDeleted = 1
@@ -65,8 +69,8 @@ func NewStudentPhotoRetentionDeletion(tenantID, studentID int64, lastCareDay str
 	record := NewDataDeletion(studentID, DeletionTypeStudentPhotoRetention, recordsDeleted, "system")
 	record.SetTenantID(tenantID)
 	record.DeletionReason = "care_ended"
-	if lastCareDay != "" {
-		record.SetMetadata("last_care_day", lastCareDay)
+	if lastCareDay != nil {
+		record.SetMetadata("last_care_day", lastCareDay.String())
 	}
 	record.SetMetadata("graduated", graduated)
 	record.SetMetadata("photo_removed", photoRemoved)

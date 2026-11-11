@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // studentPhotoFeatureLockClass is the pg_advisory_xact_lock class id that
@@ -134,7 +135,7 @@ func (s *StudentStore) PurgePhotos(ctx context.Context) ([]string, domain.Operat
 // graduated) and whose row still holds a photo, a photo consent or who
 // recorded it (#6650). The candidates come from the database on every run,
 // so a child a run deferred is found again by the next one.
-func (s *StudentStore) ListPhotosPastPurpose(ctx context.Context, today string) ([]int64, domain.OperationStats, error) {
+func (s *StudentStore) ListPhotosPastPurpose(ctx context.Context, today calendar.Date) ([]int64, domain.OperationStats, error) {
 	db, scope, err := s.reads.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -147,7 +148,7 @@ func (s *StudentStore) ListPhotosPastPurpose(ctx context.Context, today string) 
 	started := time.Now()
 	err = withStudentTenant(s.reads.studentRows(db, scope).
 		ColumnExpr(`"student".id`).
-		Where(`("student".status = ? OR "student".enrolled_until < ?::date)`, domain.StudentStatusAlumnus, today).
+		Where(`("student".status = ? OR "student".enrolled_until < ?)`, domain.StudentStatusAlumnus, today).
 		Where(`("student".photo_path IS NOT NULL OR "student".photo_consent_given_at IS NOT NULL OR "student".photo_consent_given_by IS NOT NULL)`).
 		OrderExpr(`"student".id ASC`), scope).
 		Scan(ctx, &ids)

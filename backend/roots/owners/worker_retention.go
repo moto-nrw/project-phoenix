@@ -297,10 +297,15 @@ func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, a
 				))
 			})
 			for _, child := range result.Children {
+				outcome := child.Outcome
+				if err != nil {
+					// The step's savepoint rolls back: nothing of this run stays.
+					outcome = "rolled_back"
+				}
 				logger.Info("student photo care end",
 					"tenant_id", tenant.FromContext(ctx),
 					"student_id", child.StudentID,
-					"outcome", child.Outcome,
+					"outcome", outcome,
 				)
 			}
 			return schedulerPorts.RetentionOutcome{Deleted: result.Ended}, err

@@ -148,7 +148,7 @@ describe("ChildConsentsSection", () => {
 
     expect(
       await screen.findByText(
-        /^Hier sehen Sie, was für Ihr Kind gespeichert ist\. Die Foto-Einwilligung widerrufen Sie bei der \S+\.$/,
+        /^Hier sehen Sie, was für Ihr Kind gespeichert ist\. Die Foto-Einwilligung widerrufen Sie bei der [^\s{}]+\.$/,
       ),
     ).toBeInTheDocument();
     expect(

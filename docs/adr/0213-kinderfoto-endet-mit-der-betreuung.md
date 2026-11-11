@@ -39,7 +39,20 @@ löscht es im nächsten Lauf.
 Belegt der Verantwortliche einen fortdauernden Zweck oder eine Pflicht,
 hält das moto-Team den nächtlichen Lauf der Schule mit der Notbremse
 `gdpr.data_cleanup_enabled` an (ADR 0048), bis eine eigene Regel entschieden
-ist. Eine schulweise Nachfrist gibt es bewusst nicht.
+ist. Die Notbremse hält alle nächtlichen Löschungen der Schule an, nicht nur
+die Fotos; sie ist deshalb nur eine kurze Übergangslösung mit Ticket und
+Termin, keine dokumentierte Ausnahme. Eine schulweise Nachfrist gibt es
+bewusst nicht.
+
+## Kopien außerhalb der Zeile
+
+Der Lauf entfernt das Foto in moto: Zeile, Datei (dauerhafter
+Aufräumauftrag) und damit den Abruf. Bereits heruntergeladene oder
+exportierte Kopien und Browser-Caches erreicht er nicht; sie bearbeitet die
+Schule wie beim Widerruf (Runbook #3844, Abschnitt 2.1 Schritt 4). Sicherungen
+laufen nach ihrer eigenen Frist aus; nach einer Wiederherstellung entfernt der
+nächste Lauf die Fotos beendeter Betreuungen erneut, weil er seine Kandidaten
+aus der Datenbank liest (Runbook #3844, Abschnitt 4).
 
 ## Umsetzung
 

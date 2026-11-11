@@ -90,7 +90,7 @@ func (s *StudentPhotoService) photosPastPurpose(
 	}
 	var candidates []int64
 	err := observeRun(ctx, s.observe, "list_photos_past_purpose", joinTransaction, func(txCtx context.Context, stats *domain.OperationStats) error {
-		ids, listStats, listErr := s.store.ListPhotosPastPurpose(txCtx, today.String())
+		ids, listStats, listErr := s.store.ListPhotosPastPurpose(txCtx, today)
 		stats.Add(listStats)
 		candidates = ids
 		return listErr
@@ -117,7 +117,7 @@ func (s *StudentPhotoService) endPhotoAfterCare(
 			return err
 		}
 		ended := peopledirectory.StudentPhotoCareEnd{
-			TenantID: tenantID, StudentID: studentID, LastCareDay: record.EnrolledUntil,
+			TenantID: tenantID, StudentID: studentID, LastCareDay: lastCareDay(record),
 			Graduated: record.IsAlumnus(), PhotoRemoved: record.PhotoPath != nil,
 			ConsentEnded: record.PhotoConsentGivenAt != nil,
 		}
@@ -158,4 +158,13 @@ func (s *StudentPhotoService) lockPhotoPastPurpose(
 		return record, errPhotoCareEndUnchanged
 	}
 	return record, nil
+}
+
+// lastCareDay is the record's last care day, nil when none is recorded.
+func lastCareDay(record domain.StudentRecord) *calendar.Date {
+	if record.EnrolledUntil == "" {
+		return nil
+	}
+	day := calendar.Date(record.EnrolledUntil)
+	return &day
 }

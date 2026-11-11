@@ -58,7 +58,7 @@ export function parentChildDataTopic(): HelpTopic {
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
       "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
       "Nach dem Widerruf löscht moto ein gespeichertes Foto Ihres Kindes.",
-      "Nach dem letzten Betreuungstag löscht moto das Foto und die Foto-Einwilligung in der Nacht danach von selbst. Bis dahin können Sie weiter widerrufen.",
+      "Nach dem letzten Betreuungstag löscht moto das Foto und die Foto-Einwilligung in der Nacht danach von selbst. Bis dahin können Sie weiter widerrufen. Neu geben können Sie die Einwilligung dann nicht mehr.",
     ],
     differences: [
       "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",

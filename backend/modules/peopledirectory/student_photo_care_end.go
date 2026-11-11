@@ -29,9 +29,9 @@ type StudentPhotoCareEndRetention interface {
 type StudentPhotoCareEnd struct {
 	TenantID  int64
 	StudentID int64
-	// LastCareDay is the child's last care day, empty for a graduate
+	// LastCareDay is the child's last care day, nil for a graduate
 	// without one.
-	LastCareDay  string
+	LastCareDay  *calendar.Date
 	Graduated    bool
 	PhotoRemoved bool
 	ConsentEnded bool

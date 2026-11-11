@@ -181,7 +181,7 @@ func TestStudentPhotoCareEndRemovesPhotoDataOnceTheCareIsOver(t *testing.T) {
 		byChild[entry.StudentID] = entry
 	}
 	assert.Equal(t, peopledirectory.StudentPhotoCareEnd{
-		TenantID: f.tenant, StudentID: ended, LastCareDay: careEndToday.AddDays(-1).String(),
+		TenantID: f.tenant, StudentID: ended, LastCareDay: day(careEndToday.AddDays(-1)),
 		PhotoRemoved: true, ConsentEnded: true,
 	}, byChild[ended])
 	assert.Equal(t, peopledirectory.StudentPhotoCareEnd{

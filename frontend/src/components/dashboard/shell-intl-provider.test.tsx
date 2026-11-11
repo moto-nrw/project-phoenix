@@ -86,7 +86,7 @@ describe("ShellIntlProvider", () => {
         consents: {
           title: "Einwilligungen und Bestätigungen",
           staffDescription:
-            "Eltern ändern die Foto-Einwilligung im Elternportal. Ohne Elternportal sagen sie es Ihnen. Dann entfernen Sie unter „Bearbeiten“ beim Foto den Haken.",
+            "Eltern ändern die Foto-Einwilligung im Elternportal. Eltern ohne Elternportal sagen es Ihnen. Dann entfernen Sie unter „Bearbeiten“ beim Foto den Haken.",
           items: {
             agb: "Allgemeine Geschäftsbedingungen (AGB)",
             data_processing: "Datenschutz zur Kenntnis genommen",
