@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.911 (ADR 0196): the installed school erasure plan of 1.15.811 with the
+// 1.15.915 (ADR 0196): the installed school erasure plan of 1.15.811 with the
 // proposals, commands and revisions of the holiday closure notices;
 // TestHolidayClosureErasureIsTheErasureOf811 keeps it so.
 const holidayClosureErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()

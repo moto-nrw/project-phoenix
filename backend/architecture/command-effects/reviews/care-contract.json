@@ -321,7 +321,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction, with whether the form required each ticked block (#4682: an optional block records the early start wish, never the conditions). The root only maps values, since #6335 also the number of children the parents stated on the registration with its time; no mutation or scope switch (#4678, #4680, #4682, #6335, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction, with whether the form required each ticked block (#4682: an optional block records the early start wish, never the conditions). The root only maps values, since #6335 also the number of children the parents stated on the registration with its time, since #6456 whether a rollover renewed the child into its phase; no mutation or scope switch (#4678, #4680, #4682, #6335, #6456, ADR 0153).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",
       "target_owner": "enrollment"

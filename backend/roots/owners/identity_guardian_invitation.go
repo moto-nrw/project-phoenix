@@ -306,6 +306,16 @@ var parentGuardianSentinels = []retainedSentinel{
 	{identityaccess.ErrMailBlockUnreadable, parentportal.ErrInviteMailUnavailable},
 }
 
+// NewParentSchoolMembershipLock binds Identity & Access's membership lock as
+// the parents portal's child write guard takes it (#6529).
+func NewParentSchoolMembershipLock(db transactionruntime.Database) parentportal.SchoolMembershipLock {
+	return parentportal.SchoolMembershipLock(identityaccessCompose.NewSchoolMembershipLock(db.Pool()))
+}
+
+func NewParentInvitationAccountLock(db transactionruntime.Database) parentportal.InvitationAccountLock {
+	return parentportal.InvitationAccountLock(identityaccessCompose.NewGuardianInvitationAccountLock(db.Pool()))
+}
+
 // NewGuardianInvitationInvalidation binds a transaction-participating identity
 // command without composing the account lifecycle or introducing late binding.
 func NewGuardianInvitationInvalidation(db transactionruntime.Database) identityaccess.GuardianInvitationInvalidation {

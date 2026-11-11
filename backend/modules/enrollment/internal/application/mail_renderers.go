@@ -392,6 +392,9 @@ func rolloverRenderer(spec rolloverRendererSpec) payloadRenderer {
 				"CareFacilityBadge": careFacilityBadge(payloadString(payload, enrollment.EnrollmentPayloadCareFacilityTerm)),
 				"ChildNames":        payloadStringSlice(payload, enrollment.EnrollmentPayloadChildNames),
 				"RolloverDeadline":  payloadString(payload, enrollment.EnrollmentPayloadRolloverDeadline),
+				// A payload enqueued before #6456 has no flag and keeps the
+				// old wording.
+				"RenewalTermsRequired": payload[enrollment.EnrollmentPayloadRenewalTermsRequired] == true,
 			},
 		}, nil
 	}

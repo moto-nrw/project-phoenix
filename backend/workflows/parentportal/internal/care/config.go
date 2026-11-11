@@ -111,8 +111,11 @@ type Config struct {
 	// and the way home alone (#4780, Audit Platform).
 	PickupSignatures PickupSignatureLedger
 
-	// Identity & Access: inviting and removing further guardians, and the
+	// Identity & Access: the guardian's school membership a child write holds
+	// until commit (#6529), inviting and removing further guardians, and the
 	// open invitations shown as pending.
+	Memberships         SchoolMembershipLock
+	InvitationAccounts  InvitationAccountLock
 	GuardianInvites     GuardianAccess
 	GuardianInvitations GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error

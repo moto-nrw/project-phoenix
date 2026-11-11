@@ -8,6 +8,7 @@ import type {
   CareModule,
   CarePriceForm,
   CareMonthRule,
+  CareRunDetail,
   CareRunStatus,
   CareTariffs,
   CareWeekday,
@@ -52,13 +53,17 @@ const MONTH_NAMES = [
 export const CARE_RUN_STATUS_LABELS: Record<CareRunStatus, string> = {
   calculated: "Vorschau",
   released: "Freigegeben",
+  discarded: "Verworfen",
 };
 
-export const CARE_RUN_STATUS_TONES: Record<CareRunStatus, "orange" | "green"> =
-  {
-    calculated: "orange",
-    released: "green",
-  };
+export const CARE_RUN_STATUS_TONES: Record<
+  CareRunStatus,
+  "orange" | "green" | "gray"
+> = {
+  calculated: "orange",
+  released: "green",
+  discarded: "gray",
+};
 
 export const MONTH_RULE_LABELS: Record<CareMonthRule, string> = {
   version_on_first: "Voller Monat nach dem Vertrag am 1.",
@@ -340,4 +345,20 @@ export function contractCountLabel(count: number): string {
 /** "1 Rechnung" / "12 Rechnungen". */
 export function invoiceCountLabel(count: number): string {
   return count === 1 ? "1 Rechnung" : `${count} Rechnungen`;
+}
+
+/**
+ * An open run with nothing to issue or to settle (#6626): no invoice, also no
+ * excluded one, no contract of a free month, no booking without a price and
+ * no child held back. The server decides again under the lock of the release.
+ */
+export function isEmptyCareRun(run: CareRunDetail): boolean {
+  return (
+    run.status === "calculated" &&
+    run.previewCount === 0 &&
+    run.excludedCount === 0 &&
+    (run.freeOfCharge ?? 0) === 0 &&
+    run.unpriced.length === 0 &&
+    run.duplicates.length === 0
+  );
 }

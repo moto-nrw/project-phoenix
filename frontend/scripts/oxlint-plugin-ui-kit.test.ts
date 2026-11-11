@@ -3846,6 +3846,68 @@ describe.concurrent("ui-kit/slide-over-pending", () => {
   });
 });
 
+describe.concurrent("ui-kit/confirmation-dismiss-lock", () => {
+  const RULE = /ui-kit\(confirmation-dismiss-lock\)/g;
+  const PATH = "src/components/probe/probe-confirm.tsx";
+  const probe = (attribute: string) =>
+    `import { ConfirmationModal } from "~/components/ui/modal";
+      export function Probe({ busy, why }: { busy: boolean; why: string }) {
+        return (
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Freigeben?" isConfirmLoading={busy}${attribute}>
+            <p>{why}</p>
+          </ConfirmationModal>
+        );
+      }`;
+
+  it.each([
+    ["as a bare flag", " dismissibleWhileLoading"],
+    ["with an empty reason", ' dismissibleWhileLoading=""'],
+    ["with a blank reason", ' dismissibleWhileLoading={"  "}'],
+    ["with a computed reason", " dismissibleWhileLoading={why}"],
+    ["with a boolean", " dismissibleWhileLoading={true}"],
+    ["with an interpolated template", " dismissibleWhileLoading={`${why}`}"],
+  ])("reports an opt-out %s", async (_label, attribute) => {
+    const result = await lintSource(probe(attribute), PATH);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it.each([
+    ["without an opt-out (the default lock)", ""],
+    [
+      "with a written reason",
+      ' dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."',
+    ],
+    [
+      "with a reason in braces",
+      ' dismissibleWhileLoading={"Abbrechen verwirft nur die Auswahl."}',
+    ],
+    [
+      "with a reason as a plain template",
+      " dismissibleWhileLoading={`Lädt nur, schreibt nichts.`}",
+    ],
+  ])("accepts a ConfirmationModal %s", async (_label, attribute) => {
+    const result = await lintSource(probe(attribute), PATH);
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei mit leerem Opt-out fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = probe(" dismissibleWhileLoading");
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
   it.each(["src/app/school/probe/page.tsx", "src/app/operator/probe/page.tsx"])(
     "reports a hand-rolled card in %s",

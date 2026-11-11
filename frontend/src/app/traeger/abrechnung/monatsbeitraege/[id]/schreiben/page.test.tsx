@@ -37,6 +37,7 @@ const RUN: CareRunDetail = {
   status: "released",
   createdAt: "2027-01-04T08:00:00Z",
   releasedAt: "2027-01-04T08:00:00Z",
+  discardedAt: null,
   issuedOn: "2027-01-04",
   documentCount: 1,
   totalCents: 9600,

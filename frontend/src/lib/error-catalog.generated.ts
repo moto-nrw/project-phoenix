@@ -568,6 +568,10 @@ export const ERROR_CATALOG = {
         "Das Anmeldefenster endet vor seinem Start. Bitte prüfen Sie Öffnung und Schließung.",
       "enrollment.pickup_time_not_allowed":
         "Bitte wählen Sie nur Abholzeiten aus der Liste. Die markierte Zeit gibt es nicht mehr.",
+      "enrollment.renewal_terms_changed":
+        "Die Bedingungen wurden gerade geändert. Bitte lesen Sie sie noch einmal und stimmen Sie dann zu.",
+      "enrollment.renewal_terms_required":
+        "Bitte stimmen Sie den Bedingungen für den neuen Zeitraum zu.",
       "enrollment.request_duplicate":
         "Für dieses Kind gibt es in dieser Anmeldephase schon eine Anmeldung.",
       "enrollment.request_not_found":
@@ -867,8 +871,12 @@ export const ERROR_CATALOG = {
         "Es gibt noch keine Bestätigungsschreiben. Bitte erstellen Sie zuerst die Schreiben.",
       "parent_billing.billing_run_changed":
         "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
+      "parent_billing.billing_run_discarded":
+        "Dieser Lauf ist verworfen. Er lässt sich nicht mehr ändern. Starten Sie bei Bedarf einen neuen Lauf.",
       "parent_billing.billing_run_empty":
         "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
+      "parent_billing.billing_run_not_empty":
+        "Der Lauf hat inzwischen etwas abzurechnen. Er wird nicht verworfen. Bitte prüfen Sie die Vorschau.",
       "parent_billing.billing_run_not_found":
         "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
       "parent_billing.billing_run_not_released":
@@ -2272,6 +2280,10 @@ export const ERROR_CATALOG = {
         "This enrollment is not available for your account. Please sign in to the parent app or ask the school.",
       "enrollment.pickup_time_not_allowed":
         "Please only choose pick-up times from the list. The marked time is no longer available.",
+      "enrollment.renewal_terms_changed":
+        "The terms have just changed. Please read them again and then agree.",
+      "enrollment.renewal_terms_required":
+        "Please agree to the terms for the new period.",
       "enrollment.request_duplicate":
         "This child already has an enrollment in this enrollment period.",
       "enrollment.required_care_offering_missing":
@@ -2902,6 +2914,10 @@ export const ERROR_CATALOG = {
         "Эта запись недоступна для вашего аккаунта. Войдите в приложение для родителей или обратитесь в школу.",
       "enrollment.pickup_time_not_allowed":
         "Выбирайте время забора только из списка. Отмеченного времени больше нет.",
+      "enrollment.renewal_terms_changed":
+        "Условия только что изменились. Пожалуйста, прочитайте их ещё раз и согласитесь.",
+      "enrollment.renewal_terms_required":
+        "Пожалуйста, согласитесь с условиями на новый период.",
       "enrollment.request_duplicate":
         "Для этого ребёнка уже есть заявка в этот период записи.",
       "enrollment.required_care_offering_missing":
@@ -3472,6 +3488,10 @@ export const ERROR_CATALOG = {
         "Ky regjistrim nuk është i hapur për llogarinë tuaj. Hyni në aplikacionin për prindër ose pyesni shkollën.",
       "enrollment.pickup_time_not_allowed":
         "Ju lutemi zgjidhni vetëm orë marrjeje nga lista. Ora e shënuar nuk ofrohet më.",
+      "enrollment.renewal_terms_changed":
+        "Kushtet sapo u ndryshuan. Ju lutemi lexojini përsëri dhe pastaj pranojini.",
+      "enrollment.renewal_terms_required":
+        "Ju lutemi pranoni kushtet për periudhën e re.",
       "enrollment.request_duplicate":
         "Për këtë fëmijë ka tashmë një regjistrim në këtë periudhë.",
       "enrollment.required_care_offering_missing":
@@ -4031,6 +4051,10 @@ export const ERROR_CATALOG = {
         "Ten zapis nie jest dostępny dla Twojego konta. Zaloguj się w aplikacji dla rodziców lub zapytaj szkołę.",
       "enrollment.pickup_time_not_allowed":
         "Wybieraj tylko godziny odbioru z listy. Zaznaczona godzina nie jest już dostępna.",
+      "enrollment.renewal_terms_changed":
+        "Warunki zostały właśnie zmienione. Prosimy przeczytać je ponownie i wyrazić zgodę.",
+      "enrollment.renewal_terms_required":
+        "Prosimy wyrazić zgodę na warunki na nowy okres.",
       "enrollment.request_duplicate":
         "To dziecko ma już zapis w tym okresie zapisów.",
       "enrollment.required_care_offering_missing":
@@ -4596,6 +4620,10 @@ export const ERROR_CATALOG = {
         "Bu kayıt hesabınız için açık değil. Lütfen veli uygulamasına giriş yapın veya okula sorun.",
       "enrollment.pickup_time_not_allowed":
         "Lütfen yalnızca listedeki alma saatlerini seçin. İşaretli saat artık yok.",
+      "enrollment.renewal_terms_changed":
+        "Koşullar az önce değişti. Lütfen tekrar okuyun ve ardından onaylayın.",
+      "enrollment.renewal_terms_required":
+        "Lütfen yeni dönemin koşullarını onaylayın.",
       "enrollment.request_duplicate":
         "Bu çocuk için bu kayıt döneminde zaten bir kayıt var.",
       "enrollment.required_care_offering_missing":
@@ -5153,6 +5181,10 @@ export const ERROR_CATALOG = {
         "Цей запис недоступний для вашого облікового запису. Увійдіть у застосунок для батьків або зверніться до школи.",
       "enrollment.pickup_time_not_allowed":
         "Обирайте час забирання лише зі списку. Позначеного часу більше немає.",
+      "enrollment.renewal_terms_changed":
+        "Умови щойно змінилися. Будь ласка, прочитайте їх ще раз і погодьтеся.",
+      "enrollment.renewal_terms_required":
+        "Будь ласка, погодьтеся з умовами на новий період.",
       "enrollment.request_duplicate":
         "Для цієї дитини вже є заявка в цей період запису.",
       "enrollment.required_care_offering_missing":

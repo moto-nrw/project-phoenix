@@ -7,17 +7,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayClosureEventsVersion = "1.15.911"
+const holidayClosureEventsVersion = "1.15.915"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayClosureEventsVersion,
 		Description: "Ferien: Schul-Schließtage schlagen einen Elternhinweis vor, ein Klick beauftragt ihn (#6442, #6457, ADR 0196)",
 		DependsOn: []string{
-			holidayCriteriaAllocationVersion, // the newest migration on development
-			holidayClosureNoticesVersion,     // the notices this one versions
-			traegerClosingDaysVersion,        // the Träger closing days the read channel names
-			mealBillingMonthsVersion,         // the school erasure this one extends
+			parentBillingDiscardEmptyRunsVersion, // the newest migration on development
+			holidayClosureNoticesVersion,         // the notices this one versions
+			traegerClosingDaysVersion,            // the Träger closing days the read channel names
+			mealBillingMonthsVersion,             // the school erasure this one extends
 		},
 	})
 	Migrations.MustRegister(holidayClosureEventsUp, holidayClosureEventsDown)
@@ -417,7 +417,7 @@ pending AS (
 INSERT INTO calendar.holiday_closure_proposals
 	(tenant_id, organization_id, source_kind, source_id, operation_id, reason, current_start, current_end, span_from, span_to, revision)
 SELECT pending.tenant_id, pending.organization_id, 'school_closing_day', pending.id,
-	substr(encode(sha256(convert_to('holiday-closure-carry-over:1.15.911:' || pending.organization_id || ':'
+	substr(encode(sha256(convert_to('holiday-closure-carry-over:1.15.915:' || pending.organization_id || ':'
 		|| pending.tenant_id || ':' || pending.id, 'UTF8')), 'hex'), 1, 32)::uuid,
 	left(pending.reason, 255), pending.start_date, pending.end_date, pending.start_date, pending.end_date, 0
 FROM pending

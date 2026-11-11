@@ -32,6 +32,10 @@ type ContractApplication struct {
 	// stated on the registration, with the time; nil when none (#6335).
 	FamilyChildren         *int
 	FamilyChildrenStatedAt *time.Time
+	// Renewal tells that a rollover carried the child into its phase: the
+	// acceptance of the new phase comes only from the parents' confirmation
+	// of its terms (#6456).
+	Renewal bool
 }
 
 // ContractPhase is an offering phase's name and inclusive service window.

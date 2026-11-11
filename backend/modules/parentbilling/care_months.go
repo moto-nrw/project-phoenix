@@ -197,6 +197,8 @@ type CareRun struct {
 	MonthRule     string         `json:"month_rule"`
 	// FreeOfCharge is the free-month count saved by the release.
 	FreeOfCharge int `json:"free_of_charge"`
+	// DiscardedAt is set once the Abrechnung discarded the empty run (#6626).
+	DiscardedAt *time.Time `json:"discarded_at"`
 	// CareRunScope names the schools and the invoice date (#5916).
 	CareRunScope
 }
@@ -475,6 +477,17 @@ type CareBillingSettings interface {
 	// DatevBillingSettings names the standard revenue account the release
 	// copies onto a position without an account of its own (#4821).
 	DatevBillingSettings
+}
+
+// CareRunDiscard discards an open monthly run that has nothing to issue
+// (#6626): no invoice, also no excluded one, no contract of a free month,
+// no booking without a price and no child held back. It holds the run and
+// the monthly billing of the Träger like the release, refuses a run with
+// content as ErrBillingRunNotEmpty and records the discard in the run's
+// trail; nothing is deleted, and the schools are free for a new run of
+// the month.
+type CareRunDiscard interface {
+	DiscardCareRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareRunDetail, error)
 }
 
 // CareBilling lets the Abrechnung of a Träger keep the monthly prices of

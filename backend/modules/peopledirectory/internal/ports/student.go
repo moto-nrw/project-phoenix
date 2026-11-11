@@ -59,6 +59,9 @@ type StudentStore interface {
 	// the read precedence.
 	FindDeparturePlan(context.Context, int64) (domain.DeparturePlan, bool, domain.OperationStats, error)
 	CreateEnrollment(context.Context, domain.EnrollmentStudent) (peopledirectory.Student, domain.OperationStats, error)
+	// CreateEnrollments inserts the profiles of new children in one
+	// statement (#5552); the result is index-aligned.
+	CreateEnrollments(context.Context, []domain.EnrollmentStudent) ([]peopledirectory.Student, domain.OperationStats, error)
 	// ListByIDs returns the rows for ids, alumni included.
 	ListByIDs(context.Context, []int64) ([]peopledirectory.Student, domain.OperationStats, error)
 	ListNamesByIDs(context.Context, []int64) ([]peopledirectory.StudentName, domain.OperationStats, error)

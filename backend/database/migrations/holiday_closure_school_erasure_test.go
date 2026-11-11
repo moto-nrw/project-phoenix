@@ -67,7 +67,7 @@ var (
 		holidayClosureErasureResiduals()+holidayClosureErasureResidualAnchor, 1)
 )
 
-// The school erasure of 1.15.911 is the erasure of 1.15.811 with the three
+// The school erasure of 1.15.915 is the erasure of 1.15.811 with the three
 // tables of the holiday closure notices (ADR 0196), and nothing else changed.
 func TestHolidayClosureErasureIsTheErasureOf811(t *testing.T) {
 	t.Parallel()

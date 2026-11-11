@@ -30,6 +30,9 @@ type StudentOwners interface {
 	Enroll(context.Context, peopledirectory.StudentRecord) (int64, error)
 	Renew(context.Context, peopledirectory.StudentRecord) (int64, error)
 	SaveCare(context.Context, int64, peopledirectory.StudentRecord, peopledirectory.StudentPlan, *string, bool) error
+	// SaveCareBatch is SaveCare for the care profiles of many new
+	// memberships in one Care Plan statement (#5552).
+	SaveCareBatch(context.Context, []peopledirectory.StudentCareSave) error
 }
 
 // StudentNoteDeletionAudit is the Audit Platform seam behind note removals.

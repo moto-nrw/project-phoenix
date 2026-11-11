@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -56,8 +57,12 @@ func (s *stubEnrollmentRequestRepo) BackfillGuardianAccountID(_ context.Context,
 // time, so leaving them nil here is fine.
 func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentService.Portal {
 	t.Helper()
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:           parentMemberships(t, db),
+		StudentGuardianRepo:   guardStudentGuardians(t, db),
+		GuardianProfileRepo:   guardProfiles(t, db),
+		StudentRepo:           guardStudents(t, db),
 		GuardianChanges:       owners.ParentGuardianChanges(),
 		DeparturePolicy:       owners.ParentDeparturePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
@@ -118,8 +123,12 @@ func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
 func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 	t.Parallel()
 
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:           parentMemberships(t, db),
+		StudentGuardianRepo:   guardStudentGuardians(t, db),
+		GuardianProfileRepo:   guardProfiles(t, db),
+		StudentRepo:           guardStudents(t, db),
 		GuardianChanges:       owners.ParentGuardianChanges(),
 		DeparturePolicy:       owners.ParentDeparturePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
@@ -266,8 +275,11 @@ func (p portalLocalePeople) SetGuardianPortalLocale(ctx context.Context, account
 
 func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo) *parentService.Portal {
 	t.Helper()
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -393,8 +405,11 @@ func TestService_GetProfile_RejectsNonPositiveAccount(t *testing.T) {
 func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 	t.Parallel()
 
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -439,6 +454,9 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	repo := &stubGuardianProfileRepo{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -487,8 +505,11 @@ func TestService_UpdatePortalLocale_PropagatesRepoError(t *testing.T) {
 func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 	t.Parallel()
 
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -533,4 +554,26 @@ func TestService_UpdatePortalLocale_SurfacesMissingProfile(t *testing.T) {
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, parentService.ErrGuardianProfileNotFound)
+}
+
+// parentMemberships, guardStudentGuardians, guardProfiles and guardStudents
+// bind the real ports the child write guard locks through, as the root does.
+func parentMemberships(t testing.TB, db *bun.DB) parentService.SchoolMembershipLock {
+	t.Helper()
+	return owners.NewParentSchoolMembershipLock(testpkg.NewDatabase(t, db))
+}
+
+func guardStudentGuardians(t testing.TB, db *bun.DB) parentService.StudentGuardianReads {
+	t.Helper()
+	return owners.NewParentStudentGuardianReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian)
+}
+
+func guardProfiles(t testing.TB, db *bun.DB) parentService.GuardianProfiles {
+	t.Helper()
+	return owners.NewParentGuardianProfileReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile)
+}
+
+func guardStudents(t testing.TB, db *bun.DB) parentService.StudentReads {
+	t.Helper()
+	return owners.NewParentStudentReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student)
 }

@@ -96,6 +96,7 @@ export type TemplateIssue =
   | "templates_differ"
   | "conclusion_automatic"
   | "acceptance_missing"
+  | "acceptance_missing_renewal"
   | "acceptance_changed"
   | "recipient_missing"
   | "mail_blocked"
@@ -110,6 +111,11 @@ type AcceptanceIssue = "acceptance_missing" | "acceptance_changed";
 /** An accepted application child with booked care and no contract. */
 export interface ContractCandidate extends CandidateKey {
   readonly acceptanceIssue: AcceptanceIssue | null;
+  /**
+   * A rollover renewed the child into a new phase; a missing acceptance then
+   * means the parents have not accepted that phase's conditions (#6456).
+   */
+  readonly renewal: boolean;
   readonly schoolName: string;
   readonly childFirstName: string;
   readonly childLastName: string;
@@ -340,6 +346,7 @@ interface BackendService {
 
 interface BackendCandidate {
   acceptance_issue?: AcceptanceIssue | "";
+  renewal?: boolean;
   mail_block?: "stopped" | "address" | "";
   school_id: number;
   request_child_id: number;
@@ -514,6 +521,7 @@ function candidateFromBackend(row: BackendCandidate): ContractCandidate {
     templateIssue: row.template_issue === "" ? null : row.template_issue,
     modulesText: row.modules_text ?? "",
     acceptanceIssue: row.acceptance_issue ? row.acceptance_issue : null,
+    renewal: row.renewal === true,
     mailBlock: row.mail_block ? row.mail_block : null,
   };
 }

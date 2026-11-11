@@ -144,7 +144,7 @@ func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBran
 	post := parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}
 	letters := parentBillingCompose.NewCareLetters(newParentBillingLetterheads(settings), contracts, post, post)
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
-	return parentBillingHTTP.NewCareBillingResource(billing, letters, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
+	return parentBillingHTTP.NewCareBillingResource(billing, billing, letters, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
 		parentBillingHTTP.NewCareMealTariffResource(billing, requireBilling), parentBillingHTTP.NewFamilyChildrenResource(reductions, requireBilling)
 }
 

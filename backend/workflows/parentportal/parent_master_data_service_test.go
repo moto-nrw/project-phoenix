@@ -53,6 +53,7 @@ func masterDataServiceDependencies(t *testing.T, db *bun.DB, editEnabled bool) p
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	return parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -150,17 +151,21 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
-		ChildRepo:       repos.ParentChildReads(),
-		Settings:        masterDataSettings(true, true, false),
-		MealPlan:        availableMealPlan(false),
-		Logger:          slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		StudentRepo:         guardStudents(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		ChildRepo:           repos.ParentChildReads(),
+		Settings:            masterDataSettings(true, true, false),
+		MealPlan:            availableMealPlan(false),
+		Logger:              slog.Default(),
 
 		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})

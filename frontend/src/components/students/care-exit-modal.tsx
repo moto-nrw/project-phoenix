@@ -25,7 +25,10 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
+import {
+  useFormModalPending,
+  type FormModalOperation,
+} from "~/components/ui/use-form-modal-pending";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate, berlinTodayISO } from "~/lib/date-helpers";
@@ -110,7 +113,8 @@ export function CareExitModal({
   );
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<CareExitPreview | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Vorschau und Bestätigen laufen als Vorgang dieses Panels: währenddessen
+  // ist es gesperrt, und eine späte Antwort ändert keinen neueren Vorgang.
   const save = useFormModalPending(isOpen);
   const errors = useApiFormError();
   const showError = errors.show;
@@ -140,44 +144,49 @@ export function CareExitModal({
   // Lädt die Vorschau neu. Eine vorhandene Fehlermeldung wird NICHT gelöscht:
   // nach einer abgelehnten Bestätigung ist genau diese Meldung der Grund,
   // warum gerade neu geladen wird — sie muss stehen bleiben.
-  const loadPreview = useCallback(async () => {
-    if (!reason) return null;
-    setLoading(true);
-    try {
-      const input = {
-        studentIds: ids,
-        lastCareDay,
-        reason,
-        reasonNote: note,
-      };
-      const result = completionId
-        ? await previewWithdrawalCareEnd(completionId, input)
-        : await previewCareExit(input);
-      setPreview(result);
-      return result;
-    } catch (previewError) {
-      logger.error("care_exit_preview_failed", {
-        student_count: ids.length,
-        error:
-          previewError instanceof Error
-            ? previewError.message
-            : String(previewError),
-      });
-      setPreview(null);
-      await showError(previewError, {
-        object: "die Vorschau",
-        retry: () => void latestContinueRef.current(),
-      });
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [completionId, ids, lastCareDay, note, reason, showError]);
+  const loadPreview = useCallback(
+    async (op: FormModalOperation) => {
+      if (!reason) return null;
+      try {
+        const input = {
+          studentIds: ids,
+          lastCareDay,
+          reason,
+          reasonNote: note,
+        };
+        const result = completionId
+          ? await previewWithdrawalCareEnd(completionId, input)
+          : await previewCareExit(input);
+        // Nach dem Schließen gehört die Vorschau keinem Panel mehr.
+        if (!op.isCurrent()) return null;
+        setPreview(result);
+        return result;
+      } catch (previewError) {
+        logger.error("care_exit_preview_failed", {
+          student_count: ids.length,
+          error:
+            previewError instanceof Error
+              ? previewError.message
+              : String(previewError),
+        });
+        if (!op.isCurrent()) return null;
+        setPreview(null);
+        await showError(previewError, {
+          object: "die Vorschau",
+          retry: () => void latestContinueRef.current(),
+        });
+        return null;
+      }
+    },
+    [completionId, ids, lastCareDay, note, reason, showError],
+  );
 
   const handleContinue = async () => {
-    errors.clear();
-    const result = await loadPreview();
-    if (result) setStep(2);
+    await save.run(async (op) => {
+      errors.clear();
+      const result = await loadPreview(op);
+      if (result && op.isCurrent()) setStep(2);
+    });
   };
   useLayoutEffect(() => {
     latestContinueRef.current = handleContinue;
@@ -211,7 +220,7 @@ export function CareExitModal({
         if (!op.isCurrent()) return;
         // Der Vorschau-Stand ist verbraucht: neu laden, damit die Liste zeigt,
         // was sich geändert hat. Scheitert auch das, steht dessen Meldung.
-        const reloaded = await loadPreview();
+        const reloaded = await loadPreview(op);
         if (reloaded && op.isCurrent()) {
           await errors.show(confirmError, {
             object: "das Betreuungsende",
@@ -246,22 +255,16 @@ export function CareExitModal({
   const footer =
     step === 1 ? (
       <>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={onClose}
-          disabled={loading}
-        >
+        <Button type="button" variant="outline" size="md" onClick={onClose}>
           Abbrechen
         </Button>
         <Button
           type="button"
           variant="primary"
           size="md"
-          isLoading={loading}
+          isLoading={save.pending}
           loadingText="Wird geprüft…"
-          disabled={!detailsComplete || loading}
+          disabled={!detailsComplete}
           onClick={() => void handleContinue()}
         >
           Weiter
