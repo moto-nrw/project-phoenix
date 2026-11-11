@@ -4555,3 +4555,105 @@ describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
     expect(good.output).not.toContain("no-slide-over-row-override");
   });
 });
+
+describe.concurrent("ui-kit/button-needs-tooltip", () => {
+  const RULE = "ui-kit(button-needs-tooltip)";
+  const IN_SCOPE = "src/components/settings/probe.tsx";
+  const probe = (jsx: string, prelude = "") =>
+    `import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
+    import { ActionHint } from "~/components/ui/action-hint";
+    ${prelude}
+    export function Probe(props: Record<string, unknown>) {
+      void props; void ButtonLink; void buttonClassName; void ActionHint;
+      return ${jsx};
+    }`;
+
+  it.each([
+    [
+      "a string tooltip",
+      `<Button tooltip="Löscht das Bild sofort.">Löschen</Button>`,
+    ],
+    [
+      "a tooltip expression",
+      `<Button tooltip={props.busy ? "Lädt gerade." : "Speichert den Wert."}>Speichern</Button>`,
+    ],
+    [
+      "a tooltip passed through",
+      `<ButtonLink href="/x" tooltip={props.hint as string}>Öffnen</ButtonLink>`,
+    ],
+    ["spread props", `<Button {...props}>Weiter</Button>`],
+    [
+      "noTooltip with a reason",
+      `<Button noTooltip="Abbrechen schließt nur den Dialog.">Abbrechen</Button>`,
+    ],
+    [
+      "a button-looking label inside ActionHint",
+      `<ActionHint text="Lädt eine Datei hoch."><label className={buttonClassName({ variant: "outline", size: "md", className: "" })}>Datei</label></ActionHint>`,
+    ],
+  ])("accepts %s", async (_name, jsx) => {
+    const { output } = await lintSource(probe(jsx), IN_SCOPE);
+    expect(output).not.toContain(RULE);
+  });
+
+  it.each([
+    [
+      "a button without explanation",
+      `<Button>Löschen</Button>`,
+      "Knopf ohne Erklärung",
+    ],
+    [
+      "an empty noTooltip reason",
+      `<Button noTooltip="  ">Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "an empty tooltip",
+      `<Button tooltip="">Löschen</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "title instead of tooltip",
+      `<ButtonLink href="/x" title="Öffnet die Akte.">Akte</ButtonLink>`,
+      "`title` ersetzt keine Erklärung",
+    ],
+    [
+      "a spread object literal without tooltip",
+      `<Button {...{ type: "button" as const }}>Senden</Button>`,
+      "Knopf ohne Erklärung",
+    ],
+    [
+      "a button-looking anchor without ActionHint",
+      `<a href="/x" className={buttonClassName({ variant: "outline", size: "md", className: "" })}>PDF</a>`,
+      "in `ActionHint text=",
+    ],
+    [
+      "a button-looking label through a constant",
+      `<label className={look}>Datei</label>`,
+      "in `ActionHint text=",
+    ],
+  ])("rejects %s", async (_name, jsx, message) => {
+    const { output } = await lintSource(
+      probe(
+        jsx,
+        `const look = buttonClassName({ variant: "outline", size: "md", className: "" });`,
+      ),
+      IN_SCOPE,
+    );
+    expect(output).toContain(RULE);
+    expect(output).toContain(message);
+  });
+
+  it("covers listed folders and files, and nothing outside the list", async () => {
+    const source = probe(`<Button>Löschen</Button>`);
+    const [school, traeger, outside, story] = await Promise.all([
+      lintSource(source, "src/app/[tenant]/(protected)/settings/probe.tsx"),
+      lintSource(source, "src/app/traeger/einstellungen/probe/page.tsx"),
+      lintSource(source, "src/components/students/probe.tsx"),
+      lintSource(source, "src/components/settings/probe.stories.tsx"),
+    ]);
+    expect(school.output).toContain(RULE);
+    expect(traeger.output).toContain(RULE);
+    expect(outside.output).not.toContain(RULE);
+    expect(story.output).not.toContain(RULE);
+  });
+});

@@ -257,6 +257,7 @@ export default function TraegerAccountsPage() {
           type="button"
           variant="primary"
           size="md"
+          tooltip="Öffnet ein Fenster, um eine Person ins Träger-Büro einzuladen."
           onClick={() => setInviting(true)}
         >
           <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />

@@ -32,32 +32,50 @@ declare global {
   }
 }
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  ref?: React.Ref<HTMLButtonElement>;
-  isLoading?: boolean;
-  loadingText?: string;
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  touchTarget?: boolean;
-  /**
-   * One sentence on what a click does, shown on mouse hover and keyboard
-   * focus (`ActionHint`, #6643). Replaces a `title` attribute.
-   */
-  tooltip?: string;
-}
+/**
+ * What a click does (#6643). Either `tooltip` or `noTooltip`, never both;
+ * `ui-kit/button-needs-tooltip` requires one of them in its paths.
+ */
+export type ButtonExplanation =
+  | {
+      /**
+       * One sentence on what a click does, shown on mouse hover and keyboard
+       * focus (`ActionHint`). Replaces a `title` attribute.
+       */
+      readonly tooltip?: string;
+      readonly noTooltip?: never;
+    }
+  | {
+      readonly tooltip?: never;
+      /**
+       * Why the word on the button already says everything („Abbrechen“ in a
+       * dialog). Renders nothing; it makes the decision visible in code.
+       * The lint rule rejects an empty reason.
+       */
+      readonly noTooltip: string;
+    };
 
-interface ButtonLinkProps extends Omit<
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
+  ButtonExplanation & {
+    ref?: React.Ref<HTMLButtonElement>;
+    isLoading?: boolean;
+    loadingText?: string;
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+    touchTarget?: boolean;
+  };
+
+type ButtonLinkProps = Omit<
   React.ComponentProps<typeof Link>,
   "className" | "href"
-> {
-  readonly href: string;
-  readonly resources?: readonly PrefetchResource[];
-  readonly variant?: ButtonVariant;
-  readonly size?: ButtonSize;
-  readonly className?: string;
-  /** See `ButtonProps.tooltip`. */
-  readonly tooltip?: string;
-}
+> &
+  ButtonExplanation & {
+    readonly href: string;
+    readonly resources?: readonly PrefetchResource[];
+    readonly variant?: ButtonVariant;
+    readonly size?: ButtonSize;
+    readonly className?: string;
+  };
 type ButtonLinkNavigationEvent = Parameters<
   NonNullable<ButtonLinkProps["onNavigate"]>
 >[0];
@@ -72,6 +90,7 @@ export function Button({
   touchTarget = false,
   disabled,
   tooltip,
+  noTooltip: _noTooltip,
   ...props
 }: Readonly<ButtonProps>) {
   const button = (
@@ -97,6 +116,7 @@ export function ButtonLink({
   className = "",
   resources,
   tooltip,
+  noTooltip: _noTooltip,
   ...props
 }: Readonly<ButtonLinkProps>) {
   const intentProps = useLinkIntentPrefetch({ ...props, resources });

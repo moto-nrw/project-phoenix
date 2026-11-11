@@ -157,6 +157,7 @@ export default function TraegerBriefkopfPage() {
                 )}
                 variant="outline"
                 size="md"
+                tooltip="Öffnet das Schreiben nach der Ferienanmeldung zum Bearbeiten."
               >
                 Schreiben anpassen
               </ButtonLink>
@@ -172,6 +173,7 @@ export default function TraegerBriefkopfPage() {
                 href={traegerPath("/traeger/einstellungen/briefkopf/vorlagen")}
                 variant="outline"
                 size="md"
+                tooltip="Öffnet die Liste der anderen Vorlagen für Schreiben."
               >
                 Vorlagen öffnen
               </ButtonLink>

@@ -43,5 +43,9 @@
   "installOutroAndroid": "Uygulamada tekrar Ayarlar'ı açın. Orada bildirimleri tek dokunuşla açarsınız.",
   "errorObjectEnable": "bildirimleri açma",
   "errorObjectDisable": "bildirimleri kapatma",
-  "errorObjectTest": "test bildirimi"
+  "errorObjectTest": "test bildirimi",
+  "enableTooltip": "Cihazınızdan izin ister, ardından bildirimleri burada açar.",
+  "disableTooltip": "Bildirimleri hemen kapatır, yalnızca bu cihazda.",
+  "installTooltip": "moto'yu bu cihaza uygulama olarak kurmaya başlar.",
+  "checkAgainTooltip": "moto'nun bu cihazda size bildirim gönderip gönderemeyeceğini yeniden kontrol eder."
 }

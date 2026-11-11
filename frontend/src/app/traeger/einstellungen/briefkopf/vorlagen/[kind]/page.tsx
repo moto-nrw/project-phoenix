@@ -295,6 +295,7 @@ function TemplateEditorPage({
                       type="button"
                       variant="outline"
                       size="md"
+                      tooltip="Ersetzt den Text im Formular durch den Standardtext, noch ohne Speichern."
                       disabled={saving}
                       onClick={() => {
                         setDraft(templateTextOf(standard));
@@ -407,6 +408,7 @@ function TemplateEditorPage({
                       type="button"
                       variant="outline"
                       size="md"
+                      tooltip="Zeigt, wie der Brief mit dem aktuellen Text aussieht."
                       disabled={saving || previewing || !previewStale}
                       isLoading={previewing}
                       loadingText="Vorschau lädt…"

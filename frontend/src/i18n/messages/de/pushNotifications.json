@@ -43,5 +43,9 @@
   "installOutroAndroid": "Öffnen Sie in der App wieder die Einstellungen. Dort schalten Sie Benachrichtigungen mit einem Tipp ein.",
   "errorObjectEnable": "das Einschalten der Benachrichtigungen",
   "errorObjectDisable": "das Ausschalten der Benachrichtigungen",
-  "errorObjectTest": "die Testbenachrichtigung"
+  "errorObjectTest": "die Testbenachrichtigung",
+  "enableTooltip": "Fragt Ihr Gerät um Erlaubnis und schaltet dann Benachrichtigungen hier ein.",
+  "disableTooltip": "Schaltet Benachrichtigungen sofort aus, nur auf diesem Gerät.",
+  "installTooltip": "Startet die Installation von moto als App auf diesem Gerät.",
+  "checkAgainTooltip": "Prüft noch einmal, ob moto Sie auf diesem Gerät benachrichtigen darf."
 }

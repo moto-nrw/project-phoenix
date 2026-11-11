@@ -45,5 +45,7 @@
   "errorObjectList": "the list of notifications",
   "errorObjectType": "the notification “{name}”",
   "errorObjectEnableAll": "turning on all notifications",
-  "errorObjectDisableAll": "turning off all notifications"
+  "errorObjectDisableAll": "turning off all notifications",
+  "enableAllTooltip": "Turns on all notifications at once.",
+  "disableAllTooltip": "Turns off all moto notifications for you at once."
 }
