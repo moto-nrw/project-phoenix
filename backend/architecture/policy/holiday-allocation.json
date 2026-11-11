@@ -1,0 +1,53 @@
+{
+  "packages": [
+    {
+      "path": "workflows/holidayallocation",
+      "owner": "holiday-allocation",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/holidayallocation/compose",
+      "owner": "holiday-allocation",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "holiday-allocation.public.enrollment.public",
+      "description": "Holiday allocation ports name Enrollment's public reviewer, booking, capacity and decision values (ADR 0206).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-allocation",
+      "source_role": "public",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-allocation.compose.tenant-runtime.public",
+      "description": "Holiday allocation composition binds the joining Träger transaction of Tenant Runtime (ADR 0206).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-allocation",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-allocation.decision-test.enrollment.public",
+      "description": "Holiday allocation decision tests fake the owner ports through Enrollment's public values (ADR 0206).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "holiday-allocation",
+      "source_role": "workflow-decision-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    }
+  ]
+}

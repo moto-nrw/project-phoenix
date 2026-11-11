@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -17,9 +18,11 @@ import (
 // sibling (#5662); the page of the registration shows the difference.
 //
 // A move up happens in Enrollment under the locks of a cancellation, a
-// rebooking or a new capacity. These run here, under the lock of the
-// period's invoices first, so the release of a billing run sees either the
-// state before or after, never a placement without its contribution.
+// rebooking, a new capacity or a decision by criteria. The cancellation runs
+// here; the other three run in the holiday allocation workflow (ADR 0206).
+// Both take the lock of the period's invoices first, so the release of a
+// billing run sees either the state before or after, never a placement
+// without its contribution.
 
 // withMovedUpBookings adds to the frozen children the placed bookings of the
 // registration that actually moved up and the frozen contribution does
@@ -127,50 +130,28 @@ func (h *HolidayContributions) refreezeMovedUp(ctx context.Context, reviewer par
 	return nil
 }
 
-// RebookHolidayChild holds the invoices of the period and the period,
-// rebooks the child through Enrollment and computes the contribution of
-// every confirmed registration that moved up again.
-func (h *HolidayContributions) RebookHolidayChild(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID, childID int64,
-	bookings []parentbilling.HolidayBookingChoice,
-) (parentbilling.HolidayPlaceChange, error) {
-	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
-		return parentbilling.HolidayPlaceChange{}, errTraegerRequired
+// HoldHolidayAllocationInvoices takes the billing lock of the period's
+// holiday invoices for the holiday allocation workflow (ADR 0206), before
+// the workflow holds Enrollment's period. It reads nothing.
+func (h *HolidayContributions) HoldHolidayAllocationInvoices(ctx context.Context, organizationID, accountID, periodID int64) error {
+	if organizationID <= 0 || accountID <= 0 {
+		return errTraegerRequired
 	}
-	_, _, err := h.lockSiblings(ctx, reviewer, periodID)
-	if err != nil {
-		return parentbilling.HolidayPlaceChange{}, err
+	if err := h.store.LockPeriodBilling(ctx, organizationID, parentbilling.ServiceHoliday, periodID); err != nil {
+		return fmt.Errorf("parent billing: hold the invoices of the period: %w", err)
 	}
-	registration, err := h.registrations.RebookHolidayChild(ctx, reviewer, periodID, registrationID, childID, bookings)
-	if err != nil {
-		return parentbilling.HolidayPlaceChange{}, err
-	}
-	if err := h.refreezeMovedUp(ctx, reviewer, periodID, registration.MovedUp); err != nil {
-		return parentbilling.HolidayPlaceChange{}, err
-	}
-	return parentbilling.HolidayPlaceChange{
-		Registration: registration.View, RegistrationID: registration.ID, MovedUp: movedUpOrEmpty(registration.MovedUp),
-	}, nil
+	return nil
 }
 
-// SetHolidayWeekCapacity holds the invoices of the period and the period,
-// sets the places of the week through Enrollment and computes the
-// contribution of every confirmed registration that moved up again.
-func (h *HolidayContributions) SetHolidayWeekCapacity(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, weekID int64, capacity *int) (parentbilling.HolidayPlaceChange, error) {
-	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
-		return parentbilling.HolidayPlaceChange{}, errTraegerRequired
+// RefreezeHolidayAllocationContributions computes the contribution of every
+// registration that gained a place, with its sibling group, after the
+// workflow's rebooking, capacity or decision (ADR 0206). The workflow still
+// holds the billing lock and the period; this takes no further lock.
+func (h *HolidayContributions) RefreezeHolidayAllocationContributions(ctx context.Context, organizationID, accountID, periodID int64, registrationIDs []int64) error {
+	if organizationID <= 0 || accountID <= 0 {
+		return errTraegerRequired
 	}
-	_, _, err := h.lockSiblings(ctx, reviewer, periodID)
-	if err != nil {
-		return parentbilling.HolidayPlaceChange{}, err
-	}
-	movedUp, err := h.registrations.SetHolidayWeekCapacity(ctx, reviewer, periodID, weekID, capacity)
-	if err != nil {
-		return parentbilling.HolidayPlaceChange{}, err
-	}
-	if err := h.refreezeMovedUp(ctx, reviewer, periodID, movedUp); err != nil {
-		return parentbilling.HolidayPlaceChange{}, err
-	}
-	return parentbilling.HolidayPlaceChange{WeekID: weekID, Capacity: capacity, MovedUp: movedUpOrEmpty(movedUp)}, nil
+	return h.refreezeMovedUp(ctx, parentbilling.HolidayReviewer{OrganizationID: organizationID, AccountID: accountID}, periodID, registrationIDs)
 }
 
 func movedUpOrEmpty(ids []int64) []int64 {
@@ -178,23 +159,4 @@ func movedUpOrEmpty(ids []int64) []int64 {
 		return []int64{}
 	}
 	return slices.Compact(slices.Sorted(slices.Values(ids)))
-}
-
-// AllocateHolidayPlaces uses the same invoice-before-period order as a
-// cancellation or capacity change. Enrollment reports both direct places
-// and promotions; this owner recomputes their confirmed sibling groups
-// before the outer transaction commits.
-func (h *HolidayContributions) AllocateHolidayPlaces(ctx context.Context, organizationID, accountID, periodID int64, decide func(context.Context) ([]int64, error)) error {
-	reviewer := parentbilling.HolidayReviewer{OrganizationID: organizationID, AccountID: accountID}
-	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
-		return errTraegerRequired
-	}
-	if _, _, err := h.lockSiblings(ctx, reviewer, periodID); err != nil {
-		return err
-	}
-	placed, err := decide(ctx)
-	if err != nil {
-		return err
-	}
-	return h.refreezeMovedUp(ctx, reviewer, periodID, placed)
 }
