@@ -120,7 +120,7 @@ func TestDemoErasureTakesTheRunsItLeavesEmpty(t *testing.T) {
 	openMixedNotice := noticeRunOf(t, db, "calculated", 2031, []int64{open, hidden})
 	releasedOpenNotice := noticeRunOf(t, db, "released", 2032, []int64{open, hidden})
 
-	_, erased := retireNow(t, order.db, order.queue, nil)
+	_, erased := retireAtLeast(t, order.db, order.queue, nil, 0, 1)
 	require.Equal(t, 1, erased)
 
 	assert.Zero(t, remainingRows(t, db, "parent_billing.care_runs", []int64{
@@ -187,7 +187,7 @@ func TestDemoErasureNeverTouchesTheRunsOfARealTraeger(t *testing.T) {
 	before := runsOfOrganization(t, db, organization)
 	require.Len(t, before, 10, "six runs and the four of the visitor fixture")
 
-	_, erased := retireNow(t, order.db, order.queue, nil)
+	_, erased := retireAtLeast(t, order.db, order.queue, nil, 0, 1)
 	require.Equal(t, 1, erased)
 	assert.Equal(t, before, runsOfOrganization(t, db, organization), "no run of a real Träger changes")
 }

@@ -5,7 +5,13 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import * as Sentry from "@sentry/nextjs";
 import { SSEErrorBoundary } from "./SSEErrorBoundary";
+
+vi.mock("@sentry/nextjs", () => ({
+  captureException: vi.fn(),
+  addBreadcrumb: vi.fn(),
+}));
 
 // Component that throws an error
 function ThrowError(): React.ReactNode {
@@ -48,6 +54,22 @@ describe("SSEErrorBoundary", () => {
     expect(
       screen.getByText("Live-Updates sind derzeit nicht verfügbar."),
     ).toBeInTheDocument();
+  });
+
+  it("reports the crash to Sentry", () => {
+    vi.mocked(Sentry.captureException).mockClear();
+    render(
+      <SSEErrorBoundary>
+        <ThrowError />
+      </SSEErrorBoundary>,
+    );
+
+    expect(vi.mocked(Sentry.captureException).mock.calls).toEqual([
+      [
+        expect.objectContaining({ message: "Test error" }),
+        { tags: { surface: "page" } },
+      ],
+    ]);
   });
 
   it("renders custom fallback when provided", () => {

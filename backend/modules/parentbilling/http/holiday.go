@@ -26,17 +26,28 @@ import (
 // it is sent.
 type HolidayResource struct {
 	contributions capability.HolidayContributions
+	places        HolidayPlaceChanges
 	requireManage common.Middleware
+}
+
+// HolidayPlaceChanges rebooks a child and sets the capacity of a week
+// (#4699). The root binds the holiday allocation workflow (ADR 0206), which
+// changes the places in Enrollment and the contributions of whoever moved
+// up in the request's Träger transaction; refusals arrive in this owner's
+// vocabulary.
+type HolidayPlaceChanges interface {
+	RebookHolidayChild(ctx context.Context, reviewer capability.HolidayReviewer, periodID, registrationID, childID int64, bookings []capability.HolidayBookingChoice) (capability.HolidayPlaceChange, error)
+	SetHolidayWeekCapacity(ctx context.Context, reviewer capability.HolidayReviewer, periodID, weekID int64, capacity *int) (capability.HolidayPlaceChange, error)
 }
 
 // NewHolidayResource builds the resource. requireManage admits only a
 // session with the Träger right "Anmeldung verwalten", the right that
 // confirms a registration and merges siblings (#5628).
-func NewHolidayResource(contributions capability.HolidayContributions, requireManage common.Middleware) *HolidayResource {
-	if contributions == nil || requireManage == nil {
-		panic("parent billing http: the holiday contributions and the right check are required")
+func NewHolidayResource(contributions capability.HolidayContributions, places HolidayPlaceChanges, requireManage common.Middleware) *HolidayResource {
+	if contributions == nil || places == nil || requireManage == nil {
+		panic("parent billing http: the holiday contributions, the place changes and the right check are required")
 	}
-	return &HolidayResource{contributions: contributions, requireManage: requireManage}
+	return &HolidayResource{contributions: contributions, places: places, requireManage: requireManage}
 }
 
 // TraegerRouter returns the routes mounted at /traeger/holiday-contributions.
@@ -249,7 +260,7 @@ func (rs *HolidayResource) rebookChild(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	change, err := rs.contributions.RebookHolidayChild(r.Context(), reviewer, periodID, registrationID, childID, req.Bookings)
+	change, err := rs.places.RebookHolidayChild(r.Context(), reviewer, periodID, registrationID, childID, req.Bookings)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderHolidayError(w, r, err)
@@ -289,7 +300,7 @@ func (rs *HolidayResource) setWeekCapacity(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	change, err := rs.contributions.SetHolidayWeekCapacity(r.Context(), reviewer, periodID, weekID, req.Capacity)
+	change, err := rs.places.SetHolidayWeekCapacity(r.Context(), reviewer, periodID, weekID, req.Capacity)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderHolidayError(w, r, err)

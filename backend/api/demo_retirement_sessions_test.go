@@ -70,8 +70,14 @@ func TestRetiredDemoSchoolAcceptsNoSessionOfIt(t *testing.T) {
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, visitor.ID, 0))
 
-	hidden, _, err := queue.RetireDemoSchools(ctx, nil)
-	require.NoError(t, err)
+	// The retirement starts no school after its budget (200 ms), the first
+	// one included: a run that met a stalled database hides nothing and
+	// leaves the school to the next run (#6698).
+	hidden := 0
+	for run := 0; run < 10 && hidden == 0; run++ {
+		hidden, _, err = queue.RetireDemoSchools(ctx, nil)
+		require.NoError(t, err)
+	}
 	require.Equal(t, 1, hidden)
 
 	for name, s := range map[string]struct {
