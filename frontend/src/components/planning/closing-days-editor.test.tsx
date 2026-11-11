@@ -197,8 +197,10 @@ describe("ClosingDaysEditor", () => {
     ]);
     render(<ClosingDaysEditor />);
 
-    const table = await screen.findByRole("table");
-    expect(within(table).getByText("Vom Träger")).toBeInTheDocument();
+    // Die Tabelle ist schon als Ladeskelett vorhanden. Erst das Label zeigt,
+    // dass die gemockte Liste geladen und die Träger-Zeile gerendert ist.
+    expect(await screen.findByText("Vom Träger")).toBeInTheDocument();
+    const table = screen.getByRole("table");
     expect(
       within(table).getByRole("button", {
         name: "Aktionen für Pädagogischer Tag",
