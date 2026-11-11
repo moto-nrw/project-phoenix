@@ -545,14 +545,6 @@
       "target_owner": "enrollment"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RebookHolidayChild",
-      "binding_digest": "3fd4bcd90ea9da7c914d6be258d678b5",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RebookHolidayChild",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.RebookHolidayChild",
-      "target_owner": "enrollment"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.RecordHolidaySiblings",
       "binding_digest": "d3df29bf15223626937d4d04464be1a8",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.RecordHolidaySiblings",
@@ -574,14 +566,6 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.SetHolidayDebtorNumber",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.SetHolidayDebtorNumber",
-      "target_owner": "enrollment"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
-      "binding_digest": "55a5b64478cbea8ead4b7457716c361d",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayRegistrations.SetHolidayWeekCapacity",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayPlaces.SetHolidayWeekCapacity",
       "target_owner": "enrollment"
     },
     {
@@ -639,6 +623,22 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingPlaceChanges.RebookHolidayChild",
+      "binding_digest": "0ac19a2dcaa1c13ce24ba322fcbdf599",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling/http.HolidayPlaceChanges.RebookHolidayChild",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.RebookHolidayChild",
+      "target_owner": "holiday-allocation"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingPlaceChanges.SetHolidayWeekCapacity",
+      "binding_digest": "90f166f84b4f776bfe62bdad91086541",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling/http.HolidayPlaceChanges.SetHolidayWeekCapacity",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.SetHolidayWeekCapacity",
+      "target_owner": "holiday-allocation"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
