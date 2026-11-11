@@ -392,3 +392,41 @@ Feriengast und Ende der Betreuung bleiben, wie oben beschrieben. Zeigt sich,
 dass vorgemerkte Kinder die Armband-Auswahl am Kiosk unübersichtlich machen,
 bekommen sie dort einen Hinweis auf ihren Beginn statt einer Ausblendung;
 das ändert den Kiosk-Vertrag mit PyrePortal und braucht ein eigenes Issue.
+
+## Nachtrag 2026-11-11: Die Buchung plant die Tage, nicht das Konto der Gruppenwahl
+
+Ersetzt in Punkt 2 „Urheber die Person des Kontos, das die Gruppe gewählt
+hat“ und „Hat dieses Konto keinen Personaleintrag (mehr), kommt der Gast
+trotzdem in die Gruppe, und nur seine Tage bleiben offen“.
+
+Auf Staging wählte ein Konto die Gruppe, das nur Mitglied einer anderen
+Schule desselben Trägers ist und in der ausrichtenden Schule keinen
+Personaleintrag hat. Die drei Gäste kamen in die Gruppe, die Wahl meldete
+Erfolg, aber keiner ihrer Tage stand in der Tagesplanung. Richtet das
+Trägerbüro die Woche für die Schule ein, ist das der Normalfall.
+
+1. **Die Buchung ist Urheber.** Enrollment trägt die gebuchten Tage mit der
+   eigenen Quelle `holiday_booking` und ohne Personal-Urheber ein
+   (`created_by` bleibt leer, `created_by_guardian` auch); Grund und Zeiten
+   bleiben wie in Punkt 2. Migration 1.15.923 erweitert `chk_exception_source`
+   und `chk_exception_author` der Tabellen
+   `schedule.student_arrival_exceptions` und
+   `schedule.student_pickup_exceptions` um diese Quelle. Wer die Gruppe
+   gewählt hat, steht weiter im Zugriffsprotokoll der Übertragung.
+2. **Die Schule entscheidet den Tag.** Wie eine Zeile des Personals
+   überschreibt keine Änderung von Eltern einen solchen Tag, und eine
+   genehmigte Abholänderung meldet dort einen Konflikt
+   (`careplan.SchoolOwnedException`); das Elternportal zeigt ihn als Tag der
+   Schule. Ändert das Team den Tag im Betreuungsplan, bleibt die Quelle
+   `holiday_booking`.
+3. **Der stündliche Abgleich plant nach.** Hat ein Gast mit gewählter Gruppe
+   und gültiger Buchung keine einzige An- oder Abholausnahme, plant der
+   Abgleich (`holiday-guest-reconciliation`) seine Tage, ohne dass jemand die
+   Gruppe neu wählt. Die Gäste, die vor diesem Nachtrag ohne Tage kopiert
+   wurden, bekommen sie so beim nächsten Lauf. Löscht das Team alle Tage
+   eines Gasts, plant der nächste Lauf sie ebenso neu; einen Tag ohne Gast
+   trägt das Team als Abwesenheit ein. Ein Gast mit mindestens einem
+   geplanten Tag behält seinen Plan; neu geplant wird er weiter nur bei einer
+   Gruppenwahl oder geänderter Buchung, und die Woche ohne Gruppe behält
+   ihren Plan bis zur nächsten Wahl. Ein beendeter Gast verliert seine Tage
+   wie bisher (`ClearHolidayGuestDays`).

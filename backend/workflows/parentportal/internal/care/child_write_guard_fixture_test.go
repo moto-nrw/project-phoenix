@@ -36,6 +36,26 @@ func (g summaryGuard) lock(context.Context, int64) (bool, error) {
 	return true, nil
 }
 
+// hold stands in for People Directory's guardian hold, which this package
+// may not import: it asks the stubs' relationship for the access and every
+// permission of the write. The database tests of the workflow run the real
+// protocol (#6529, #6638).
+func (summaryGuard) hold(ctx context.Context, locks HoldLocks, req HoldRequest) error {
+	granted, err := locks.Relationship(ctx, req.StudentID, req.ProfileID)
+	if err != nil {
+		return err
+	}
+	if granted == nil || !granted(req.Access) {
+		return req.NotLinked
+	}
+	for _, permission := range req.Permissions {
+		if permission != "" && !granted(permission) {
+			return req.Denied
+		}
+	}
+	return nil
+}
+
 type summaryGuardProfiles struct {
 	GuardianProfileReads
 	guard summaryGuard

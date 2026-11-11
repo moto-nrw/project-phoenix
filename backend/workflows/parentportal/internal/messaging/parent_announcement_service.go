@@ -301,12 +301,38 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	if !validPollSelection(responseType, options, optionIDs) {
 		return ErrInvalidPollResponse
 	}
-	// Phase 2: the write re-evaluates liveness, version AND deadline inside the
-	// same statement, so a deadline that passes between here and the write cannot
-	// let a late answer through. A missed guard is a 409, never a silent 200.
-	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		return s.writeAnnouncementResponse(adminCtx, announcementTenantID, announcementID, accountID, studentID, optionIDs, expectedPublishedAt)
+	return s.writeChildAnswer(ctx, announcementTenantID, announcementID, accountID, studentID, optionIDs, expectedPublishedAt)
+}
+
+// writeChildAnswer stores the answer behind the child write guard (#6638):
+// the answer for a child is a parent write for that child, so membership,
+// relationship, portal access and parent_portal.poll.response stay locked
+// until it commits, in the guard's order Konto → Schule → Kind → Beziehung.
+// The write then re-evaluates liveness, version, deadline and the poll's
+// audience inside the same transaction, so a change between the checks above
+// and the write cannot let a late or stale answer through. A refusal there
+// is a 409, never a silent 200, as before the guard.
+func (s *Service) writeChildAnswer(ctx context.Context, announcementTenantID, announcementID, accountID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionPollResponse)
+	if errors.Is(err, care.ErrGuardianPermissionDenied) || errors.Is(err, care.ErrChildNotLinked) {
+		return ErrChildNotAnswerable
+	}
+	if err != nil {
+		return err
+	}
+	if child.TenantID != announcementTenantID {
+		return ErrChildNotAnswerable
+	}
+	access := care.ChildWriteAccess{Permissions: []string{care.GuardianPermissionPollResponse}}
+	err = s.Children.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {
+		return s.writeAnnouncementResponse(txCtx, announcementTenantID, announcementID, accountID, studentID, optionIDs, expectedPublishedAt)
 	})
+	if errors.Is(err, care.ErrGuardianPermissionDenied) || errors.Is(err, care.ErrChildNotLinked) {
+		// The guard found the relationship, its permission or the school
+		// membership withdrawn since the check above.
+		return ErrAnnouncementStale
+	}
+	return err
 }
 
 func validPollSelection(responseType string, options []*ParentAnnouncementOption, optionIDs []int64) bool {

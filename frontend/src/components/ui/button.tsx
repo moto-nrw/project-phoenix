@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionHint } from "./action-hint";
 import type { PrefetchResource } from "./data-prefetch-intent";
 import {
   buttonStyles,
@@ -38,6 +39,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   touchTarget?: boolean;
+  /**
+   * One sentence on what a click does, shown on mouse hover and keyboard
+   * focus (`ActionHint`, #6643). Replaces a `title` attribute.
+   */
+  tooltip?: string;
 }
 
 interface ButtonLinkProps extends Omit<
@@ -49,6 +55,8 @@ interface ButtonLinkProps extends Omit<
   readonly variant?: ButtonVariant;
   readonly size?: ButtonSize;
   readonly className?: string;
+  /** See `ButtonProps.tooltip`. */
+  readonly tooltip?: string;
 }
 type ButtonLinkNavigationEvent = Parameters<
   NonNullable<ButtonLinkProps["onNavigate"]>
@@ -63,9 +71,10 @@ export function Button({
   className = "",
   touchTarget = false,
   disabled,
+  tooltip,
   ...props
 }: Readonly<ButtonProps>) {
-  return (
+  const button = (
     <button
       type="submit"
       data-icon-only={size === "icon" ? "" : undefined}
@@ -78,6 +87,7 @@ export function Button({
       {isLoading ? (loadingText ?? "Wird geladen …") : children}
     </button>
   );
+  return tooltip ? <ActionHint text={tooltip}>{button}</ActionHint> : button;
 }
 
 /** A navigation link styled by the same shared button variants as actions. */
@@ -86,10 +96,11 @@ export function ButtonLink({
   size = "base",
   className = "",
   resources,
+  tooltip,
   ...props
 }: Readonly<ButtonLinkProps>) {
   const intentProps = useLinkIntentPrefetch({ ...props, resources });
-  return (
+  const link = (
     <Link
       // Kennzeichen für die Bedienhöhe der Kopfkarte (`TenantPage`): sie
       // erfasst Knöpfe über `button`, Links in Button-Optik über dieses
@@ -111,4 +122,5 @@ export function ButtonLink({
       }}
     />
   );
+  return tooltip ? <ActionHint text={tooltip}>{link}</ActionHint> : link;
 }

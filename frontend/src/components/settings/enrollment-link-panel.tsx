@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { SchemaTab } from "~/lib/settings-api";
+import { ActionHint } from "~/components/ui/action-hint";
 import { buttonClassName } from "~/components/ui/button";
 import { CopyField } from "~/components/ui/copy-field";
 import { SectionCard } from "~/components/ui/section-card";
@@ -53,6 +54,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
       <CopyField
         value={enrollUrl}
         monospace
+        copyHint="Kopiert den Link, damit Sie ihn an Eltern weitergeben können."
         onCopyFailed={() =>
           // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der
           // Link steht daneben und lässt sich von Hand markieren.
@@ -68,18 +70,20 @@ export function EnrollmentLinkPanel({ tab }: Props) {
               fileName="qr-code-anmeldung"
               brand="school"
             />
-            <a
-              href={enrollUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonClassName({
-                variant: "outline",
-                size: "md",
-                className: "shrink-0",
-              })}
-            >
-              Öffnen
-            </a>
+            <ActionHint text="Öffnet das Anmeldeformular für Eltern in einem neuen Tab.">
+              <a
+                href={enrollUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClassName({
+                  variant: "outline",
+                  size: "md",
+                  className: "shrink-0",
+                })}
+              >
+                Öffnen
+              </a>
+            </ActionHint>
           </>
         }
       />
