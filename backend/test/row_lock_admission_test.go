@@ -43,6 +43,7 @@ var rowLockAdmissionFiles = []string{
 	"modules/studentpresence/internal/application/presence/presence_guards.go",
 	"modules/peopledirectory/internal/adapters/peoplepostgres/person.go",
 	"modules/peopledirectory/internal/adapters/postgres/staff_person_merge.go",
+	"modules/peopledirectory/internal/application/caregiver_capability.go",
 	"modules/studentpresence/internal/adapters/postgres/offboarding.go",
 }
 

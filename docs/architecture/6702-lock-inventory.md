@@ -84,6 +84,7 @@ Kiosk-Sitzungsspiegel, Aktivität anlegen und Betreuerrouten, Materialisierung.
 | Personal-Import | StaffPersonMerge | Upsert nimmt das Merge-Gate vor der ersten Aktualisierung |
 | Personal-Import Aktualisieren/Upsert | StaffRows | jeder Chunk sperrt die Staff-Zeilen aller Treffer aufsteigend vor seiner ersten Zeile (`BatchWriteConfig`) |
 | Identitätskette | StaffPersonMerge | Merge-Gate vor Person und Staff-Zeile |
+| Betreuungszugang freischalten (`ensureCaregiverProfile`) | StaffPersonMerge | geteiltes Merge-Gate vor der Profilanlage; die anschließende Rollenzuweisung verwendet das gehaltene Gate |
 
 Nächtliche Aufbewahrung: Die Jahrgangswechsel-Aufbewahrung (Jahrgangs-Gate)
 läuft nach der Kinder- und vor der Personal-Löschung.
