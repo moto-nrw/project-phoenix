@@ -1657,6 +1657,14 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayKnownChildren.KnownHolidayChildren",
+      "binding_digest": "c54b8dc078e74b0e448d4c7f409c6b30",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayKnownChildren.KnownHolidayChildren",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/traegerview.Overview.KnownHolidayChildren",
+      "target_owner": "traeger-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
       "binding_digest": "40182a607e3ea981352ae01b32677f1f",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.ApplyHolidayOwnChildPlans",

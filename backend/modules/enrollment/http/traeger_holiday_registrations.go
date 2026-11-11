@@ -35,6 +35,7 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review := r.With(rs.requireManage, withTx)
 	review.Get("/{id}/registrations", rs.listRegistrations)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Get("/{id}/registrations/export", rs.exportRegistrations)
+	r.With(rs.requireManage, rs.withKnownChildren, withTx).Get("/{id}/registrations/known-children", rs.listKnownChildren)
 	files := r.With(rs.requireManage, rs.requireHealthWhenAsked, rs.withSchoolNames)
 	// The archive reads in the Träger transaction and sends after its commit.
 	files.Get("/{id}/registrations/pdf", rs.downloadRegistrationPDFs(withTx))

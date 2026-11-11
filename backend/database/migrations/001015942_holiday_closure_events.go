@@ -14,7 +14,8 @@ func init() {
 		Version:     holidayClosureEventsVersion,
 		Description: "Ferien: Schul-Schließtage schlagen einen Elternhinweis vor, ein Klick beauftragt ihn (#6442, #6457, ADR 0196)",
 		DependsOn: []string{
-			messageAttachmentsVersion,     // the newest migration on development; the school erasure this one extends
+			holidayKnownChildrenVersion,   // the newest migration on development
+			messageAttachmentsVersion,     // the school erasure this one extends
 			holidayHostOwnContactsVersion, // the migrations below it
 			holidayRegistrationRetentionDaysVersion,
 			dataReturnErasureOrderLockVersion,

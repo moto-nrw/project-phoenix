@@ -2241,6 +2241,17 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "adr": "0214",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayKnownChildren.KnownHolidayChildren",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayKnownChildren.KnownHolidayChildren",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview.Overview.KnownHolidayChildren. ADR 0214 (#6683): the hint on a known child compares the registered children of the period with the actively managed children of the Träger's schools in the projection's own administrative unit before the route opens the Träger transaction, which records the comparison in the registrations' trail.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/traegerview.Overview.KnownHolidayChildren",
+      "target_owner": "traeger-view"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
       "classification": "leaf",

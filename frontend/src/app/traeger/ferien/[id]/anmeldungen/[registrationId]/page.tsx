@@ -81,6 +81,10 @@ import {
   withHolidayHealthAnswers,
 } from "~/lib/traeger-holiday-registrations-api";
 import { splitHolidaySibling } from "~/lib/traeger-sibling-groups-api";
+import {
+  knownChildrenKey,
+  useHolidayKnownChildren,
+} from "~/components/traeger/holiday-known-child";
 import { traegerPath } from "~/lib/traeger-url";
 
 const PDF_LABELS: AttachmentLabels = {
@@ -324,6 +328,11 @@ export default function TraegerHolidayRegistrationPage() {
       schoolsFailure,
     );
   const names = schoolNames(schools);
+  const known = useHolidayKnownChildren(
+    periodId,
+    registrationId,
+    knownChildrenKey(registration?.children),
+  );
   // The health answers stand beside the other answers, marked "(Gesundheit)".
   const view = registration
     ? withHolidayHealthAnswers(registration, health)
@@ -585,6 +594,7 @@ export default function TraegerHolidayRegistrationPage() {
                 !canSeeHealth && registration.healthConsentAt !== null
               }
               names={names}
+              knownSchoolId={known.get(child.id)}
               onChanged={changed}
               onEdit={
                 cancelled || editing

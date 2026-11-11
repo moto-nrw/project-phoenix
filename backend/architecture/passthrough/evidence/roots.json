@@ -954,6 +954,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (k holidayKnownChildren) KnownHolidayChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayKnownChild, error) {\n\tknown, err := k.overview.KnownHolidayChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayKnownChild, 0, len(known))\n\tfor _, child := range known {\n\t\tresult = append(result, enrollment.HolidayKnownChild(child))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayKnownChildren.KnownHolidayChildren",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {\n\tvar receipt enrollmentOwner.HolidayProofReceipt\n\terr := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {\n\t\tvar uploadErr error\n\t\treceipt, uploadErr = u.registrations.UploadHolidayProof(txCtx, link, upload)\n\t\treturn uploadErr\n\t})\n\treturn receipt, err\n}",
       "form": "unclassified-evidence",
       "id": "api/holidayProofUnits.UploadHolidayProof",
@@ -1755,6 +1762,13 @@
       "evidence": "func (d traegerPersonDirectory) PersonsByID(ctx context.Context, personIDs []int64) ([]traegerview.Person, error) {\n\tpersons, err := d.persons.ListPersonsByID(ctx, personIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]traegerview.Person, 0, len(persons))\n\tfor _, person := range persons {\n\t\tresult = append(result, traegerAccessPerson(person))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerPersonDirectory.PersonsByID",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c traegerRegisteredChildren) RegisteredChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]traegerview.RegisteredChild, error) {\n\tchildren, err := c.children.HolidayRegisteredChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]traegerview.RegisteredChild, 0, len(children))\n\tfor _, child := range children {\n\t\tresult = append(result, traegerview.RegisteredChild(child))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerRegisteredChildren.RegisteredChildren",
       "owner": "roots"
     },
     {

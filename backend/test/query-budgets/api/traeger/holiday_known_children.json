@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.holiday_known_children",
+  "max": 9,
+  "exact": true,
+  "description": "modules/enrollment with modules/traegerview — GET\n/traeger/holiday-periods/{id}/registrations/known-children (#6683, ADR\n0214): in the Träger projection's administrative transaction the Träger\nrow, its school IDs, the registered children of the period at Enrollment,\ntheir namesakes at People Directory and the roster of the schools with a\nnamesake at School Membership; then in the Träger transaction its binding\nand the period with its weeks and time models; the trail entry writes but\nselects nothing. Flat in the number of children and schools.",
+  "route": "GET /traeger/holiday-periods/{id}/registrations/known-children"
+}
