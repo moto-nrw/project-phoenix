@@ -709,12 +709,63 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
       await screen.findByRole("dialog", { name: "Keine Anmeldung bestätigt" }),
     );
     expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(result.getByText("Nicht mehr bestätigt")).toBeInTheDocument();
+    // Neither looks stopped by the office nor confirmed.
+    expect(result.getByText("Noch nicht bestätigt")).toBeInTheDocument();
+    expect(
+      result.getByText(
+        "moto konnte nicht weiter bestätigen. Laden Sie die Seite neu und versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+    expect(result.queryByText("Angehalten")).not.toBeInTheDocument();
     const loads = mockFetchList.mock.calls.length;
     fireEvent.click(result.getByRole("button", { name: "Fertig" }));
     // Nothing changed: the selection stays for another try.
     expect(screen.getByText("2 Anmeldungen ausgewählt")).toBeInTheDocument();
     expect(mockFetchList.mock.calls.length).toBe(loads);
+  });
+
+  it("stops after the confirmation in flight when the office stops", async () => {
+    let finish: () => void = () => {};
+    mockConfirm.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({});
+        }),
+    );
+    renderPage();
+    await selectRows([
+      "Anmeldung Nr. 21 von Anna Muster",
+      "Anmeldung Nr. 22 von Bodo Muster",
+    ]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "2 Anmeldungen bestätigen?",
+        }),
+      ).getByRole("button", { name: "2 bestätigen" }),
+    );
+    const running = within(
+      await screen.findByRole("dialog", {
+        name: "Anmeldungen werden bestätigt",
+      }),
+    );
+    expect(running.getByText("0 von 2 bestätigt")).toBeInTheDocument();
+    fireEvent.click(running.getByRole("button", { name: "Anhalten" }));
+    expect(running.getByRole("button", { name: "Hält an …" })).toBeDisabled();
+    finish();
+
+    const result = within(
+      await screen.findByRole("dialog", { name: "1 Anmeldung bestätigt" }),
+    );
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(result.getByText("Angehalten")).toBeInTheDocument();
+    expect(result.getByRole("link", { name: /Bodo Muster/ })).toHaveAttribute(
+      "href",
+      "/traeger/ferien/5/anmeldungen/22",
+    );
   });
 
   it("explains a selection without anything to confirm", async () => {

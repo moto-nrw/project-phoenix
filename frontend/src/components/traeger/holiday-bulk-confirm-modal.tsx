@@ -6,12 +6,13 @@
 // Bestätigung wie die Seite der Anmeldung und zeigt am Ende das Ergebnis.
 
 import { Check } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   bulkConfirmOutcome,
   type HolidayBulkPlan,
   type HolidayBulkSkip,
   type HolidayBulkSkipReason,
+  registrationCount,
 } from "~/components/traeger/holiday-bulk-confirm-model";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -21,6 +22,7 @@ import { ListRowLink } from "~/components/ui/list-row-link";
 import { Modal } from "~/components/ui/modal";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { presentError } from "~/lib/error-presentation";
 import { createLogger } from "~/lib/logger";
 import { confirmHolidayRegistration } from "~/lib/traeger-contributions-api";
 import type { HolidayRegistrationSummary } from "~/lib/traeger-holiday-registrations-api";
@@ -28,10 +30,30 @@ import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "HolidayBulkConfirmModal" });
 
-/** Each reason a registration stays open, in the order the office works. */
+/** What each reason is called and what the office does next. */
 const OPEN_REASONS: Readonly<
   Record<HolidayBulkSkipReason, { title: string; hint: string }>
 > = {
+  unclear: {
+    title: "Ergebnis unklar",
+    hint: "Die Antwort kam nicht an. Öffnen Sie die Anmeldung und prüfen Sie den Status.",
+  },
+  failed: {
+    title: "Hat nicht geklappt",
+    hint: "Öffnen Sie die Anmeldung und bestätigen Sie sie dort.",
+  },
+  changed: {
+    title: "Inzwischen geändert",
+    hint: "Die Anmeldung wurde gerade geändert. Öffnen Sie sie und prüfen Sie den Stand.",
+  },
+  interrupted: {
+    title: "Noch nicht bestätigt",
+    hint: "moto konnte nicht weiter bestätigen. Laden Sie die Seite neu und versuchen Sie es noch einmal.",
+  },
+  stopped: {
+    title: "Angehalten",
+    hint: "Sie haben das Bestätigen angehalten. Diese Anmeldungen sind noch nicht bestätigt.",
+  },
   place_open: {
     title: "Platz noch offen",
     hint: "Entscheiden Sie zuerst im Reiter „Vergabe“ über den Platz.",
@@ -48,29 +70,29 @@ const OPEN_REASONS: Readonly<
     title: "Debitorennummer fehlt",
     hint: "Tragen Sie die Nummer in der Anmeldung ein und bestätigen Sie dort.",
   },
-  changed: {
-    title: "Inzwischen geändert",
-    hint: "Die Anmeldung wurde gerade geändert. Öffnen Sie sie und prüfen Sie den Stand.",
-  },
-  failed: {
-    title: "Hat nicht geklappt",
-    hint: "Öffnen Sie die Anmeldung und bestätigen Sie sie dort.",
-  },
-  stopped: {
-    title: "Nicht mehr bestätigt",
-    hint: "Das Bestätigen wurde angehalten. Wählen Sie diese Anmeldungen noch einmal aus.",
-  },
   not_received: {
     title: "Schon bestätigt oder storniert",
     hint: "Hier ist nichts mehr zu bestätigen.",
   },
 };
 
-const REASON_ORDER = Object.keys(OPEN_REASONS) as HolidayBulkSkipReason[];
-
-function anmeldungen(count: number): string {
-  return count === 1 ? "1 Anmeldung" : `${count} Anmeldungen`;
-}
+/**
+ * The order of the groups: what the run left unclear first, then what the
+ * office decides before a place, a payer or a number, last what needs
+ * nothing.
+ */
+const REASON_ORDER: readonly HolidayBulkSkipReason[] = [
+  "unclear",
+  "failed",
+  "changed",
+  "interrupted",
+  "stopped",
+  "place_open",
+  "payer_open",
+  "duplicate",
+  "debtor_number_missing",
+  "not_received",
+];
 
 type Phase =
   | { readonly kind: "review" }
@@ -81,37 +103,57 @@ type Phase =
       readonly open: readonly HolidayBulkSkip[];
     };
 
-function RegistrationRow({
+interface GroupRow {
+  readonly registration: HolidayRegistrationSummary;
+  readonly note?: string;
+}
+
+/** One group of a framed list: its head, its hint once, then its rows. */
+function RegistrationGroup({
   periodId,
-  registration,
+  title,
+  hint,
+  rows,
 }: Readonly<{
   periodId: string;
-  registration: HolidayRegistrationSummary;
+  title: string;
+  hint?: string;
+  rows: readonly GroupRow[];
 }>) {
-  const children = registration.children
-    .map((child) => child.firstName)
-    .join(", ");
   return (
-    <li>
-      <ListRowLink
-        href={traegerPath(
-          `/traeger/ferien/${periodId}/anmeldungen/${registration.id}`,
-        )}
-        title={`${registration.guardianFirstName} ${registration.guardianLastName}`}
-        subtitle={
-          children
-            ? `Nr. ${registration.id} · ${children}`
-            : `Nr. ${registration.id}`
-        }
-      />
-    </li>
+    <>
+      <li>
+        <ListGroupHeader
+          title={title}
+          meta={rows.length}
+          description={hint}
+          as="h3"
+        />
+      </li>
+      {rows.map(({ registration, note }) => {
+        const children = registration.children
+          .map((child) => child.firstName)
+          .join(", ");
+        const subtitle = [`Nr. ${registration.id}`, note ?? children]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <li key={registration.id}>
+            <ListRowLink
+              href={traegerPath(
+                `/traeger/ferien/${periodId}/anmeldungen/${registration.id}`,
+              )}
+              title={`${registration.guardianFirstName} ${registration.guardianLastName}`}
+              subtitle={subtitle}
+            />
+          </li>
+        );
+      })}
+    </>
   );
 }
 
-/**
- * One framed list in groups: what is (or was) confirmed, then every reason a
- * registration stays open, its hint once above its rows.
- */
+/** What is (or was) confirmed, then every reason a registration stays open. */
 function RegistrationGroups({
   periodId,
   confirmedTitle,
@@ -123,66 +165,28 @@ function RegistrationGroups({
   confirmed: readonly HolidayRegistrationSummary[];
   open: readonly HolidayBulkSkip[];
 }>) {
-  const groups = REASON_ORDER.map((reason) => ({
-    reason,
-    rows: open.filter((entry) => entry.reason === reason),
-  })).filter((group) => group.rows.length > 0);
   return (
     <FramedList maxHeight="lg">
       {confirmed.length > 0 ? (
-        <>
-          <li>
-            <ListGroupHeader
-              title={confirmedTitle}
-              meta={confirmed.length}
-              as="h3"
-            />
-          </li>
-          {confirmed.map((registration) => (
-            <RegistrationRow
-              key={registration.id}
-              periodId={periodId}
-              registration={registration}
-            />
-          ))}
-        </>
+        <RegistrationGroup
+          periodId={periodId}
+          title={confirmedTitle}
+          rows={confirmed.map((registration) => ({ registration }))}
+        />
       ) : null}
-      {groups.map((group) => (
-        <GroupRows
-          key={group.reason}
-          periodId={periodId}
-          reason={group.reason}
-          rows={group.rows}
-        />
-      ))}
+      {REASON_ORDER.map((reason) => {
+        const rows = open.filter((entry) => entry.reason === reason);
+        return rows.length > 0 ? (
+          <RegistrationGroup
+            key={reason}
+            periodId={periodId}
+            title={OPEN_REASONS[reason].title}
+            hint={OPEN_REASONS[reason].hint}
+            rows={rows}
+          />
+        ) : null;
+      })}
     </FramedList>
-  );
-}
-
-function GroupRows({
-  periodId,
-  reason,
-  rows,
-}: Readonly<{
-  periodId: string;
-  reason: HolidayBulkSkipReason;
-  rows: readonly HolidayBulkSkip[];
-}>) {
-  const { title, hint } = OPEN_REASONS[reason];
-  return (
-    <>
-      <li className="bg-gray-50">
-        <ListGroupHeader title={title} meta={rows.length} as="h3" />
-        <p className="px-4 pb-2 text-xs text-gray-600">{hint}</p>
-      </li>
-      {rows.map((entry) => (
-        <RegistrationRow
-          key={entry.registration.id}
-          periodId={periodId}
-          registration={entry.registration}
-        />
-      ))}
-    </>
   );
 }
 
@@ -205,6 +209,24 @@ export function HolidayBulkConfirmModal({
   const [stopping, setStopping] = useState(false);
   const { show: showActionError } = useApiErrorDisplay();
   const total = plan.confirmable.length;
+  const running = phase.kind === "running";
+
+  // Leaving the page ends the run after the confirmation in flight; nothing
+  // goes on unseen.
+  useEffect(
+    () => () => {
+      stopRequested.current = true;
+    },
+    [],
+  );
+
+  // Closing the tab asks first while confirmations run.
+  useEffect(() => {
+    if (!running) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [running]);
 
   const run = async () => {
     stopRequested.current = false;
@@ -213,42 +235,51 @@ export function HolidayBulkConfirmModal({
     const confirmed: HolidayRegistrationSummary[] = [];
     const open: HolidayBulkSkip[] = [];
     let next = 0;
+    let rest: "stopped" | "interrupted" = "stopped";
     // One after another: every confirmation holds the invoices of the
     // period, so they would wait for each other anyway, and a refusal stays
     // with its own registration.
     while (next < total && !stopRequested.current) {
       const registration = plan.confirmable[next]!;
+      next += 1;
       try {
         await confirmHolidayRegistration(periodId, registration.id, false);
         confirmed.push(registration);
       } catch (err) {
-        const outcome = bulkConfirmOutcome(err);
         logger.warn("holiday_bulk_confirm_registration_failed", {
           registration_id: registration.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        if (outcome === "stop") {
-          // No further confirmation can succeed; this one is unknown.
+        const outcome = bulkConfirmOutcome(err);
+        open.push({
+          registration,
+          reason: outcome.reason,
+          note:
+            outcome.reason === "failed"
+              ? presentError(err, "die Anmeldung").message
+              : undefined,
+        });
+        if (outcome.stop) {
+          // No further confirmation can succeed.
           void showActionError(err, { object: "die Anmeldungen" });
+          rest = "interrupted";
           break;
         }
-        open.push({ registration, reason: outcome.reason });
       }
-      next += 1;
       setPhase({ kind: "running", done: next });
     }
-    const stopped = plan.confirmable
+    const notReached = plan.confirmable
       .slice(next)
-      .map((registration) => ({ registration, reason: "stopped" as const }));
+      .map((registration) => ({ registration, reason: rest }));
     setPhase({
       kind: "done",
       confirmed,
-      open: [...open, ...plan.skipped, ...stopped],
+      open: [...open, ...notReached, ...plan.skipped],
     });
   };
 
   const close = () => {
-    if (phase.kind === "running") return;
+    if (running) return;
     onClose(phase.kind === "done" && phase.confirmed.length > 0);
     setPhase({ kind: "review" });
   };
@@ -304,7 +335,7 @@ export function HolidayBulkConfirmModal({
         onClose={close}
         title={
           count > 0
-            ? `${anmeldungen(count)} bestätigt`
+            ? `${registrationCount(count)} bestätigt`
             : "Keine Anmeldung bestätigt"
         }
         description={count > 0 ? "Die Eltern bekommen eine E-Mail." : undefined}
@@ -333,7 +364,7 @@ export function HolidayBulkConfirmModal({
             <p className="text-sm text-gray-700">
               {phase.open.length === 1
                 ? "1 Anmeldung bleibt offen. Bestätigen Sie sie einzeln."
-                : `${phase.open.length} Anmeldungen bleiben offen. Bestätigen Sie sie einzeln.`}
+                : `${registrationCount(phase.open.length)} bleiben offen. Bestätigen Sie sie einzeln.`}
             </p>
             <RegistrationGroups
               periodId={periodId}
@@ -353,7 +384,7 @@ export function HolidayBulkConfirmModal({
       onClose={close}
       title={
         total > 0
-          ? `${anmeldungen(total)} bestätigen?`
+          ? `${registrationCount(total)} bestätigen?`
           : "Keine Anmeldung lässt sich hier bestätigen"
       }
       description={

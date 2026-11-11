@@ -45,7 +45,7 @@ describe("planHolidayBulkConfirmation", () => {
           ],
         }),
       ],
-      { debtorNumberRequired: false, groups: NO_GROUPS, known: [] },
+      { debtorNumberRequired: false, groups: NO_GROUPS, shown: [] },
     );
 
     expect(plan.confirmable.map((entry) => entry.id)).toEqual(["1"]);
@@ -68,7 +68,7 @@ describe("planHolidayBulkConfirmation", () => {
           children: [PENDING_CHILD],
         }),
       ],
-      { debtorNumberRequired: true, groups: NO_GROUPS, known: [] },
+      { debtorNumberRequired: true, groups: NO_GROUPS, shown: [] },
     );
 
     expect(plan.skipped).toEqual([
@@ -83,13 +83,13 @@ describe("planHolidayBulkConfirmation", () => {
     const off = planHolidayBulkConfirmation(registrations, {
       debtorNumberRequired: false,
       groups: NO_GROUPS,
-      known,
+      shown: known,
     });
     expect(off.confirmable).toHaveLength(2);
 
     const on = planHolidayBulkConfirmation(
       [...registrations, registration("3", { debtorNumber: "10 0815" })],
-      { debtorNumberRequired: true, groups: NO_GROUPS, known },
+      { debtorNumberRequired: true, groups: NO_GROUPS, shown: known },
     );
     expect(on.confirmable.map((entry) => entry.id)).toEqual(["3"]);
     expect(on.skipped.map((entry) => entry.reason)).toEqual([
@@ -108,7 +108,7 @@ describe("planHolidayBulkConfirmation", () => {
     const plan = planHolidayBulkConfirmation([registration("1")], {
       debtorNumberRequired: true,
       groups,
-      known,
+      shown: known,
     });
     expect(plan.confirmable.map((entry) => entry.id)).toEqual(["1"]);
   });
@@ -119,49 +119,52 @@ describe("planHolidayBulkConfirmation", () => {
     const plan = planHolidayBulkConfirmation([registration("1")], {
       debtorNumberRequired: true,
       groups: [{ id: "g", registrationIds: ["1", "9"] }],
-      known: [registration("1")],
+      shown: [registration("1")],
     });
     expect(plan.confirmable.map((entry) => entry.id)).toEqual(["1"]);
   });
 });
 
 describe("bulkConfirmOutcome", () => {
-  it("reads the refusal of one registration from its code", () => {
-    expect(
-      bulkConfirmOutcome(
-        new ApiError("", 409, {
-          code: "enrollment.holiday_allocation_pending",
-        }),
-      ),
-    ).toEqual({ reason: "place_open" });
-    expect(
-      bulkConfirmOutcome(
-        new ApiError("", 400, { code: "parent_billing.debtor_number_invalid" }),
-      ),
-    ).toEqual({ reason: "debtor_number_missing" });
-    expect(
-      bulkConfirmOutcome(
-        new ApiError("", 409, {
-          code: "enrollment.holiday_registration_state_conflict",
-        }),
-      ),
-    ).toEqual({ reason: "changed" });
-    expect(
-      bulkConfirmOutcome(
-        new ApiError("", 409, {
-          code: "parent_billing.benefits_exemption_unavailable",
-        }),
-      ),
-    ).toEqual({ reason: "failed" });
-    expect(bulkConfirmOutcome(new ApiError("", 500))).toEqual({
-      reason: "failed",
+  it("keeps a refusal with its own registration", () => {
+    const refusal = (status: number, code?: string) =>
+      bulkConfirmOutcome(new ApiError("", status, { code }));
+    expect(refusal(409, "enrollment.holiday_allocation_pending")).toEqual({
+      reason: "place_open",
+      stop: false,
     });
+    expect(refusal(400, "parent_billing.debtor_number_invalid")).toEqual({
+      reason: "debtor_number_missing",
+      stop: false,
+    });
+    expect(
+      refusal(409, "enrollment.holiday_registration_state_conflict"),
+    ).toEqual({ reason: "changed", stop: false });
+    expect(
+      refusal(409, "parent_billing.benefits_exemption_unavailable"),
+    ).toEqual({ reason: "failed", stop: false });
+    expect(refusal(500)).toEqual({ reason: "failed", stop: false });
   });
 
   it("stops the run when no further confirmation can succeed", () => {
-    expect(bulkConfirmOutcome(new ApiError("", 401))).toBe("stop");
-    expect(bulkConfirmOutcome(new ApiError("", 403))).toBe("stop");
-    expect(bulkConfirmOutcome(unavailableApiError())).toBe("stop");
-    expect(bulkConfirmOutcome(new Error("boom"))).toBe("stop");
+    expect(bulkConfirmOutcome(new ApiError("", 401))).toEqual({
+      reason: "interrupted",
+      stop: true,
+    });
+    expect(bulkConfirmOutcome(new ApiError("", 403))).toEqual({
+      reason: "interrupted",
+      stop: true,
+    });
+    expect(bulkConfirmOutcome(new Error("boom"))).toEqual({
+      reason: "interrupted",
+      stop: true,
+    });
+  });
+
+  it("leaves a confirmation without an answer unclear", () => {
+    expect(bulkConfirmOutcome(unavailableApiError())).toEqual({
+      reason: "unclear",
+      stop: true,
+    });
   });
 });

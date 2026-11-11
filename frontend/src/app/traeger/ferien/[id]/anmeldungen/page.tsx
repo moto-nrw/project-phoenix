@@ -57,8 +57,10 @@ import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/use-holiday-registr
 import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
 import { HolidayBulkConfirmModal } from "~/components/traeger/holiday-bulk-confirm-modal";
 import {
+  hasPossibleDuplicate,
   type HolidayBulkPlan,
   planHolidayBulkConfirmation,
+  registrationCount,
 } from "~/components/traeger/holiday-bulk-confirm-model";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -365,11 +367,7 @@ function StatusLine({ list }: Readonly<{ list: HolidayRegistrationList }>) {
 
 /** Registrations with a child that is maybe registered twice. */
 function duplicateCount(list: HolidayRegistrationList | null): number {
-  return (list?.registrations ?? []).filter((registration) =>
-    registration.children.some(
-      (child) => child.duplicateRegistrationIds.length > 0,
-    ),
-  ).length;
+  return (list?.registrations ?? []).filter(hasPossibleDuplicate).length;
 }
 
 export default function TraegerHolidayRegistrationsPage() {
@@ -558,7 +556,7 @@ export default function TraegerHolidayRegistrationsPage() {
         {
           debtorNumberRequired: debtorNumberColumn,
           groups,
-          known: registrationsShown,
+          shown: registrationsShown,
         },
       ),
     );
@@ -778,11 +776,7 @@ export default function TraegerHolidayRegistrationsPage() {
         <SelectionBar
           count={selected.size}
           aria-label="Ausgewählte Anmeldungen"
-          label={
-            selected.size === 1
-              ? "1 Anmeldung ausgewählt"
-              : `${selected.size} Anmeldungen ausgewählt`
-          }
+          label={`${registrationCount(selected.size)} ausgewählt`}
           busy={merging || bulkPlan !== null}
           onClear={() => setSelected(new Set())}
           actions={
