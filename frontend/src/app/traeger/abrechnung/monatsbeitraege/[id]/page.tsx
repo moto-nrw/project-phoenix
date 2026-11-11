@@ -502,7 +502,7 @@ export default function TraegerCareRunPage() {
                 invoice={excluding}
                 invoices={run.invoices}
                 onClose={() => setExcluding(null)}
-                onExcluded={(next, invoice) => {
+                onExcluded={(next: CareRunDetail, invoice: CareInvoice) => {
                   setRun(next);
                   setExcluding(null);
                   success(
@@ -514,7 +514,7 @@ export default function TraegerCareRunPage() {
                 run={run}
                 isOpen={editingDate}
                 onClose={() => setEditingDate(false)}
-                onSaved={(next) => {
+                onSaved={(next: CareRunDetail) => {
                   setRun(next);
                   setEditingDate(false);
                   success("Das Rechnungsdatum ist gespeichert.");
@@ -720,7 +720,7 @@ export default function TraegerCareRunPage() {
             <CareExcludedCard
               invoices={excluded}
               returning={returning}
-              onInclude={(invoice) => void include(invoice)}
+              onInclude={(invoice: CareInvoice) => void include(invoice)}
             />
           ) : null}
           {released && run.previewCount > 0 ? (
