@@ -41,7 +41,12 @@ export type RefreshAfterWrite<A extends unknown[] = []> = (
 export function useRefreshAfterWrite<A extends unknown[] = []>(
   object: string,
   reload: (...args: A) => Promise<unknown> | unknown,
+  options: {
+    /** The translated `SAVED_BUT_STALE_SUFFIX` on a portal with languages. */
+    readonly savedSuffix?: string;
+  } = {},
 ) {
+  const savedSuffix = options.savedSuffix ?? SAVED_BUT_STALE_SUFFIX;
   const { error, show, clear } = useApiLoadError();
   // The retry runs the latest reload, not the one of the failed attempt.
   const reloadRef = useRef(reload);
@@ -63,13 +68,13 @@ export function useRefreshAfterWrite<A extends unknown[] = []>(
         });
         void show(err, {
           object,
-          messageSuffix: SAVED_BUT_STALE_SUFFIX,
+          messageSuffix: savedSuffix,
           retry: () => void refreshRef.current(...args),
         });
         return false;
       }
     },
-    [clear, object, show],
+    [clear, object, savedSuffix, show],
   );
   useLayoutEffect(() => {
     refreshRef.current = refresh;

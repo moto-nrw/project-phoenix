@@ -38,6 +38,10 @@ import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { billingConcept } from "~/lib/concepts/billing";
 import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import {
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   fetchSepaMandate,
@@ -80,10 +84,15 @@ export function ParentSepaMandateView({
   const loadError = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = loadError;
 
+  // Rejects on failure: after the revocation the card shows it as a reload
+  // of a saved change, the mandate stays (#6652).
+  const fetchView = useCallback(async () => {
+    setView(await fetchSepaMandate(organizationId, contractId));
+    clearLoadError();
+  }, [organizationId, contractId, clearLoadError]);
   const load = useCallback(async () => {
     try {
-      setView(await fetchSepaMandate(organizationId, contractId));
-      clearLoadError();
+      await fetchView();
     } catch (err) {
       logger.error("parent_sepa_mandate_load_failed", {
         error: errorMessage(err),
@@ -93,13 +102,17 @@ export function ParentSepaMandateView({
         retry: () => void load(),
       });
     }
-  }, [organizationId, contractId, clearLoadError, showLoadError, t]);
+  }, [fetchView, showLoadError, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
+  const afterRevoke = useRefreshAfterWrite(t("reloadObject"), fetchView, {
+    savedSuffix: t("savedButStale"),
+  });
 
-  if (loadError.error) {
+  // Ein bestätigtes Mandat bleibt bei einem Ladefehler stehen (#6652).
+  if (loadError.error && !view) {
     return (
       <SectionCard concept={billingConcept} title={t("title")}>
         <LoadErrorAlert error={loadError.error} />
@@ -124,11 +137,13 @@ export function ParentSepaMandateView({
   if (view.mandate && !view.mandate.revokedOn) {
     return (
       <div className="space-y-6">
+        <LoadErrorAlert error={loadError.error} />
+        <LoadErrorAlert error={afterRevoke.error} />
         <MandateCard
           contract={key}
           view={view}
           mandate={view.mandate}
-          onChanged={load}
+          onChanged={afterRevoke.refresh}
         />
         {view.mandate.proof ? <MandateTextCard mandate={view.mandate} /> : null}
       </div>
@@ -162,7 +177,8 @@ function MandateCard({
   contract: ContractKey;
   view: SepaMandateView;
   mandate: SepaMandate;
-  onChanged: () => Promise<void>;
+  /** Reloads the mandate; never rejects (#6652). */
+  onChanged: RefreshAfterWrite;
 }>) {
   const t = useTranslations("parentSepaMandate");
   const locale = useLocale();
@@ -185,18 +201,19 @@ function MandateCard({
     setRevoking(true);
     try {
       await revokeSepaMandate(contract.organizationId, contract.contractId);
-      setConfirming(false);
-      success(t("revoked"));
-      await onChanged();
     } catch (err) {
       logger.error("parent_sepa_mandate_revoke_failed", {
         error: errorMessage(err),
       });
       setConfirming(false);
       void revokeError.show(err, { object: t("errorObject") });
-    } finally {
       setRevoking(false);
+      return;
     }
+    setRevoking(false);
+    setConfirming(false);
+    success(t("revoked"));
+    await onChanged();
   };
 
   return (

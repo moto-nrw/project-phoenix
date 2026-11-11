@@ -64,6 +64,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { displayEmail } from "~/lib/demo-build";
 import { useSession } from "next-auth/react";
@@ -245,10 +246,15 @@ export default function StudentGuardianManager({
 
   // The mail state comes on its own: without it the list still shows who to
   // call, and the failure stands above the list with its own retry.
+  // Rejects on failure: after a write the caller shows it as a reload of a
+  // saved change (#6652).
+  const fetchEmailStates = useCallback(async () => {
+    setEmailStates(await fetchStudentGuardianEmailStates(studentId));
+    clearEmailStatesError();
+  }, [studentId, clearEmailStatesError]);
   const loadEmailStates = useCallback(async () => {
     try {
-      setEmailStates(await fetchStudentGuardianEmailStates(studentId));
-      clearEmailStatesError();
+      await fetchEmailStates();
     } catch (err) {
       logger.error("guardian_email_status_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -259,18 +265,22 @@ export default function StudentGuardianManager({
         retry: () => void loadEmailStates(),
       });
     }
-  }, [studentId, showEmailStatesError, clearEmailStatesError]);
+  }, [studentId, fetchEmailStates, showEmailStatesError]);
 
   // Load guardians
+  // Rejects on failure; the list stays as it was.
+  const fetchGuardians = useCallback(async () => {
+    const data = await fetchStudentGuardians(studentId);
+    setGuardians(data);
+    setLoadFailed(false);
+    clearLoadError();
+    void loadEmailStates();
+  }, [studentId, clearLoadError, loadEmailStates]);
   // Never rejects: a failed load shows its error where the list belongs.
   const loadGuardians = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await fetchStudentGuardians(studentId);
-      setGuardians(data);
-      setLoadFailed(false);
-      clearLoadError();
-      void loadEmailStates();
+      await fetchGuardians();
     } catch (err) {
       logger.error("guardians_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -284,7 +294,7 @@ export default function StudentGuardianManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId, showLoadError, clearLoadError, loadEmailStates]);
+  }, [studentId, showLoadError, fetchGuardians]);
   useLayoutEffect(() => {
     latestLoadRef.current = () => void loadGuardians();
   });
@@ -292,6 +302,16 @@ export default function StudentGuardianManager({
   useEffect(() => {
     void loadGuardians();
   }, [loadGuardians]);
+  // Nachladen nach dem Schreiben: ein Fehler dabei steht über der Liste und
+  // ist kein Fehler der Aktion; die bestätigte Liste bleibt stehen (#6652).
+  const guardiansAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Erziehungsberechtigten",
+    fetchGuardians,
+  );
+  const emailStatesAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der E-Mails",
+    fetchEmailStates,
+  );
 
   // Handle create guardian(s) - supports multiple guardians at once.
   //
@@ -345,7 +365,7 @@ export default function StudentGuardianManager({
       })),
     );
 
-    await loadGuardians();
+    await guardiansAfterWrite.refresh();
     onUpdate?.();
     const first = guardians[0]?.guardianData;
     toastSuccess(
@@ -367,7 +387,7 @@ export default function StudentGuardianManager({
         guardianProfileId: guardian.id,
         ...relationship,
       });
-      await loadGuardians();
+      await guardiansAfterWrite.refresh();
       onUpdate?.();
       toastSuccess(
         `${getGuardianFullName(guardian)} ist jetzt mit diesem Kind verknüpft.`,
@@ -425,7 +445,7 @@ export default function StudentGuardianManager({
     }
 
     // Reload guardians
-    await loadGuardians();
+    await guardiansAfterWrite.refresh();
     onUpdate?.();
     setEditingGuardian(undefined);
     toastSuccess(
@@ -538,7 +558,7 @@ export default function StudentGuardianManager({
         setUpgradeInvite({ guardian, existingRole: result.existing_role });
         return;
       }
-      await loadGuardians();
+      await guardiansAfterWrite.refresh();
       onUpdate?.();
       toastSuccess(
         inviteSuccessMessage(
@@ -549,7 +569,7 @@ export default function StudentGuardianManager({
           result.mail_held,
         ),
       );
-      await loadEmailStates();
+      await emailStatesAfterWrite.refresh();
     } catch (err) {
       logger.error("guardian_invite_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -580,7 +600,7 @@ export default function StudentGuardianManager({
         EMAIL_CHANGE_COPY[action].done(getGuardianFullName(guardian)),
       );
       setEmailBlockChange(null);
-      await loadEmailStates();
+      await emailStatesAfterWrite.refresh();
     } catch (err) {
       logger.error("guardian_email_block_change_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -620,7 +640,7 @@ export default function StudentGuardianManager({
     clearDeleteError();
     try {
       await removeGuardianFromStudent(studentId, deletingGuardian.id);
-      await loadGuardians();
+      await guardiansAfterWrite.refresh();
       onUpdate?.();
       setShowDeleteModal(false);
       setDeletingGuardian(undefined);
@@ -696,7 +716,7 @@ export default function StudentGuardianManager({
         force: true,
         expectedAffectedLinkIds: fullDeleteAffectedLinkIds,
       });
-      await loadGuardians();
+      await guardiansAfterWrite.refresh();
       onUpdate?.();
       setShowDeleteModal(false);
       setDeletingGuardian(undefined);
@@ -869,6 +889,8 @@ export default function StudentGuardianManager({
 
       {/* Ein gescheitertes Neuladen lässt die bekannte Liste stehen. */}
       <LoadErrorAlert error={loadError.error} className="mb-4" />
+      <LoadErrorAlert error={guardiansAfterWrite.error} className="mb-4" />
+      <LoadErrorAlert error={emailStatesAfterWrite.error} className="mb-4" />
 
       {/* Guardian List */}
       <div className="space-y-3">
