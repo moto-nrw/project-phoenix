@@ -271,7 +271,16 @@ export function MessageComposer({
           ) : null}
         </div>
       ) : null}
-      <div className="flex flex-row items-end gap-2">
+      {/* Personal am Handy: das Feld über die ganze Breite, Büroklammer und
+          Senden darunter. Die Eltern-App bleibt mit ihren Symbolknöpfen
+          einzeilig. */}
+      <div
+        className={
+          parent
+            ? "flex flex-row items-end gap-2"
+            : "flex flex-wrap items-end gap-2 sm:flex-nowrap"
+        }
+      >
         {attachments ? (
           <>
             <input
@@ -302,7 +311,13 @@ export function MessageComposer({
             </Button>
           </>
         ) : null}
-        <div className="flex w-full min-w-0 flex-col gap-1">
+        <div
+          className={
+            parent
+              ? "flex w-full min-w-0 flex-col gap-1"
+              : "order-first flex min-w-0 basis-full flex-col gap-1 sm:order-none sm:flex-1 sm:basis-0"
+          }
+        >
           <label htmlFor="message-composer" className="sr-only">
             {fieldLabel}
           </label>
@@ -361,7 +376,7 @@ export function MessageComposer({
           aria-label={parent ? (sending ? sendingLabel : sendLabel) : undefined}
           aria-busy={sending}
           title={parent ? sendLabel : undefined}
-          className="shrink-0"
+          className={parent ? "shrink-0" : "ml-auto shrink-0"}
         >
           {parent ? (
             sending ? (
