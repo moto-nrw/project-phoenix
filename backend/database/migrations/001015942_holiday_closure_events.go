@@ -14,7 +14,7 @@ func init() {
 		Version:     holidayClosureEventsVersion,
 		Description: "Ferien: Schul-Schließtage schlagen einen Elternhinweis vor, ein Klick beauftragt ihn (#6442, #6457, ADR 0196)",
 		DependsOn: []string{
-			messageAttachmentsVersion,     // the newest migration on development
+			messageAttachmentsVersion,     // the newest migration on development; the school erasure this one extends
 			holidayHostOwnContactsVersion, // the migrations below it
 			holidayRegistrationRetentionDaysVersion,
 			dataReturnErasureOrderLockVersion,
@@ -23,7 +23,7 @@ func init() {
 			holidayHostSchoolCostCenterVersion,
 			holidayClosureNoticesVersion, // the notices this one versions
 			traegerClosingDaysVersion,    // the Träger closing days the read channel names
-			mealBillingMonthsVersion,     // the school erasure this one extends
+			mealBillingMonthsVersion,     // the school erasure of 1.15.811
 		},
 	})
 	Migrations.MustRegister(holidayClosureEventsUp, holidayClosureEventsDown)
@@ -533,8 +533,8 @@ func holidayClosureEventsDown(ctx context.Context, db *bun.DB) error {
 		return err
 	}
 	if err := installSchoolErasureSteps(ctx, db, "remove the holiday closure notices from the school erasure",
-		installAttendanceRetentionMarkErasurePlan, installEmailDeliveryEventErasurePreflight, installAttendanceRetentionMarkErasureResidual,
-		installAttendanceRetentionMarkErasureDelete, installAttendanceRetentionMarkErasurePreview); err != nil {
+		installMessageAttachmentErasurePlan, installMessageAttachmentErasurePreflight, installMessageAttachmentErasureResidual,
+		installMessageAttachmentErasureDelete, installMessageAttachmentErasurePreview); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, holidayClosureEventsDownSQL); err != nil {

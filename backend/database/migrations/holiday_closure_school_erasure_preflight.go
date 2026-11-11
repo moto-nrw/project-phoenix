@@ -6,9 +6,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.942 (ADR 0196): the installed school erasure preflight of 1.15.811 with the
+// 1.15.942 (ADR 0196): the installed school erasure preflight of 1.15.936 with the
 // proposals, commands and revisions of the holiday closure notices;
-// TestHolidayClosureErasureIsTheErasureOf811 keeps it so.
+// TestHolidayClosureErasureIsTheErasureOf936 keeps it so.
 const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
@@ -224,6 +224,8 @@ const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.s
     users.guardian_financial_data,
     users.guardian_phone_numbers,
     users.guardian_profiles,
+    users.message_attachment_cleanup,
+    users.message_attachments,
     users.notification_preferences,
     users.survey_answers,
     users.survey_responses,
@@ -315,7 +317,7 @@ const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.s
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '867945f4a80f2e3566b74efd88b74b770b224758f78cb6450ca41b09b84938d3' THEN
+    ) AS edge) <> 'f002c755b764f223644a2655347a8b03aeccc50acedc65bdd73c6facef1e6c9a' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
@@ -525,6 +527,12 @@ const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.s
     SELECT 1 FROM users.survey_responses AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM users.surveys AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.message_attachments AS c JOIN users.parent_group_messages AS p ON c."parent_group_message_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.message_attachments AS c JOIN users.parent_messages AS p ON c."parent_message_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.message_attachments AS c JOIN users.staff_messages AS p ON c."staff_message_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM users.parent_announcement_options AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

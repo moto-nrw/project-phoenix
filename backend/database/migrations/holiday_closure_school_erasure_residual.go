@@ -6,9 +6,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.942 (ADR 0196): the installed school erasure residual of 1.15.811 with the
+// 1.15.942 (ADR 0196): the installed school erasure residual of 1.15.936 with the
 // proposals, commands and revisions of the holiday closure notices;
-// TestHolidayClosureErasureIsTheErasureOf811 keeps it so.
+// TestHolidayClosureErasureIsTheErasureOf936 keeps it so.
 const holidayClosureErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_assert_empty(p_school_id BIGINT,v_child_keys JSONB)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
@@ -432,6 +432,10 @@ const holidayClosureErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.sc
     SELECT 1 FROM users.guardian_phone_numbers AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM users.guardian_profiles AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.message_attachment_cleanup AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.message_attachments AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id
     UNION ALL

@@ -6,9 +6,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.942 (ADR 0196): the installed school erasure preview of 1.15.811 with the
+// 1.15.942 (ADR 0196): the installed school erasure preview of 1.15.936 with the
 // proposals, commands and revisions of the holiday closure notices;
-// TestHolidayClosureErasureIsTheErasureOf811 keeps it so.
+// TestHolidayClosureErasureIsTheErasureOf936 keeps it so.
 const holidayClosureErasurePreviewSQL = `
  CREATE OR REPLACE FUNCTION platform.school_erasure_preview(p_school BIGINT,p_operator BIGINT)
  RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $body$
@@ -228,6 +228,8 @@ const holidayClosureErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('users.guardian_financial_data',(SELECT count(*) FROM users.guardian_financial_data AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.guardian_phone_numbers',(SELECT count(*) FROM users.guardian_phone_numbers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.guardian_profiles',(SELECT count(*) FROM users.guardian_profiles AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.message_attachment_cleanup',(SELECT count(*) FROM users.message_attachment_cleanup AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('users.message_attachments',(SELECT count(*) FROM users.message_attachments AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.notification_preferences',(SELECT count(*) FROM users.notification_preferences AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.survey_answers',(SELECT count(*) FROM users.survey_answers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.survey_responses',(SELECT count(*) FROM users.survey_responses AS r WHERE r.tenant_id = p_school));

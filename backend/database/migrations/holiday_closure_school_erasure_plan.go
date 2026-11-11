@@ -6,9 +6,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.942 (ADR 0196): the installed school erasure plan of 1.15.811 with the
+// 1.15.942 (ADR 0196): the installed school erasure plan of 1.15.936 with the
 // proposals, commands and revisions of the holiday closure notices;
-// TestHolidayClosureErasureIsTheErasureOf811 keeps it so.
+// TestHolidayClosureErasureIsTheErasureOf936 keeps it so.
 const holidayClosureErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
  RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = pg_catalog
  AS $plan$ SELECT $manifest$[
@@ -221,6 +221,8 @@ const holidayClosureErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school
   {"name": "users.guardian_financial_data","predicate": "r.tenant_id = $1"},
   {"name": "users.guardian_phone_numbers","predicate": "r.tenant_id = $1"},
   {"name": "users.guardian_profiles","predicate": "r.tenant_id = $1"},
+  {"name": "users.message_attachment_cleanup","predicate": "r.tenant_id = $1","after": ["users.message_attachments"]},
+  {"name": "users.message_attachments","predicate": "r.tenant_id = $1"},
   {"name": "users.notification_preferences","predicate": "r.tenant_id = $1"},
   {"name": "users.survey_answers","predicate": "r.tenant_id = $1"},
   {"name": "users.survey_responses","predicate": "r.tenant_id = $1"},
