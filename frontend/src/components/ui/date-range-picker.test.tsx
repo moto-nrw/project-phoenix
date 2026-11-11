@@ -667,6 +667,64 @@ describe("DateRangePicker in a dialog", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
+
+  it("keeps a covered calendar open while the dialog above it is used", async () => {
+    function Stack({ modalOpen }: Readonly<{ modalOpen: boolean }>) {
+      return (
+        <>
+          <SlideOver defaultOpen>
+            <SlideOverContent>
+              <DateRangePicker value={undefined} onChange={vi.fn()} />
+            </SlideOverContent>
+          </SlideOver>
+          <Modal isOpen={modalOpen} onClose={vi.fn()} title="Bestätigung">
+            <button type="button">Weiter</button>
+          </Modal>
+        </>
+      );
+    }
+    const { rerender } = render(<Stack modalOpen={false} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zeitraum wählen" }),
+    );
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+    rerender(<Stack modalOpen />);
+    const inDialog = await screen.findByRole("button", { name: "Weiter" });
+
+    fireEvent.mouseDown(inDialog);
+
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+  });
+
+  it("shows its calendar inside an anchored popover in a dialog", async () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Termine absagen">
+        <AnchoredPopover
+          open
+          onOpenChange={vi.fn()}
+          ariaLabel="Filter"
+          renderTrigger={({ ref }) => (
+            <button ref={ref} type="button">
+              Filter
+            </button>
+          )}
+        >
+          {() => <DateRangePicker value={undefined} onChange={vi.fn()} />}
+        </AnchoredPopover>
+      </Modal>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+
+    const panel = document.querySelector("[data-range-panel]");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(panel).not.toHaveStyle({ visibility: "hidden" });
+    expect(panel).not.toHaveAttribute("inert");
+  });
 });
 
 it.each(schoolDateCases("2026-06-01"))(
