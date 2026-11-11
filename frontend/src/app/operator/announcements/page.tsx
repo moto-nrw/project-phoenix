@@ -973,6 +973,7 @@ export default function OperatorAnnouncementsPage() {
             confirmText="Veröffentlichen"
             confirmVariant="success"
             isConfirmLoading={isPublishing}
+            loadingText="Wird veröffentlicht …"
           >
             <p className="text-sm text-gray-600">
               {publishTarget &&

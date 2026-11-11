@@ -122,9 +122,12 @@ import {
 //                                     isConfirmLoading (#6594); the opt-out
 //                                     `dismissibleWhileLoading` carries its
 //                                     reason as a non-empty string literal.
-//   ui-kit/confirmation-loading-text — a ConfirmationModal's confirmText
-//                                     does not switch on its isConfirmLoading
-//                                     value: the button shows `loadingText`
+//   ui-kit/confirmation-loading-text — a ConfirmationModal that passes
+//                                     isConfirmLoading also passes its own
+//                                     `loadingText` („Wird gespeichert …“),
+//                                     never the generic default (#6652), and
+//                                     its confirmText does not switch on the
+//                                     flag: the button shows `loadingText`
 //                                     then, the switched text never (#6636).
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
@@ -2261,7 +2264,7 @@ const confirmationDismissLock = {
     },
     messages: {
       reason:
-        "`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading=\"Lädt nur die Vorschau; nichts wird gespeichert.\"`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).",
+        '`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).',
     },
     schema: [],
   },
@@ -2295,6 +2298,12 @@ const confirmationDismissLock = {
 // same flag („Wird angemeldet…“) writes a text nobody sees; the reader gets
 // the generic default instead (#6636). The rule follows the flag through a
 // local `const` (`const label = busy ? "Wird …" : "Senden"`).
+//
+// A caller that passes `isConfirmLoading` without `loadingText` shows the
+// kit default „Wird geladen...“ during a write; the reader cannot tell which
+// action runs (#6652). Every such caller names its action. A spread does not
+// count as `loadingText`: the rule cannot see into it. Import aliases of
+// ConfirmationModal count as ConfirmationModal.
 
 /** `busy`, `state.busy`, `!busy` as one comparable key; null otherwise. */
 function flagKey(node) {
@@ -2349,7 +2358,9 @@ const confirmationLoadingText = {
     },
     messages: {
       switched:
-        "`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText=\"Wird …\"` und `confirmText` auf die Aktion.",
+        '`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText="Wird …"` und `confirmText` auf die Aktion.',
+      missing:
+        '`isConfirmLoading` ohne `loadingText`: Während der Aktion zeigt der Knopf sonst „Wird geladen...“ (#6652). Nennen Sie die laufende Aktion, z. B. `loadingText="Wird gespeichert …"`.',
     },
     schema: [],
   },
@@ -2357,10 +2368,44 @@ const confirmationLoadingText = {
     const key = fileKey(context);
     if (!key.startsWith("src/")) return {};
     if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+    const names = new Set(["ConfirmationModal"]);
     return {
+      ImportDeclaration(node) {
+        if (!/(?:^|\/)components\/ui\/modal$/.test(String(node.source.value))) {
+          return;
+        }
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportSpecifier" &&
+            (specifier.imported?.name ?? specifier.imported?.value) ===
+              "ConfirmationModal"
+          ) {
+            names.add(specifier.local.name);
+          }
+        }
+      },
       JSXOpeningElement(node) {
         if (node.name?.type !== "JSXIdentifier") return;
-        if (node.name.name !== "ConfirmationModal") return;
+        if (!names.has(node.name.name)) return;
+        const loadingAttribute = node.attributes.find(
+          (item) =>
+            item.type === "JSXAttribute" &&
+            item.name?.name === "isConfirmLoading",
+        );
+        const hasLoadingText = node.attributes.some(
+          (item) =>
+            item.type === "JSXAttribute" && item.name?.name === "loadingText",
+        );
+        if (loadingAttribute && !hasLoadingText) {
+          const value = loadingAttribute.value;
+          const alwaysFalse =
+            value?.type === "JSXExpressionContainer" &&
+            value.expression?.type === "Literal" &&
+            value.expression.value === false;
+          if (!alwaysFalse) {
+            context.report({ node: loadingAttribute, messageId: "missing" });
+          }
+        }
         const flag = flagKey(attributeExpression(node, "isConfirmLoading"));
         if (flag == null) return;
         const confirmText = attributeExpression(node, "confirmText");

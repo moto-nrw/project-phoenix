@@ -700,6 +700,11 @@ export function CaregiverBlockerResolutionPanel({
         }
         cancelText="Abbrechen"
         isConfirmLoading={pendingProcessing}
+        loadingText={
+          pendingRemoval?.kind === "supervision"
+            ? "Aufsicht wird beendet …"
+            : "Übergabe wird beendet …"
+        }
         isDismissDisabled={pendingProcessing}
         onConfirm={() => void confirmPendingRemoval()}
         onClose={closeConfirmation}

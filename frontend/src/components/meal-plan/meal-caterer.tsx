@@ -359,6 +359,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         cancelText="Abbrechen"
         confirmVariant="danger"
         isConfirmLoading={working}
+        loadingText="Wird widerrufen …"
       >
         <p className="text-sm text-gray-600">
           Der Link in der E-Mail an {revokeTarget?.email} gilt dann nicht mehr.
@@ -374,6 +375,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         cancelText="Abbrechen"
         confirmVariant="danger"
         isConfirmLoading={working}
+        loadingText="Wird beendet …"
       >
         <p className="text-sm text-gray-600">
           {supply?.catererName || "Der Caterer"} sieht die Bestellungen der

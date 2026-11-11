@@ -588,6 +588,7 @@ export function CarePlanEditorModal({
         confirmText="Trotzdem überschreiben"
         cancelText="Abbrechen"
         isConfirmLoading={isSubmitting}
+        loadingText="Wird gespeichert …"
         confirmVariant="danger"
       >
         <p className="text-sm leading-6 text-gray-600">

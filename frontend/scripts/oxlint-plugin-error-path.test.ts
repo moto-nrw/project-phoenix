@@ -426,4 +426,105 @@ describe.concurrent("error-path rules", () => {
       expect(output).not.toContain("error-path");
     });
   });
+
+  describe("error-path/no-reload-in-write-catch", () => {
+    const RULE = "no-reload-in-write-catch";
+    const PATH = "src/components/probe/probe-reload.tsx";
+    const wrap = (body: string, extra = "") =>
+      `import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
+      declare const api: { save(): Promise<void>; remove(): Promise<void> };
+      declare function report(e: unknown): void;
+      ${extra}
+      export function useProbe(props: { onSaved: () => Promise<void>; onChanged?: () => Promise<void> }, reload: () => Promise<void>, mutate: () => Promise<void>) {
+        const afterWrite = useRefreshAfterWrite("die Anzeige", reload);
+        const { refresh } = afterWrite;
+        return async () => {
+          ${body}
+        };
+      }`;
+
+    it.each([
+      [
+        "a callback prop after the write",
+        "try { await api.save(); await props.onSaved(); } catch (e) { report(e); }",
+      ],
+      [
+        "an optional callback after the write",
+        "try { await api.save(); await props.onChanged?.(); } catch (e) { report(e); }",
+      ],
+      [
+        "a reload function after the write",
+        "try { await api.save(); await reload(); } catch (e) { report(e); }",
+      ],
+      [
+        "write and reload in one Promise.all",
+        "try { await Promise.all([api.save(), reload()]); } catch (e) { report(e); }",
+      ],
+      [
+        "a reload in a Promise.all after the write",
+        "try { await api.save(); await Promise.all([reload(), props.onSaved()]); } catch (e) { report(e); }",
+      ],
+      [
+        "a same-file helper that writes and reloads",
+        "try { await saveAndReload(); } catch (e) { report(e); }",
+        "async function saveAndReload() { await api.save(); await loadAll(); } declare function loadAll(): Promise<void>;",
+      ],
+    ])("reports %s in one catch", async (_label, body, extra = "") => {
+      const { status, output } = await lintSource(wrap(body, extra), PATH);
+
+      expect(status).toBe(1);
+      expect(count(output, RULE)).toBeGreaterThanOrEqual(1);
+      expect(output).toContain("useRefreshAfterWrite");
+    });
+
+    it.each([
+      [
+        "a reload after the write's try",
+        "try { await api.save(); } catch (e) { report(e); return; } await reload();",
+      ],
+      [
+        "the hook's refresh inside the try",
+        "try { await api.save(); await refresh(); await afterWrite.refresh(); } catch (e) { report(e); }",
+      ],
+      [
+        "a reload alone in its try",
+        "try { await reload(); } catch (e) { report(e); }",
+      ],
+      [
+        "two writes in one try",
+        "try { await api.save(); await api.remove(); } catch (e) { report(e); }",
+      ],
+      [
+        "a SWR mutate after the write",
+        "try { await api.save(); await mutate(); } catch (e) { report(e); }",
+      ],
+      [
+        "a reload before the write",
+        "try { await reload(); await api.save(); } catch (e) { report(e); }",
+      ],
+      [
+        "write and reload in a try without catch",
+        "try { await api.save(); await reload(); } finally { report(null); }",
+      ],
+      [
+        "a reload in a nested callback",
+        "try { await api.save(); setTimeout(() => void reload(), 0); } catch (e) { report(e); }",
+      ],
+    ])("accepts %s", async (_label, body) => {
+      const { output } = await lintSource(wrap(body), PATH);
+
+      expect(count(output, RULE)).toBe(0);
+    });
+
+    it("leaves test files alone", async () => {
+      const { output } = await lintSource(
+        wrap(
+          "try { await api.save(); await reload(); } catch (e) { report(e); }",
+        ),
+        "src/components/probe/probe-reload.test.tsx",
+      );
+
+      expect(count(output, RULE)).toBe(0);
+    });
+  });
 });

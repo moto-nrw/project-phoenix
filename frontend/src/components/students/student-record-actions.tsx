@@ -171,6 +171,7 @@ export function StudentRecordActions({
         confirmText="Ende stornieren"
         cancelText="Abbrechen"
         isConfirmLoading={cancellingExit}
+        loadingText="Wird storniert …"
         isDismissDisabled={cancellingExit}
         onConfirm={() => void cancelPlannedExit()}
         onClose={() => {

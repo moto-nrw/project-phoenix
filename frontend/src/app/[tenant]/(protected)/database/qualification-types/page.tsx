@@ -157,6 +157,7 @@ const config: CatalogConfig<QualificationType> = {
     menuLabel: "Archivieren",
     confirmTitle: "Nachweisart archivieren?",
     confirmLabel: "Archivieren",
+    loadingLabel: "Wird archiviert …",
     describe: (type) =>
       `„${type.name}“ steht bei neuen Nachweisen nicht mehr zur Auswahl. Eingetragene Nachweise bleiben, und ihre Erinnerungen kommen weiter.`,
     run: (type) =>

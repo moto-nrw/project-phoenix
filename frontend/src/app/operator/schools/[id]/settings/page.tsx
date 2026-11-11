@@ -211,6 +211,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
           confirmText="Buchungsmodus aktivieren"
           cancelText="Abbrechen"
           isConfirmLoading={bookingAuthority.state.isSaving}
+          loadingText="Wird aktiviert …"
           isConfirmDisabled={
             bookingAuthority.state.isLoading ||
             bookingAuthority.state.impact === null ||

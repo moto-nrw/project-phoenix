@@ -124,6 +124,7 @@ const config: CatalogConfig<ActivityCategory> = {
     menuLabel: "Archivieren",
     confirmTitle: "Terminkategorie archivieren?",
     confirmLabel: "Archivieren",
+    loadingLabel: "Wird archiviert …",
     describe: (item) =>
       `Die Terminkategorie „${item.name}“ wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben gültig.`,
     run: (item) => categoryService.archiveCategory(item.id),

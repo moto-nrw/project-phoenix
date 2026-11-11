@@ -821,6 +821,7 @@ export function ClassDayClass({
               title="Übergabe zurücknehmen?"
               confirmText="Zurücknehmen"
               isConfirmLoading={withdrawing}
+              loadingText="Wird zurückgenommen …"
             >
               <div className="space-y-3">
                 <FormErrorAlert message={withdrawErrors.error} />

@@ -671,6 +671,7 @@ export function AccountTenantAccessModal({
         title="Schulzugang entziehen"
         confirmText="Zugang entziehen"
         isConfirmLoading={saving}
+        loadingText="Zugang wird entzogen …"
         confirmVariant="danger"
       >
         <p className="text-sm text-gray-600">

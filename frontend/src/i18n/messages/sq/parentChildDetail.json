@@ -99,6 +99,7 @@
       "inviteSent": "Ftesa u dërgua te {email}.",
       "inviteLinked": "Personi tani është i lidhur.",
       "grant": "Jepni qasje",
+      "grantLoading": "Qasja po jepet…",
       "grantTitle": "Të jepet qasje e plotë?",
       "grantBody": "{name} ka një llogari, por ende nuk ka qasje te ky fëmijë. Me konfirmimin tuaj shkon një kërkesë te {careTerm}. Pas miratimit ky person sheh gjithçka për fëmijën tuaj.",
       "grantBodyWithRole": "{name} është regjistruar tashmë si {role}, deri tani pa qasje në aplikacion. Me konfirmimin tuaj shkon një kërkesë te {careTerm}. Pas miratimit ky person sheh gjithçka për fëmijën tuaj.",

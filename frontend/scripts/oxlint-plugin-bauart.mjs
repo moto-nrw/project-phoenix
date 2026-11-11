@@ -1461,8 +1461,8 @@ const FORM_CONTEXT_EXCEPTIONS = new Map(
   Object.entries({
     // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
     "src/components/groups/group-transfer-modal.tsx": [
-      "InfoSection@227",
-      "DataGrid@241",
+      "InfoSection@228",
+      "DataGrid@242",
     ],
   }),
 );

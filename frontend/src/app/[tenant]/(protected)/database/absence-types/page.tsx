@@ -131,6 +131,7 @@ const config: CatalogConfig<AbsenceType> = {
     menuLabel: "Nicht mehr anbieten",
     confirmTitle: "Abwesenheitsart nicht mehr anbieten?",
     confirmLabel: "Nicht mehr anbieten",
+    loadingLabel: "Wird aus der Auswahl genommen …",
     describe: (type) =>
       `„${type.name}“ steht bei neuen Abwesenheiten nicht mehr zur Auswahl. Bereits eingetragene Abwesenheiten behalten den Namen.`,
     run: (type) =>

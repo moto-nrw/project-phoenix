@@ -174,6 +174,7 @@ export default function OperatorOperatorsPage() {
             confirmText="Widerrufen"
             confirmVariant="danger"
             isConfirmLoading={revokeLoading}
+            loadingText="Wird widerrufen …"
             isConfirmDisabled={revokeLoading}
           >
             <p>
@@ -191,6 +192,7 @@ export default function OperatorOperatorsPage() {
             confirmText="Deaktivieren"
             confirmVariant="danger"
             isConfirmLoading={deactivateLoading}
+            loadingText="Wird deaktiviert …"
             isConfirmDisabled={deactivateLoading}
           >
             <p>

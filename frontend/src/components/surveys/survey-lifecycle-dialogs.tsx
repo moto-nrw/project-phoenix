@@ -111,6 +111,7 @@ export function PublishSurveyDialog({ survey, onClose, onDone }: DialogProps) {
       confirmText="Jetzt veröffentlichen"
       cancelText="Abbrechen"
       isConfirmLoading={pending}
+      loadingText="Wird veröffentlicht …"
     >
       <div className="space-y-2 text-sm text-gray-700">
         <FormErrorAlert message={error} />
@@ -156,6 +157,7 @@ export function CloseSurveyDialog({ survey, onClose, onDone }: DialogProps) {
       confirmText="Jetzt beenden"
       cancelText="Abbrechen"
       isConfirmLoading={pending}
+      loadingText="Wird beendet …"
     >
       <div className="space-y-2 text-sm text-gray-700">
         <FormErrorAlert message={error} />
@@ -200,6 +202,7 @@ export function RemindSurveyDialog({
       confirmText="Erinnerung senden"
       cancelText="Abbrechen"
       isConfirmLoading={pending}
+      loadingText="Wird gesendet …"
     >
       <div className="space-y-2 text-sm text-gray-700">
         <FormErrorAlert message={error} />

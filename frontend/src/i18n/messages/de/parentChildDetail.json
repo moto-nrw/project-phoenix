@@ -99,6 +99,7 @@
       "inviteSent": "Einladung an {email} gesendet.",
       "inviteLinked": "Die Person ist jetzt verbunden.",
       "grant": "Zugang geben",
+      "grantLoading": "Zugang wird gegeben …",
       "grantTitle": "Vollen Zugang geben?",
       "grantBody": "{name} hat ein Konto, bisher aber keinen Zugang zu diesem Kind. Mit Ihrer Bestätigung geht eine Anfrage an die {careTerm}. Nach der Freigabe sieht diese Person alles zu Ihrem Kind.",
       "grantBodyWithRole": "{name} ist bereits als {role} eingetragen, bisher ohne Zugang zur App. Mit Ihrer Bestätigung geht eine Anfrage an die {careTerm}. Nach der Freigabe sieht diese Person alles zu Ihrem Kind.",

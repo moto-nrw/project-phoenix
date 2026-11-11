@@ -109,6 +109,8 @@ const EMAIL_CHANGE_COPY: Record<
   {
     readonly title: string;
     readonly confirm: string;
+    /** Text des Bestätigen-Knopfs, solange die Änderung läuft. */
+    readonly loading: string;
     readonly text: string;
     readonly object: string;
     readonly run: (guardianId: string) => Promise<void>;
@@ -118,6 +120,7 @@ const EMAIL_CHANGE_COPY: Record<
   stop: {
     title: "Mails stoppen?",
     confirm: "Stoppen",
+    loading: "Wird gestoppt …",
     text: "Diese Person bekommt dann keine Mails der Schule mehr: keine Einladung, keine Elternbriefe, keine Termine. Das gilt auch nach einer neuen Adresse. Anmeldecodes und Mails zum Passwort kommen weiter an. Abrechnungsbriefe des Trägers auch. Nutzt noch jemand diese Adresse, gehen Mails an die Adresse weiter raus.",
     object: "der Stopp der Mails",
     run: stopGuardianEmails,
@@ -126,6 +129,7 @@ const EMAIL_CHANGE_COPY: Record<
   resume: {
     title: "Mails wieder senden?",
     confirm: "Wieder senden",
+    loading: "Wird eingeschaltet …",
     text: "Diese Person bekommt dann wieder Mails der Schule.",
     object: "der Stopp der Mails",
     run: resumeGuardianEmails,
@@ -134,6 +138,7 @@ const EMAIL_CHANGE_COPY: Record<
   lift: {
     title: "Sperre aufheben?",
     confirm: "Aufheben",
+    loading: "Wird aufgehoben …",
     text: "moto sendet dann wieder Mails an diese Adresse. Kommt erneut eine Mail zurück, wird die Adresse wieder gesperrt.",
     object: "die Sperre",
     run: liftGuardianEmailBlock,
@@ -932,6 +937,7 @@ export default function StudentGuardianManager({
         confirmText={emailChangeCopy?.confirm ?? ""}
         cancelText="Abbrechen"
         isConfirmLoading={isChangingEmailBlock}
+        loadingText={emailChangeCopy?.loading}
       >
         <p className="text-sm text-gray-600">{emailChangeCopy?.text}</p>
         <FormErrorAlert message={emailBlockErrors.error} className="mt-3" />

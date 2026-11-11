@@ -144,6 +144,7 @@ function PlanningTracksPageContent() {
         menuLabel: "Archivieren",
         confirmTitle: "Planungsspur archivieren?",
         confirmLabel: "Archivieren",
+        loadingLabel: "Wird archiviert …",
         describe: (track) =>
           `Die Planungsspur „${track.name}“ wird für neue Termine nicht mehr angeboten. Bestehende Termine behalten sie. Sie können die Spur jederzeit wiederherstellen.`,
         run: (track) => planningTrackService.archive(track.id),

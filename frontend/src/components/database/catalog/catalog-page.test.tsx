@@ -102,6 +102,7 @@ function buildConfig(overrides: Partial<CatalogConfig<Sorte>> = {}) {
       menuLabel: "Archivieren",
       confirmTitle: "Kategorie archivieren?",
       confirmLabel: "Archivieren",
+      loadingLabel: "Wird archiviert …",
       describe: (item) => `„${item.name}" wird nicht mehr angeboten.`,
       run: retire,
       toast: (item) => `„${item.name}" archiviert`,

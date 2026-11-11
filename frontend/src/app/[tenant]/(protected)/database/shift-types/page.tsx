@@ -229,6 +229,7 @@ function ShiftTypesPageContent() {
         menuLabel: "Nicht mehr anbieten",
         confirmTitle: "Dienstart nicht mehr anbieten?",
         confirmLabel: "Nicht mehr anbieten",
+        loadingLabel: "Wird aus der Auswahl genommen …",
         describe: (type) =>
           `Die Dienstart „${type.name}“ steht bei neuen Diensten nicht mehr zur Auswahl. Geplante Dienste behalten sie.`,
         run: (type) =>

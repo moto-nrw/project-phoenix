@@ -73,6 +73,8 @@ interface CatalogRetire<T> {
   readonly menuLabel: string;
   readonly confirmTitle: string;
   readonly confirmLabel: string;
+  /** Text des Bestätigen-Knopfs, solange der Rückzug läuft. */
+  readonly loadingLabel: string;
   readonly describe: (item: T) => React.ReactNode;
   readonly run: (item: T) => Promise<unknown>;
   readonly toast: (item: T) => string;
@@ -692,6 +694,7 @@ export function CatalogPage<T extends CatalogItem>({
               confirmText={config.retire.confirmLabel}
               cancelText="Abbrechen"
               isConfirmLoading={busy}
+              loadingText={config.retire.loadingLabel}
               isDismissDisabled={busy}
               onConfirm={() => void handleRetire()}
               onClose={() => setRetireTarget(null)}

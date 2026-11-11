@@ -99,6 +99,7 @@
       "inviteSent": "Invitation sent to {email}.",
       "inviteLinked": "The person is now connected.",
       "grant": "Give access",
+      "grantLoading": "Giving access…",
       "grantTitle": "Give full access?",
       "grantBody": "{name} has an account but no access to this child yet. Confirming sends a request to the {careTerm}. Once approved, this person sees everything about your child.",
       "grantBodyWithRole": "{name} is already listed as {role}, so far without access to the app. Confirming sends a request to the {careTerm}. Once approved, this person sees everything about your child.",

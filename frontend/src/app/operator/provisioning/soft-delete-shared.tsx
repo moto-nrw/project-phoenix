@@ -384,6 +384,7 @@ export function RestoreConfirmationModal<T extends SoftDeletable>({
       title={`${entityLabel} wiederherstellen`}
       confirmText="Wiederherstellen"
       isConfirmLoading={isProcessing}
+      loadingText="Wird wiederhergestellt …"
       isConfirmDisabled={confirmDisabled}
     >
       <p className="text-sm text-gray-600">

@@ -716,6 +716,7 @@ export default function ClassListEntriesPage() {
             title="Eintrag zuordnen"
             confirmText="Zuordnen"
             isConfirmLoading={saving}
+            loadingText="Wird zugeordnet …"
             isConfirmDisabled={!assignTarget}
           >
             {modal?.kind === "assign" ? (

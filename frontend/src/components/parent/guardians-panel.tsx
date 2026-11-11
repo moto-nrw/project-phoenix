@@ -623,6 +623,7 @@ export default function GuardiansPanel({
         confirmText={t("guardians.access.grant")}
         cancelText={t("guardians.cancel")}
         isConfirmLoading={busy}
+        loadingText={t("guardians.access.grantLoading")}
       >
         <p className="text-sm leading-6 text-gray-600">
           {upgradePrompt

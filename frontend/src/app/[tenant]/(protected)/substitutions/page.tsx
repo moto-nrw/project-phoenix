@@ -852,6 +852,7 @@ function EndDialog({
       confirmText="Beenden"
       cancelText="Abbrechen"
       isConfirmLoading={action.saving}
+      loadingText="Wird beendet …"
       isDismissDisabled={action.saving}
     >
       <div ref={action.formRef} className="space-y-3 text-sm text-gray-600">

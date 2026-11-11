@@ -869,6 +869,7 @@ function ClassDayOverviewContent({
         title="Meldung zurücknehmen?"
         confirmText="Zurücknehmen"
         isConfirmLoading={absenceReports.withdrawing}
+        loadingText="Wird zurückgenommen …"
       >
         <FormErrorAlert message={absenceReports.error} className="mb-3" />
         <p className="text-sm text-gray-700">
