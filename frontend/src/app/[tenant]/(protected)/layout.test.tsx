@@ -9,7 +9,11 @@ import {
 import "@testing-library/jest-dom/vitest";
 
 vi.unmock("next-intl");
+// The test setup resolves app paths for the test school everywhere; here the
+// layout itself has to (#6577).
+vi.unmock("~/components/ui/page-path");
 
+import { TenantPage } from "~/components/ui/tenant-page";
 import ProtectedLayout from "./layout";
 
 // The layout now includes authenticated navigation data intent. Keep the real
@@ -94,6 +98,19 @@ describe("ProtectedLayout", () => {
     expect(screen.getByTestId("breadcrumb-provider")).toBeInTheDocument();
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("child")).toBeInTheDocument();
+  });
+
+  it("führt den Rückweg einer Seite in die Schule", () => {
+    render(
+      <ProtectedLayout>
+        <TenantPage title="Raum 1" back backHref="/rooms" />
+      </ProtectedLayout>,
+    );
+
+    expect(screen.getByRole("link", { name: "Zurück" })).toHaveAttribute(
+      "href",
+      "/test-tenant/rooms",
+    );
   });
 
   it("nests AppShell inside BreadcrumbProvider", () => {
