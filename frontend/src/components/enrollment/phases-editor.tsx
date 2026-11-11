@@ -646,7 +646,7 @@ export function PhasesEditor() {
     clearDeleteErrors,
     showDeleteError,
     closeDelete,
-    loadAll,
+    afterWrite,
     refreshPhaseExpiryWarnings,
     toast,
   ]);
@@ -755,7 +755,7 @@ export function PhasesEditor() {
         setTogglingActive(false);
       }
     },
-    [loadAll, refreshPhaseExpiryWarnings, showActionError, toast],
+    [afterWrite, refreshPhaseExpiryWarnings, showActionError, toast],
   );
   useLayoutEffect(() => {
     latestToggleActive.current = handleToggleActive;

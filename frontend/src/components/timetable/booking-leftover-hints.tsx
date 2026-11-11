@@ -12,6 +12,10 @@ import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
@@ -85,6 +89,13 @@ export function BookingLeftoverHints({
     error,
     "die Prüfung der Kinder ohne passende Buchung",
     reload,
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
+  );
+  // Nachladen nach Behalten oder Entfernen: ein Fehler dabei ist ein
+  // Ladefehler über den Hinweisen, kein Fehler der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Kinder ohne passende Buchung",
+    reload,
   );
 
   const seenVersion = useRef(templatesVersion);
@@ -106,7 +117,7 @@ export function BookingLeftoverHints({
             ? `${leftover.studentName} bleibt in „${leftover.templateName}“.`
             : `Der Hinweis zu ${leftover.studentName} wird wieder gezeigt.`,
         );
-        await reload();
+        await afterWrite.refresh();
       } catch (err) {
         logger.error("booking_leftover_decision_failed", {
           template_id: leftover.templateId,
@@ -122,7 +133,7 @@ export function BookingLeftoverHints({
         setBusyKey(null);
       }
     },
-    [reload, showActionError, toast],
+    [afterWrite, showActionError, toast],
   );
 
   const closeRemoval = () => {
@@ -147,7 +158,7 @@ export function BookingLeftoverHints({
         `${removing.studentName} ist aus „${removing.templateName}“ entfernt.`,
       );
       setRemoving(null);
-      await reload();
+      await afterWrite.refresh();
     } catch (err) {
       logger.warn("booking_leftover_remove_failed", {
         template_id: removing.templateId,
@@ -164,16 +175,28 @@ export function BookingLeftoverHints({
   const leftovers = data ?? [];
   const open = leftovers.filter((leftover) => !leftover.kept);
   const kept = canManage ? leftovers.filter((leftover) => leftover.kept) : [];
-  if (error) {
+  // Bestätigte Hinweise bleiben bei einem Ladefehler stehen (#6652).
+  if (error && data === undefined) {
     return <LoadErrorAlert error={loadError} actionLayout="responsive" />;
   }
-  if (open.length === 0 && kept.length === 0) return null;
+  const reloadAlerts = (
+    <>
+      {error ? (
+        <LoadErrorAlert error={loadError} actionLayout="responsive" />
+      ) : null}
+      <LoadErrorAlert error={afterWrite.error} actionLayout="responsive" />
+    </>
+  );
+  if (open.length === 0 && kept.length === 0) {
+    return error || afterWrite.error ? reloadAlerts : null;
+  }
 
   const hiddenCount = Math.max(0, open.length - INITIAL_LEFTOVER_COUNT);
   const visible = expanded ? open : open.slice(0, INITIAL_LEFTOVER_COUNT);
 
   return (
     <div className="flex flex-col gap-3" data-testid="booking-leftover-hints">
+      {reloadAlerts}
       {open.length > 0 ? (
         <SectionCard
           title="Ohne passende Buchung eingeplant"
