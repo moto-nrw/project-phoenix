@@ -9,8 +9,10 @@ import (
 )
 
 // guestGroupsQuery reads the group of every hosted week of a published
-// period, with the guests whose access has not ended. The host policies admit only the weeks the school hosts; a week
-// given to another school or a period taken back drops out by itself.
+// period, with the guests whose access has not ended. The host policies
+// admit only the weeks the school hosts; a week given to another school or a
+// period taken back drops out by itself. The service keeps the weeks that
+// have not ended.
 const guestGroupsQuery = `SELECT host_group.group_id, week.id AS week_id, week.starts_on, week.ends_on,
 		(SELECT COUNT(*) FROM enrollment.holiday_guests AS guest
 			WHERE guest.tenant_id = host_group.tenant_id AND guest.holiday_period_week_id = week.id
