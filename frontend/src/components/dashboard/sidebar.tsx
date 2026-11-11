@@ -575,9 +575,14 @@ const ROW_BADGE_LABELS: Readonly<
   },
 };
 
+/** Das gezählte Wort in Einzahl oder Mehrzahl („offene Anfrage“ / „… Anfragen“). */
+function counterNoun(count: number, noun: CounterNoun): string {
+  return count === 1 ? noun.one : noun.noun;
+}
+
 /** Der Vorlesetext eines Zählers, „1 offene Anfrage“ / „3 offene Anfragen“. */
 function counterAriaLabel(count: number, noun: CounterNoun): string {
-  return `${count} ${count === 1 ? noun.one : noun.noun}`;
+  return `${count} ${counterNoun(count, noun)}`;
 }
 
 /** Determine if a group sub-item should be highlighted as active */
@@ -1713,14 +1718,9 @@ function SidebarContent({
         isActive={isOnEnrollmentsPage}
         isIconActive={isOnEnrollmentsPage}
         hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
-        badge={{
-          count: enrollmentsUnreadCount,
-          tone: "staff",
-          ariaLabel: counterAriaLabel(
-            enrollmentsUnreadCount,
-            ENROLLMENTS_COUNTER,
-          ),
-        }}
+        badgeCount={enrollmentsUnreadCount}
+        badgeTone="staff"
+        badgeNoun={counterNoun(enrollmentsUnreadCount, ENROLLMENTS_COUNTER)}
       >
         {ENROLLMENT_SUB_PAGES.map((page) => (
           <SidebarSubItem
@@ -1730,14 +1730,12 @@ function SidebarContent({
             isActive={activeEnrollmentSubPageHref === page.href}
             {...(page.href === ENROLLMENT_SECTION.href
               ? {
-                  badge: {
-                    count: enrollmentsUnreadCount,
-                    tone: "staff" as const,
-                    ariaLabel: counterAriaLabel(
-                      enrollmentsUnreadCount,
-                      ENROLLMENTS_COUNTER,
-                    ),
-                  },
+                  badgeCount: enrollmentsUnreadCount,
+                  badgeTone: "staff" as const,
+                  badgeNoun: counterNoun(
+                    enrollmentsUnreadCount,
+                    ENROLLMENTS_COUNTER,
+                  ),
                 }
               : {})}
           />

@@ -3821,6 +3821,24 @@ describe("Sidebar", () => {
       );
     });
 
+    it("nennt am zugeklappten Bereich eine Anmeldung in der Einzahl", () => {
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+      fireEvent.click(screen.getByRole("button", { name: /^Eltern/ }));
+
+      expect(
+        screen.getAllByLabelText("1 ungelesene Anmeldung").length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.queryByLabelText("1 ungelesene Anmeldungen"),
+      ).not.toBeInTheDocument();
+    });
+
     it("zeigt den Zähler am zugeklappten Bereich", () => {
       render(<Sidebar />);
 

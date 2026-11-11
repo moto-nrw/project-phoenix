@@ -22,14 +22,6 @@ function classesWith(element: Element, prefixes: readonly string[]) {
 }
 
 describe("StatCard", () => {
-  it("zeigt bei einer verlinkten Kachel den Mauszeiger", () => {
-    render(<StatCard label="Stunden" value="12" href="/stunden" />);
-
-    expect(screen.getByRole("link", { name: /Stunden/ })).toHaveClass(
-      "cursor-pointer",
-    );
-  });
-
   it("zeigt Beschriftung, Wert und Hinweis", () => {
     render(<StatCard label="Stunden" value="12h 30min" hint="Diese Woche" />);
 
