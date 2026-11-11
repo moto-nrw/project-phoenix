@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useState } from "react";
 import {
   Drawer,
@@ -61,6 +63,7 @@ export function PortalOverflowBottomNav({
   moreLabel = "Mehr",
   moreDescription = "Weitere Bereiche",
   activeInMore = false,
+  moreIcon,
 }: {
   readonly items: readonly PortalOverflowNavItem[];
   /** Das Attribut, das jeden Eintrag für Touren und Tests benennt. */
@@ -74,6 +77,11 @@ export function PortalOverflowBottomNav({
    * die Punkte sähe das Feld nicht mehr nach den übrigen Bereichen aus.
    */
   readonly activeInMore?: boolean;
+  /**
+   * Opt-in: ein eigenes Symbol für „Mehr“ statt der Punkte, etwa das
+   * Listen-Symbol des OGS-Portals. Ohne Angabe bleiben die Punkte.
+   */
+  readonly moreIcon?: ReactNode;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -122,7 +130,7 @@ export function PortalOverflowBottomNav({
             }
             // The dots stay: beside the open page's name they keep saying
             // that this field opens the other areas.
-            concept={moreConcept}
+            {...(moreIcon ? { icon: moreIcon } : { concept: moreConcept })}
             active={moreActive}
             onClick={() => setMoreOpen(true)}
             {...{ [navItemAttribute]: "more" }}
