@@ -76,7 +76,11 @@ func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome,
 	}
 	outcome := &submitOutcome{StatusURL: plan.statusURL}
 	if err := s.deps.Runtime.Transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		return s.writeSubmission(txCtx, &req, plan, outcome)
+		if err := s.writeSubmission(txCtx, &req, plan, outcome); err != nil {
+			return err
+		}
+		// Last lock of the transaction, after every lock of the write.
+		return s.countStoredSubmission(txCtx, &req)
 	}); err != nil {
 		return nil, err
 	}
@@ -251,10 +255,7 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 			return err
 		}
 	}
-	if err := s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0); err != nil {
-		return err
-	}
-	return s.countStoredSubmission(ctx, req)
+	return s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0)
 }
 
 // lockSubmission takes the write's locks in the order every renewal and
