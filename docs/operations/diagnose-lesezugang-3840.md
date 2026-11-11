@@ -53,8 +53,8 @@ Berechtigte können die Schul-ID selbst wählen. RLS verhindert hier vergessene
 Filter, nicht die bewusste Wahl einer anderen Schule. Diagnose nur mit
 dokumentiertem Auftrag und für die dafür freigegebene Schule ausführen.
 Keine Mitgliedschaft in `phoenix_tenant`, `phoenix_admin`, `phoenix_auth`,
-`phoenix_demo`, `phoenix_school_erasure`, `phoenix_billing_retention` oder
-privilegierten PostgreSQL-Rollen ergänzen.
+`phoenix_demo`, `phoenix_school_erasure`, `phoenix_billing_retention`,
+`phoenix_data_return` oder privilegierten PostgreSQL-Rollen ergänzen.
 
 Systemkatalog-Metadaten bleiben nach PostgreSQL-Standard sichtbar. Die Rolle
 hat außerdem die standardmäßige Statistikansicht der Erweiterung
