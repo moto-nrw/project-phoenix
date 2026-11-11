@@ -2,7 +2,9 @@
  * The Loki entry of a failure (#2512): which code, which class, which school,
  * which request. Grafana counts `error_displayed` by `error_code` and
  * `tenant_id` (dashboard `phoenix-error-codes`); the client log route adds
- * `tenant_id`, `portal` and `user_id` from the verified session.
+ * `tenant_id`, `portal` and `user_id` from the verified session, and the
+ * browser's `user_agent` from the request. A displayed `crash` also reaches
+ * Sentry (`useApiErrorCore` in `ToastContext.tsx`).
  *
  * The entry is built from identifiers only. These fields of a failure can
  * name a child or a person and are never copied into it:

@@ -134,11 +134,11 @@ describe("HolidayPeriodPublishCard", () => {
     expect(
       screen.getByText(/Seit 25\.10\.2026 für die Anmeldung freigegeben\./),
     ).toBeInTheDocument();
-    // The only control left is the copy button of the parents' link (#4661).
-    expect(screen.getAllByRole("button")).toHaveLength(1);
+    // The only controls left hand the parents' link on: copy it (#4661) or
+    // show it as a QR code.
     expect(
-      screen.getByRole("button", { name: "Link kopieren" }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("button").map((button) => button.textContent),
+    ).toEqual(["Link kopieren", "QR-Code"]);
     expect(screen.getByText("Veröffentlicht")).toBeInTheDocument();
   });
 

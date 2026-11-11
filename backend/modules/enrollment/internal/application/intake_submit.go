@@ -29,9 +29,12 @@ func (s *Intake) Submit(ctx context.Context, req enrollmentNative.SubmitRequest)
 }
 
 // submissionPlan is everything a submission resolves before its write
-// transaction.
+// transaction. phase is the pre-check read; the write replaces it with the
+// phase read under the recurrence gate (locked) before it uses any bound.
 type submissionPlan struct {
+	renewalHolds     renewalHolds
 	phase            *enrollmentNative.Phase
+	locked           enrollmentNative.LockedPhase
 	now              time.Time
 	capabilities     enrollmentNative.FormCapabilities
 	duplicatePolicy  string
@@ -225,24 +228,10 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 
 // writeSubmission is the write transaction of a submission.
 func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan, outcome *submitOutcome) error {
-	// Serialize concurrent submits of one (phase, guardian email), so two
-	// parallel requests cannot both pass the duplicate check.
-	emailLC := guardianEmailKey(req.GuardianEmail)
-	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
-		return fmt.Errorf("submit: acquire dedup lock: %w", err)
-	}
-	lateInvite, err := s.submissionLateInvite(ctx, req, plan)
+	lateInvite, submitter, err := s.lockSubmission(ctx, req, plan)
 	if err != nil {
 		return err
 	}
-	// A late-invite holder may correct the contact address, but an
-	// accountless renewal stays authorized as the invited guardian (#1663,
-	// #2164).
-	reEnrollEmail := emailLC
-	if lateInvite != nil && req.GuardianAccountID == nil {
-		reEnrollEmail = lateInvite.GuardianEmail
-	}
-	submitter := reEnrollmentSubmitterFor(plan.submissionSource, req.GuardianAccountID, reEnrollEmail)
 	if outcome.Warnings, err = s.checkSubmissionDuplicates(ctx, plan.phase.ID, req.GuardianEmail, plan.dupKeys, plan.duplicatePolicy, "submit"); err != nil {
 		return err
 	}
@@ -270,6 +259,60 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 		}
 	}
 	return s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0)
+}
+
+// lockSubmission takes the write's locks in the order every renewal and
+// staff decision of the phase follows: the phase bounds gate (#6657), the
+// late invite, the children a parent may renew behind the parent guard
+// (#6638), then the duplicate lock of (phase, guardian email). It returns the
+// late invite and the identity the renewal is authorized against.
+func (s *Intake) lockSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan) (*enrollmentNative.LateInvite, reEnrollmentSubmitter, error) {
+	if err := s.lockSubmissionPhase(ctx, req, plan); err != nil {
+		return nil, reEnrollmentSubmitter{}, err
+	}
+	emailLC := guardianEmailKey(req.GuardianEmail)
+	lateInvite, err := s.submissionLateInvite(ctx, req, plan)
+	if err != nil {
+		return nil, reEnrollmentSubmitter{}, err
+	}
+	// A late-invite holder may correct the contact address, but an
+	// accountless renewal stays authorized as the invited guardian (#1663,
+	// #2164).
+	reEnrollEmail := emailLC
+	if lateInvite != nil && req.GuardianAccountID == nil {
+		reEnrollEmail = lateInvite.GuardianEmail
+	}
+	submitter := reEnrollmentSubmitterFor(plan.submissionSource, req.GuardianAccountID, reEnrollEmail)
+	plan.renewalHolds, err = s.holdRenewalCandidates(ctx, req.TenantID, plan.phase, req.Children, nil, func() (reEnrollmentSubmitter, error) { return submitter, nil })
+	if err != nil {
+		return nil, reEnrollmentSubmitter{}, err
+	}
+	// Serialize concurrent submits of one (phase, guardian email), so two
+	// parallel requests cannot both pass the duplicate check.
+	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
+		return nil, reEnrollmentSubmitter{}, fmt.Errorf("submit: acquire dedup lock: %w", err)
+	}
+	return lateInvite, submitter, nil
+}
+
+// lockSubmissionPhase reads the phase again with the phase bounds reader,
+// before any other lock of the write (#6657). A phase edit that committed
+// after the pre-check is the phase the submission writes; one that is still
+// open is waited for. The checks of the pre-check run again on that phase.
+func (s *Intake) lockSubmissionPhase(ctx context.Context, req *SubmitRequest, plan *submissionPlan) error {
+	locked, err := s.lockedPhaseForSubmission(ctx, req.PhaseID)
+	if err != nil {
+		return err
+	}
+	phase := locked.Phase()
+	if phase.TenantID != req.TenantID {
+		return fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, req.PhaseID)
+	}
+	if !req.AllowClosedPhase && !phase.EnrollmentWindowOpen(plan.now) {
+		return enrollmentNative.ErrEnrollmentWindowClosed
+	}
+	plan.phase, plan.locked = phase, locked
+	return nil
 }
 
 // submissionLateInvite resolves and locks the late invite of a submission
@@ -369,10 +412,14 @@ func createRequestGuardians(ctx context.Context, owner IntakeGuardians, requestI
 }
 
 func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *enrollmentNative.Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*enrollmentNative.RequestChild, error) {
+	matches, err := s.finalRenewalMatches(ctx, req.TenantID, plan.phase, req.Children)
+	if err != nil {
+		return nil, err
+	}
 	created := make([]*enrollmentNative.RequestChild, 0, len(req.Children))
 	for i, child := range req.Children {
 		row := newSubmittedChild(request.ID, i, child, overrides)
-		matchedStudentID, err := s.submittedChildPin(ctx, req.TenantID, plan.phase, i, child, submitter)
+		matchedStudentID, err := s.submittedChildPin(ctx, plan.phase, i, matches[i], submitter, plan.renewalHolds)
 		if err != nil {
 			return nil, err
 		}
@@ -381,7 +428,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, plan.eligibility != eligibilityNone, i); err != nil {
 			return nil, err
 		}
-		if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {
+		if err := s.holdGuardianReEnrollment(plan.renewalHolds, matchedStudentID, i); err != nil {
 			return nil, err
 		}
 		if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, matchedStudentID, 0, i); err != nil {
@@ -391,7 +438,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("submit: create request child %d: %w", i, err)
 		}
-		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.phase.ServiceStartDate, plan.phase.ServiceEndDate); err != nil {
+		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.locked); err != nil {
 			return nil, fmt.Errorf("submit: record child offerings: %w", err)
 		}
 		created = append(created, row)

@@ -22179,6 +22179,42 @@
       "target_owner": ""
     },
     {
+      "adr": "0083",
+      "approval_adr": "0210",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRecords.FindEnrolledStudentIDsByIdentities",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "reason": "Existing StudentService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0210 approves exactly the three new batch-lookup bindings to this observer, without classifying them as queries or guarded leaves.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0210",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.OverlappingRosterGroupNames.FindEnrolledStudentIDsByIdentities",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "reason": "Existing StudentService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0210 approves exactly the three new batch-lookup bindings to this observer, without classifying them as queries or guarded leaves.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0210",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupStudentRepository.FindEnrolledStudentIDsByIdentities",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "reason": "Existing StudentService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0210 approves exactly the three new batch-lookup bindings to this observer, without classifying them as queries or guarded leaves.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRecords.FindOverlappingWithGroups",
       "classification": "platform",

@@ -276,7 +276,12 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+2).
 // ADR 0203: the constructors of the HTTPS retrieval and the release CLI of
 // the return package of modules/organizationtenancy/compose add exactly 18 LOC.
-const moduleComposeBudgetTotal = 13265
+// ADR 0207: the constructor of the announced holiday periods of
+// modules/enrollment/compose (+5) and their port of
+// workflows/parentportal/compose (+1) add exactly 6 LOC.
+// ADR 0209: the new composition of workflows/holidayallocation (+13).
+// #6702 lowered devicescan (-8), schoolmembership (-7).
+const moduleComposeBudgetTotal = 13284
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -329,7 +334,8 @@ var moduleComposeBudgets = map[string]int{
 	// of the package by more than it added (-2).
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
-	"modules/enrollment/compose":                   608,
+	// ADR 0207: the constructor of the announced holiday periods (+5).
+	"modules/enrollment/compose":                   613,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -430,12 +436,17 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose":         918,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
-	"workflows/openroommove/compose":    46,
+	// Added by ADR 0209: the holiday allocation workflow and its joining
+	// Träger transaction (ADR 0206).
+	"workflows/holidayallocation/compose": 13,
+	"workflows/openroommove/compose":      46,
 	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21); by ADR 0153: the contract port (+1);
 	// by ADR 0157: the shared document port (+1).
-	"workflows/parentportal/compose":     332, // ADR 0159: the notice port (+1)
+	// ADR 0159: the notice port (+1).
+	// ADR 0207: the port of the announced holiday periods (+1).
+	"workflows/parentportal/compose":     333,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

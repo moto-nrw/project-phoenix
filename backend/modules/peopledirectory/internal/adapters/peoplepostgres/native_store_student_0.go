@@ -141,3 +141,7 @@ func (r nativeStudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Con
 		return NativeStudentRosterEntry(value)
 	}), out1
 }
+
+func (r nativeStudentRepository) FindEnrolledStudentIDsByIdentities(context.Context, int64, []directory.StudentIdentity) ([][]int64, error) {
+	return nil, errStudentWritesMoved
+}

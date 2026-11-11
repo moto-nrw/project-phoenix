@@ -33,6 +33,25 @@
     "loading": "Görevler yükleniyor",
     "errorObject": "yapılacaklar listesinin tamamı"
   },
+  "holiday": {
+    "listTitle": "Tatil bakımı",
+    "badgeOpen": "Kayıt açık",
+    "badgeUpcoming": "Kayıt {date} tarihinde başlıyor",
+    "care": "Bakım",
+    "registration": "Kayıt",
+    "range": "{from} – {to}",
+    "until": "{date} tarihine kadar",
+    "lastDay": "Bugün son gün",
+    "daysLeft": "{days} gün kaldı",
+    "for": "Kimin için",
+    "register": "Şimdi kaydet",
+    "registerLabel": "{name}: Şimdi kaydet",
+    "forChildren": "Kimin için: {names}",
+    "offeredByTraeger": "Düzenleyen: {traeger}",
+    "careLine": "Bakım {from} – {to}",
+    "registrationLine": "Kayıt {date} tarihine kadar",
+    "registrationRangeLine": "Kayıt {from} – {to}"
+  },
   "childrenLoading": "Çocuklar yükleniyor",
   "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun {careTerm}'si bunu ayarlayabilir.",
   "errorObject": "çocuklarınızın özeti"

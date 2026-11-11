@@ -213,7 +213,7 @@ describe("TagesplanView", () => {
     const url = new URL(help.getAttribute("href")!, "https://moto.invalid");
     expect(url.pathname).toBe("/help/tagesplan-ansehen");
     expect(url.searchParams.get("return_to")).toBe("/tagesplan?d=2026-07-15");
-    expect(help.parentElement).toHaveClass("lg:hidden");
+    expect(help).toHaveClass("lg:hidden");
   });
 
   it("steps over a weekend of another week although the weekend follows Friday's plan (#5028)", () => {

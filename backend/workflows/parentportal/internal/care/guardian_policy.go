@@ -27,6 +27,7 @@ const (
 	GuardianPermissionMealParticipationManage = "parent_portal.meal_participation.manage"
 	GuardianPermissionNotesWrite              = "parent_portal.notes.write"
 	GuardianPermissionPickupManage            = "parent_portal.pickup.manage"
+	GuardianPermissionPollResponse            = "parent_portal.poll.response"
 	GuardianPermissionPortalAccess            = "parent_portal.access"
 	GuardianPermissionRelatedAccountsManage   = "parent_portal.related_accounts.manage"
 	GuardianPermissionRequestSubmit           = "parent_portal.request.submit"

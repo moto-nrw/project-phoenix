@@ -73,6 +73,9 @@ type Config struct {
 	// HolidayWishes states the holiday care wish of a prefilled child
 	// (#4703) in the school's tenant transaction.
 	HolidayWishes HolidayWishStatements
+	// HolidayAnnouncements lists the published holiday periods the start
+	// page announces (#6671), in the administrative transaction.
+	HolidayAnnouncements HolidayRegistrationAnnouncements
 
 	// Document inbox (#4671, ADR 0126): the documents of the Elternabrechnung
 	// in the Träger transaction, the Träger of a school, the address of an
@@ -114,8 +117,11 @@ type Config struct {
 	// Identity & Access: the guardian's school membership a child write holds
 	// until commit (#6529), inviting and removing further guardians, and the
 	// open invitations shown as pending.
-	Memberships         SchoolMembershipLock
-	InvitationAccounts  InvitationAccountLock
+	Memberships        SchoolMembershipLock
+	InvitationAccounts InvitationAccountLock
+	// GuardianHold is People Directory's guardian hold, the protocol the
+	// guard runs over these locks (#6638).
+	GuardianHold        GuardianHold
 	GuardianInvites     GuardianAccess
 	GuardianInvitations GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error

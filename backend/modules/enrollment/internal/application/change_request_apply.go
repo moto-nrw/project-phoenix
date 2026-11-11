@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
@@ -58,9 +57,6 @@ func (s *ChangeRequests) applyApprovedProposal(ctx context.Context, row *ChangeR
 	if err := s.writeApprovedRequest(ctx, run); err != nil {
 		return nil, err
 	}
-	if err := s.lockApprovedStudents(ctx, run.children); err != nil {
-		return nil, err
-	}
 	// One approval is one edit of the whole family, applied child by child.
 	// Defer the companion stranding verdicts and decide them once against
 	// every child's final plan (#1694).
@@ -95,7 +91,16 @@ func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, i
 	if run.capabilities, err = s.formCapabilities(ctx, &row.CareOfferingsEnabledAtCreation); err != nil {
 		return nil, err
 	}
-	if run.prepared, err = s.prepareProposed(ctx, req, children, proposed, run.capabilities, true, false); err != nil {
+	phase, err := s.lockedProposalPhase(ctx, req.PhaseID)
+	if err != nil {
+		return nil, err
+	}
+	if run.prepared, err = s.prepareProposed(ctx, phase, req, children, proposed, run.capabilities, true, false); err != nil {
+		return nil, err
+	}
+	// Renewals hold their students before the email-scoped dedup lock.
+	// Lock the entire approved graph in that order before taking it too.
+	if err := s.lockApprovedStudents(ctx, children); err != nil {
 		return nil, err
 	}
 	if err := s.ensureNoActiveDuplicateForApproval(ctx, req, run.prepared.request); err != nil {
@@ -253,7 +258,7 @@ func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval,
 			ManualSelectedDays: pick.ManualSelectedDays, AutomaticSelectedDays: pick.AutomaticSelectedDays,
 		})
 	}
-	if err := changeCareBookings(ctx, s.deps.Bookings, existing.ID, run.prepared.phase, replacement); err != nil {
+	if err := changeCareBookings(ctx, s.deps.Bookings, existing.ID, run.prepared.locked, replacement); err != nil {
 		return err
 	}
 	if status, ok := run.overrides[i]; ok {
@@ -275,12 +280,16 @@ func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval,
 }
 
 // changeCareBookings replaces a request child's Care Plan bookings with the
-// approved selection over the phase window.
-func changeCareBookings(ctx context.Context, commands CareBookingChanges, childID int64, phase *enrollmentNative.Phase, selections []*enrollmentNative.RequestChildOfferingRecord) error {
+// approved selection over the window of the phase read under the recurrence
+// gate (#6657).
+func changeCareBookings(ctx context.Context, commands CareBookingChanges, childID int64, phase enrollmentNative.LockedPhase, selections []*enrollmentNative.RequestChildOfferingRecord) error {
 	if commands == nil {
 		return errors.New("offering adjustment requires Care Plan booking commands")
 	}
-	start, until := calendar.Date(phase.ServiceStartDate), calendar.Date(phase.ServiceEndDate).AddDays(1)
+	start, until, err := phase.BookingWindow()
+	if err != nil {
+		return err
+	}
 	bookings := make([]enrollmentNative.CareBookingInput, 0, len(selections))
 	for _, pick := range selections {
 		if pick == nil {

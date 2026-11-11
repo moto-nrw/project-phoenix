@@ -95,7 +95,7 @@ func restoreMatchFailureFixture(t *testing.T) (*decisionTestEnv, int64, []int64,
 	requestSvc := newTestRequestService(owners.EnrollmentIntakeSources{
 		Bookings: requestTestBookingCommands(), Requests: env.repos.Enrollment(), Children: env.repos.Enrollment(),
 		Guardians: env.repos.Enrollment(), CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
-		Catalog: env.repos.Enrollment(), StudentRepo: env.repos.Student, GuardianAuthorizer: env.repos.StudentGuardian,
+		Catalog: env.repos.Enrollment(), StudentRepo: env.repos.Student, GuardianAuthorizer: env.repos.StudentGuardian, GuardianHold: testGuardianHold(env.db, env.repos),
 		SchoolRepo: factorySchools{repos: env.reposSchools}, RateLimitRepo: env.repos.Enrollment(),
 		LateInviteRepo: env.repos.Enrollment(), Uploads: env.repos.Enrollment(), OutboxEnqueuer: env.outbox,
 		Settings: env.settings, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),

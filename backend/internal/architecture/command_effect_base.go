@@ -58,7 +58,83 @@ func resolveEffectBase(project, ref string) (effectBase, error) {
 		return effectBase{}, err
 	}
 	adrs, err := addedADRs(root, sha)
-	return effectBase{root: root, sha: sha, addedADRs: adrs}, err
+	if err != nil {
+		return effectBase{}, err
+	}
+	accepted, err := acceptedADRs(root, sha)
+	if err != nil {
+		return effectBase{}, err
+	}
+	for number := range accepted {
+		adrs[number] = true
+	}
+	return effectBase{root: root, sha: sha, addedADRs: adrs}, nil
+}
+
+// acceptedADRs lists the ADRs this change accepts: the base holds the file
+// with front-matter status proposed, the candidate the same file with status
+// accepted. A decision proposed in an earlier documentation change is
+// accepted in the change that implements it (ADR 0206), so it approves that
+// change's command effects like a new ADR would. It approves no ratchet
+// budget raise.
+func acceptedADRs(root, sha string) (map[string]bool, error) {
+	changed, err := gitOutput(root, "diff", "--name-only", "-z", sha, "--", "docs/adr/")
+	if err != nil {
+		return nil, err
+	}
+	accepted := map[string]bool{}
+	for _, name := range strings.Split(changed, "\x00") {
+		number, ok := adrNumber(filepath.Base(name))
+		if !ok || filepath.Dir(name) != "docs/adr" {
+			continue
+		}
+		accepts, err := acceptsADR(root, sha, name)
+		if err != nil {
+			return nil, err
+		}
+		if accepts {
+			accepted[number] = true
+		}
+	}
+	return accepted, nil
+}
+
+// acceptsADR reports whether the candidate's file name is accepted while the
+// base holds the same file as proposed.
+func acceptsADR(root, sha, name string) (bool, error) {
+	source, err := os.ReadFile(filepath.Join(root, name))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if adrStatus(string(source)) != "accepted" {
+		return false, nil
+	}
+	base, err := gitOutput(root, "show", sha+":"+name)
+	if err != nil {
+		return false, nil // Not in the base under this name: addedADRs decides.
+	}
+	return adrStatus(base) == "proposed", nil
+}
+
+// adrStatus is the status of the ADR's leading front matter, empty without.
+func adrStatus(source string) string {
+	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return ""
+	}
+	for _, line := range lines[1:] {
+		line = strings.TrimSpace(line)
+		if line == "---" {
+			return ""
+		}
+		if value, ok := strings.CutPrefix(line, "status:"); ok {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 const commandEffectDecision = "docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md"

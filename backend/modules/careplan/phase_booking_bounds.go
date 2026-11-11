@@ -148,12 +148,42 @@ func requestChildIDs(bookings []CareOfferingBooking) []int64 {
 // while the booking still applies today, and no bound moves before today.
 // A booking the move would leave empty refuses the whole edit.
 func phaseBookingBoundChanges(bookings []CareOfferingBooking, move PhaseBoundsMove) ([]CareOfferingBookingBounds, error) {
+	var changes []CareOfferingBookingBounds
+	for _, followed := range followPhaseBounds(bookings, move) {
+		if followed.empty() {
+			return nil, &PhaseBookingBoundsConflictError{RequestChildID: followed.booking.RequestChildID, CareOfferingID: followed.booking.CareOfferingID}
+		}
+		booking := followed.booking
+		changes = append(changes, CareOfferingBookingBounds{
+			ID: booking.ID, RequestChildID: booking.RequestChildID,
+			ValidFromWas: booking.ValidFrom, ValidUntilWas: booking.ValidUntil,
+			ValidFrom: storedDay(followed.from), ValidUntil: storedDay(followed.until),
+		})
+	}
+	return changes, nil
+}
+
+// followedBooking is a booking whose bounds follow a phase move, with the
+// bounds it gets.
+type followedBooking struct {
+	booking     CareOfferingBooking
+	from, until calendar.Date
+}
+
+// empty reports whether the followed bounds leave nothing of the booking.
+func (f followedBooking) empty() bool {
+	return f.from != "" && f.until != "" && !f.from.Before(f.until)
+}
+
+// followPhaseBounds decides, in booking order, which bookings' bounds follow
+// the move and where to. The rules are phaseBookingBoundChanges'.
+func followPhaseBounds(bookings []CareOfferingBooking, move PhaseBoundsMove) []followedBooking {
 	oldFrom, oldUntil := move.StartBefore, move.EndBefore.AddDays(1)
 	newFrom, newUntil := latestDay(move.StartAfter, move.Today), latestDay(move.EndAfter.AddDays(1), move.Today)
 	startMoves := move.StartAfter != move.StartBefore && oldFrom.After(move.Today)
 	endMoves := move.EndAfter != move.EndBefore && oldUntil.After(move.Today)
 	earliest, latest := outerBounds(bookings)
-	var changes []CareOfferingBookingBounds
+	var followed []followedBooking
 	for _, booking := range bookings {
 		key := bookingChain{booking.RequestChildID, booking.CareOfferingID}
 		from, until := bookingDay(booking.ValidFrom), bookingDay(booking.ValidUntil)
@@ -168,16 +198,9 @@ func phaseBookingBoundChanges(bookings []CareOfferingBooking, move PhaseBoundsMo
 		if movesUntil {
 			until = newUntil
 		}
-		if from != "" && until != "" && !from.Before(until) {
-			return nil, &PhaseBookingBoundsConflictError{RequestChildID: booking.RequestChildID, CareOfferingID: booking.CareOfferingID}
-		}
-		changes = append(changes, CareOfferingBookingBounds{
-			ID: booking.ID, RequestChildID: booking.RequestChildID,
-			ValidFromWas: booking.ValidFrom, ValidUntilWas: booking.ValidUntil,
-			ValidFrom: storedDay(from), ValidUntil: storedDay(until),
-		})
+		followed = append(followed, followedBooking{booking: booking, from: from, until: until})
 	}
-	return changes, nil
+	return followed
 }
 
 type bookingChain struct{ requestChildID, careOfferingID int64 }

@@ -2779,6 +2779,8 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Eltern melden sich über den Link oder im Elternportal an. Eingänge sehen Sie im `Überblick`.",
     notes: [
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
+      "Für einen Aushang oder Elternbrief gibt es den Link auch als QR-Code. Wählen Sie im Menü der Phase `QR-Code anzeigen`, dann `Bild speichern`. Eltern scannen den Code mit der Handy-Kamera.",
+      "In der Mitte des QR-Codes steht das Bild Ihrer Login-Seite, sonst das moto-Logo. Unter `Eigenes Bild` wählen Sie ein anderes.",
       "Ihre Betreuung heißt nicht OGS, sondern zum Beispiel GTS? Öffnen Sie `Einstellungen`, dann den Bereich `Anmeldung`. Wählen Sie bei `Name der Betreuung in Texten für Eltern` den passenden Namen.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
@@ -2791,7 +2793,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
       "Eine Phase trägt `Aktiv` oder nichts. Nur eine aktive Phase nimmt Anmeldungen an.",
-      "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen` und der Link zum Kopieren. Diese Eltern melden sich im Elternportal an.",
+      "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen`, der Link zum Kopieren und der QR-Code. Diese Eltern melden sich im Elternportal an.",
     ],
     troubleshootingDetails: [
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
@@ -6410,7 +6412,10 @@ export const parentGuardiansTopic = function parentGuardiansTopic(): HelpTopic {
   };
 } satisfies typeof authored_parentGuardiansTopic;
 
-/** `/ferienanmeldung/<link>` (#4661): der Link eines Trägers, ohne Konto. */
+/**
+ * `/ferienanmeldung/<link>` (#4661): der Link eines Trägers, ohne Konto, oder
+ * die Karte `Ferienbetreuung` auf der Startseite der Eltern-App (#6671).
+ */
 export const parentHolidayRegistrationTopic =
   function parentHolidayRegistrationTopic(): HelpTopic {
     return {
@@ -6418,15 +6423,18 @@ export const parentHolidayRegistrationTopic =
       title: "Für die Ferienbetreuung anmelden",
       question: "Wie melde ich mein Kind für die Ferien an?",
       summary:
-        "Der Träger gibt Ihnen einen Link. Dort melden Sie bis zu drei Kinder an.",
+        "Sie starten in der Eltern-App oder mit dem Link vom Träger. Sie melden bis zu drei Kinder an.",
       image: "/help/screens/ferienanmeldung-zweite-person.webp",
       imageAlt: "Die freiwillige Karte für die zweite sorgeberechtigte Person.",
       group: "anmeldung",
       audience: "parent",
       icon: "SunHorizon",
-      requirements: ["Sie haben den Link zur Ferienanmeldung vom Träger."],
+      requirements: [
+        "Sie haben die Eltern-App oder den Link zur Ferienanmeldung vom Träger.",
+      ],
       steps: [
-        "Öffnen Sie den Link.",
+        "Öffnen Sie die Eltern-App. Auf der Startseite steht `Ferienbetreuung`. Wählen Sie `Jetzt anmelden`.",
+        "Ohne Eltern-App öffnen Sie den Link vom Träger.",
         "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
         "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
         "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
@@ -6464,11 +6472,14 @@ export const parentHolidayRegistrationTopic =
         "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
+        "Steht in der Eltern-App `Anmeldung ab` mit einem Datum? Dann beginnt die Anmeldung an diesem Tag. Ab dann sehen Sie den Knopf `Jetzt anmelden`.",
+        "Sie haben den Link geöffnet und sind nicht angemeldet? Oben steht `Sie haben schon die Eltern-App?`. Wählen Sie `Anmelden`. Danach kommen Sie zurück zum Formular.",
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
         "Sind Sie mit Ihrem Elternkonto in moto angemeldet? Dann steht unter `Kinder` der Abschnitt `Ihre Kinder aus dem Elternkonto`. Setzen Sie den Haken bei Ihrem Kind. Name, Geburtsdatum und Schule stehen dann schon im Formular, Ihre Angaben auch.",
         "Sie können diese Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
       ],
       troubleshootingDetails: [
+        "Sie sehen in der Eltern-App keine `Ferienbetreuung`? Dann läuft gerade keine Anmeldung für die Schule Ihres Kindes. Oder die Frist ist vorbei. Haben Sie einen Link vom Träger, nutzen Sie den Link.",
         "moto meldet zu viele Tage je Kind? Die Grenze gilt für alle Anmeldungen des Kindes zusammen. Bitte wählen Sie weniger Tage oder fragen Sie das Träger-Büro. Der Hinweis zeigt keine Tage aus anderen Anmeldungen.",
         "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",
         "moto sagt, den Anmeldelink gebe es nicht? Fragen Sie den Träger nach dem richtigen Link.",
@@ -12381,6 +12392,7 @@ export const traegerHolidayRegistrationTopic =
       result:
         "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
       notes: [
+        "Für einen Aushang gibt es den Link auch als QR-Code. Wählen Sie neben dem Link `QR-Code`, dann `Bild speichern`. In der Mitte steht Ihr Logo aus dem Briefkopf, sonst das moto-Logo.",
         "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
         "Eltern brauchen kein Elternkonto.",
         "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",
