@@ -84,3 +84,17 @@ export const LargeSize: Story = {
     size: "lg",
   },
 };
+
+// The yard follows its room's colour (#2405), also the retired red #FF3130.
+export const SchoolyardRoomColors: Story = {
+  render: () => (
+    <div className="flex flex-col items-start gap-2">
+      <PresenceBadge
+        student={{ ...schoolyardStudent, current_room_color: "#A3D977" }}
+      />
+      <PresenceBadge
+        student={{ ...schoolyardStudent, current_room_color: "#FF3130" }}
+      />
+    </div>
+  ),
+};
