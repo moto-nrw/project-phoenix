@@ -317,8 +317,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@867",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1626",
-      "Entfernen@2039",
+      "Antwort entfernen@1629",
+      "Entfernen@2042",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@2008",
@@ -1571,7 +1571,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1532",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1535",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1606,7 +1606,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@995",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@962",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@965",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@149",

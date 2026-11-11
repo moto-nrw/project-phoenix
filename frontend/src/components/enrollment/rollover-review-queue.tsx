@@ -2,13 +2,7 @@
 
 import { useRefreshPhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { MAX_SUPPORTED_GRADE_LEVEL } from "~/lib/grade-level";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -19,6 +13,7 @@ import {
   listRolloverReview,
   type ReviewQueueItem,
 } from "~/lib/enrollment-phase-api";
+import { ApiError } from "~/lib/api-error";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { createLogger } from "~/lib/logger";
@@ -52,6 +47,9 @@ export function RolloverReviewQueue({ phaseID }: Props) {
   const toast = useToast();
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [accessRefused, setAccessRefused] = useState(false);
+  const activePhase = useRef(phaseID);
   const latestRequest = useRef(0);
   const completed = useRef(new Set<string>());
   const listLoad = useApiLoadError();
@@ -73,16 +71,31 @@ export function RolloverReviewQueue({ phaseID }: Props) {
       const list = await listRolloverReview(phaseID);
       if (request !== latestRequest.current) return;
       setItems(list.filter((item) => !completed.current.has(item.child_id)));
+      setLoadFailed(false);
+      setAccessRefused(false);
       clearLoadError();
     } catch (error) {
       if (request !== latestRequest.current) return;
+      setLoadFailed(true);
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        setAccessRefused(true);
+        setItems([]);
+        setClassOverrides({});
+        setBusyChild(null);
+      }
       throw error;
+    } finally {
+      if (request === latestRequest.current) setLoading(false);
     }
   }, [phaseID, clearLoadError]);
   // Never rejects: a failed load shows its error in place of the list.
   const load = useCallback(async () => {
     const request = latestRequest.current + 1;
     setLoading(true);
+    clearLoadError();
     try {
       await readQueue();
     } catch (err) {
@@ -97,12 +110,13 @@ export function RolloverReviewQueue({ phaseID }: Props) {
     } finally {
       if (request === latestRequest.current) setLoading(false);
     }
-  }, [readQueue, showLoadError]);
+  }, [readQueue, showLoadError, clearLoadError]);
   const afterDecide = useRefreshAfterWrite(
     "die Anzeige der Prüfliste",
     readQueue,
   );
 
+  const { clear: clearAfterDecideError } = afterDecide;
   useLayoutEffect(() => {
     latestLoad.current = load;
   });
@@ -110,11 +124,16 @@ export function RolloverReviewQueue({ phaseID }: Props) {
   const invalidateRequest = useCallback(() => {
     latestRequest.current++;
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    activePhase.current = phaseID;
     completed.current.clear();
+    setItems([]);
+    setClassOverrides({});
+    setBusyChild(null);
+    clearAfterDecideError();
     void load();
     return invalidateRequest;
-  }, [load, invalidateRequest]);
+  }, [phaseID, load, invalidateRequest, clearAfterDecideError]);
 
   const decide = async (
     item: ReviewQueueItem,
@@ -151,14 +170,16 @@ export function RolloverReviewQueue({ phaseID }: Props) {
         object: "die Entscheidung",
         retry: () => void latestDecide.current(item, choice),
       });
-      setBusyChild(null);
+      if (activePhase.current === phaseID) setBusyChild(null);
       return;
     }
-    if (choice !== "defer") completed.current.add(item.child_id);
-    setItems((current) =>
-      current.filter((entry) => entry.child_id !== item.child_id),
-    );
-    setBusyChild(null);
+    if (activePhase.current === phaseID) {
+      if (choice !== "defer") completed.current.add(item.child_id);
+      setItems((current) =>
+        current.filter((entry) => entry.child_id !== item.child_id),
+      );
+      setBusyChild(null);
+    }
     toast.success(
       choice === "keep"
         ? "Das Kind wird in die nächste Phase übernommen."
@@ -175,7 +196,10 @@ export function RolloverReviewQueue({ phaseID }: Props) {
     latestDecide.current = decide;
   });
 
-  if (loading) {
+  if (
+    loading ||
+    (loadFailed && items.length === 0 && !listLoad.error && !afterDecide.error)
+  ) {
     // Der Titel ist statisch und steht deshalb schon während des Ladens.
     return (
       <TenantPage
@@ -196,14 +220,14 @@ export function RolloverReviewQueue({ phaseID }: Props) {
       backHref="/enrollment-phases"
       backLabel="Zurück zu den Anmeldephasen"
       stats={
-        listLoad.error
+        listLoad.error || accessRefused
           ? undefined
           : `${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`
       }
       // Ein Ladefehler steht an Stelle der Liste, nie ein Leerzustand.
-      error={listLoad.error}
+      error={listLoad.error ?? (accessRefused ? afterDecide.error : null)}
       empty={
-        items.length === 0 && !afterDecide.error
+        items.length === 0 && !accessRefused && !afterDecide.error
           ? {
               title: "Keine offenen Einträge",
               description:

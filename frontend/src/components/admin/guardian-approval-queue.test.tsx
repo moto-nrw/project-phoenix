@@ -332,7 +332,7 @@ describe("GuardianApprovalQueue", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /Freigeben/ })[0]!);
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
     expect(screen.getByText("Petra Lindner")).toBeVisible();
-    fireEvent.click(screen.getAllByRole("button", { name: /Freigeben/ })[1]!);
+    fireEvent.click(screen.getAllByRole("button", { name: /Freigeben/ })[0]!);
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(3));
     await act(async () => newer.resolve([]));
     expect(await screen.findByText("Keine offenen Anfragen")).toBeVisible();
@@ -375,8 +375,14 @@ describe("reload after a write (#6652)", () => {
 
   async function expectReloadOnly(write: ReturnType<typeof vi.fn>) {
     expect(await screen.findByText(reloadText)).toBeInTheDocument();
-    // Anker: die bisher gezeigte Anfrage steht noch da.
-    expect(screen.getByText("Julia Schröder")).toBeInTheDocument();
+    // Eine bestätigte Entscheidung ist nicht mehr offen oder erneut ausführbar.
+    expect(screen.queryByText("Julia Schröder")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Freigeben/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Ablehnen/ }),
+    ).not.toBeInTheDocument();
     expect(mockShowActionError).not.toHaveBeenCalled();
     expect(
       screen.queryByText(
@@ -392,6 +398,32 @@ describe("reload after a write (#6652)", () => {
     expect(mockList).toHaveBeenCalledTimes(3);
     expect(write).toHaveBeenCalledTimes(1);
   }
+
+  it("discards remaining approval requests after a refused decision reload", async () => {
+    mockList
+      .mockReset()
+      .mockResolvedValueOnce([
+        sampleRequest,
+        { ...sampleRequest, id: "43", guardianName: "Petra Lindner" },
+      ])
+      .mockRejectedValueOnce(new ApiError("refused", 403));
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: /Freigeben/ }))[0]!,
+    );
+    expect(
+      await screen.findByText(
+        `${catalogText("general.permission", "die Anzeige der Anfragen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Petra Lindner")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Freigeben/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Keine offenen Anfragen/),
+    ).not.toBeInTheDocument();
+  });
 
   it("keeps an approved request approved when the reload fails", async () => {
     render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);

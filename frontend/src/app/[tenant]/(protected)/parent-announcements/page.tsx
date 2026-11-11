@@ -705,9 +705,12 @@ function ParentAnnouncementsContent() {
         isLoading ||
         (!!loadError && !shownLoadError && announcements === undefined)
       }
-      error={listErrorDisplay(shownLoadError, announcements !== undefined)}
+      error={
+        listErrorDisplay(shownLoadError, announcements !== undefined) ??
+        (filtered.length === 0 ? formAfterWrite.error : null)
+      }
       empty={
-        !isLoading && filtered.length === 0
+        !isLoading && filtered.length === 0 && !formAfterWrite.error
           ? {
               icon:
                 kind === "poll" ? (

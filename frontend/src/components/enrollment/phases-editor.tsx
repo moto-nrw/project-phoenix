@@ -739,6 +739,9 @@ export function PhasesEditor() {
           ...phaseToInput(phase),
           is_active: !phase.is_active,
         });
+        setPhases((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
         toast.success(
           updated.is_active
             ? `Die Anmeldephase „${updated.name}“ ist jetzt aktiv.`

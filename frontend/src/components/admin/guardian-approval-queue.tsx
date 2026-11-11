@@ -34,6 +34,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { ApiError } from "~/lib/api-error";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import type { ParentInviteMode } from "~/lib/user-context-types";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -185,6 +186,8 @@ export default function GuardianApprovalQueue({
   readonly onCountChange?: (count: number | null) => void;
 }) {
   const [requests, setRequests] = useState<PendingApproval[]>([]);
+  const completed = useRef(new Set<string>());
+  const [accessRefused, setAccessRefused] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   // Ladefehler stehen vor Ort, mit Wiederholen (#2517).
   const [loadFailed, setLoadFailed] = useState(false);
@@ -212,11 +215,22 @@ export default function GuardianApprovalQueue({
     try {
       const next = await listPendingApprovals();
       if (current !== request.current) return;
-      setRequests(next);
+      setRequests(next.filter((req) => !completed.current.has(req.id)));
+      setAccessRefused(false);
       setLoadFailed(false);
       clearLoadError();
     } catch (err) {
-      if (current === request.current) throw err;
+      if (current !== request.current) return;
+      if (
+        err instanceof ApiError &&
+        (err.status === 401 || err.status === 403)
+      ) {
+        setAccessRefused(true);
+        setRequests([]);
+        setRejectTarget(null);
+        setActingId(null);
+      }
+      throw err;
     }
   }, [clearLoadError]);
   // Never rejects: a failed load shows its error where the list belongs.
@@ -249,12 +263,14 @@ export default function GuardianApprovalQueue({
     void load();
   }, [load]);
 
-  const reportedCount = isLoading || loadFailed ? null : requests.length;
+  const reportedCount =
+    isLoading || loadFailed || accessRefused ? null : requests.length;
   useEffect(() => {
     onCountChange?.(reportedCount);
   }, [onCountChange, reportedCount]);
 
   const handleApprove = async (req: PendingApproval) => {
+    if (completed.current.has(req.id)) return;
     setActingId(req.id);
     try {
       await approveGuardianInvitation(req.id);
@@ -269,6 +285,8 @@ export default function GuardianApprovalQueue({
       setActingId(null);
       return;
     }
+    completed.current.add(req.id);
+    setRequests((current) => current.filter((item) => item.id !== req.id));
     setActingId(null);
     toastSuccess(
       `Der Zugang für ${req.guardianName || req.guardianEmail || "die Bezugsperson"} ist freigegeben.`,
@@ -279,6 +297,7 @@ export default function GuardianApprovalQueue({
   const handleReject = async () => {
     if (!rejectTarget) return;
     const req = rejectTarget;
+    if (completed.current.has(req.id)) return;
     setActingId(req.id);
     clearRejectError();
     try {
@@ -294,6 +313,8 @@ export default function GuardianApprovalQueue({
       setActingId(null);
       return;
     }
+    completed.current.add(req.id);
+    setRequests((current) => current.filter((item) => item.id !== req.id));
     setActingId(null);
     setRejectTarget(null);
     toastSuccess("Die Anfrage ist abgelehnt.");
@@ -313,7 +334,8 @@ export default function GuardianApprovalQueue({
   const failedWithoutData = loadFailed && requests.length === 0;
   if (
     isLoading ||
-    (failedWithoutData && formErrorMessage(loadError.error) === null)
+    ((failedWithoutData || accessRefused) &&
+      formErrorMessage(loadError.error ?? afterDecision.error) === null)
   ) {
     return (
       <SkeletonRegion label="Konto-Anfragen werden geladen">
@@ -327,7 +349,10 @@ export default function GuardianApprovalQueue({
       <LoadErrorAlert error={loadError.error} />
       <LoadErrorAlert error={afterDecision.error} className="mb-4" />
 
-      {failedWithoutData ? null : requests.length === 0 ? (
+      {failedWithoutData ||
+      accessRefused ||
+      (afterDecision.error &&
+        requests.length === 0) ? null : requests.length === 0 ? (
         <InviteModeDependentEmptyState state={inviteModeState} />
       ) : (
         requests.map((req) => (
