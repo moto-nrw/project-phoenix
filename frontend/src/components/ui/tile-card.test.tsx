@@ -16,6 +16,14 @@ vi.mock("~/components/ui/navigation-link", () => ({
 }));
 
 describe("TileCard nativeAnchor (#5594)", () => {
+  it("zeigt den Tastaturfokus in kontrastreichem Blau", () => {
+    render(<TileCard href="/anmeldung/1">Schuljahr</TileCard>);
+
+    expect(screen.getByRole("link", { name: "Schuljahr" })).toHaveClass(
+      "focus-visible:outline-moto-blue",
+    );
+  });
+
   it("navigiert ohne nativeAnchor über die Client-Navigation", () => {
     render(<TileCard href="/anmeldung/1">Schuljahr</TileCard>);
 
