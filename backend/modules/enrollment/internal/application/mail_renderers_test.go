@@ -480,3 +480,15 @@ func TestCareFacilityBadgeStaysShort(t *testing.T) {
 	assert.Equal(t, "Ganztag Nord", content["CareFacilityTerm"])
 	assert.Equal(t, "GN", content["CareFacilityBadge"])
 }
+
+func TestHolidayClosureRendererKeepsPendingSeparateFromWaitlisted(t *testing.T) {
+	t.Parallel()
+	rendered, err := NewMailRenderers().HolidayClosureNotice(context.Background(), enrollment.MailKindHolidayClosureNotice, json.RawMessage(`{"recipient_email":"guardian@example.test","children":[{"name":"Tom","weeks":[{"week":"Sommerferien","pending":true}]}]}`))
+	require.NoError(t, err)
+	content := contentOf(t, rendered)
+	assert.Equal(t, true, content["Pending"])
+	assert.Equal(t, false, content["Waitlisted"])
+	weeks := content["Children"].([]map[string]any)[0]["Weeks"].([]map[string]any)
+	assert.Equal(t, true, weeks[0]["Pending"])
+	assert.Equal(t, false, weeks[0]["Waitlisted"])
+}

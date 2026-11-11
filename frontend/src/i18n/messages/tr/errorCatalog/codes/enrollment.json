@@ -157,5 +157,9 @@
   "holiday_registration_form_changed": "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin.",
   "holiday_proof_limit": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "family_children_closed": "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
-  "family_children_invalid": "Lütfen 1 ile 20 arasında bir sayı girin."
+  "family_children_invalid": "Lütfen 1 ile 20 arasında bir sayı girin.",
+  "holiday_allocation_mode_locked": "Kayıtlar zaten var, dağıtım şekli değişmez.",
+  "holiday_allocation_pending": "Önce „Vergabe“ sekmesinde yerleri dağıtın.",
+  "holiday_allocation_full": "Bu haftada boş yer kalmadı. Lütfen listeyi yeniden yükleyin.",
+  "holiday_allocation_changed": "Liste değişti. Lütfen kararınızı yeniden kontrol edin."
 }

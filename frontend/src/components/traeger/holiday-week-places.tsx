@@ -15,7 +15,7 @@ import {
   formatHolidayWeek,
 } from "~/components/traeger/holiday-registration-format";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FramedList } from "~/components/ui/framed-list";
@@ -42,6 +42,7 @@ import {
   setHolidayWeekCapacity,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { holidayPlacementStatus } from "./holiday-placement";
 
 /** Höchste Zahl an Plätzen einer Woche, wie im Backend. */
 const HOLIDAY_WEEK_CAPACITY_MAX = 10000;
@@ -219,6 +220,32 @@ function HolidayWeekPlacesReadout({
           />
         </div>
       )}
+      {(week.pending ?? 0) > 0 ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+            <StatusBadge
+              {...holidayPlacementStatus({
+                placement: "pending",
+                waitlistPosition: null,
+                promotedAt: null,
+              })}
+              label={`${week.pending} offen`}
+              size="xs"
+            />
+            {week.pending === 1
+              ? "1 Anmeldung wartet auf die Entscheidung des Büros."
+              : `${week.pending} Anmeldungen warten auf die Entscheidung des Büros.`}
+          </p>
+          <ButtonLink
+            href={traegerPath(`/traeger/ferien/${periodId}/vergabe`)}
+            variant="surface"
+            size="compact"
+            className="self-start sm:self-auto"
+          >
+            Zur Vergabe
+          </ButtonLink>
+        </div>
+      ) : null}
       {week.waitlist.length === 0 ? (
         <p className="text-sm text-gray-500">
           Niemand steht auf der Warteliste.

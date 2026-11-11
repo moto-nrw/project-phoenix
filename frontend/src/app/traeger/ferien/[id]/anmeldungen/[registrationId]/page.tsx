@@ -19,6 +19,7 @@ import {
   HolidayRegistrationAnswers,
 } from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
+import { HolidayRegistrationCriteriaCard } from "~/components/traeger/holiday-registration-criteria-card";
 import {
   CANCELLED_EDIT_TEXT,
   editableQuestions,
@@ -399,6 +400,11 @@ export default function TraegerHolidayRegistrationPage() {
             onReload={load}
             onDebtorNumberChanged={load}
             canManageBillingSettings={canManageBillingSettings}
+          />
+          <HolidayRegistrationCriteriaCard
+            periodId={periodId}
+            registration={registration}
+            onChanged={changed}
           />
           {contribution?.siblings?.length ? (
             <SectionCard

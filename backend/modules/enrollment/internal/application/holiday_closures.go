@@ -253,7 +253,9 @@ func holidayClosureImpact(bookings []closedBooking) enrollment.HolidayClosureImp
 		}
 		week := &impact.Weeks[i]
 		week.Children++
-		if booking.Placement == enrollment.HolidayPlacementWaitlisted {
+		// A booking the Büro has not decided on by criteria has no place
+		// either (#4700).
+		if booking.Placement != enrollment.HolidayPlacementPlaced {
 			week.Waitlisted++
 		}
 		for _, day := range booking.closed {
@@ -366,7 +368,7 @@ func (h *HolidayClosures) enqueue(ctx context.Context, organizationID int64, tra
 			index[booking.ChildID] = i
 			mailChildren = append(mailChildren, enrollment.HolidayClosureMailChild{Name: booking.FirstName + " " + booking.LastName, Guest: booking.Guest})
 		}
-		week := enrollment.HolidayClosureMailWeek{Week: holidayClosureWeekLine(booking, schools), Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted}
+		week := enrollment.HolidayClosureMailWeek{Week: holidayClosureWeekLine(booking, schools), Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted, Pending: booking.Placement == enrollment.HolidayPlacementPending}
 		for _, day := range booking.closed {
 			week.ClosedDays = append(week.ClosedDays, germanDay(day.Date))
 			if day.Reason != "" && !slices.Contains(reasons, day.Reason) {
