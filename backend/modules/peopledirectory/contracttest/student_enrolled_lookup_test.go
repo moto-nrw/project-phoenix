@@ -104,3 +104,51 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	require.NoError(t, err)
 	assert.True(t, exists, "a pending (approved, not-yet-activated) student must count as already enrolled")
 }
+
+func TestStudentRepository_BatchEnrolledIdentities(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	birthday := calendar.NewDate(2018, 5, 20)
+	first := testpkg.CreateTestStudent(t, db, "Lina", "Müller", "2a")
+	second := testpkg.CreateTestStudent(t, db, "Mila", "Test", "2a")
+	duplicate := testpkg.CreateTestStudent(t, db, "Mila", "Test", "2a")
+	for _, student := range []*testpkg.Student{first, second, duplicate} {
+		setPersonBirthday(t, db, student.PersonID, birthday)
+	}
+	_, err := db.NewRaw(`UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL`, peopleValues.StudentStatusPending, first.ID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	repo := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student
+	identities := []peopleValues.StudentIdentity{
+		{FirstName: "  LINA ", LastName: "MU\u0308LLER", Birthday: birthday},
+		{FirstName: "Mila", LastName: "Test", Birthday: birthday},
+		{FirstName: "Unknown", LastName: "Test", Birthday: birthday},
+		{FirstName: "Lina", LastName: "Müller", Birthday: birthday},
+		{FirstName: "Lina", LastName: "Müller", Birthday: birthday.AddDays(1)},
+	}
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	ctx := counter.Context(testpkg.Ctx(t))
+	matches, err := testpkg.TenantQuery2(t, ctx, db, repo.FindEnrolledStudentIDsByIdentities, tenantID, identities)
+	require.NoError(t, err)
+	require.Equal(t, [][]int64{{first.ID}, {second.ID, duplicate.ID}, nil, {first.ID}, nil}, matches)
+	require.Len(t, counter.Selects("users.persons"), 1, "all identities share one query")
+
+	counter.Reset()
+	empty, err := testpkg.TenantQuery2(t, ctx, db, repo.FindEnrolledStudentIDsByIdentities, tenantID, nil)
+	require.NoError(t, err)
+	require.Empty(t, empty)
+	require.Empty(t, counter.Selects("users.persons"), "an empty batch performs no lookup")
+	_, err = repo.FindEnrolledStudentIDsByIdentities(testpkg.Ctx(t), tenantID, identities)
+	require.Error(t, err, "a nonempty batch requires the caller's school transaction")
+
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	matches, err = testpkg.TenantQuery2(t, testpkg.ContextForTenant(testpkg.Ctx(t), otherTenant), db,
+		repo.FindEnrolledStudentIDsByIdentities, otherTenant, identities)
+	require.NoError(t, err)
+	for _, ids := range matches {
+		require.Empty(t, ids, "a foreign school's children never match")
+	}
+
+	_, err = testpkg.TenantQuery2(t, testpkg.Ctx(t), db, repo.FindEnrolledStudentIDsByIdentities, otherTenant, identities)
+	require.Error(t, err, "a conflicting explicit tenant is refused")
+}

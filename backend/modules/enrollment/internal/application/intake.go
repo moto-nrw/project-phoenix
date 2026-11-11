@@ -115,16 +115,28 @@ type IntakeOfferings interface {
 // enrolled (active or pending) students. FindEnrolledStudentIDByNameAndBirthday
 // answers nil for no match and for more than one.
 type StudentMatches interface {
+	// FindEnrolledStudentIDsByIdentities returns all matches, index-aligned,
+	// in one query. Multiple ids preserve ambiguity rather than choosing one.
+	FindEnrolledStudentIDsByIdentities(context.Context, int64, []enrollmentNative.StudentIdentity) ([][]int64, error)
+	LockStudents(context.Context, []int64) error
 	ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, dateOfBirth calendar.Date) (bool, error)
 	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, dateOfBirth calendar.Date) (*int64, error)
 }
 
 // GuardianStudentAuthorizer probes a guardian's parent-portal permission on
 // one student, by the authenticated account or by the email a late invite
-// was issued to.
+// was issued to. It reads without locks, for a check before the write.
 type GuardianStudentAuthorizer interface {
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
+}
+
+// GuardianStudentHold holds one identity's authority over all candidates in
+// the caller's school transaction, in account, school, children (ascending),
+// profile, relationships order. Missing or refused children have no grant.
+type GuardianStudentHold interface {
+	HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
+	HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
 }
 
 // IntakeSettings resolves tenant overrides or registry defaults. Permission
@@ -208,8 +220,12 @@ type IntakeDependencies struct {
 	Notifications      enrollmentNative.Notifications
 	Students           StudentMatches
 	GuardianAuthorizer GuardianStudentAuthorizer
-	Outbox             MailOutbox
-	Settings           IntakeSettings
+	// GuardianHold holds a parent's renewal permission in the submission's
+	// own transaction (#6638). Nil refuses every parent renewal of an
+	// existing child.
+	GuardianHold GuardianStudentHold
+	Outbox       MailOutbox
+	Settings     IntakeSettings
 	// AdminSubscribers widens the admin notification to the staff who
 	// switched it on (#3780). Nil keeps the configured list only.
 	AdminSubscribers AdminMailSubscribers

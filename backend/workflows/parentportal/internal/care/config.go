@@ -117,8 +117,11 @@ type Config struct {
 	// Identity & Access: the guardian's school membership a child write holds
 	// until commit (#6529), inviting and removing further guardians, and the
 	// open invitations shown as pending.
-	Memberships         SchoolMembershipLock
-	InvitationAccounts  InvitationAccountLock
+	Memberships        SchoolMembershipLock
+	InvitationAccounts InvitationAccountLock
+	// GuardianHold is People Directory's guardian hold, the protocol the
+	// guard runs over these locks (#6638).
+	GuardianHold        GuardianHold
 	GuardianInvites     GuardianAccess
 	GuardianInvitations GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error

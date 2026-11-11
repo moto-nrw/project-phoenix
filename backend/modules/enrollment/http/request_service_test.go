@@ -203,6 +203,31 @@ func (a *recordingGuardianAuthorizer) GuardianEmailHasStudentPermission(_ contex
 	return email == a.grantedEmail, nil
 }
 
+// The renewal asks the held variants (#6638); the stub records them alike.
+func (a *recordingGuardianAuthorizer) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := a.AccountHasStudentPermission(ctx, accountID, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
+}
+
+func (a *recordingGuardianAuthorizer) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := a.GuardianEmailHasStudentPermission(ctx, email, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
+}
+
 func (r *recordingOutbox) EnqueueMail(_ context.Context, req TestMail) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -403,6 +428,7 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 	config := env.config
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
+	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
 		PhaseID:       env.phaseID,
@@ -467,6 +493,7 @@ func withLateInviteRenewalFixture(
 	config := env.config
 	config.StudentRepo = repos.Student
 	config.GuardianAuthorizer = authorizer
+	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
 		PhaseID:       env.phaseID,

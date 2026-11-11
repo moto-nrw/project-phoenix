@@ -3592,11 +3592,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/communicationAnnouncementAudience.HoldAnswerPermission",
-      "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/communicationAnnouncementAudience.HoldDeclarationSigner",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -3871,6 +3866,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+    },
+    {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4079,6 +4084,11 @@
       "decision": "0090",
       "id": "roots/owners/enrollmentStudentGuardians.UpdateGuardianLinkRole",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0210",
+      "id": "roots/owners/enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "reason": "Root binding converts Enrollment identity values to People Directory values and preserves all index-aligned matches; no business decision or SQL."
     },
     {
       "decision": "0090",

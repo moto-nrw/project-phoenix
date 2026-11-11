@@ -13,6 +13,10 @@ const (
 	exceptionSourceStaff    = "staff"
 )
 
+// schoolOwned reports whether the school, not a guardian, decided the leg: a
+// staff row or a day Enrollment planned from a holiday booking (ADR 0120).
+func schoolOwned(source string) bool { return source != exceptionSourceGuardian }
+
 // loadCareException merges the pickup and arrival exceptions for one date into
 // the parent-facing projection. Returns nil if neither leg has a row.
 func (s *Service) loadCareException(ctx context.Context, studentID int64, date calendar.Date) (*CareException, error) {
@@ -50,7 +54,7 @@ func applyDatePickupLeg(out *CareException, pickup *PickupException) bool {
 		out.Reason = pickup.Reason
 	}
 	out.UpdatedAt = pickup.UpdatedAt
-	return pickup.Source == exceptionSourceStaff
+	return schoolOwned(pickup.Source)
 }
 
 // applyDateArrivalLeg copies the arrival leg of one date into out and reports
@@ -66,7 +70,7 @@ func applyDateArrivalLeg(out *CareException, arrival *ArrivalException) bool {
 	if arrival.UpdatedAt.After(out.UpdatedAt) {
 		out.UpdatedAt = arrival.UpdatedAt
 	}
-	return arrival.Source == exceptionSourceStaff
+	return schoolOwned(arrival.Source)
 }
 
 // ListCareExceptions returns the merged pickup/arrival exceptions for the child
@@ -145,7 +149,7 @@ func applyPickupException(ce *CareException, p PickupException, accountID int64)
 	if p.HasManualPartialAbsence() {
 		ce.ExcusedFrom = p.ExcusedFrom
 	}
-	if p.Source == exceptionSourceStaff || p.HasManualPartialAbsence() {
+	if schoolOwned(p.Source) || p.HasManualPartialAbsence() {
 		ce.Source = exceptionSourceStaff
 	}
 }
@@ -166,7 +170,7 @@ func applyArrivalException(ce *CareException, a ArrivalException, accountID int6
 	if a.UpdatedAt.After(ce.UpdatedAt) {
 		ce.UpdatedAt = a.UpdatedAt
 	}
-	if a.Source == exceptionSourceStaff {
+	if schoolOwned(a.Source) {
 		ce.Source = exceptionSourceStaff
 	}
 }

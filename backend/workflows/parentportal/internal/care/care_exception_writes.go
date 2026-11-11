@@ -231,7 +231,7 @@ func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, 
 	if err != nil {
 		return false, err
 	}
-	return pickup != nil && (pickup.Source == exceptionSourceStaff || pickup.HasManualPartialAbsence()), nil
+	return pickup != nil && (schoolOwned(pickup.Source) || pickup.HasManualPartialAbsence()), nil
 }
 
 // DeleteCareException removes only the guardian-authored pickup exception for

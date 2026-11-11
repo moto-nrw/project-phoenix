@@ -13,3 +13,10 @@ type StudentMatchCandidate struct {
 	SchoolClass string
 	Status      string
 }
+
+// StudentIdentity is an exact name-and-birthday probe for enrolled children.
+type StudentIdentity struct {
+	FirstName string
+	LastName  string
+	Birthday  calendar.Date
+}

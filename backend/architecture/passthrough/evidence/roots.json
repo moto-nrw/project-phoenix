@@ -5028,13 +5028,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (r communicationAnnouncementAudience) HoldAnswerPermission(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error) {\n\treturn r.source.HoldAnswerPermission(ctx, schoolID, announcementID, accountID, studentID)\n}",
-      "form": "forward-debt",
-      "id": "roots/owners/communicationAnnouncementAudience.HoldAnswerPermission",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (r communicationAnnouncementAudience) HoldDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*communication.PortalDeclarationSignerContext, error) {\n\trows, err := r.source.HoldDeclarationSigner(ctx, schoolID, announcementID, accountID, studentID)\n\treturn (*communication.PortalDeclarationSignerContext)(rows), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/communicationAnnouncementAudience.HoldDeclarationSigner",
@@ -5420,6 +5413,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (a enrollmentGuardianHold) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn nil, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByAccount(ctx, accountID)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn nil, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{AccountID: accountID, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentsPermission",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a enrollmentGuardianHold) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn nil, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByEmail(ctx, email)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn nil, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{Email: email, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p enrollmentGuardianPhones) CreateGuardianPhone(ctx context.Context, phone *enrollmentCompose.GuardianPhone) error {\n\trow := \u0026peopledirectory.GuardianProfilePhoneSnapshot{GuardianProfileID: phone.GuardianProfileID, PhoneNumber: phone.PhoneNumber, PhoneType: string(phone.PhoneType), Label: phone.Label, IsPrimary: phone.IsPrimary, Priority: phone.Priority}\n\trow.ID, row.CreatedAt, row.UpdatedAt = phone.ID, phone.CreatedAt, phone.UpdatedAt\n\trow.TenantID = phone.TenantID\n\tif err := p.repo.Create(ctx, row); err != nil {\n\t\treturn err\n\t}\n\t*phone = *decisionGuardianPhoneRecord(row)\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
@@ -5710,6 +5717,13 @@
       "evidence": "func (s enrollmentStudentGuardians) UpdateGuardianLinkRole(ctx context.Context, link *enrollmentCompose.StudentGuardian) (int64, error) {\n\trow, err := decisionStudentGuardianRow(link)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn s.repo.UpdateColumns(ctx, row, peopledirectory.GuardianRoleColumns()...)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentStudentGuardians.UpdateGuardianLinkRole",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s enrollmentStudentMatches) FindEnrolledStudentIDsByIdentities(ctx context.Context, tenantID int64, identities []enrollment.StudentIdentity) ([][]int64, error) {\n\tprobes := make([]peopledirectory.StudentIdentity, len(identities))\n\tfor i, identity := range identities {\n\t\tprobes[i] = peopledirectory.StudentIdentity{FirstName: identity.FirstName, LastName: identity.LastName, Birthday: identity.Birthday}\n\t}\n\treturn s.EnrollmentStudentMatches.FindEnrolledStudentIDsByIdentities(ctx, tenantID, probes)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
       "owner": "roots"
     },
     {
