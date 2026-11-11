@@ -181,7 +181,7 @@ function SettingsTabContent({
               onClick={() => setAllExpanded(!allExpanded)}
               tooltip={
                 allExpanded
-                  ? "Klappt alle Bereiche wieder zu."
+                  ? "Zeigt wieder nur die Überschriften der Bereiche."
                   : "Zeigt alle Einstellungen dieser Seite auf einmal."
               }
             >

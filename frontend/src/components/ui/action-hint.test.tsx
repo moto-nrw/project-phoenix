@@ -30,6 +30,7 @@ describe("ActionHint on kit buttons", () => {
     const button = screen.getByRole("button", { name: "Speichern" });
     expect(button).toHaveAccessibleDescription(HINT);
     expect(button.parentElement).toBe(screen.getByTestId("row"));
+    // Anker: Knopf und Beschreibung sind oben geprüft.
     expect(container.querySelector("[data-action-hint]")).toBeNull();
     expect(bubble()).toBeNull();
   });
@@ -52,6 +53,32 @@ describe("ActionHint on kit buttons", () => {
     expect(bubble()).toHaveAttribute("aria-hidden", "true");
 
     fireEvent.pointerLeave(button, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(ACTION_HINT_DELAY_MS);
+    });
+    expect(bubble()).toBeNull();
+  });
+
+  it("stays open while the pointer moves onto the bubble", () => {
+    vi.useFakeTimers();
+    render(
+      <Button type="button" tooltip={HINT}>
+        Speichern
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Speichern" });
+
+    hoverWithMouse(button);
+    const shown = bubble();
+    if (!shown) throw new Error("bubble did not open");
+    fireEvent.pointerLeave(button, { pointerType: "mouse" });
+    fireEvent.pointerEnter(shown, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(ACTION_HINT_DELAY_MS);
+    });
+    expect(bubble()).toHaveTextContent(HINT);
+
+    fireEvent.pointerLeave(shown, { pointerType: "mouse" });
     expect(bubble()).toBeNull();
   });
 
@@ -63,13 +90,17 @@ describe("ActionHint on kit buttons", () => {
       </Button>,
     );
     const button = screen.getByRole("button", { name: "Speichern" });
+    // Anker: der Knopf trägt den Hinweis, nur sichtbar wird er nicht.
+    expect(button).toHaveAccessibleDescription(HINT);
 
     fireEvent.pointerEnter(button, { pointerType: "touch" });
+    fireEvent.pointerDown(button, { pointerType: "touch" });
     act(() => {
+      button.focus();
       vi.advanceTimersByTime(ACTION_HINT_DELAY_MS * 2);
     });
-    fireEvent.focus(button);
 
+    expect(button).toHaveFocus();
     expect(bubble()).toBeNull();
   });
 
@@ -86,6 +117,7 @@ describe("ActionHint on kit buttons", () => {
     expect(bubble()).not.toBeNull();
     fireEvent.pointerDown(button, { pointerType: "mouse" });
 
+    // Anker: die Blase stand eben noch (Prüfung oben).
     expect(bubble()).toBeNull();
   });
 
@@ -101,6 +133,8 @@ describe("ActionHint on kit buttons", () => {
     const button = screen.getByRole("button", { name: "Speichern" });
 
     hoverWithMouse(button);
+    // Anker: die Blase steht vor der Escape-Taste.
+    expect(bubble()).toHaveTextContent(HINT);
     fireEvent.keyDown(document.body, { key: "Escape" });
 
     expect(bubble()).toBeNull();
@@ -128,6 +162,7 @@ describe("ActionHint on kit buttons", () => {
     act(() => {
       button.blur();
     });
+    // Anker: die Blase stand beim Fokus (Prüfung oben).
     expect(bubble()).toBeNull();
   });
 
@@ -144,6 +179,8 @@ describe("ActionHint on kit buttons", () => {
       button.focus();
     });
 
+    // Anker: der Fokus liegt auf dem Knopf.
+    expect(button).toHaveFocus();
     expect(bubble()).toBeNull();
   });
 
@@ -190,15 +227,15 @@ describe("ActionHint on kit buttons", () => {
       <Button
         type="button"
         size="icon"
-        aria-label="Wert ändern"
-        tooltip="Wert ändern"
+        aria-label="Profil ansehen: Mia Klein"
+        tooltip="Profil ansehen"
       >
         ✎
       </Button>,
     );
 
     expect(
-      screen.getByRole("button", { name: "Wert ändern" }),
+      screen.getByRole("button", { name: "Profil ansehen: Mia Klein" }),
     ).not.toHaveAttribute("aria-describedby");
   });
 

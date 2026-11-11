@@ -150,7 +150,7 @@ describe("SettingsField at the school, with a Träger value", () => {
     // Back to Standard, so a later Träger value reaches the school again.
     const reset = screen.getByRole("button", {
       name: "Zurücksetzen",
-      description: "Stellt den Wert wieder auf die Grundeinstellung.",
+      description: /^Stellt den Standard wieder her\./,
     });
     expect(screen.queryByText("Standard")).not.toBeInTheDocument();
     fireEvent.click(reset);
@@ -197,7 +197,7 @@ describe("SettingsField in the Träger portal", () => {
     fireEvent.click(
       screen.getByRole("button", {
         name: "Zurücksetzen",
-        description: "Stellt den Wert wieder auf die Grundeinstellung.",
+        description: /^Stellt den Standard wieder her\./,
       }),
     );
 
@@ -222,12 +222,7 @@ describe("SettingsField in the Träger portal", () => {
     );
 
     expect(screen.getByText("Standard")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", {
-        name: "Zurücksetzen",
-        description: "Stellt den Wert wieder auf die Grundeinstellung.",
-      }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Zurücksetzen" })).toBeNull();
   });
 
   it("edits the AGB as text only; the PDF stays with each school", () => {

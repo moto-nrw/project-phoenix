@@ -146,7 +146,7 @@ export function PasswordField({
               aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
               tooltip={
                 showValue
-                  ? "Verbirgt den Wert wieder hinter Punkten."
+                  ? "Zeigt den Wert wieder als Punkte, damit niemand mitliest."
                   : "Zeigt den gespeicherten Wert lesbar an."
               }
             >
@@ -223,7 +223,7 @@ export function PasswordField({
             aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
             tooltip={
               showValue
-                ? "Verbirgt Ihre Eingabe wieder hinter Punkten."
+                ? "Zeigt Ihre Eingabe wieder als Punkte, damit niemand mitliest."
                 : "Zeigt Ihre Eingabe lesbar an."
             }
           >

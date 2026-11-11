@@ -128,10 +128,10 @@ describe("SettingsField retention windows (ADR 0048)", () => {
     );
 
     fireEvent.click(
-      screen.queryByRole("button", {
+      screen.getByRole("button", {
         name: "Zurücksetzen",
-        description: "Stellt den Wert wieder auf die Grundeinstellung.",
-      })!,
+        description: /^Stellt den Standard wieder her\./,
+      }),
     );
     await findByText(/älter als 365 Tage sind/);
     expect(onReset).not.toHaveBeenCalled();

@@ -659,10 +659,7 @@ describe("SettingsField", () => {
     );
     // Anker: die Einstellung ist gerendert.
     expect(getByText("Test Setting")).toBeInTheDocument();
-    const resetBtn = screen.queryByRole("button", {
-      name: "Zurücksetzen",
-      description: "Stellt den Wert wieder auf die Grundeinstellung.",
-    });
+    const resetBtn = screen.queryByRole("button", { name: "Zurücksetzen" });
     expect(resetBtn).toBeNull();
   });
 
@@ -684,7 +681,7 @@ describe("SettingsField", () => {
     expect(
       screen.queryByRole("button", {
         name: "Zurücksetzen",
-        description: "Stellt den Wert wieder auf die Grundeinstellung.",
+        description: /^Stellt den Standard wieder her\./,
       }),
     ).toBeInTheDocument();
   });
@@ -744,10 +741,7 @@ describe("SettingsField", () => {
 
     // Anker: das Rechtstext-Feld ist gerendert.
     expect(getByText("Test Setting")).toBeInTheDocument();
-    const resetBtn = screen.queryByRole("button", {
-      name: "Zurücksetzen",
-      description: "Stellt den Wert wieder auf die Grundeinstellung.",
-    });
+    const resetBtn = screen.queryByRole("button", { name: "Zurücksetzen" });
     expect(resetBtn).toBeNull();
   });
 
@@ -980,7 +974,7 @@ describe("SettingsField", () => {
 
     const resetBtn = screen.queryByRole("button", {
       name: "Zurücksetzen",
-      description: "Stellt den Wert wieder auf die Grundeinstellung.",
+      description: /^Stellt den Standard wieder her\./,
     });
     expect(resetBtn).not.toBeNull();
     fireEvent.click(resetBtn!);
@@ -1473,10 +1467,10 @@ describe("SettingsField", () => {
       );
 
       fireEvent.click(
-        screen.queryByRole("button", {
+        screen.getByRole("button", {
           name: "Zurücksetzen",
-          description: "Stellt den Wert wieder auf die Grundeinstellung.",
-        })!,
+          description: /^Stellt den Standard wieder her\./,
+        }),
       );
 
       expect(

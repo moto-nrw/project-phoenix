@@ -276,7 +276,7 @@ describe("TraegerSettingsPage", () => {
     fireEvent.click(
       await screen.findByRole("button", {
         name: "Zurücksetzen",
-        description: "Stellt den Wert wieder auf die Grundeinstellung.",
+        description: /^Stellt den Standard wieder her\./,
       }),
     );
 
@@ -301,12 +301,7 @@ describe("TraegerSettingsPage", () => {
     expect(
       screen.getByRole("switch", { name: "Neuigkeiten im Elternportal" }),
     ).toBeDisabled();
-    expect(
-      screen.queryByRole("button", {
-        name: "Zurücksetzen",
-        description: "Stellt den Wert wieder auf die Grundeinstellung.",
-      }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Zurücksetzen" })).toBeNull();
   });
 
   it("shows a failed load where the list is missing and retries", async () => {

@@ -1211,7 +1211,14 @@ export function SettingsField({
             tooltip={
               restoresTraegerValue
                 ? "Übernimmt wieder den Wert, den Ihr Träger vorgibt."
-                : "Stellt den Wert wieder auf die Grundeinstellung."
+                : (deletesRoomHistory && setting.default === false) ||
+                    shortenedRetentionDays(
+                      setting,
+                      setting.default,
+                      audience,
+                    ) !== null
+                  ? "Stellt den Standard wieder her. Vorher fragt moto nach, weil dabei Daten gelöscht werden."
+                  : "Stellt den Standard wieder her."
             }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1595,6 +1602,7 @@ function renderAGBSourceEditor({
   onDocumentDelete,
   textOnly = false,
 }: AGBSourceEditorProps) {
+  const uploadHintId = useId();
   const hasText = textValue.trim() !== "";
   const hasDocument = documentURL.trim() !== "";
   const canManageDocument =
@@ -1684,13 +1692,7 @@ function renderAGBSourceEditor({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {documentManagementDisabledReason == null && (
-                <ActionHint
-                  text={
-                    hasDocument
-                      ? "Ersetzt die gespeicherte PDF durch eine Datei von Ihrem Gerät."
-                      : "Lädt eine PDF von Ihrem Gerät hoch."
-                  }
-                >
+                <ActionHint text={uploadHint(hasDocument)}>
                   <label
                     className={buttonClassName({
                       variant: "surface",
@@ -1705,10 +1707,16 @@ function renderAGBSourceEditor({
                     <span>
                       {hasDocument ? "PDF ersetzen" : "PDF hochladen"}
                     </span>
+                    <span hidden id={uploadHintId}>
+                      {uploadHint(hasDocument)}
+                    </span>
                     <input
                       type="file"
                       accept="application/pdf,.pdf"
                       className="sr-only"
+                      // Den Fokus bekommt das Feld, nicht das Label: der
+                      // Hinweis muss hier ankommen.
+                      aria-describedby={uploadHintId}
                       disabled={!canManageDocument || documentSaving}
                       onChange={(event) => {
                         onDocumentUpload(
@@ -1808,6 +1816,12 @@ function getEnrollmentLegalStoredTextStatus(
     : "Text ist gespeichert, wird aber nicht angezeigt.";
 }
 
+function uploadHint(hasDocument: boolean) {
+  return hasDocument
+    ? "Ersetzt die gespeicherte PDF durch eine Datei von Ihrem Gerät."
+    : "Lädt eine PDF von Ihrem Gerät hoch.";
+}
+
 function renderEnrollmentLegalTextEditor(
   value: unknown,
   writable: boolean,
@@ -1861,7 +1875,7 @@ function renderEnrollmentLegalTextEditor(
         onClick={onEdit}
         disabled={!writable}
         className="shrink-0"
-        tooltip="Öffnet den Text, den Eltern im Anmeldeformular lesen, zum Bearbeiten."
+        tooltip="Öffnet den Rechtstext für Eltern zum Bearbeiten."
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>

@@ -20,6 +20,8 @@ export const ACTION_HINT_DELAY_MS = 400;
 
 const VIEWPORT_MARGIN = 8;
 const GAP = 6;
+/** Time to move the pointer from the control onto the bubble (WCAG 1.4.13). */
+const LEAVE_GRACE_MS = 120;
 
 // Ob der letzte Bedienschritt eine Taste war. Nur dann zeigt ein Fokus die
 // Blase: ein Klick oder Tipp fokussiert den Knopf auch, löst aber zugleich die
@@ -71,8 +73,8 @@ interface ActionHintProps {
  *
  * The kit's `Button` and `ButtonLink` render it through their `tooltip` prop;
  * wrap other button-looking controls (`buttonClassName` on `a`/`label`)
- * directly. Unlike `Tooltip`, which explains text and opens on tap, this one
- * belongs to controls:
+ * directly. `Tooltip` explains non-interactive text and also opens on tap;
+ * this one belongs to controls:
  *
  * - It appears on mouse hover (after a short delay) and on keyboard focus,
  *   never on touch, where a tap runs the action at once.
@@ -81,7 +83,8 @@ interface ActionHintProps {
  *   dialogs with `overflow` do not clip it. It flips above the control near
  *   the bottom edge and stays inside the viewport horizontally.
  * - Screen readers get the text as the control's description; the bubble is
- *   only visual. Escape closes it without closing a dialog behind it.
+ *   only visual. Escape closes it without closing a dialog behind it, and the
+ *   pointer may move onto the bubble without closing it (WCAG 1.4.13).
  */
 export function ActionHint({ text, children }: ActionHintProps) {
   const id = useId();
@@ -97,6 +100,13 @@ export function ActionHint({ text, children }: ActionHintProps) {
   const hide = useCallback(() => {
     cancel();
     setAnchor(null);
+  }, [cancel]);
+  const hideSoon = useCallback(() => {
+    cancel();
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      setAnchor(null);
+    }, LEAVE_GRACE_MS);
   }, [cancel]);
 
   useEffect(() => {
@@ -128,9 +138,11 @@ export function ActionHint({ text, children }: ActionHintProps) {
     throw new Error("ActionHint requires one React element");
   }
   const props = child.props;
-  // Ein Symbolknopf, dessen Name schon der Hinweis ist, bekommt ihn nicht
+  // Ein Symbolknopf, dessen Name den Hinweis schon enthält, bekommt ihn nicht
   // noch einmal als Beschreibung vorgelesen.
-  const describes = text.trim() !== (props["aria-label"] ?? "").trim();
+  const describes = !(props["aria-label"] ?? "")
+    .toLowerCase()
+    .includes(text.trim().toLowerCase());
   const describedBy = describes
     ? [props["aria-describedby"], id].filter(Boolean).join(" ")
     : props["aria-describedby"];
@@ -151,7 +163,8 @@ export function ActionHint({ text, children }: ActionHintProps) {
         },
         onPointerLeave: (event) => {
           props.onPointerLeave?.(event);
-          hide();
+          if (anchor) hideSoon();
+          else hide();
         },
         onPointerDown: (event) => {
           props.onPointerDown?.(event);
@@ -178,7 +191,12 @@ export function ActionHint({ text, children }: ActionHintProps) {
       })}
       {anchor
         ? createPortal(
-            <HintBubble anchor={anchor} text={text} />,
+            <HintBubble
+              anchor={anchor}
+              text={text}
+              onPointerEnter={cancel}
+              onPointerLeave={hide}
+            />,
             document.body,
           )
         : null}
@@ -189,7 +207,14 @@ export function ActionHint({ text, children }: ActionHintProps) {
 function HintBubble({
   anchor,
   text,
-}: Readonly<{ anchor: HTMLElement; text: string }>) {
+  onPointerEnter,
+  onPointerLeave,
+}: Readonly<{
+  anchor: HTMLElement;
+  text: string;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+}>) {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>();
 
@@ -213,7 +238,9 @@ function HintBubble({
       ref={ref}
       data-action-hint=""
       aria-hidden="true"
-      className="pointer-events-none fixed w-max max-w-xs rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-pretty text-white shadow-lg"
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
+      className="fixed w-max max-w-xs rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-pretty text-white shadow-lg"
       style={{
         top: position?.top ?? 0,
         left: position?.left ?? 0,
