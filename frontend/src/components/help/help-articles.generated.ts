@@ -12276,14 +12276,15 @@ export const traegerHolidayRegistrationReviewTopic =
         {
           title: "Mehrere auf einmal bestätigen",
           description:
-            "moto bestätigt nur Anmeldungen, die keine Angabe mehr brauchen. Die Familie bezahlt dann den Beitrag. Die anderen bestätigen Sie einzeln.",
+            "moto bestätigt nur Anmeldungen, die keine Angabe mehr brauchen. Die Familie bezahlt dann den Beitrag. Bei offenen Anmeldungen prüfen Sie zuerst den Grund.",
           steps: [
             "Filtern Sie nach dem Status `Eingegangen`.",
             "Setzen Sie einen Haken bei jeder Anmeldung. Mit dem Haken in der Kopfzeile wählen Sie alle aus.",
             "Wählen Sie oben `Ausgewählte bestätigen`.",
             "Das Fenster zeigt unter `Wird bestätigt`, welche Anmeldungen moto bestätigt. Darunter steht, welche offen bleiben und warum.",
             "Wählen Sie zum Beispiel `12 bestätigen`. moto bestätigt eine Anmeldung nach der anderen. Lassen Sie die Seite so lange offen. Mit `Anhalten` hören Sie nach der laufenden Anmeldung auf.",
-            "Am Ende steht, welche Anmeldungen bestätigt sind und welche offen bleiben. Wählen Sie eine offene Anmeldung, um sie einzeln zu bestätigen.",
+            "Am Ende steht, welche Anmeldungen bestätigt sind und welche offen bleiben. Prüfen Sie bei offenen Anmeldungen den Grund und den nächsten Schritt. Schon bestätigte oder stornierte Anmeldungen zählen nicht als offen.",
+            "Steht bei einer Anmeldung `Ergebnis unklar`, prüfen Sie dort zuerst den Status. Mit `Fertig` lädt moto die Liste neu, auch bei unklarem Ergebnis.",
           ],
         },
         {

@@ -19,7 +19,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { FramedList } from "~/components/ui/framed-list";
 import { ListGroupHeader } from "~/components/ui/list-group-header";
 import { ListRowLink } from "~/components/ui/list-row-link";
-import { Modal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { presentError } from "~/lib/error-presentation";
@@ -200,7 +200,7 @@ export function HolidayBulkConfirmModal({
   /** What the selection confirms and what stays open, decided on opening. */
   plan: HolidayBulkPlan;
   isOpen: boolean;
-  /** `changed`: at least one registration was confirmed. */
+  /** `changed`: a confirmation succeeded or its outcome is unclear. */
   onClose: (changed: boolean) => void;
 }>) {
   const [phase, setPhase] = useState<Phase>({ kind: "review" });
@@ -280,7 +280,11 @@ export function HolidayBulkConfirmModal({
 
   const close = () => {
     if (running) return;
-    onClose(phase.kind === "done" && phase.confirmed.length > 0);
+    onClose(
+      phase.kind === "done" &&
+        (phase.confirmed.length > 0 ||
+          phase.open.some((entry) => entry.reason === "unclear")),
+    );
     setPhase({ kind: "review" });
   };
 
@@ -290,7 +294,7 @@ export function HolidayBulkConfirmModal({
         isOpen={isOpen}
         onClose={close}
         title="Anmeldungen werden bestätigt"
-        description="Bitte lassen Sie diese Seite offen, bis alle bestätigt sind."
+        description="Bitte lassen Sie diese Seite bis zum Ende offen."
         isDismissDisabled
         busy
         mobileSheet
@@ -315,12 +319,12 @@ export function HolidayBulkConfirmModal({
             className="text-sm font-medium text-gray-900 tabular-nums"
             aria-live="polite"
           >
-            {phase.done} von {total} bestätigt
+            {phase.done} von {total} bearbeitet
           </p>
           <ProgressBar
             value={phase.done}
             max={total}
-            label={`${phase.done} von ${total} Anmeldungen bestätigt`}
+            label={`${phase.done} von ${total} Anmeldungen bearbeitet`}
           />
         </div>
       </Modal>
@@ -329,6 +333,9 @@ export function HolidayBulkConfirmModal({
 
   if (phase.kind === "done") {
     const count = phase.confirmed.length;
+    const outstanding = phase.open.filter(
+      (entry) => entry.reason !== "not_received",
+    ).length;
     return (
       <Modal
         isOpen={isOpen}
@@ -353,18 +360,22 @@ export function HolidayBulkConfirmModal({
         }
       >
         <div className="space-y-3">
-          {phase.open.length === 0 ? (
+          {outstanding === 0 ? (
             <EmptyState
               tone="success"
               icon={<Check />}
-              description="Alle ausgewählten Anmeldungen sind bestätigt."
+              description={
+                phase.open.length === 0
+                  ? "Alle ausgewählten Anmeldungen sind bestätigt."
+                  : "Keine Anmeldung bleibt offen."
+              }
               className="py-4"
             />
           ) : (
             <p className="text-sm text-gray-700">
-              {phase.open.length === 1
-                ? "1 Anmeldung bleibt offen. Bestätigen Sie sie einzeln."
-                : `${registrationCount(phase.open.length)} bleiben offen. Bestätigen Sie sie einzeln.`}
+              {outstanding === 1
+                ? "1 Anmeldung bleibt offen. Prüfen Sie die Gründe unten."
+                : `${registrationCount(outstanding)} bleiben offen. Prüfen Sie die Gründe unten.`}
             </p>
           )}
           <RegistrationGroups
@@ -378,54 +389,49 @@ export function HolidayBulkConfirmModal({
     );
   }
 
+  if (total > 0) {
+    return (
+      <ConfirmationModal
+        isOpen={isOpen}
+        onClose={close}
+        onConfirm={() => void run()}
+        title={`${registrationCount(total)} bestätigen?`}
+        confirmText={total === 1 ? "Bestätigen" : `${total} bestätigen`}
+        mobileSheet
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Die Familie bezahlt den Ferienbeitrag. Die Eltern bekommen eine
+            E-Mail mit den gebuchten Wochen.
+          </p>
+          <RegistrationGroups
+            periodId={periodId}
+            confirmedTitle="Wird bestätigt"
+            confirmed={plan.confirmable}
+            open={plan.skipped}
+          />
+        </div>
+      </ConfirmationModal>
+    );
+  }
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={close}
-      title={
-        total > 0
-          ? `${registrationCount(total)} bestätigen?`
-          : "Keine Anmeldung lässt sich hier bestätigen"
-      }
-      description={
-        total > 0
-          ? "Die Familie bezahlt den Ferienbeitrag. Die Eltern bekommen eine E-Mail mit den gebuchten Wochen."
-          : "Bestätigen Sie diese Anmeldungen einzeln in der Anmeldung."
-      }
+      title="Keine Anmeldung lässt sich hier bestätigen"
+      description="Prüfen Sie die Gründe bei den Anmeldungen."
       mobileSheet
       footer={
-        total > 0 ? (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={close}
-              className="flex-1"
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => void run()}
-              className="flex-1"
-            >
-              {total === 1 ? "Bestätigen" : `${total} bestätigen`}
-            </Button>
-          </>
-        ) : (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={close}
-            className="flex-1"
-          >
-            Schließen
-          </Button>
-        )
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={close}
+          className="flex-1"
+        >
+          Schließen
+        </Button>
       }
     >
       <RegistrationGroups

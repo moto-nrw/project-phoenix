@@ -9,7 +9,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
 import type { HolidayRegistrationFilter } from "~/lib/traeger-holiday-registrations-api";
 import {
   HOLIDAY_PERIOD,
@@ -644,7 +644,7 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
     ]);
     expect(
       result.getByText(
-        "3 Anmeldungen bleiben offen. Bestätigen Sie sie einzeln.",
+        "2 Anmeldungen bleiben offen. Prüfen Sie die Gründe unten.",
       ),
     ).toBeInTheDocument();
     expect(result.getByText("Debitorennummer fehlt")).toBeInTheDocument();
@@ -689,6 +689,134 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
       "href",
       "/traeger/ferien/5/anmeldungen/21",
     );
+  });
+
+  it("reloads after a lost response without reporting a success", async () => {
+    mockConfirm.mockRejectedValue(unavailableApiError());
+    renderPage();
+    await selectRows(["Anmeldung Nr. 21 von Anna Muster"]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "1 Anmeldung bestätigen?" }),
+      ).getByRole("button", { name: "Bestätigen" }),
+    );
+
+    const result = within(
+      await screen.findByRole("dialog", { name: "Keine Anmeldung bestätigt" }),
+    );
+    expect(result.getByText("Ergebnis unklar")).toBeInTheDocument();
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    const loads = mockFetchList.mock.calls.length;
+    fireEvent.click(result.getByRole("button", { name: "Fertig" }));
+    await waitFor(() =>
+      expect(mockFetchList.mock.calls.length).toBeGreaterThan(loads),
+    );
+    // Anker: die Liste ist nach dem Schließen wieder sichtbar.
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Anmeldung Nr. 21 von Anna Muster auswählen",
+      }),
+    ).not.toBeChecked();
+  });
+
+  it("counts a refusal as processed while the next request is pending", async () => {
+    let finish: () => void = () => {};
+    mockConfirm
+      .mockRejectedValueOnce(new ApiError("conflict", 409))
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () => resolve({});
+          }),
+      );
+    renderPage();
+    await selectRows([
+      "Anmeldung Nr. 21 von Anna Muster",
+      "Anmeldung Nr. 22 von Bodo Muster",
+    ]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "2 Anmeldungen bestätigen?",
+        }),
+      ).getByRole("button", { name: "2 bestätigen" }),
+    );
+
+    const running = within(
+      await screen.findByRole("dialog", {
+        name: "Anmeldungen werden bestätigt",
+      }),
+    );
+    expect(await running.findByText("1 von 2 bearbeitet")).toBeInTheDocument();
+    expect(
+      running.getByRole("progressbar", {
+        name: "1 von 2 Anmeldungen bearbeitet",
+      }),
+    ).toHaveAttribute("aria-valuenow", "1");
+    fireEvent.click(running.getByRole("button", { name: "Anhalten" }));
+    finish();
+    expect(
+      await screen.findByRole("dialog", {
+        name: "1 Anmeldung bestätigt",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps confirmed and cancelled entries out of the outstanding total", async () => {
+    mockFetchList.mockResolvedValue({
+      ...BULK_LIST,
+      registrations: [
+        BULK_LIST.registrations[0],
+        BULK_LIST.registrations[3],
+        { ...CLEAN, id: "25", guardianFirstName: "Eva", status: "cancelled" },
+      ],
+    });
+    mockConfirm.mockResolvedValue({});
+    renderPage();
+    await selectRows([
+      "Anmeldung Nr. 21 von Anna Muster",
+      "Anmeldung Nr. 24 von Dana Muster",
+      "Anmeldung Nr. 25 von Eva Muster",
+    ]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "1 Anmeldung bestätigen?",
+        }),
+      ).getByRole("button", { name: "Bestätigen" }),
+    );
+
+    const result = within(
+      await screen.findByRole("dialog", {
+        name: "1 Anmeldung bestätigt",
+      }),
+    );
+    expect(
+      result.getByText("Keine Anmeldung bleibt offen."),
+    ).toBeInTheDocument();
+    expect(
+      result.getByText("Schon bestätigt oder storniert"),
+    ).toBeInTheDocument();
+    expect(
+      result.getByText("Hier ist nichts mehr zu bestätigen."),
+    ).toBeInTheDocument();
+    expect(
+      result.getByRole("link", { name: /Dana Muster/ }),
+    ).toBeInTheDocument();
+    expect(
+      result.getByRole("link", { name: /Eva Muster/ }),
+    ).toBeInTheDocument();
+    expect(mockConfirm.mock.calls).toEqual([["5", "21", false]]);
   });
 
   it("stops when no further confirmation can succeed", async () => {
@@ -756,7 +884,7 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
         name: "Anmeldungen werden bestätigt",
       }),
     );
-    expect(running.getByText("0 von 2 bestätigt")).toBeInTheDocument();
+    expect(running.getByText("0 von 2 bearbeitet")).toBeInTheDocument();
     fireEvent.click(running.getByRole("button", { name: "Anhalten" }));
     expect(running.getByRole("button", { name: "Hält an …" })).toBeDisabled();
     finish();
