@@ -332,7 +332,8 @@ var moduleComposeBudgets = map[string]int{
 	// of the package by more than it added (-2).
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
-	"modules/enrollment/compose":                   613, // ADR 0207: the announced holiday periods (+5)
+	// ADR 0207: the constructor of the announced holiday periods (+5).
+	"modules/enrollment/compose":                   613,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -438,7 +439,9 @@ var moduleComposeBudgets = map[string]int{
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21); by ADR 0153: the contract port (+1);
 	// by ADR 0157: the shared document port (+1).
-	"workflows/parentportal/compose":     333, // ADR 0159: the notice port (+1); ADR 0207: the announcements port (+1)
+	// ADR 0159: the notice port (+1).
+	// ADR 0207: the port of the announced holiday periods (+1).
+	"workflows/parentportal/compose":     333,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,
