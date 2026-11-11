@@ -53,9 +53,14 @@ func TestNightlyCleanupDeletesSignInEventsOfARetiredDemoSchoolAfterNinetyDays(t 
 	pausedExpired := signInEvent(pausedSchool, pausedUser, windowHours+1)
 
 	// The demo process retires a school once no access points to it: the
-	// same database function soft-deletes it and erases its visitor.
+	// same database function soft-deletes it and erases its visitor. It
+	// starts no school after its budget (200 ms), the first one included: a
+	// run that met a stalled database hides nothing and leaves the school to
+	// the next run (#6698).
 	var hidden int
-	require.NoError(t, admin.NewRaw(`SELECT hidden FROM platform.retire_expired_demo_schools(ARRAY[?]::text[])`, slug).Scan(ctx, &hidden))
+	for run := 0; run < 10 && hidden == 0; run++ {
+		require.NoError(t, admin.NewRaw(`SELECT hidden FROM platform.retire_expired_demo_schools(ARRAY[?]::text[])`, slug).Scan(ctx, &hidden))
+	}
 	require.Equal(t, 1, hidden, "the demo school without an access is retired")
 	var softDeleted bool
 	require.NoError(t, admin.NewRaw(`SELECT deleted_at IS NOT NULL FROM platform.schools WHERE id = ?`, demoSchool).Scan(ctx, &softDeleted))

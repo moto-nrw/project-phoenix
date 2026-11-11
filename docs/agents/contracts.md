@@ -1257,6 +1257,15 @@ child gets an `audit.data_access_log` row (`holiday_prefill`) at its school.
 The submission stays the public, captcha-gated
 `POST /traeger/holiday-registrations/{token}` and names no student.
 
+The start page of the parents app reads
+`GET /parent/me/holiday-registrations` (#6671, ADR 0207): the published
+holiday periods of the Träger of the account's children whose registration has
+not closed, with the link token and the children the account may register
+(the same `parent_portal.enrollment.submit` and care check as the prefill). It
+reads no school record and writes no access-log row. The parents login accepts
+`?next=/ferienanmeldung/{token}` and returns there after sign-in; every other
+`next` value is ignored.
+
 The school that hosts a holiday week reads its participants in its own tenant
 transaction (#4665, ADR 0116): `GET /api/holiday-weeks` and
 `.../{weekId}/participants[/export]` behind `config:read`. Host policies on the

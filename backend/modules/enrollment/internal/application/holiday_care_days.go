@@ -12,8 +12,9 @@ import (
 // Days without holiday care (#4702): a statutory holiday of the host school's
 // federal state or a closing day of the host school is never bookable. The
 // reads mark such days on each week when the calendar is bound; every write
-// that adds or moves a week, or books one anew, requires the calendar and
-// refuses a week with such a day.
+// that adds or moves a week, or books one anew, requires the calendar. A
+// whole week with such a day is refused; a week by days leaves out only the
+// day (#6447).
 
 // holidayNoCareDays reads the days without care of the weeks' host schools in
 // the span of the weeks.
@@ -92,9 +93,12 @@ func markHolidayNoCareDays(ctx context.Context, source enrollment.HolidaySchoolC
 }
 
 // refuseHolidayWeeksWithoutCare refuses a week of input that the Träger-Büro
-// adds, moves or gives another host school when it contains a day without
-// care. A stored week left as it is stays: it may hold bookings made before
-// the day became a closing day, and its booking is refused on its own.
+// adds, moves, gives another host school or another booking unit when it
+// contains a day without care. A week booked by days takes such a day: only
+// that day is not offered and not bookable (#6447); it is refused only when
+// no care day is left. A stored week left as it is stays: it may hold
+// bookings made before the day became a closing day, and its booking is
+// refused on its own.
 func refuseHolidayWeeksWithoutCare(ctx context.Context, source enrollment.HolidaySchoolCalendar, weeks []enrollment.HolidayWeekInput, current enrollment.HolidayPeriod) error {
 	stored := map[int64]enrollment.HolidayWeek{}
 	for _, week := range current.Weeks {
@@ -104,7 +108,8 @@ func refuseHolidayWeeksWithoutCare(ctx context.Context, source enrollment.Holida
 	var positions []int
 	for i, week := range weeks {
 		if before, ok := stored[week.ID]; ok && week.ID != 0 && before.StartsOn == week.StartsOn &&
-			before.EndsOn == week.EndsOn && before.HostSchoolID == week.HostSchoolID {
+			before.EndsOn == week.EndsOn && before.HostSchoolID == week.HostSchoolID &&
+			holidayBookingUnitOf(before.BookingUnit) == holidayBookingUnitOf(week.BookingUnit) {
 			continue
 		}
 		spans = append(spans, holidayWeekSpan{StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID})
@@ -115,11 +120,34 @@ func refuseHolidayWeeksWithoutCare(ctx context.Context, source enrollment.Holida
 		return err
 	}
 	for j, span := range spans {
-		if found := noCareDaysOfWeek(span, days); len(found) > 0 {
-			return &enrollment.HolidayWeekNoCareDayRefusal{Week: positions[j], WeekID: weeks[positions[j]].ID, Day: found[0]}
+		found := noCareDaysOfWeek(span, days)
+		if len(found) == 0 {
+			continue
 		}
+		week := weeks[positions[j]]
+		if holidayBookingUnitOf(week.BookingUnit) == enrollment.HolidayBookingUnitDay &&
+			holidayWeekKeepsACareDay(span, found) {
+			continue
+		}
+		return &enrollment.HolidayWeekNoCareDayRefusal{Week: positions[j], WeekID: week.ID, Day: found[0]}
 	}
 	return nil
+}
+
+// holidayBookingUnitOf reads an empty booking unit as a whole week (#4701).
+func holidayBookingUnitOf(unit string) string {
+	if unit == "" {
+		return enrollment.HolidayBookingUnitWeek
+	}
+	return unit
+}
+
+// holidayWeekKeepsACareDay reports whether the week has a care day that is
+// none of the days without care.
+func holidayWeekKeepsACareDay(week holidayWeekSpan, none []enrollment.HolidayNoCareDay) bool {
+	return slices.ContainsFunc(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn), func(day calendar.Date) bool {
+		return !slices.ContainsFunc(none, func(n enrollment.HolidayNoCareDay) bool { return n.Date == day })
+	})
 }
 
 // refuseHolidayBookingsWithoutCare refuses a booking of a week of the marked

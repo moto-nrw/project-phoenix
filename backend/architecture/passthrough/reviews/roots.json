@@ -826,6 +826,11 @@
       "reason": "ADR 0115 addendum (#5627): Consumer-port adapter of the billing run's holiday registrations; it reads every registration of the period through Enrollment's review without a status filter, which checks the period of the Träger and records the read, keeps whether each has a proof of benefits for the list of a cost bearer, and translates Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
+      "decision": "0119",
+      "id": "api/parentBillingBillingRegistrations.HolidayWeekHosts",
+      "reason": "ADR 0119 (#6624): Consumer-port adapter of the billing run's host schools; it reads the host school of each week of the period through Enrollment's narrow read in the caller's Träger transaction and copies the four values into the port's type."
+    },
+    {
       "decision": "0158",
       "id": "api/parentBillingCareContracts.Recipients",
       "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's care contract port; it translates the Betreuungsvertrag's chosen invoice recipient per contract into the port's recipient."
@@ -857,11 +862,6 @@
     },
     {
       "decision": "0115",
-      "id": "api/parentBillingHolidayRegistrations.RebookHolidayChild",
-      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it rebooks through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up from the waiting list again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
-    },
-    {
-      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.RecordHolidaySiblings",
       "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it records a sibling merge or split through Enrollment's review, which locks the registration and appends the audit entry, in the caller's Träger transaction and translates Enrollment's refusals."
     },
@@ -874,11 +874,6 @@
       "decision": "0121",
       "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it changes the debtor number through Enrollment's review, which locks the registration and records the change, in the caller's Träger transaction and translates the registration and Enrollment's refusals."
-    },
-    {
-      "decision": "0115",
-      "id": "api/parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
-      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it sets the capacity of a week through Enrollment's places in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up again in the same unit, and translates the moved-up registrations and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
       "decision": "0126",
@@ -894,6 +889,16 @@
       "decision": "0123",
       "id": "api/parentBillingLetterPost.SenderText",
       "reason": "ADR 0123 (#4670): Consumer-port adapter of the post of the confirmation letters; it reads the letterhead text of the session's Träger through the Settings Platform in the caller's Träger transaction for the sender name of the mail."
+    },
+    {
+      "decision": "0206",
+      "id": "api/parentBillingPlaceChanges.RebookHolidayChild",
+      "reason": "ADR 0206 (#6555): root binding of Parent Billing's HTTP write port to the holiday-allocation workflow; it translates the booking choices onto Enrollment's input, the workflow result onto the public place change and Enrollment's refusals into Parent Billing's vocabulary. No lock, read or decision."
+    },
+    {
+      "decision": "0206",
+      "id": "api/parentBillingPlaceChanges.SetHolidayWeekCapacity",
+      "reason": "ADR 0206 (#6555): root binding of Parent Billing's HTTP write port to the holiday-allocation workflow; it maps the workflow's capacity change onto the public place change with the sorted moved-up registrations and translates refusals. No lock, read or decision."
     },
     {
       "decision": "0121",

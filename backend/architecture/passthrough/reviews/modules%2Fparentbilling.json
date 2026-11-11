@@ -56,6 +56,11 @@
       "reason": "ADR 0182 (#6219): reads the effective change level of a month for the SEPA collection (#4697) after refusing a missing Träger and a month that is not a month start, and keeps the newest notice per contract; the Träger transaction is the caller's."
     },
     {
+      "decision": "0206",
+      "id": "modules/parentbilling/internal/application/HolidayContributions.HoldHolidayAllocationInvoices",
+      "reason": "ADR 0206 (#6555): Parent Billing's guarded command that takes only the billing lock B of the period's holiday invoices for the holiday-allocation workflow, after refusing a missing Träger or account and mapping the lock error. The workflow takes Enrollment's period lock P next; no decision callback remains."
+    },
+    {
       "decision": "0115",
       "id": "modules/parentbilling/internal/application/HolidayContributions.ResolveHolidayLink",
       "reason": "ADR 0115 (#4664): refuses an empty key and a link without Träger or period before the public contribution opens the Träger transaction; the administrative transaction is the caller's."

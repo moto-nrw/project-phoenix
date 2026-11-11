@@ -25,6 +25,7 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		ParentChanges: src.ParentChanges, Uploads: src.Uploads, Signatures: EnrollmentSignatures{Ledger: SignatureLedger()},
 		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger, FamilyChildrenPurpose: src.FamilyChildrenPurpose,
+		LockTemplateRecurrence: src.LockTemplateRecurrence,
 	})
 }
 
@@ -62,6 +63,7 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 		GuardianInvitations: src.GuardianInvitations,
 		Settings:            intakeSettings(src.Settings), Outbox: src.OutboxEnqueuer,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
+		LockTemplateRecurrence: src.LockTemplateRecurrence,
 	}
 	if src.PersonRepo != nil {
 		deps.Reviewers = enrollmentReviewerNames{persons: src.PersonRepo}
@@ -162,6 +164,9 @@ type EnrollmentIntakeSources struct {
 	// FamilyChildrenPurpose asks for the children of the family where the
 	// school's Träger counts them (#6335); nil asks nowhere.
 	FamilyChildrenPurpose enrollmentOwner.FamilyChildrenPurpose
+	// LockTemplateRecurrence is the recurrence gate the phase bounds reader
+	// takes before a write reads the phase (#6657); the root always binds it.
+	LockTemplateRecurrence func(context.Context) error
 }
 
 // EnrollmentChangeRequestSources are the owners and retained repositories the
@@ -193,6 +198,9 @@ type EnrollmentChangeRequestSources struct {
 	FrontendURL          string
 	ParentsURL           string
 	Logger               *slog.Logger
+	// LockTemplateRecurrence is the recurrence gate the phase bounds reader
+	// takes before a change request reads the phase (#6657).
+	LockTemplateRecurrence func(context.Context) error
 }
 
 // EnrollmentReviewerPersons resolves the persons behind reviewer accounts.

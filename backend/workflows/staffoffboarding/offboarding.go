@@ -53,7 +53,7 @@ type Membership interface {
 }
 
 type Workforce interface {
-	Lock(context.Context, int64) error
+	Lock(context.Context, ...int64) error
 	Preview(context.Context, int64, string) (workforce.OffboardingPreview, error)
 	Execute(context.Context, int64, int64, string, string) (workforce.OffboardingCounts, error)
 }

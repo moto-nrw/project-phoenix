@@ -25,19 +25,21 @@ import (
 // so do the Storno and the Gutschrift of an issued invoice (#4690).
 type BillingRunResource struct {
 	runs           capability.BillingRuns
+	discard        capability.HolidayRunDiscard
 	letters        capability.BillingLetterService
 	mail           capability.BillingLetterMailService
 	requireBilling common.Middleware
 }
 
-// NewBillingRunResource builds the resource. requireBilling admits only a
-// session with the Träger right "Abrechnung".
-func NewBillingRunResource(runs capability.BillingRuns, letters capability.BillingLetterService, mail capability.BillingLetterMailService,
-	requireBilling common.Middleware) *BillingRunResource {
-	if runs == nil || letters == nil || mail == nil || requireBilling == nil {
-		panic("parent billing http: the billing runs, the letters, their mail and the right check are required")
+// NewBillingRunResource builds the resource with the discard of an empty
+// open run (#6628). requireBilling admits only a session with the Träger
+// right "Abrechnung".
+func NewBillingRunResource(runs capability.BillingRuns, discard capability.HolidayRunDiscard, letters capability.BillingLetterService,
+	mail capability.BillingLetterMailService, requireBilling common.Middleware) *BillingRunResource {
+	if runs == nil || discard == nil || letters == nil || mail == nil || requireBilling == nil {
+		panic("parent billing http: the billing runs, their discard, the letters, their mail and the right check are required")
 	}
-	return &BillingRunResource{runs: runs, letters: letters, mail: mail, requireBilling: requireBilling}
+	return &BillingRunResource{runs: runs, discard: discard, letters: letters, mail: mail, requireBilling: requireBilling}
 }
 
 // RunRouter returns the routes mounted at /traeger/billing-runs.
@@ -52,6 +54,7 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
+		billing.Post("/{id}/discard", rs.discardRun)
 		billing.Put("/{id}/carried-corrections/{positionID}", rs.changeCarried)
 		billing.Delete("/{id}/carried-corrections/{positionID}", rs.removeCarried)
 		billing.Get("/{id}/export", rs.export)
@@ -215,6 +218,21 @@ func (rs *BillingRunResource) correct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, detail, "Billing correction recorded successfully")
+}
+
+// discardRun discards an open run that has nothing to issue (#6628).
+func (rs *BillingRunResource) discardRun(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	detail, err := rs.discard.DiscardBillingRun(r.Context(), reviewer, runID)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderBillingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Billing run discarded successfully")
 }
 
 // release issues the invoices. Any refusal rolls the Träger transaction

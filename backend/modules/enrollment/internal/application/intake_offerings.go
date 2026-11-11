@@ -180,14 +180,18 @@ func (s *Intake) applyCapacityOverflow(ctx context.Context, phase *enrollmentNat
 
 // recordOfferingSubmission records a child's submitted offering choices in
 // Enrollment and the effective bookings of the phase window in Care Plan.
-func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, selections []selection.Selection, from, through enrollmentNative.Date) error {
+// The window comes from the phase read under the recurrence gate (#6657).
+func (s *Intake) recordOfferingSubmission(ctx context.Context, childID int64, selections []selection.Selection, phase enrollmentNative.LockedPhase) error {
 	if len(selections) == 0 {
 		return nil
 	}
 	if s.deps.Bookings == nil {
 		return errors.New("request submission requires Care Plan booking commands")
 	}
-	start, until := calendar.Date(from), calendar.Date(through).AddDays(1)
+	start, until, err := phase.BookingWindow()
+	if err != nil {
+		return err
+	}
 	choices := make([]enrollmentNative.SubmittedOfferingChoice, 0, len(selections))
 	bookings := make([]enrollmentNative.CareBookingInput, 0, len(selections))
 	for _, pick := range selections {

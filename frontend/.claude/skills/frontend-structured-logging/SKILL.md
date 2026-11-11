@@ -107,7 +107,9 @@ mock skips level adjustment, so tests still see `console.error`.
 ### Error entries for Grafana (#2512)
 
 The display hooks in `ToastContext.tsx` already write `error_displayed` for
-every failure they show; do not log the shown text again. For a failure that
+every failure they show and report a shown `crash` (an exception, no API
+answer) to Sentry; do not log the shown text or capture it again. The ingest
+route adds the request's `user_agent`. For a failure that
 shows nothing (background load, dropped stream), log
 `errorLogFields(err)` from `~/lib/error-log` instead of `err.message`: code,
 class, status and request ID, no text. A message, backend `detail`, SWR cache

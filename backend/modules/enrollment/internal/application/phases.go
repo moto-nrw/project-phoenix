@@ -267,10 +267,11 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 // read and stays held for the whole update transaction. It returns the
 // stored phase, so the update can tell where its window was.
 func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollment.Phase) (*enrollment.Phase, bool, error) {
-	if err := s.deps.LockTemplateRecurrence(ctx); err != nil {
+	locked, err := enrollment.NewPhaseBoundsReader(s.deps.Records, s.deps.LockTemplateRecurrence).LockedPhase(ctx, phase.ID)
+	if errors.Is(err, enrollment.ErrPhaseBoundsLock) {
 		return nil, false, fmt.Errorf("lock template recurrence for phase update: %w", err)
 	}
-	existing, err := s.deps.Records.Phase(ctx, phase.ID)
+	existing := locked.Phase()
 	if err != nil {
 		if s.notFound(err) {
 			return nil, false, fmt.Errorf("%w: phase %d", enrollment.ErrPhaseNotFound, phase.ID)

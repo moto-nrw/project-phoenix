@@ -292,14 +292,12 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 }
 
 // completeSubmitted finishes the checked input: the day bound per child
-// (#4701), the health consent only where health information is asked, the
+// over all its registrations (#4701, #6446), the health consent only where health information is asked, the
 // answers and the holiday care wishes the statements prove (#4703).
 func (h *HolidayRegistrations) completeSubmitted(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,
 	form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput, answers holidayAnswerSet) (enrollment.HolidayRegistrationInput, error) {
-	for i, child := range input.Children {
-		if err := refuseHolidayDayLimit(i, child.Bookings, period, 0); err != nil {
-			return input, err
-		}
+	if err := h.refuseSubmittedDayLimits(ctx, link.OrganizationID, period, input); err != nil {
+		return input, err
 	}
 	if !holidayRegistrationHasHealth(input, form, answers) {
 		input.HealthConsent = false

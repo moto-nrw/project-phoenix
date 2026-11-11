@@ -380,7 +380,8 @@ FROM (
 ORDER BY part.document_id, part.part_order, part.position`
 	holidayBookingPartsQuery = `SELECT position.document_id, 'holiday' AS kind, 0 AS school_id, 0 AS care_offering_id,
 	document.service_from AS day, position.amount_cents, position.revenue_account, position.cost_center,
-	position.cost_center_2, position.accounts_frozen
+	position.cost_center_2, position.accounts_frozen, position.cost_center_fallback, position.week_starts_on, position.week_ends_on,
+	position.holiday_registration_child_id AS child_id
 FROM parent_billing.document_positions AS position
 JOIN parent_billing.documents AS document
 	ON document.organization_id = position.organization_id AND document.id = position.document_id
@@ -390,6 +391,7 @@ ORDER BY position.document_id, position.position`
 
 type exportBookingPartRow struct {
 	DocumentID     int64         `bun:"document_id"`
+	ChildID        int64         `bun:"child_id"`
 	Kind           string        `bun:"kind"`
 	SchoolID       int64         `bun:"school_id"`
 	CareOfferingID int64         `bun:"care_offering_id"`
@@ -397,6 +399,9 @@ type exportBookingPartRow struct {
 	AmountCents    int64         `bun:"amount_cents"`
 	Removed        bool          `bun:"removed"`
 	positionAccountsColumns
+	CostCenterFallback *string        `bun:"cost_center_fallback"`
+	WeekStartsOn       *calendar.Date `bun:"week_starts_on,type:date"`
+	WeekEndsOn         *calendar.Date `bun:"week_ends_on,type:date"`
 }
 
 // exportBookingParts reads the positions of the documents of a run by
@@ -415,8 +420,9 @@ func exportBookingParts(ctx context.Context, db bun.IDB, organizationID int64, r
 	}
 	parts := map[int64][]parentbilling.ExportBookingPart{}
 	for _, row := range rows {
-		parts[row.DocumentID] = append(parts[row.DocumentID], parentbilling.ExportBookingPart{Kind: row.Kind, SchoolID: row.SchoolID,
-			CareOfferingID: row.CareOfferingID, Day: row.Day, AmountCents: row.AmountCents, Accounts: row.accounts(), Removed: row.Removed})
+		parts[row.DocumentID] = append(parts[row.DocumentID], parentbilling.ExportBookingPart{Kind: row.Kind, ChildID: row.ChildID, SchoolID: row.SchoolID,
+			CareOfferingID: row.CareOfferingID, Day: row.Day, AmountCents: row.AmountCents, Accounts: row.accounts(), Removed: row.Removed,
+			CostCenterFallback: textOf(row.CostCenterFallback), WeekStartsOn: row.WeekStartsOn, WeekEndsOn: row.WeekEndsOn})
 	}
 	return parts, nil
 }
