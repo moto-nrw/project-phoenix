@@ -39,6 +39,9 @@ const renewHolidayClosureBatchSQL = `WITH source AS MATERIALIZED (
  FROM calendar.holiday_closure_proposals AS proposal
  JOIN calendar.holiday_closure_events AS event ON event.proposal_id = proposal.id AND event.tenant_id = proposal.tenant_id
  WHERE proposal.tenant_id = ? AND proposal.id = ANY(?::bigint[]) AND event.state = 'needs_confirmation'
+  AND NOT EXISTS (SELECT 1 FROM calendar.holiday_closure_proposals AS newer
+   WHERE newer.tenant_id = proposal.tenant_id AND newer.source_kind = proposal.source_kind
+    AND newer.source_id = proposal.source_id AND (newer.state = 'open' OR newer.id > proposal.id))
 ), inserted AS (
  INSERT INTO calendar.holiday_closure_proposals (tenant_id, organization_id, source_kind, source_id, operation_id, reason,
   previous_start, previous_end, current_start, current_end, span_from, span_to, revision)
@@ -144,7 +147,7 @@ func renewHolidayClosureConfirmations(ctx context.Context, db bun.IDB, schoolID 
 		return err
 	}
 	if len(replacements) != len(renew) {
-		return schoolcalendar.ErrHolidayClosureNoticeNotFound
+		return schoolcalendar.ErrHolidayClosureNoticeChanged
 	}
 	mapped := map[int64]int64{}
 	for _, replacement := range replacements {

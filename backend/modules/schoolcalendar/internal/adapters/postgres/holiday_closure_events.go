@@ -34,10 +34,14 @@ const (
 		FROM calendar.holiday_closure_proposals
 		WHERE tenant_id = ? AND source_kind = ? AND source_id = ? AND state = 'open'
 		FOR UPDATE`
-	unprocessedHolidayClosureEventSQL = `SELECT event.id, event.span_from, event.span_to, proposal.previous_start, proposal.previous_end
+	unfinishedHolidayClosureEventSQL = `SELECT event.id, event.state, event.span_from, event.span_to, proposal.previous_start, proposal.previous_end
   FROM calendar.holiday_closure_events AS event JOIN calendar.holiday_closure_proposals AS proposal
    ON proposal.id = event.proposal_id AND proposal.tenant_id = event.tenant_id
-  WHERE event.tenant_id = ? AND event.source_kind = ? AND event.source_id = ? AND event.state IN ('pending', 'leased') AND event.processed_at IS NULL
+  WHERE event.tenant_id = ? AND event.source_kind = ? AND event.source_id = ? AND ((event.state IN ('pending', 'leased') AND event.processed_at IS NULL)
+   OR event.state = 'needs_confirmation')
+   AND NOT EXISTS (SELECT 1 FROM calendar.holiday_closure_events AS newer
+    WHERE newer.tenant_id = event.tenant_id AND newer.source_kind = event.source_kind
+     AND newer.source_id = event.source_id AND newer.id > event.id)
   ORDER BY event.id DESC LIMIT 1`
 	insertHolidayClosureProposalSQL = `INSERT INTO calendar.holiday_closure_proposals
 			(tenant_id, organization_id, source_kind, source_id, operation_id, reason, previous_start, previous_end,
@@ -69,7 +73,8 @@ const (
 		OR (proposal.state = 'confirmed' AND event.state NOT IN ('completed', 'no_mail', 'needs_confirmation'))
 		OR (proposal.state = 'confirmed' AND event.state = 'needs_confirmation'
 			AND NOT EXISTS (SELECT 1 FROM calendar.holiday_closure_proposals AS newer
-				WHERE newer.tenant_id = proposal.tenant_id AND newer.supersedes_event_id = event.id))
+				WHERE newer.tenant_id = proposal.tenant_id AND (newer.supersedes_event_id = event.id
+     OR (newer.source_kind = proposal.source_kind AND newer.source_id = proposal.source_id AND newer.id > proposal.id))))
 		OR (proposal.state = 'confirmed' AND event.state IN ('completed', 'no_mail')
 			AND COALESCE(event.completed_at, event.processed_at) > CURRENT_TIMESTAMP - interval '14 days')`
 	schoolHolidayClosureNoticesSQL = `SELECT ` + holidayClosureNoticeColumns + `
@@ -193,11 +198,23 @@ type openProposalRow struct {
 }
 
 type eventSpanRow struct {
+	State         string         `bun:"state"`
 	PreviousStart *calendar.Date `bun:"previous_start"`
 	PreviousEnd   *calendar.Date `bun:"previous_end"`
 	ID            int64          `bun:"id"`
 	SpanFrom      calendar.Date  `bun:"span_from"`
 	SpanTo        calendar.Date  `bun:"span_to"`
+}
+
+// previousRange keeps the last source range that could have been told. An
+// already processed renewal needs a nonempty proposal even when it cancels
+// a new source with no original previous range.
+func (row eventSpanRow) previousRange(change domain.HolidayClosureChange) *domain.HolidayClosureRange {
+	previous := rangeOf(row.PreviousStart, row.PreviousEnd)
+	if previous == nil && change.Current == nil && row.State == schoolcalendar.HolidayClosureEventNeedsConfirmation {
+		return change.Previous
+	}
+	return previous
 }
 
 // RecordHolidayClosureChange merges a change of a school closing day into
@@ -232,14 +249,14 @@ func RecordHolidayClosureChange(ctx context.Context, db bun.IDB, schoolID int64,
 	}
 	from, to := change.Span()
 	var supersedes *int64
-	var unprocessed eventSpanRow
-	switch err := db.NewRaw(unprocessedHolidayClosureEventSQL, schoolID, change.SourceKind, change.SourceID).Scan(ctx, &unprocessed); {
+	var predecessor eventSpanRow
+	switch err := db.NewRaw(unfinishedHolidayClosureEventSQL, schoolID, change.SourceKind, change.SourceID).Scan(ctx, &predecessor); {
 	case err == nil:
-		supersedes = &unprocessed.ID
+		supersedes = &predecessor.ID
 		// Carry the last source range that could have been told, not an
 		// intermediate confirmed version that prepared no mail.
-		change.Previous = rangeOf(unprocessed.PreviousStart, unprocessed.PreviousEnd)
-		from, to = min(from, unprocessed.SpanFrom), max(to, unprocessed.SpanTo)
+		change.Previous = predecessor.previousRange(change)
+		from, to = min(from, predecessor.SpanFrom), max(to, predecessor.SpanTo)
 	case !errors.Is(err, sql.ErrNoRows):
 		return wrapProposal(err)
 	}

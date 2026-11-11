@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	notification "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification"
 )
 
 func TestMovedNoticeOnlyApprovesItsOwnRanges(t *testing.T) {
@@ -370,4 +371,93 @@ func TestIndirectRetryReconcilesTheFailedPredecessor(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, w.notices.ProcessDue(w.ctx))
 	assert.Empty(t, w.events(t), "indirect recovery also restores normal retirement")
+}
+
+func TestEditedNoticeReplacesAnOutstandingRenewal(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"single", "bulk", "deleted"} {
+		t.Run(mode, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			w := newClosureWorldIn(t, "Träger erneute Bestätigung nach Änderung", testpkg.SetupIsolatedTestDB(t))
+			day := w.createClosingDay(t, "2030-07-08", "2030-07-08")
+			first := w.schoolNotices(t)[0]
+			events := schoolCalendarCompose.NewHolidayClosureEvents()
+			require.NoError(t, tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+				_, err := events.ConfirmHolidayClosureNotice(ctx, first.ID, first.Revision, schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool, ImpactToken: first.Token})
+				return err
+			}))
+			// An unrelated calendar revision makes the confirmed command await approval.
+			w.createClosingDay(t, "2030-08-20", "2030-08-20")
+			require.NoError(t, w.notices.ProcessDue(w.ctx))
+			assert.Equal(t, []string{"needs_confirmation"}, w.events(t))
+			stale := w.schoolNotices(t)[0]
+			if mode == "deleted" {
+				require.NoError(t, w.records.DeleteClosingDay(w.schoolCtx(), day.ID))
+				require.NoError(t, tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+					notices, err := events.SchoolHolidayClosureNotices(ctx)
+					require.NoError(t, err)
+					var cancellation []schoolcalendar.HolidayClosureNotice
+					for _, notice := range notices {
+						if notice.ClosingDayID == day.ID {
+							cancellation = append(cancellation, notice)
+						}
+					}
+					require.Len(t, cancellation, 1, "only the nonempty cancellation proposal remains visible for this source")
+					assert.NotNil(t, cancellation[0].Previous)
+					assert.Nil(t, cancellation[0].Current)
+					return nil
+				}))
+				require.NoError(t, w.notices.ProcessDue(w.ctx))
+				assert.Empty(t, w.mails(t))
+				return
+			}
+			_, err := w.records.UpdateClosingDay(w.schoolCtx(), schoolcalendar.UpdateClosingDay{ID: day.ID, ClosingDayFields: schoolcalendar.ClosingDayFields{StartDate: "2030-07-08", EndDate: "2030-07-12", Reason: "Verschoben"}})
+			require.NoError(t, err)
+			// Also recover proposals saved before explicit predecessor linking.
+			_, err = w.db.ExecContext(w.ctx, `UPDATE calendar.holiday_closure_proposals SET supersedes_event_id=NULL WHERE tenant_id=? AND state='open'`, w.school)
+			require.NoError(t, err)
+			notices := w.schoolNotices(t)
+			require.Len(t, notices, 1, "the new source proposal replaces the old renewal in both portals")
+			require.NotEqual(t, stale.ID, notices[0].ID)
+			err = tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+				_, err := events.ConfirmHolidayClosureNotice(ctx, stale.ID, stale.Revision, schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool, ImpactToken: stale.Token})
+				return err
+			})
+			require.ErrorIs(t, err, schoolcalendar.ErrHolidayClosureNoticeChanged, "a stale renewal must not reach a uniqueness error")
+			pending, err := w.notices.PendingHolidayClosures(w.ctx, w.organization)
+			require.NoError(t, err)
+			require.Len(t, pending.Notices, 1)
+			if mode == "bulk" {
+				_, err = w.notices.NotifyPendingHolidayClosures(w.ctx, w.organization, 0, pending.Token)
+			} else {
+				n := notices[0]
+				_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, n.ID, n.Revision, n.Token)
+			}
+			require.NoError(t, err)
+			require.Len(t, w.mails(t), 2)
+			assert.Contains(t, string(w.mails(t)[0].Payload), "12.07.2030")
+			err = tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+				_, err := events.ConfirmHolidayClosureNotice(ctx, stale.ID, stale.Revision, schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool, ImpactToken: stale.Token})
+				return err
+			})
+			require.ErrorIs(t, err, schoolcalendar.ErrHolidayClosureNoticeChanged, "the old command also stays superseded after the newer proposal is confirmed")
+			// A later edit must use the latest prepared source, not the old renewal.
+			_, err = w.records.UpdateClosingDay(w.schoolCtx(), schoolcalendar.UpdateClosingDay{ID: day.ID, ClosingDayFields: schoolcalendar.ClosingDayFields{StartDate: "2030-07-10", EndDate: "2030-07-10", Reason: "Verkürzt"}})
+			require.NoError(t, err)
+			var corrections []notification.Notice
+			for _, notice := range w.schoolNotices(t) {
+				if notice.ClosingDayID == day.ID && notice.Status == "suggested" {
+					corrections = append(corrections, notice)
+				}
+			}
+			require.Len(t, corrections, 1, "the reopening of the latest told source remains discoverable")
+			correction := corrections[0]
+			require.NotNil(t, correction.Previous)
+			assert.Equal(t, calendar.NewDate(2030, 7, 12), correction.Previous.EndDate)
+			_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, correction.ID, correction.Revision, correction.Token)
+			require.NoError(t, err)
+			require.Len(t, w.mails(t), 4)
+			assert.Contains(t, string(w.mails(t)[1].Payload), "reopened_children")
+		})
+	}
 }

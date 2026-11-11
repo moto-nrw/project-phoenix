@@ -2,7 +2,7 @@ package owners
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -37,102 +37,43 @@ func NewHolidayClosureNotifications(closures enrollment.HolidayClosures, schools
 	})
 }
 
-// NewHolidayClosureCalendar binds Enrollment's calendar of a school
-// closing day operation (ADR 0196) to School Calendar's read channel of the
-// worker in the caller's Träger transaction: the statutory holidays of the
-// school's stored federal state, of the registry default when it stored
-// none, and its closing days with their sources. An unknown state fails the
-// command visibly; there is no other fallback.
+// NewHolidayClosureCalendar binds School Calendar's guarded no-care capability
+// to Enrollment's consumer contract and the settings registry default.
 func NewHolidayClosureCalendar(holidays HolidayClosureHolidays) enrollment.HolidayClosureCalendar {
 	if holidays == nil {
 		panic("holiday closure calendar: School Calendar's holidays are required")
 	}
-	return holidayClosureCalendar{holidays: holidays, reads: schoolCalendarCompose.NewHolidayClosureEvents()}
+	var defaultRegion string
+	if definition := configModels.DefaultRegistry().GetDefinition(configModels.KeyFederalState); definition != nil {
+		defaultRegion, _ = definition.Default.(string)
+	}
+	return holidayClosureCalendar{calendar: schoolCalendarCompose.NewHolidayClosureCalendar(holidays, defaultRegion)}
 }
 
 type holidayClosureCalendar struct {
-	holidays HolidayClosureHolidays
-	reads    schoolcalendar.HolidayClosureEventQueue
+	calendar schoolcalendar.HolidayClosureCareCalendar
 }
 
 func (c holidayClosureCalendar) HolidayClosureNoCareDays(ctx context.Context, organizationID int64, schoolIDs []int64, from, to calendar.Date, revisions map[int64]int64) (map[int64][]enrollment.HolidayNoCareDay, error) {
-	schools, err := c.reads.HolidayClosureCalendars(ctx, organizationID, schoolIDs, from, to)
+	schools, err := c.calendar.HolidayClosureNoCareDays(ctx, organizationID, schoolIDs, from, to, revisions)
+	if errors.Is(err, schoolcalendar.ErrHolidayClosureCalendarChanged) {
+		return nil, enrollment.ErrHolidayClosureChanged
+	}
 	if err != nil {
 		return nil, err
-	}
-	for schoolID := range revisions {
-		if _, ok := schools[schoolID]; !ok {
-			return nil, schoolcalendar.ErrHolidayClosureNoticeNotFound
-		}
 	}
 	result := make(map[int64][]enrollment.HolidayNoCareDay, len(schools))
-	holidays := map[string][]enrollment.HolidayNoCareDay{}
-	for schoolID, school := range schools {
-		if revision, ok := revisions[schoolID]; ok && school.Revision != revision {
-			return nil, enrollment.ErrHolidayClosureChanged
-		}
-		region, err := holidayClosureRegion(school.FederalState)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := holidays[region]; !ok {
-			if holidays[region], err = c.holidayDays(ctx, region, from, to); err != nil {
-				return nil, err
+	for school, days := range schools {
+		result[school] = make([]enrollment.HolidayNoCareDay, 0, len(days))
+		for _, day := range days {
+			mapped := enrollment.HolidayNoCareDay{Date: day.Date, Kind: day.Kind, Name: day.Name}
+			for _, source := range day.ClosingDays {
+				mapped.ClosingDays = append(mapped.ClosingDays, enrollment.HolidayClosingDayRef{ID: source.ID, Traeger: source.Traeger})
 			}
+			result[school] = append(result[school], mapped)
 		}
-		result[schoolID] = mergeNoCareDays(holidays[region], closingNoCareDays(school.ClosingDays, from, to))
 	}
 	return result, nil
-}
-
-// holidayDays are the statutory holidays of a federal state in [from, to].
-func (c holidayClosureCalendar) holidayDays(ctx context.Context, region string, from, to calendar.Date) ([]enrollment.HolidayNoCareDay, error) {
-	if !c.holidays.ValidHolidayRegion(region) {
-		return nil, fmt.Errorf("%w: unsupported region %q", schoolcalendar.ErrFederalStateUnavailable, region)
-	}
-	listed, err := c.holidays.ListHolidays(ctx, region, from.String(), to.String())
-	if err != nil {
-		return nil, err
-	}
-	days := make([]enrollment.HolidayNoCareDay, 0, len(listed))
-	for _, holiday := range listed {
-		day, err := calendar.ParseDate(holiday.Date)
-		if err != nil {
-			return nil, fmt.Errorf("holiday closure calendar: %w", err)
-		}
-		days = append(days, enrollment.HolidayNoCareDay{Date: day, Kind: enrollment.HolidayNoCareHoliday, Name: holiday.Name})
-	}
-	return days, nil
-}
-
-// closingNoCareDays are the days in [from, to] of a school's closing days,
-// each naming its source.
-func closingNoCareDays(closingDays []schoolcalendar.HolidayClosureCalendarDay, from, to calendar.Date) []enrollment.HolidayNoCareDay {
-	var closing []enrollment.HolidayNoCareDay
-	for _, closingDay := range closingDays {
-		for day := max(closingDay.StartsOn, from); !day.After(min(closingDay.EndsOn, to)); day = day.AddDays(1) {
-			closing = append(closing, enrollment.HolidayNoCareDay{Date: day, Kind: enrollment.HolidayNoCareClosingDay, Name: closingDay.Reason,
-				ClosingDays: []enrollment.HolidayClosingDayRef{{ID: closingDay.SourceID, Traeger: closingDay.Traeger}}})
-		}
-	}
-	return closing
-}
-
-// holidayClosureRegion is the stored federal state or the registry default
-// of the settings contract.
-func holidayClosureRegion(stored string) (string, error) {
-	if stored != "" {
-		return stored, nil
-	}
-	definition := configModels.DefaultRegistry().GetDefinition(configModels.KeyFederalState)
-	if definition == nil {
-		return "", fmt.Errorf("%w: no registry default", schoolcalendar.ErrFederalStateUnavailable)
-	}
-	value, ok := definition.Default.(string)
-	if !ok || value == "" {
-		return "", fmt.Errorf("%w: registry default is no state", schoolcalendar.ErrFederalStateUnavailable)
-	}
-	return value, nil
 }
 
 // holidayClosureUnits opens each unit on its own: the caller's session

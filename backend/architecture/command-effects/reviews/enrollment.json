@@ -1769,45 +1769,15 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "reason": "Reads the registry default of operations.federal_state from the in-memory settings registry when a school stored none (ADR 0196 section 3.4); no database access.",
-      "source_owner": "enrollment",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.Registry.GetDefinition",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (ADR 0196).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
-      "target_owner": "school-calendar"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (ADR 0196).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
-      "target_owner": "school-calendar"
-    },
-    {
       "adr": "0067",
       "approval_adr": "0196",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "reason": "ADR 0196 section 3.4: School Calendar acquires its own transaction-scoped calendar locks of the named schools in one statement, in id order, before reading the current schools among them through its read-only SECURITY DEFINER channel in one statement (set-based for the Büro's and the school's lists). The notification workflow holds the event lease, then Enrollment's notice lock; the school locks fence calendar changes through mail preparation and commit. No school unit is nested in the Träger unit.",
+      "reason": "ADR 0196 section 3.4: School Calendar locks current school memberships and calendars in one statement and reads the authorized calendars in one statement. Its application capability validates revisions, resolves each federal state from stored settings or the bound registry default and computes no-care dates. It joins the caller's Träger transaction; the workflow retains its lock order and preparation boundary. The root only maps types and errors. No nested school unit or cross-owner write.",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureEventQueue.HolidayClosureCalendars",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureCareCalendar.HolidayClosureNoCareDays",
       "target_owner": "school-calendar"
     },
     {

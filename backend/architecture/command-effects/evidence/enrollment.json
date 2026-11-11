@@ -1306,34 +1306,10 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "d9f3d6a34d15feb54d440317494c8e3d",
+      "binding_digest": "43e779a1683e65d3d60706437b6e2d1e",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
       "source_owner": "enrollment",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.Registry.GetDefinition",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "abc0d73fa8418e34056fbc1474fc92b5",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
-      "target_owner": "school-calendar"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "45db7108d5ef83ac831ce81aa767dd44",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
-      "target_owner": "school-calendar"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
-      "binding_digest": "a61038b67c9250596f055dafcf7ed5d9",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureEventQueue.HolidayClosureCalendars",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureCareCalendar.HolidayClosureNoCareDays",
       "target_owner": "school-calendar"
     },
     {

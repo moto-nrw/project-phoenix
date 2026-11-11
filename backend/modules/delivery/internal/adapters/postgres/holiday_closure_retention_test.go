@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -65,4 +67,63 @@ func TestHolidayClosureRetentionKeepsRecoveryAndAcceptedKeys(t *testing.T) {
 	}))
 	require.NoError(t, db.NewRaw(`SELECT payload::text FROM platform.email_outbox WHERE organization_id = ? AND idempotency_key = 'closure-retention:dead_letter'`, organization).Scan(ctx, &payload))
 	assert.Contains(t, payload, "family@example.org", "recovery retains the original content")
+}
+
+func TestRecoverableCancellationKeepsHolidayClosureOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
+	for _, reason := range []string{deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop, "guardian access revoked"} {
+		t.Run(reason, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Notice ordering", Slug: fmt.Sprintf("notice-order-%d", testpkg.Tenant(t))}).ID
+			var first, second int64
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, idempotency_key, recipient, payload, status, last_error)
+    VALUES (?, 'holiday_closure_notice', 'closure', '{"address":"family@example.org"}', '{}', 'cancelled', ?) RETURNING id`, organization, reason).Scan(ctx, &first))
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, idempotency_key, recipient, payload)
+    VALUES (?, 'holiday_closure_notice', 'reopening', '{"address":"family@example.org"}', '{}') RETURNING id`, organization).Scan(ctx, &second))
+			now := time.Now()
+			claimed, err := store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
+			require.NoError(t, err)
+			if reason == "guardian access revoked" {
+				require.Len(t, claimed, 1, "a permanent cancellation releases its correction")
+				assert.Equal(t, second, claimed[0].ID)
+				require.NoError(t, testpkg.WithinTraeger(ctx, organization, func(ctx context.Context) error {
+					retried, err := raw.RetryFailedTraegerEmails(ctx, organization, []string{"reopening"})
+					require.NoError(t, err)
+					assert.Zero(t, retried, "a permanent cancellation must never be requeued")
+					return nil
+				}))
+				_, err = store.FinalizeSent(ctx, domain.TransportEmail, second, *claimed[0].LeaseToken, json.RawMessage(`{}`), now)
+				require.NoError(t, err)
+				return
+			}
+			assert.Empty(t, claimed, "a retryable cancellation must not release its correction")
+			require.NoError(t, testpkg.WithinTraeger(ctx, organization, func(ctx context.Context) error {
+				states, err := raw.TraegerEmailStatusesByKey(ctx, organization, []string{"reopening"})
+				require.NoError(t, err)
+				require.Len(t, states, 1)
+				assert.Equal(t, "dead_letter", states[0].Status, "the successor exposes the recoverable block")
+				retried, err := raw.RetryFailedTraegerEmails(ctx, organization, []string{"reopening"})
+				require.NoError(t, err)
+				assert.EqualValues(t, 1, retried, "retrying the correction also recovers its cancelled predecessor")
+				return nil
+			}))
+			now = time.Now()
+			claimed, err = store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
+			require.NoError(t, err)
+			require.Len(t, claimed, 1)
+			assert.Equal(t, first, claimed[0].ID)
+			sent, err := store.FinalizeSent(ctx, domain.TransportEmail, first, *claimed[0].LeaseToken, json.RawMessage(`{}`), now)
+			require.NoError(t, err)
+			require.True(t, sent)
+			claimed, err = store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
+			require.NoError(t, err)
+			require.Len(t, claimed, 1)
+			assert.Equal(t, second, claimed[0].ID)
+			_, err = store.FinalizeSent(ctx, domain.TransportEmail, second, *claimed[0].LeaseToken, json.RawMessage(`{}`), now)
+			require.NoError(t, err)
+		})
+	}
 }

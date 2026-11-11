@@ -1,5 +1,7 @@
 package postgres
 
+import deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+
 // emailClaimSQL claims system mail, of no school and no Träger, before the
 // rest: a demo link, a password reset or a sign-in code is awaited by one
 // person, while a school's queue may hold hundreds of invitations. On the
@@ -44,5 +46,11 @@ const holidayClosurePredecessorReadySQL = `(candidate.kind <> 'holiday_closure_n
   AND (predecessor.organization_id = candidate.organization_id OR (predecessor.organization_id IS NULL AND candidate.organization_id IS NULL))
   AND predecessor.kind = 'holiday_closure_notice'
   AND lower(trim(predecessor.recipient->>'address')) = lower(trim(candidate.recipient->>'address'))
-  AND predecessor.id < candidate.id AND predecessor.status NOT IN ('sent', 'cancelled')
+  AND predecessor.id < candidate.id
+  AND (predecessor.status NOT IN ('sent', 'cancelled') OR ` + holidayClosureRecoverableCancellationSQL + `)
 ))`
+
+// Suppression and a delivery stop can be lifted; retrying that same mail
+// must still precede every correction to it.
+const holidayClosureRecoverableCancellationSQL = `(predecessor.status = 'cancelled'
+ AND predecessor.last_error IN ('` + deliveryContract.MailHeldByList + `', '` + deliveryContract.MailHeldByStop + `'))`

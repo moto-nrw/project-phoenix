@@ -51,7 +51,8 @@ const traegerEmailStatusesByKeySQL = `SELECT candidate.id, candidate.tenant_id, 
   SELECT predecessor.id, predecessor.last_error FROM platform.email_outbox AS predecessor
   WHERE candidate.kind = 'holiday_closure_notice' AND candidate.status = 'pending'
    AND predecessor.tenant_id IS NULL AND predecessor.organization_id = candidate.organization_id
-   AND predecessor.kind = candidate.kind AND predecessor.status = 'dead_letter'
+   AND predecessor.kind = candidate.kind
+   AND (predecessor.status = 'dead_letter' OR ` + holidayClosureRecoverableCancellationSQL + `)
    AND lower(trim(predecessor.recipient->>'address')) = lower(trim(candidate.recipient->>'address'))
    AND predecessor.id < candidate.id
   ORDER BY (predecessor.last_error = '` + dispatchOutcomeUnknown + `' ) DESC NULLS LAST, predecessor.id LIMIT 1
