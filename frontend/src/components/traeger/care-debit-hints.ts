@@ -203,9 +203,10 @@ function tooEarlyText(
   const span =
     prenotificationDays === null
       ? ""
-      : prenotificationDays === 1
-        ? "1 Tag"
-        : `${prenotificationDays} Tage`;
+      : // A number and its unit never split over two lines.
+        prenotificationDays === 1
+        ? "1\u00A0Tag"
+        : `${prenotificationDays}\u00A0Tage`;
   const rule =
     prenotificationDays === null
       ? "Ihre Vorabankündigung braucht mehr Vorlauf."

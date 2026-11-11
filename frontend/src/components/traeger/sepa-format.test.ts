@@ -244,7 +244,7 @@ describe("due date hints (#4695)", () => {
   it("names the families debited too early with the pre-notification rule", () => {
     const hints = debitHints(careDebitItems([early, early]));
     expect(tooEarlyHint(hints, 5)).toBe(
-      "Für 2 Familien ist der 04.01.2027 zu früh. Abbuchung frühestens 5 Tage nach dem Rechnungsdatum.",
+      "Für 2 Familien ist der 04.01.2027 zu früh. Abbuchung frühestens 5\u00A0Tage nach dem Rechnungsdatum.",
     );
     expect(tooEarlyHint(hints, null)).toBe(
       "Für 2 Familien ist der 04.01.2027 zu früh. Ihre Vorabankündigung braucht mehr Vorlauf.",
@@ -258,7 +258,7 @@ describe("due date hints (#4695)", () => {
     expect(earliestDebitDay("2026-11-30", 5)).toBe("2026-12-05");
     const hints = debitHints(careDebitItems([early]));
     expect(tooEarlyHint(hints, 5, "2026-12-31")).toBe(
-      "Für 1 Familie ist der 04.01.2027 zu früh. Abbuchung frühestens am 05.01.2027, 5 Tage nach dem Rechnungsdatum.",
+      "Für 1 Familie ist der 04.01.2027 zu früh. Abbuchung frühestens am 05.01.2027, 5\u00A0Tage nach dem Rechnungsdatum.",
     );
     expect(debitOpenPoints(hints, "2027-01-05")).toEqual([
       "1 Familie: Abbuchung am 04.01.2027 ist zu früh, frühestens am 05.01.2027.",
@@ -302,7 +302,7 @@ describe("due date typed in the form (#4695)", () => {
   // the first allowed day.
   it("warns while the typed day comes before the first allowed day", () => {
     expect(draftTooEarlyHint(items, "2027-01-03", 5, "2026-12-31")).toBe(
-      "Für 2 Familien ist der 03.01.2027 zu früh. Abbuchung frühestens am 05.01.2027, 5 Tage nach dem Rechnungsdatum.",
+      "Für 2 Familien ist der 03.01.2027 zu früh. Abbuchung frühestens am 05.01.2027, 5\u00A0Tage nach dem Rechnungsdatum.",
     );
   });
 
