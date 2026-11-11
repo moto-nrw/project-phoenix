@@ -12,6 +12,8 @@ import {
   ClosingDayChip,
   ClosingDayConfirmModal,
 } from "~/components/planning/closing-day-marker";
+import { HolidayCareChip } from "~/components/planning/holiday-care-marker";
+import type { HolidayCareDay } from "~/lib/holiday-care";
 import { Button } from "~/components/ui/button";
 import { PlanBlock } from "~/components/ui/planning/plan-block";
 import {
@@ -75,6 +77,11 @@ interface DienstplanPersonWeekGridProps {
   /** Solange die Schließtage laden, bleibt das Anlegen gesperrt, damit die
    *  Rückfrage nicht umgangen wird. */
   readonly closingDaysLoading?: boolean;
+  /** Tage mit Ferienbetreuung für den Träger, keyed YYYY-MM-DD (ADR 0116):
+   *  der Spaltenkopf nennt Kinder und Betreuungszeit. */
+  readonly holidayCare?: ReadonlyMap<string, HolidayCareDay>;
+  /** Ziel der Ferienbetreuungs-Markierung; ohne Ziel ist sie eine Anzeige. */
+  readonly holidayCareHref?: string;
   readonly typesById: Map<string, ShiftType>;
   readonly shiftTypes: readonly ShiftType[];
   /** Soll/Plan der Woche (nur auf dem vollen Berechtigungspfad). */
@@ -293,6 +300,8 @@ export function DienstplanPersonWeekGrid({
   todayIso,
   closingDays,
   closingDaysLoading = false,
+  holidayCare,
+  holidayCareHref,
   typesById,
   shiftTypes,
   summary,
@@ -474,6 +483,10 @@ export function DienstplanPersonWeekGrid({
               <div className="grid flex-1" style={columnTemplate}>
                 {weekDays.map((date, index) => {
                   const closingReason = closingDays?.get(date);
+                  const care =
+                    closingReason === undefined
+                      ? holidayCare?.get(date)
+                      : undefined;
                   const isToday = date === todayIso;
                   const label = `${DAY_LABELS[index] ?? ""} ${formatColumnDate(date)}`;
                   return (
@@ -497,6 +510,13 @@ export function DienstplanPersonWeekGrid({
                         </div>
                         {closingReason !== undefined && (
                           <ClosingDayChip reason={closingReason} />
+                        )}
+                        {care !== undefined && (
+                          <HolidayCareChip
+                            day={care}
+                            href={holidayCareHref}
+                            stacked
+                          />
                         )}
                       </div>
                       {onCreate && (

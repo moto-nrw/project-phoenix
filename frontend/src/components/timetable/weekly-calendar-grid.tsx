@@ -25,6 +25,15 @@ import {
 } from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
+import {
+  HolidayCareChip,
+  HolidayCareWindowBand,
+} from "~/components/planning/holiday-care-marker";
+import {
+  holidayCareLabel,
+  holidayCareWindow,
+  type HolidayCareDay,
+} from "~/lib/holiday-care";
 import { Alert } from "~/components/ui/alert";
 import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -117,6 +126,14 @@ interface WeeklyCalendarGridProps {
    * beschriftet; geplant werden darf trotzdem (Ferien-/Notbetreuung).
    */
   closingDays?: ReadonlyMap<string, string>;
+  /**
+   * Tage mit Ferienbetreuung, die die Schule für ihren Träger ausrichtet,
+   * keyed YYYY-MM-DD (ADR 0116). Der Tageskopf nennt sie mit der Zahl der
+   * Kinder, die Spalte zeigt die Betreuungszeit als Band.
+   */
+  holidayCare?: ReadonlyMap<string, HolidayCareDay>;
+  /** Ziel der Ferienbetreuungs-Markierung; ohne Ziel ist sie eine Anzeige. */
+  holidayCareHref?: string;
   emptyState?: {
     title: string;
     description: string;
@@ -156,6 +173,8 @@ export function WeeklyCalendarGrid({
   planningDisabledDateISOs,
   gapInstanceIds,
   closingDays,
+  holidayCare,
+  holidayCareHref,
   emptyState,
   showDayHeader = false,
   legend,
@@ -188,10 +207,18 @@ export function WeeklyCalendarGrid({
         : [],
     [showDayHeader, weekDays, grouped],
   );
-  const eventStarts = instances
+  // Die Betreuungszeit der Ferienbetreuung gehört ganz ins Bild wie ein
+  // Termin: beginnt sie vor dem Tagesbeginn des Rasters, wächst es nach oben.
+  const holidayWindows = weekDays.flatMap((day) => {
+    const care = holidayCare?.get(toISODate(day));
+    return care?.startsAt && care.endsAt
+      ? [{ startTime: care.startsAt, endTime: care.endsAt }]
+      : [];
+  });
+  const eventStarts = [...instances, ...holidayWindows]
     .map((instance) => parseTimeToMinutes(instance.startTime))
     .filter((minutes) => Number.isFinite(minutes));
-  const eventEnds = instances
+  const eventEnds = [...instances, ...holidayWindows]
     .map((instance) => parseTimeToMinutes(instance.endTime))
     .filter((minutes) => Number.isFinite(minutes));
   const renderStartHour =
@@ -385,7 +412,17 @@ export function WeeklyCalendarGrid({
           const isToday = iso === todayISO;
           const isSelected = index === safeSelectedIndex;
           const closingReason = closingDays?.get(iso);
+          const care = holidayCare?.get(iso);
           const planningDisabled = planningDisabledDateISOs?.has(iso) ?? false;
+          let marker: ReactNode;
+          if (closingReason !== undefined) {
+            // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
+            // Beschriftung und Grund bleiben im Tooltip.
+            marker = <ClosingDayChip reason={closingReason} text="" />;
+          } else if (care !== undefined) {
+            // Ohne Link: der Tag selbst ist schon ein Knopf.
+            marker = <HolidayCareChip day={care} text="" />;
+          }
           return (
             <PlanningDayChip
               key={iso}
@@ -396,13 +433,7 @@ export function WeeklyCalendarGrid({
               onClick={() => setSelectedDayIndex(index)}
               today={isToday}
               statusLabel={planningDisabled ? "Nicht planbar" : undefined}
-              marker={
-                closingReason === undefined ? undefined : (
-                  // Im Tagesstreifen ist kein Platz für Text: nur das Symbol,
-                  // Beschriftung und Grund bleiben im Tooltip.
-                  <ClosingDayChip reason={closingReason} text="" />
-                )
-              }
+              marker={marker}
             />
           );
         })}
@@ -441,6 +472,7 @@ export function WeeklyCalendarGrid({
                 const iso = toISODate(day);
                 const isToday = iso === todayISO;
                 const closingReason = closingDays?.get(iso);
+                const care = holidayCare?.get(iso);
                 const planningDisabled =
                   planningDisabledDateISOs?.has(iso) ?? false;
                 return (
@@ -474,10 +506,20 @@ export function WeeklyCalendarGrid({
                     </div>
                     {/* Der Schließtag-Grund („Ferien") schlägt das generische
                     „Nicht planbar": ein Schließtag ist ohnehin nicht planbar,
-                    und der konkrete Grund darf nicht verschwinden. */}
+                    und der konkrete Grund darf nicht verschwinden. Die
+                    Ferienbetreuung sagt mehr als „Nicht planbar": sie liegt
+                    oft außerhalb des Schuljahres, und die Kinder kommen
+                    trotzdem. Die Zeit zeigt das Band in der Spalte. */}
                     {closingReason !== undefined ? (
                       <ClosingDayChip
                         reason={closingReason}
+                        className="w-full justify-center text-center"
+                      />
+                    ) : care !== undefined ? (
+                      <HolidayCareChip
+                        day={care}
+                        href={holidayCareHref}
+                        withWindow={false}
                         className="w-full justify-center text-center"
                       />
                     ) : planningDisabled ? (
@@ -530,6 +572,16 @@ export function WeeklyCalendarGrid({
                 const isToday = iso === todayISO;
                 const dayInstances = grouped.get(iso) ?? [];
                 const closingReason = closingDays?.get(iso);
+                const care = holidayCare?.get(iso);
+                const careBand =
+                  care?.startsAt && care.endsAt
+                    ? getEventBlockPosition(
+                        care.startsAt,
+                        care.endsAt,
+                        hourHeightPx,
+                        renderStartHour,
+                      )
+                    : null;
                 const planningDisabled =
                   planningDisabledDateISOs?.has(iso) ?? false;
                 const laned = lanedByDay[dayIndex] ?? [];
@@ -579,6 +631,17 @@ export function WeeklyCalendarGrid({
                         />
                       );
                     })}
+
+                    {/* Betreuungszeit der Ferienbetreuung: unter den Klickflächen
+                    und Terminen, damit beide bedienbar bleiben. */}
+                    {care !== undefined && careBand !== null && (
+                      <HolidayCareWindowBand
+                        top={careBand.top}
+                        height={careBand.height}
+                        label={holidayCareWindow(care)}
+                        mobileLabel={holidayCareLabel(care)}
+                      />
+                    )}
 
                     {/* Empty-slot click targets — before the event blocks in DOM
                     order, so blocks paint on top and keep their own click

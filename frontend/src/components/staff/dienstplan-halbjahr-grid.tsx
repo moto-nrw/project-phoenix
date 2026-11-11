@@ -12,6 +12,9 @@ import {
 } from "react";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
+import { HolidayCareChip } from "~/components/planning/holiday-care-marker";
+import { holidayCareDays, type HolidayCareDay } from "~/lib/holiday-care";
+import type { HostedHolidayWeek } from "~/lib/holiday-host-api";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -320,6 +323,8 @@ interface HalbjahrGridInnerProps {
   readonly reducedPath: boolean;
   readonly todayIso: string;
   readonly closingDayRanges: readonly ClosingDayRange[];
+  readonly holidayWeeks: readonly HostedHolidayWeek[];
+  readonly holidayCareHref?: string;
   readonly onWeekClick: (mondayISO: string) => void;
 }
 
@@ -331,6 +336,8 @@ function HalbjahrGridInner({
   reducedPath,
   todayIso,
   closingDayRanges,
+  holidayWeeks,
+  holidayCareHref,
   onWeekClick,
 }: HalbjahrGridInnerProps) {
   const scrollHintId = useId();
@@ -392,6 +399,35 @@ function HalbjahrGridInner({
     return byWeek;
   }, [weeks, closingDays]);
 
+  // Ferienbetreuung für den Träger (ADR 0116): eine Markierung je Woche.
+  // Die Spalte ist zu schmal für Text; Kinder und Zeit stehen im Tooltip,
+  // gezählt werden die bestätigten Kinder der Woche.
+  const holidayCareByWeek = useMemo(() => {
+    const byWeek = new Map<string, HolidayCareDay>();
+    const firstWeek = weeks[0];
+    const lastWeek = weeks.at(-1);
+    if (!firstWeek || !lastWeek || holidayWeeks.length === 0) return byWeek;
+    const days = holidayCareDays(
+      holidayWeeks,
+      firstWeek.shiftsFrom,
+      lastWeek.shiftsTo,
+      closingDays,
+    );
+    const participants = new Map(
+      holidayWeeks.map((week) => [week.id, week.participants]),
+    );
+    for (const [iso, day] of days) {
+      const monday = toISODate(startOfWeek(parseISODate(iso)));
+      if (!byWeek.has(monday)) {
+        byWeek.set(monday, {
+          ...day,
+          children: participants.get(day.weekId) ?? day.children,
+        });
+      }
+    }
+    return byWeek;
+  }, [weeks, holidayWeeks, closingDays]);
+
   const currentMonday = toISODate(startOfWeek(parseISODate(todayIso)));
 
   // Jede fertig geladene Woche meldet ihren Zustand hoch, das Raster rendert
@@ -401,6 +437,7 @@ function HalbjahrGridInner({
     () =>
       weeks.map((week) => {
         const closing = closingByWeek.get(week.monday);
+        const care = holidayCareByWeek.get(week.monday);
         return {
           key: week.monday,
           label: `KW ${week.kw}`,
@@ -408,17 +445,29 @@ function HalbjahrGridInner({
           isCurrent: week.monday === currentMonday,
           isMuted: closing?.length === 5,
           headerNote:
-            closing === undefined ? undefined : (
-              <ClosingDayChip
-                text={String(closing.length)}
-                label={`${closing.length} ${closing.length === 1 ? "Schließtag" : "Schließtage"}`}
-                reason={closing.join(", ")}
-                className="mx-auto flex w-fit"
-              />
+            closing === undefined && care === undefined ? undefined : (
+              <span className="flex flex-col items-center gap-0.5">
+                {closing !== undefined && (
+                  <ClosingDayChip
+                    text={String(closing.length)}
+                    label={`${closing.length} ${closing.length === 1 ? "Schließtag" : "Schließtage"}`}
+                    reason={closing.join(", ")}
+                    className="mx-auto flex w-fit"
+                  />
+                )}
+                {care !== undefined && (
+                  <HolidayCareChip
+                    day={care}
+                    href={holidayCareHref}
+                    text=""
+                    className="mx-auto flex w-fit"
+                  />
+                )}
+              </span>
             ),
         };
       }),
-    [weeks, closingByWeek, currentMonday],
+    [weeks, closingByWeek, holidayCareByWeek, holidayCareHref, currentMonday],
   );
 
   const firstStaffId = staff[0]?.id ?? null;
@@ -533,11 +582,16 @@ interface DienstplanHalbjahrGridProps {
   /** OGS-Schließtage des Tenants (#2032). Wochen mit Schließtagen werden im
    *  Spaltenkopf gekennzeichnet; ohne die Liste entfaellt die Kennzeichnung. */
   readonly closingDayRanges?: readonly ClosingDayRange[];
+  /** Ferienwochen, die die Schule für ihren Träger ausrichtet (ADR 0116). */
+  readonly holidayWeeks?: readonly HostedHolidayWeek[];
+  /** Ziel der Ferienbetreuungs-Markierung; ohne Ziel ist sie eine Anzeige. */
+  readonly holidayCareHref?: string;
   /** Jump into the week view for the clicked week (Monday "YYYY-MM-DD"). */
   readonly onWeekClick: (mondayISO: string) => void;
 }
 
 const EMPTY_CLOSING_DAY_RANGES: readonly ClosingDayRange[] = [];
+const EMPTY_HOLIDAY_WEEKS: readonly HostedHolidayWeek[] = [];
 
 export function DienstplanHalbjahrGrid({
   dayISO,
@@ -545,6 +599,8 @@ export function DienstplanHalbjahrGrid({
   reducedPath,
   todayIso,
   closingDayRanges = EMPTY_CLOSING_DAY_RANGES,
+  holidayWeeks = EMPTY_HOLIDAY_WEEKS,
+  holidayCareHref,
   onWeekClick,
 }: DienstplanHalbjahrGridProps) {
   const router = useTenantRouter();
@@ -629,6 +685,8 @@ export function DienstplanHalbjahrGrid({
       reducedPath={reducedPath}
       todayIso={todayIso}
       closingDayRanges={closingDayRanges}
+      holidayWeeks={holidayWeeks}
+      holidayCareHref={holidayCareHref}
       onWeekClick={onWeekClick}
     />
   );

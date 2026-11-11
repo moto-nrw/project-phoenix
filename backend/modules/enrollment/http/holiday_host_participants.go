@@ -30,20 +30,23 @@ import (
 type HolidayHostResource struct {
 	participants  capability.HolidayHostParticipants
 	schoolNames   capability.HolidayHostSchoolNames
+	requireWeeks  common.Middleware
 	requireRead   common.Middleware
 	requireHealth common.Middleware
 	guests        capability.HolidayGuests
 	requireAssign common.Middleware
 }
 
-// NewHolidayHostResource builds the routes. requireRead is the school
-// permission that opens the participant lists; requireHealth the one that
-// opens the health information of a child of the school (#4722).
-func NewHolidayHostResource(participants capability.HolidayHostParticipants, schoolNames capability.HolidayHostSchoolNames, requireRead, requireHealth common.Middleware) *HolidayHostResource {
-	if participants == nil || schoolNames == nil || requireRead == nil || requireHealth == nil {
+// NewHolidayHostResource builds the routes. requireWeeks is the school
+// permission that opens the list of hosted weeks: dates, care window and
+// counts, no child; the planning views show it. requireRead opens the
+// participant lists; requireHealth the health information of a child of the
+// school (#4722).
+func NewHolidayHostResource(participants capability.HolidayHostParticipants, schoolNames capability.HolidayHostSchoolNames, requireWeeks, requireRead, requireHealth common.Middleware) *HolidayHostResource {
+	if participants == nil || schoolNames == nil || requireWeeks == nil || requireRead == nil || requireHealth == nil {
 		panic("enrollment holiday host resource: participants, school names and the permissions are required")
 	}
-	return &HolidayHostResource{participants: participants, schoolNames: schoolNames, requireRead: requireRead, requireHealth: requireHealth}
+	return &HolidayHostResource{participants: participants, schoolNames: schoolNames, requireWeeks: requireWeeks, requireRead: requireRead, requireHealth: requireHealth}
 }
 
 // Router mounts the routes behind the school session.
@@ -51,7 +54,7 @@ func (rs *HolidayHostResource) Router(protectedTenantRoutes func(chi.Router, fun
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
-		r.With(rs.requireRead, withTx).Get("/", rs.listWeeks)
+		r.With(rs.requireWeeks, withTx).Get("/", rs.listWeeks)
 		read := r.With(rs.requireRead, rs.withSchoolNames, withTx)
 		read.Get("/{weekId}/participants", rs.getParticipants)
 		read.Get("/{weekId}/participants/export", rs.exportParticipants)

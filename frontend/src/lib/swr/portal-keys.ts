@@ -405,6 +405,11 @@ export const catererKeys = {
  * Feriengästen der Listen (#5630).
  */
 export const holidayKeys = {
+  /**
+   * Die Wochen, die die Schule ausrichtet: Seite „Ferienwochen“ und die
+   * Markierung in Betreuungs- und Dienstplan teilen sich den Eintrag.
+   */
+  hostedWeeks: () => "holiday-weeks",
   studentHealth: (studentId: string) =>
     `holiday-student-health:${encodeURIComponent(studentId)}`,
   /** Die Feriengruppen der Gruppenverwaltung (ADR 0120, Nachtrag 2026-11-11). */
