@@ -4301,14 +4301,15 @@
     },
     {
       "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "classification": "leaf",
+      "approval_adr": "0206",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "classification": "workflow",
       "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "reason": "The Enrollment HTTP adapter binds Parent Billing's guarded allocation command to Enrollment's decision. Parent Billing retains its invoice-before-period lock order and refreezeMovedUp, including sibling groups; Enrollment retains validation, criteria/week locks, placement, audit and transactional mail. The root only wires the two capabilities. The command joins the request's Träger transaction and propagates all failures to its rollback. TestHolidayAllocationHoldsFreePlacesForThePendingBookings covers promotion charges and rollback of decisions, placements and both mails on a rejected contribution.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationDecision.DecideHolidayAllocation",
+      "reason": "HTTP transport entry (#4700, ADR 0206): the port is the Enrollment http package's own narrow write port and the root binds the holiday-allocation workflow; no domain application calls it. In the request's Träger unit the workflow takes Parent Billing's period billing lock (B), Enrollment's period row (P), then Enrollment's decision (criteria catalog, chosen weeks ascending, proposal check, decisions, places, audit, outbox), then Parent Billing refreezes every directly placed and moved-up registration's confirmed sibling group. Any failure rolls the whole unit back. Replaces the removed HTTP decorator and Parent Billing's decide callback. Evidence: TestHolidayAllocationWorkflowOrdersLocksAndStopsAtTheFirstFailure, TestHolidayAllocationWorkflowRollsBackOnARefusedContribution, TestHolidayAllocationWorkflowLockOrderUnderConcurrency.",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "target_owner": "parent-billing"
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "target_owner": "holiday-allocation"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",

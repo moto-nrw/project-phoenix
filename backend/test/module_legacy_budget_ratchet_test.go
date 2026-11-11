@@ -276,7 +276,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+2).
 // ADR 0203: the constructors of the HTTPS retrieval and the release CLI of
 // the return package of modules/organizationtenancy/compose add exactly 18 LOC.
-const moduleComposeBudgetTotal = 13280
+// ADR 0209: the new composition of workflows/holidayallocation (+13).
+const moduleComposeBudgetTotal = 13293
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -430,7 +431,10 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose":         918,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
-	"workflows/openroommove/compose":    46,
+	// Added by ADR 0209: the holiday allocation workflow and its joining
+	// Träger transaction (ADR 0206).
+	"workflows/holidayallocation/compose": 13,
+	"workflows/openroommove/compose":      46,
 	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21); by ADR 0153: the contract port (+1);
