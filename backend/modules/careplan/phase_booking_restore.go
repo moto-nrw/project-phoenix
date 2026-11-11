@@ -1,7 +1,6 @@
 package careplan
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -110,7 +109,15 @@ func restoredBookingBounds(live []CareOfferingBooking, restores []CareOfferingBo
 		if !ok {
 			continue
 		}
-		slices.SortFunc(bookings, func(a, b CareOfferingBooking) int { return cmp.Compare(a.ID, b.ID) })
+		slices.SortFunc(bookings, func(a, b CareOfferingBooking) int {
+			switch {
+			case a.ID < b.ID:
+				return -1
+			case a.ID > b.ID:
+				return 1
+			}
+			return 0
+		})
 		for _, followed := range followPhaseBounds(bookings, move) {
 			if !restored[followed.booking.ID] {
 				continue

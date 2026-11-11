@@ -32,10 +32,7 @@ import (
 // NewTimetableSchoolCalendar.
 type TimetableTestRepositories struct {
 	calendarPeriodUsage timetablePorts.CalendarPeriodUsageRepository
-	// phaseBounds is Enrollment's phase bounds reader the care exit restore
-	// reads the phases with (#6657).
-	phaseBounds enrollment.PhaseBoundsReader
-	Timetable   timetable.Capability
+	Timetable           timetable.Capability
 	// Repositories are the retained Timetable adapters (#2743).
 	timetableCompose.Repositories
 	StaffShift timetablePorts.WorkforceShiftRows
@@ -109,9 +106,6 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		educationGroupNames: TimetableEducationGroupNames(structure.Group),
 		ownerRooms:          facilitiesCompose.NewRoomNameDirectory(rooms.Room),
 	}
-	if result.phaseBounds, err = NewEnrollmentPhaseBounds(db); err != nil {
-		return TimetableTestRepositories{}, err
-	}
 	result.deviationEvents, result.deviations = TimetableDeviationPorts(nil)
 	result.Timetable = bookings
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
@@ -132,13 +126,13 @@ func (r TimetableTestRepositories) WithDeviationAudit(events auditModels.Deviati
 		CareScheduleRepositories: r.CareScheduleRepositories,
 		rosterStudents:           r.rosterStudents, educationGroups: r.educationGroups,
 		educationGroupNames: r.educationGroupNames,
-		ownerRooms:          r.ownerRooms, phaseBounds: r.phaseBounds,
-		deviationEvents: reader, deviations: protocol,
+		ownerRooms:          r.ownerRooms,
+		deviationEvents:     reader, deviations: protocol,
 	}
 }
 
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
-	return NewEnrollmentBookingProjection(ComposeEnrollmentBookings(enrollmentCompose.New()), r.phaseBounds)
+	return NewEnrollmentBookingProjection(ComposeEnrollmentBookings(enrollmentCompose.New()), UngatedEnrollmentPhaseBounds())
 }
 
 // CalendarPeriodUsage returns the planning owners' per-period reference

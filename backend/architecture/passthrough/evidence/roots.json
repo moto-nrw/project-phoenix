@@ -2487,7 +2487,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error) {\n\treturn a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots)\n}",
+      "evidence": "func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore, today enrollment.Date) (int64, error) {\n\treturn a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots, today)\n}",
       "form": "forward-debt",
       "id": "roots/owners/EnrollmentBookingProjection.RestoreCareExitOfferingLinks",
       "owner": "roots"
@@ -4503,7 +4503,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore) (int64, error) {\n\tvalues := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(restores))\n\tfor _, restore := range restores {\n\t\tvalues = append(values, enrollment.CareExitOfferingSnapshotRestore{SourceRowID: restore.SourceRowID, WasDeleted: restore.WasDeleted, Snapshot: restore.Snapshot})\n\t}\n\treturn e.projection.RestoreCareExitOfferingLinks(ctx, values)\n}",
+      "evidence": "func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore, today owner0.Date) (int64, error) {\n\tvalues := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(restores))\n\tfor _, restore := range restores {\n\t\tvalues = append(values, enrollment.CareExitOfferingSnapshotRestore{SourceRowID: restore.SourceRowID, WasDeleted: restore.WasDeleted, Snapshot: restore.Snapshot})\n\t}\n\treturn e.projection.RestoreCareExitOfferingLinks(ctx, values, enrollment.Date(today))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careExitEnrollment.RestoreCareExitOfferingLinks",
       "owner": "roots"

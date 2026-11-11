@@ -91,13 +91,17 @@ Root-Adapter im Pass-through-Register und genau diese Compose-Zeilen frei:
   Phasengrenze fällt und die äußere Grenze ist, nicht von ihr zu
   unterscheiden; sie folgt mit.
 - Hebt die Schule ein Betreuungsende nach einer Phasenänderung wieder auf,
-  stellt die Wiederherstellung die Buchungen mit ihren damaligen Grenzen
-  wieder her, also mit der alten Phasengrenze.
+  folgt die Wiederherstellung seit
+  [ADR 0207](0207-schreibwege-lesen-phasengrenzen-unter-der-wiederholungssperre.md)
+  der aktuellen Phase.
+  Betreuungsenden, die vor dem Nachtrag geplant wurden, tragen keine
+  Phasengrenzen im Protokoll und stellen die damaligen Grenzen her.
 - Ist die Phase schon zu Ende, verlängert eine spätere Änderung des Endes
   die beendeten Buchungen nicht.
 - Eine Einreichung oder ein Änderungsantrag, der die Phase vor der Änderung
-  gelesen hat und erst danach schreibt, kopiert weiterhin die alten Grenzen.
-  Das ist ein eigenes, älteres Rennen der Einreichungswege.
+  gelesen hat, liest sie seit
+  [ADR 0207](0207-schreibwege-lesen-phasengrenzen-unter-der-wiederholungssperre.md)
+  unter der Sperre neu.
 - Abgelehnt: Die Grenzen beim Lesen aus der Phase ableiten. Das ändert das
   Zeitmodell aller Leser der Buchungen und unterscheidet keine Handänderung
   von einer Phasengrenze.
