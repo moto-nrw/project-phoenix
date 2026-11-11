@@ -18,9 +18,9 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
   isCheckedInLocation,
-  countedDayStatus,
   type StudentLocationContext,
 } from "./location-helper";
+import { countedDayStatus } from "./presence-status";
 
 // =============================================================================
 // CONSTANTS TESTS

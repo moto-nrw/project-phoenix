@@ -5,7 +5,7 @@ import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
-import { STICKY_ABOVE_BOTTOM_NAV } from "./overlay-styles";
+import { STICKY_ABOVE_BOTTOM_NAV, Z_LAYER } from "./overlay-styles";
 
 /**
  * Wo die Leiste steht:
@@ -18,11 +18,11 @@ type SelectionBarPlacement = "top" | "bottom" | "inline";
 
 function placementClass(placement: SelectionBarPlacement, count: number) {
   if (placement === "top") {
-    return "moto-content-surface sticky top-2 z-30 mb-3";
+    return `moto-content-surface sticky top-2 ${Z_LAYER.nav} mb-3`;
   }
   if (placement === "inline") return "moto-content-surface";
   return count > 0
-    ? `${STICKY_ABOVE_BOTTOM_NAV} z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur`
+    ? `${STICKY_ABOVE_BOTTOM_NAV} ${Z_LAYER.sticky} border-gray-200 bg-white/95 shadow-sm backdrop-blur`
     : "border-transparent bg-gray-50/80 shadow-none";
 }
 

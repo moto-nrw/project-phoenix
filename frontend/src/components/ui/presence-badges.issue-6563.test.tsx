@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { StudentLocationContext } from "~/lib/location-helper";
+import type { PresenceStudent } from "~/lib/presence-status";
 import { LocationBadge } from "./location-badge";
 import { PresenceBadge } from "./presence-badge";
 
@@ -9,7 +9,7 @@ import { PresenceBadge } from "./presence-badge";
 const badges = [
   [
     "LocationBadge",
-    (student: StudentLocationContext, showLocationSince = false) => (
+    (student: PresenceStudent, showLocationSince = false) => (
       <LocationBadge
         student={student}
         displayMode="roomName"
@@ -19,7 +19,7 @@ const badges = [
   ],
   [
     "PresenceBadge",
-    (student: StudentLocationContext, showLocationSince = false) => (
+    (student: PresenceStudent, showLocationSince = false) => (
       <PresenceBadge student={student} showLocationSince={showLocationSince} />
     ),
   ],
@@ -41,8 +41,8 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
     render(
       renderBadge({
         current_location: "Zuhause",
-        not_arrival_today: true,
-        not_arrival_reason: "Arzttermin",
+        arrival_is_exception: true,
+        arrival_notes: "Arzttermin",
       }),
     );
 
@@ -55,8 +55,8 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
     render(
       renderBadge({
         current_location: "Anwesend",
-        not_arrival_today: true,
-        not_arrival_reason: "Arzttermin",
+        arrival_is_exception: true,
+        arrival_notes: "Arzttermin",
       }),
     );
 
@@ -118,7 +118,7 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
         {
           current_location: "Zuhause",
           location_since: "2026-09-09T08:15:00Z",
-          not_arrival_today: true,
+          arrival_is_exception: true,
         },
         true,
       ),
@@ -133,7 +133,7 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
         {
           current_location: "Im Unterricht",
           location_since: "2026-09-09T08:15:00Z",
-          not_arrival_today: true,
+          arrival_is_exception: true,
         },
         true,
       ),

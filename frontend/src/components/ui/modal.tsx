@@ -3,8 +3,6 @@
 import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
-import { useModal } from "./modal-context";
-import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
   OVERLAY_BACKDROP_CLASS,
@@ -13,12 +11,15 @@ import {
   OVERLAY_PANEL_STYLE,
   Z_LAYER,
 } from "./overlay-styles";
+import {
+  MODAL_SCOPE_PROPS,
+  SCROLL_AREA_PROPS,
+  useOverlay,
+} from "./overlay-stack";
 import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
 import { useBusyFocus } from "./hooks/useBusyFocus";
-
-const visibleModals: string[] = [];
 
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
@@ -126,14 +127,9 @@ export function Modal({
   const panelRef = React.useRef<HTMLDivElement>(null);
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
-  const { openModal, closeModal } = useModal();
-
-  // Store functions in refs to avoid effect re-runs
-  const openModalRef = useLatest(openModal);
-  const closeModalRef = useLatest(closeModal);
-
-  // Use scroll lock hook
-  useScrollLock(visible);
+  // A suspended dialog is off the stack: it neither locks the page scroll
+  // nor takes Escape from the overlay above it.
+  const { isTopmost } = useOverlay(visible, "modal", { lockScroll: true });
 
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useLatest(onClose);
@@ -190,27 +186,6 @@ export function Modal({
   // Keeps focus in the dialog while a busy footer is disabled (#6533).
   useBusyFocus(panelRef, busy);
 
-  // Handle modal context state for blur overlay
-  useEffect(() => {
-    if (visible) {
-      const openModal = openModalRef.current;
-      const closeModal = closeModalRef.current;
-      openModal();
-      return () => {
-        closeModal();
-      };
-    }
-  }, [closeModalRef, visible, openModalRef]);
-
-  useEffect(() => {
-    if (!visible) return;
-    visibleModals.push(titleId);
-    return () => {
-      const index = visibleModals.indexOf(titleId);
-      if (index !== -1) visibleModals.splice(index, 1);
-    };
-  }, [visible, titleId]);
-
   // Handle escape key and animations
   useEffect(() => {
     if (!visible) {
@@ -233,11 +208,7 @@ export function Modal({
     // undefined and the guard never triggers.
     const inFlightEvent = window.event;
     const handleEscKey = (event: KeyboardEvent) => {
-      if (
-        event.key === "Escape" &&
-        event !== inFlightEvent &&
-        visibleModals.at(-1) === titleId
-      ) {
+      if (event.key === "Escape" && event !== inFlightEvent && isTopmost()) {
         handleClose();
       }
     };
@@ -253,7 +224,7 @@ export function Modal({
       document.removeEventListener("keydown", handleEscKey);
       clearTimeout(animationTimer);
     };
-  }, [visible, handleClose, titleId]);
+  }, [visible, handleClose, isTopmost]);
 
   if (!isOpen) return null;
 
@@ -290,7 +261,7 @@ export function Modal({
       }
     >
       <div
-        data-modal-focus-scope="true"
+        {...MODAL_SCOPE_PROPS}
         className={`fixed inset-0 ${Z_LAYER.modal} ${suspended ? "hidden" : "flex"} justify-center ${
           mobileSheet ? "items-end sm:items-center" : "items-center"
         }`}
@@ -385,7 +356,7 @@ export function Modal({
               size="icon"
               onClick={handleClose}
               disabled={isDismissDisabled}
-              className="absolute top-4 right-4 z-10"
+              className={`absolute top-4 right-4 ${Z_LAYER.raised}`}
               aria-label={closeLabel}
               data-overlay-close=""
             >
@@ -396,7 +367,7 @@ export function Modal({
           {/* Content area with hidden scrollbar and reveal animation */}
           <div
             className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
-            data-modal-content="true"
+            {...SCROLL_AREA_PROPS}
           >
             <div
               className={`p-4 leading-relaxed text-gray-700 md:p-6 ${

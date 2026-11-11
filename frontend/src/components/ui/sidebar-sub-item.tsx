@@ -1,6 +1,6 @@
 "use client";
 
-import { NavLink } from "~/components/ui/nav-link";
+import NavigationLink from "~/components/ui/navigation-link";
 import {
   NotificationBadge,
   type NotificationBadgeTone,
@@ -36,7 +36,7 @@ export function SidebarSubItem({
   locked = false,
 }: SidebarSubItemProps) {
   return (
-    <NavLink
+    <NavigationLink
       href={href}
       data-setup-tour={tourId}
       className={`${SIDEBAR_SUB_ITEM_CLASSES} ${
@@ -60,6 +60,6 @@ export function SidebarSubItem({
           <span className="ml-2 shrink-0 text-xs text-gray-400">{count}</span>
         )
       )}
-    </NavLink>
+    </NavigationLink>
   );
 }

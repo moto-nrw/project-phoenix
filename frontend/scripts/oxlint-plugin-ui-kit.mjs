@@ -132,8 +132,9 @@ import {
 //
 //   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
 //                                     text-muted-foreground …); bg-white/gray-*
-//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
-//                                     levels come from Z_LAYER
+//   ui-kit/no-raw-z-index           — no `z-[n]` or `z-n` inside
+//                                     src/components/ui/; levels come from
+//                                     Z_LAYER (#6574)
 //
 // One more keeps icon tiles on the kit (#5582):
 //
@@ -207,7 +208,7 @@ const SHADCN_TOKEN_RE =
   /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
 // Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
 // `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
-const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const RAW_Z_INDEX_RE = /(?<![\w-])z-(?:\[[^\]\s]+\]|\d+)(?![\w-])/g;
 const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -712,7 +713,6 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
   "select",
   "textarea",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -1081,7 +1081,7 @@ const noRawZIndex = makeClassStringRule({
   skipUiKit: false,
   onlyUiKit: true,
   skipFiles: [Z_LAYER_FILE],
-  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  docs: "Disallow z-index classes in the UI kit; every level comes from Z_LAYER.",
   messageId: "rawZIndex",
   message:
     "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
@@ -2521,7 +2521,7 @@ const noEmDashEmptyValue = {
 //
 // Jede Aktion nutzt Button, ButtonLink oder buttonClassName aus dem Kit.
 //
-//   no-hand-rolled-button — natives <button>, <a>, <Link>, <NavLink>,
+//   no-hand-rolled-button — natives <button>, <a>, <Link>,
 //     <NavigationLink> oder ein Element mit role="button", das wie ein Knopf
 //     aussieht: Hintergrund- oder Ring-/Rahmenfarbe plus Radius plus Polster
 //     oder Höhe, jeweils ohne Zustandspräfix.
@@ -2542,15 +2542,13 @@ const NATIVE_ACTION_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
 ]);
 const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
 const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
-const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavigationLink"]);
 const DEFAULT_ACTION_COMPONENTS = new Map([
   ["next/link", "Link"],
-  ["~/components/ui/nav-link", "NavLink"],
   ["~/components/ui/navigation-link", "NavigationLink"],
 ]);
 
@@ -3092,7 +3090,7 @@ const noButtonOverride = makeRatchetRule({
 // prüft, auch in Ternär-Zweigen und Konstanten derselben Datei. Zustände
 // (hover:, active:, aria-pressed:) dürfen grau tönen. Keine Knöpfe in diesem
 // Sinn (frontend-ui-kit.md, Buttons): Schalter, Reiter, Menü- und
-// Auswahleinträge (role), Navigationszeilen (aria-current, NavLink,
+// Auswahleinträge (role), Navigationszeilen (aria-current,
 // NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
 // Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
 
@@ -3106,7 +3104,7 @@ const NOT_BUTTON_ROLES = new Set([
   "option",
   "radio",
 ]);
-const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
+const NAVIGATION_ROWS = new Set(["NavigationLink"]);
 
 function isNavigationOrControl(node, name, bindings) {
   const role = staticAttributeValue(jsxAttribute(node, "role"));
@@ -3579,7 +3577,6 @@ const INTERACTIVE_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",

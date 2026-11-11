@@ -1137,6 +1137,19 @@ describe.concurrent("ui-kit/no-raw-z-index", () => {
     expect(result.output).toContain("ui-kit(no-raw-z-index)");
   });
 
+  it("reports a plain Tailwind level inside the kit (#6574)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="sticky top-0 md:z-20" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-raw-z-index)");
+  });
+
   it("accepts Z_LAYER itself and leaves files outside the kit alone", async () => {
     const [layers, outside] = await Promise.all([
       lintSource(
@@ -2248,7 +2261,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
   it("follows aliased link imports", async () => {
     const result = await lintSource(
       `import AppLink from "next/link";
-      import { NavLink as SidebarLink } from "~/components/ui/nav-link";
+      import SidebarLink from "~/components/ui/navigation-link";
       import ProgressLink from "~/components/ui/navigation-link";
       function Probe() {
         return <>
@@ -2568,7 +2581,7 @@ describe("ui-kit/no-grey-button-fill", () => {
 
   it("accepts state tints, tracks, switches and navigation rows", async () => {
     const result = await lint(
-      `import { NavLink as SideLink } from "~/components/ui/nav-link";
+      `import SideLink from "~/components/ui/navigation-link";
       function Probe({ on }: { on: boolean }) {
         return (
           <>

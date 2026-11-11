@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { forwardRef, useState } from "react";
+import { forwardRef, useId, useState } from "react";
 
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 
@@ -67,14 +67,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   },
   ref,
 ) {
-  // Mirrors ui/Textarea: a caller may identify the field with `id`, `name`, or
-  // both. Deriving the association from `name` alone left `htmlFor` undefined
-  // whenever only `id` was passed.
-  const inputId = id ?? name;
+  // A caller may identify the field with `id`, `name`, both or neither. With
+  // neither, a generated id still links label, hint and error to the field,
+  // as in ui/Textarea (#6568).
+  const generatedId = useId();
+  const inputId = id ?? name ?? generatedId;
   const [ownRevealed, setOwnRevealed] = useState(false);
   const isRevealed = revealed ?? ownRevealed;
-  const errorId = error && inputId ? `${inputId}-error` : undefined;
-  const hintId = hint && inputId ? `${inputId}-hint` : undefined;
+  const errorId = error ? `${inputId}-error` : undefined;
+  const hintId = hint ? `${inputId}-hint` : undefined;
 
   const controlClassName = `block w-full rounded-lg border-0 bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 read-only:bg-gray-50 read-only:text-gray-500 aria-[invalid=true]:ring-moto-red ${CONTROL_SIZE_CLASS[controlSize]}`;
 

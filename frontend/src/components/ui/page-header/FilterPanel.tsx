@@ -465,7 +465,7 @@ export function FilterPanel({
     </>
   );
 
-  // Portal to <body> so the panel escapes the page's `relative z-10` content
+  // Portal to <body> so the panel escapes the page's raised (`Z_LAYER.raised`) content
   // stacking context (app-shell.tsx). At the body level the transparent
   // backdrop sits at Z_LAYER.panelBackdrop (above the bottom nav and FABs so
   // an outside tap closes the panel rather than firing a FAB/nav action),
