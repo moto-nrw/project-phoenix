@@ -59,3 +59,24 @@ func (s *Store) MarkCareNoticeRunDiscarded(ctx context.Context, organizationID, 
 	row.OrganizationID = organizationID
 	return row.run(), nil
 }
+
+// MarkRunDiscarded discards a calculated holiday run of the Träger; its
+// period leaves uq_runs_calculated_period and is free for a new run
+// (#6628). Like MarkCareRunDiscarded it touches no other run.
+func (s *Store) MarkRunDiscarded(ctx context.Context, organizationID, runID int64) (parentbilling.BillingRun, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return parentbilling.BillingRun{}, err
+	}
+	row := &runRow{}
+	if err := db.NewUpdate().Model(row).
+		Set("status = ?", parentbilling.RunDiscarded).Set("discarded_at = CURRENT_TIMESTAMP").
+		Where("organization_id = ?", organizationID).Where("id = ?", runID).Where("status = ?", parentbilling.RunCalculated).
+		Returning("*").Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return parentbilling.BillingRun{}, parentbilling.ErrBillingRunReleased
+		}
+		return parentbilling.BillingRun{}, fmt.Errorf("discard billing run: %w", err)
+	}
+	return row.run(), nil
+}

@@ -9,6 +9,7 @@ GET /traeger/billing-runs/{id}/letters/print -> basis
 GET /traeger/billing-runs/{id}/mailings -> basis
 POST /traeger/billing-runs/ -> basis
 POST /traeger/billing-runs/{id}/corrections -> basis
+POST /traeger/billing-runs/{id}/discard -> basis
 POST /traeger/billing-runs/{id}/documents/{documentID}/cancellation -> basis
 POST /traeger/billing-runs/{id}/documents/{documentID}/credits -> basis
 POST /traeger/billing-runs/{id}/documents/{documentID}/mailings -> basis

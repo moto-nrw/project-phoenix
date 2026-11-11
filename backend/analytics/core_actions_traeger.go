@@ -103,6 +103,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/corrections"}: notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/release"}:     notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/discard"}:     notCaptured,
 	// The corrections a reissued invoice carries over (#5663).
 	{http.MethodPut, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}:    notCaptured,
 	{http.MethodDelete, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}: notCaptured,

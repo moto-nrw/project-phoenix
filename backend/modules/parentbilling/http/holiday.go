@@ -405,7 +405,7 @@ func renderHolidayError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.As(err, &dayLimit):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentHolidayChildDayLimit,
-			map[string]any{"limit": dayLimit.Limit, "days": dayLimit.Days, "child": 1}))
+			map[string]any{"limit": dayLimit.Limit, "days": dayLimit.Days, "elsewhere": dayLimit.Elsewhere, "child": 1}))
 	case errors.As(err, &noCareDay):
 		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeEnrollmentHolidayWeekNoCareDay, map[string]any{
 			"week": noCareDay.Week, "week_id": noCareDay.WeekID, "date": noCareDay.Date.Format("02.01.2006"),

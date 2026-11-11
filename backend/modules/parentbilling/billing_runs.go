@@ -25,9 +25,9 @@ import (
 const (
 	RunCalculated = "calculated"
 	RunReleased   = "released"
-	// RunDiscarded is a monthly or notice run the Abrechnung discarded
-	// while it was open and had nothing to issue (#6626). It issued nothing
-	// and never changes.
+	// RunDiscarded is a holiday, monthly or notice run the Abrechnung
+	// discarded while it was open and had nothing to issue (#6626, #6628).
+	// It issued nothing and never changes.
 	RunDiscarded = "discarded"
 )
 
@@ -86,6 +86,8 @@ type BillingRun struct {
 	IssuedOn        *calendar.Date `json:"issued_on"`
 	DocumentCount   *int           `json:"document_count"`
 	TotalCents      *int64         `json:"total_cents"`
+	// DiscardedAt is set once the Abrechnung discarded the empty run (#6628).
+	DiscardedAt *time.Time `json:"discarded_at"`
 }
 
 // BillingCorrection is one entry of the history of a child's amount.
@@ -323,6 +325,17 @@ type HolidayWeekHost struct {
 // names the person of the session and runs in the Träger transaction of its
 // Träger, which the caller opens. Every read of personal data and every
 // change of a run is recorded in the run's trail.
+// HolidayRunDiscard discards an open holiday run that has nothing to issue
+// (#6628): no invoice, no cancelled invoice to issue again and no confirmed
+// registration waiting for its contribution. It holds the run and the
+// invoices of its period like the release, refuses a run with content as
+// ErrBillingRunNotEmpty and records the discard in the run's trail; nothing
+// is deleted, and the period is free for a new run. It is a capability of
+// its own because BillingRuns stands at the facade width of 12.
+type HolidayRunDiscard interface {
+	DiscardBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
+}
+
 type BillingRuns interface {
 	ListBillingRuns(ctx context.Context, organizationID int64) ([]BillingRun, error)
 	// ListBillablePeriods lists the published holiday periods of the Träger

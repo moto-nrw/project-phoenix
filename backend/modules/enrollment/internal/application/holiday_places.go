@@ -38,6 +38,11 @@ type HolidayPlaceStore interface {
 	ReadHolidayWeekPlaces(ctx context.Context, organizationID, periodID int64) ([]enrollment.HolidayWeekPlaces, error)
 	ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error)
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
+	// ReadHolidayChildBookings reads, in one statement, the bookings the
+	// children keys names hold in the period over all their registrations
+	// that count, except those of the child row exceptChildID, by child
+	// (#6446). The caller holds the period.
+	ReadHolidayChildBookings(ctx context.Context, organizationID, periodID int64, keys []enrollment.HolidayChildKey, exceptChildID int64) (map[enrollment.HolidayChildKey][]enrollment.HolidayBookingInput, error)
 }
 
 // errHolidayPlaceMailRequired reports a move up the waiting list without the

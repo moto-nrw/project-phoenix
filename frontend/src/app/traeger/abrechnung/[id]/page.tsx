@@ -10,8 +10,11 @@
 // wieder vor (#5663). Die Statuszeile führt zurück zum Ferienzeitraum des
 // Laufs, für alle, die die Ferienbetreuung öffnen dürfen (#5688). Jede
 // Rechnung zeigt Zahlungsweg und Fälligkeit; die Fälligkeiten des Laufs
-// lassen sich bis zur Freigabe ändern (#4689).
+// lassen sich bis zur Freigabe ändern (#4689). Ein offener Lauf, der nichts
+// abzurechnen hat, lässt sich verwerfen; er bleibt als „Verworfen“ in der
+// Liste, und der Ferienzeitraum ist frei für einen neuen Lauf (#6628).
 
+import { ArchiveX, Inbox } from "lucide-react";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
@@ -28,6 +31,7 @@ import { BillingMailCard } from "~/components/traeger/billing-mail-card";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
+  isEmptyBillingRun,
 } from "~/components/traeger/billing-format";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { HolidayDebitHintsCard } from "~/components/traeger/care-run-review-lazy";
@@ -37,6 +41,7 @@ import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
@@ -57,6 +62,7 @@ import { createLogger } from "~/lib/logger";
 import {
   type BillingDocument,
   type BillingRunDetail,
+  discardBillingRun,
   downloadBillingLetter,
   fetchBillingRun,
   fetchBillingRuns,
@@ -119,6 +125,8 @@ export default function TraegerBillingRunPage() {
   const router = useRouter();
   const reissueErrors = useApiErrorDisplay();
   const [releasing, setReleasing] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const releaseErrors = useApiErrorDisplay();
@@ -168,6 +176,27 @@ export default function TraegerBillingRunPage() {
     }
   };
 
+  const discard = async () => {
+    if (!run) return;
+    setDiscarding(true);
+    try {
+      setRun(await discardBillingRun(run.id));
+      setConfirmingDiscard(false);
+      success(
+        `Der Lauf ist verworfen. Für ${run.periodName} können Sie einen neuen Lauf starten.`,
+      );
+    } catch (err) {
+      logger.error("traeger_billing_run_discard_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setConfirmingDiscard(false);
+      void releaseErrors.show(err, { object: "der Lauf" });
+      void load();
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
   const downloadLetter = async (document: BillingDocument) => {
     if (!run) return;
     try {
@@ -202,6 +231,8 @@ export default function TraegerBillingRunPage() {
   };
 
   const preview = run?.status === "calculated";
+  const discarded = run?.status === "discarded";
+  const empty = run ? isEmptyBillingRun(run) : false;
   const corrections =
     run?.documents.filter((document) => document.kind !== "invoice") ?? [];
   const canRelease =
@@ -235,12 +266,36 @@ export default function TraegerBillingRunPage() {
                 Zum Ferienzeitraum
               </NavigationLink>
             ) : null}
+            {discarded ? (
+              <span>
+                Verworfen am{" "}
+                {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+              </span>
+            ) : null}
           </HolidayHeadFacts>
         ) : null
       }
       statsLoading={!run && !pageLoad.error}
       actions={
-        preview ? (
+        empty ? (
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            onClick={() => setConfirmingDiscard(true)}
+          >
+            Leeren Lauf verwerfen
+          </Button>
+        ) : discarded ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => void reissue()}
+          >
+            Neuen Lauf starten
+          </Button>
+        ) : preview ? (
           <Button
             type="button"
             variant="primary"
@@ -255,7 +310,29 @@ export default function TraegerBillingRunPage() {
       error={pageLoad.error}
       loading={!pageLoad.error && !run}
       overlays={
-        run ? (
+        run && empty ? (
+          <ConfirmationModal
+            isOpen={confirmingDiscard}
+            title="Leeren Lauf verwerfen?"
+            confirmText="Verwerfen"
+            confirmVariant="danger"
+            isConfirmLoading={discarding}
+            loadingText="Wird verworfen …"
+            onClose={() => setConfirmingDiscard(false)}
+            onConfirm={() => void discard()}
+          >
+            <div className="space-y-3 text-sm text-gray-700">
+              <p>
+                Der Lauf für {run.periodName} stellt nichts aus. Er bleibt als
+                „Verworfen“ in der Liste.
+              </p>
+              <p>
+                Danach ist der Ferienzeitraum frei. Sie können sofort einen
+                neuen Lauf starten.
+              </p>
+            </div>
+          </ConfirmationModal>
+        ) : run ? (
           <>
             <BillingCorrectionModal
               runId={run.id}
@@ -299,7 +376,47 @@ export default function TraegerBillingRunPage() {
         ) : null
       }
     >
-      {run ? (
+      {run && (discarded || empty) ? (
+        <SectionCard title="Abrechnungslauf">
+          <EmptyState
+            tone="neutral"
+            icon={
+              discarded ? (
+                <ArchiveX className="h-7 w-7" aria-hidden="true" />
+              ) : (
+                <Inbox className="h-7 w-7" aria-hidden="true" />
+              )
+            }
+            title={
+              discarded
+                ? "Dieser Lauf ist verworfen"
+                : "Dieser Lauf hat nichts abzurechnen"
+            }
+            description={
+              discarded
+                ? `Er hatte nichts abzurechnen und hat nichts ausgestellt. Für ${run.periodName} können Sie einen neuen Lauf starten.`
+                : `Für ${run.periodName} gibt es keine bestätigte Anmeldung ohne Rechnung. Sie können den Lauf verwerfen. Danach ist der Ferienzeitraum frei für einen neuen Lauf.`
+            }
+            className="py-6"
+          />
+          <div className="mt-2 border-t border-gray-100 pt-5">
+            <DataGrid columns={2}>
+              <DataField label="Ferienzeitraum">{run.periodName}</DataField>
+              <DataField label="Betreuung">
+                {formatDateRange(run.serviceFrom, run.serviceUntil)}
+              </DataField>
+              <DataField label="Gestartet am">
+                {formatDate(run.createdAt)}
+              </DataField>
+              {discarded ? (
+                <DataField label="Verworfen am">
+                  {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+                </DataField>
+              ) : null}
+            </DataGrid>
+          </div>
+        </SectionCard>
+      ) : run ? (
         <>
           <SectionCard
             title="Abrechnungslauf"

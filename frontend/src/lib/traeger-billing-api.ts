@@ -23,7 +23,8 @@ import {
   runDueDatesFromBackend,
 } from "./traeger-billing-terms-api";
 
-export type BillingRunStatus = "calculated" | "released";
+/** A run the Abrechnung discarded while it was open and empty (#6628). */
+export type BillingRunStatus = "calculated" | "released" | "discarded";
 
 export interface BillingRun {
   readonly id: string;
@@ -38,6 +39,8 @@ export interface BillingRun {
   readonly issuedOn: string | null;
   readonly documentCount: number | null;
   readonly totalCents: number | null;
+  /** When the Abrechnung discarded the empty run (#6628). */
+  readonly discardedAt?: string | null;
 }
 
 type BillingPositionKind =
@@ -236,6 +239,7 @@ interface BackendRun {
   issued_on: string | null;
   document_count: number | null;
   total_cents: number | null;
+  discarded_at?: string | null;
 }
 
 interface BackendPosition {
@@ -363,6 +367,7 @@ function runFromBackend(run: BackendRun): BillingRun {
     issuedOn: run.issued_on,
     documentCount: run.document_count,
     totalCents: run.total_cents,
+    discardedAt: run.discarded_at ?? null,
   };
 }
 
@@ -622,6 +627,21 @@ export async function releaseBillingRun(
         // The release refuses another kind than the one shown (#4688).
         ...(run.documentKind ? { document_kind: run.documentKind } : {}),
       },
+    }),
+  );
+}
+
+/**
+ * Discards an open run that has nothing to issue (#6628). The backend
+ * refuses a run with an invoice or a registration still waiting for its
+ * contribution; the period is free for a new run afterwards.
+ */
+export async function discardBillingRun(
+  runId: string,
+): Promise<BillingRunDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendRunDetail>(`${runPath(runId)}/discard`, {
+      method: "POST",
     }),
   );
 }

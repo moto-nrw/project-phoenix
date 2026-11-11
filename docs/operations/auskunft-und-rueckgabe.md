@@ -642,11 +642,12 @@ hat, kann es laden.
    `tenant return revoke --archive` und `tenant return purge`. Auch der
    Probelauf (`--dry-run`) verweigert dann. Eine gleichzeitige Freigabe kann
    nicht durchrutschen: Der Löschbefehl prüft in derselben Transaktion erneut,
-   und eine gelöschte Schule nimmt keine Freigabe mehr an. **Offen:** Ein
-   Paket des Trägers sperrt die Löschung einer seiner Schulen nicht; es
-   bleibt abrufbar, bis es bereinigt oder der Träger gelöscht wird. Das ist
-   der heutige Stand, keine getroffene fachliche Entscheidung
-   ([#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)). Eine
+   und eine gelöschte Schule nimmt keine Freigabe mehr an. Ein Paket
+   des Trägers sperrt die Löschung einer seiner Schulen bewusst nicht; es
+   bleibt abrufbar, bis es bereinigt oder der Träger gelöscht wird. Seine
+   Unterlagen gehören dem Träger und bleiben auch nach der Schullöschung in
+   der Datenbank (ADR 0203,
+   [#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)). Eine
    Freigabe für eine Schule oder einen Träger, deren Löschung begonnen hat,
    verweigert die CLI.
 
