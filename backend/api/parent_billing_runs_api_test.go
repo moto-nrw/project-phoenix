@@ -81,6 +81,8 @@ type billingRunBody struct {
 	// PaymentTextMissingDebtorNumbers counts the invoices with an amount
 	// and without a debtor number while the payment text names it (#5622).
 	PaymentTextMissingDebtorNumbers int `json:"payment_text_missing_debtor_numbers"`
+	// Fingerprint names the content of the preview (#6506).
+	Fingerprint string `json:"fingerprint"`
 }
 
 type billingPeriodBody struct {
@@ -109,7 +111,7 @@ func billingRun(t *testing.T, f reviewFixture, token string, id int64) billingRu
 }
 
 func releaseBody(run billingRunBody) map[string]any {
-	return map[string]any{"document_count": run.PreviewCount, "total_cents": run.PreviewCents}
+	return map[string]any{"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint}
 }
 
 func setNumberRange(t *testing.T, f reviewFixture, token, pattern string) {
