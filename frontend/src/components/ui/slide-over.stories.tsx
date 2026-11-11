@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -113,6 +114,47 @@ export const WithFooterActions: Story = {
           </DrawerPrimitive.Close>
           <Button type="button">Speichern</Button>
         </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
+  ),
+};
+
+/** Save running (`pending`): X, swipe, backdrop and footer are locked. */
+export const Pending: Story = {
+  render: () => (
+    <SlideOver
+      defaultOpen
+      pending={{ pending: true, run: async () => undefined }}
+    >
+      <SlideOverContent>
+        <SlideOverHeader>
+          <SlideOverTitle>Termin bearbeiten</SlideOverTitle>
+        </SlideOverHeader>
+        <SlideOverBody className="text-sm text-slate-600">
+          Inhalt des Panels.
+        </SlideOverBody>
+        <SlideOverFooter>
+          <Button type="button" variant="outline">
+            Abbrechen
+          </Button>
+          <Button type="button">Speichern</Button>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
+  ),
+};
+
+/** Closing locked without a running save (X disabled). */
+export const DismissDisabled: Story = {
+  render: () => (
+    <SlideOver defaultOpen dismissible={false}>
+      <SlideOverContent>
+        <SlideOverHeader close={<SlideOverCloseButton disabled />}>
+          <SlideOverTitle>Personalpool</SlideOverTitle>
+        </SlideOverHeader>
+        <SlideOverBody className="text-sm text-slate-600">
+          Eine Verschiebung wartet auf Bestätigung.
+        </SlideOverBody>
       </SlideOverContent>
     </SlideOver>
   ),
