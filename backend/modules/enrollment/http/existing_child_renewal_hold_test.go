@@ -17,9 +17,9 @@ import (
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -74,14 +74,14 @@ func (g *renewalGate) park(ctx context.Context) {
 // checkedMatches parks after the first name-and-birthday match of a
 // submission, the check before the renewal holds anything.
 type checkedMatches struct {
-	enrollmentCompose.StudentMatches
+	owners.EnrollmentStudentMatches
 	gate *renewalGate
 }
 
-func (m checkedMatches) FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, dateOfBirth calendar.Date) (*int64, error) {
-	id, err := m.StudentMatches.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, firstName, lastName, dateOfBirth)
+func (m checkedMatches) FindEnrolledStudentIDsByIdentities(ctx context.Context, tenantID int64, identities []peopledirectory.StudentIdentity) ([][]int64, error) {
+	ids, err := m.EnrollmentStudentMatches.FindEnrolledStudentIDsByIdentities(ctx, tenantID, identities)
 	m.gate.park(ctx)
-	return id, err
+	return ids, err
 }
 
 // writingChildren parks before the first write of a request child.
@@ -128,7 +128,7 @@ func setupRenewalRigFor(t *testing.T, audience string) *renewalRig {
 		Children:  writingChildren{IntakeChildren: env.repos.Enrollment(), gate: rig.writing},
 		Guardians: env.repos.Enrollment(), CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		Catalog: env.repos.Enrollment(), SchoolRepo: factorySchools{repos: env.reposSchools}, RateLimitRepo: env.repos.Enrollment(),
-		LateInviteRepo: env.repos.Enrollment(), StudentRepo: checkedMatches{StudentMatches: env.repos.Student, gate: rig.checked},
+		LateInviteRepo: env.repos.Enrollment(), StudentRepo: checkedMatches{EnrollmentStudentMatches: env.repos.Student, gate: rig.checked},
 		GuardianAuthorizer: env.repos.StudentGuardian,
 		GuardianHold:       testGuardianHold(env.db, env.repos),
 		OutboxEnqueuer:     env.outbox, Settings: env.settings, FrontendURL: "http://localhost:3000", Logger: slog.Default(),

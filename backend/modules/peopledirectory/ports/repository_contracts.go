@@ -123,6 +123,10 @@ type StudentRepository interface {
 	// active+pending scope as ExistsEnrolledByNameAndBirthday.
 	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday calendar.Date) (*int64, error)
 
+	// FindEnrolledStudentIDsByIdentities returns all matching enrolled ids
+	// per submitted identity, in the same order, with one database query.
+	FindEnrolledStudentIDsByIdentities(context.Context, int64, []peopledirectory.StudentIdentity) ([][]int64, error)
+
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 

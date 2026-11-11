@@ -5714,6 +5714,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s enrollmentStudentMatches) FindEnrolledStudentIDsByIdentities(ctx context.Context, tenantID int64, identities []enrollment.StudentIdentity) ([][]int64, error) {\n\tprobes := make([]peopledirectory.StudentIdentity, len(identities))\n\tfor i, identity := range identities {\n\t\tprobes[i] = peopledirectory.StudentIdentity{FirstName: identity.FirstName, LastName: identity.LastName, Birthday: identity.Birthday}\n\t}\n\treturn s.EnrollmentStudentMatches.FindEnrolledStudentIDsByIdentities(ctx, tenantID, probes)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s enrollmentStudentRecords) FindStudent(ctx context.Context, id int64) error {\n\t_, err := s.repo.FindByID(ctx, id)\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentStudentRecords.FindStudent",

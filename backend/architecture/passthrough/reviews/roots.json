@@ -4081,6 +4081,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0208",
+      "id": "roots/owners/enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "reason": "Root binding converts Enrollment identity values to People Directory values and preserves all index-aligned matches; no business decision or SQL."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentStudentRecords.FindStudent",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

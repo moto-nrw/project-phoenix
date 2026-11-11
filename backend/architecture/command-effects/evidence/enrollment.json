@@ -5801,7 +5801,7 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ExistsEnrolledByNameAndBirthday",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.ExistsEnrolledByNameAndBirthday",
       "binding_digest": "6a144895326249840133f4dbb4ce39cd",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.ExistsEnrolledByNameAndBirthday",
       "source_owner": "enrollment",
@@ -5809,11 +5809,27 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.FindEnrolledStudentIDByNameAndBirthday",
       "binding_digest": "24fc1fe91d2c4a1d7792c5e89752dd2b",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.FindEnrolledStudentIDByNameAndBirthday",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "binding_digest": "e00217c3280fbc5ac562a3a5189a5b29",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.FindEnrolledStudentIDsByIdentities",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.LockStudents",
+      "binding_digest": "4ef797ef6c01a7c1a854928fd869d8a3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.LockStudents",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
       "target_owner": "people-directory"
     },
     {

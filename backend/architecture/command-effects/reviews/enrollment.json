@@ -7746,23 +7746,44 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ExistsEnrolledByNameAndBirthday",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.ExistsEnrolledByNameAndBirthday",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.ExistsEnrolledByNameAndBirthday",
-      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.StudentRepository.ExistsEnrolledByNameAndBirthday. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read-only enrolled-child identity lookup through People Directory; the batch keeps all matches and input positions. No persistent, lock or scope effect at this port.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ExistsEnrolledByNameAndBirthday",
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.FindEnrolledStudentIDByNameAndBirthday",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.FindEnrolledStudentIDByNameAndBirthday",
-      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read-only enrolled-child identity lookup through People Directory; the batch keeps all matches and input positions. No persistent, lock or scope effect at this port.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.FindEnrolledStudentIDsByIdentities",
+      "reason": "Read-only enrolled-child identity lookup through People Directory; the batch keeps all matches and input positions. No persistent, lock or scope effect at this port.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.LockStudents",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.LockStudents",
+      "reason": "People Directory locks the candidate students in ascending id order in the caller school transaction, before enrollment phase locks. Staff authorization bypass remains unchanged; no mutation or nested coordination.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
       "target_owner": "people-directory"
     },
     {

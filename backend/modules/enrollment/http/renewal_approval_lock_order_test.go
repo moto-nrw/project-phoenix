@@ -15,6 +15,42 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func TestStaffSubmissionWaitsForRenewalBeforeThePhaseLocks(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	rig := setupRenewalRigFor(t, enrollmentNative.PhaseAudienceExistingStudents)
+	f := rig.family(t, "StaffSubmission")
+
+	rig.dedup.armed.Store(true)
+	renewal := rig.submitAsync(t, f)
+	holder := awaitRenewalGate(t, rig.dedup, renewal)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), renewalDeadline)
+	defer cancel()
+	staff := make(chan error, 1)
+	go func() {
+		_, err := rig.matching.Submit(ctx, enrollmentAPI.SubmitRequest{
+			TenantID: testpkg.Tenant(t), PhaseID: rig.sourcePhase.ID,
+			GuardianFirstName: "Eva", GuardianLastName: f.last, GuardianEmail: "staff-renewal@example.test",
+			SubmissionSource:  enrollmentNative.RequestSourceAdminManual,
+			GuardianAccountID: &f.accountID, GuardianSubmitEligible: true,
+			ConsentFlags: testFormValues(rolloverConsentFlags()),
+			Children:     []enrollmentAPI.SubmitChild{submitChild(f.first, f.last, existingChildBirthday)},
+		})
+		staff <- err
+	}()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := rig.db.NewRaw("SELECT EXISTS (SELECT 1 FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid)))", holder.pid).
+			Scan(ctx, &waiting)
+		return err == nil && waiting
+	}, 10*time.Second, 10*time.Millisecond, "the staff submission must wait for the renewal's child lock")
+	rig.dedup.open()
+	require.NoError(t, awaitRenewal(t, renewal), "the renewal commits without waiting for a phase lock held by staff")
+	require.ErrorIs(t, awaitRenewal(t, staff), enrollmentNative.ErrExistingStudentAlreadyRequested,
+		"staff sees the committed renewal rather than a deadlock")
+	require.Equal(t, 1, rig.requestsOf(t, f))
+}
+
 // Exercise the real approval paths while a renewal holds the student but
 // has not yet taken the phase locks. The approval must wait without holding
 // a lock the renewal needs to finish.

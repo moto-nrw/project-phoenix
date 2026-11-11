@@ -283,18 +283,28 @@ func (s *Intake) holdGuardianReEnrollment(ctx context.Context, submitter reEnrol
 // of open and linked_parents phases. A refusal here decides nothing: the
 // renewal asks again when it pins the child (holdGuardianReEnrollment).
 func (s *Intake) holdRenewalCandidates(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, children []SubmitChild, carried []*int64, submitter func() (reEnrollmentSubmitter, error)) error {
-	if s.deps.GuardianHold == nil {
-		return nil
-	}
 	ids, err := s.renewalCandidates(ctx, tenantID, phase, children, carried, true)
 	if err != nil || len(ids) == 0 {
 		return err
 	}
 	identity, err := submitter()
-	if err != nil || identity.AdminManaged {
+	if err != nil {
 		return err
 	}
-	if identity.GuardianAccountID == nil && phase.Audience != enrollmentNative.PhaseAudienceExistingStudents {
+	switch {
+	case identity.AdminManaged:
+		// Staff bypass authorization, but take the same child-before-phase
+		// order: inserting the pin needs the student's foreign-key lock.
+		if s.deps.Students == nil {
+			return errors.New("submit: student locks are not configured")
+		}
+		if err := s.deps.Students.LockStudents(ctx, ids); err != nil {
+			return fmt.Errorf("submit: hold staff re-enrollment candidates: %w", err)
+		}
+		return nil
+	case s.deps.GuardianHold == nil:
+		return nil
+	case identity.GuardianAccountID == nil && phase.Audience != enrollmentNative.PhaseAudienceExistingStudents:
 		// Only a signed-in parent's relationship pins in these phases.
 		ids, _ = s.renewalCandidates(ctx, tenantID, phase, children, carried, false)
 	}
@@ -316,24 +326,42 @@ func (s *Intake) holdRenewalCandidates(ctx context.Context, tenantID int64, phas
 // renewalCandidates lists the candidates' student ids, ascending and unique.
 func (s *Intake) renewalCandidates(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, children []SubmitChild, carried []*int64, match bool) ([]int64, error) {
 	matching := match && s.deps.Students != nil && (phase.Audience == enrollmentNative.PhaseAudienceExistingStudents || audienceChecksEnrolledChildren(phase))
+	var matches [][]int64
+	if matching {
+		var err error
+		matches, err = s.matchRenewalCandidates(ctx, tenantID, children)
+		if err != nil {
+			return nil, err
+		}
+	}
 	var ids []int64
-	for i, child := range children {
+	for i := range children {
 		if i < len(carried) && carried[i] != nil {
 			ids = append(ids, *carried[i])
 		}
-		if !matching {
-			continue
-		}
-		id, err := s.deps.Students.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, child.FirstName, child.LastName, child.DateOfBirth)
-		if err != nil {
-			return nil, fmt.Errorf("submit: resolve re-enrollment candidate: %w", err)
-		}
-		if id != nil {
-			ids = append(ids, *id)
+		if matching && len(matches[i]) == 1 {
+			ids = append(ids, matches[i][0])
 		}
 	}
 	slices.Sort(ids)
 	return slices.Compact(ids), nil
+}
+
+// matchRenewalCandidates resolves every submitted identity in one directory
+// read and requires an answer for each input, including missing matches.
+func (s *Intake) matchRenewalCandidates(ctx context.Context, tenantID int64, children []SubmitChild) ([][]int64, error) {
+	identities := make([]enrollmentNative.StudentIdentity, len(children))
+	for i, child := range children {
+		identities[i] = enrollmentNative.StudentIdentity{FirstName: child.FirstName, LastName: child.LastName, Birthday: child.DateOfBirth}
+	}
+	matches, err := s.deps.Students.FindEnrolledStudentIDsByIdentities(ctx, tenantID, identities)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve re-enrollment candidates: %w", err)
+	}
+	if len(matches) != len(children) {
+		return nil, errors.New("submit: incomplete re-enrollment candidate matches")
+	}
+	return matches, nil
 }
 
 // submitterHoldsRenewal is submitterMayRenewStudent behind the parent guard:

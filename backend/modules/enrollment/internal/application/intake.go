@@ -115,6 +115,10 @@ type IntakeOfferings interface {
 // enrolled (active or pending) students. FindEnrolledStudentIDByNameAndBirthday
 // answers nil for no match and for more than one.
 type StudentMatches interface {
+	// FindEnrolledStudentIDsByIdentities returns all matches, index-aligned,
+	// in one query. Multiple ids preserve ambiguity rather than choosing one.
+	FindEnrolledStudentIDsByIdentities(context.Context, int64, []enrollmentNative.StudentIdentity) ([][]int64, error)
+	LockStudents(context.Context, []int64) error
 	ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, dateOfBirth calendar.Date) (bool, error)
 	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, dateOfBirth calendar.Date) (*int64, error)
 }

@@ -15761,6 +15761,30 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRecords.FindEnrolledStudentIDsByIdentities",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.OverlappingRosterGroupNames.FindEnrolledStudentIDsByIdentities",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupStudentRepository.FindEnrolledStudentIDsByIdentities",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRecords.FindOverlappingWithGroups",
       "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroups",
