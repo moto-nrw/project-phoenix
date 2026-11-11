@@ -15,10 +15,10 @@ import (
 // well. The lookup by period, name and date of
 // birth uses idx_holiday_registration_children_duplicate.
 
-// holidayChildBookingsQuery reads every booking of the child in the
+// holidayChildKeyBookingsQuery reads every booking of the child in the
 // registrations of the period that count, placed, waiting or waiting for
 // the office alike, except those of the child row exceptChildID.
-const holidayChildBookingsQuery = `SELECT booking.holiday_period_week_id, booking.holiday_week_time_model_id,
+const holidayChildKeyBookingsQuery = `SELECT booking.holiday_period_week_id, booking.holiday_week_time_model_id,
 		booking.days::text AS days
 	FROM enrollment.holiday_registration_children AS child
 	JOIN enrollment.holiday_registrations AS registration
@@ -47,7 +47,7 @@ func (s *HolidayRegistrationStore) ReadHolidayChildBookings(ctx context.Context,
 		return nil, err
 	}
 	var rows []holidayChildBookingRow
-	if err := db.NewRaw(holidayChildBookingsQuery, organizationID, periodID,
+	if err := db.NewRaw(holidayChildKeyBookingsQuery, organizationID, periodID,
 		key.FirstName, key.LastName, key.BirthDate, key.GuardianEmail, exceptChildID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: read holiday child bookings: %w", err)
 	}

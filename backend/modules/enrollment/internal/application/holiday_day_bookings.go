@@ -179,7 +179,7 @@ func (h *HolidayPeriods) refuseRaisedDayLimit(ctx context.Context, organizationI
 	}
 	for _, bookings := range children {
 		var refusal *enrollment.HolidayChildDayLimitRefusal
-		if !errors.As(refuseHolidayDayLimit(0, bookings, written, holidayBookedDayCount(bookings, current)), &refusal) {
+		if !errors.As(refuseHolidayDayLimit(0, bookings, written, holidayBookedDayCount(bookings, current), 0), &refusal) {
 			continue
 		}
 		week := holidayRaisingWeek(bookings, moved, current, written)

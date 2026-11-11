@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // dayLimitRefusal reads a refusal of the bound of care days.
@@ -138,4 +140,46 @@ func TestHolidayChildDayLimitHoldsAgainstAConcurrentRegistrationOfTheSameChild(t
 	}
 	assert.Equal(t, map[string]any{"limit": float64(3), "days": float64(4), "elsewhere": float64(2), "child": float64(1)},
 		dayLimitRefusal(t, done.code, done.body), "the second registration counts the days the first committed")
+}
+
+// TestHolidayWeekChangeCountsTheChildsOtherRegistrations: the check of a
+// changed period (#6506) counts the same child over its registrations
+// (#6446). Two one-day weeks booked as a whole in two registrations of one
+// child fill a bound of two; making the second week two days long would
+// give the child three. Per registration each child stays within the bound,
+// so the change passes without the count across registrations.
+func TestHolidayWeekChangeCountsTheChildsOtherRegistrations(t *testing.T) {
+	t.Parallel()
+	f := newHolidayRegistrationFixture(t)
+	office := newTraegerOffice(t, f.db, f.traeger, "Träger Woche Zwei Anmeldungen", identityaccess.TraegerRoleAdministration)
+	model := []map[string]any{{"name": "bis 13 Uhr", "starts_at": "08:00", "ends_at": "13:00", "price_cents": 4500}}
+	body := map[string]any{
+		"name": "Winterferien 2027", "registration_opens_on": "2020-01-01", "registration_closes_on": "2099-12-31",
+		"binding": true, "notes": "", "max_days_per_child": 2,
+		"weeks": []map[string]any{
+			{"starts_on": "2027-01-11", "ends_on": "2027-01-11", "host_school_id": office.schools[0], "time_models": model},
+			{"starts_on": "2027-01-18", "ends_on": "2027-01-18", "host_school_id": office.schools[0], "time_models": model},
+		},
+	}
+	rec := traegerJSON(t, f.traeger, office.token, http.MethodPost, "/traeger/holiday-periods/", body)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	created := decodeSchoolPortalData[traegerPeriodLink](t, rec.Body.Bytes())
+	rec = traegerJSON(t, f.traeger, office.token, http.MethodPost, holidayPeriodPath(created.ID)+"/publish", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	d := dayFixture{holidayRegistrationFixture: f, office: office, period: decodeSchoolPortalData[traegerPeriodLink](t, rec.Body.Bytes())}
+	d.offer = d.readOffer(t)
+	for _, week := range d.offer.Weeks {
+		d.submit(t, d.registration("eva.wochen@example.org", "Ole",
+			map[string]any{"week_id": week.ID, "time_model_id": week.TimeModels[0].ID}))
+	}
+
+	rec = traegerJSON(t, f.traeger, office.token, http.MethodGet, holidayPeriodPath(created.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	period := decodeSchoolPortalData[map[string]any](t, rec.Body.Bytes())
+	period["weeks"].([]any)[1].(map[string]any)["ends_on"] = "2027-01-19"
+	rec = traegerJSON(t, f.traeger, office.token, http.MethodPut, holidayPeriodPath(created.ID), period)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	code, fields := registrationRefusalOf(t, rec)
+	assert.Equal(t, "enrollment.holiday_week_day_limit", code)
+	assert.Equal(t, []string{"weeks.1.ends_on"}, fields)
 }
