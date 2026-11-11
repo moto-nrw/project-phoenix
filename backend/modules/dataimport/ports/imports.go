@@ -61,6 +61,7 @@ type StaffImportDeps struct {
 	Transactions                 importModels.Transactions
 	Invitations                  importModels.StaffInviter
 	FindInvitedPeople            func(context.Context, string) ([]int64, error)
+	FindSchoolEmailIdentities    func(context.Context, []string) (map[string]int64, map[string][]int64, error)
 	FindSchoolAccount            func(context.Context, string) (int64, bool, error)
 	Roles                        importModels.SchoolRoleQuery
 	RolePolicy                   importModels.SchoolRolePolicy

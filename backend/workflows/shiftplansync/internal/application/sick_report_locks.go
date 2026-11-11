@@ -87,12 +87,10 @@ func (s *sickCascade) lockStaffRows(ctx context.Context, staffIDs []int64) error
 		return errors.New("sick report lock: staff row lock is not configured")
 	}
 	ids := slices.Compact(slices.Sorted(slices.Values(staffIDs)))
-	for _, staffID := range ids {
-		if staffID <= 0 {
-			continue
-		}
-		if err := s.lockStaff(ctx, staffID); err != nil {
-			return fmt.Errorf("sick report lock: staff row: %w", err)
+	ids = slices.DeleteFunc(ids, func(id int64) bool { return id <= 0 })
+	if len(ids) > 0 {
+		if err := s.lockStaff(ctx, ids); err != nil {
+			return fmt.Errorf("sick report lock: staff rows: %w", err)
 		}
 	}
 	return nil

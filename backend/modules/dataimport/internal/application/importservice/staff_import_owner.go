@@ -197,6 +197,11 @@ func (c *StaffImportConfig) Create(ctx context.Context, row importModels.StaffIm
 	if err != nil {
 		return 0, err
 	}
+	// A successful invitation creates the pending email identity. Keep a
+	// cached miss current for later rows, but preserve active-account priority.
+	if email, normalizeErr := normalizeStaffEmail(row.Email); normalizeErr == nil && email != "" && c.Invitations != nil && c.emailMatches != nil && c.emailAccounts[email] == 0 {
+		c.emailMatches[email] = staffEmailMatch{id: staffID}
+	}
 	return staffID, nil
 }
 

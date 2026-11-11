@@ -15,6 +15,7 @@ type Store interface {
 	ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRole, domain.OperationStats, error)
 	FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error)
 	FindRolePermissionsByRoleIDs(context.Context, []int64, int64) (map[int64][]string, domain.OperationStats, error)
+	FindSchoolEmailIdentities(context.Context, []string, int64) (map[string]int64, map[string][]int64, domain.OperationStats, error)
 	FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error)
 	CountStudentGuardianInvitations(ctx context.Context, studentID, tenantID int64) (int, domain.OperationStats, error)
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)

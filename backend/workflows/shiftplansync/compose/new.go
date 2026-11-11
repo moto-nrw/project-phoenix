@@ -38,9 +38,10 @@ type (
 type SickCascadeDependencies struct {
 	// Planning is the shift write that rebuilds a cancelled shift's cover set
 	// atomically; Workforce serves the rows and the provenance stamp.
-	Planning                   workforce.StaffShiftPlanning
-	Workforce                  workforce.Capability
-	LockStaffShifts, LockStaff func(ctx context.Context, staffID int64) error
+	Planning        workforce.StaffShiftPlanning
+	Workforce       workforce.Capability
+	LockStaffShifts func(ctx context.Context, staffID int64) error
+	LockStaff       func(ctx context.Context, staffIDs []int64) error
 
 	// Deviations are the Timetable owner's sick-report writes
 	// (timetable.StaffDeviations satisfies them).
@@ -76,9 +77,8 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		Absences: deps.Workforce, Deviations: deps.Deviations,
 		TimetableData: deps.TimetableData,
 		InstanceStaff: deps.InstanceStaff,
-		Broadcaster:   deps.Broadcaster,
-		Logger:        deps.Logger,
-		Today:         deps.Today, LockStaff: deps.LockStaff,
+		Broadcaster:   deps.Broadcaster, Logger: deps.Logger,
+		Today: deps.Today, LockStaff: deps.LockStaff,
 	}), nil
 }
 

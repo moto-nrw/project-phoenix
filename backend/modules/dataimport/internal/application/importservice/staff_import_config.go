@@ -116,8 +116,9 @@ type StaffImportConfig struct {
 
 	// lockedStaff and emailMatches belong to the write chunk being applied
 	// (BatchWriteConfig, staff_import_write_batch.go).
-	lockedStaff  map[int64]ports.Staff
-	emailMatches map[string]int64
+	lockedStaff   map[int64]ports.Staff
+	emailMatches  map[string]staffEmailMatch
+	emailAccounts map[string]int64
 }
 
 // indexedStaff is the in-memory match key of one existing staff member:
