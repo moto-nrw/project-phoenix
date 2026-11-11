@@ -3,6 +3,7 @@
 package securityruntime
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
@@ -15,6 +16,15 @@ import (
 func Fingerprint(content []byte) string {
 	sum := sha256.Sum256(content)
 	return hex.EncodeToString(sum[:])
+}
+
+// KeyedFingerprint returns the HMAC-SHA256 of content under key as hex: a
+// pseudonym that only the key holder can derive from a guessable value such
+// as an e-mail address (ADR 0196). It is not a password hash.
+func KeyedFingerprint(key, content []byte) string {
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write(content)
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // ReaderFingerprint streams r into the same SHA-256 content identity and

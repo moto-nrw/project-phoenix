@@ -54,12 +54,27 @@ type ClosingDay struct {
 // ClosingDayInput is a closing day as the Träger-Büro writes it.
 // HolidayBookingsToken is the token of the preview of the holiday bookings
 // it affects that the Büro confirmed (#6434), empty when it saw none.
+//
+// For the holiday notices the Owner adds ClosingDayID, the saved closing
+// day a change or a deletion replaces, Previous, its stored version whose
+// days may open again (#6457), and Deleted for a deletion.
 type ClosingDayInput struct {
 	StartDate            calendar.Date
 	EndDate              calendar.Date
 	Reason               string
 	SchoolIDs            []int64
 	HolidayBookingsToken string
+	ClosingDayID         int64
+	Previous             *ClosingDaySpan
+	Deleted              bool
+}
+
+// ClosingDaySpan is the stored version of a closing day: its schools and
+// days.
+type ClosingDaySpan struct {
+	StartDate calendar.Date
+	EndDate   calendar.Date
+	SchoolIDs []int64
 }
 
 // School is a school of the Träger with the federal state its
@@ -93,7 +108,10 @@ type ClosingDays interface {
 	Calendar(ctx context.Context, organizationID int64, from, to calendar.Date) (Calendar, error)
 	CreateClosingDay(ctx context.Context, organizationID int64, input ClosingDayInput) (ClosingDay, error)
 	UpdateClosingDay(ctx context.Context, organizationID, closingDayID int64, input ClosingDayInput) (ClosingDay, error)
-	DeleteClosingDay(ctx context.Context, organizationID, closingDayID int64) error
+	// DeleteClosingDay removes a closing day and tells the parents of the
+	// holiday bookings whose days open again; holidayBookingsToken confirms
+	// that preview (#6457). It returns the families told.
+	DeleteClosingDay(ctx context.Context, organizationID, closingDayID int64, holidayBookingsToken string) (int, error)
 }
 
 // SchoolState is a school of a Träger with its federal-state ISO code, as

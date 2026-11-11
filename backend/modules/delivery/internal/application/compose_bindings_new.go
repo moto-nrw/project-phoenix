@@ -32,6 +32,8 @@ type Runtime struct {
 	EmailReconciliation *EmailReconciliation
 	// EmailOutcomes reads what became of a school's mails.
 	EmailOutcomes delivery.EmailOutcomes
+	// TraegerMails reads back and repeats Träger mails by key (ADR 0196).
+	TraegerMails delivery.TraegerMails
 }
 
 // emailOutcomeRead answers from the store and, for a block at the provider, from
@@ -44,7 +46,7 @@ type emailOutcomeRead struct {
 // NewRuntime composes the module for this deployment's mail provider.
 func NewRuntime(module delivery.Capability, store *WorkerCommands, observe func(domain.Observation), wakeups func(context.Context) <-chan struct{}, provider mail.ProviderConfig) *Runtime {
 	webhooks, reconciliation := NewEmailEvents(provider, store, observe)
-	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation, EmailOutcomes: emailOutcomeRead{WorkerCommands: store, EmailReconciliation: reconciliation}}
+	return &Runtime{Module: module, Store: store, Observe: observe, EmailWakeups: wakeups, EmailWebhooks: webhooks, EmailReconciliation: reconciliation, EmailOutcomes: emailOutcomeRead{WorkerCommands: store, EmailReconciliation: reconciliation}, TraegerMails: traegerMailsOf(module)}
 }
 
 // NewWorker composes the outbox worker over the store of runtime, sending
@@ -180,4 +182,11 @@ func ProviderResult(value deliveryContract.ProviderResult, err error) (deliveryC
 		err = fmt.Errorf("%w: %v", domain.ErrPermanent, err)
 	}
 	return value, err
+}
+
+// traegerMailsOf is the Träger mail side of the composed service; a test
+// double of the capability has none.
+func traegerMailsOf(module delivery.Capability) delivery.TraegerMails {
+	mails, _ := module.(delivery.TraegerMails)
+	return mails
 }

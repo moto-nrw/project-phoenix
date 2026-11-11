@@ -4834,7 +4834,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.HolidayNotices.NotifyHolidayBookings",
-      "reason": "Guarded target command (#6434): Enrollment's NotifyHolidayClosure joins the caller's Träger transaction, keeps its own preview-token check, Träger filter and host-school authorization, enqueues one Träger mail per family in Delivery's transactional outbox and records the told days. The caller propagates its failure and the save rolls back; no lock order, re-read under foreign locks or after-commit orchestration is shared. Target modules/enrollment.HolidayClosures.NotifyHolidayClosure.",
+      "reason": "Guarded target command (#6434): Enrollment's NotifyHolidayClosure joins the caller's Träger transaction, keeps its own preview-token check, Träger filter and host-school authorization, enqueues one Träger mail per family in Delivery's transactional outbox and records the told days. The caller propagates its failure and the save rolls back; no lock order, re-read under foreign locks or after-commit orchestration is shared. Target modules/enrollment.HolidayClosures.NotifyHolidayClosure. Since #6457 it passes the stored version of a changed or deleted closing day, so the parents of days that open again are told in the same Träger transaction.",
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",
       "target_owner": "enrollment"
@@ -4845,7 +4845,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.HolidayNotices.NotifyHolidayBookings",
-      "reason": "Platform protocol participation (scope): school-calendar reaches tenant.MarkRollback (tenant-runtime) through roots/owners.traegerClosingDayHolidayNotices.NotifyHolidayBookings. A refused notice follows the write of the Träger closing day and renders a 4xx, so the binding marks the caller's Träger transaction for rollback; transaction correctness stays with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): school-calendar reaches tenant.MarkRollback (tenant-runtime) through roots/owners.traegerClosingDayHolidayNotices.NotifyHolidayBookings. A refused notice follows the write of the Träger closing day and renders a 4xx, so the binding marks the caller's Träger transaction for rollback; transaction correctness stays with the platform behavior tests (ADR 0098). Since #6457 the same holds for a deletion: a refused notice rolls the deletion back.",
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
       "target_owner": "tenant-runtime"

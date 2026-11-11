@@ -100,6 +100,19 @@
     }
   ],
   "data_objects": [
+    {"name": "calendar.holiday_closure_authorizations", "write_owner": "school-calendar"},
+    {
+      "name": "calendar.holiday_closure_revisions",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.holiday_closure_proposals",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.holiday_closure_events",
+      "write_owner": "school-calendar"
+    },
     {
       "name": "calendar.parent_conference_bookings",
       "write_owner": "school-calendar"

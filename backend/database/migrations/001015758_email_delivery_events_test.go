@@ -76,6 +76,8 @@ func TestEmailDeliveryEventsMigrationRoundTrip(t *testing.T) {
 		return found
 	}
 
+	// 1.15.942 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
+	require.NoError(t, holidayClosureEventsDown(ctx, db))
 	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	assert.False(t, exists("platform.email_delivery_events"))
 	assert.False(t, exists("platform.email_suppressions"))

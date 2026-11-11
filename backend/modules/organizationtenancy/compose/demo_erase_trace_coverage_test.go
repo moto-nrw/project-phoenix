@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,6 +37,12 @@ func rowsHoldingTheVisitor(t *testing.T, db *bun.DB) map[string]int {
 			rows[table] = count
 		}
 	}
+	for table, count := range visitorClosureIdentityTraces(t, db) {
+		if count > 0 {
+			rows[table] += count
+		}
+	}
+
 	return rows
 }
 
@@ -76,4 +83,72 @@ func TestVisitorTraceCountsCountEveryRowHoldingTheVisitor(t *testing.T) {
 	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 	require.Empty(t, rowsHoldingTheVisitor(t, db), "rows still holding the visitor's name after the erasure")
+}
+
+func leaveVisitorClosureAuthorization(t *testing.T, db *bun.DB, schoolID, accountID int64) {
+	t.Helper()
+	// The trace predates retirement; restore the fixture's exact tombstone.
+	var deletedAt *time.Time
+	require.NoError(t, db.NewRaw(`SELECT deleted_at FROM platform.schools WHERE id = ?`, schoolID).Scan(t.Context(), &deletedAt))
+	if deletedAt != nil {
+		_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?`, schoolID).Exec(t.Context())
+		require.NoError(t, err)
+		defer func() {
+			_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = ? WHERE id = ?`, deletedAt, schoolID).Exec(t.Context())
+			require.NoError(t, err)
+		}()
+	}
+	var organizationID *int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, schoolID).Scan(t.Context(), &organizationID))
+	if organizationID == nil {
+		organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+			Name: "Träger Freigabe", Slug: fmt.Sprintf("freigabe-%d", schoolID),
+		})
+		organizationID = &organization.ID
+		_, err := db.NewRaw(`UPDATE platform.schools SET organization_id = ? WHERE id = ?`, organizationID, schoolID).Exec(t.Context())
+		require.NoError(t, err)
+		defer func() {
+			_, err := db.NewRaw(`UPDATE platform.schools SET organization_id = NULL WHERE id = ?`, schoolID).Exec(t.Context())
+			require.NoError(t, err)
+		}()
+	}
+	_, err := db.NewRaw(`WITH source AS (
+		INSERT INTO schedule.closing_days (tenant_id, start_date, end_date, reason)
+		VALUES (?0, DATE '2030-07-08', DATE '2030-07-08', 'Fortbildung') RETURNING id
+	), proposal AS (
+		INSERT INTO calendar.holiday_closure_proposals (tenant_id, organization_id, source_kind, source_id,
+			operation_id, reason, current_start, current_end, span_from, span_to, revision, state, confirmed_at)
+		SELECT ?0, ?1, 'school_closing_day', id, gen_random_uuid(), 'Fortbildung',
+			DATE '2030-07-08', DATE '2030-07-08', DATE '2030-07-08', DATE '2030-07-08', 1, 'confirmed', NOW()
+		FROM source RETURNING *
+	), event AS (
+		INSERT INTO calendar.holiday_closure_events (tenant_id, organization_id, proposal_id, operation_id,
+			source_kind, source_id, revision, span_from, span_to, confirmed_channel)
+		SELECT tenant_id, organization_id, id, operation_id, source_kind, source_id, revision, span_from, span_to, 'school'
+		FROM proposal RETURNING *
+	)
+	INSERT INTO calendar.holiday_closure_authorizations (tenant_id, event_id, operation_id, revision, account_id, channel)
+	SELECT tenant_id, id, operation_id, revision, ?2, 'school' FROM event`, schoolID, organizationID, accountID).Exec(t.Context())
+	require.NoError(t, err)
+}
+
+// Approval history identifies its actor by foreign key, without copying names.
+func visitorClosureIdentityTraces(t *testing.T, db *bun.DB) map[string]int {
+	t.Helper()
+	var counts struct {
+		Authorizations int
+		Events         int
+		Proposals      int
+	}
+	require.NoError(t, db.NewRaw(`SELECT count(DISTINCT entry.id) AS authorizations,
+		count(DISTINCT event.id) AS events, count(DISTINCT event.proposal_id) AS proposals
+		FROM calendar.holiday_closure_authorizations AS entry
+		JOIN calendar.holiday_closure_events AS event ON event.tenant_id = entry.tenant_id AND event.id = entry.event_id
+		JOIN users.persons AS person ON person.account_id = entry.account_id
+		WHERE person.first_name = ? AND person.last_name = ?`, visitorFirst, visitorLast).Scan(t.Context(), &counts))
+	return map[string]int{
+		"calendar.holiday_closure_authorizations": counts.Authorizations,
+		"calendar.holiday_closure_events":         counts.Events,
+		"calendar.holiday_closure_proposals":      counts.Proposals,
+	}
 }

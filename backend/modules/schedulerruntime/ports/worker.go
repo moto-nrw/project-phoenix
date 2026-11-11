@@ -78,9 +78,12 @@ type WorkerDependencies struct {
 	// CareContractReminders reminds parents of unsigned care contracts
 	// (#4679); nil leaves the job out.
 	CareContractReminders CareContractReminders
-	WeekProtocols         WeekProtocolEvenings
-	PayrollDispatch       PayrollDispatch
-	MealOrders            MealOrderSettlement
+	// HolidayClosureNotifications processes the confirmed notices of
+	// changed school closing days (ADR 0196); nil leaves the job out.
+	HolidayClosureNotifications HolidayClosureNotifications
+	WeekProtocols               WeekProtocolEvenings
+	PayrollDispatch             PayrollDispatch
+	MealOrders                  MealOrderSettlement
 	// SchoolVacations renews the school vacations of every federal state
 	// (#5345); nil leaves the job out.
 	SchoolVacations           SchoolVacationSync

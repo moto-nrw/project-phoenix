@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -282,7 +282,7 @@ func TestUnclaimedHolidayProofsGoAfterADay(t *testing.T) {
 
 	unit := tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, f.db))
 	require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
-		_, retainErr := enrollmentCompose.NewHolidayRegistrationRetention(func() calendar.Date {
+		_, retainErr := owners.NewHolidayRegistrationRetention(func() calendar.Date {
 			return calendar.NewDate(2027, time.January, 1)
 		}).DeleteExpiredHolidayRegistrations(adminCtx)
 		return retainErr
