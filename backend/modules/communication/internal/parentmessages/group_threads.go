@@ -95,7 +95,7 @@ func (s *Service) CreateParentGroupThread(ctx context.Context, input deliveryPor
 	if title == "" || utf8.RuneCountInString(title) > maxGroupThreadTitleLen {
 		return nil, deliveryPorts.ErrParentGroupThreadInvalid
 	}
-	body, err := normalizeGroupBody(input.Body)
+	body, err := normalizeGroupBody(ctx, input.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (s *Service) GetParentGroupThread(ctx context.Context, threadID int64) (*de
 // PostParentGroupMessage writes a further message into an open group thread.
 // Its recipients are resolved anew: the families of the target today.
 func (s *Service) PostParentGroupMessage(ctx context.Context, threadID int64, body string) (*deliveryPorts.ParentGroupThreadDetail, error) {
-	body, err := normalizeGroupBody(body)
+	body, err := normalizeGroupBody(ctx, body)
 	if err != nil {
 		return nil, err
 	}
@@ -308,9 +308,9 @@ func normalizeGroupTarget(target deliveryPorts.ParentGroupTarget, requireLabel b
 	return target, nil
 }
 
-func normalizeGroupBody(body string) (string, error) {
+func normalizeGroupBody(ctx context.Context, body string) (string, error) {
 	body = strings.TrimSpace(body)
-	if body == "" {
+	if body == "" && !deliveryPorts.HasMessageAttachments(ctx) {
 		return "", deliveryPorts.ErrParentGroupMessageEmptyBody
 	}
 	if utf8.RuneCountInString(body) > maxMessageLen {

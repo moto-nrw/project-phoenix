@@ -65,6 +65,10 @@ function portalFor(api: StaffMessagesApi): TeamChatPortal {
   return {
     kind: "school",
     api,
+    attachments: {
+      uploadUrl: "/upload",
+      downloadUrl: (id: string) => `/files/${id}`,
+    },
     cacheScope: "test",
     inboxHref: "/nachrichten",
     threadHref: (id) => `/nachrichten/${id}`,

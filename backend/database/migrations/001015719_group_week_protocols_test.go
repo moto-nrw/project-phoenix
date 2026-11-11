@@ -15,6 +15,9 @@ import (
 func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// The message attachments (1.15.936, #6685) extend the erasure functions
+	// this test restores; they go first.
+	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	ctx := context.Background()
 	exists := func() bool {
 		var found bool

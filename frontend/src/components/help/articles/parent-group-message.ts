@@ -54,6 +54,7 @@ export function parentGroupMessageTopic(): HelpTopic {
       "Steht bei einem Kind `Kein Eltern-Zugang`? Dann bekommt diese Familie die Nachricht nicht.",
     ],
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie an eine weitere Nachricht bis zu 5 Dateien an, je höchstens 10 MB. Alle Eltern der Gruppennachricht sehen die Datei.",
       "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
       "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
       "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",

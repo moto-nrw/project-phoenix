@@ -22,8 +22,13 @@ func seedParentGroupThreads(rt *Runtime, auth AuthRef, studentID int64) error {
 	if err != nil {
 		return err
 	}
+	// The second message carries the material list (#6685).
+	list, err := uploadMessageFiles(rt, rt.TenantAuth, "/api/messages/attachments", seedCraftList())
+	if err != nil {
+		return err
+	}
 	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/messages/group-threads/%d/messages", open), map[string]any{
-		"body": "Bitte geben Sie Ihrem Kind an den Basteltagen alte Kleidung mit. Es wird bunt.",
+		"body": "Bitte geben Sie Ihrem Kind an den Basteltagen alte Kleidung mit. Es wird bunt.", "attachment_ids": list,
 	}); err != nil {
 		return fmt.Errorf("seed second group message: %w", err)
 	}

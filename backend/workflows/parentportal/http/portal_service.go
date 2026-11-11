@@ -302,6 +302,15 @@ type PortalService interface {
 	// conversation needs the school's leadership option.
 	PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64, audience ...string) (*parentService.MessageThreadView, error)
 
+	// PrepareChildMessageAttachment stores the row of one upload for a
+	// message about the child (#6685); DiscardChildMessageAttachment removes
+	// it when its bytes could not be written. Both need
+	// parent_portal.notes.write. OpenChildMessageAttachment locates a file of
+	// the guardian's own conversations about the child.
+	PrepareChildMessageAttachment(ctx context.Context, accountID, studentID int64, upload parentService.MessageAttachmentUpload) (*parentService.StoredMessageAttachment, error)
+	DiscardChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) error
+	OpenChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) (*parentService.StoredMessageAttachment, error)
+
 	// ListGroupThreads returns the group threads that reached the guardian,
 	// newest first (#4784). Cross-tenant.
 	ListGroupThreads(ctx context.Context, accountID int64) ([]*parentService.GroupThreadListItem, error)

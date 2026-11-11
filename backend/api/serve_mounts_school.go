@@ -149,6 +149,8 @@ func mountSchoolPortalRoutes(
 	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 	// separate surface from /messages (which is parent-facing).
 	staffMessaging := staffMessagingAPI.NewResource(chat.StaffMessaging)
+	// Fotos und Dateien im Team-Chat, in beiden Portalen (#6685).
+	staffAttachments := newMessageAttachmentRoutes(chat.StaffAttachments, logger.With("handler", "staff-message-attachments"))
 	// Tagesinformationen (#2180) are Timetable's: the owner composes the
 	// service over its own repository, the calendar periods for the week
 	// pattern and the People Directory names of the acknowledgement list
@@ -172,10 +174,11 @@ func mountSchoolPortalRoutes(
 	parentLetters := announcementAPI.NewResource(announcements, newDeclarationReports())
 	parentLetters.Classes = classLetterCaller{caller.Caller()}
 	school.ParentLetters = parentLetters
-	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutes))
+	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutesWith(staffAttachments.Register)))
 	tenant.Mount("/staff-notices", staffNotices.Router(ProtectedTenantRoutes))
 	tenant.Mount("/timetable", timetableResource.Router(ProtectedTenantRoutesWith(classdayHTTP.NewSlotListResource(classDay.SlotLists).Register)))
 	tenant.Mount("/notifications", notificationRoutes.Router())
+	root.Mount("/school-staff-messages", schoolMessageAttachmentRouter(staffAttachments))
 	root.Mount("/school", school.RouterWithAuthRateLimiter(limiters.authMiddleware(), SchoolSessionChain, ProtectedSchoolRoutes))
 	return nil
 }

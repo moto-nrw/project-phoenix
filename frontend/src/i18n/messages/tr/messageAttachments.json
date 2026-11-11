@@ -1,0 +1,23 @@
+{
+  "attach": "Fotoğraf veya dosya ekle",
+  "attachHint": "En fazla {max} dosya, her biri en çok {mb} MB: fotoğraf, PDF, Word, Excel, PowerPoint",
+  "drop": "Dosyaları buraya bırakın",
+  "remove": "Eki kaldır: {filename}",
+  "uploading": "{filename} yükleniyor",
+  "tooMany": "Bir mesajda en fazla {max} dosya olabilir.",
+  "tooLarge": "“{filename}” çok büyük. Her dosya en çok {mb} MB olabilir.",
+  "wrongType": "“{filename}” eklenemiyor. Fotoğraf, PDF, Word, Excel ve PowerPoint eklenebilir.",
+  "fileObject": "dosya",
+  "openImage": "Fotoğrafı aç: {filename}",
+  "openFile": "Dosyayı aç: {filename}",
+  "downloadFile": "İndir: {filename}",
+  "moreImages": "{count, plural, one {# fotoğraf daha} other {# fotoğraf daha}}",
+  "close": "Kapat",
+  "previous": "Önceki ek",
+  "next": "Sonraki ek",
+  "download": "İndir",
+  "openInNewTab": "Yeni sekmede aç",
+  "notViewable": "Bu dosya burada gösterilemiyor. Açmak için indirin.",
+  "notViewableOnDevice": "Bu dosya bu cihazda burada gösterilemiyor. Yeni bir sekmede açın veya indirin.",
+  "position": "{current} / {total}"
+}
