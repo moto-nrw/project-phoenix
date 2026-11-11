@@ -57,6 +57,11 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 	if err := d.loadApprovedChildForSync(ctx, run); err != nil {
 		return nil, err
 	}
+	// The authority hold already locks the student. Take the class-writes
+	// and recurrence gates before it, as a concurrent class writer does.
+	if err := d.lockOfferingDerivedWrites(ctx); err != nil {
+		return nil, err
+	}
 	if err := d.syncApprovedChildRecords(ctx, run); err != nil {
 		return nil, err
 	}
@@ -246,19 +251,10 @@ func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedC
 	return nil
 }
 
-// syncApprovedChildStudent takes the tenant-wide gates BEFORE the first
-// student row lock, in the project-wide class-change order (shared
-// class-writes gate first, recurrence gate second, row locks last) — the same
-// order the direct school_class PUT takes. Locking the row first and the
-// recurrence gate only later let this sync and a concurrent direct PUT on the
-// same child wait on each other cyclically until PostgreSQL aborted one
-// (#2147 review round 15). The gates are taken unconditionally because
-// whether the confirmed edit actually changes the class is only known once
-// the row is locked.
+// syncApprovedChildStudent writes under the class-writes and recurrence
+// gates SyncApprovedChildData took before the guardian hold's student lock,
+// in the same order as a direct school_class PUT (#2147, #6638).
 func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedChildSync, fields enrollmentNative.ApprovedChildCorrection) error {
-	if err := d.lockOfferingDerivedWrites(ctx); err != nil {
-		return err
-	}
 	student, err := d.readEnrollmentStudent(ctx, *run.child.CreatedStudentID, "update")
 	if (err != nil && d.deps.Runtime.NotFound(err)) || (err == nil && student == nil) {
 		return enrollmentNative.ErrDecisionStudentNotFound

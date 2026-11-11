@@ -138,11 +138,14 @@ func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenant
 	// Account lifecycle commands lock account before mapping and roles. Take
 	// that same lock before the upsert, otherwise its mapping lock can cycle
 	// with offboarding and the role insert's account foreign-key lock.
+	// NO KEY UPDATE still excludes lifecycle writers, but accepts the parent
+	// guards' KEY SHARE holds. UPDATE would make guarded grants in two schools
+	// wait for each other's account hold while upgrading their own lock.
 	started := time.Now()
 	var lockedIDs []int64
 	err = db.NewRaw(`SELECT id FROM auth.accounts
 		WHERE id = ? AND personal_data_erased_at IS NULL
-		FOR UPDATE`, accountID).Scan(ctx, &lockedIDs)
+		FOR NO KEY UPDATE`, accountID).Scan(ctx, &lockedIDs)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("identity access postgres: lock account for guardian grant: %w", err)
