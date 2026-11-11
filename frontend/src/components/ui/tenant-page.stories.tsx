@@ -3,9 +3,6 @@ import { Plus } from "lucide-react";
 import { expect, screen, userEvent, within } from "storybook/test";
 
 import { STORY_NOT_BOOKED_SLOTS } from "~storybook/fixtures/not-booked-slots";
-import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
-import type { TenantInfo } from "~/lib/tenant-api";
-import { TenantProvider } from "~/lib/tenant-context";
 import { Button, ButtonLink } from "./button";
 import { NotBookedSlotProvider } from "./not-booked-slot";
 import { SectionCard } from "./section-card";
@@ -103,24 +100,6 @@ export const WithDefaultBackLink: Story = {
   },
 };
 
-const tenantWithoutDienstplan: TenantInfo = {
-  tenantId: 1,
-  slug: "storybook",
-  name: "Storybook Schule",
-  subdomain: "storybook",
-  organizationId: 1,
-  organizationName: "Storybook Org",
-  settings: {},
-  presenceMode: "detailed",
-  studentPhotosEnabled: true,
-  nfcEnabled: true,
-  bookedModules: ["nfc_anwesenheit"],
-  messagingEnabled: true,
-  staffMessagingEnabled: false,
-  displayEnabled: false,
-  gradeLevelMax: 4,
-};
-
 /**
  * Seite eines Moduls, das die Schule nicht gebucht hat (#4894): unter dem
  * Titel steht die Erklärung statt des Inhalts; Statuszeile und Aktionen
@@ -137,21 +116,13 @@ export const ModuleNotBookedPage: Story = {
     ),
     children: pageContent,
   },
-  parameters: {
-    nextjs: {
-      appDirectory: true,
-      navigation: { pathname: "/dienstplan", query: {} },
-    },
-  },
   decorators: [
     (Story) => (
-      <TenantProvider tenantSlug="storybook" tenant={tenantWithoutDienstplan}>
-        <NotBookedSlotProvider slots={STORY_NOT_BOOKED_SLOTS}>
-          <NotBookedPageProvider>
-            <Story />
-          </NotBookedPageProvider>
-        </NotBookedSlotProvider>
-      </TenantProvider>
+      <NotBookedSlotProvider
+        slots={{ ...STORY_NOT_BOOKED_SLOTS, pageModule: "dienstplan" }}
+      >
+        <Story />
+      </NotBookedSlotProvider>
     ),
   ],
 };

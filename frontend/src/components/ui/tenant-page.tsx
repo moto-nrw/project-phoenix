@@ -26,8 +26,8 @@ import {
   type PageBodyEmpty,
   type PageBodyError,
 } from "~/components/ui/page-body";
-import { useNotBookedSlots } from "./not-booked-slot";
-import { useNotBookedPageModule } from "~/lib/not-booked-page-context";
+import { useNotBookedPageModule } from "./not-booked-slot";
+import { usePagePath } from "./page-path";
 import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
@@ -35,7 +35,6 @@ import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/type
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -454,19 +453,21 @@ const DEFAULT_BACK_HREF = "/database";
 const DEFAULT_BACK_LABEL = "Zurück zur Datenverwaltung";
 
 /**
- * `BackLink` im Tenant-Portal: löst den Pfad für die Schule auf. Das Gerüst
- * setzt ihn über den Titel; nur eine Fläche ohne Kopfkarte (ein Skelett vor
- * dem Gerüst) rendert ihn selbst.
+ * `BackLink` im Seitengerüst: löst den Pfad über die Pfadauflösung des
+ * Portals auf (`PagePathProvider`, im Tenant-Bereich die Schule); ohne sie
+ * gilt der Pfad, wie er übergeben wird. Das Gerüst setzt ihn über den Titel;
+ * nur eine Fläche ohne Kopfkarte (ein Skelett vor dem Gerüst) rendert ihn
+ * selbst.
  */
 export function TenantBackLink({
   href,
   label,
   className = "mb-2",
 }: Readonly<{ href?: string; label?: string; className?: string }>) {
-  const tenantPath = useTenantAwarePath();
+  const pagePath = usePagePath();
   return (
     <BackLink
-      href={tenantPath(href ?? DEFAULT_BACK_HREF)}
+      href={pagePath(href ?? DEFAULT_BACK_HREF)}
       // Ohne eigenen Text nennt der Rückweg die Datenverwaltung nur, wenn er
       // auch dorthin führt.
       label={label ?? (href ? "Zurück" : DEFAULT_BACK_LABEL)}
@@ -477,15 +478,12 @@ export function TenantBackLink({
 
 /**
  * Jede Seite der Mitarbeiter-Oberfläche rendert dieses Gerüst. Gehört die
- * Seite zu einem Modul, das die Schule nicht gebucht hat (Modul-Register,
- * #4894), steht unter ihrem Titel statt des Inhalts die Erklärung: zu
- * welchem Modul sie gehört und wer handelt. Welches Modul gesperrt ist,
- * ermittelt `NotBookedPageProvider` im Layout.
+ * Seite zu einem Modul, das die Schule nicht gebucht hat (#4894), behält
+ * das Gerüst nur Titel und Rückweg; den erklärenden Zustand darunter rendert
+ * `PageBody` aus demselben Slot (`NotBookedSlots.pageModule`, #6577).
  */
 export function TenantPage(props: TenantPageProps) {
-  const notBookedModule = useNotBookedPageModule();
-  const NotBookedState = useNotBookedSlots()?.State;
-  if (notBookedModule && NotBookedState) {
+  if (useNotBookedPageModule()) {
     return (
       <TenantPageView
         title={props.title}
@@ -494,11 +492,7 @@ export function TenantPage(props: TenantPageProps) {
         backLabel={props.backLabel}
         printHideHeader={props.printHideHeader}
         testId={props.testId}
-      >
-        <SectionCard>
-          <NotBookedState module={notBookedModule} />
-        </SectionCard>
-      </TenantPageView>
+      />
     );
   }
   return <TenantPageView {...props} />;
