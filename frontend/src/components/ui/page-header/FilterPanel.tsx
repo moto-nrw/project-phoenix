@@ -13,7 +13,7 @@ import {
 import { CustomSelect } from "../custom-select";
 import { FieldLabel } from "../field-label";
 import { MultiSelect } from "../multi-select";
-import { InfoSection } from "../detail-modal-components";
+import { InfoSection } from "../info-section";
 import { Button } from "../button";
 
 // Viewport Y just below the sticky app topbar — the line the panel docks to.
