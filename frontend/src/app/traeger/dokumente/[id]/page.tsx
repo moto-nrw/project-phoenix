@@ -54,6 +54,7 @@ import {
 } from "~/lib/traeger-documents-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { EyeOff } from "lucide-react";
 
 const logger = createLogger({ component: "TraegerDocumentPage" });
 
@@ -379,6 +380,8 @@ export default function TraegerDocumentPage() {
         >
           {document.releases.length === 0 ? (
             <EmptyState
+              tone="neutral"
+              icon={<EyeOff aria-hidden="true" />}
               title="Noch nicht freigegeben."
               description={
                 canManage
