@@ -30,6 +30,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
 // buildCareScheduleService wires the parent service with the full care-schedule
@@ -76,6 +77,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		StudentRepo:    owners.NewParentStudentReads(reposPeople.Student),
 		// The child write guard locks through these ports (#6529).
 		Memberships:         owners.NewParentSchoolMembershipLock(testpkg.MustDatabase(db)),
+		GuardianHold:        parentportalcompose.GuardianHold,
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		Settings: parentSettingsStub{
