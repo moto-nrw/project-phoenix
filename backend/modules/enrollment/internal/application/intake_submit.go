@@ -57,13 +57,6 @@ type submissionPlan struct {
 }
 
 func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome, error) {
-	if !req.SkipRateLimit {
-		if err := s.enforceRateLimit(ctx, req.TenantID, func(ctx context.Context) error {
-			return s.countSubmissionAttempt(ctx, req)
-		}); err != nil {
-			return nil, err
-		}
-	}
 	if strings.TrimSpace(req.LateInviteToken) != "" {
 		req.AllowClosedPhase = true
 		req.SubmissionSource = enrollmentNative.RequestSourceLateInvite
@@ -258,7 +251,10 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 			return err
 		}
 	}
-	return s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0)
+	if err := s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0); err != nil {
+		return err
+	}
+	return s.countStoredSubmission(ctx, req)
 }
 
 // lockSubmission takes the write's locks in the order every renewal and

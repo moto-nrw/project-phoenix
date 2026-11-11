@@ -215,6 +215,9 @@ type HolidayRegistrationInput struct {
 	// (#5626); from HolidayConsentVersionHostHealth on the hosting OGS sees
 	// the health information.
 	ConsentVersion int
+	// RemoteIP is the client address the stored registration counts under
+	// (#6726); it is not stored with the registration.
+	RemoteIP string
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -235,9 +238,10 @@ type HolidayRegistrations interface {
 	PublicHolidayFormDocument(context.Context, HolidayRegistrationLink, string) (HolidayFormDocument, error)
 	ResolveHolidayRegistrationLink(ctx context.Context, token string) (HolidayRegistrationLink, error)
 	HolidayRegistrationOffer(ctx context.Context, link HolidayRegistrationLink) (HolidayRegistrationOffer, error)
-	// CountHolidayRegistrationAttempt counts one attempt per IP address and
-	// per e-mail address and refuses with ErrRateLimited past the limit.
-	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, remoteIP, email string) error
+	// SubmitHolidayRegistration stores the registration and counts it per IP
+	// address and per e-mail address in the same transaction. Past a limit
+	// it refuses with ErrRateLimited or ErrEmailRateLimited and stores
+	// nothing (#6726).
 	SubmitHolidayRegistration(ctx context.Context, link HolidayRegistrationLink, input HolidayRegistrationInput) (HolidayRegistrationReceipt, error)
 	// CountHolidayProofUpload counts one upload per IP address and refuses
 	// with ErrUploadRateLimited past the limit (#5238).

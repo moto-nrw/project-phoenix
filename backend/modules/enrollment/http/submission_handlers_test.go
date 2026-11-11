@@ -414,6 +414,19 @@ func TestMapSubmitError_RateLimited429WithRetryAfter(t *testing.T) {
 	assert.Equal(t, "3600", w.Header().Get("Retry-After"))
 }
 
+// The refusal of the e-mail address names its own code and its own window,
+// a day, not the hour of the IP address (#6726).
+func TestMapSubmitError_EmailRateLimited429WithRetryAfterOfADay(t *testing.T) {
+	t.Parallel()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapSubmitError(w, r, capability.ErrEmailRateLimited)
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Equal(t, "86400", w.Header().Get("Retry-After"))
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.submission_email_rate_limited"`)
+}
+
 func TestMapSubmitError_CaptchaErrorMappedAs400(t *testing.T) {
 	t.Parallel()
 
