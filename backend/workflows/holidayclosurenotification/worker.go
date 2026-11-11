@@ -81,11 +81,18 @@ func (s *Service) processTraeger(ctx context.Context, organizationID int64) erro
 func (s *Service) process(ctx context.Context, event schoolcalendar.HolidayClosureEvent) error {
 	var outcome schoolcalendar.HolidayClosureOutcome
 	err := s.Units.WithinTraeger(ctx, event.OrganizationID, func(ctx context.Context) error {
+		if err := s.Queue.LockHolidayClosurePreparation(ctx, event.OrganizationID, []int64{event.SchoolID}); err != nil {
+			return err
+		}
 		if err := s.Queue.LockLeasedHolidayClosureEvent(ctx, event.OrganizationID, event.ID, event.LeaseToken); err != nil {
 			return err
 		}
 		confirmed := operation(event.SchoolID, event.OperationID, event.SpanFrom, event.SpanTo)
 		confirmed.Revision, confirmed.Token = &event.Revision, event.ImpactToken
+		confirmed.ConstrainRanges = true
+		for _, r := range event.Ranges {
+			confirmed.Ranges = append(confirmed.Ranges, enrollment.HolidayClosureRange{From: r.StartsOn, To: r.EndsOn})
+		}
 		result, err := s.Closures.NotifyHolidayClosureOperation(ctx, event.OrganizationID, confirmed)
 		if errors.Is(err, enrollment.ErrHolidayClosureChanged) {
 			outcome = schoolcalendar.HolidayClosureOutcome{State: schoolcalendar.HolidayClosureEventNeedsConfirmation}

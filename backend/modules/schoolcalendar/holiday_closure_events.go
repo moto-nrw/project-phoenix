@@ -113,6 +113,12 @@ type HolidayClosureActor struct {
 	OrganizationID int64
 }
 
+// HolidayClosureConfirmation is the displayed proposal revision and impact.
+type HolidayClosureConfirmation struct {
+	ProposalID, Revision int64
+	ImpactToken          string
+}
+
 // HolidayClosureProposals is the proposal side of the notices.
 type HolidayClosureProposals interface {
 	// SchoolHolidayClosureNotices lists the open and recent notices of the
@@ -122,6 +128,9 @@ type HolidayClosureProposals interface {
 	// caller's school transaction, or takes its failed command up again.
 	// A second click finds the same command and changes nothing.
 	ConfirmHolidayClosureNotice(ctx context.Context, proposalID, revision int64, actor HolidayClosureActor) (HolidayClosureNotice, error)
+	// ConfirmHolidayClosureNotices confirms a school's proposals in set-based
+	// guarded reads and writes; any stale proposal rolls the whole unit back.
+	ConfirmHolidayClosureNotices(ctx context.Context, confirmations []HolidayClosureConfirmation, actor HolidayClosureActor) ([]HolidayClosureNotice, error)
 	// TraegerHolidayClosureNotices lists the notices of the current schools
 	// of organizationID in the caller's Träger transaction.
 	TraegerHolidayClosureNotices(ctx context.Context, organizationID int64) ([]HolidayClosureNotice, error)
@@ -129,6 +138,7 @@ type HolidayClosureProposals interface {
 
 // HolidayClosureEvent is a leased command as the worker processes it.
 type HolidayClosureEvent struct {
+	Ranges         []HolidayClosureRange
 	ImpactToken    string
 	ID             int64
 	OrganizationID int64
@@ -187,6 +197,9 @@ type HolidayClosureEventQueue interface {
 	DueHolidayClosureTraeger(ctx context.Context) ([]int64, error)
 	// LeaseHolidayClosureEvent leases the next due command of the Träger.
 	LeaseHolidayClosureEvent(ctx context.Context, organizationID int64, leaseFor time.Duration) (HolidayClosureEvent, bool, error)
+	// LockHolidayClosurePreparation holds memberships and calendars until commit,
+	// before the command and Enrollment locks.
+	LockHolidayClosurePreparation(ctx context.Context, organizationID int64, schoolIDs []int64) error
 	// LockLeasedHolidayClosureEvent locks the command under its lease;
 	// ErrHolidayClosureLeaseLost when another worker took it.
 	LockLeasedHolidayClosureEvent(ctx context.Context, organizationID, eventID int64, leaseToken string) error

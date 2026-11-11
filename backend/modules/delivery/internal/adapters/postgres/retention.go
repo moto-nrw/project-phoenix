@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/uptrace/bun"
 )
 
@@ -104,9 +105,10 @@ func (s *Store) DeleteExpiredSystemEmails(ctx context.Context, before time.Time,
 		emails, deleteErr := affected("delete expired system email intents")(db.ExecContext(txCtx, `DELETE FROM platform.email_outbox
    WHERE id IN (SELECT id FROM platform.email_outbox
     WHERE tenant_id IS NULL AND status IN ('sent', 'dead_letter', 'cancelled')
-    AND NOT (kind = 'holiday_closure_notice' AND status IN ('sent', 'dead_letter'))
-    AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?
-    ORDER BY id LIMIT ?)`, before, limit))
+    AND NOT (kind = 'holiday_closure_notice' AND (status IN ('sent', 'dead_letter')
+     OR (status = 'cancelled' AND last_error IN (?2, ?3))))
+    AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?0
+    ORDER BY id LIMIT ?1)`, before, limit, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop))
 		if deleteErr != nil {
 			return deleteErr
 		}

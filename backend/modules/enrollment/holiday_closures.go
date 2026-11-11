@@ -77,6 +77,11 @@ type HolidayClosureSpan struct {
 // closing day (ADR 0196): the operation of its proposal, the school and the
 // days it touches.
 type HolidayClosureOperation struct {
+	// Ranges is the union of the source's old and new ranges. From/To are
+	// only the read envelope; direct callers may use a contiguous range.
+	Ranges []HolidayClosureRange
+	// ConstrainRanges also treats an empty source range as covering no days.
+	ConstrainRanges bool
 	// PreserveSpan keeps previously confirmed dates during renewed approval.
 	PreserveSpan bool
 	// Revision is required for fresh confirmed mail; nil for previews.
@@ -87,6 +92,9 @@ type HolidayClosureOperation struct {
 	From        calendar.Date
 	To          calendar.Date
 }
+
+// HolidayClosureRange is one range covered by the confirmed source change.
+type HolidayClosureRange struct{ From, To calendar.Date }
 
 // HolidayClosureCalendar is Enrollment's port onto the days without care of
 // the current schools of the Träger among schoolIDs in [from, to], in a

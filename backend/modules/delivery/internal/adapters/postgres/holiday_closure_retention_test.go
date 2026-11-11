@@ -27,6 +27,7 @@ func TestHolidayClosureRetentionKeepsRecoveryAndAcceptedKeys(t *testing.T) {
 	for _, mail := range []struct{ state, key, failure string }{
 		{"sent", "sent", ""}, {"dead_letter", "dead_letter", "mailbox unavailable"},
 		{"dead_letter", "unknown", deliveryContract.DispatchOutcomeUnknown}, {"cancelled", "cancelled", ""},
+		{"cancelled", "suppressed", deliveryContract.MailHeldByList},
 	} {
 		_, err := db.ExecContext(ctx, `INSERT INTO platform.email_outbox (organization_id, kind, status, idempotency_key,
    recipient, payload, sent_at, dead_letter_at, cancelled_at, last_error)
@@ -45,7 +46,7 @@ func TestHolidayClosureRetentionKeepsRecoveryAndAcceptedKeys(t *testing.T) {
 	}))
 	var states []string
 	require.NoError(t, db.NewRaw(`SELECT status FROM platform.email_outbox WHERE organization_id = ? ORDER BY status`, organization).Scan(ctx, &states))
-	require.Equal(t, []string{"dead_letter", "dead_letter", "sent"}, states)
+	require.Equal(t, []string{"cancelled", "dead_letter", "dead_letter", "sent"}, states)
 	var payload, recipient string
 	require.NoError(t, db.NewRaw(`SELECT payload::text, recipient::text FROM platform.email_outbox WHERE organization_id = ? AND status = 'sent'`, organization).Scan(ctx, &payload, &recipient))
 	assert.JSONEq(t, `{"registration_ids":[]}`, payload, "successful mail keeps only the erasure links and delivery key")
@@ -57,11 +58,11 @@ func TestHolidayClosureRetentionKeepsRecoveryAndAcceptedKeys(t *testing.T) {
 
 	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
 	require.NoError(t, testpkg.WithinTraeger(ctx, organization, func(ctx context.Context) error {
-		retried, err := raw.RetryFailedTraegerEmails(ctx, organization, []string{"closure-retention:dead_letter", "closure-retention:sent", "closure-retention:unknown"})
+		retried, err := raw.RetryFailedTraegerEmails(ctx, organization, []string{"closure-retention:dead_letter", "closure-retention:sent", "closure-retention:unknown", "closure-retention:suppressed"})
 		require.NoError(t, err)
-		assert.EqualValues(t, 1, retried, "only the failed original mail becomes due again")
+		assert.EqualValues(t, 2, retried, "known failures and suppression cancellations become due; accepted and unknown mail stay")
 		return nil
 	}))
-	require.NoError(t, db.NewRaw(`SELECT payload::text FROM platform.email_outbox WHERE organization_id = ? AND status = 'pending'`, organization).Scan(ctx, &payload))
+	require.NoError(t, db.NewRaw(`SELECT payload::text FROM platform.email_outbox WHERE organization_id = ? AND idempotency_key = 'closure-retention:dead_letter'`, organization).Scan(ctx, &payload))
 	assert.Contains(t, payload, "family@example.org", "recovery retains the original content")
 }

@@ -48,6 +48,7 @@
     {{if .ReopenedChildren}}
     {{if .Children}}<h2 style="font-size: 16px; margin: 24px 0 8px 0;">Diese Tage sind doch geöffnet</h2>{{end}}
     {{range .ReopenedChildren}}
+    {{$childName := .Name}}
     <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
         {{range .Weeks}}
@@ -57,6 +58,11 @@
             <li>Geöffnet: {{.}}</li>
             {{end}}
         </ul>
+        {{if not $.ContainsPastDays}}
+        {{if .Pending}}<p style="margin: 8px 0 0 0; font-size: 14px;">Das Büro entscheidet noch über den Platz für {{$childName}}.</p>
+        {{else if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">{{$childName}} bleibt auf der Warteliste und hat noch keinen Platz.</p>
+        {{else}}<p style="margin: 8px 0 0 0; font-size: 14px;">An diesen Tagen können Sie {{$childName}} wie gebucht bringen.</p>{{end}}
+        {{end}}
         {{end}}
     </div>
     {{end}}
@@ -65,10 +71,9 @@
     <div class="highlight-box" style="margin-top: 24px;">
         <p style="margin: 0; font-size: 14px;"><strong>Was heißt das für Sie?</strong></p>
         {{if and .Children (not .ContainsPastDays)}}<p style="margin: 8px 0 0 0; font-size: 14px;">Bitte planen Sie für die geschlossenen Tage eine andere Betreuung.</p>{{end}}
-        {{if and .ReopenedChildren (not .ContainsPastDays)}}<p style="margin: 8px 0 0 0; font-size: 14px;">An den geöffneten Tagen können Sie Ihr Kind wie gebucht bringen.</p>{{end}}
         <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre Buchung bleibt. Sie müssen nichts ändern.</p>
-        {{if .Pending}}<p style="margin: 8px 0 0 0; font-size: 14px;">Das Büro entscheidet noch, ob Ihr Kind einen Platz bekommt.</p>{{end}}
-        {{if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">Steht Ihr Kind auf der Warteliste, bleibt es dort. Es hat damit noch keinen Platz.</p>{{end}}
+        {{if .Pending}}<p style="margin: 8px 0 0 0; font-size: 14px;">Bei offenen Anmeldungen entscheidet das Büro noch über den Platz.</p>{{end}}
+        {{if .Waitlisted}}<p style="margin: 8px 0 0 0; font-size: 14px;">Für Kinder auf der Warteliste ist noch kein Platz zugesagt.</p>{{end}}
         {{if .KeepsContribution}}<p style="margin: 8px 0 0 0; font-size: 14px;">Der Beitrag bleibt gleich.</p>{{end}}
     </div>
 

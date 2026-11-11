@@ -92,12 +92,15 @@ CREATE FUNCTION calendar.holiday_closure_proposal_traeger()
 		IF NEW.organization_id IS NULL THEN
 			RETURN NULL;
 		END IF;
+  IF TG_OP = 'UPDATE' AND NEW.organization_id IS DISTINCT FROM OLD.organization_id THEN
+   NEW.operation_id := gen_random_uuid();
+  END IF;
 		RETURN NEW;
 	END;
 	$$;
 REVOKE ALL ON FUNCTION calendar.holiday_closure_proposal_traeger() FROM PUBLIC;
 CREATE TRIGGER holiday_closure_proposal_traeger
-	BEFORE INSERT ON calendar.holiday_closure_proposals
+	BEFORE INSERT OR UPDATE OF revision ON calendar.holiday_closure_proposals
 	FOR EACH ROW EXECUTE FUNCTION calendar.holiday_closure_proposal_traeger();
 
 CREATE TABLE calendar.holiday_closure_events (
@@ -298,6 +301,21 @@ CREATE POLICY holiday_closure_reader_revisions ON calendar.holiday_closure_revis
 -- days that name them ('traeger_closing') overlapping [p_from, p_to]; every
 -- row names its school. Every row repeats the membership check in the same
 -- statement, so a foreign or deleted school yields no row.
+-- Lock only current memberships before calendar and command locks. The
+-- caller gains no UPDATE grant on platform.schools; the definer performs no
+-- writes and returns only the authorized school IDs.
+CREATE FUNCTION calendar.lock_holiday_closure_memberships(p_school_ids BIGINT[])
+ RETURNS SETOF BIGINT LANGUAGE sql VOLATILE SECURITY DEFINER
+ SET search_path = pg_catalog, pg_temp
+ AS $$
+  SELECT school.id FROM platform.schools AS school
+  WHERE school.id = ANY(p_school_ids) AND school.deleted_at IS NULL
+   AND school.organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint
+  ORDER BY school.id FOR SHARE
+ $$;
+REVOKE ALL ON FUNCTION calendar.lock_holiday_closure_memberships(BIGINT[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION calendar.lock_holiday_closure_memberships(BIGINT[]) TO phoenix_tenant;
+
 CREATE FUNCTION calendar.traeger_holiday_closure_calendar(p_school_ids BIGINT[], p_from DATE, p_to DATE)
 	RETURNS TABLE (kind TEXT, school_id BIGINT, source_id BIGINT, start_date DATE, end_date DATE, reason TEXT,
 		school_name TEXT, federal_state JSONB, revision BIGINT)
@@ -436,6 +454,7 @@ DROP POLICY IF EXISTS holiday_closure_reader_closing_days ON schedule.closing_da
 DROP POLICY IF EXISTS holiday_closure_reader_traeger_closing_days ON schedule.traeger_closing_days;
 DROP POLICY IF EXISTS holiday_closure_reader_federal_state ON config.setting_values;
 DROP FUNCTION IF EXISTS calendar.holiday_closure_due_traeger_ids();
+DROP FUNCTION IF EXISTS calendar.lock_holiday_closure_memberships(BIGINT[]);
 DROP TABLE IF EXISTS calendar.holiday_closure_events;
 DROP TABLE IF EXISTS calendar.holiday_closure_proposals;
 DROP TABLE IF EXISTS calendar.holiday_closure_revisions;

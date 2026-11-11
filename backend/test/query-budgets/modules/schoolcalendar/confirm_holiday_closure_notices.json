@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolcalendar.confirm_holiday_closure_notices",
+  "max": 4,
+  "exact": true,
+  "description": "ADR 0196: one calendar lock, one guarded bulk read of open school proposals, one set-based command/confirmation write and one result read. Constant for any number of proposals; stale revisions abort the whole school unit before writes."
+}
