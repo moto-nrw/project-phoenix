@@ -284,6 +284,9 @@ type ExportProtocolEntry struct {
 	// revenue account or cost center of their release: the file booked
 	// them on the values of the day of the export (#4821).
 	ResolvedPositions int `json:"resolved_positions,omitempty"`
+	// CostCenterFallbacks are the holiday weeks of the file that booked on
+	// the KOST1 of the holiday care (#6624).
+	CostCenterFallbacks []CostCenterFallback `json:"cost_center_fallbacks"`
 	// ExportedBy is the account that downloaded the file, nil after its
 	// erasure; ExportedByYou marks the reader's own downloads.
 	ExportedBy    *int64     `json:"exported_by_account_id"`
@@ -408,6 +411,7 @@ const (
 // Angebot and day let the export resolve them.
 type ExportBookingPart struct {
 	Kind           string
+	ChildID        int64 // The holiday child whose reductions apply to this part.
 	SchoolID       int64
 	CareOfferingID int64
 	Day            calendar.Date
@@ -415,6 +419,24 @@ type ExportBookingPart struct {
 	Accounts       PositionAccounts
 	// Removed is an applied position-removal correction of the issued invoice.
 	Removed bool
+	// CostCenterFallback, WeekStartsOn and WeekEndsOn name why a holiday
+	// position books on the KOST1 of the holiday care (#6624).
+	CostCenterFallback string
+	WeekStartsOn       *calendar.Date
+	WeekEndsOn         *calendar.Date
+}
+
+// CostCenterFallback is a week of a holiday document whose positions a file
+// booked on the KOST1 of the holiday care instead of the host school's
+// (#6624): the document, the week (nil for lines without one), the reason
+// (CostCenterFallbackNoHostSchool and siblings) and the KOST1 it booked on,
+// empty when the holiday care has none either.
+type CostCenterFallback struct {
+	Number       string         `json:"number"`
+	WeekStartsOn *calendar.Date `json:"week_starts_on"`
+	WeekEndsOn   *calendar.Date `json:"week_ends_on"`
+	Reason       string         `json:"reason"`
+	CostCenter   string         `json:"cost_center"`
 }
 
 // ExportRunContent is a released run with its invoices.
@@ -463,6 +485,9 @@ type ExportFileRecord struct {
 	// ResolvedPositions counts the positions booked on the values of the
 	// day of the export (#4821).
 	ResolvedPositions int
+	// CostCenterFallbacks are the holiday positions booked on the KOST1 of
+	// the holiday care (#6624).
+	CostCenterFallbacks []CostCenterFallback
 }
 
 // ExportRunRef names a run of the export page.

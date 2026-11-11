@@ -579,6 +579,16 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayWeekHosts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayWeekHosts",
+      "reason": "Reads the host school of each week of one period of the Träger for the KOST1 of the release (#6624); one SELECT with the Träger filter, no write.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayWeekHosts.HolidayWeekHosts",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.AsksDebtorNumber",
       "classification": "query",
       "effect": "query",

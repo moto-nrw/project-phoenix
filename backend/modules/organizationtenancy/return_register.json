@@ -16244,6 +16244,12 @@
           "type": "integer",
           "udt": "int4",
           "nullable": false
+        },
+        {
+          "name": "cost_center_fallbacks",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -18375,6 +18381,12 @@
           "type": "boolean",
           "udt": "bool",
           "nullable": false
+        },
+        {
+          "name": "cost_center_fallback",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
         }
       ],
       "relationships": [

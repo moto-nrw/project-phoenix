@@ -14,6 +14,9 @@ func NewHolidayPeriods(today func() calendar.Date, schoolCalendar enrollment.Hol
 	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today, schoolCalendar)
 }
 
+// NewHolidayWeekHosts builds the read of the host school of each holiday week for the Elternabrechnung (#6624).
+func NewHolidayWeekHosts() enrollment.HolidayWeekHosts { return postgres.NewHolidayPeriodStore() }
+
 // NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722); schoolCalendar (#4702) may be nil only for links and quotes; wishModes (#4703).
 func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar, wishModes enrollment.HolidayWishModes, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{

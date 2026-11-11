@@ -309,7 +309,7 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 		documents[i].IssuedOn = &issuedOn
 		documents[i].DocumentKind = documentKind
 	}
-	if err := freezeHolidayAccounts(ctx, b.store, b.settings, reviewer.OrganizationID, documents); err != nil {
+	if err := b.freezeAccounts(ctx, reviewer, run, documents); err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
 	if err := b.store.IssueDocuments(ctx, reviewer.OrganizationID, run, year, first, documents); err != nil {
@@ -357,6 +357,19 @@ func (b *BillingRuns) fingerprintedPreview(ctx context.Context, reviewer parentb
 		return preview{}, parentbilling.DocumentKindState{}, "", err
 	}
 	return current, kind, holidayPreviewFingerprint(run, current, kind.DocumentKind, legalRemedy), nil
+}
+
+// freezeAccounts copies where each position of the run's documents books
+// onto it, with the host school of each week read through Enrollment
+// (#4821, #6624).
+func (b *BillingRuns) freezeAccounts(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun,
+	documents []parentbilling.BillingDocument,
+) error {
+	weeks, err := b.registrations.HolidayWeekHosts(ctx, reviewer, run.HolidayPeriodID)
+	if err != nil {
+		return fmt.Errorf("parent billing: read the host schools of the weeks: %w", err)
+	}
+	return freezeHolidayAccounts(ctx, b.store, b.settings, reviewer.OrganizationID, weeks, documents)
 }
 
 // releasedKind is the kind of document the release freezes: the kind the

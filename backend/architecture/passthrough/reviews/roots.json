@@ -826,6 +826,11 @@
       "reason": "ADR 0115 addendum (#5627): Consumer-port adapter of the billing run's holiday registrations; it reads every registration of the period through Enrollment's review without a status filter, which checks the period of the Träger and records the read, keeps whether each has a proof of benefits for the list of a cost bearer, and translates Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
+      "decision": "0119",
+      "id": "api/parentBillingBillingRegistrations.HolidayWeekHosts",
+      "reason": "ADR 0119 (#6624): Consumer-port adapter of the billing run's host schools; it reads the host school of each week of the period through Enrollment's narrow read in the caller's Träger transaction and copies the four values into the port's type."
+    },
+    {
       "decision": "0158",
       "id": "api/parentBillingCareContracts.Recipients",
       "reason": "ADR 0158 (#4684): Consumer-port adapter of the Elternabrechnung's care contract port; it translates the Betreuungsvertrag's chosen invoice recipient per contract into the port's recipient."
