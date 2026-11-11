@@ -23,13 +23,24 @@ import (
 // returnPackage writes a COMPLETE school package of one school.
 func returnPackage(t *testing.T, school int64) string {
 	t.Helper()
+	return subjectReturnPackage(t, "", "platform.schools.jsonl", school)
+}
+
+// organizationReturnPackage writes a COMPLETE Träger package of one Träger.
+func organizationReturnPackage(t *testing.T, organization int64) string {
+	t.Helper()
+	return subjectReturnPackage(t, "organization", "platform.organizations.jsonl", organization)
+}
+
+func subjectReturnPackage(t *testing.T, kind, subjectTable string, subject int64) string {
+	t.Helper()
 	dir := filepath.Join(t.TempDir(), "package")
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 	files := map[string][]byte{
-		"platform.schools.jsonl": fmt.Appendf(nil, "{\"id\":%d}\n", school),
-		"users.persons.jsonl":    []byte("{\"id\":1,\"first_name\":\"Synthetic CLI\"}\n"),
+		subjectTable:          fmt.Appendf(nil, "{\"id\":%d}\n", subject),
+		"users.persons.jsonl": []byte("{\"id\":1,\"first_name\":\"Synthetic CLI\"}\n"),
 	}
-	manifest := organizationtenancy.ExportManifest{FormatVersion: organizationtenancy.ExportFormatVersion, CatalogVersion: 1}
+	manifest := organizationtenancy.ExportManifest{Package: kind, FormatVersion: organizationtenancy.ExportFormatVersion, CatalogVersion: 1}
 	for name, data := range files {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), data, 0o600))
 		manifest.Artifacts = append(manifest.Artifacts, organizationtenancy.ExportArtifact{Path: name, SHA256: testpkg.ContentFingerprint(data), Bytes: int64(len(data))})

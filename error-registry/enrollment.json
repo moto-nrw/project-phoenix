@@ -653,9 +653,19 @@
       "parameters": [
         "limit",
         "days",
+        "elsewhere",
         "child"
       ],
       "legacy": "enrollment.holiday_child_day_limit"
+    },
+    {
+      "code": "enrollment.holiday_child_day_limit_public",
+      "class": "input",
+      "parameters": [
+        "limit",
+        "child"
+      ],
+      "legacy": "enrollment.holiday_child_day_limit_public"
     },
     {
       "code": "enrollment.holiday_weeks_booked_together",

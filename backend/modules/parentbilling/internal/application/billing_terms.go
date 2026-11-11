@@ -364,7 +364,7 @@ func (t *BillingTerms) SetHolidayRunDueDates(ctx context.Context, reviewer paren
 		return nil, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return nil, parentbilling.ErrBillingRunReleased
+		return nil, closedRunError(run.Status)
 	}
 	if err := t.store.ReplaceRunDueDates(ctx, reviewer.OrganizationID, reviewer.AccountID, 0, run.ID, dates); err != nil {
 		return nil, err

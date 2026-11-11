@@ -71,6 +71,17 @@ export function holidayCareDays(startsOn: string, endsOn: string): string[] {
   return days;
 }
 
+/** The weekdays parents can book, excluding holidays and closing days. */
+export function bookableHolidayDays(
+  startsOn: string,
+  endsOn: string,
+  noCareDays: readonly { readonly date: string }[],
+): string[] {
+  return holidayCareDays(startsOn, endsOn).filter(
+    (day) => !noCareDays.some((none) => none.date === day),
+  );
+}
+
 /**
  * How many waiting bookings get a place at a capacity, by the backend's rule
  * (holidayFirstFit): in the order of the waiting list a booking gets its

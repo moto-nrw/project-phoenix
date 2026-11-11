@@ -480,7 +480,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Bitte wählen Sie, ob Ihr Kind in den Ferien Betreuung braucht.",
       "enrollment.holiday_child_day_limit":
-        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Gewählt sind {days}. Bitte wählen Sie weniger Tage.",
+        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Mit allen Anmeldungen des Kindes wären es {days} Tage, davon {elsewhere} in anderen Anmeldungen. Bitte wählen Sie weniger Tage.",
+      "enrollment.holiday_child_day_limit_public":
+        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Das gilt für alle Anmeldungen des Kindes zusammen. Bitte wählen Sie weniger Tage oder fragen Sie das Träger-Büro.",
       "enrollment.holiday_form_field_not_allowed":
         "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
       "enrollment.holiday_guest_group_invalid":
@@ -2233,7 +2235,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Please choose whether your child needs care during the holidays.",
       "enrollment.holiday_child_day_limit":
-        "In these holidays a child can come on at most {limit} days. {days} are chosen. Please choose fewer days.",
+        "In these holidays a child can come on at most {limit} days. The total would be {days} days. Days in other registrations: {elsewhere}. Please choose fewer days.",
+      "enrollment.holiday_child_day_limit_public":
+        "A child can book at most {limit} days during these holidays. This limit applies across all registrations for the child. Please select fewer days or contact the provider’s office.",
       "enrollment.holiday_guest_group_invalid":
         "This group no longer exists. Please choose another group.",
       "enrollment.holiday_guest_not_found":
@@ -2894,7 +2898,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Пожалуйста, укажите, нужен ли вашему ребёнку присмотр во время каникул.",
       "enrollment.holiday_child_day_limit":
-        "В эти каникулы ребёнок может прийти не больше {limit} дней. Выбрано: {days}. Выберите меньше дней.",
+        "В эти каникулы ребёнок может прийти не больше {limit} дней. Всего будет дней: {days}. Из них в других заявках: {elsewhere}. Выберите меньше дней.",
+      "enrollment.holiday_child_day_limit_public":
+        "В эти каникулы ребёнка можно записать не более чем на {limit} дней. Лимит действует для всех заявок ребёнка вместе. Выберите меньше дней или обратитесь в офис организатора.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
       "enrollment.holiday_registration_form_changed":
@@ -3466,7 +3472,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Ju lutemi zgjidhni nëse fëmija juaj ka nevojë për kujdes gjatë pushimeve.",
       "enrollment.holiday_child_day_limit":
-        "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Janë zgjedhur {days}. Ju lutemi zgjidhni më pak ditë.",
+        "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Gjithsej do të ishin {days} ditë. Ditë në regjistrime të tjera: {elsewhere}. Ju lutemi zgjidhni më pak ditë.",
+      "enrollment.holiday_child_day_limit_public":
+        "Një fëmijë mund të regjistrohet për më së shumti {limit} ditë gjatë këtyre pushimeve. Kufiri vlen për të gjitha regjistrimet e fëmijës së bashku. Ju lutemi zgjidhni më pak ditë ose kontaktoni zyrën e ofruesit.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
       "enrollment.holiday_registration_form_changed":
@@ -4032,7 +4040,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Proszę wybrać, czy Państwa dziecko potrzebuje opieki w czasie ferii.",
       "enrollment.holiday_child_day_limit":
-        "W te ferie dziecko może przyjść najwyżej {limit} dni. Wybrano {days}. Wybierz mniej dni.",
+        "W te ferie dziecko może przyjść najwyżej {limit} dni. Łącznie byłoby to {days} dni. Dni w innych zgłoszeniach: {elsewhere}. Wybierz mniej dni.",
+      "enrollment.holiday_child_day_limit_public":
+        "Dziecko może być zapisane na najwyżej {limit} dni w te ferie. Limit dotyczy łącznie wszystkich zgłoszeń dziecka. Proszę wybrać mniej dni lub skontaktować się z biurem organizatora.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
       "enrollment.holiday_registration_form_changed":
@@ -4600,7 +4610,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Lütfen çocuğunuzun tatilde bakıma ihtiyacı olup olmadığını seçin.",
       "enrollment.holiday_child_day_limit":
-        "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {days} gün seçildi. Lütfen daha az gün seçin.",
+        "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. Toplam {days} gün olurdu. Diğer kayıtlardaki gün sayısı: {elsewhere}. Lütfen daha az gün seçin.",
+      "enrollment.holiday_child_day_limit_public":
+        "Bir çocuk bu tatilde en fazla {limit} gün için kaydedilebilir. Bu sınır çocuğun tüm kayıtları için birlikte geçerlidir. Lütfen daha az gün seçin veya hizmet sağlayıcının ofisine başvurun.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
       "enrollment.holiday_registration_form_changed":
@@ -5161,7 +5173,9 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Будь ласка, вкажіть, чи потрібен вашій дитині догляд під час канікул.",
       "enrollment.holiday_child_day_limit":
-        "У ці канікули дитина може прийти не більше {limit} днів. Обрано: {days}. Оберіть менше днів.",
+        "У ці канікули дитина може прийти не більше {limit} днів. Загалом буде днів: {days}. З них в інших заявках: {elsewhere}. Оберіть менше днів.",
+      "enrollment.holiday_child_day_limit_public":
+        "На ці канікули дитину можна записати щонайбільше на {limit} днів. Обмеження діє для всіх заявок дитини разом. Виберіть менше днів або зверніться до офісу організатора.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
       "enrollment.holiday_registration_form_changed":

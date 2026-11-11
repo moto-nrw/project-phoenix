@@ -114,13 +114,34 @@ so sensibel wie das Paket selbst.
    sperrt nicht: Gerade dann braucht der Kunde die Rückgabe. Freigabe und Löschung desselben Subjekts
    laufen so nie aneinander vorbei.
 
-**Bewusst offen:** Die Löschung einer Schule wird **nicht** durch ein offenes
-Paket ihres Trägers gesperrt. Das Trägerpaket enthält die Unterlagen des
-Trägers (Verträge, Abrechnung, SEPA) und die Stammzeilen seiner Schulen; es
-bleibt nach der Löschung einer seiner Schulen abrufbar, bis der Träger
-gelöscht oder das Paket bereinigt wird. Ob das so bleiben soll, ist eine
-offene fachliche Entscheidung:
-[#6644](https://github.com/moto-nrw/project-phoenix/issues/6644).
+**Trägerpaket und Schullöschung** (entschieden am 11.11.2026,
+[#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)): Ein
+offenes Paket des Trägers sperrt die Löschung einer seiner Schulen **nicht**,
+weder bis zum Ende des Abrufzeitraums noch bis zur Bereinigung. Es bleibt
+abrufbar, bis es bereinigt oder der Träger gelöscht wird; nur die
+Trägerlöschung wartet darauf. Gründe:
+
+- Das Paket ist eine Kopie dessen, was dem Träger gehört. Seine Tabellen
+  (Verträge, Abrechnung, SEPA, Ferienanmeldungen) haben den Bereich
+  `organization` und gehen mit dem Träger oder nach seiner eigenen
+  Aufbewahrungsweisung (ADR 0184), nicht mit der Schule
+  (`data_lifecycle_catalog.json`). Nach der Schullöschung liegen dieselben
+  Unterlagen weiter in der Datenbank; eine Sperre des Pakets schützte nichts,
+  was die Löschung entfernt. Was die Schullöschung über den Träger hinaus
+  entfernt, steht im Trägerpaket nur als Stammzeile der Schule: Name,
+  Anschrift und Kontakt der Einrichtung, keine Daten von Kindern oder
+  Familien.
+- Verantwortlicher und Kunde dieser Unterlagen ist der Träger, sein Vertrag
+  läuft weiter. AVV Ziff. 8.2 (Art. 28 Abs. 3 lit. g DSGVO) knüpft Löschen
+  oder Rückgabe an das Ende der Leistung für den jeweiligen Verantwortlichen;
+  für den Träger ist sie mit dem Ende einer seiner Schulen nicht beendet. Die
+  Aufbewahrungspflichten des Trägers (§ 147 AO, § 257 HGB) laufen ebenfalls
+  weiter.
+- Eine Sperre ließe nur zwei Wege: die Schullöschung bis zu 366 Tage
+  aufschieben, obwohl der Löschauftrag der Schule fällig ist, oder das Paket
+  des Trägers widerrufen. Der Widerruf nähme dem Träger den Abruf, den Art. 25
+  und 30 Data Act ihm im Abrufzeitraum zusichern, wegen eines Vorgangs, der
+  seine Daten nicht berührt.
 
 Verfügbarkeit: Die Schnittstelle besteht dauerhaft; ein Paket ist ab seiner
 Freigabe nach der Wechselanfrage bis zum Ende des Abrufzeitraums abrufbar,
