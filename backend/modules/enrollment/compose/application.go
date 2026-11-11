@@ -52,6 +52,7 @@ type PhaseDependencies struct {
 	Resyncer       enrollment.SourcedTemplateResyncer
 	Students       enrollment.PhaseStudents
 	Bookings       enrollment.PhaseBookings
+	CareStudents   enrollment.PhaseCareStudents
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
 	CareExits      enrollment.PhaseResponseCareExits
@@ -73,6 +74,7 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		Resyncer:                        deps.Resyncer,
 		Students:                        deps.Students,
 		Bookings:                        deps.Bookings,
+		CareStudents:                    deps.CareStudents,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),

@@ -44,6 +44,7 @@ func boundsPhases(t *testing.T, env *decisionTestEnv, lock func(context.Context)
 		Resyncer:               resyncer,
 		Bookings:               owners.NewEnrollmentPhaseBookings(carePlanCompose.NewOfferingBookings()),
 		Students:               owners.NewEnrollmentPhaseStudents(pendingWindows),
+		CareStudents:           owners.NewEnrollmentPhaseCareStudents(owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, env.db))),
 		Today:                  func() calendar.Date { return offeringResyncToday },
 	})
 }

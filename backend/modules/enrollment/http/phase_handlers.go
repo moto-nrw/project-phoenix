@@ -522,8 +522,39 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 	}
 }
 
+// PhaseUpdateResponse is the saved phase plus the children whose care runs
+// past a shortened end (#6598). The school ends each of them on purpose
+// through the care-end process; the edit changed none of them.
+type PhaseUpdateResponse struct {
+	PhaseResponse
+	CareBeyondEnd []CareBeyondEndResponse `json:"care_beyond_end"`
+}
+
+// CareBeyondEndResponse is one child of PhaseUpdateResponse: its care end as
+// it stands and the phase's new end.
+type CareBeyondEndResponse struct {
+	StudentID   string `json:"student_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	SchoolClass string `json:"school_class"`
+	CareEnd     string `json:"care_end"`
+	PhaseEnd    string `json:"phase_end"`
+}
+
+func toPhaseUpdateResponse(p *enrollmentOwner.Phase, report enrollmentOwner.PhaseUpdateReport) PhaseUpdateResponse {
+	children := make([]CareBeyondEndResponse, 0, len(report.CareBeyondEnd))
+	for _, child := range report.CareBeyondEnd {
+		children = append(children, CareBeyondEndResponse{
+			StudentID: strconv.FormatInt(child.StudentID, 10), FirstName: child.FirstName, LastName: child.LastName,
+			SchoolClass: child.SchoolClass, CareEnd: child.CareEnd.String(), PhaseEnd: child.PhaseEnd.String(),
+		})
+	}
+	return PhaseUpdateResponse{PhaseResponse: toPhaseResponse(p), CareBeyondEnd: children}
+}
+
 func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 	req := &PhaseRequest{}
+	var report enrollmentOwner.PhaseUpdateReport
 	updateWithRefetch(rs, w, r, rs.PhaseService == nil, "phase service not configured",
 		func(r *http.Request, id int64) (*enrollmentOwner.Phase, error) {
 			if err := render.Bind(r, req); err != nil {
@@ -540,12 +571,14 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 				return getErr
 			}
 			req.hydrateOmittedFields(model, existing)
-			return rs.PhaseService.UpdatePhase(ctx, model)
+			var err error
+			report, err = rs.PhaseService.UpdatePhaseWithReport(ctx, model)
+			return err
 		},
 		func(ctx context.Context, id int64) (*enrollmentOwner.Phase, error) {
 			return rs.PhaseService.PhaseByID(ctx, id)
 		},
-		func(p *enrollmentOwner.Phase) any { return toPhaseResponse(p) },
+		func(p *enrollmentOwner.Phase) any { return toPhaseUpdateResponse(p, report) },
 		"Phase updated",
 		phaseWriteErrorRenderer)
 }

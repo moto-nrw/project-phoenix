@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,6 +38,7 @@ type mockPhaseService struct {
 	createResult      *capability.Phase
 	createErr         error
 	updateInput       *capability.Phase
+	updateReport      capability.PhaseUpdateReport
 	updateErr         error
 	deleteID          int64
 	deleteErr         error
@@ -70,6 +72,10 @@ func (m *mockPhaseService) CreatePhase(_ context.Context, phase *capability.Phas
 func (m *mockPhaseService) UpdatePhase(_ context.Context, phase *capability.Phase) error {
 	m.updateInput = phase
 	return m.updateErr
+}
+func (m *mockPhaseService) UpdatePhaseWithReport(_ context.Context, phase *capability.Phase) (capability.PhaseUpdateReport, error) {
+	m.updateInput = phase
+	return m.updateReport, m.updateErr
 }
 func (m *mockPhaseService) DeletePhase(_ context.Context, id int64) error {
 	m.deleteID = id
@@ -359,6 +365,37 @@ func TestUpdatePhaseHandler_HappyPathRefetchesAfterUpdate(t *testing.T) {
 	require.NotNil(t, mock.updateInput)
 	assert.Equal(t, int64(1234), mock.updateInput.ID, "ID from URL must be stamped onto the model")
 	assert.Equal(t, int64(1234), mock.getByIDID, "refetch must call GetByID after the update")
+}
+
+// A shortened phase names the confirmed children whose care now runs past
+// its end, with both days (#6598); without such children the list is empty,
+// never missing.
+func TestUpdatePhaseHandler_ReportsCareBeyondShortenedEnd(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated"), updateReport: capability.PhaseUpdateReport{
+		CareBeyondEnd: []capability.CareBeyondPhaseEnd{{
+			StudentID: 77, FirstName: "Mia", LastName: "Lang", SchoolClass: "2b",
+			CareEnd: calendar.Date("2028-07-31"), PhaseEnd: calendar.Date("2028-06-30"),
+		}},
+	}}
+	w := executePhaseJSON(t, buildPhaseRouter(mock), http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+	require.Equal(t, http.StatusOK, w.Code)
+	var body struct {
+		Data struct {
+			ID            string                  `json:"id"`
+			CareBeyondEnd []CareBeyondEndResponse `json:"care_beyond_end"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "1234", body.Data.ID, "the saved phase stays the response body")
+	assert.Equal(t, []CareBeyondEndResponse{{
+		StudentID: "77", FirstName: "Mia", LastName: "Lang", SchoolClass: "2b", CareEnd: "2028-07-31", PhaseEnd: "2028-06-30",
+	}}, body.Data.CareBeyondEnd)
+
+	plain := executePhaseJSON(t, buildPhaseRouter(&mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated")}), http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+	require.Equal(t, http.StatusOK, plain.Code)
+	assert.Contains(t, plain.Body.String(), `"care_beyond_end":[]`)
 }
 
 func TestUpdatePhaseHandler_OmittedCalendarPeriodIDPreservesExistingLink(t *testing.T) {
