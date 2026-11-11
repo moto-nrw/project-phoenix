@@ -84,7 +84,7 @@ const DrawerContent = React.forwardRef<
     <DrawerPortal>
       <DrawerOverlay />
       <DrawerPrimitive.Content
-        ref={(node: HTMLDivElement | null) => {
+        ref={(node) => {
           sheetRef.current = node;
           if (typeof ref === "function") ref(node);
           else if (ref) ref.current = node;

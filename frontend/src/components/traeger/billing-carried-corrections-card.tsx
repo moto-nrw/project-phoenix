@@ -9,8 +9,10 @@ import { useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -107,9 +109,7 @@ export function BillingCarriedCorrectionsCard({
               <ResponsiveActionRow
                 key={row.carried.positionId}
                 align="start"
-                layout="inline"
-                gap="wide"
-                insetEdges
+                className="flex-row items-start justify-between gap-3 first:pt-3 last:pb-3"
               >
                 <div className="min-w-0 text-sm wrap-anywhere">
                   <p className="font-medium text-gray-900">

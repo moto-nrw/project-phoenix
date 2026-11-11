@@ -11,8 +11,10 @@ import { createContext, useContext, useMemo } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -157,7 +159,10 @@ function CourseWaitlistBlock({
       <p className="mb-2 text-sm text-gray-600">{occupancyLine(waitlist)}</p>
       <ResponsiveActionList>
         {waitlist.entries.map((entry) => (
-          <ResponsiveActionRow key={entry.requestId} spacing="dense">
+          <ResponsiveActionRow
+            key={entry.requestId}
+            className="py-2 first:pt-2 last:pb-2"
+          >
             <div className="min-w-0">
               <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
                 <span className="w-5 shrink-0 text-right font-medium text-gray-500 tabular-nums">

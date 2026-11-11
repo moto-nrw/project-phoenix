@@ -1,8 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { ResponsiveActionRow } from "./responsive-action-row";
-import { ResponsiveActionList } from "./responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "./responsive-action-list";
 
 describe("ResponsiveActionRow", () => {
   it("renders each row as an item of the list", () => {
@@ -51,32 +53,5 @@ describe("ResponsiveActionRow", () => {
     const row = screen.getByRole("listitem");
     expect(row).toHaveClass("sm:items-start");
     expect(row).not.toHaveClass("sm:items-center");
-  });
-
-  it("renders explicit layout and spacing variants without runtime class merging", () => {
-    render(
-      <ResponsiveActionList>
-        <ResponsiveActionRow
-          align="start"
-          layout="inline"
-          gap="wide"
-          spacing="dense"
-          insetEdges
-        >
-          Zeile
-        </ResponsiveActionRow>
-      </ResponsiveActionList>,
-    );
-
-    expect(screen.getByRole("listitem")).toHaveClass(
-      "flex-row",
-      "items-start",
-      "justify-between",
-      "gap-3",
-      "py-2",
-      "first:pt-3",
-      "last:pb-3",
-    );
-    expect(screen.getByRole("listitem")).not.toHaveClass("first:pt-2");
   });
 });

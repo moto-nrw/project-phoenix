@@ -12,8 +12,10 @@ import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ProgressBar } from "~/components/ui/progress-bar";
-import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatChatDateTime } from "~/lib/date-helpers";
@@ -101,7 +103,7 @@ function AllocationRow({
   const name = `${entry.childFirstName} ${entry.childLastName}`;
   const proposedPlace = entry.proposal === "placed";
   return (
-    <ResponsiveActionRow gap="wide">
+    <ResponsiveActionRow className="gap-3">
       <div className="flex min-w-0 gap-3">
         <IconTile
           icon={

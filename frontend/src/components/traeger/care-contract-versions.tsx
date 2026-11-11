@@ -15,8 +15,10 @@ import {
 } from "~/components/traeger/care-contract-format";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/data-field";
-import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   StatusBadge,
@@ -237,9 +239,7 @@ export function CareContractVersions({
             <ResponsiveActionRow
               key={version.number}
               align="start"
-              layout="block"
-              gap="none"
-              spacing="roomy"
+              className="block gap-[normal] py-4"
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">

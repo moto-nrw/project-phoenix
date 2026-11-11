@@ -2,8 +2,10 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { ReactNode } from "react";
 
 import { Button } from "./button";
-import { ResponsiveActionRow } from "./responsive-action-row";
-import { ResponsiveActionList } from "./responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "./responsive-action-list";
 import { SectionCard } from "./section-card";
 
 const meta = {
@@ -88,13 +90,13 @@ export const WiderGap: Story = {
   render: () => (
     <Frame>
       <ResponsiveActionList>
-        <ResponsiveActionRow gap="wide">
+        <ResponsiveActionRow className="gap-3">
           <RowText title="Woche 1" detail="20 von 24 Plätzen vergeben" />
           <RowActions>
             <Action label="Plätze vergeben" />
           </RowActions>
         </ResponsiveActionRow>
-        <ResponsiveActionRow gap="wide">
+        <ResponsiveActionRow className="gap-3">
           <RowText title="Woche 2" detail="24 von 24 Plätzen vergeben" />
           <RowActions>
             <Action label="Plätze vergeben" />
@@ -141,9 +143,7 @@ export const ActionBesideText: Story = {
       <ResponsiveActionList>
         <ResponsiveActionRow
           align="start"
-          layout="inline"
-          gap="wide"
-          insetEdges
+          className="flex-row items-start justify-between gap-3 first:pt-3 last:pb-3"
         >
           <div className="min-w-0 text-sm">
             <p className="font-medium text-gray-900">Mia Muster</p>
@@ -154,9 +154,7 @@ export const ActionBesideText: Story = {
         </ResponsiveActionRow>
         <ResponsiveActionRow
           align="start"
-          layout="inline"
-          gap="wide"
-          insetEdges
+          className="flex-row items-start justify-between gap-3 first:pt-3 last:pb-3"
         >
           <div className="min-w-0 text-sm">
             <p className="font-medium text-gray-900">Ben Beispiel</p>
@@ -175,23 +173,13 @@ export const BlockRow: Story = {
   render: () => (
     <Frame>
       <ResponsiveActionList>
-        <ResponsiveActionRow
-          align="start"
-          layout="block"
-          gap="none"
-          spacing="roomy"
-        >
+        <ResponsiveActionRow align="start" className="block gap-[normal] py-4">
           <RowText title="Fassung 2" detail="gilt ab 01.08.2026" />
           <RowActions>
             <Action label="Ansehen" />
           </RowActions>
         </ResponsiveActionRow>
-        <ResponsiveActionRow
-          align="start"
-          layout="block"
-          gap="none"
-          spacing="roomy"
-        >
+        <ResponsiveActionRow align="start" className="block gap-[normal] py-4">
           <RowText title="Fassung 1" detail="gilt bis 31.07.2026" />
           <RowActions>
             <Action label="Ansehen" />
@@ -207,10 +195,7 @@ export const HighlightedRow: Story = {
   render: () => (
     <Frame>
       <ResponsiveActionList>
-        <ResponsiveActionRow
-          insetEdges
-          className="bg-moto-orange/10 rounded-xl px-4"
-        >
+        <ResponsiveActionRow className="bg-moto-orange/10 rounded-xl px-4 first:pt-3 last:pb-3">
           <p className="text-sm text-gray-900">
             „Frühbetreuung“ hat gebuchte Tage ohne Preis.
           </p>
@@ -228,13 +213,13 @@ export const DenseRows: Story = {
   render: () => (
     <Frame>
       <ResponsiveActionList>
-        <ResponsiveActionRow spacing="dense">
+        <ResponsiveActionRow className="py-2 first:pt-2 last:pb-2">
           <RowText title="1. Mia Muster" detail="3a · seit 02.09.2026" />
           <RowActions>
             <Action label="Platz geben" />
           </RowActions>
         </ResponsiveActionRow>
-        <ResponsiveActionRow spacing="dense">
+        <ResponsiveActionRow className="py-2 first:pt-2 last:pb-2">
           <RowText title="2. Ben Beispiel" detail="2b · seit 05.09.2026" />
           <RowActions>
             <Action label="Platz geben" />
