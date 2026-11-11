@@ -18,6 +18,9 @@ const holidayRecordFormat = "pdf"
 // HolidayRecordStore reads what a file adds to the review's reads, for a
 // whole period or the one registration registrationID names.
 type HolidayRecordStore interface {
+	// ReadHolidayRecordCriteria includes active criteria and any historical
+	// criteria answered by the selected registrations, including archived ones.
+	ReadHolidayRecordCriteria(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayCriterion, error)
 	ReadHolidayRecordContacts(ctx context.Context, organizationID, periodID, registrationID int64) (map[int64][]enrollment.HolidayRegistrationContact, error)
 	ReadHolidayRecordHealth(ctx context.Context, organizationID, periodID, registrationID int64) (map[int64]enrollment.HolidaySealedRegistrationHealth, error)
 	// AppendHolidayHealthReads records a health read of every registration
@@ -158,13 +161,13 @@ func (r *HolidayRegistrationRecords) parts(ctx context.Context, organizationID i
 	return parts, nil
 }
 
-// criteria reads the active criteria and the families' answers of a period
-// by criteria; a period by arrival has none.
+// criteria reads the current and answered historical criteria and the
+// families' answers of a period by criteria; a period by arrival has none.
 func (r *HolidayRegistrationRecords) criteria(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, registrationID int64, parts *holidayRecordParts) error {
 	if period.AllocationMode != enrollment.HolidayAllocationCriteria {
 		return nil
 	}
-	all, err := r.review.store.ReadHolidayCriteria(ctx, organizationID)
+	all, err := r.store.ReadHolidayRecordCriteria(ctx, organizationID, period.ID, registrationID)
 	if err != nil {
 		return fmt.Errorf("enrollment: read holiday criteria: %w", err)
 	}
@@ -172,7 +175,7 @@ func (r *HolidayRegistrationRecords) criteria(ctx context.Context, organizationI
 	if err != nil {
 		return fmt.Errorf("enrollment: read holiday criterion answers: %w", err)
 	}
-	parts.criteria, parts.stated = activeHolidayCriteria(all), map[int64][]enrollment.HolidayCriterionAnswer{}
+	parts.criteria, parts.stated = all, map[int64][]enrollment.HolidayCriterionAnswer{}
 	for _, answer := range answers {
 		parts.stated[answer.RegistrationID] = append(parts.stated[answer.RegistrationID], answer)
 	}
@@ -207,17 +210,23 @@ func (r *HolidayRegistrationRecords) record(organizationID int64, period enrollm
 	return record, nil
 }
 
-// holidayRecordCriteria names the answers of a registration to the active
+// holidayRecordCriteria names current criteria and answered historical
 // criteria: the family's once, a child criterion per child.
 func holidayRecordCriteria(detail enrollment.HolidayRegistrationDetail, parts holidayRecordParts) []enrollment.HolidayRegistrationCriterion {
 	criteria := []enrollment.HolidayRegistrationCriterion{}
+	add := func(criterion enrollment.HolidayCriterion, childID *int64) {
+		answer := holidayRegistrationCriterion(criterion, childID, parts.stated[detail.ID])
+		if criterion.Active || answer.Stated != enrollment.HolidayCriterionUnknown || answer.Checked != nil {
+			criteria = append(criteria, answer)
+		}
+	}
 	for _, criterion := range parts.criteria {
 		if criterion.Scope == enrollment.HolidayCriterionFamily {
-			criteria = append(criteria, holidayRegistrationCriterion(criterion, nil, parts.stated[detail.ID]))
+			add(criterion, nil)
 			continue
 		}
 		for _, child := range detail.Children {
-			criteria = append(criteria, holidayRegistrationCriterion(criterion, &child.ID, parts.stated[detail.ID]))
+			add(criterion, &child.ID)
 		}
 	}
 	return criteria

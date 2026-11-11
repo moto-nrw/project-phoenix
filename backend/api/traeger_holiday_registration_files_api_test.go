@@ -20,6 +20,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentHTTP "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -58,6 +59,59 @@ func TestTraegerDownloadsAHolidayRegistrationAsPDF(t *testing.T) {
 
 	rec = f.file(t, f.office.token, "/999999999/pdf")
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
+func TestHolidayRegistrationFilesKeepAnsweredInactiveAndArchivedCriteria(t *testing.T) {
+	t.Parallel()
+	f := newAllocationFixture(t, "Träger PDF alte Kriterien")
+	first := f.submitCriteria(t, "alte.kriterien@example.org", true, false)
+	// Keep the family criterion disabled and archive the child criterion.
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, "/traeger/holiday-periods/criteria", map[string]any{"criteria": []map[string]any{
+		{"id": f.working, "name": "Berufstätig", "question": "Sind Sie berufstätig?", "scope": "family", "active": false},
+	}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Empty(t, f.publicOffer(t).Criteria, "new registrations no longer see the old questions")
+	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken),
+		placesRegistration(f.reviewFixture, "ohne.kriterien@example.org", map[string][]int{"Tom": {0}}))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	later := decodeSchoolPortalData[receiptBody](t, rec.Body.Bytes())
+
+	_, _, _, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{})
+	reviewer := enrollment.HolidayReviewer{
+		OrganizationID: f.office.organization,
+		AccountID:      testpkg.CreateTestAccount(t, f.db, "holiday-records").ID,
+	}
+	ctx := testpkg.ContextWithTenantRuntime(t.Context(), testpkg.TenantRuntime(t, f.db))
+	require.NoError(t, testpkg.WithinTraeger(ctx, reviewer.OrganizationID, func(ctx context.Context) error {
+		// Both downloads share these records, before the PDF renderer.
+		single, err := records.HolidayRegistrationRecord(ctx, reviewer, f.period.ID, first.ID, false)
+		require.NoError(t, err)
+		require.Len(t, single.Records, 1)
+		criteria := single.Records[0].Detail.Criteria
+		require.Len(t, criteria, 2, "both stored answers survive deactivation and archiving")
+		assert.Equal(t, f.working, criteria[0].CriterionID)
+		assert.Equal(t, "Sind Sie berufstätig?", criteria[0].Question)
+		assert.Nil(t, criteria[0].ChildID)
+		assert.Equal(t, enrollment.HolidayCriterionYes, criteria[0].Stated)
+		assert.Equal(t, f.sibling, criteria[1].CriterionID)
+		assert.Equal(t, "Ist ein Geschwisterkind schon in der OGS?", criteria[1].Question)
+		require.NotNil(t, criteria[1].ChildID)
+		assert.Equal(t, single.Records[0].Detail.Children[0].ID, *criteria[1].ChildID)
+		assert.Equal(t, enrollment.HolidayCriterionNo, criteria[1].Stated)
+
+		archive, err := records.HolidayRegistrationRecords(ctx, reviewer, f.period.ID, enrollment.HolidayRegistrationFilter{}, false)
+		require.NoError(t, err)
+		require.Len(t, archive.Records, 2)
+		for _, record := range archive.Records {
+			if record.Detail.ID == first.ID {
+				assert.Equal(t, criteria, record.Detail.Criteria, "the ZIP keeps the same answers as the single PDF")
+			} else {
+				assert.Equal(t, later.ID, record.Detail.ID)
+				assert.Empty(t, record.Detail.Criteria, "another family's historical questions do not appear")
+			}
+		}
+		return nil
+	}))
 }
 
 func TestTraegerDownloadsTheHolidayRegistrationsOfAPeriodAsZIP(t *testing.T) {

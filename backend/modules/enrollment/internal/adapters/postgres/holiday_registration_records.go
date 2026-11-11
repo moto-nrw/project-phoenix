@@ -15,6 +15,16 @@ import (
 // reads of many registrations in one insert.
 
 const (
+	recordCriteriaQuery = `SELECT DISTINCT criterion.id, criterion.name, criterion.question, criterion.scope,
+			(criterion.active AND criterion.archived_at IS NULL) AS active, criterion.position,
+			(answer.criterion_id IS NOT NULL) AS answered
+		FROM enrollment.holiday_allocation_criteria AS criterion
+		LEFT JOIN enrollment.holiday_registration_criteria AS answer
+			ON answer.organization_id = criterion.organization_id AND answer.criterion_id = criterion.id
+			AND answer.holiday_period_id = ? AND (?::bigint = 0 OR answer.holiday_registration_id = ?)
+		WHERE criterion.organization_id = ?
+			AND ((criterion.active AND criterion.archived_at IS NULL) OR answer.criterion_id IS NOT NULL)
+		ORDER BY criterion.position, criterion.id`
 	recordContactsQuery = `SELECT contact.holiday_registration_id, contact.kind, contact.name, contact.phone, contact.relationship
 		FROM enrollment.holiday_registration_contacts AS contact
 		JOIN enrollment.holiday_registrations AS registration
@@ -32,6 +42,24 @@ const (
 		SELECT ?, ?, registration.id, 'health', ?::jsonb, NULLIF(?::bigint, 0)
 		FROM unnest(?::bigint[]) AS registration(id)`
 )
+
+// ReadHolidayRecordCriteria reads current criteria and historical criteria
+// answered by the selected registrations, without excluding archived ones.
+func (s *HolidayRegistrationStore) ReadHolidayRecordCriteria(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayCriterion, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []holidayCriterionRow
+	if err := db.NewRaw(recordCriteriaQuery, periodID, registrationID, registrationID, organizationID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday record criteria: %w", err)
+	}
+	criteria := make([]enrollment.HolidayCriterion, len(rows))
+	for i, row := range rows {
+		criteria[i] = enrollment.HolidayCriterion(row)
+	}
+	return criteria, nil
+}
 
 // ReadHolidayRecordContacts reads the contacts of the registrations of a
 // period by registration, or of the one registrationID names.
