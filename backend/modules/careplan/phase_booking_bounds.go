@@ -57,7 +57,7 @@ type CareOfferingBookingBounds struct {
 // FollowPhaseBookingBounds moves the bookings' bounds that the phase set
 // (#6597). The bookings of every application of the phase are locked in
 // ascending order before they are read again and decided on; writers of
-// bookings take the same locks. The caller holds the recurrence gate and
+// bookings take the same locks. An empty phase takes no lock. The caller holds the recurrence gate and
 // the phase row; the command takes no other gate.
 func (m *OfferingBookings) FollowPhaseBookingBounds(ctx context.Context, move PhaseBoundsMove) (err error) {
 	started := time.Now()
@@ -73,18 +73,9 @@ func (m *OfferingBookings) FollowPhaseBookingBounds(ctx context.Context, move Ph
 	if err := m.transactions.RequireTransaction(ctx); err != nil {
 		return err
 	}
-	bookings, err := m.engine.CareOfferingBookingsForPhase(ctx, move.PhaseID)
-	if err != nil {
-		return fmt.Errorf("list bookings of phase %d: %w", move.PhaseID, err)
-	}
-	if len(bookings) == 0 {
-		return nil
-	}
-	if err := m.engine.LockCareOfferingBookings(ctx, requestChildIDs(bookings)); err != nil {
-		return fmt.Errorf("lock bookings of phase %d: %w", move.PhaseID, err)
-	}
-	if bookings, err = m.engine.CareOfferingBookingsForPhase(ctx, move.PhaseID); err != nil {
-		return fmt.Errorf("list locked bookings of phase %d: %w", move.PhaseID, err)
+	bookings, err := m.lockedPhaseBookings(ctx, move.PhaseID)
+	if err != nil || len(bookings) == 0 {
+		return err
 	}
 	changes, err := phaseBookingBoundChanges(bookings, move)
 	if err != nil || len(changes) == 0 {
@@ -95,6 +86,35 @@ func (m *OfferingBookings) FollowPhaseBookingBounds(ctx context.Context, move Ph
 	}
 	changed = int64(len(changes))
 	return nil
+}
+
+// lockedPhaseBookings locks the bookings of every application of the phase
+// and returns them as read under those locks. An application whose first
+// bookings commit while the command waits is locked in a further round, so
+// no booking is decided on without its lock.
+func (m *OfferingBookings) lockedPhaseBookings(ctx context.Context, phaseID int64) ([]CareOfferingBooking, error) {
+	locked := map[int64]bool{}
+	for {
+		bookings, err := m.engine.CareOfferingBookingsForPhase(ctx, phaseID)
+		if err != nil {
+			return nil, fmt.Errorf("list bookings of phase %d: %w", phaseID, err)
+		}
+		var missing []int64
+		for _, id := range requestChildIDs(bookings) {
+			if !locked[id] {
+				missing = append(missing, id)
+			}
+		}
+		if len(missing) == 0 {
+			return bookings, nil
+		}
+		if err := m.engine.LockCareOfferingBookings(ctx, missing); err != nil {
+			return nil, fmt.Errorf("lock bookings of phase %d: %w", phaseID, err)
+		}
+		for _, id := range missing {
+			locked[id] = true
+		}
+	}
 }
 
 func (move PhaseBoundsMove) validate() error {

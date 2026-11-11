@@ -52,7 +52,9 @@ auslaufen.
 Die Phasenänderung hält die Wiederholungssperre und die Phasenzeile (ADR
 0162, ADR 0202). Der Befehl sperrt die Buchungen jeder Anmeldung der Phase in
 aufsteigender ID (dieselbe Sperre wie alle Buchungsschreiber), liest sie
-unter diesen Sperren neu und entscheidet erst dann. Er nimmt keine weitere
+unter diesen Sperren neu und entscheidet erst dann. Taucht beim erneuten
+Lesen eine Anmeldung auf, deren erste Buchungen inzwischen eingetragen
+wurden, sperrt er auch sie und liest noch einmal. Er nimmt keine weitere
 Sperre. Bestätigung, Buchungsanpassung und Betreuungsende nehmen die
 Wiederholungssperre vor den Buchungen und warten damit auf die ganze
 Phasenänderung. Ein Schreiber, der nur die Buchungssperre hält, etwa beim
@@ -85,6 +87,14 @@ Root-Adapter im Pass-through-Register und genau diese Compose-Zeilen frei:
   abgelehnt. Die Leitung passt zuerst die Angebote des Kindes an.
 - Buchungen mit Grenzen, die schon vor dieser Änderung von der Phase
   abwichen, korrigiert sie nicht rückwirkend.
+- Ohne gespeicherte Herkunft ist eine Handgrenze, die genau auf die alte
+  Phasengrenze fällt und die äußere Grenze ist, nicht von ihr zu
+  unterscheiden; sie folgt mit.
+- Hebt die Schule ein Betreuungsende nach einer Phasenänderung wieder auf,
+  stellt die Wiederherstellung die Buchungen mit ihren damaligen Grenzen
+  wieder her, also mit der alten Phasengrenze.
+- Ist die Phase schon zu Ende, verlängert eine spätere Änderung des Endes
+  die beendeten Buchungen nicht.
 - Eine Einreichung oder ein Änderungsantrag, der die Phase vor der Änderung
   gelesen hat und erst danach schreibt, kopiert weiterhin die alten Grenzen.
   Das ist ein eigenes, älteres Rennen der Einreichungswege.
