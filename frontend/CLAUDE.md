@@ -11,6 +11,9 @@ Run `cd frontend && pnpm run check` with zero warnings and relevant behavior
 tests after code changes. Before push, run
 `scripts/run-go-toolchain.sh scripts/check-changed.mjs`. Service and screenshot
 workflows: `docs/agents/operations.md`.
+Keep each frontend test shard at about 3 min in CI; compare its duration on
+base and branch when adding or changing tests and make slow tests faster or
+leaner first: [ci-test-performance](../.claude/rules/ci-test-performance.md).
 
 ## Test clock (MANDATORY)
 
