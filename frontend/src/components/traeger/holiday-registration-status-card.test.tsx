@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
@@ -285,6 +287,96 @@ describe("HolidayRegistrationStatusCard", () => {
     await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
     expect(mockChange).not.toHaveBeenCalled();
     expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  // #6652: a confirmed write whose reload fails is no failed action: the
+  // reload error stands in the card, says the change is saved, and its retry
+  // only reads the registration again.
+  describe("reload after a confirmed write (#6652)", () => {
+    const failingReload = () =>
+      vi
+        .fn()
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(undefined);
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Anmeldung")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    it("keeps a confirmation confirmed when the reload fails", async () => {
+      mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      const onReload = failingReload();
+      renderCard(HOLIDAY_REGISTRATION, vi.fn(), HOLIDAY_CONTRIBUTION, onReload);
+
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Anmeldung")),
+      ).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(onReload).toHaveBeenCalledTimes(2));
+      expect(mockConfirm).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a cancellation done when the reload fails", async () => {
+      mockCancel.mockResolvedValue(undefined);
+      const onReload = failingReload();
+      renderCard(HOLIDAY_REGISTRATION, vi.fn(), HOLIDAY_CONTRIBUTION, onReload);
+
+      fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
+      await screen.findByText("Anmeldung stornieren?");
+      const buttons = screen.getAllByRole("button", { name: "Stornieren" });
+      fireEvent.click(buttons[buttons.length - 1]!);
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(onReload).toHaveBeenCalledTimes(2));
+      expect(mockCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a saved debtor number saved when the reload fails", async () => {
+      mockChangeDebtorNumber.mockResolvedValue("10 4711");
+      const onDebtorNumberChanged = failingReload();
+      render(
+        <ToastProvider>
+          <HolidayRegistrationStatusCard
+            periodId="5"
+            registration={{
+              ...HOLIDAY_REGISTRATION,
+              status: "confirmed",
+              debtorNumber: "",
+            }}
+            contribution={HOLIDAY_CONTRIBUTION}
+            debtorNumberRequired
+            exemption={false}
+            onExemptionChange={vi.fn()}
+            onChanged={vi.fn()}
+            onReload={vi.fn(() => Promise.resolve())}
+            onDebtorNumberChanged={onDebtorNumberChanged}
+          />
+        </ToastProvider>,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Debitorennummer eintragen" }),
+      );
+      fireEvent.change(
+        screen.getByRole("textbox", { name: /Debitorennummer/ }),
+        {
+          target: { value: "10 4711" },
+        },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: /Debitorennummer/ }),
+      ).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(onDebtorNumberChanged).toHaveBeenCalledTimes(2),
+      );
+      expect(mockChangeDebtorNumber).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("says before a cancellation that the siblings are computed again (#5662)", async () => {

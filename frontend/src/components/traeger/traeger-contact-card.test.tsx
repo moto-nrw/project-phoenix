@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 
 const { mockSave } = vi.hoisted(() => ({ mockSave: vi.fn() }));
 vi.mock("~/lib/traeger-api", () => ({ saveTraegerContact: mockSave }));
@@ -67,5 +70,39 @@ describe("TraegerContactCard", () => {
       screen.queryByRole("button", { name: "Speichern" }),
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toHaveValue("Petra Lindner");
+  });
+
+  // #6652: the save holds once the write is through; a failed reload of the
+  // page is a load error in the card that says the change is saved.
+  it("keeps the saved values when the page reload fails", async () => {
+    mockSave.mockResolvedValue({
+      name: "Petra Lindner",
+      phone: "",
+      email: "buero@traeger.example",
+    });
+    const onSaved = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(undefined);
+    render(
+      <ToastProvider>
+        <TraegerContactCard contact={SAVED} canEdit onSaved={onSaved} />
+      </ToastProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
+      target: { value: "buero@traeger.example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige des Ansprechpartners")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(2));
+    expect(mockSave).toHaveBeenCalledTimes(1);
   });
 });
