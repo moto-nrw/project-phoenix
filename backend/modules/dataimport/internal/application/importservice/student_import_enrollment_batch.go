@@ -35,20 +35,24 @@ func enrollmentBatchRow(row importModels.StudentImportRow) bool {
 }
 
 // createEnrollmentProfiles creates the profiles of the segment's enrollment
-// batch rows in one statement and returns them by row. The status of the
-// first segment row is taken here, even if it is not a batch row, before
-// the statement waits for the class gate. The row path takes the first
-// child's status before its profile insert waits there; every later row
-// takes its status in the loop, after the gate (#5552 step 7, finding 1).
+// batch rows in one statement and returns them by row, if the segment has
+// at least ChunkMinRows of them; otherwise every row creates its child in
+// place. The status of the first segment row is taken here, even if it is
+// not a batch row, before the statement waits for the class gate. The row
+// path takes the first child's status before its profile insert waits
+// there; every later row takes its status in the loop, after the gate
+// (#5552 step 7, finding 1).
 func (c *StudentImportConfig) createEnrollmentProfiles(ctx context.Context, rows []importModels.StudentImportRow, persons []ports.Person) ([]*preparedEnrollment, error) {
 	prepared := make([]*preparedEnrollment, len(rows))
 	if c.EnrollmentBatches == nil {
 		return prepared, nil
 	}
+	batch := countEnrollmentBatchRows(rows) >= c.ChunkMinRows()
 	var indices []int
 	var inputs []ports.EnrollmentStudent
 	for i, row := range rows {
-		if i != 0 && !enrollmentBatchRow(row) {
+		inBatch := batch && enrollmentBatchRow(row)
+		if i != 0 && !inBatch {
 			continue
 		}
 		input, patch, err := enrollmentInputFromRow(persons[i].ID, row)
@@ -61,11 +65,10 @@ func (c *StudentImportConfig) createEnrollmentProfiles(ctx context.Context, rows
 			entry.statusSet = true
 		}
 		prepared[i] = entry
-		if !enrollmentBatchRow(row) {
-			continue
+		if inBatch {
+			indices = append(indices, i)
+			inputs = append(inputs, entry.input)
 		}
-		indices = append(indices, i)
-		inputs = append(inputs, entry.input)
 	}
 	if len(inputs) == 0 {
 		return prepared, nil
@@ -78,4 +81,14 @@ func (c *StudentImportConfig) createEnrollmentProfiles(ctx context.Context, rows
 		prepared[i].created = created[k]
 	}
 	return prepared, nil
+}
+
+func countEnrollmentBatchRows(rows []importModels.StudentImportRow) int {
+	n := 0
+	for _, row := range rows {
+		if enrollmentBatchRow(row) {
+			n++
+		}
+	}
+	return n
 }

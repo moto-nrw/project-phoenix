@@ -249,6 +249,52 @@ func TestStudentEnrollmentBatchMatchesTheRowPath(t *testing.T) {
 // group and one with a permanent hint are created in place with
 // CreateEnrollmentStudent; the other six go into the batch. The result is the
 // row path's.
+// TestStudentEnrollmentBatchNeedsTheMinimumOfBatchRows: a segment of eight
+// children with seven permanent hints has one batch row, below ChunkMinRows
+// (six); every child is then created in place, with the row path's
+// outcome. With two hints the six batch rows take the batch.
+func TestStudentEnrollmentBatchNeedsTheMinimumOfBatchRows(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	for _, tc := range []struct {
+		name    string
+		hints   int
+		inPlace int
+		batches int
+	}{
+		{"one batch row", 7, 8, 0},
+		{"six batch rows", 2, 2, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			run := func(t *testing.T, options api.ImportTestOptions) (studentOutcome, importModels.ImportObservation) {
+				testpkg.OwnTenant(t)
+				module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
+				require.NoError(t, err)
+				actor := newImporter(t, db)
+				rows := variedEnrollmentFile("Mindest")[:8]
+				for i := 0; i < tc.hints; i++ {
+					rows[i].SupervisorNotes = "Dauerhinweis"
+				}
+				upload := awaitStudents(t, uploadStudents(t, module, db, actor, rows, "minimum.csv"))
+				require.NoError(t, upload.err)
+				return studentOutcomeOf(t, db, upload.result), (*module.Observations)[0]
+			}
+			var batch, rowPath studentOutcome
+			t.Run("batch path", func(t *testing.T) {
+				var observation importModels.ImportObservation
+				batch, observation = run(t, api.ImportTestOptions{})
+				require.Zero(t, observation.BatchFallbacks)
+				require.Equal(t, tc.batches, commandCount(observation, enrollmentProfilesCommand))
+				require.Equal(t, tc.inPlace, commandCount(observation, "create_enrollment_student"))
+				require.Equal(t, 8-tc.inPlace, commandCount(observation, "enroll_created_student"))
+			})
+			t.Run("row path", func(t *testing.T) { rowPath, _ = run(t, api.ImportTestOptions{RowPathOnly: true}) })
+			require.Equal(t, rowPath, batch)
+		})
+	}
+}
+
 func TestStudentEnrollmentBatchKeepsGroupAndHintRowsInPlace(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

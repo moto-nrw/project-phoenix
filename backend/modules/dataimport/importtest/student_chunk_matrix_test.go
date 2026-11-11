@@ -668,7 +668,9 @@ func matrixQuotaFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 	testpkg.SetTestChildQuota(t, db, 1, 100)
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Kontingent %d", testpkg.Tenant(t)))
 	rows := matrixFile(t, db)
-	rows[10].GroupName = group.Name
+	// The group row sits in the first segment (seven rows), which keeps
+	// ChunkMinRows batch rows beside it, so both segments take the batch.
+	rows[5].GroupName = group.Name
 	return rows
 }
 
@@ -824,16 +826,11 @@ func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []imp
 				statement := statements[at]
 				mains, cleanups := minimumCleanupFailures, minimumCleanupErrors
 				if position == 0 || position == len(indices)-1 || statement.class == classBoundControl {
-					// First and last of each class, and every set and reset of
-					// every bound, get the whole cross.
+					// First and last of each class (the quota classes
+					// included), and every set and reset of every bound, get
+					// the whole cross; every other statement takes the
+					// minimum, so the package stays inside CI's ten minutes.
 					mains, cleanups = matrixFailures, matrixFailures
-				}
-				if quota {
-					// The quota classes take every main error with the two
-					// cleanup errors that stand for the rest (a failed
-					// cleanup ends the upload whatever its error), so the
-					// package stays inside CI's ten minutes.
-					cleanups = minimumCleanupErrors
 				}
 				for _, err := range mains {
 					for _, point := range cleanupPoints[statement.class] {
