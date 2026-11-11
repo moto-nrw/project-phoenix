@@ -26,6 +26,6 @@ export const PLANNING_COLORS = {
  * (#5576, Entscheidung 3), so Überdeckung takes amber.strong (7.1:1).
  */
 export const COVERAGE_DELTA_TEXT_COLOR = {
-  under: MOTO_COLOR_PALETTE.red.base,
+  under: PLANNING_COLORS.understaffedText,
   over: MOTO_COLOR_PALETTE.amber.strong,
 } as const;

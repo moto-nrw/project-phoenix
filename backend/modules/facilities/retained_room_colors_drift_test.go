@@ -89,8 +89,8 @@ func findFrontendFile(t *testing.T, parts ...string) string {
 
 // extractLocationColorsHexes pulls every hex literal that appears inside the
 // `export const LOCATION_COLORS = { ... } as const;` block. We deliberately
-// scope the search to that block so unrelated hex literals elsewhere in the
-// file (e.g. GROUP_ROOM_SHADES) don't pollute the comparison set. Palette
+// scope the search to that block so unrelated values elsewhere in the file
+// (e.g. GROUP_ROOM_SHADES) don't pollute the comparison set. Palette
 // references resolve against MOTO_COLOR_PALETTE in paletteSource
 // (frontend/src/components/ui/kit-palette.ts, #6573).
 func extractLocationColorsHexes(t *testing.T, source, paletteSource string) map[string]struct{} {
