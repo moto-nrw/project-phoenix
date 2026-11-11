@@ -230,7 +230,9 @@ describe("HolidayPeriodForm", () => {
     const preview = screen.getByRole("region", {
       name: "Vorschau der Annahme-Mail",
     });
-    expect(within(preview).getByText("Eltern-App öffnen")).toBeInTheDocument();
+    expect(
+      within(preview).getByText("In der Eltern-App ansehen"),
+    ).toBeInTheDocument();
     expect(
       within(preview).getByText("Ferienanmeldung bestätigt: Osterferien"),
     ).toBeInTheDocument();

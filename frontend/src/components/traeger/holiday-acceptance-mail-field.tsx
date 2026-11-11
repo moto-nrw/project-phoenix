@@ -158,7 +158,7 @@ export function HolidayAcceptanceMailField({
                     className: "pointer-events-none",
                   })}
                 >
-                  Eltern-App öffnen
+                  In der Eltern-App ansehen
                 </span>
                 <p className="text-xs text-gray-500">
                   Diesen Knopf sehen nur Eltern mit Elternkonto.
