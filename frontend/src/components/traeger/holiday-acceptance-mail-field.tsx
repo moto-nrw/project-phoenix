@@ -126,7 +126,7 @@ export function HolidayAcceptanceMailField({
                   <strong className="text-gray-900">{traegerName}</strong> hat
                   Ihre Anmeldung für{" "}
                   <strong className="text-gray-900">{periodName}</strong>{" "}
-                  angenommen.
+                  bestätigt.
                 </p>
               </div>
               <InsetPanel tone="white" padding="sm" className="space-y-1">
@@ -144,8 +144,8 @@ export function HolidayAcceptanceMailField({
                 </InsetPanel>
               ) : (
                 <InsetPanel dashed padding="sm" className="text-gray-500">
-                  Hier steht Ihr Text. Ohne Text geht die E-Mail ohne Hinweise
-                  raus.
+                  Hier steht Ihr Text. Ohne Text bekommen Eltern die E-Mail ohne
+                  Hinweise.
                 </InsetPanel>
               )}
               <div className="space-y-1 text-center">

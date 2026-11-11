@@ -239,7 +239,9 @@ describe("HolidayPeriodForm", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      within(preview).getByText(/Ohne Text geht die E-Mail ohne Hinweise raus/),
+      within(preview).getByText(
+        /Ohne Text bekommen Eltern die E-Mail ohne Hinweise/,
+      ),
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Text der Annahme-Mail"), {

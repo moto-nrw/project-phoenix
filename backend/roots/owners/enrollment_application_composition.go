@@ -201,16 +201,34 @@ func (o enrollmentMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentCo
 	})
 }
 
-// HolidayAcceptanceAccounts finds the account of an address for the
-// acceptance mail of a holiday registration (#6672); Identity & Access
-// serves it in the worker's administrative scope.
+// HolidayAcceptanceAccounts tells the acceptance mail of a holiday
+// registration whether its address has a parent account (#6672): an account
+// of the address that holds the guardian role at a live school, the rule the
+// parents portal signs in by. Identity & Access serves it in the worker's
+// administrative scope.
 type HolidayAcceptanceAccounts interface {
 	FindAccountByEmail(ctx context.Context, email string) (identityaccess.Account, error)
+	FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error)
+}
+
+// holidayParentAccount reports whether the address has a parent account. An
+// unknown address has none; a lookup that fails is an error, never "none".
+func holidayParentAccount(ctx context.Context, accounts HolidayAcceptanceAccounts, address string) (bool, error) {
+	account, err := accounts.FindAccountByEmail(ctx, address)
+	if errors.Is(err, identityaccess.ErrAccountNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	guardian, _, err := accounts.FindGuardianTenant(ctx, account.ID)
+	return guardian, err
 }
 
 // holidayAcceptanceParentApp adds the link to the parents portal to the
 // acceptance mail of a holiday registration (#6672) when it is sent: a
-// parent with an account at the address gets it, everyone else none. The
+// parent with a parent account at the address gets it, everyone else none,
+// a staff account of the address too. The
 // Träger-Büro that confirmed never learns which. Without accounts or a
 // parents portal the mail goes out without the link.
 func holidayAcceptanceParentApp(renderer enrollmentOwner.MailRenderer, accounts HolidayAcceptanceAccounts, parentsURL string) enrollmentOwner.MailRenderer {
@@ -221,12 +239,12 @@ func holidayAcceptanceParentApp(renderer enrollmentOwner.MailRenderer, accounts 
 		}
 		mail.ParentAppURL = ""
 		if accounts != nil && strings.TrimSpace(parentsURL) != "" && strings.TrimSpace(mail.Recipient) != "" {
-			_, err := accounts.FindAccountByEmail(ctx, mail.Recipient)
-			switch {
-			case err == nil:
-				mail.ParentAppURL = strings.TrimRight(strings.TrimSpace(parentsURL), "/") + "/"
-			case !errors.Is(err, identityaccess.ErrAccountNotFound):
+			parent, err := holidayParentAccount(ctx, accounts, mail.Recipient)
+			if err != nil {
 				return nil, fmt.Errorf("%s: find the parent account: %w", kind, err)
+			}
+			if parent {
+				mail.ParentAppURL = strings.TrimRight(strings.TrimSpace(parentsURL), "/") + "/"
 			}
 		}
 		linked, err := json.Marshal(mail)

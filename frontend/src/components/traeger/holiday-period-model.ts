@@ -313,7 +313,8 @@ export function validateHolidayPeriod(
   ) {
     errors.max_days_per_child = `Bitte eine Zahl von 1 bis ${MAX_DAYS_PER_CHILD} eingeben oder das Feld leer lassen.`;
   }
-  if (draft.acceptanceMailText.trim().length > MAX_ACCEPTANCE_MAIL_TEXT) {
+  // Characters as the backend counts them, not UTF-16 units.
+  if ([...draft.acceptanceMailText.trim()].length > MAX_ACCEPTANCE_MAIL_TEXT) {
     errors.acceptance_mail_text = `Der Text darf höchstens ${MAX_ACCEPTANCE_MAIL_TEXT} Zeichen lang sein.`;
   }
   draft.weeks.forEach((week, index) => {
