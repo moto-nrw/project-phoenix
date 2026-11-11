@@ -491,8 +491,14 @@ export function TenantPage(props: TenantPageProps) {
         backHref={props.backHref}
         backLabel={props.backLabel}
         printHideHeader={props.printHideHeader}
+        error={props.error}
+        loading={props.loading}
+        loadingLabel={props.loadingLabel}
+        empty={props.empty}
         testId={props.testId}
-      />
+      >
+        {props.children}
+      </TenantPageView>
     );
   }
   return <TenantPageView {...props} />;

@@ -1,9 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Plus } from "lucide-react";
 import { expect, screen, userEvent, within } from "storybook/test";
 
 import { withNotBookedSlots } from "~storybook/fixtures/not-booked-slots";
 import { Button, ButtonLink } from "./button";
+import { PagePathProvider } from "./page-path";
 import { SectionCard } from "./section-card";
 import { TenantPage } from "./tenant-page";
 
@@ -15,6 +16,12 @@ const meta = {
 export default meta;
 
 type Story = StoryObj<typeof meta>;
+
+const withTenantPagePath: Decorator = (Story) => (
+  <PagePathProvider resolve={(path) => `/storybook${path}`}>
+    <Story />
+  </PagePathProvider>
+);
 
 /**
  * Kopfkarte mit Link und Knopf nebeneinander: Die Kopfkarte setzt beide auf
@@ -88,6 +95,7 @@ export const WithBackLink: Story = {
     backLabel: "Zurück zu den Räumen",
     children: pageContent,
   },
+  decorators: [withTenantPagePath],
 };
 
 /** Ohne eigenes Ziel führt der Rückweg zur Datenverwaltung. */
@@ -97,6 +105,7 @@ export const WithDefaultBackLink: Story = {
     back: true,
     children: pageContent,
   },
+  decorators: [withTenantPagePath],
 };
 
 /**
