@@ -109,7 +109,13 @@ export function MessageComposer({
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly onSend: (attachments: readonly MessageAttachment[]) => void;
+  /**
+   * Sendet Text und Anhänge. Löst die Rückgabe mit `false` auf, ist die
+   * Nachricht nicht angekommen: die Anhänge stehen dann wieder im Feld.
+   */
+  readonly onSend: (
+    attachments: readonly MessageAttachment[],
+  ) => void | Promise<boolean | void>;
   readonly sending: boolean;
   readonly placeholder?: string;
   readonly disabled?: boolean;
@@ -209,12 +215,22 @@ export function MessageComposer({
 
   const send = () => {
     attachError.clear();
-    onSend(ready);
-    // Die Nachricht trägt die Dateien jetzt; die Vorschauen sind erledigt.
-    for (const item of pending) {
-      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-    }
+    const sent = pending;
     setPending([]);
+    const release = () => {
+      for (const item of sent) {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      }
+    };
+    // Die Nachricht trägt die Dateien jetzt. Kommt sie nicht an, stehen sie
+    // wieder im Feld, vor allem, was inzwischen neu gewählt wurde.
+    void Promise.resolve(onSend(ready)).then(
+      (arrived) => {
+        if (arrived === false) setPending((current) => [...sent, ...current]);
+        else release();
+      },
+      () => setPending((current) => [...sent, ...current]),
+    );
   };
 
   const parent = tone === "parent";
@@ -304,7 +320,7 @@ export function MessageComposer({
               onClick={() => fileInput.current?.click()}
               disabled={inputLocked || atLimit}
               aria-label={labels.attach}
-              title={atLimit ? labels.tooMany : labels.attachHint}
+              tooltip={atLimit ? labels.tooMany : labels.attachHint}
               className="shrink-0"
             >
               <Paperclip className="h-5 w-5" aria-hidden="true" />

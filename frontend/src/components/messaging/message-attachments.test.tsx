@@ -169,3 +169,30 @@ describe("Anhänge in der Sprechblase (#6685)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("Fehlgeschlagenes Senden (#6685)", () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:preview");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it("behält die Anhänge, wenn die Nachricht nicht ankommt", async () => {
+    const user = userEvent.setup();
+    upload.mockResolvedValue(PHOTO);
+    const onSend = vi.fn().mockResolvedValue(false);
+    render(<Composer onSend={onSend} />);
+    await user.upload(
+      screen.getByLabelText("Foto oder Datei anhängen", { selector: "input" }),
+      new File(["x"], "ausflug.png", { type: "image/png" }),
+    );
+    const send = screen.getByRole("button", { name: "Senden" });
+    await waitFor(() => expect(send).toBeEnabled());
+    await user.click(send);
+
+    expect(onSend).toHaveBeenCalledWith([PHOTO]);
+    // Die Datei steht wieder im Feld und lässt sich erneut senden.
+    expect(await screen.findByText("ausflug.png")).toBeInTheDocument();
+    await waitFor(() => expect(send).toBeEnabled());
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+});

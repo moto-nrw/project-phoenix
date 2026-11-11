@@ -116,12 +116,15 @@ function GroupMessageContent() {
   const attempt = useMessageSendAttempt(messageKeys.groupMessage(threadId));
   // Die Dateien des letzten Versuchs: „Wiederholen“ sendet sie erneut.
   const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  // Ob der letzte Versuch ankam: sonst behält das Eingabefeld die Dateien.
+  const sendArrived = useRef(true);
   const send = async (picked?: readonly MessageAttachment[]) => {
     const attachments = picked ?? sentFiles.current;
     const body = draft.trim();
     if ((!body && attachments.length === 0) || sending || !messagingEnabled)
       return;
     sentFiles.current = attachments;
+    sendArrived.current = true;
     const clientMessageId = attempt.begin(
       [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
     );
@@ -168,6 +171,7 @@ function GroupMessageContent() {
           key === messageKeys.groupMessages(),
       },
     });
+    sendArrived.current = outcome.status !== "failed";
     if (outcome.status === "done") {
       attempt.complete(clientMessageId);
       sentFiles.current = [];
@@ -326,7 +330,10 @@ function GroupMessageContent() {
                 draftRevision.current += 1;
                 setDraft(value);
               }}
-              onSend={(files) => void send(files)}
+              onSend={async (files) => {
+                  await send(files);
+                  return sendArrived.current;
+                }}
               sending={sending}
               placeholder="Weitere Nachricht an alle Eltern…"
               attachments={{

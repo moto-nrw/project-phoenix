@@ -370,139 +370,150 @@ export function OgsConversation({
   const { run: runSend, dismiss: dismissFailedSend } = send;
   // The files of the last attempt: a retry sends them again.
   const sentFiles = useRef<readonly MessageAttachment[]>([]);
-  const handleSend = useCallback(async (picked?: readonly MessageAttachment[]) => {
-    const attachments = picked ?? sentFiles.current;
-    const body = draft.trim();
-    if ((!body && attachments.length === 0) || sending) return;
-    sentFiles.current = attachments;
-    const clientMessageId = attempt.begin(
-      [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
-    );
-    clearSendError();
-    // A new attempt replaces the bubble marked as not sent.
-    dismissFailedSend();
-    setDraft("");
-    const sentDraftRevision = draftRevision.current;
-    let failed = false;
-    const outcome = await runSend({
-      onConfirmed: () => {
-        attempt.complete(clientMessageId);
-        // Only the restored draft belongs to this failed send. User edits,
-        // including retyping identical text, are a separate intent.
-        if (failed && draftRevision.current === sentDraftRevision) {
-          setDraft((current) => (current === body ? "" : current));
-        }
-        clearSendError();
-      },
-      confirmed: (current) =>
-        current.messages.some(
-          (message) =>
-            message.client_message_id === clientMessageId &&
-            message.sender_kind === "guardian",
+  // Ob der letzte Versuch ankam: sonst behält das Eingabefeld die Dateien.
+  const sendArrived = useRef(true);
+  const handleSend = useCallback(
+    async (picked?: readonly MessageAttachment[]) => {
+      const attachments = picked ?? sentFiles.current;
+      const body = draft.trim();
+      if ((!body && attachments.length === 0) || sending) return;
+      sentFiles.current = attachments;
+      sendArrived.current = true;
+      const clientMessageId = attempt.begin(
+        [body, ...attachments.map((attachment) => attachment.id)].join(
+          "\u0000",
         ),
-      optimistic: (current, { id }) => ({
-        ...current,
-        messages: [
-          ...current.messages,
-          {
-            id,
-            kind: "message",
-            sender_kind: "guardian",
-            sender_name: "",
+      );
+      clearSendError();
+      // A new attempt replaces the bubble marked as not sent.
+      dismissFailedSend();
+      setDraft("");
+      const sentDraftRevision = draftRevision.current;
+      let failed = false;
+      const outcome = await runSend({
+        onConfirmed: () => {
+          attempt.complete(clientMessageId);
+          // Only the restored draft belongs to this failed send. User edits,
+          // including retyping identical text, are a separate intent.
+          if (failed && draftRevision.current === sentDraftRevision) {
+            setDraft((current) => (current === body ? "" : current));
+          }
+          clearSendError();
+        },
+        confirmed: (current) =>
+          current.messages.some(
+            (message) =>
+              message.client_message_id === clientMessageId &&
+              message.sender_kind === "guardian",
+          ),
+        optimistic: (current, { id }) => ({
+          ...current,
+          messages: [
+            ...current.messages,
+            {
+              id,
+              kind: "message",
+              sender_kind: "guardian",
+              sender_name: "",
+              body,
+              created_at: "",
+              attachments,
+            },
+          ],
+        }),
+        request: () =>
+          postChildMessage(
+            studentId,
             body,
-            created_at: "",
-            attachments,
-          },
-        ],
-      }),
-      request: () =>
-        postChildMessage(
-          studentId,
-          body,
-          undefined,
-          audience,
-          clientMessageId,
-          ...attachmentIdArgs(attachments),
-        ),
-      // Claim the token AFTER the POST resolves so this authoritative result
-      // wins. A successful send means the thread is loadable, so clear any
-      // stale load error left by an earlier failed background refresh. A
-      // result for a conversation no longer on screen (the route changed the
-      // audience meanwhile) claims nothing: the load of the new one must win.
-      commit: (view) => {
-        if (
-          audienceRef.current === audience &&
-          applyThread(++applySeqRef.current, view)
-        ) {
-          clearLoadError();
-        }
-      },
-      keepFailed: true,
-      refusal: {
-        codes: PARENT_PORTAL_SEND_REFUSALS,
-        matches: (key) => key === conversationKey,
-      },
-    });
-    if (outcome.status === "done") {
-      sentFiles.current = [];
-      attempt.complete(clientMessageId);
-      // Sending advances the reader's own cursor (any prior staff messages
-      // are now read), so refresh the sidebar badge.
-      nudgeUnreadBadge();
-      return;
-    }
-    if (
-      outcome.status !== "failed" ||
-      (!outcome.refused && !attempt.isActive(clientMessageId))
-    )
-      return;
-    failed = true;
-    const mayRestoreDraft =
-      attempt.isActive(clientMessageId) &&
-      draftRevision.current === sentDraftRevision;
-    const err = outcome.error;
-    // The text goes back into the field unless a new one is there.
-    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
-    logger.warn("ogs_message_send_failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    void showSendError(err, {
-      object: tm("errorObjectMessage"),
-      retry: () => void sendRef.current(),
-    });
-    if (outcome.refused) {
-      // The school refused this conversation (relationship gone, no
-      // writing right): drop the history, the composer and the overview of
-      // both conversations, then ask again, so only what the server still
-      // grants shows.
-      ++applySeqRef.current;
-      setThread(null);
-      setSummaries([]);
-      void refreshRef.current();
-    } else if (
-      err instanceof ApiError &&
-      err.code === "communication.leadership_messages_unavailable"
-    ) {
-      // The leadership is gone since the chat loaded: reload it, so the
-      // composer gives way to the hint about the team conversation.
-      void refreshRef.current();
-    }
-  }, [
-    draft,
-    sending,
-    studentId,
-    audience,
-    audienceRef,
-    applyThread,
-    clearLoadError,
-    clearSendError,
-    showSendError,
-    tm,
-    runSend,
-    dismissFailedSend,
-    conversationKey,
-    attempt,
-  ]);
+            undefined,
+            audience,
+            clientMessageId,
+            ...attachmentIdArgs(attachments),
+          ),
+        // Claim the token AFTER the POST resolves so this authoritative result
+        // wins. A successful send means the thread is loadable, so clear any
+        // stale load error left by an earlier failed background refresh. A
+        // result for a conversation no longer on screen (the route changed the
+        // audience meanwhile) claims nothing: the load of the new one must win.
+        commit: (view) => {
+          if (
+            audienceRef.current === audience &&
+            applyThread(++applySeqRef.current, view)
+          ) {
+            clearLoadError();
+          }
+        },
+        keepFailed: true,
+        refusal: {
+          codes: PARENT_PORTAL_SEND_REFUSALS,
+          matches: (key) => key === conversationKey,
+        },
+      });
+      sendArrived.current = outcome.status !== "failed";
+      if (outcome.status === "done") {
+        sentFiles.current = [];
+        attempt.complete(clientMessageId);
+        // Sending advances the reader's own cursor (any prior staff messages
+        // are now read), so refresh the sidebar badge.
+        nudgeUnreadBadge();
+        return;
+      }
+      if (
+        outcome.status !== "failed" ||
+        (!outcome.refused && !attempt.isActive(clientMessageId))
+      )
+        return;
+      failed = true;
+      const mayRestoreDraft =
+        attempt.isActive(clientMessageId) &&
+        draftRevision.current === sentDraftRevision;
+      const err = outcome.error;
+      // The text goes back into the field unless a new one is there.
+      setDraft((current) =>
+        mayRestoreDraft && current === "" ? body : current,
+      );
+      logger.warn("ogs_message_send_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showSendError(err, {
+        object: tm("errorObjectMessage"),
+        retry: () => void sendRef.current(),
+      });
+      if (outcome.refused) {
+        // The school refused this conversation (relationship gone, no
+        // writing right): drop the history, the composer and the overview of
+        // both conversations, then ask again, so only what the server still
+        // grants shows.
+        ++applySeqRef.current;
+        setThread(null);
+        setSummaries([]);
+        void refreshRef.current();
+      } else if (
+        err instanceof ApiError &&
+        err.code === "communication.leadership_messages_unavailable"
+      ) {
+        // The leadership is gone since the chat loaded: reload it, so the
+        // composer gives way to the hint about the team conversation.
+        void refreshRef.current();
+      }
+    },
+    [
+      draft,
+      sending,
+      studentId,
+      audience,
+      audienceRef,
+      applyThread,
+      clearLoadError,
+      clearSendError,
+      showSendError,
+      tm,
+      runSend,
+      dismissFailedSend,
+      conversationKey,
+      attempt,
+    ],
+  );
   // The retry sends the current draft, not the one of the failed attempt.
   const sendRef = useRef(handleSend);
   useLayoutEffect(() => {
@@ -801,7 +812,10 @@ export function OgsConversation({
                   draftRevision.current += 1;
                   setDraft(value);
                 }}
-                onSend={(files) => void handleSend(files)}
+                onSend={async (files) => {
+                  await handleSend(files);
+                  return sendArrived.current;
+                }}
                 sending={sending}
                 attachments={{
                   uploadUrl: attachmentRoutes.uploadUrl,

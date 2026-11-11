@@ -109,7 +109,6 @@ export function ImageLightbox({
               href={image.downloadHref}
               download={image.name}
               aria-label={`${labels.download}: ${image.name}`}
-              title={labels.download}
               className={buttonClassName({
                 variant: "ghost_tone",
                 size: "icon",
@@ -126,7 +125,7 @@ export function ImageLightbox({
             size="icon"
             onClick={onClose}
             aria-label={labels.close}
-            title={labels.close}
+            tooltip={labels.close}
           >
             <CloseIcon />
           </Button>
@@ -156,7 +155,7 @@ export function ImageLightbox({
                   size="icon"
                   onClick={() => step(-1)}
                   aria-label={labels.previous}
-                  title={labels.previous}
+                  tooltip={labels.previous}
                 >
                   <ChevronLeft className="h-6 w-6" aria-hidden="true" />
                 </Button>
@@ -168,7 +167,7 @@ export function ImageLightbox({
                   size="icon"
                   onClick={() => step(1)}
                   aria-label={labels.next}
-                  title={labels.next}
+                  tooltip={labels.next}
                 >
                   <ChevronRight className="h-6 w-6" aria-hidden="true" />
                 </Button>

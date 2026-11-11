@@ -78,7 +78,8 @@ function messageAttachmentRoutes(base: string): MessageAttachmentRoutes {
   };
 }
 
-export const PARENT_MESSAGE_ATTACHMENTS = messageAttachmentRoutes("/api/messages");
+export const PARENT_MESSAGE_ATTACHMENTS =
+  messageAttachmentRoutes("/api/messages");
 export const STAFF_MESSAGE_ATTACHMENTS = messageAttachmentRoutes(
   "/api/staff-messages",
 );

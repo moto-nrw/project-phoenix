@@ -121,28 +121,28 @@ export function ChatBubble({
         </div>
       ) : null}
       {body ? (
-      /* oxlint-disable-next-line ui-kit/no-hand-rolled-surface, ui-kit/no-hand-rolled-notice -- Nachrichtensprechblase, keine Kartenfläche und kein Hinweis */
-      <div
-        className={`relative max-w-[84%] rounded-xl px-3 py-2 break-words whitespace-pre-wrap sm:max-w-[72%] lg:max-w-[38rem] ${
-          pending === "pending" ? "opacity-70" : ""
-        } ${
-          parent
-            ? "text-[15px] leading-5 sm:text-base sm:leading-6"
-            : "text-sm leading-5"
-        } ${parent ? (own ? "rounded-br-md" : "rounded-bl-md") : ""} ${surface}`}
-      >
-        {parent ? (
-          <span
-            aria-hidden="true"
-            className={`absolute bottom-1 h-3 w-3 rotate-45 ${
-              own
-                ? "bg-moto-blue-soft -right-1"
-                : "-left-1 border-b border-l border-gray-200 bg-white"
-            }`}
-          />
-        ) : null}
-        <span className="relative">{body}</span>
-      </div>
+        /* oxlint-disable-next-line ui-kit/no-hand-rolled-surface, ui-kit/no-hand-rolled-notice -- Nachrichtensprechblase, keine Kartenfläche und kein Hinweis */
+        <div
+          className={`relative max-w-[84%] rounded-xl px-3 py-2 break-words whitespace-pre-wrap sm:max-w-[72%] lg:max-w-[38rem] ${
+            pending === "pending" ? "opacity-70" : ""
+          } ${
+            parent
+              ? "text-[15px] leading-5 sm:text-base sm:leading-6"
+              : "text-sm leading-5"
+          } ${parent ? (own ? "rounded-br-md" : "rounded-bl-md") : ""} ${surface}`}
+        >
+          {parent ? (
+            <span
+              aria-hidden="true"
+              className={`absolute bottom-1 h-3 w-3 rotate-45 ${
+                own
+                  ? "bg-moto-blue-soft -right-1"
+                  : "-left-1 border-b border-l border-gray-200 bg-white"
+              }`}
+            />
+          ) : null}
+          <span className="relative">{body}</span>
+        </div>
       ) : null}
       {parent ? (
         <div className="mt-0.5 flex items-center gap-1 px-1 text-xs text-gray-500">

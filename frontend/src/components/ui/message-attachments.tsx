@@ -134,11 +134,7 @@ export function MessageAttachments({
                   wide && "col-span-2",
                 )}
                 style={{
-                  aspectRatio: single
-                    ? singleAspect(single)
-                    : wide
-                      ? 2
-                      : 1,
+                  aspectRatio: single ? singleAspect(single) : wide ? 2 : 1,
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- private, session-bound file; next/image cannot fetch it */}
@@ -192,7 +188,6 @@ export function MessageAttachments({
               href={downloadUrl(item.id)}
               download={item.filename}
               aria-label={labels.downloadFile(item.filename)}
-              title={labels.downloadFile(item.filename)}
               data-icon-only=""
               className={buttonClassName({
                 variant: "ghost",

@@ -68,6 +68,11 @@ func ParseMessageAttachment(w http.ResponseWriter, r *http.Request, maxFileSize 
 		// then shows it without a reserved frame.
 		if config, _, decodeErr := image.DecodeConfig(bytes.NewReader(data)); decodeErr == nil {
 			upload.Width, upload.Height = config.Width, config.Height
+			// A portrait phone photo is stored lying down with an
+			// orientation; the reader's frame follows what is shown.
+			if imagemeta.ShownRotated(data, uploaded.ContentType) {
+				upload.Width, upload.Height = config.Height, config.Width
+			}
 		}
 	}
 	if len(data) == 0 {

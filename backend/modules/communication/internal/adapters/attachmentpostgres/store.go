@@ -168,8 +168,11 @@ func (r *recordRow) record() *communication.MessageAttachmentRecord {
 }
 
 // findForGuardianSQL admits an attachment only through a conversation of
-// this guardian about this child: a message of their 1:1 conversation, a
-// group message that reached them for the child, or their own unsent upload.
+// this guardian: a message of their 1:1 conversation about this child, a
+// group message that reached them, or their own unsent upload. A group
+// message reaches a guardian for one or several of their children; which
+// one the caller names does not matter, because the caller has authorized
+// the guardian for that child and the school is the child's.
 const findForGuardianSQL = `SELECT attachment.*
 FROM users.message_attachments AS attachment
 WHERE attachment.tenant_id = ? AND attachment.id = ? AND attachment.scope = 'parent'
@@ -184,7 +187,7 @@ WHERE attachment.tenant_id = ? AND attachment.id = ? AND attachment.scope = 'par
 	OR EXISTS (
 		SELECT 1 FROM users.parent_group_message_recipients AS recipient
 		WHERE recipient.message_id = attachment.parent_group_message_id AND recipient.tenant_id = attachment.tenant_id
-		  AND recipient.guardian_account_id = ? AND recipient.student_id = ?)
+		  AND recipient.guardian_account_id = ?)
   )`
 
 // FindForGuardian returns the attachment when the guardian may read it for
@@ -195,7 +198,7 @@ func (s *Store) FindForGuardian(ctx context.Context, accountID, studentID, attac
 		return nil, err
 	}
 	row := new(recordRow)
-	if err := db.NewRaw(findForGuardianSQL, tenantID, attachmentID, accountID, accountID, studentID, accountID, studentID).Scan(ctx, row); err != nil {
+	if err := db.NewRaw(findForGuardianSQL, tenantID, attachmentID, accountID, accountID, studentID, accountID).Scan(ctx, row); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}

@@ -170,51 +170,60 @@ export function ParentGroupThreadView({
   );
   // The files of the last attempt: a retry sends them again.
   const sentFiles = useRef<readonly MessageAttachment[]>([]);
-  const handleSend = useCallback(async (picked?: readonly MessageAttachment[]) => {
-    const attachments = picked ?? sentFiles.current;
-    const body = draft.trim();
-    if ((!body && attachments.length === 0) || sending || !selected) return;
-    sentFiles.current = attachments;
-    const clientMessageId = attempt.begin(
-      [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
-    );
-    setSending(true);
-    clearSendError();
-    try {
-      await postChildMessage(
-        selected,
-        body,
-        groupThreadId,
-        "team",
-        clientMessageId,
-        ...attachmentIdArgs(attachments),
+  // Whether the last attempt arrived: otherwise the composer keeps the files.
+  const sendArrived = useRef(true);
+  const handleSend = useCallback(
+    async (picked?: readonly MessageAttachment[]) => {
+      const attachments = picked ?? sentFiles.current;
+      const body = draft.trim();
+      if ((!body && attachments.length === 0) || sending || !selected) return;
+      sentFiles.current = attachments;
+      sendArrived.current = true;
+      const clientMessageId = attempt.begin(
+        [body, ...attachments.map((attachment) => attachment.id)].join(
+          "\u0000",
+        ),
       );
-      attempt.complete(clientMessageId);
-      sentFiles.current = [];
-      if (!mountedRef.current) return;
-      setDraft("");
-      setSentFor(selected);
-    } catch (err) {
-      logger.warn("group_thread_answer_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showSendError(err, {
-        object: t("errorObjectAnswer"),
-        retry: () => void sendRef.current(),
-      });
-    } finally {
-      if (mountedRef.current) setSending(false);
-    }
-  }, [
-    draft,
-    sending,
-    selected,
-    groupThreadId,
-    attempt,
-    clearSendError,
-    showSendError,
-    t,
-  ]);
+      setSending(true);
+      clearSendError();
+      try {
+        await postChildMessage(
+          selected,
+          body,
+          groupThreadId,
+          "team",
+          clientMessageId,
+          ...attachmentIdArgs(attachments),
+        );
+        attempt.complete(clientMessageId);
+        sentFiles.current = [];
+        if (!mountedRef.current) return;
+        setDraft("");
+        setSentFor(selected);
+      } catch (err) {
+        sendArrived.current = false;
+        logger.warn("group_thread_answer_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showSendError(err, {
+          object: t("errorObjectAnswer"),
+          retry: () => void sendRef.current(),
+        });
+      } finally {
+        if (mountedRef.current) setSending(false);
+      }
+    },
+    [
+      draft,
+      sending,
+      selected,
+      groupThreadId,
+      attempt,
+      clearSendError,
+      showSendError,
+      t,
+    ],
+  );
   const sendRef = useRef(handleSend);
   useLayoutEffect(() => {
     sendRef.current = handleSend;
@@ -338,7 +347,10 @@ export function ParentGroupThreadView({
             <MessageComposer
               value={draft}
               onChange={setDraft}
-              onSend={(files) => void handleSend(files)}
+              onSend={async (files) => {
+                await handleSend(files);
+                return sendArrived.current;
+              }}
               sending={sending}
               attachments={
                 selected

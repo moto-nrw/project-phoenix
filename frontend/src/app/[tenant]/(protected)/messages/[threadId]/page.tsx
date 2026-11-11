@@ -368,6 +368,8 @@ function MessageThreadContent() {
   const attempt = useMessageSendAttempt(messageKeys.messageThread(threadId));
   // Die Dateien des letzten Versuchs: „Wiederholen“ sendet sie erneut.
   const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  // Ob der letzte Versuch ankam: sonst behält das Eingabefeld die Dateien.
+  const sendArrived = useRef(true);
   const handleSend = async (picked?: readonly MessageAttachment[]) => {
     const attachments = picked ?? sentFiles.current;
     const body = draft.trim();
@@ -380,6 +382,7 @@ function MessageThreadContent() {
       return;
     }
     sentFiles.current = attachments;
+    sendArrived.current = true;
     const clientMessageId = attempt.begin(
       [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
     );
@@ -445,6 +448,7 @@ function MessageThreadContent() {
           key.startsWith(messageKeys.messagesInboxFamily()),
       },
     });
+    sendArrived.current = outcome.status !== "failed";
     if (outcome.status === "done") {
       attempt.complete(clientMessageId);
       sentFiles.current = [];
@@ -693,7 +697,10 @@ function MessageThreadContent() {
                   draftRevision.current += 1;
                   setDraft(value);
                 }}
-                onSend={(files) => void handleSend(files)}
+                onSend={async (files) => {
+                  await handleSend(files);
+                  return sendArrived.current;
+                }}
                 sending={isSending}
                 disabled={snapshotUnavailable}
                 attachments={{
