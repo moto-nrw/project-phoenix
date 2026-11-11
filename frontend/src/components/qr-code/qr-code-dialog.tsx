@@ -196,7 +196,7 @@ export function QrCodeDialog({
     >
       <div className="space-y-5">
         <InsetPanel padding="md" className="flex flex-col items-center gap-3">
-          <div className="moto-content-surface aspect-square w-full max-w-60 rounded-xl border p-3">
+          <div className="moto-content-surface aspect-square w-full max-w-52 rounded-xl border p-3">
             {waitingForLogo ? (
               <Skeleton shape="inner" className="h-full w-full" />
             ) : (
@@ -208,7 +208,8 @@ export function QrCodeDialog({
           </p>
         </InsetPanel>
 
-        <div className="space-y-4">
+        {/* Gap, not space-y: the Dropzone's fieldset resets its own margin. */}
+        <div className="flex flex-col gap-4">
           <div className="space-y-2">
             <SectionLabel id="qr-logo-choice">Logo in der Mitte</SectionLabel>
             <SegmentedControl
@@ -240,7 +241,6 @@ export function QrCodeDialog({
           {showBackgroundSwitch ? (
             <SwitchRow
               label="Hintergrund entfernen"
-              description="Nimmt die einfarbige Fläche hinter dem Logo weg."
               checked={removeBackground}
               onCheckedChange={setRemoveBackground}
             />
