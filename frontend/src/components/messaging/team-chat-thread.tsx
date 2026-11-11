@@ -1,5 +1,6 @@
 "use client";
 
+import type { MessageAttachment } from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 
 import { messageKeys } from "~/lib/swr/portal-keys";
@@ -223,10 +224,16 @@ export function TeamChatThread({
   }, [thread, sendError.error]);
 
   const attempt = useMessageSendAttempt(threadKey);
-  const handleSend = async () => {
+  // Die Dateien des letzten Versuchs: „Wiederholen“ sendet sie erneut.
+  const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  const handleSend = async (picked?: readonly MessageAttachment[]) => {
+    const attachments = picked ?? sentFiles.current;
     const body = draft.trim();
-    if (!body || isSending) return;
-    const clientMessageId = attempt.begin(body);
+    if ((!body && attachments.length === 0) || isSending) return;
+    sentFiles.current = attachments;
+    const clientMessageId = attempt.begin(
+      [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
+    );
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     send.dismiss();
@@ -259,10 +266,17 @@ export function TeamChatThread({
             sender_name: "",
             body,
             created_at: "",
+            attachments,
           },
         ],
       }),
-      request: () => api.postMessage(threadID, body, clientMessageId),
+      request: () =>
+        api.postMessage(
+          threadID,
+          body,
+          clientMessageId,
+          attachments.map((attachment) => attachment.id),
+        ),
       // Revalidate stays as a freshness backstop.
       commit: (sent) =>
         void mutate(
@@ -280,7 +294,10 @@ export function TeamChatThread({
           key.startsWith(messageKeys.teamChatInboxFamily()),
       },
     });
-    if (outcome.status === "done") attempt.complete(clientMessageId);
+    if (outcome.status === "done") {
+      attempt.complete(clientMessageId);
+      sentFiles.current = [];
+    }
     if (
       outcome.status !== "failed" ||
       (!outcome.refused && !attempt.isActive(clientMessageId))
@@ -425,6 +442,8 @@ export function TeamChatThread({
                       // noise; in a group the others' names say who wrote.
                       showOwnSenderName={false}
                       pending={pending}
+                      attachments={message.attachments}
+                      attachmentUrl={portal.attachments.downloadUrl}
                     />
                   </div>
                   {group && own && pending === undefined && (
@@ -459,9 +478,10 @@ export function TeamChatThread({
               draftRevision.current += 1;
               setDraft(value);
             }}
-            onSend={() => void handleSend()}
+            onSend={(files) => void handleSend(files)}
             sending={isSending}
             disabled={showSkeleton}
+            attachments={{ uploadUrl: portal.attachments.uploadUrl }}
             placeholder="Nachricht schreiben…"
           />
         ) : (

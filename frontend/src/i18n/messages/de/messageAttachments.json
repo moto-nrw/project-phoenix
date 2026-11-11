@@ -1,0 +1,18 @@
+{
+  "attach": "Foto oder Datei anhängen",
+  "attachHint": "Bis zu {max} Dateien, je höchstens {mb} MB: Fotos, PDF, Word, Excel, PowerPoint",
+  "remove": "Anhang entfernen: {filename}",
+  "uploading": "{filename} wird hochgeladen",
+  "tooMany": "Eine Nachricht kann höchstens {max} Dateien haben.",
+  "tooLarge": "„{filename}“ ist zu groß. Erlaubt sind bis zu {mb} MB je Datei.",
+  "wrongType": "„{filename}“ kann nicht angehängt werden. Erlaubt sind Fotos, PDF, Word, Excel und PowerPoint.",
+  "fileObject": "die Datei",
+  "openImage": "Bild öffnen: {filename}",
+  "downloadFile": "Herunterladen: {filename}",
+  "moreImages": "{count, plural, one {# weiteres Bild} other {# weitere Bilder}}",
+  "close": "Schließen",
+  "previous": "Vorheriges Bild",
+  "next": "Nächstes Bild",
+  "download": "Herunterladen",
+  "position": "{current} von {total}"
+}

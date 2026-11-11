@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { SCHOOL_STAFF_MESSAGE_ATTACHMENTS } from "~/lib/message-attachments";
 import type { TeamChatPortal } from "~/lib/team-chat-portal";
 import { schoolStaffMessagesApi } from "~/lib/school-staff-messages-api";
 import { SCHOOL_MESSAGES_ROUTE } from "~/lib/school-team-chat-links";
@@ -27,6 +28,7 @@ export function useSchoolTeamChatPortal(): TeamChatPortal {
     () => ({
       kind: "school",
       api: schoolStaffMessagesApi,
+      attachments: SCHOOL_STAFF_MESSAGE_ATTACHMENTS,
       cacheScope,
       inboxHref: SCHOOL_MESSAGES_ROUTE,
       threadHref: (threadId) => `${SCHOOL_MESSAGES_ROUTE}/${threadId}`,

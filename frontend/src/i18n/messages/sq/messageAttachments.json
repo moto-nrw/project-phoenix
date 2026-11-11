@@ -1,0 +1,18 @@
+{
+  "attach": "Bashkëngjit foto ose skedar",
+  "attachHint": "Deri në {max} skedarë, secili më së shumti {mb} MB: foto, PDF, Word, Excel, PowerPoint",
+  "remove": "Hiq bashkëngjitjen: {filename}",
+  "uploading": "Po ngarkohet {filename}",
+  "tooMany": "Një mesazh mund të ketë më së shumti {max} skedarë.",
+  "tooLarge": "„{filename}“ është shumë i madh. Çdo skedar mund të jetë deri në {mb} MB.",
+  "wrongType": "„{filename}“ nuk mund të bashkëngjitet. Lejohen foto, PDF, Word, Excel dhe PowerPoint.",
+  "fileObject": "skedari",
+  "openImage": "Hap foton: {filename}",
+  "downloadFile": "Shkarko: {filename}",
+  "moreImages": "{count, plural, one {# foto tjetër} other {# foto të tjera}}",
+  "close": "Mbyll",
+  "previous": "Fotoja e mëparshme",
+  "next": "Fotoja tjetër",
+  "download": "Shkarko",
+  "position": "{current} nga {total}"
+}

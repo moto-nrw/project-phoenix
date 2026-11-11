@@ -1,0 +1,18 @@
+{
+  "attach": "Attach a photo or file",
+  "attachHint": "Up to {max} files, {mb} MB each at most: photos, PDF, Word, Excel, PowerPoint",
+  "remove": "Remove attachment: {filename}",
+  "uploading": "Uploading {filename}",
+  "tooMany": "A message can have at most {max} files.",
+  "tooLarge": "“{filename}” is too large. Each file can be up to {mb} MB.",
+  "wrongType": "“{filename}” cannot be attached. Photos, PDF, Word, Excel and PowerPoint are allowed.",
+  "fileObject": "the file",
+  "openImage": "Open picture: {filename}",
+  "downloadFile": "Download: {filename}",
+  "moreImages": "{count, plural, one {# more picture} other {# more pictures}}",
+  "close": "Close",
+  "previous": "Previous picture",
+  "next": "Next picture",
+  "download": "Download",
+  "position": "{current} of {total}"
+}

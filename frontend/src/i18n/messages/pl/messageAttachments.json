@@ -1,0 +1,18 @@
+{
+  "attach": "Dołącz zdjęcie lub plik",
+  "attachHint": "Do {max} plików, każdy najwyżej {mb} MB: zdjęcia, PDF, Word, Excel, PowerPoint",
+  "remove": "Usuń załącznik: {filename}",
+  "uploading": "Przesyłanie: {filename}",
+  "tooMany": "Wiadomość może mieć najwyżej {max} plików.",
+  "tooLarge": "„{filename}” jest za duży. Każdy plik może mieć do {mb} MB.",
+  "wrongType": "Nie można dołączyć „{filename}”. Dozwolone są zdjęcia, PDF, Word, Excel i PowerPoint.",
+  "fileObject": "pliku",
+  "openImage": "Otwórz zdjęcie: {filename}",
+  "downloadFile": "Pobierz: {filename}",
+  "moreImages": "{count, plural, one {# kolejne zdjęcie} few {# kolejne zdjęcia} many {# kolejnych zdjęć} other {# kolejnego zdjęcia}}",
+  "close": "Zamknij",
+  "previous": "Poprzednie zdjęcie",
+  "next": "Następne zdjęcie",
+  "download": "Pobierz",
+  "position": "{current} z {total}"
+}

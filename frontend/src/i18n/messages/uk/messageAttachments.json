@@ -1,0 +1,18 @@
+{
+  "attach": "Додати фото або файл",
+  "attachHint": "До {max} файлів, кожен не більше {mb} МБ: фото, PDF, Word, Excel, PowerPoint",
+  "remove": "Вилучити вкладення: {filename}",
+  "uploading": "Завантажується: {filename}",
+  "tooMany": "У повідомленні може бути не більше {max} файлів.",
+  "tooLarge": "«{filename}» завеликий. Кожен файл може бути до {mb} МБ.",
+  "wrongType": "«{filename}» не можна додати. Дозволені фото, PDF, Word, Excel і PowerPoint.",
+  "fileObject": "файл",
+  "openImage": "Відкрити фото: {filename}",
+  "downloadFile": "Завантажити: {filename}",
+  "moreImages": "{count, plural, one {ще # фото} few {ще # фото} many {ще # фото} other {ще # фото}}",
+  "close": "Закрити",
+  "previous": "Попереднє фото",
+  "next": "Наступне фото",
+  "download": "Завантажити",
+  "position": "{current} з {total}"
+}

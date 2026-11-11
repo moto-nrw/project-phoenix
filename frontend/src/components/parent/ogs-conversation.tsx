@@ -1,5 +1,10 @@
 "use client";
 
+import { useParentAttachmentLabels } from "~/components/parent/messages/attachment-labels";
+import {
+  guardianMessageAttachments,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
@@ -7,6 +12,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -354,12 +360,23 @@ export function OgsConversation({
     // view (#5011).
   }, [thread, care.loading, sendError]);
 
+  const attachmentLabels = useParentAttachmentLabels();
+  const attachmentRoutes = useMemo(
+    () => guardianMessageAttachments(studentId),
+    [studentId],
+  );
   const attempt = useMessageSendAttempt(conversationKey);
   const { run: runSend, dismiss: dismissFailedSend } = send;
-  const handleSend = useCallback(async () => {
+  // The files of the last attempt: a retry sends them again.
+  const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  const handleSend = useCallback(async (picked?: readonly MessageAttachment[]) => {
+    const attachments = picked ?? sentFiles.current;
     const body = draft.trim();
-    if (!body || sending) return;
-    const clientMessageId = attempt.begin(body);
+    if ((!body && attachments.length === 0) || sending) return;
+    sentFiles.current = attachments;
+    const clientMessageId = attempt.begin(
+      [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
+    );
     clearSendError();
     // A new attempt replaces the bubble marked as not sent.
     dismissFailedSend();
@@ -393,11 +410,19 @@ export function OgsConversation({
             sender_name: "",
             body,
             created_at: "",
+            attachments,
           },
         ],
       }),
       request: () =>
-        postChildMessage(studentId, body, undefined, audience, clientMessageId),
+        postChildMessage(
+          studentId,
+          body,
+          undefined,
+          audience,
+          clientMessageId,
+          attachments.map((attachment) => attachment.id),
+        ),
       // Claim the token AFTER the POST resolves so this authoritative result
       // wins. A successful send means the thread is loadable, so clear any
       // stale load error left by an earlier failed background refresh. A
@@ -418,6 +443,7 @@ export function OgsConversation({
       },
     });
     if (outcome.status === "done") {
+      sentFiles.current = [];
       attempt.complete(clientMessageId);
       // Sending advances the reader's own cursor (any prior staff messages
       // are now read), so refresh the sidebar badge.
@@ -651,6 +677,9 @@ export function OgsConversation({
                       !genericStaffSender && !sameSenderAsPrevious
                     }
                     tone="parent"
+                    attachments={message.attachments}
+                    attachmentUrl={attachmentRoutes.downloadUrl}
+                    attachmentLabels={attachmentLabels.bubble}
                     pending={send.stateOf(message.id)}
                     pendingLabel={
                       send.stateOf(message.id) === "failed"
@@ -771,8 +800,12 @@ export function OgsConversation({
                   draftRevision.current += 1;
                   setDraft(value);
                 }}
-                onSend={() => void handleSend()}
+                onSend={(files) => void handleSend(files)}
                 sending={sending}
+                attachments={{
+                  uploadUrl: attachmentRoutes.uploadUrl,
+                  labels: attachmentLabels.composer,
+                }}
                 placeholder={tm(
                   leadershipView
                     ? "composerPlaceholderLeadership"

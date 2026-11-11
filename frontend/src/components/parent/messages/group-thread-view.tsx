@@ -1,5 +1,10 @@
 "use client";
 
+import { useParentAttachmentLabels } from "~/components/parent/messages/attachment-labels";
+import {
+  guardianMessageAttachments,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
@@ -158,13 +163,20 @@ export function ParentGroupThreadView({
     return () => window.removeEventListener("focus", refresh);
   }, []);
 
+  const attachmentLabels = useParentAttachmentLabels();
   const attempt = useMessageSendAttempt(
     `parent-group-reply:${groupThreadId}:${selected ?? ""}`,
   );
-  const handleSend = useCallback(async () => {
+  // The files of the last attempt: a retry sends them again.
+  const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  const handleSend = useCallback(async (picked?: readonly MessageAttachment[]) => {
+    const attachments = picked ?? sentFiles.current;
     const body = draft.trim();
-    if (!body || sending || !selected) return;
-    const clientMessageId = attempt.begin(body);
+    if ((!body && attachments.length === 0) || sending || !selected) return;
+    sentFiles.current = attachments;
+    const clientMessageId = attempt.begin(
+      [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
+    );
     setSending(true);
     clearSendError();
     try {
@@ -174,8 +186,10 @@ export function ParentGroupThreadView({
         groupThreadId,
         "team",
         clientMessageId,
+        attachments.map((attachment) => attachment.id),
       );
       attempt.complete(clientMessageId);
+      sentFiles.current = [];
       if (!mountedRef.current) return;
       setDraft("");
       setSentFor(selected);
@@ -229,6 +243,8 @@ export function ParentGroupThreadView({
     ? parentReadersLine(thread.readers, tm)
     : null;
   const chatChild = sentFor ?? selected ?? thread.children[0]?.student_id;
+  // Any of the guardian's children the thread reached opens its files.
+  const firstChild = thread.children[0]?.student_id;
   const chatLink = chatChild ? (
     <NavigationLink
       href={parentPath(childConversationPath(chatChild))}
@@ -262,6 +278,13 @@ export function ParentGroupThreadView({
               createdAt={message.created_at}
               locale={locale}
               tone="parent"
+              attachments={message.attachments}
+              attachmentUrl={
+                firstChild
+                  ? guardianMessageAttachments(firstChild).downloadUrl
+                  : undefined
+              }
+              attachmentLabels={attachmentLabels.bubble}
             />
           ))}
         </div>
@@ -314,8 +337,16 @@ export function ParentGroupThreadView({
             <MessageComposer
               value={draft}
               onChange={setDraft}
-              onSend={() => void handleSend()}
+              onSend={(files) => void handleSend(files)}
               sending={sending}
+              attachments={
+                selected
+                  ? {
+                      uploadUrl: guardianMessageAttachments(selected).uploadUrl,
+                      labels: attachmentLabels.composer,
+                    }
+                  : undefined
+              }
               placeholder={t("replyPlaceholder")}
               tone="parent"
               sendLabel={tm("send")}
