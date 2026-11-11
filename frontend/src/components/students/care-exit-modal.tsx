@@ -71,6 +71,12 @@ interface CareExitModalProps {
    * nur den Grund ändern will, verschiebt das Ende ungewollt nach vorne.
    */
   readonly plannedLastCareDay?: string;
+  /**
+   * Vorschlag für den letzten Betreuungstag, wenn noch kein Ende eingetragen
+   * ist, etwa das neue Ende einer gekürzten Anmeldephase (#6598). Ein Tag in
+   * der Vergangenheit ist nicht wählbar; dann steht der heutige Tag im Feld.
+   */
+  readonly suggestedLastCareDay?: string;
   /** Durable follow-up created by an authoritative complete withdrawal. */
   readonly completionId?: string;
   readonly firstBookinglessDay?: string;
@@ -89,6 +95,7 @@ export function CareExitModal({
   isOpen,
   studentIds,
   plannedLastCareDay,
+  suggestedLastCareDay,
   completionId,
   firstBookinglessDay,
   onClose,
@@ -100,10 +107,11 @@ export function CareExitModal({
     if (!completionId || !firstBookinglessDay) return null;
     return lastCareDayBefore(firstBookinglessDay);
   }, [completionId, firstBookinglessDay]);
+  const presetLastCareDay = plannedLastCareDay ?? suggestedLastCareDay;
   const initialLastCareDay =
     completionLastCareDay ??
-    (plannedLastCareDay && plannedLastCareDay >= berlinTodayISO()
-      ? plannedLastCareDay
+    (presetLastCareDay && presetLastCareDay >= berlinTodayISO()
+      ? presetLastCareDay
       : berlinTodayISO());
   const isCorrection = Boolean(plannedLastCareDay);
   const [step, setStep] = useState<1 | 2>(1);

@@ -48,6 +48,11 @@ import {
   updatePhase,
 } from "~/lib/enrollment-phase-api";
 import { Alert } from "~/components/ui/alert";
+import { useSession } from "next-auth/react";
+import { hasPermission } from "~/lib/auth-utils";
+import { CareExitModal } from "~/components/students/care-exit-modal";
+import { PhaseCareBeyondEndDialog } from "~/components/enrollment/phase-care-beyond-end-dialog";
+import type { CareBeyondPhaseEnd } from "~/lib/enrollment-phase-api";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
@@ -295,6 +300,17 @@ export function PhasesEditor() {
   const impactRequestRef = useRef(0);
   const rolloverRequestRef = useRef<string | null>(null);
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
+  // Kinder, deren Betreuung nach dem Kürzen der Phase länger läuft (#6598).
+  // Erst der Hinweis, dann auf Wunsch „Betreuung beenden“ für alle.
+  const [careBeyondEnd, setCareBeyondEnd] = useState<{
+    phaseName: string;
+    phaseEnd: string;
+    students: CareBeyondPhaseEnd[];
+  } | null>(null);
+  const [careExitOpen, setCareExitOpen] = useState(false);
+  const { data: session } = useSession();
+  // „Betreuung beenden“ verlangt users:delete wie im Backend.
+  const canEndCare = hasPermission(session, "users:delete");
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
   const panelOpen = Boolean((editingId && draft) ?? rolloverSource);
@@ -526,6 +542,13 @@ export function PhasesEditor() {
         } else if (editingId) {
           const updated = await updatePhase(editingId, payload);
           toast.success(`Die Anmeldephase „${updated.name}“ ist gespeichert.`);
+          if (updated.careBeyondEnd?.length) {
+            setCareBeyondEnd({
+              phaseName: updated.name,
+              phaseEnd: updated.service_end_date,
+              students: updated.careBeyondEnd,
+            });
+          }
         }
         if (op.isCurrent()) cancelEdit();
         await loadAll();
@@ -978,6 +1001,32 @@ export function PhasesEditor() {
               </SlideOverBody>
             </SlideOverContent>
           </SlideOver>
+
+          {careBeyondEnd && !careExitOpen ? (
+            <PhaseCareBeyondEndDialog
+              phaseName={careBeyondEnd.phaseName}
+              phaseEnd={careBeyondEnd.phaseEnd}
+              students={careBeyondEnd.students}
+              canEndCare={canEndCare}
+              onEndCare={() => setCareExitOpen(true)}
+              onClose={() => setCareBeyondEnd(null)}
+            />
+          ) : null}
+          {careBeyondEnd && careExitOpen ? (
+            <CareExitModal
+              isOpen
+              studentIds={careBeyondEnd.students.map(
+                (child) => child.studentId,
+              )}
+              suggestedLastCareDay={careBeyondEnd.phaseEnd}
+              onClose={() => setCareExitOpen(false)}
+              onFinished={() => {
+                setCareExitOpen(false);
+                setCareBeyondEnd(null);
+                toast.success("Das Ende der Betreuung ist eingetragen.");
+              }}
+            />
+          ) : null}
 
           {deleteTarget && (
             <ConfirmDeleteModal

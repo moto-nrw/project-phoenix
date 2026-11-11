@@ -238,6 +238,57 @@ describe("PhasesEditor", () => {
     );
   });
 
+  // #6598: Kürzt die Schule das Phasenende, nennt der Dialog nach dem
+  // Speichern die schon betreuten Kinder mit beiden Enden.
+  it("names the children whose care runs past a shortened end after saving", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue({
+      ...phase({ service_end_date: "2027-06-30" }),
+      careBeyondEnd: [
+        {
+          studentId: "7",
+          firstName: "Mia",
+          lastName: "Lang",
+          schoolClass: "2b",
+          careEnd: "2027-07-31",
+          phaseEnd: "2027-06-30",
+        },
+      ],
+    });
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Betreuung läuft länger als die Phase",
+    });
+    expect(within(dialog).getByText("Mia Lang")).toBeVisible();
+    expect(within(dialog).getByText("Betreuung bis 31.07.2027")).toBeVisible();
+    expect(
+      within(dialog).getByText(/endet jetzt am 30\.06\.2027/),
+    ).toBeVisible();
+    // Die Sitzung dieser Suite hat kein users:delete.
+    expect(
+      within(dialog).getByText(/Die Betreuung beenden darf nur/),
+    ).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Schließen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Betreuung läuft länger als die Phase",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("uses the button foreground color for the create action icon", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listSchemas.mockResolvedValue([schema()]);
