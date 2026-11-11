@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayHostOwnContactsVersion = "1.15.926"
+const holidayHostOwnContactsVersion = "1.15.934"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayHostOwnContactsVersion,
 		Description: "Ferienwochen: die ausrichtende OGS liest Notfall und Abholung aus der Anmeldung ihrer eigenen Kinder (#6678)",
 		DependsOn: []string{
-			holidayWeekCapacityVersion,        // enrollment.holiday_host_guest_contacts as it stands
-			dataReturnErasureOrderLockVersion, // the newest on development (1.15.919)
+			holidayWeekCapacityVersion,              // enrollment.holiday_host_guest_contacts as it stands
+			holidayRegistrationRetentionDaysVersion, // the newest on development (1.15.928)
 		},
 	})
 	Migrations.MustRegister(holidayHostOwnContactsUp, holidayHostOwnContactsDown)
