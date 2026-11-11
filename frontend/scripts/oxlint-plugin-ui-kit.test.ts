@@ -4643,6 +4643,10 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
       `<Button {...{ tooltip: "Öffnet die Akte." }}>Akte</Button>`,
     ],
     [
+      "a tooltip after an empty spread object literal",
+      `<Button {...{ tooltip: "" }} tooltip="Öffnet die Akte.">Akte</Button>`,
+    ],
+    [
       "noTooltip with a reason",
       `<Button noTooltip="Abbrechen schließt nur den Dialog.">Abbrechen</Button>`,
     ],
@@ -4700,6 +4704,26 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
       "an undefined noTooltip reason in a spread object literal",
       `<Button {...{ noTooltip: undefined }}>Abbrechen</Button>`,
       "braucht einen Grund",
+    ],
+    [
+      "a tooltip overwritten by an empty spread object literal",
+      `<Button tooltip="Öffnet die Akte." {...{ tooltip: "" }}>Akte</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "a tooltip overwritten by a later empty spread object literal",
+      `<Button {...{ tooltip: "Öffnet die Akte." }} {...{ tooltip: "" }}>Akte</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "a noTooltip reason overwritten by an empty spread object literal",
+      `<Button noTooltip="Abbrechen schließt nur den Dialog." {...{ noTooltip: "" }}>Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "title in a spread object literal",
+      `<Button {...{ title: "Akte", tooltip: "Öffnet die Akte." }}>Akte</Button>`,
+      "`title` ersetzt keine Erklärung",
     ],
     [
       "a button-looking anchor without ActionHint",

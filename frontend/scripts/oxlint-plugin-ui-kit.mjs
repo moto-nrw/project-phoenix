@@ -5928,10 +5928,25 @@ function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
   );
 }
 
-function tooltipFromSpread(openingElement) {
+function tooltipPropsFromAttributes(openingElement) {
+  const props = {
+    tooltip: null,
+    noTooltip: null,
+    title: null,
+  };
   let unknownSpread = false;
   for (const attribute of openingElement.attributes) {
-    if (attribute.type !== "JSXSpreadAttribute") continue;
+    if (attribute.type === "JSXAttribute") {
+      const name = attribute.name?.name;
+      if (name === "tooltip" || name === "noTooltip" || name === "title") {
+        props[name] = {
+          node: attribute,
+          value: attribute.value,
+          attribute: true,
+        };
+      }
+      continue;
+    }
     const argument = attribute.argument;
     if (argument?.type !== "ObjectExpression") {
       unknownSpread = true;
@@ -5943,12 +5958,16 @@ function tooltipFromSpread(openingElement) {
         continue;
       }
       const name = propertyName(property);
-      if (name === "tooltip" || name === "noTooltip") {
-        return { name, node: property, value: property.value };
+      if (name === "tooltip" || name === "noTooltip" || name === "title") {
+        props[name] = {
+          node: property,
+          value: property.value,
+          attribute: false,
+        };
       }
     }
   }
-  return unknownSpread ? { name: null } : null;
+  return { props, unknownSpread };
 }
 
 /** Static string of an expression, also from a template without expressions. */
@@ -5978,6 +5997,12 @@ function isBlankAttribute(attribute) {
   }
   if (attribute.value.type !== "JSXExpressionContainer") return false;
   return isBlankExpression(attribute.value.expression);
+}
+
+function isBlankTooltipProp(prop) {
+  return prop.attribute
+    ? isBlankAttribute(prop.node)
+    : isBlankExpression(prop.value);
 }
 
 function usesButtonClassName(node, bindings, constants, depth = 0) {
@@ -6095,47 +6120,30 @@ const buttonNeedsTooltip = {
       JSXOpeningElement(node) {
         const name = jsxName(node.name);
         if (name === null || actionHints.has(name)) return;
-        const title = jsxAttribute(node, "title");
         if (bindings.kitButtons.has(name)) {
+          const { props: tooltipProps, unknownSpread } =
+            tooltipPropsFromAttributes(node);
+          const { title, tooltip, noTooltip } = tooltipProps;
           if (title) {
-            context.report({ node: title, messageId: "title" });
+            context.report({ node: title.node, messageId: "title" });
             return;
           }
-          const tooltip = jsxAttribute(node, "tooltip");
-          const noTooltip = jsxAttribute(node, "noTooltip");
           if (tooltip) {
-            if (isBlankAttribute(tooltip)) {
-              context.report({ node: tooltip, messageId: "emptyTooltip" });
+            if (isBlankTooltipProp(tooltip)) {
+              context.report({ node: tooltip.node, messageId: "emptyTooltip" });
             }
             return;
           }
           if (noTooltip) {
-            if (isBlankAttribute(noTooltip)) {
-              context.report({ node: noTooltip, messageId: "emptyReason" });
-            }
-            return;
-          }
-          const tooltipSpread = tooltipFromSpread(node);
-          if (tooltipSpread) {
-            if (
-              tooltipSpread.name === "tooltip" &&
-              isBlankExpression(tooltipSpread.value)
-            ) {
+            if (isBlankTooltipProp(noTooltip)) {
               context.report({
-                node: tooltipSpread.node,
-                messageId: "emptyTooltip",
-              });
-            } else if (
-              tooltipSpread.name === "noTooltip" &&
-              isBlankExpression(tooltipSpread.value)
-            ) {
-              context.report({
-                node: tooltipSpread.node,
+                node: noTooltip.node,
                 messageId: "emptyReason",
               });
             }
             return;
           }
+          if (unknownSpread) return;
           context.report({ node, messageId: "missing" });
           return;
         }
