@@ -261,9 +261,17 @@ function DienstplanContent() {
   // Ferienwochen der Schule für ihren Träger (ADR 0116): an diesen Tagen
   // braucht die Ferienbetreuung Personal, auch ohne Termin im Betreuungsplan.
   const holidayWeeks = usePlanningHolidayWeeks();
+  // Erst mit den Schließtagen: ein Schließtag darf nicht kurz als
+  // Ferienbetreuung erscheinen.
   const holidayCare = useMemo(
-    () => holidayCareDays(holidayWeeks.weeks, weekFrom, weekTo, closingDays),
-    [holidayWeeks.weeks, weekFrom, weekTo, closingDays],
+    () =>
+      holidayCareDays(
+        closingDaysLoading ? [] : holidayWeeks.weeks,
+        weekFrom,
+        weekTo,
+        closingDays,
+      ),
+    [holidayWeeks.weeks, weekFrom, weekTo, closingDays, closingDaysLoading],
   );
   const holidayCareHref = holidayWeeks.canOpenList
     ? tenantPath("/ferienwochen")

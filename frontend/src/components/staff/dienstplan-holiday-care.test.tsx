@@ -1,9 +1,16 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 import type { HolidayCareDay } from "~/lib/holiday-care";
 import type { StaffScheduleStaff } from "~/lib/shift-helpers";
+
+const mocks = vi.hoisted(() => ({ useMediaQuery: vi.fn(() => false) }));
+
+vi.mock("~/lib/hooks/use-media-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/hooks/use-media-query")>()),
+  useMediaQuery: mocks.useMediaQuery,
+}));
 
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
@@ -51,6 +58,8 @@ const HOLIDAY_CARE = new Map<string, HolidayCareDay>(
 const CLOSING = new Map([["2027-01-06", "Pädagogischer Tag"]]);
 
 describe("DienstplanResourceGrid holiday care", () => {
+  beforeEach(() => mocks.useMediaQuery.mockReturnValue(false));
+
   function renderGrid(holidayCareHref?: string) {
     render(
       <DienstplanResourceGrid
@@ -78,13 +87,11 @@ describe("DienstplanResourceGrid holiday care", () => {
     expect(
       within(monday).getByText("0 Kinder · 07:45–13:00"),
     ).toBeInTheDocument();
-    // Volle und schmale Fassung (unter `sm`) tragen denselben Satz für
-    // Screenreader; CSS blendet je Breite eine aus.
-    const sentences = within(monday).getAllByText(
-      "Ferienbetreuung für den Träger: noch kein Kind bestätigt, 07:45 bis 13:00 Uhr.",
-    );
-    expect(sentences).toHaveLength(2);
-    for (const sentence of sentences) expect(sentence).toHaveClass("sr-only");
+    expect(
+      within(monday).getByText(
+        "Ferienbetreuung für den Träger: noch kein Kind bestätigt, 07:45 bis 13:00 Uhr.",
+      ),
+    ).toHaveClass("sr-only");
     expect(within(monday).queryByRole("link")).not.toBeInTheDocument();
   });
 
@@ -109,6 +116,35 @@ describe("DienstplanResourceGrid holiday care", () => {
     });
     expect(links.length).toBeGreaterThan(0);
     expect(links[0]).toHaveAttribute("href", "/ferienwochen");
+  });
+});
+
+describe("DienstplanResourceGrid holiday care, compact day strip", () => {
+  it("shows the symbol without a link: each day of the strip is a button", () => {
+    mocks.useMediaQuery.mockReturnValue(true);
+    render(
+      <DienstplanResourceGrid
+        staff={[member]}
+        shiftsByStaff={new Map()}
+        assignmentsByStaff={new Map()}
+        summaryByStaff={new Map()}
+        weekDays={WEEK_DAYS}
+        todayIso="2027-01-04"
+        closingDays={CLOSING}
+        holidayCare={HOLIDAY_CARE}
+        holidayCareHref="/ferienwochen"
+        typesById={new Map()}
+        shiftTypes={[]}
+        onCellClick={vi.fn()}
+      />,
+    );
+
+    const sentences = screen.getAllByText(
+      "Ferienbetreuung für den Träger: noch kein Kind bestätigt, 07:45 bis 13:00 Uhr.",
+    );
+    expect(sentences).toHaveLength(4);
+    expect(sentences[0]?.closest("button")).not.toBeNull();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
 

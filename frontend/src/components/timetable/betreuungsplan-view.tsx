@@ -628,15 +628,23 @@ function TimetablesContent() {
   // Ferienwochen, die die Schule für ihren Träger ausrichtet (ADR 0116):
   // an diesen Tagen kommen Ferienkinder, auch wenn kein Termin geplant ist.
   const holidayWeeks = usePlanningHolidayWeeks();
+  // Erst mit den Schließtagen: ein Schließtag darf nicht kurz als
+  // Ferienbetreuung erscheinen.
   const holidayCare = useMemo(
     () =>
       holidayCareDays(
-        holidayWeeks.weeks,
+        closingDaysLoading ? [] : holidayWeeks.weeks,
         fetchFromISO,
         fetchToISO,
         closingDays,
       ),
-    [holidayWeeks.weeks, fetchFromISO, fetchToISO, closingDays],
+    [
+      holidayWeeks.weeks,
+      fetchFromISO,
+      fetchToISO,
+      closingDays,
+      closingDaysLoading,
+    ],
   );
   const holidayCareHref = holidayWeeks.canOpenList
     ? tenantPath("/ferienwochen")

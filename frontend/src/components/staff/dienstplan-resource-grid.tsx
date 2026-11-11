@@ -386,12 +386,7 @@ export function DienstplanResourceGrid({
           headerNote = <ClosingDayChip reason={closingReason} />;
         } else if (care !== undefined) {
           headerNote = (
-            <HolidayCareChip
-              day={care}
-              href={holidayCareHref}
-              stacked
-              compactOnMobile
-            />
+            <HolidayCareChip day={care} href={holidayCareHref} stacked />
           );
         }
         return {
@@ -405,6 +400,18 @@ export function DienstplanResourceGrid({
       }),
     [weekDays, todayIso, closingDays, holidayCare, holidayCareHref],
   );
+  // Der Tagesstreifen der kompakten Ansicht hat kaum Platz, und jeder Tag ist
+  // dort ein Knopf: die Ferienbetreuung steht nur als Symbol, ohne Link.
+  const stripMarkers = useMemo(() => {
+    const markers = new Map<string, ReactNode>();
+    for (const date of weekDays) {
+      const care = holidayCare?.get(date);
+      if (!closingDays?.has(date) && care !== undefined) {
+        markers.set(date, <HolidayCareChip day={care} text="" />);
+      }
+    }
+    return markers;
+  }, [weekDays, closingDays, holidayCare]);
 
   // Per-day capacity (12–16 window), computed once per data change instead of
   // per footer cell, so opening/closing the move dialog does not re-scan every
@@ -747,7 +754,7 @@ export function DienstplanResourceGrid({
                     dateLabel={column.sublabel ?? ""}
                     selected={isSelected}
                     onClick={() => setMobileDayIndex(index)}
-                    marker={column.headerNote}
+                    marker={stripMarkers.get(column.key) ?? column.headerNote}
                     today={column.isCurrent}
                   />
                 );
