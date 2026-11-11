@@ -39,11 +39,11 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
   },
   {
     // Its own column, so a phone shows the whole sentence under the name
-    // instead of cutting it with the name's two lines.
+    // and its state, across the full width of the row.
     key: "use",
     header: "Wofür",
     render: (template) => (
-      <span className="text-sm text-gray-600">
+      <span className="text-sm text-pretty text-gray-600">
         {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
       </span>
     ),
@@ -71,7 +71,9 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
     headerClassName: "whitespace-nowrap",
     render: (template) =>
       template.updatedAt ? formatDate(template.updatedAt) : "–",
-    stacked: "meta",
+    // On a phone name, state and purpose make the row; the date stays in
+    // the template itself, as before.
+    stacked: "hidden",
   },
 ];
 
@@ -134,8 +136,9 @@ export default function TraegerVorlagenPage() {
           rows={templates}
           getRowKey={(template) => template.kind}
           stackedOnMobile
-          stackedLayout="row"
-          stackedDetailKey="use"
+          // Name and state in the head line, the purpose below them across
+          // the full width: beside the state it took four to six lines.
+          stackedLayout="lines"
           onRowClick={(template) =>
             router.push(
               traegerPath(
