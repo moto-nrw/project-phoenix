@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.925 (#6685): the 1.15.811 preview with the message attachments.
+// 1.15.929 (#6685): the 1.15.811 preview with the message attachments.
 func installMessageAttachmentErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, messageAttachmentErasurePreviewSQL)
 	return err

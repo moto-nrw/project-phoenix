@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.925 (#6685): the 1.15.758 preflight with the message attachments.
+// 1.15.929 (#6685): the 1.15.758 preflight with the message attachments.
 func installMessageAttachmentErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, messageAttachmentErasurePreflightSQL)
 	return err

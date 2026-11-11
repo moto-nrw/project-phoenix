@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.925 (#6685): the 1.15.811 plan with users.message_attachments and
+// 1.15.929 (#6685): the 1.15.811 plan with users.message_attachments and
 // users.message_attachment_cleanup.
 func installMessageAttachmentErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, messageAttachmentErasurePlanSQL)
