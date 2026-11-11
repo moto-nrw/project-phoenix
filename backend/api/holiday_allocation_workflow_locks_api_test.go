@@ -22,21 +22,26 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // allocationLockHolder is a second connection that holds a lock until it commits.
+// Its private pool (#5269) also runs the probes, so no lock actor takes a
+// connection of the shared pool the requests use.
 type allocationLockHolder struct {
+	db   *bun.DB
 	tx   bun.Tx
 	pid  int
 	done bool
 }
 
-func holdAllocationLock(t *testing.T, db *bun.DB, query string, args ...any) *allocationLockHolder {
+func holdAllocationLock(t *testing.T, query string, args ...any) *allocationLockHolder {
 	t.Helper()
 	ctx := context.Background()
+	db := testpkg.SetupClosableTestDB(t)
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
-	h := &allocationLockHolder{tx: tx}
+	h := &allocationLockHolder{db: db, tx: tx}
 	t.Cleanup(func() {
 		if !h.done {
 			_ = tx.Rollback()
@@ -55,8 +60,9 @@ func (h *allocationLockHolder) commit(t *testing.T) {
 }
 
 // waitBlocked waits until n backends wait for the holder and returns them.
-func (h *allocationLockHolder) waitBlocked(t *testing.T, db *bun.DB, n int) []int {
+func (h *allocationLockHolder) waitBlocked(t *testing.T, n int) []int {
 	t.Helper()
+	db := h.db
 	deadline := time.Now().Add(20 * time.Second)
 	for {
 		var pids []int
@@ -177,10 +183,10 @@ func TestHolidayAllocationWorkflowTakesTheBillingLockBeforeThePeriod(t *testing.
 		t.Run(way.name+"/waits for B without P", func(t *testing.T) {
 			t.Parallel()
 			f, request := way.setup(t)
-			holder := holdAllocationLock(t, f.db, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
+			holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
 			done := asyncRequest(request)
-			holder.waitBlocked(t, f.db, 1)
-			assert.True(t, periodRowFree(t, f.db, f.period.ID), "a request waiting for B holds no period row")
+			holder.waitBlocked(t, 1)
+			assert.True(t, periodRowFree(t, holder.db, f.period.ID), "a request waiting for B holds no period row")
 			holder.commit(t)
 			rec := <-done
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -188,10 +194,10 @@ func TestHolidayAllocationWorkflowTakesTheBillingLockBeforeThePeriod(t *testing.
 		t.Run(way.name+"/waits for P holding B", func(t *testing.T) {
 			t.Parallel()
 			f, request := way.setup(t)
-			holder := holdAllocationLock(t, f.db, `SELECT id FROM enrollment.holiday_periods WHERE id = ? FOR UPDATE`, f.period.ID)
+			holder := holdAllocationLock(t, `SELECT id FROM enrollment.holiday_periods WHERE id = ? FOR UPDATE`, f.period.ID)
 			done := asyncRequest(request)
-			waiting := holder.waitBlocked(t, f.db, 1)
-			assert.True(t, holdsAdvisoryLock(t, f.db, waiting[0], billingLockKey(f.office.organization, f.period.ID)),
+			waiting := holder.waitBlocked(t, 1)
+			assert.True(t, holdsAdvisoryLock(t, holder.db, waiting[0], billingLockKey(f.office.organization, f.period.ID)),
 				"a request waiting for the period already holds the billing lock")
 			holder.commit(t)
 			rec := <-done
@@ -271,13 +277,13 @@ func TestHolidayAllocationWorkflowMeetsARunRelease(t *testing.T) {
 			f, billing, affected, request := way.setup(t)
 			before := f.cancelledContribution(t, affected).TotalCents
 			run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
-			holder := holdAllocationLock(t, f.db, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
+			holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
 			changed := asyncRequest(request)
 			released := asyncRequest(func() *httptest.ResponseRecorder {
 				return traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
 			})
-			holder.waitBlocked(t, f.db, 2)
-			assert.True(t, periodRowFree(t, f.db, f.period.ID), "neither holds the period while it waits for the billing lock")
+			holder.waitBlocked(t, 2)
+			assert.True(t, periodRowFree(t, holder.db, f.period.ID), "neither holds the period while it waits for the billing lock")
 			holder.commit(t)
 			change, release := <-changed, <-released
 			refuseDeadlock(t, change, "the way")
@@ -317,7 +323,7 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 		f.setCapacity(t, first.ID, 2)
 		tom := f.submitPlaces(t, "tom.wege@example.org", map[string][]int{"Tom": {0}})
 		ben := f.list(t, "").Registrations[0].Children[1]
-		holder := holdAllocationLock(t, f.db, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
+		holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
 		rebooked := asyncRequest(func() *httptest.ResponseRecorder {
 			return traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayRebookPath(f.period.ID, f.siblings, ben.ID),
 				map[string]any{"bookings": []map[string]any{{"week_id": second.ID, "time_model_id": second.TimeModels[0].ID}}})
@@ -325,8 +331,8 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 		widened := asyncRequest(func() *httptest.ResponseRecorder {
 			return traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayCapacityPath(f.period.ID, first.ID), map[string]any{"capacity": 3})
 		})
-		holder.waitBlocked(t, f.db, 2)
-		assert.True(t, periodRowFree(t, f.db, f.period.ID))
+		holder.waitBlocked(t, 2)
+		assert.True(t, periodRowFree(t, holder.db, f.period.ID))
 		holder.commit(t)
 		for _, rec := range []*httptest.ResponseRecorder{<-rebooked, <-widened} {
 			refuseDeadlock(t, rec, "a way of the same period")
@@ -340,12 +346,12 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 		a := newAllocationFixture(t, "Träger Entscheidung Gleichzeitig")
 		registration := a.submitCriteria(t, "tom.gleichzeitig@example.org", true, false)
 		candidate := a.board(t).Weeks[0].Pending[0]
-		holder := holdAllocationLock(t, a.db, holdAdvisoryLock, billingLockKey(a.office.organization, a.period.ID))
+		holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(a.office.organization, a.period.ID))
 		decided := asyncRequest(func() *httptest.ResponseRecorder { return a.decide(t, decision(candidate, "placed", "")) })
 		widened := asyncRequest(func() *httptest.ResponseRecorder {
 			return traegerJSON(t, a.traeger, a.office.token, http.MethodPut, holidayCapacityPath(a.period.ID, a.offer.Weeks[0].ID), map[string]any{"capacity": 2})
 		})
-		holder.waitBlocked(t, a.db, 2)
+		holder.waitBlocked(t, 2)
 		holder.commit(t)
 		for _, rec := range []*httptest.ResponseRecorder{<-decided, <-widened} {
 			refuseDeadlock(t, rec, "a way of the same period")
@@ -376,7 +382,7 @@ func TestHolidayAllocationWorkflowDecisionMeetsTheCatalogAndAnotherPeriod(t *tes
 	other.submitCriteria(t, "anderer.zeitraum@example.org", false, false)
 	otherCandidate := other.board(t).Weeks[0].Pending[0]
 
-	holder := holdAllocationLock(t, a.db, holdAdvisoryLock, fmt.Sprintf("enrollment.holiday_allocation_criteria:%d", a.office.organization))
+	holder := holdAllocationLock(t, holdAdvisoryLock, fmt.Sprintf("enrollment.holiday_allocation_criteria:%d", a.office.organization))
 	_, err := holder.tx.ExecContext(context.Background(), `UPDATE enrollment.holiday_allocation_criteria
 		SET position = CASE id WHEN ? THEN 2 ELSE 1 END WHERE id IN (?, ?)`, a.working, a.working, a.sibling)
 	require.NoError(t, err)
@@ -384,22 +390,22 @@ func TestHolidayAllocationWorkflowDecisionMeetsTheCatalogAndAnotherPeriod(t *tes
 		return a.decide(t, decision(pending[0], "placed", ""), decision(pending[1], "waitlisted", ""))
 	})
 	otherDecided := asyncRequest(func() *httptest.ResponseRecorder { return other.decide(t, decision(otherCandidate, "placed", "")) })
-	waiting := holder.waitBlocked(t, a.db, 2)
+	waiting := holder.waitBlocked(t, 2)
 	catalog := fmt.Sprintf("enrollment.holiday_allocation_criteria:%d", a.office.organization)
 	for _, pid := range waiting {
-		assert.Equal(t, []string{"advisory:" + catalog}, awaitedLocks(t, a.db, pid, catalog),
+		assert.Equal(t, []string{"advisory:" + catalog}, awaitedLocks(t, holder.db, pid, catalog),
 			"both decisions wait for the shared catalog only, never for the other period")
 	}
 	held := map[int64]int{}
 	for _, pid := range waiting {
 		for _, period := range []int64{a.period.ID, other.period.ID} {
-			if holdsAdvisoryLock(t, a.db, pid, billingLockKey(a.office.organization, period)) {
+			if holdsAdvisoryLock(t, holder.db, pid, billingLockKey(a.office.organization, period)) {
 				held[period]++
 			}
 		}
 	}
 	assert.Equal(t, map[int64]int{a.period.ID: 1, other.period.ID: 1}, held, "each decision holds the billing lock of its own period only")
-	assert.False(t, periodRowFree(t, a.db, a.period.ID), "the decision holds its period while it waits for the catalog")
+	assert.False(t, periodRowFree(t, holder.db, a.period.ID), "the decision holds its period while it waits for the catalog")
 	holder.commit(t)
 
 	rec := <-stale

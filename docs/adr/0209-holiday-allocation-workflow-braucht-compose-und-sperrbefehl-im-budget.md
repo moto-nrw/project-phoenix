@@ -1,10 +1,11 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Holiday-Allocation-Workflow braucht Compose und Sperrbefehl im Budget
 
-**Status: Vorgeschlagen.** Vorschlag vom 11.11.2026 zu
+**Status: Angenommen.** Freigegeben von Yannick Wenger am 11.11.2026.
+Vorschlag vom 11.11.2026 zu
 [#6555](https://github.com/moto-nrw/project-phoenix/issues/6555). Beleg nach
 [ADR 0206](0206-ferienplatz-aenderungen-und-neueinfrieren-haben-einen-workflow.md),
 Abschnitt „Architekturprüfung bei der späteren Umsetzung“: Diese ADR gibt
