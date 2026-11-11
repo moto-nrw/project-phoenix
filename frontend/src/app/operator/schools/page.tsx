@@ -139,6 +139,7 @@ export default function OperatorSchoolsPage() {
       restore: "die Wiederherstellung der Schule",
     },
     logEventPrefix: "school",
+    reloadObject: "die Anzeige der Schulen",
     onAfterSoftDelete: async (target) => {
       await revalidateTenantCache([target.subdomain]);
     },
@@ -215,6 +216,7 @@ export default function OperatorSchoolsPage() {
     >
       <div>
         <LoadErrorAlert error={summariesLoadError} />
+        <LoadErrorAlert error={schoolDelete.reloadError} />
         <LoadErrorAlert error={createdAfterWrite.error} />
         <LoadErrorAlert error={organizationsLoadError} />
         {deletedSummaries.length > 0 && (

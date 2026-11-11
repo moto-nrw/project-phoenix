@@ -114,6 +114,7 @@ export default function OperatorOrganizationsPage() {
       restore: "die Wiederherstellung des Trägers",
     },
     logEventPrefix: "organization",
+    reloadObject: "die Anzeige der Träger",
   });
 
   const orgDeleteTargetHasSchools = useMemo(() => {
@@ -287,6 +288,7 @@ export default function OperatorOrganizationsPage() {
 
       <div>
         <LoadErrorAlert error={orgsLoadError} />
+        <LoadErrorAlert error={orgDelete.reloadError} />
         <LoadErrorAlert error={createdAfterWrite.error} />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">

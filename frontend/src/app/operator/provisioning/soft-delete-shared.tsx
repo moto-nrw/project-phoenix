@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { getRelativeTime } from "~/lib/format-utils";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -31,6 +32,8 @@ interface UseSoftDeletableOptions<T extends SoftDeletable> {
     readonly restore: string;
   };
   readonly logEventPrefix: string;
+  /** What the reload after a write shows, e.g. "die Anzeige der Schulen". */
+  readonly reloadObject: string;
   readonly onAfterSoftDelete?: (target: T) => void | Promise<void>;
   readonly onAfterRestore?: (target: T) => void | Promise<void>;
 }
@@ -42,6 +45,8 @@ export interface SoftDeletableState<T extends SoftDeletable> {
   readonly setRestoreTarget: (target: T | null) => void;
   readonly isProcessing: boolean;
   readonly softDeleteError: FormError | null;
+  /** A failed reload after a confirmed write; render it above the list (#6652). */
+  readonly reloadError: FormError | null;
   readonly showTrash: boolean;
   readonly setShowTrash: (value: boolean) => void;
   readonly handleSoftDelete: () => Promise<void>;
@@ -57,6 +62,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     mutateList,
     errorObjects,
     logEventPrefix,
+    reloadObject,
     onAfterSoftDelete,
     onAfterRestore,
   } = options;
@@ -85,36 +91,44 @@ export function useSoftDeletable<T extends SoftDeletable>(
     [clearActionError],
   );
 
+  // The write's reload: the follow-up of the caller (portal caches, a
+  // navigation) and the list. A failure is a load error above the list, never
+  // an error of the closed dialog, and its retry only reloads (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    reloadObject,
+    async (followUp?: () => void | Promise<void>) => {
+      await followUp?.();
+      await mutateList();
+    },
+  );
+
   const execute = useCallback(
     async (
       target: T | null,
       action: (id: string) => Promise<unknown>,
       errorObject: string,
       logEvent: string,
-      onSuccess: () => void | Promise<void>,
+      onDone: () => void,
+      followUp?: () => void | Promise<void>,
     ) => {
       if (!target) return;
       setIsProcessing(true);
       clearActionError();
       try {
         await action(target.id);
-        await onSuccess();
-        await mutateList().catch((error: unknown) => {
-          // The list shows its own load error; the action itself succeeded.
-          logger.warn(`${logEvent}_list_refresh_failed`, {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
       } catch (error) {
         logger.error(logEvent, {
           error: error instanceof Error ? error.message : String(error),
         });
         void showActionError(error, { object: errorObject });
-      } finally {
         setIsProcessing(false);
+        return;
       }
+      onDone();
+      setIsProcessing(false);
+      await afterWrite.refresh(followUp);
     },
-    [mutateList, showActionError, clearActionError],
+    [afterWrite, showActionError, clearActionError],
   );
 
   const handleSoftDelete = useCallback(async () => {
@@ -124,12 +138,8 @@ export function useSoftDeletable<T extends SoftDeletable>(
       softDeleteFn,
       errorObjects.softDelete,
       `${logEventPrefix}_soft_delete_failed`,
-      async () => {
-        setDeleteTarget(null);
-        if (target && onAfterSoftDelete) {
-          await onAfterSoftDelete(target);
-        }
-      },
+      () => setDeleteTarget(null),
+      target && onAfterSoftDelete ? () => onAfterSoftDelete(target) : undefined,
     );
   }, [
     deleteTarget,
@@ -148,13 +158,11 @@ export function useSoftDeletable<T extends SoftDeletable>(
       restoreFn,
       errorObjects.restore,
       `${logEventPrefix}_restore_failed`,
-      async () => {
+      () => {
         setRestoreTarget(null);
         setShowTrash(false);
-        if (target && onAfterRestore) {
-          await onAfterRestore(target);
-        }
       },
+      target && onAfterRestore ? () => onAfterRestore(target) : undefined,
     );
   }, [
     restoreTarget,
@@ -173,6 +181,7 @@ export function useSoftDeletable<T extends SoftDeletable>(
     setRestoreTarget,
     isProcessing,
     softDeleteError: actionErrors.error,
+    reloadError: afterWrite.error,
     showTrash,
     setShowTrash,
     handleSoftDelete,

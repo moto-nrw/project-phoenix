@@ -446,6 +446,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       restore: "die Wiederherstellung der Schule",
     },
     logEventPrefix: "school",
+    reloadObject: "die Anzeige der Schule",
     onAfterSoftDelete: async (target) => {
       await revalidateTenantCache([target.subdomain]);
       router.push(
@@ -842,6 +843,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       }
     >
       <LoadErrorAlert error={headLoadError} />
+      <LoadErrorAlert error={schoolDelete.reloadError} />
       <LoadErrorAlert error={statusAfterWrite.error} />
       <LoadErrorAlert error={editAfterWrite.error} />
 

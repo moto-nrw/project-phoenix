@@ -497,6 +497,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       restore: "die Wiederherstellung des Trägers",
     },
     logEventPrefix: "organization",
+    reloadObject: "die Anzeige des Trägers",
     onAfterSoftDelete: async () => {
       await revalidateTenantCache(activeSchools.map((item) => item.subdomain));
       router.push("/operator/organizations");
@@ -519,6 +520,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       restore: "die Wiederherstellung der Schule",
     },
     logEventPrefix: "school",
+    reloadObject: "die Anzeige der Schulen",
     onAfterSoftDelete: async (target) => {
       await revalidateTenantCache([target.subdomain]);
     },
@@ -887,6 +889,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       }
     >
       <LoadErrorAlert error={organizationsLoadError} />
+      <LoadErrorAlert error={orgDelete.reloadError} />
       <LoadErrorAlert error={organizationAfterWrite.error} />
       <LoadErrorAlert error={editAfterWrite.error} />
       <LoadErrorAlert error={statusAfterWrite.error} />
@@ -907,6 +910,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "schulen" ? (
         <>
           <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
+          <LoadErrorAlert error={schoolDelete.reloadError} className="mb-4" />
           <LoadErrorAlert
             error={schoolCreatedAfterWrite.error}
             className="mb-4"
