@@ -59,7 +59,7 @@ const (
   SET state = 'no_mail', error_code = 'source_withdrawn', lease_token = NULL, lease_until = NULL,
    processed_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
   WHERE tenant_id = ? AND source_kind = ? AND source_id = ?
-   AND state IN ('pending', 'leased', 'blocked') AND prepared_at IS NULL`
+   AND state IN ('pending', 'leased', 'blocked', 'needs_confirmation') AND prepared_at IS NULL`
 
 	holidayClosureNoticeColumns = `proposal.id AS proposal_id, proposal.tenant_id, proposal.organization_id, proposal.source_id,
 		proposal.reason, proposal.previous_start, proposal.previous_end, proposal.current_start, proposal.current_end,
@@ -259,6 +259,14 @@ func RecordHolidayClosureChange(ctx context.Context, db bun.IDB, schoolID int64,
 		// intermediate confirmed version that prepared no mail.
 		change.Previous = predecessor.previousRange(change)
 		from, to = min(from, predecessor.SpanFrom), max(to, predecessor.SpanTo)
+		// A deleted source ends a command that awaited renewed approval and
+		// prepared no mail: nobody can approve it any more, and it would
+		// hold its authorization history past retirement.
+		if change.Current == nil && predecessor.State == schoolcalendar.HolidayClosureEventNeedsConfirmation {
+			if _, err := db.NewRaw(withdrawUnpreparedHolidayClosureSQL, schoolID, change.SourceKind, change.SourceID).Exec(ctx); err != nil {
+				return wrapProposal(err)
+			}
+		}
 	case !errors.Is(err, sql.ErrNoRows):
 		return wrapProposal(err)
 	}

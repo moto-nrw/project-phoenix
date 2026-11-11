@@ -394,16 +394,23 @@ func TestEditedNoticeReplacesAnOutstandingRenewal(t *testing.T) {
 			stale := w.schoolNotices(t)[0]
 			if mode == "deleted" {
 				require.NoError(t, w.records.DeleteClosingDay(w.schoolCtx(), day.ID))
+				assert.Equal(t, []string{"no_mail"}, w.events(t),
+					"the deletion resolves the command that waited for approval and told nobody, so retirement can proceed")
 				require.NoError(t, tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
 					notices, err := events.SchoolHolidayClosureNotices(ctx)
 					require.NoError(t, err)
 					var cancellation []schoolcalendar.HolidayClosureNotice
 					for _, notice := range notices {
-						if notice.ClosingDayID == day.ID {
-							cancellation = append(cancellation, notice)
+						if notice.ClosingDayID != day.ID {
+							continue
 						}
+						if notice.Status == schoolcalendar.HolidayClosureNoMail {
+							assert.False(t, notice.CanNotify(), "the withdrawn command is finished")
+							continue
+						}
+						cancellation = append(cancellation, notice)
 					}
-					require.Len(t, cancellation, 1, "only the nonempty cancellation proposal remains visible for this source")
+					require.Len(t, cancellation, 1, "only the nonempty cancellation proposal remains open for this source")
 					assert.NotNil(t, cancellation[0].Previous)
 					assert.Nil(t, cancellation[0].Current)
 					return nil
