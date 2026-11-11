@@ -47,7 +47,7 @@ func TestOperatorAuditFailureRollsBackMFAOverride(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "audit-mfa")
 	testpkg.EnsureAccountTenant(t, db, account.ID, schoolID)
 	require.NoError(t, identity.OperatorSetMFAOverride(ctx, operatorID, schoolID, account.ID, identityaccess.MFAAdminOverrideForceOn, "test transition"))
-	require.NoError(t, identity.EnrollMFA(ctx, account.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, identity, account.ID))
 	require.NoError(t, identity.OperatorSetGlobalMFAOverride(ctx, operatorID, account.ID, identityaccess.MFAAdminOverrideForceOn, "test transition"))
 	_, err := db.ExecContext(ctx, `CREATE FUNCTION platform.reject_operator_audit() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'injected audit failure'; END $$;

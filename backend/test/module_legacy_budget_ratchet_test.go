@@ -265,7 +265,14 @@ var moduleLegacyFileBudgets = map[string]int{
 // downloads (+5) of modules/parentbilling/compose.
 // ADR 0191: the constructor of the stored originals of the Jahresbescheide
 // of modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13232
+// ADR 0198: the narrow account-retention constructor adds exactly 13 LOC.
+// ADR 0197: the export openers of the sealed guardian bank data of
+// modules/peopledirectory/compose (+5) and of the sealed staff bank and tax
+// data of modules/workforce/compose (+5).
+// ADR 0202: the pending-window command of a phase edit, the Students field of
+// modules/enrollment/compose (+2) and the NewPendingWindows constructor of
+// modules/schoolmembership/compose (+5).
+const moduleComposeBudgetTotal = 13260
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -316,7 +323,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0193: the export opener of the holiday health information (+5).
 	// #4703 added the holiday care wish constructor and shortened comments
 	// of the package by more than it added (-2).
-	"modules/enrollment/compose":                   604,
+	// ADR 0202: the Students field of the phase administration (+2).
+	"modules/enrollment/compose":                   606,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -337,7 +345,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0187: the Träger package constructor with its PAIN.008
 	// files and operator audit (+13) and the records command injected into
 	// the operator provisioning (+10).
-	"modules/organizationtenancy/compose": 343,
+	// ADR 0198: the narrow account-retention constructor (+13).
+	"modules/organizationtenancy/compose": 356,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
@@ -369,7 +378,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
-	"modules/peopledirectory/compose":    979,
+	// ADR 0197: the export opener of the sealed guardian bank data (+5).
+	"modules/peopledirectory/compose":    984,
 	"modules/presenceprojection/compose": 7,
 	"modules/requestreview/compose":      12,
 	"modules/schedulerruntime/compose":   45,
@@ -379,7 +389,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).
-	"modules/schoolmembership/compose": 202,
+	// ADR 0202: the pending-window constructor (+5).
+	"modules/schoolmembership/compose": 207,
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;
 	// the 7 LOC come out of modules/enrollment/compose, the total stays.
@@ -399,7 +410,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/supervisiondashboard/compose":            11,
 	// Raised by ADR 0128: the student template days constructor (+5) and by
 	// ADR 0144: the vacation hint constructor (+6).
-	"modules/timetable/compose":                     1153,
+	"modules/timetable/compose":                     1151,
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,
@@ -409,7 +420,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0188: the bank cipher dependency and backfill/rekey constructor (+7).
-	"modules/workforce/compose":         913,
+	// ADR 0197: the export opener of the sealed staff bank and tax data (+5).
+	"modules/workforce/compose":         918,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
 	"workflows/openroommove/compose":    46,

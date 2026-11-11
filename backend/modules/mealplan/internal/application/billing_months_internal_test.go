@@ -1,6 +1,7 @@
 package application
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -69,4 +70,77 @@ func TestBillingMonthWindow(t *testing.T) {
 	}
 	assert.Equal(t, mealplan.BillingMonthRunning, months.statusOf(calendar.NewDate(2026, 4, 1)), "April runs until its last day")
 	assert.Equal(t, mealplan.BillingMonthOpen, months.statusOf(calendar.NewDate(2026, 3, 1)), "March has ended")
+}
+
+// germanNamesMonth counts a month whose names sort differently in German
+// dictionary order than in the byte order of the lowercased names: an
+// umlaut in a last name and in a first name, and two children with the
+// same name.
+func germanNamesMonth() mealplan.BillingMonth {
+	participants := []mealplan.DailyParticipant{
+		{StudentID: 1, FirstName: "Anna", LastName: "Zimmermann", SchoolClass: "2a"},
+		{StudentID: 2, FirstName: "Ayşe", LastName: "Özdemir", SchoolClass: "3b"},
+		{StudentID: 3, FirstName: "Oskar", LastName: "Ernst", SchoolClass: "1a"},
+		{StudentID: 4, FirstName: "Ömer", LastName: "Ernst", SchoolClass: "1a"},
+		{StudentID: 9, FirstName: "Lena", LastName: "Müller", SchoolClass: "4c"},
+		{StudentID: 5, FirstName: "Lena", LastName: "Müller", SchoolClass: "2b"},
+	}
+	days := []mealplan.DailyList{
+		{Date: "2026-03-02", Participants: participants},
+		{Date: "2026-03-03", Participants: participants[1:]},
+	}
+	present := map[calendar.Date]map[int64]bool{"2026-03-02": {1: true, 2: true, 3: true, 5: true}, "2026-03-03": {4: true, 9: true}}
+	return countBillingMonth(calendar.NewDate(2026, 3, 1), days, nil, present)
+}
+
+func childIDs(children []mealplan.BillingMonthChild) []int64 {
+	ids := make([]int64, len(children))
+	for i, child := range children {
+		ids[i] = child.StudentID
+	}
+	return ids
+}
+
+// TestBillingMonthShowsChildrenInGermanOrder pins the shown order (#6464):
+// last name, first name in German dictionary order, then the child's ID.
+func TestBillingMonthShowsChildrenInGermanOrder(t *testing.T) {
+	t.Parallel()
+	month := germanNamesMonth()
+
+	assert.Equal(t, []int64{4, 3, 5, 9, 2, 1}, childIDs(month.Children),
+		"Ernst Ömer, Ernst Oskar, Müller Lena (5, 9), Özdemir, Zimmermann")
+
+	stored := storedMonth(calendar.NewDate(2026, 3, 1), month)
+	slices.Reverse(stored.Children)
+	assert.Equal(t, []int64{4, 3, 5, 9, 2, 1}, childIDs(releasedView(stored).Children), "a released month shows the German order too")
+}
+
+// TestMonthFingerprintKeepsItsOrder pins the fingerprint of a month to the
+// value the code before the German sort computed for it (#6464): a preview
+// opened before still releases, and any change of a child still changes it.
+func TestMonthFingerprintKeepsItsOrder(t *testing.T) {
+	t.Parallel()
+	const beforeGermanSort = "2e47adc82a9874f70f3332aaac06b0d8"
+	month := germanNamesMonth()
+	assert.Equal(t, beforeGermanSort, monthFingerprint(month))
+
+	reversed := month
+	reversed.Children = slices.Clone(month.Children)
+	slices.Reverse(reversed.Children)
+	assert.Equal(t, beforeGermanSort, monthFingerprint(reversed), "the shown order does not change the fingerprint")
+
+	for name, change := range map[string]func(*mealplan.BillingMonth){
+		"a meal less": func(m *mealplan.BillingMonth) { m.Children[0].MealDays-- },
+		"a meal moved between the two Lenas": func(m *mealplan.BillingMonth) {
+			m.Children[2].MealDays--
+			m.Children[3].MealDays++
+		},
+		"another class": func(m *mealplan.BillingMonth) { m.Children[4].SchoolClass = "3c" },
+		"a child less":  func(m *mealplan.BillingMonth) { m.Children = m.Children[1:] },
+	} {
+		changed := month
+		changed.Children = slices.Clone(month.Children)
+		change(&changed)
+		assert.NotEqual(t, beforeGermanSort, monthFingerprint(changed), name)
+	}
 }

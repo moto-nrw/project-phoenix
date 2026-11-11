@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useLayoutEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -435,6 +435,9 @@ function SurveyEditSection({
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
+  // „Wiederholen“ speichert den jetzt sichtbaren Entwurf, nicht den vom
+  // Fehlversuch (#6503).
+  const latestSave = useRef<() => Promise<void>>(async () => undefined);
   const lookups = useParentTargetLookups(draft.audience === "parents");
 
   const save = async () => {
@@ -455,12 +458,15 @@ function SurveyEditSection({
       });
       void formErrors.show(err, {
         object: "die Umfrage",
-        retry: () => void save(),
+        retry: () => void latestSave.current(),
       });
     } finally {
       setSaving(false);
     }
   };
+  useLayoutEffect(() => {
+    latestSave.current = save;
+  });
 
   return (
     <SectionCard title="Entwurf bearbeiten">

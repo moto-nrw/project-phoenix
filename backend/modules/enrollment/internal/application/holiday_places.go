@@ -58,6 +58,9 @@ type holidayPlacement struct {
 	// initialChildID restricts an initial placement to the rebooked child.
 	// Zero places every child of a newly submitted registration initially.
 	initialChildID int64
+	// excludedBookingIDs are decisions made in the current allocation. They
+	// may move up after a later capacity change, cancellation or rebooking.
+	excludedBookingIDs map[int64]bool
 }
 
 // holidayPromotionDetails is the audit entry of a booking that moved up.
@@ -101,12 +104,20 @@ func (p holidayPlacement) place(ctx context.Context, organizationID int64, perio
 
 // placeWeek gives the free places of a locked week to its waiting list
 // (#4699): those of submittedID, restricted to initialChildID when nonzero,
-// are initial placements.
+// are initial placements. A week with a booking that waits for the
+// decision of the Büro gives no place (#4700): its free places are the
+// Büro's to give, in the order of the criteria.
 func (p holidayPlacement) placeWeek(ctx context.Context, organizationID, weekID, submittedID int64) ([]enrollment.HolidayPromotion, error) {
 	queue, found, err := p.store.ReadHolidayWeekQueue(ctx, organizationID, weekID)
 	if err != nil || !found {
 		return nil, err
 	}
+	if slices.ContainsFunc(queue.Bookings, func(booking enrollment.HolidayQueuedBooking) bool { return booking.Pending }) {
+		return nil, nil
+	}
+	queue.Bookings = slices.DeleteFunc(slices.Clone(queue.Bookings), func(booking enrollment.HolidayQueuedBooking) bool {
+		return !booking.Placed && p.excludedBookingIDs[booking.ID]
+	})
 	var place, initial []int64
 	for _, booking := range holidayFirstFit(queue) {
 		place = append(place, booking.ID)
@@ -146,7 +157,7 @@ func holidayFirstFit(queue enrollment.HolidayWeekQueue) []enrollment.HolidayQueu
 	}
 	var chosen []enrollment.HolidayQueuedBooking
 	for _, booking := range queue.Bookings {
-		if booking.Placed || !holidayDaysFree(queue.Capacity, taken, daysOf(booking)) {
+		if booking.Placed || booking.Pending || !holidayDaysFree(queue.Capacity, taken, daysOf(booking)) {
 			continue
 		}
 		holidayTakeDays(taken, daysOf(booking))
@@ -283,6 +294,13 @@ func holidayWeekLines(traeger enrollment.HolidayTraeger, period enrollment.Holid
 		}
 		return line
 	}
+}
+
+// moveUp gives the places of the weeks to their waiting lists after a
+// change of the locked registration.
+func (h *HolidayRegistrationReview) moveUp(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, weekIDs []int64) ([]enrollment.HolidayPromotion, error) {
+	_, promoted, err := h.placement.place(ctx, reviewer.OrganizationID, period, weekIDs, 0, reviewer.AccountID)
+	return promoted, err
 }
 
 // holidayBookedWeeks are the weeks of the bookings of read registrations.

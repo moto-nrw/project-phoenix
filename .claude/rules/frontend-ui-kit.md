@@ -112,7 +112,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
 | Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`) | `~/components/ui/modal` |
-| Form inside a modal | `FormModal` (built on `Modal`) | `~/components/ui/form-modal` |
+| Form in a modal | `FormModal`; save: `useFormModalPending` | `~/components/ui/form-modal` |
 | Delete confirmation (every deletion; `bauart/one-delete-confirm` fails a `ConfirmationModal`, hand-built `Modal` or `window.confirm` for Löschen) | `ConfirmDeleteModal` — gate `twoStep`, or `textConfirm` for irreversible data loss; a series/child scope choice goes in its `scope` slot, not in a `ChoiceModal` in front | `~/components/ui/confirm-delete-modal` |
 | Multi-step wizard | `WizardStepper` | `~/components/ui/wizard-stepper` |
 | Footer of an edit state (Abbrechen + Speichern, saving label, disabled while the draft is invalid) | `EditActions` — the only save affordance outside settings; auto-save on blur/change is shrink-only via `bauart/no-autosave`. An object is edited in its tab, never in an overlay titled „… bearbeiten“ / „… verwalten“ (`bauart/no-edit-overlay`, #3116) | `~/components/ui/edit-actions` |
@@ -153,7 +153,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
 | Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
 | Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen, keine eigene Ladehülle über mehrere Seiten. | `~/components/ui/navigation-progress` |
-| Overlay / side panel | `Drawer`, slide-over (`SlideOverContent size="md\|lg\|xl"`, `SlideOverHeader close`); levels: `Z_LAYER` (`overlay-styles`) | `~/components/ui/drawer`, `~/components/ui/slide-over` |
+| Overlay / side panel | `Drawer`, slide-over (`SlideOverContent size="md\|lg\|xl"`, `SlideOverHeader close`; save: `pending` from `useFormModalPending(open)`, `ui-kit/slide-over-pending`); levels: `Z_LAYER` (`overlay-styles`) | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | Sticky save bar | `StickyActionBar summary?` | `~/components/ui/sticky-action-bar` |
 | Selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |

@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -83,7 +84,8 @@ function OperatorSettingsContent() {
   const passwordErrors = useApiFormError(passwordFormRef);
   const { show: showEmailChangeError, clear: clearEmailChangeError } =
     emailChangeErrors;
-  const [emailChangeLoading, setEmailChangeLoading] = useState(false);
+  const emailChange = useFormModalPending(showEmailChangeDialog);
+  const emailChangeLoading = emailChange.pending;
   const [emailChangeNewEmail, setEmailChangeNewEmail] = useState("");
   const [emailChangePassword, setEmailChangePassword] = useState("");
 
@@ -222,44 +224,44 @@ function OperatorSettingsContent() {
 
   const handleEmailChange = async () => {
     if (!emailChangeNewEmail || !emailChangePassword) return;
-    setEmailChangeLoading(true);
-    clearEmailChangeError();
-    try {
-      const response = await sessionFetch(
-        "/api/operator/profile/email-change",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            new_email: emailChangeNewEmail,
-            current_password: emailChangePassword,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw await apiErrorFromResponse(
-          response,
-          `Operator email change failed (${response.status})`,
+    await emailChange.run(async (op) => {
+      clearEmailChangeError();
+      try {
+        const response = await sessionFetch(
+          "/api/operator/profile/email-change",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              new_email: emailChangeNewEmail,
+              current_password: emailChangePassword,
+            }),
+          },
         );
-      }
 
-      const confirmedEmail = emailChangeNewEmail;
-      handleCloseEmailDialog();
-      toastSuccess(
-        `Eine Bestätigungs-E-Mail wird an ${confirmedEmail} gesendet. Bitte überprüfe dein Postfach.`,
-        { duration: 3000 },
-      );
-    } catch (err) {
-      logger.warn("operator_email_change_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showEmailChangeError(err, {
-        object: "die Änderung der E-Mail-Adresse",
-      });
-    } finally {
-      setEmailChangeLoading(false);
-    }
+        if (!response.ok) {
+          throw await apiErrorFromResponse(
+            response,
+            `Operator email change failed (${response.status})`,
+          );
+        }
+
+        const confirmedEmail = emailChangeNewEmail;
+        if (op.isCurrent()) handleCloseEmailDialog();
+        toastSuccess(
+          `Eine Bestätigungs-E-Mail wird an ${confirmedEmail} gesendet. Bitte überprüfe dein Postfach.`,
+          { duration: 3000 },
+        );
+      } catch (err) {
+        logger.warn("operator_email_change_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void showEmailChangeError(err, {
+          object: "die Änderung der E-Mail-Adresse",
+        });
+      }
+    });
   };
 
   if (status === "loading") {
@@ -297,7 +299,7 @@ function OperatorSettingsContent() {
             title="E-Mail-Adresse ändern"
             size="sm"
             mobilePosition="center"
-            closeDisabled={emailChangeLoading}
+            pending={emailChange}
             error={emailChangeErrors.error}
             footer={
               <>

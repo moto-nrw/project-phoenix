@@ -20,11 +20,15 @@ const entry = (file, names, ...inputs) => ({ file: `${file}_test.go`, tests: nam
 // the affected/full suites; only the catalog's source-only check belongs here.
 export const sourceRatchets = [
   entry('hermetic_verification', 'TestHermeticTestPatterns', go),
+  // The subprocess compiles a copy read from disk, outside Go's import graph.
+  entry('database_slots', 'TestIsolatedDatabaseSlotsBoundWaitAndRelease TestIsolatedDatabaseSlotDeadlineLeavesOpenAndDropBudgets TestIsolatedDatabaseSlotsBreakParallelSubtestSaturation',
+    /^backend\/test\/database_(slots|scope)\.go$/),
   entry('calendar_date_verification', 'TestDateColumnTypes', go),
   entry('calendar_fixture_ratchet', 'TestCalendarFixtureClockRatchet', go),
   entry('wall_clock_verification', 'TestActivityInstanceWallClockRatchet', go),
   entry('test_skip_ratchet', 'TestTestSkipRatchet', go),
   entry('account_credential_writer', 'TestAccountCredentialHasOneWriter', production),
+  entry('ordered_lock_acquirers', 'TestOrderedLocksHaveOneAcquirer', production),
   entry('operator_credential_writer', 'TestOperatorCredentialHasOneWriter TestOperatorCredentialStatementRecognizesWriters', production),
   entry('gdpr_log_pii_ratchet', 'TestGDPRLogPIIRatchet', production),
   entry('realtime_scope_ratchet', 'TestRealtimeProducersRequireSchool', production),

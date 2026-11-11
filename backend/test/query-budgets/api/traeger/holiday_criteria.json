@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.holiday_criteria",
+  "max": 5,
+  "exact": true,
+  "description": "GET holiday criteria: organization binding, the criteria of the Träger and its periods with weeks and time models, for the periods that allocate by criteria. Flat across criteria and answers.",
+  "route": "GET /traeger/holiday-periods/criteria"
+}

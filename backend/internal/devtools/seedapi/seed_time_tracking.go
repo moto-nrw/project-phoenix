@@ -227,8 +227,8 @@ func historyStart(today time.Time) time.Time {
 	return today.AddDate(0, 0, -(timeTrackingDaysBack - 1))
 }
 
-// breakSessionDay is the oldest working day of the history window. The break
-// block sits there, and the history leaves that day to it.
+// breakSessionDay is the oldest working day of the history window. The pause
+// example seeds its historical counterpart there before the remaining history.
 func breakSessionDay(today time.Time, holidays map[string]bool) time.Time {
 	day := historyStart(today)
 	for !shouldSeedTimeTrackingDay(day, today) || holidays[toDateKey(day)] {
@@ -282,11 +282,9 @@ func resolvedStaffOrder(rt *Runtime) ([]StaffCredentials, map[string]int64, erro
 	return staffOrder, staffIDByEmail, nil
 }
 
-// seedWorkSessionBreakStep writes the one history block with a recorded break
-// through the live clocking flow (check-in, break, check-out, backdate), since
-// an admin Nachtrag carries break minutes only. It stamps as the staff member
-// "now", so it runs before anything else stamps: the history that follows,
-// and in a demo school the simulation, never meet it.
+// seedWorkSessionBreakStep records a live pause and a separate historical
+// example. Live pause timestamps stay with their session; the admin Nachtrag
+// carries historical scalar minutes. Run before any other live clocking.
 type seedWorkSessionBreakStep struct{}
 
 func (seedWorkSessionBreakStep) Name() string { return "Seeding a work session with a break" }
@@ -295,7 +293,7 @@ func (seedWorkSessionBreakStep) Run(_ context.Context, rt *Runtime) error {
 	if rt.FixedSeeder == nil || len(rt.FixedSeeder.staffCredentials) == 0 {
 		return fmt.Errorf("staff credentials not available")
 	}
-	staffOrder, _, err := resolvedStaffOrder(rt)
+	staffOrder, staffIDByEmail, err := resolvedStaffOrder(rt)
 	if err != nil {
 		return err
 	}
@@ -315,8 +313,13 @@ func (seedWorkSessionBreakStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	day := breakSessionDay(today, holidays)
-	if _, err := seedSessionViaAPI(client, rng, day, seedBerlinLocation(), true); err != nil {
-		return fmt.Errorf("seed break session on %s: %w", toDateKey(day), err)
+	if err := seedSessionWithBreakViaAPI(client, rng); err != nil {
+		return fmt.Errorf("seed live break session: %w", err)
+	}
+	admin := NewClientWithAdapter(rt.Adapter, rt.Verbose)
+	admin.BindAuth(rt.TenantAuth)
+	if err := seedHistorySession(admin, rng, staffIDByEmail[cred.Email], day, seedBerlinLocation()); err != nil {
+		return fmt.Errorf("seed historical break example on %s: %w", toDateKey(day), err)
 	}
 	return nil
 }

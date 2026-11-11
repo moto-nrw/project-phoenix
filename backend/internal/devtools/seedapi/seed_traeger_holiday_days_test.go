@@ -25,3 +25,17 @@ func TestSeedHolidayDayPeriodLiesAheadOfItsRegistration(t *testing.T) {
 	assert.Equal(t, "day", week["booking_unit"])
 	assert.Equal(t, "2027-02-05", week["ends_on"])
 }
+
+// The Winterferien by criteria lie a week after those booked by days, with
+// their registration window still open, and give no place when sending
+// (#4700).
+func TestSeedHolidayCriteriaPeriodAllocatesByCriteria(t *testing.T) {
+	t.Parallel()
+	today := calendar.NewDate(2026, 11, 10)
+	monday := seedNextWinterMonday(today).AddDays(7)
+	period := seedHolidayCriteriaPeriod(today, monday, 31)
+	assert.Equal(t, "criteria", period["allocation_mode"])
+	week := period["weeks"].([]map[string]any)[0]
+	assert.Equal(t, "2027-02-08", week["starts_on"])
+	assert.True(t, monday.AddDays(-10).After(today))
+}

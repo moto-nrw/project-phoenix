@@ -135,7 +135,7 @@ var childWriteGuardExemptions = map[string]string{
 	"care.Service.NotifyContractDocument":              "push of a Träger document to its accounts, run by Delivery, not by a parent request",
 	"care.Service.NotifyTraegerDocumentRelease":        "push of a Träger release to its accounts, run by Delivery, not by a parent request",
 	"care.Service.NotifyTraegerDocumentReleaseAccount": "push of a Träger release to one account, run by Delivery, not by a parent request",
-	"messaging.Service.GetChildConversation":           "moves the reader's own read cursor while it reads the conversation",
+	"messaging.Service.GetChildConversation":           "moves the reader's own read cursor while it reads the conversation (care.ReadReceiptOnly)",
 	"messaging.Service.GetGroupThread":                 "moves the reader's own read cursor while it reads the group thread",
 	"messaging.Service.MarkAnnouncementRead":           "the account's read receipt of an announcement of its audience",
 	"messaging.Service.AcknowledgeAnnouncement":        "the account's acknowledgement of an announcement of its audience",
@@ -401,9 +401,35 @@ func skipGuardedWrite(info *types.Info, skip map[ast.Node]bool, n ast.Node) {
 	if !ok {
 		return
 	}
-	if index, guarded := guardedOpeners[calleeName(info, call.Fun)]; guarded && index < len(call.Args) {
-		skip[call.Args[index]] = true
+	index, guarded := guardedOpeners[calleeName(info, call.Fun)]
+	if !guarded || index >= len(call.Args) || receiptOnly(info, call.Args[index+1:]) {
+		return
 	}
+	skip[call.Args[index]] = true
+}
+
+// receiptOnly reports a guarded opener told to skip its guard for a read
+// receipt (care.ReadReceiptOnly): its write argument is followed like
+// unguarded code.
+func receiptOnly(info *types.Info, options []ast.Expr) bool {
+	for _, option := range options {
+		if ident := identOf(option); ident != nil {
+			if fn, ok := info.Uses[ident].(*types.Func); ok && funcName(fn) == "care.ReadReceiptOnly" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func identOf(expression ast.Expr) *ast.Ident {
+	switch x := expression.(type) {
+	case *ast.Ident:
+		return x
+	case *ast.SelectorExpr:
+		return x.Sel
+	}
+	return nil
 }
 
 // function follows a function of the flows or records a port method.

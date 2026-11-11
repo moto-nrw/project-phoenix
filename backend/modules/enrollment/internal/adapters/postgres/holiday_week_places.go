@@ -48,8 +48,9 @@ const (
 	// holidayWeekQueueQuery reads a locked week and every booking of a
 	// received or confirmed registration in it, in the order of the waiting
 	// list: children deferred by the holiday care wish last (#4703), then the
-	// time the registration came in, its number, then the position of the
-	// child in the form (#4699). Run in READ COMMITTED after the lock,
+	// criteria of a period by criteria (#4700), then the time the
+	// registration came in, its number, then the position of the child in the
+	// form (#4699). Run in READ COMMITTED after the lock,
 	// it sees every placement committed before. Days are those of a booking
 	// of days, NULL for a whole week (#4701).
 	holidayWeekQueueQuery = `SELECT week.capacity, week.starts_on, week.ends_on,
@@ -69,7 +70,7 @@ const (
 		LEFT JOIN enrollment.holiday_registrations AS registration
 			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
 		WHERE week.organization_id = ? AND week.id = ?
-		ORDER BY ` + holidayWishDeferredChild + `, registration.submitted_at, registration.id, child.position`
+		ORDER BY ` + holidayPlaceOrderKey + `, registration.submitted_at, registration.id, child.position`
 	// placeHolidayBookingsQuery gives the named waiting bookings of a locked
 	// week their place; initial ones get no promoted_at.
 	placeHolidayBookingsQuery = `UPDATE enrollment.holiday_registration_bookings AS booking
@@ -102,13 +103,21 @@ const (
 						ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
 					WHERE booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
 						AND booking.placement = 'placed' AND registration.status IN ` + holidayCountingStatuses + `
-					GROUP BY booked.day) AS counted) AS day_placed
+					GROUP BY booked.day) AS counted) AS day_placed,
+			(SELECT count(*)
+				FROM enrollment.holiday_registration_bookings AS booking
+				JOIN enrollment.holiday_registration_children AS child
+					ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
+				JOIN enrollment.holiday_registrations AS registration
+					ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+				WHERE booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
+					AND booking.placement = 'pending' AND registration.status IN ` + holidayCountingStatuses + `) AS pending
 		FROM enrollment.holiday_period_weeks AS week
 		WHERE week.organization_id = ? AND week.holiday_period_id = ?
 		ORDER BY week.starts_on, week.id`
 	holidayWaitlistQuery = `SELECT booking.holiday_period_week_id,
 			row_number() OVER (PARTITION BY booking.holiday_period_week_id
-				ORDER BY ` + holidayWishDeferredChild + `, registration.submitted_at, registration.id, child.position) AS position,
+				ORDER BY ` + holidayPlaceOrderKey + `, registration.submitted_at, registration.id, child.position) AS position,
 			registration.id AS registration_id, registration.status, registration.submitted_at,
 			child.id AS child_id, child.first_name, child.last_name, model.name AS time_model_name, booking.days::text AS days,
 			` + holidayWishDeferredChild + ` AS deferred
@@ -177,7 +186,7 @@ func (s *HolidayRegistrationStore) ReadHolidayWeekQueue(ctx context.Context, org
 		}
 		queue.Bookings = append(queue.Bookings, enrollment.HolidayQueuedBooking{
 			ID: *row.BookingID, RegistrationID: *row.RegistrationID, ChildID: *row.ChildID, ChildPosition: *row.Position,
-			Placed: *row.Placement == enrollment.HolidayPlacementPlaced, Days: days,
+			Placed: *row.Placement == enrollment.HolidayPlacementPlaced, Pending: *row.Placement == enrollment.HolidayPlacementPending, Days: days,
 		})
 	}
 	return queue, true, nil
@@ -238,6 +247,7 @@ type holidayWeekPlacesRow struct {
 	Capacity     *int          `bun:"capacity"`
 	BookingUnit  string        `bun:"booking_unit"`
 	Placed       int           `bun:"placed"`
+	Pending      int           `bun:"pending"`
 	// DayPlaced counts the placed bookings of each booked day (#4701).
 	DayPlaced map[string]int `bun:"day_placed,type:jsonb"`
 }
@@ -298,7 +308,7 @@ func (s *HolidayRegistrationStore) ReadHolidayWeekPlaces(ctx context.Context, or
 		}
 		places[i] = enrollment.HolidayWeekPlaces{
 			WeekID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID,
-			Capacity: week.Capacity, Placed: week.Placed, Waitlist: waitlist,
+			Capacity: week.Capacity, Placed: week.Placed, Waitlist: waitlist, Pending: week.Pending,
 			BookingUnit: week.BookingUnit, Days: days,
 		}
 	}

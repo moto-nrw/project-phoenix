@@ -16,6 +16,7 @@ import {
 import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
+import { useBusyFocus } from "./hooks/useBusyFocus";
 
 const visibleModals: string[] = [];
 
@@ -80,6 +81,8 @@ interface ModalProps {
   readonly isDismissDisabled?: boolean;
   /** Keep backdrop taps from discarding in-progress form input. */
   readonly isBackdropDismissDisabled?: boolean;
+  /** Marks the dialog `aria-busy` while an operation runs inside it. */
+  readonly busy?: boolean;
   /**
    * Auf schmalen Schirmen unten angeheftet und in voller Breite statt als
    * mittiges Fenster, mit Fussleiste über dem Sicherheitsbereich. Ab `sm`
@@ -119,6 +122,7 @@ export function Modal({
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
+  busy = false,
   mobileSheet = false,
   focusTitleOnOpen = false,
   suspended = false,
@@ -129,6 +133,7 @@ export function Modal({
   const descriptionId = React.useId();
   const visible = isOpen && !suspended;
   const titleRef = React.useRef<HTMLHeadingElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
@@ -193,6 +198,9 @@ export function Modal({
       }
     };
   }, []);
+
+  // Keeps focus in the dialog while a busy footer is disabled (#6533).
+  useBusyFocus(panelRef, busy);
 
   // Handle modal context state for blur overlay
   useEffect(() => {
@@ -337,14 +345,18 @@ export function Modal({
         />
         {/* Dialog container */}
         <div
-          className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl ${
+          className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl outline-none ${
             mobileSheet
               ? `max-h-[calc(100dvh-3rem-env(safe-area-inset-top))] w-full rounded-t-2xl max-sm:max-w-none sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-2xl ${MODAL_MAX_WIDTH[size]}`
               : `${widthClass ?? `mx-4 w-[calc(100%-2rem)] ${MODAL_MAX_WIDTH[size]}`} max-h-[calc(100dvh-2rem)] rounded-2xl`
           } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
+          ref={panelRef}
+          // Focus target while a busy dialog has disabled its own controls.
+          tabIndex={busy ? -1 : undefined}
           aria-labelledby={title ? titleId : undefined}
           aria-describedby={title && description ? descriptionId : undefined}
+          aria-busy={busy || undefined}
           style={{ ...OVERLAY_PANEL_STYLE, pointerEvents: "auto" }}
         >
           {/* Header with close button - only show border if title exists */}

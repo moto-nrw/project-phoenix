@@ -31,3 +31,16 @@ export const SchoolLogin: Story = {
     },
   },
 };
+
+export const WorkTimeReview: Story = {
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: {
+        pathname: "/help/arbeitszeiten-des-teams-pruefen",
+        query: { role: "lead" },
+        segments: [["topic", ["arbeitszeiten-des-teams-pruefen"]]],
+      },
+    },
+  },
+};

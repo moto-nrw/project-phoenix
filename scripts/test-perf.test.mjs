@@ -222,6 +222,30 @@ for (const [name, change] of [
   });
 }
 
+// #6488: "^V--- PASS: <name> (0.00s)\n" adds 20 bytes to the name.
+const goLongRows = (Test, run = true) => [goEvent('start'), goEvent('run', 'TestMatrix'),
+  ...(run ? [goEvent('run', Test)] : []), goEvent('pause', Test), goEvent('cont', Test),
+  goEvent('pass', Test, { Elapsed: 0 }), goEvent('pass', 'TestMatrix', { Elapsed: 0 }), goEvent('pass')];
+
+test('Go inventory accepts test framing lines up to PIPE_BUF and rejects longer ones by bytes', async t => {
+  const fits = `TestMatrix/${'x'.repeat(492 - 'TestMatrix/'.length)}`;
+  assert.equal(goInventory(goJSONL(goLongRows(fits))).entries.length, 2);
+  for (const name of [`${fits}x`, `TestMatrix/${'ü'.repeat(241)}`]) {
+    const text = goJSONL(goLongRows(name));
+    assert.throws(() => goInventory(text), /exceeds 512 \(PIPE_BUF\), shorten the test name/);
+    await assert.rejects(goInventoryFile(goReportFile(t, text), { highWaterMark: 7 }), /exceeds 512/);
+  }
+});
+
+test('Go inventory names the long test whose run event a concurrent stderr write split', () => {
+  // The shape test2json emitted when a log line landed inside "^V=== RUN   <name>".
+  const name = `TestMatrix/cleanup/K5_resolver_read_SELECT_${'"person"."id",_'.repeat(140)}`;
+  const rows = goLongRows(name, false);
+  rows.splice(2, 0, goEvent('output', 'TestMatrix', { Output: '==2026/11/10 20:20:06 WARN SMTP mailer not configured\n' }),
+    goEvent('output', 'TestMatrix', { Output: `= RUN   ${name}\n` }));
+  assert.throws(() => goInventory(goJSONL(rows)), /exceeds 512 \(PIPE_BUF\), shorten the test name: moto\/probe TestMatrix\/cleanup\/K5/);
+});
+
 test('Go inventory rejects whitespace-only, malformed and truncated JSONL', async t => {
   for (const input of [' \n\t', '{not-json}', `${goJSONL(goRows())}\n{"Action":`]) {
     assert.throws(() => goInventory(input));

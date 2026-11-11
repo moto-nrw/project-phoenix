@@ -164,3 +164,19 @@ func liveTraeger(organization organizationtenancy.Organization, found bool, err 
 	}
 	return nil
 }
+
+// HasRetainedTraegerMembership keeps account retention separate from login
+// eligibility: pending/active membership survives a disabled or deleted Träger.
+// The read joins the caller's tenant or administrative transaction.
+func (s *Service) HasRetainedTraegerMembership(ctx context.Context, accountID int64) (retained bool, err error) {
+	if accountID <= 0 {
+		return false, organizationtenancy.ErrInvalidOrganization
+	}
+	err = s.runRead(ctx, "has_retained_traeger_membership", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		retained, queryStats, err = s.store.HasRetainedTraegerMembership(txCtx, accountID)
+		stats.Add(queryStats)
+		return err
+	})
+	return retained, err
+}

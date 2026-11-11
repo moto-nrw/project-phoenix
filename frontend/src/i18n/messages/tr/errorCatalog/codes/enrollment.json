@@ -99,7 +99,9 @@
   "message_required": "Lütfen bir mesaj yazın.",
   "offering_adjustment_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "phase_care_offering_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "phase_has_effective_bookings": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "phase_eligibility_setting_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "phase_pending_child_window_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "phase_name_exists": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "phase_name_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "phase_not_eligible": "Bu kayıt hesabınız için açık değil. Lütfen veli uygulamasına giriş yapın veya okula sorun.",
@@ -153,5 +155,9 @@
   "holiday_registration_form_changed": "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin.",
   "holiday_proof_limit": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "family_children_closed": "Çocuk sayısı burada artık değiştirilemez. Bakım sözleşmenizde bulabilirsiniz.",
-  "family_children_invalid": "Lütfen 1 ile 20 arasında bir sayı girin."
+  "family_children_invalid": "Lütfen 1 ile 20 arasında bir sayı girin.",
+  "holiday_allocation_mode_locked": "Kayıtlar zaten var, dağıtım şekli değişmez.",
+  "holiday_allocation_pending": "Önce „Vergabe“ sekmesinde yerleri dağıtın.",
+  "holiday_allocation_full": "Bu haftada boş yer kalmadı. Lütfen listeyi yeniden yükleyin.",
+  "holiday_allocation_changed": "Liste değişti. Lütfen kararınızı yeniden kontrol edin."
 }

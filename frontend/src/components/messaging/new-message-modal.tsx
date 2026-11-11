@@ -21,6 +21,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { formErrorMessage } from "~/components/ui/form-error";
 import {
   FormErrorAlert,
@@ -160,7 +161,14 @@ export function NewMessageModal({
   const guardiansError = useApiLoadError();
   const showGuardiansError = guardiansError.show;
   const clearGuardiansError = guardiansError.clear;
+  // The guardian whose chat the running open is for.
   const [openingId, setOpeningId] = useState<string | null>(null);
+  // Mounted only while open. Another child or audience starts a new session,
+  // so a late chat of the old one does not open (#6593).
+  const save = useFormModalPending(
+    true,
+    student ? `${student.id}:${audience}` : null,
+  );
   // Opening the chat fails inside the open panel; the error stays there.
   const openError = useApiFormError();
   const latestPickRef = useRef<(guardian: Guardian) => void>(() => undefined);
@@ -225,29 +233,33 @@ export function NewMessageModal({
   };
 
   const handlePickGuardian = async (guardian: Guardian) => {
-    if (!student || openingId) return;
-    setOpeningId(guardian.account_id);
-    openError.clear();
-    try {
-      const thread = await openThread({
-        studentId: student.id,
-        guardianAccountId: guardian.account_id,
-        audience,
-      });
-      onOpened(thread);
-      onClose();
-    } catch (err) {
-      logger.error("new_message_open_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        student_id: student.id,
-      });
-      void openError.show(err, {
-        object: "die Unterhaltung",
-        retry: () => latestPickRef.current(guardian),
-      });
-    } finally {
-      setOpeningId(null);
-    }
+    if (!student) return;
+    await save.run(async (op) => {
+      setOpeningId(guardian.account_id);
+      openError.clear();
+      try {
+        const thread = await openThread({
+          studentId: student.id,
+          guardianAccountId: guardian.account_id,
+          audience,
+        });
+        // Navigates to the chat: only for the child and audience still shown.
+        if (!op.isCurrent()) return;
+        onOpened(thread);
+        onClose();
+      } catch (err) {
+        logger.error("new_message_open_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          student_id: student.id,
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        void openError.show(err, {
+          object: "die Unterhaltung",
+          retry: () => latestPickRef.current(guardian),
+        });
+      }
+    });
   };
   // "Wiederholen" opens with the then current child.
   useLayoutEffect(() => {
@@ -266,6 +278,7 @@ export function NewMessageModal({
   return (
     <SlideOver
       open
+      pending={save}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
@@ -381,7 +394,7 @@ export function NewMessageModal({
                       key={g.account_id}
                       type="button"
                       onClick={() => void handlePickGuardian(g)}
-                      disabled={openingId !== null}
+                      disabled={save.pending}
                       className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left hover:bg-gray-50 disabled:opacity-60"
                     >
                       <span className="min-w-0">
@@ -401,7 +414,7 @@ export function NewMessageModal({
                         {g.is_primary && (
                           <StatusBadge label="primär" tone="green" compact />
                         )}
-                        {openingId === g.account_id && (
+                        {save.pending && openingId === g.account_id && (
                           <span className="text-xs text-gray-400">
                             Öffnen...
                           </span>

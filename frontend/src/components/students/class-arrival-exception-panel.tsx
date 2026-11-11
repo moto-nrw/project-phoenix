@@ -9,6 +9,10 @@
 // Routen des anderen kennt.
 
 import { FieldLabel } from "~/components/ui/field-label";
+import {
+  useFormModalPending,
+  type FormModalPending,
+} from "~/components/ui/use-form-modal-pending";
 import { FramedList } from "~/components/ui/framed-list";
 import {
   useCallback,
@@ -181,6 +185,12 @@ interface ClassArrivalExceptionPanelProps {
    * Wochenendtage wählbar.
    */
   readonly weekendOpen?: boolean;
+  /**
+   * Der Speicher-Vertrag des Dialogs, in dem das Panel steht (#6533): Speichert
+   * das Panel, sperrt der Dialog X, Escape, Hintergrund und Fußleiste. Ohne
+   * Angabe hält das Panel seinen eigenen.
+   */
+  readonly pending?: FormModalPending;
 }
 
 const WEEKDAY_SHORT: Record<number, string> = {
@@ -281,6 +291,7 @@ function ClassArrivalExceptionPanelBody({
   readOnlyHint = OGS_READ_ONLY_HINT,
   originLabel = ogsOriginLabel,
   weekendOpen = false,
+  pending,
 }: ClassArrivalExceptionPanelBodyProps) {
   const [exceptions, setExceptions] = useState<ClassArrivalException[]>([]);
   const [canEdit, setCanEdit] = useState(false);
@@ -293,7 +304,9 @@ function ClassArrivalExceptionPanelBody({
   const [time, setTime] = useState("");
   const [reason, setReason] = useState("");
   const [presetPending, setPresetPending] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const ownPending = useFormModalPending();
+  const save = pending ?? ownPending;
+  const saving = save.pending;
   const [removing, setRemoving] = useState<string | null>(null);
   // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109); ein
   // Fehler bleibt im Dialog stehen statt als Toast zu verschwinden.
@@ -399,31 +412,35 @@ function ClassArrivalExceptionPanelBody({
   const handleSave = async () => {
     if (!isoDate || !canSave) return;
     formErrors.clear();
-    setSaving(true);
-    try {
-      await api.upsert(schoolClass, isoDate, {
-        arrival_time: time,
-        reason: reason.trim() === "" ? null : reason.trim(),
-      });
-      notify.success(
-        `${classLabel} kommt am ${formatDate(isoDate)} um ${time} Uhr.`,
-      );
-      setDate(null);
-      setTime("");
-      setReason("");
-      await reload();
-      onChanged?.();
-    } catch (err) {
-      logger.error("class_arrival_exception_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Abweichung",
-        retry: () => void latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        await api.upsert(schoolClass, isoDate, {
+          arrival_time: time,
+          reason: reason.trim() === "" ? null : reason.trim(),
+        });
+        // Eine späte Antwort meldet sich nicht in einem neuen Dialog (#6533);
+        // die Daten frischt sie trotzdem auf.
+        if (op.isCurrent()) {
+          notify.success(
+            `${classLabel} kommt am ${formatDate(isoDate)} um ${time} Uhr.`,
+          );
+          setDate(null);
+          setTime("");
+          setReason("");
+          await reload();
+        }
+        onChanged?.();
+      } catch (err) {
+        logger.error("class_arrival_exception_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Abweichung",
+          retry: () => void latestSaveRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestSaveRef.current = handleSave;

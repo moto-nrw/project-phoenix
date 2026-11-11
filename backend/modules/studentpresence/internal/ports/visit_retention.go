@@ -16,3 +16,12 @@ type VisitRetentionStore interface {
 	OldestExpiredVisitDate(ctx context.Context, policy studentpresence.VisitRetentionPolicy) (*time.Time, Stats, error)
 	ListExpiredVisitMonths(ctx context.Context, policy studentpresence.VisitRetentionPolicy) ([]studentpresence.VisitMonthCount, Stats, error)
 }
+
+// VisitExpiry selects the completed visits of one student to delete: those
+// that ended before Cutoff when ByExit is set, otherwise those created before
+// Cutoff.
+type VisitExpiry struct {
+	StudentID int64
+	Cutoff    time.Time
+	ByExit    bool
+}

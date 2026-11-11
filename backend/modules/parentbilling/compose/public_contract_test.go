@@ -74,6 +74,12 @@ func (s settingsDouble) PaymentText(context.Context, int64) (string, error) {
 	return "", nil
 }
 
+// DatevSettings has no standard revenue account; the contract does not
+// release a run.
+func (s settingsDouble) DatevSettings(context.Context, int64) (parentbilling.DatevSettings, error) {
+	return parentbilling.DatevSettings{}, nil
+}
+
 func (s settingsDouble) HolidayChain(context.Context, int64) (parentbilling.HolidayChainSettings, error) {
 	return parentbilling.HolidayChainSettings{
 		SiblingRank: parentbilling.SiblingRankHighestContribution, CostTakeoverOrder: parentbilling.CostTakeoverAfterDiscount,
@@ -109,7 +115,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		}}},
 	}}
 	rules := compose.NewContributionRules()
-	contributions := compose.NewHolidayContributions(enrollment, settingsDouble{})
+	contributions, _ := compose.NewHolidayContributions(enrollment, settingsDouble{})
 	reviewer := parentbilling.HolidayReviewer{OrganizationID: organization, AccountID: account.ID}
 
 	var exemption parentbilling.ContributionRule

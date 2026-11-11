@@ -2,50 +2,44 @@ package migrations
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
 )
 
-func (run *tenantBackfillRun) monitoredBatch(ctx context.Context, batch *RequestChildStorageBatch, attempt int) (resultErr error) {
-	conn, err := run.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = conn.Close() }()
-	var pid int
-	if err := conn.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &pid); err != nil {
-		return err
-	}
-	stop, _, err := monitorBackfillLocks(ctx, run.db, pid)
-	if err != nil {
-		return err
-	}
-	observed := false
-	finish := func() error {
-		wait, err := stop()
-		if !observed {
-			run.lockWait += wait
-			observed = true
-		}
-		return err
-	}
-	defer func() { resultErr = errors.Join(resultErr, finish()) }()
-	return conn.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `SET LOCAL statement_timeout = '60s'`); err != nil {
-			return err
-		}
-		return run.applyBatch(ctx, tx, batch, attempt, finish)
-	})
+// requestChildSourceCounts are the row counts of the source statements of one
+// request-child batch.
+type requestChildSourceCounts struct {
+	scannedSource, deletedBookings, insertedBookings, deletedSelections, insertedSelections int64
+}
+
+func (run *tenantBackfillRun) monitoredBatch(ctx context.Context, batch *RequestChildStorageBatch, attempt int) error {
+	return runMonitoredBatch(ctx, run.db, nil, run.options.attemptHooks,
+		func(wait time.Duration) { run.lockWait += wait },
+		func(ctx context.Context, tx bun.Tx, observe func() error) error {
+			if _, err := tx.ExecContext(ctx, `SET LOCAL statement_timeout = '60s'`); err != nil {
+				return err
+			}
+			return run.applyBatch(ctx, tx, batch, attempt, observe)
+		})
 }
 
 // A failed attempt's data rolled back, but its measured contention remains
 // evidence. Do not advance high-water or row counters during this flush.
-func (run *tenantBackfillRun) flushFailureTelemetry(ctx context.Context) error {
+// After a COMMIT with unknown outcome the batch may already hold the pending
+// counters: bookCounters is false and only acceptance is withdrawn (#6449).
+func (run *tenantBackfillRun) flushFailureTelemetry(ctx context.Context, bookCounters bool) error {
 	flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	if !bookCounters {
+		_, err := run.db.NewRaw(`UPDATE enrollment.request_child_storage_backfill_checkpoints SET
+			complete = FALSE, stable = FALSE, updated_at = now() WHERE tenant_id = ?`, run.tenantID).Exec(flushCtx)
+		if err != nil {
+			return fmt.Errorf("withdraw request-child acceptance after unknown commit: %w", err)
+		}
+		return nil
+	}
 	_, err := run.db.NewRaw(`UPDATE enrollment.request_child_storage_backfill_checkpoints SET
 		batches_retried = batches_retried + ?, deadlocks = deadlocks + ?,
 		serialization_failures = serialization_failures + ?, lock_timeouts = lock_timeouts + ?,

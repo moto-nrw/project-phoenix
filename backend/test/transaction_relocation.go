@@ -15,8 +15,10 @@ type transactionFingerprint func(key string, before bool) (string, error)
 func transactionScopeSubset(current, previous map[string]string, moves map[string]string, fingerprint transactionFingerprint, receiverRemoved func(string, string, string) (bool, error)) error {
 	current = withoutReviewedSessionMintTransactions(withoutReviewedEmailDeliveryEventTransactions(withoutReviewedRealtimeNotificationTransactions(current)))
 	current = withoutReviewedEnrollmentDecisionCommandTransaction(current)
+	current = withoutReviewedAccountMFAEnrollmentTransaction(current)
 	current = withoutReviewedTransactionFrameBundles(current)
 	current = withoutReviewedBelegRetentionTransactions(current)
+	current = withoutReviewedVisitRetentionTransaction(current)
 	current = withoutReviewedEnrollmentFamilyChildrenTransactions(withoutReviewedEnrollmentFormLabelsTransactions(withoutReviewedSchoolVacationTransactions(withoutReviewedPayrollDispatchTransactions(withoutReviewedParentDocumentInboxTransactions(withoutReviewedHolidayContributionTransactions(withoutReviewedHolidayRegistrationPrefillTransactions(withoutReviewedHolidayRegistrationTransactions(withoutReviewedTraegerTransactions(withoutReviewedTraegerViewTransactions(withoutReviewedTenantExportTransaction(withoutReviewedCaregiverDisableTransaction(withoutReviewedBillingKeyDateTransactions(current)))))))))))))
 	for key, reason := range current {
 		if old, retained := previous[key]; retained {

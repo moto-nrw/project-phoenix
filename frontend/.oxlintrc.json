@@ -46,6 +46,8 @@
     "swr/no-cache-access": "error",
     "swr/no-test-support-import": "error",
     "test-clock/no-real-clock": "error",
+    "ui-kit/form-modal-pending": "error",
+    "ui-kit/slide-over-pending": "error",
     "ui-kit/green-fill-white-text": "error",
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",

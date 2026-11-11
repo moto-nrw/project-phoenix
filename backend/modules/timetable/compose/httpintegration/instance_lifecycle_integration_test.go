@@ -466,7 +466,7 @@ func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"instance_create", "instance_update"}, deviationSources())
 
-	require.NoError(t, svc.DeleteCancelled(s.ctx, inst.ID))
+	require.NoError(t, deleteInTenantTx(t, s.ctx, s.db, svc, inst.ID))
 	assert.Equal(t,
 		[]string{"instance_create", "instance_update", "instance_delete"},
 		deviationSources())
@@ -1954,7 +1954,7 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 			ai := seedInstance(t, s, false, false)
 			forceSetInstanceStatus(t, s, ai.ID, status)
 
-			err := s.svc.DeleteCancelled(s.ctx, ai.ID)
+			err := deleteInTenantTx(t, s.ctx, s.db, s.svc, ai.ID)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, timetable.ErrInvalidInstanceTransition)
 			assert.True(t, instanceExists(t, s, ai.ID))
@@ -1965,7 +1965,7 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 		s := buildLifecycle(t)
 		ai := seedInstance(t, s, false, false)
 
-		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
+		require.NoError(t, deleteInTenantTx(t, s.ctx, s.db, s.svc, ai.ID))
 		assert.False(t, instanceExists(t, s, ai.ID))
 
 		exceptions := loadLifecycleExceptions(t, s)
@@ -1980,7 +1980,7 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 		ai := seedInstance(t, s, false, false)
 		forceSetInstanceStatus(t, s, ai.ID, fixtures.InstanceStatusCancelled())
 
-		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
+		require.NoError(t, deleteInTenantTx(t, s.ctx, s.db, s.svc, ai.ID))
 		assert.False(t, instanceExists(t, s, ai.ID))
 		assert.Len(t, loadLifecycleExceptions(t, s), 1)
 	})
@@ -1989,7 +1989,7 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 		s := buildLifecycle(t)
 		id := insertInstance(t, s, calendar.NewDate(2026, 4, 20), fixtures.InstanceStatusPlanned(), true)
 
-		require.NoError(t, s.svc.DeleteCancelled(s.ctx, id))
+		require.NoError(t, deleteInTenantTx(t, s.ctx, s.db, s.svc, id))
 		assert.False(t, instanceExists(t, s, id))
 		assert.Empty(t, loadLifecycleExceptions(t, s))
 	})
@@ -2000,7 +2000,7 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 		firstID := insertInstanceAt(t, s, date, fixtures.InstanceStatusPlanned(), false, 14)
 		secondID := insertInstanceAt(t, s, date, fixtures.InstanceStatusPlanned(), false, 15)
 
-		err := s.svc.DeleteCancelled(s.ctx, firstID)
+		err := deleteInTenantTx(t, s.ctx, s.db, s.svc, firstID)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, timetable.ErrAmbiguousTemplateInstanceDelete)
 		assert.True(t, instanceExists(t, s, firstID))

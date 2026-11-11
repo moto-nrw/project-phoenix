@@ -14,8 +14,8 @@ func NewContributionRules() parentbilling.ContributionRules {
 	return application.NewRules(postgres.NewStore())
 }
 
-// NewHolidayContributions builds the holiday contribution (#4664, ADR 0115) over the registrations the root binds.
-func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) parentbilling.HolidayContributions {
+// NewHolidayContributions builds the holiday contribution and allocation billing over the root-bound registrations (ADR 0115).
+func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
 	return application.NewHolidayContributions(postgres.NewStore(), registrations, settings)
 }
 
@@ -43,8 +43,8 @@ func NewParentDocuments() *application.ParentDocuments {
 }
 
 // NewBillingFamilies builds the invoices and amounts per family (#4691) and the finance exports with their protocol (#4693), whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
-func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings) (parentbilling.BillingFamilies, parentbilling.FinanceExports) {
-	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now)
+func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
+	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
 }
 
 // MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686).
@@ -85,7 +85,7 @@ func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling
 	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)
 }
 
-// NewSEPAExportFields opens the sealed IBAN and account holder for the return export of a Träger (#3838); only the administrative export CLI binds it, never HTTP.
+// NewSEPAExportFields opens the sealed IBAN, account holder and mandate text for the return export of a Träger (#3838, #6412); only the administrative export CLI binds it, never HTTP.
 func NewSEPAExportFields(cipher parentbilling.BankDataCipher) parentbilling.SEPAExportFields {
 	return application.NewSEPAExportFields(cipher)
 }

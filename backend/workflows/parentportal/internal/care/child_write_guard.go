@@ -54,7 +54,16 @@ type ChildWriteAccess struct {
 	// ChildMissing names the write's refusal when the child row cannot be
 	// locked, e.g. because it was deleted; nil returns the lock error.
 	ChildMissing func(ctx context.Context, err error) error
+	// readReceipt skips the guard, see ReadReceiptOnly.
+	readReceipt bool
 }
+
+// ReadReceiptOnly marks a WithPermittedChildForWrite whose only write is the
+// reader's own read cursor of what it just read: the child check in the same
+// transaction authorizes the read, no data of the child changes, so the
+// guard's locks are not taken. The architecture rule follows such a write
+// argument like unguarded code, so its writes need their exemption.
+func ReadReceiptOnly(access *ChildWriteAccess) { access.readReceipt = true }
 
 // childWriteNeeds is the access of a write that changes no contact row of
 // the guardian.
@@ -105,6 +114,9 @@ func (s *Service) WithChildWrite(
 // guardChildWrite repeats the relationship check of ResolvePermittedChild in
 // the write's school transaction, with every fact locked until commit.
 func (s *Service) guardChildWrite(ctx context.Context, accountID, studentID int64, child *Child, access ChildWriteAccess) error {
+	if access.readReceipt {
+		return nil
+	}
 	if accountID <= 0 || studentID <= 0 || child == nil || child.GuardianProfileID <= 0 {
 		return ErrChildNotLinked
 	}

@@ -3174,6 +3174,17 @@
       "target_owner": "people-directory"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseStudents.MovePendingWindow",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/schoolmembership.PendingWindows.MovePendingWindow (school-membership) through roots/owners.enrollmentPhaseStudents.MovePendingWindow. ADR 0202 (#6505): a phase edit moves the window of a child its approval left pending in the edit's tenant transaction; School Membership locks only the child's row, decides under it whether the child is still pending and which bound still equals the phase's old one, and takes no class gate, so no cross-owner lock order or re-read is needed (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.PendingWindows.MovePendingWindow",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RejectedCleanup.CleanupRejectedEnrollments",
       "classification": "query",
       "effect": "query",
@@ -4276,6 +4287,17 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "reason": "The Enrollment HTTP adapter binds Parent Billing's guarded allocation command to Enrollment's decision. Parent Billing retains its invoice-before-period lock order and refreezeMovedUp, including sibling groups; Enrollment retains validation, criteria/week locks, placement, audit and transactional mail. The root only wires the two capabilities. The command joins the request's Träger transaction and propagates all failures to its rollback. TestHolidayAllocationHoldsFreePlacesForThePendingBookings covers promotion charges and rollback of decisions, placements and both mails on a rejected contribution.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "target_owner": "parent-billing"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
@@ -6743,6 +6765,36 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.SetPersonDetails",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.Capability.CareOfferingBookingsForPhase. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505, ADR 0202).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.CareOfferingBooking.EffectiveSelectedDays. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505, ADR 0202).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingBooking.EffectiveSelectedDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.Owner.CareOfferingBookingsForPhase. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505, ADR 0202).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CountOfferingsForPhase",

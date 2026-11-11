@@ -24,6 +24,7 @@ import {
   asksForAddress,
   bookedWeeks,
   type ContactDraft,
+  criterionQuestions,
   hasAddress,
   hasSecondGuardian,
   isAnswered,
@@ -181,6 +182,10 @@ export function HolidayRegistrationSummary({
               questions={visibleChildQuestions(draft, child, offer.form)}
               answers={child.answers}
             />
+            <AnswerFields
+              questions={criterionQuestions(offer, "child")}
+              answers={child.criteria ?? {}}
+            />
           </DataGrid>
         </SectionCard>
       ))}
@@ -221,6 +226,10 @@ export function HolidayRegistrationSummary({
           <AnswerFields
             questions={visibleFamilyQuestions(draft, offer.form)}
             answers={draft.answers}
+          />
+          <AnswerFields
+            questions={criterionQuestions(offer, "family")}
+            answers={draft.criteria ?? {}}
           />
         </DataGrid>
       </SectionCard>

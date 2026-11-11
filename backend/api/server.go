@@ -252,13 +252,14 @@ func composeProcess(config ServeConfig, db transactionruntime.Database, tracker 
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
 		stats := db.Capacity()
 		return observability.DBStats{
-			OpenConnections:   stats.OpenConnections,
-			InUse:             stats.InUse,
-			Idle:              stats.Idle,
-			WaitCount:         stats.WaitCount,
-			WaitDuration:      stats.WaitDuration,
-			MaxIdleClosed:     stats.MaxIdleClosed,
-			MaxLifetimeClosed: stats.MaxLifetimeClosed,
+			MaxOpenConnections: stats.MaxOpenConnections,
+			OpenConnections:    stats.OpenConnections,
+			InUse:              stats.InUse,
+			Idle:               stats.Idle,
+			WaitCount:          stats.WaitCount,
+			WaitDuration:       stats.WaitDuration,
+			MaxIdleClosed:      stats.MaxIdleClosed,
+			MaxLifetimeClosed:  stats.MaxLifetimeClosed,
 		}
 	})
 	documentPermissions := studentDocumentPermissions()

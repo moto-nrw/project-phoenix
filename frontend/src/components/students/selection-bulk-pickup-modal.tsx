@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -37,7 +38,8 @@ export function SelectionBulkPickupModal({
   // „Wiederholen“ speichert die aktuellen Zeiten, nicht die vom Fehler.
   const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
   const [times, setTimes] = useState<Record<number, string>>({});
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const [needsExceptionConfirmation, setNeedsExceptionConfirmation] =
     useState(false);
   const [exceptionConfirmed, setExceptionConfirmed] = useState(false);
@@ -70,39 +72,42 @@ export function SelectionBulkPickupModal({
       errors.invalid("Bitte tragen Sie mindestens eine Gehzeit ein.");
       return;
     }
-    setSaving(true);
-    try {
-      await bulkUpsertPickupSchedules(
-        studentIds,
-        schedules,
-        needsExceptionConfirmation && exceptionConfirmed,
-      );
-      success(
-        `Die Gehzeiten für ${studentIds.length === 1 ? "1 Kind" : `${studentIds.length} Kinder`} sind gespeichert.`,
-      );
-      onSuccess?.();
-      handleClose();
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        "code" in err &&
-        wireErrorCode(err.code) ===
-          "pickup.bulk_exception_confirmation_required"
-      ) {
-        setNeedsExceptionConfirmation(true);
-        setExceptionConfirmed(false);
-        return;
+    await save.run(async (op) => {
+      try {
+        await bulkUpsertPickupSchedules(
+          studentIds,
+          schedules,
+          needsExceptionConfirmation && exceptionConfirmed,
+        );
+        success(
+          `Die Gehzeiten für ${studentIds.length === 1 ? "1 Kind" : `${studentIds.length} Kinder`} sind gespeichert.`,
+        );
+        onSuccess?.();
+        // Ein Speichern, das erst nach dem Aushängen oder Schließen fertig
+        // wird, schließt nicht mehr: Der Eltern-Schalter gehört dann schon dem
+        // nächsten Dialog (#6503, #6533).
+        if (op.isCurrent()) handleClose();
+      } catch (err) {
+        if (!op.isCurrent()) return;
+        if (
+          err instanceof Error &&
+          "code" in err &&
+          wireErrorCode(err.code) ===
+            "pickup.bulk_exception_confirmation_required"
+        ) {
+          setNeedsExceptionConfirmation(true);
+          setExceptionConfirmed(false);
+          return;
+        }
+        logger.error("failed to bulk upsert pickup schedules", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await errors.show(err, {
+          object: "die Gehzeit",
+          retry: () => void latestSubmitRef.current(),
+        });
       }
-      logger.error("failed to bulk upsert pickup schedules", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await errors.show(err, {
-        object: "die Gehzeit",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = handleSubmit;
@@ -112,6 +117,9 @@ export function SelectionBulkPickupModal({
     <FormModal
       isOpen={isOpen}
       onClose={handleClose}
+      // X, Escape und Hintergrund bleiben gesperrt, solange gespeichert wird:
+      // Ein scheinbarer Abbruch würde trotzdem speichern (#6503).
+      pending={save}
       title="Gehzeiten für Auswahl"
       error={errors.error}
       size="md"

@@ -12,6 +12,7 @@ import { Button } from "~/components/ui/button";
 import { CopyField } from "~/components/ui/copy-field";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { SectionCard } from "~/components/ui/section-card";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
@@ -106,6 +107,8 @@ function InfoDisplaysPageContent() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<InfoDisplay | null>(null);
+  // Anlegen und Umbenennen sperren den Namensdialog, solange sie laufen (#6533).
+  const nameSave = useFormModalPending(createOpen || renameTarget !== null);
   const [nameInput, setNameInput] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<InfoDisplay | null>(null);
   const [tokenModal, setTokenModal] = useState<TokenModalState | null>(null);
@@ -177,43 +180,53 @@ function InfoDisplaysPageContent() {
 
   const handleCreate = async () => {
     nameErrors.clear();
-    const result = await run(
-      () => createDisplay(nameInput),
-      "display_create_failed",
-      showNameError,
-    );
-    if (!result.ok) return;
-    const { display, token } = result.value;
-    setCreateOpen(false);
-    setNameInput("");
-    setTokenModal({
-      displayName: display.name,
-      url: buildDisplayUrl(token, tenantSlug),
+    await nameSave.run(async (op) => {
+      const result = await run(
+        () => createDisplay(nameInput),
+        "display_create_failed",
+        (err) => {
+          if (op.isCurrent()) showNameError(err);
+        },
+      );
+      // Eine späte Antwort ändert keinen inzwischen neuen Dialog.
+      if (!result.ok || !op.isCurrent()) return;
+      const { display, token } = result.value;
+      setCreateOpen(false);
+      setNameInput("");
+      setTokenModal({
+        displayName: display.name,
+        url: buildDisplayUrl(token, tenantSlug),
+      });
     });
   };
 
   const handleRename = async () => {
     if (!renameTarget) return;
     nameErrors.clear();
-    const result = await run(
-      () => updateDisplay(renameTarget.id, { name: nameInput }),
-      "display_rename_failed",
-      showNameError,
-      (rows) =>
-        rows.map((row) =>
-          row.id === renameTarget.id ? { ...row, name: nameInput } : row,
-        ),
-      (saved) => {
-        void mutate(
-          (rows) => rows?.map((row) => (row.id === saved.id ? saved : row)),
-          { revalidate: false },
-        );
-      },
-    );
-    if (!result.ok) return;
-    toast.success(`Das Display heißt jetzt „${result.value.name}“.`);
-    setRenameTarget(null);
-    setNameInput("");
+    await nameSave.run(async (op) => {
+      const result = await run(
+        () => updateDisplay(renameTarget.id, { name: nameInput }),
+        "display_rename_failed",
+        (err) => {
+          if (op.isCurrent()) showNameError(err);
+        },
+        (rows) =>
+          rows.map((row) =>
+            row.id === renameTarget.id ? { ...row, name: nameInput } : row,
+          ),
+        (saved) => {
+          void mutate(
+            (rows) => rows?.map((row) => (row.id === saved.id ? saved : row)),
+            { revalidate: false },
+          );
+        },
+      );
+      if (!result.ok) return;
+      toast.success(`Das Display heißt jetzt „${result.value.name}“.`);
+      if (!op.isCurrent()) return;
+      setRenameTarget(null);
+      setNameInput("");
+    });
   };
 
   const handleToggleActive = async (display: InfoDisplay) => {
@@ -408,6 +421,7 @@ function InfoDisplaysPageContent() {
           <FormModal
             isOpen={createOpen || renameTarget !== null}
             onClose={closeNameModal}
+            pending={nameSave}
             title={renameTarget ? "Display umbenennen" : "Neues Info-Display"}
             size="sm"
             error={nameErrors.error}
@@ -515,6 +529,7 @@ function TokenModal({
   const { showMessage } = useApiErrorDisplay();
 
   return (
+    // oxlint-disable-next-line ui-kit/form-modal-pending -- zeigt nur den Link, speichert nichts.
     <FormModal
       isOpen
       onClose={onClose}

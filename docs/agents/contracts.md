@@ -817,7 +817,11 @@ Backend paths in this section are relative to `backend/`:
   membership. `TraegerScopeMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
-  transaction filtered on the Träger's schools. The Träger's own tables
+  transaction filtered on the Träger's schools. A school outside that set
+  answers 404 `traeger.school_not_found` on the school read and the Absprung
+  alike, whether it belongs to another Träger or does not exist, so no route
+  reveals a school; a missing right stays 403 with its own code (#6461).
+  The Träger's own tables
   (holiday periods, ADR 0105; Träger settings, ADR 0086/0107; master data
   with logo, contact person and bank accounts, ADR 0112) are written in
   the Träger transaction (`tenant.WithinTraeger`: tenant role,
@@ -934,8 +938,11 @@ its password check read; the session mint, the code a sign-in or an
 enrollment start mails (the enrollment token carries `credential_generation`),
 a resend (the challenge token carries it too) and the remembered device of an
 MFA exchange are issued only while it still holds, compared under the account
-lock, and a code redeems only at its own generation. A refused resend or
-enrollment start answers 401 `identity.invalid_credentials`; tokens issued
+lock, and a code redeems only at its own generation. The enrollment confirm of
+every account portal (tenant, school, Träger, caterer) records the factor
+with the redeemed code's generation, compared under the account lock in the
+enrollment write's transaction (#6518). A refused resend, enrollment start or
+enrollment confirm answers 401 `identity.invalid_credentials`; tokens issued
 before this claim existed read as generation 0. The own change writes by
 compare-and-swap on the hash the current password was checked against, so of
 two changes on one proof only the first wins. Operators hold their own

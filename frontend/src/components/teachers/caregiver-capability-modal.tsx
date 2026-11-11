@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import {
@@ -84,7 +85,8 @@ export function CaregiverCapabilityModal({
   const { success: toastSuccess } = useToast();
   const [state, setState] = useState<CaregiverCapabilityState | null>(null);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [position, setPosition] = useState("");
@@ -209,55 +211,55 @@ export function CaregiverCapabilityModal({
       return;
     }
 
-    try {
-      setSaving(true);
-      formErrors.clear();
+    await save.run(async (op) => {
+      try {
+        formErrors.clear();
 
-      let nextState: CaregiverCapabilityState;
-      if (scope === "operator") {
-        const resolvedSchoolId = operatorSchoolId;
-        if (!resolvedSchoolId) {
-          return;
+        let nextState: CaregiverCapabilityState;
+        if (scope === "operator") {
+          const resolvedSchoolId = operatorSchoolId;
+          if (!resolvedSchoolId) {
+            return;
+          }
+          nextState =
+            await caregiverCapabilityService.enableOperatorAccountCapability(
+              resolvedSchoolId,
+              accountId,
+              {
+                first_name: trimmedFirstName || undefined,
+                last_name: trimmedLastName || undefined,
+                position: trimmedPosition || undefined,
+              },
+            );
+        } else {
+          nextState =
+            await caregiverCapabilityService.enableTenantAccountCapability(
+              accountId,
+              {
+                first_name: trimmedFirstName || undefined,
+                last_name: trimmedLastName || undefined,
+                position: trimmedPosition || undefined,
+              },
+            );
         }
-        nextState =
-          await caregiverCapabilityService.enableOperatorAccountCapability(
-            resolvedSchoolId,
-            accountId,
-            {
-              first_name: trimmedFirstName || undefined,
-              last_name: trimmedLastName || undefined,
-              position: trimmedPosition || undefined,
-            },
-          );
-      } else {
-        nextState =
-          await caregiverCapabilityService.enableTenantAccountCapability(
-            accountId,
-            {
-              first_name: trimmedFirstName || undefined,
-              last_name: trimmedLastName || undefined,
-              position: trimmedPosition || undefined,
-            },
-          );
-      }
 
-      setState(nextState);
-      toastSuccess(`Die Betreuung für ${accountLabel} ist eingeschaltet.`);
-      await onUpdated?.(nextState);
-    } catch (error) {
-      logger.error("failed to enable caregiver capability", {
-        error: error instanceof Error ? error.message : String(error),
-        accountId,
-        schoolId: operatorSchoolId,
-        scope,
-      });
-      void formErrors.show(error, {
-        object: "das Einschalten der Betreuung",
-        retry: () => latestEnableRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+        if (op.isCurrent()) setState(nextState);
+        toastSuccess(`Die Betreuung für ${accountLabel} ist eingeschaltet.`);
+        await onUpdated?.(nextState);
+      } catch (error) {
+        logger.error("failed to enable caregiver capability", {
+          error: error instanceof Error ? error.message : String(error),
+          accountId,
+          schoolId: operatorSchoolId,
+          scope,
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(error, {
+          object: "das Einschalten der Betreuung",
+          retry: () => latestEnableRef.current(),
+        });
+      }
+    });
   }
 
   async function handleDisable() {
@@ -265,61 +267,61 @@ export function CaregiverCapabilityModal({
       return;
     }
 
-    try {
-      setSaving(true);
-      formErrors.clear();
+    await save.run(async (op) => {
+      try {
+        formErrors.clear();
 
-      let nextState: CaregiverCapabilityState;
-      if (scope === "operator") {
-        const resolvedSchoolId = operatorSchoolId;
-        if (!resolvedSchoolId) {
-          return;
+        let nextState: CaregiverCapabilityState;
+        if (scope === "operator") {
+          const resolvedSchoolId = operatorSchoolId;
+          if (!resolvedSchoolId) {
+            return;
+          }
+          nextState =
+            await caregiverCapabilityService.disableOperatorAccountCapability(
+              resolvedSchoolId,
+              accountId,
+            );
+        } else {
+          nextState =
+            await caregiverCapabilityService.disableTenantAccountCapability(
+              accountId,
+            );
         }
-        nextState =
-          await caregiverCapabilityService.disableOperatorAccountCapability(
-            resolvedSchoolId,
-            accountId,
-          );
-      } else {
-        nextState =
-          await caregiverCapabilityService.disableTenantAccountCapability(
-            accountId,
-          );
-      }
 
-      setState(nextState);
-      toastSuccess(`Die Betreuung für ${accountLabel} ist ausgeschaltet.`);
-      await onUpdated?.(nextState);
-    } catch (error) {
-      logger.error("failed to disable caregiver capability", {
-        error: error instanceof Error ? error.message : String(error),
-        accountId,
-        schoolId: operatorSchoolId,
-        scope,
-      });
-      void formErrors.show(error, {
-        object: "das Ausschalten der Betreuung",
-        retry: () => latestDisableRef.current(),
-      });
-      // Offene Zuordnungen stehen danach im Abschnitt darunter, mit dem Weg
-      // zum Auflösen.
-      if (
-        error instanceof CaregiverCapabilityApiError &&
-        error.blockers.length > 0
-      ) {
-        setState((current) =>
-          current
-            ? {
-                ...current,
-                disableBlocked: true,
-                disableBlockers: error.blockers,
-              }
-            : current,
-        );
+        if (op.isCurrent()) setState(nextState);
+        toastSuccess(`Die Betreuung für ${accountLabel} ist ausgeschaltet.`);
+        await onUpdated?.(nextState);
+      } catch (error) {
+        logger.error("failed to disable caregiver capability", {
+          error: error instanceof Error ? error.message : String(error),
+          accountId,
+          schoolId: operatorSchoolId,
+          scope,
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(error, {
+          object: "das Ausschalten der Betreuung",
+          retry: () => latestDisableRef.current(),
+        });
+        // Offene Zuordnungen stehen danach im Abschnitt darunter, mit dem Weg
+        // zum Auflösen.
+        if (
+          error instanceof CaregiverCapabilityApiError &&
+          error.blockers.length > 0
+        ) {
+          setState((current) =>
+            current
+              ? {
+                  ...current,
+                  disableBlocked: true,
+                  disableBlockers: error.blockers,
+                }
+              : current,
+          );
+        }
       }
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
   // Wiederholen sendet den Stand, der dann im Dialog steht.
@@ -334,6 +336,7 @@ export function CaregiverCapabilityModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title={
         step === "resolve"
           ? `Zuordnungen auflösen: ${accountLabel}`

@@ -99,7 +99,9 @@
   "message_required": "Please write a message.",
   "offering_adjustment_invalid": "{object} could not be saved. Please check your entries.",
   "phase_care_offering_conflict": "{object} could not be changed. Please check its current status.",
+  "phase_has_effective_bookings": "{object} could not be changed. Please check its current status.",
   "phase_eligibility_setting_required": "{object} could not be saved. Please check your entries.",
+  "phase_pending_child_window_conflict": "{object} could not be changed. Please check its current status.",
   "phase_name_exists": "{object} could not be changed. Please check its current status.",
   "phase_name_required": "{object} could not be saved. Please check your entries.",
   "phase_not_eligible": "This enrollment is not available for your account. Please sign in to the parent app or ask the school.",
@@ -153,5 +155,9 @@
   "holiday_registration_form_changed": "The provider has just changed the form. Please check your entries and send the registration again.",
   "holiday_proof_limit": "{object} could not be changed. Please check its current status.",
   "family_children_closed": "The number of children can no longer be changed here. You will find it in your care contract.",
-  "family_children_invalid": "Please enter a number from 1 to 20."
+  "family_children_invalid": "Please enter a number from 1 to 20.",
+  "holiday_allocation_mode_locked": "There are registrations already, so the allocation stays as it is.",
+  "holiday_allocation_pending": "Please give out the places in the “Vergabe” tab first.",
+  "holiday_allocation_full": "There are no free places left in this week. Please reload the list.",
+  "holiday_allocation_changed": "The list has changed. Please check your decision again."
 }

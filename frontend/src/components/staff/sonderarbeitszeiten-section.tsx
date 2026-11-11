@@ -10,6 +10,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import {
   OverflowMenu,
@@ -184,7 +185,8 @@ export function SonderarbeitszeitenSection({
   const toast = useToast();
 
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(draft !== null);
+  const saving = save.pending;
   const formErrors = useApiFormError();
   const [deleteTarget, setDeleteTarget] = useState<StaffTargetOverride | null>(
     null,
@@ -257,28 +259,28 @@ export function SonderarbeitszeitenSection({
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await staffTargetOverrideService.create(staffId, {
-        startDate: draft.startDate,
-        endDate: draft.endDate,
-        ...hours,
-      });
-      toast.success("Die Sonderarbeitszeit ist gespeichert.");
-      setDraft(null);
-      refresh();
-    } catch (err) {
-      logger.error("target_override_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Sonderarbeitszeit",
-        retry: () => void latestSave.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await staffTargetOverrideService.create(staffId, {
+          startDate: draft.startDate,
+          endDate: draft.endDate,
+          ...hours,
+        });
+        toast.success("Die Sonderarbeitszeit ist gespeichert.");
+        if (op.isCurrent()) setDraft(null);
+        refresh();
+      } catch (err) {
+        logger.error("target_override_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Sonderarbeitszeit",
+          retry: () => void latestSave.current(),
+        });
+      }
+    });
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
   const latestSave = useRef(handleSave);
@@ -400,7 +402,7 @@ export function SonderarbeitszeitenSection({
         onClose={() => setDraft(null)}
         title="Sonderarbeitszeit anlegen"
         size="md"
-        closeDisabled={saving}
+        pending={save}
         isBackdropDismissDisabled
         error={formErrors.error}
         footer={

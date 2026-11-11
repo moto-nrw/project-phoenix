@@ -106,38 +106,32 @@ func (s *Service) MealParticipation(ctx context.Context, accountID, studentID in
 var ErrMealParticipationManageDenied = errors.New("parent: meal participation management not permitted")
 
 // mealParticipationWriteAccess holds the manage permission of a meal
-// participation change until it commits; its refusal stays
+// participation change until it commits (#6529); its refusal stays
 // ErrMealParticipationManageDenied (mapMealParticipationError).
-var mealParticipationWriteAccess = childWriteNeeds(GuardianPermissionMealParticipationManage)
+func mealParticipationWriteAccess(access *ChildWriteAccess) {
+	access.Permissions = append(access.Permissions, GuardianPermissionMealParticipationManage)
+}
 
-func (s *Service) resolveMealParticipationWriter(ctx context.Context, accountID, studentID int64) (*Child, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
-	if err != nil {
-		return nil, err
-	}
+// mealParticipationWriter is the between of a meal participation write: the
+// relationship must grant the change and the child's care must run, both
+// decided from the child check before any statement of the school.
+func mealParticipationWriter(child *Child) error {
 	if !child.HasPermission(GuardianPermissionMealParticipationManage) {
-		return nil, ErrMealParticipationManageDenied
+		return ErrMealParticipationManageDenied
 	}
-	return child, nil
+	return child.RequireCareRunning()
 }
 
 func (s *Service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error) {
-	child, err := s.resolveMealParticipationWriter(ctx, accountID, studentID)
-	if err != nil {
-		return "", err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return "", err
-	}
 	var effectiveFrom string
-	err = s.WithChildWrite(ctx, accountID, studentID, child, mealParticipationWriteAccess, func(txCtx context.Context) error {
+	err := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionPortalAccess, mealParticipationWriter, func(txCtx context.Context, _ *Child) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
 		var writeErr error
 		effectiveFrom, writeErr = s.MealPlan.ReplaceParticipationSchedule(txCtx, MealParticipationSchedule{StudentID: studentID, GuardianAccountID: accountID, Weekdays: weekdays})
 		return writeErr
-	})
+	}, mealParticipationWriteAccess)
 	if err != nil {
 		return "", mapMealParticipationError(err)
 	}
@@ -152,26 +146,24 @@ func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studen
 // week containing date. Days past their deadline stay and come back as
 // locked.
 func (s *Service) SetMealParticipationWeek(ctx context.Context, accountID, studentID int64, date calendar.Date, participating bool) (MealWeekChange, error) {
-	child, err := s.resolveMealParticipationWriter(ctx, accountID, studentID)
-	if err != nil {
-		return MealWeekChange{}, err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return MealWeekChange{}, err
-	}
 	monday := date.StartOfISOWeek()
-	if monday.AddDays(4).Before(s.todayDate()) || monday.After(lastMealParticipationDay(s.todayDate().StartOfISOWeek())) {
-		return MealWeekChange{}, ErrMealParticipationOutOfRange
-	}
 	var result MealWeekChange
-	err = s.WithChildWrite(ctx, accountID, studentID, child, mealParticipationWriteAccess, func(txCtx context.Context) error {
+	err := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(child *Child) error {
+		if err := mealParticipationWriter(child); err != nil {
+			return err
+		}
+		if monday.AddDays(4).Before(s.todayDate()) || monday.After(lastMealParticipationDay(s.todayDate().StartOfISOWeek())) {
+			return ErrMealParticipationOutOfRange
+		}
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
 		var writeErr error
 		result, writeErr = s.MealPlan.SetParticipationForWeek(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: monday, Participating: participating})
 		return writeErr
-	})
+	}, mealParticipationWriteAccess)
 	if err != nil {
 		return MealWeekChange{}, mapMealParticipationError(err)
 	}
@@ -192,18 +184,16 @@ func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, stud
 // changeMealParticipationDay sets the day's participation, or clears the
 // family's choice for the day when participating is nil.
 func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, participating *bool) error {
-	child, err := s.resolveMealParticipationWriter(ctx, accountID, studentID)
-	if err != nil {
-		return err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return err
-	}
-	today := s.todayDate()
-	if date.Before(today) || date.After(lastMealParticipationDay(today.StartOfISOWeek())) {
-		return ErrMealParticipationOutOfRange
-	}
-	err = s.WithChildWrite(ctx, accountID, studentID, child, mealParticipationWriteAccess, func(txCtx context.Context) error {
+	err := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(child *Child) error {
+		if err := mealParticipationWriter(child); err != nil {
+			return err
+		}
+		today := s.todayDate()
+		if date.Before(today) || date.After(lastMealParticipationDay(today.StartOfISOWeek())) {
+			return ErrMealParticipationOutOfRange
+		}
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -213,7 +203,7 @@ func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, stu
 		}
 		change.Participating = *participating
 		return s.MealPlan.SetParticipationForDay(txCtx, change)
-	})
+	}, mealParticipationWriteAccess)
 	return mapMealParticipationError(err)
 }
 

@@ -88,6 +88,15 @@ func exportFixtureColumns(table organizationtenancy.LifecycleTable) map[string]s
 	if table.Name == "platform.email_delivery_events" {
 		columns["outbox_id"] = "bigint"
 	}
+	// A sealed binding reads the mandate reference of the consent (#6412).
+	for _, binding := range table.SealedBindings {
+		for local := range binding.Match {
+			columns[local] = "bigint"
+		}
+	}
+	if table.Name == "parent_billing.sepa_mandates" {
+		columns["reference"] = "text"
+	}
 	if slices.Contains([]string{"documents.files", "documents.announcement_attachments", "users.student_documents", "users.staff_documents"}, table.Name) {
 		columns["filename_stored"], columns["file_deleted_at"] = "text", "timestamptz"
 	}
@@ -125,6 +134,14 @@ func insertExportFixtureRow(t *testing.T, db *bun.DB, table organizationtenancy.
 	}
 	if table.Name == "platform.email_delivery_events" {
 		row["outbox_id"] = school
+	}
+	for _, binding := range table.SealedBindings {
+		for local := range binding.Match {
+			row[local] = school
+		}
+	}
+	if table.Name == "parent_billing.sepa_mandates" {
+		row["reference"] = fmt.Sprintf("fixture-reference-%d", school)
 	}
 	for name := range table.ExcludeSecretColumns {
 		row[name] = "excluded-" + table.Name + "-" + name

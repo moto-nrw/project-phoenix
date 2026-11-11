@@ -2,24 +2,26 @@
 
 // Der gemeinsame Kopf eines Ferienzeitraums (#5146): „Planung“, „Formular“
 // (#5198), „Anmeldungen“ und „Plätze“ (#4699) sind Reiter derselben Sache,
-// jeder mit eigener Adresse.
+// jeder mit eigener Adresse. Vergibt der Zeitraum seine Plätze nach Kriterien
+// (#4700), kommt der Reiter „Vergabe“ dazu.
 // Der Status steht als Plakette in der Statuszeile, auf beiden Reitern gleich.
 
 import type { ReactNode } from "react";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { TenantPageProps } from "~/components/ui/tenant-page";
-import type { HolidayPeriod } from "~/lib/traeger-api";
+import type { HolidayAllocationMode, HolidayPeriod } from "~/lib/traeger-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { formatDateRange, holidayStatusLabel } from "./holiday-period-format";
 
 export type HolidayPeriodTab =
-  "planung" | "formular" | "anmeldungen" | "plaetze";
+  "planung" | "formular" | "anmeldungen" | "plaetze" | "vergabe";
 
 /** Die Reiter eines Ferienzeitraums; jeder führt auf seine eigene Seite. */
 export function holidayPeriodTabs(
   periodId: string,
   active: HolidayPeriodTab,
   registrationCount?: number,
+  allocationMode?: HolidayAllocationMode,
 ): NonNullable<TenantPageProps["tabs"]> {
   return {
     value: active,
@@ -48,6 +50,15 @@ export function holidayPeriodTabs(
         label: "Plätze",
         href: traegerPath(`/traeger/ferien/${periodId}/plaetze`),
       },
+      ...(allocationMode === "criteria" || active === "vergabe"
+        ? [
+            {
+              value: "vergabe",
+              label: "Vergabe",
+              href: traegerPath(`/traeger/ferien/${periodId}/vergabe`),
+            },
+          ]
+        : []),
     ],
   };
 }

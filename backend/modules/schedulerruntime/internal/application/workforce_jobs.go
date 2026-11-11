@@ -4,37 +4,29 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"time"
 )
 
+// breakAutoEndInterval is how often the Worker ends expired breaks for every
+// school. It is one global ticker, neither per school nor configurable.
+const breakAutoEndInterval = 60 * time.Second
+
 // scheduleBreakAutoEndTask schedules the break auto-end task.
-// Runs at a fixed interval (minimum of configured values across tenants or default 60s).
 func (s *Scheduler) scheduleBreakAutoEndTask() {
 	if s.breakAutoEnder == nil {
 		s.getLogger().Info("break auto-end not configured (no BreakAutoEnder service)")
 		return
 	}
 
-	// Resolve interval from env var (global, not per-tenant)
-	seconds := 60
-	if val := s.env("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			seconds = parsed
-		}
-	}
-
-	s.registerTask("break-auto-end", fmt.Sprintf("%ds-poll", seconds), func(task *ScheduledTask) {
-		s.runBreakAutoEndTaskPolling(task, seconds)
-	})
+	s.registerTask("break-auto-end", "60s-poll", s.runBreakAutoEndTaskPolling)
 }
 
-// runBreakAutoEndTaskPolling runs break auto-end check at the configured interval for all tenants.
-func (s *Scheduler) runBreakAutoEndTaskPolling(task *ScheduledTask, seconds int) {
-	interval := time.Duration(seconds) * time.Second
+// runBreakAutoEndTaskPolling runs break auto-end check every
+// breakAutoEndInterval for all tenants.
+func (s *Scheduler) runBreakAutoEndTaskPolling(task *ScheduledTask) {
 	s.runIntervalPolling(task, "panic in break auto-end task", "break auto-end polling started",
-		10*time.Second, func() time.Duration { return interval }, s.checkAndRunBreakAutoEnd,
-		slog.Int("interval_seconds", seconds))
+		10*time.Second, func() time.Duration { return breakAutoEndInterval }, s.checkAndRunBreakAutoEnd,
+		slog.Int("interval_seconds", int(breakAutoEndInterval/time.Second)))
 }
 
 // checkAndRunBreakAutoEnd runs break auto-end for all tenants.

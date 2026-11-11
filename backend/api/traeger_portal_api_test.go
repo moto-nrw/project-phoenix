@@ -76,8 +76,13 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	require.NoError(t, err)
 	settings, err := owners.BuildTraegerSettings(database, unit, slog.Default(), organizations, nil)
 	require.NoError(t, err)
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
 	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
-		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher(), owners.HolidayTestSchoolCalendar{})
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher(), owners.HolidayTestSchoolCalendar{},
+		holidayTraegerMail{delivery: delivery.Module}, newHolidayOfficeTraeger(organizations))
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -86,10 +91,6 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 		})
 	})
 	router.Mount("/traeger", portal.RouterWithAuthRateLimiter(nil, ProtectedTraegerRoutes))
-	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
-	})
-	require.NoError(t, err)
 	schoolSettings, err := owners.NewSettingsTestModule(database, unit)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
@@ -478,13 +479,16 @@ func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testin
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 
+	// A foreign and an unknown school answer 404 traeger.school_not_found,
+	// like the Absprung (#6461), so the route reveals no school.
 	foreignAnswer := traegerSchoolView(t, router, answer.AccessToken, foreignSchool)
-	assert.Equal(t, http.StatusForbidden, foreignAnswer.Code, foreignAnswer.Body.String())
+	assert.Equal(t, http.StatusNotFound, foreignAnswer.Code, foreignAnswer.Body.String())
 	assert.NotContains(t, foreignAnswer.Body.String(), "OGS Fremd")
 	assert.Contains(t, foreignAnswer.Body.String(), "traeger.school_not_found")
 
 	missing := traegerSchoolView(t, router, answer.AccessToken, foreignSchool+1_000_000)
-	assert.Equal(t, http.StatusForbidden, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")
+	assert.Equal(t, http.StatusNotFound, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")
+	assert.Contains(t, missing.Body.String(), "traeger.school_not_found")
 
 	withoutRole := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, own, withoutRole.ID)
@@ -492,6 +496,7 @@ func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testin
 	require.Equal(t, http.StatusOK, code)
 	withoutRight := traegerSchoolView(t, router, answer.AccessToken, ownSchool)
 	assert.Equal(t, http.StatusForbidden, withoutRight.Code, withoutRight.Body.String())
+	assert.NotContains(t, withoutRight.Body.String(), "traeger.school_not_found", "a missing right is no missing school")
 }
 
 func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {

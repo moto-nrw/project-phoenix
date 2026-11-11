@@ -518,6 +518,44 @@ describe("PhasesEditor", () => {
     expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
+  it("explains in the dialog why a phase with booked children stays (#6505)", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.getPhaseDeleteImpact.mockResolvedValue({
+      requests: 1,
+      care_offerings: 1,
+      students_kept: 1,
+    });
+    mocks.deletePhase.mockRejectedValue(
+      new ApiError("phase still has effective care offering bookings", 409, {
+        code: "enrollment.phase_has_effective_bookings",
+      }),
+    );
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => expect(mocks.getPhaseDeleteImpact).toHaveBeenCalled());
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Löschen" }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        "Für diese Anmeldephase sind noch Kinder gebucht. Deshalb kann sie nicht gelöscht werden. Wählen Sie stattdessen „Deaktivieren“ oder beenden Sie zuerst die Buchungen.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("uses tenant-aware phase detail links in the action menu", async () => {
     mocks.listPhases.mockResolvedValue([phase({ id: "12" })]);
     mocks.listSchemas.mockResolvedValue([schema()]);

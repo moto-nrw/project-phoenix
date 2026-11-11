@@ -294,6 +294,26 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the batch of the session's Träger is locked and whether a booking needs a KOST1 (its values of parent_billing.datev_locked and parent_billing.datev_cost_center_required or the registry defaults), read in its Träger transaction by the release of a monthly run, which copies the standard revenue account onto positions without their own (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, standard revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction by the release of a monthly run, which copies the standard revenue account onto positions without their own (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareContracts.Recipients",
       "classification": "query",
       "effect": "query",
@@ -461,7 +481,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the batch of the session's Träger is locked (its value of parent_billing.datev_locked or the registry default), read in its Träger transaction for the check of the DATEV booking batch (#4694).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the batch of the session's Träger is locked and whether a booking needs a KOST1 (its values of parent_billing.datev_locked and parent_billing.datev_cost_center_required or the registry defaults), read in its Träger transaction for the check and the file of the DATEV booking batch (#4694) and the accounts page (#4821).",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
       "target_owner": "settings-platform"
@@ -471,7 +491,47 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction for the check of the DATEV booking batch (#4694).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, standard revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction for the check and the file of the DATEV booking batch (#4694) and the accounts page (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the batch of the session's Träger is locked and whether a booking needs a KOST1 (its values of parent_billing.datev_locked and parent_billing.datev_cost_center_required or the registry defaults), read in its Träger transaction by the release of a monthly run, which copies the standard revenue account onto positions without their own (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, standard revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction by the release of a monthly run, which copies the standard revenue account onto positions without their own (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the batch of the session's Träger is locked and whether a booking needs a KOST1 (its values of parent_billing.datev_locked and parent_billing.datev_cost_center_required or the registry defaults), read in its Träger transaction by the release of a holiday run, which copies the standard revenue account onto its documents (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, standard revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction by the release of a holiday run, which copies the standard revenue account onto its documents (#4821).",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
@@ -526,6 +586,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the session's Träger enters the debtor number at the confirmation of a holiday registration (its value of parent_billing.debtor_number_on_confirm or the registry default), read in its Träger transaction before a confirmation, a change of the number or the preview of a billing run (ADR 0121 addendum, #5621).",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the batch of the session's Träger is locked and whether a booking needs a KOST1 (its values of parent_billing.datev_locked and parent_billing.datev_cost_center_required or the registry defaults), read in its Träger transaction by the release of a holiday run, which copies the standard revenue account onto its documents (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, standard revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction by the release of a holiday run, which copies the standard revenue account onto its documents (#4821).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
     },
     {
