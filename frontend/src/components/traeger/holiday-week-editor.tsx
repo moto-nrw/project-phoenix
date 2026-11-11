@@ -21,6 +21,7 @@ import {
   type TimeModelDraft,
   type WeekDraft,
 } from "./holiday-period-model";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 type FieldError = (name: string) => string | null | undefined;
 
@@ -205,7 +206,13 @@ export function HolidayWeekEditor({
     // Eine Zeile der Formularkarte, keine eigene Karte (#5146): die Wochen
     // trennt eine Linie wie die Zeitmodelle darunter.
     <section className="space-y-4 border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* The week's head on a muted strip: the weeks stand apart at a
+          glance, and the fields below keep the card's full width. */}
+      <InsetPanel
+        tone="muted"
+        padding="compact"
+        className="flex flex-wrap items-center justify-between gap-3"
+      >
         <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
         {booked ? (
           <p className="text-sm text-gray-600">
@@ -221,7 +228,7 @@ export function HolidayWeekEditor({
             Woche entfernen
           </Button>
         )}
-      </div>
+      </InsetPanel>
       <div role="group" aria-label={title} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
