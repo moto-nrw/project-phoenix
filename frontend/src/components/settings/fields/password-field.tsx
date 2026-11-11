@@ -144,6 +144,11 @@ export function PasswordField({
               size="icon"
               onClick={() => void handleRevealToggle()}
               aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
+              tooltip={
+                showValue
+                  ? "Verbirgt den Wert wieder hinter Punkten."
+                  : "Zeigt den gespeicherten Wert lesbar an."
+              }
             >
               {showValue ? (
                 <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
@@ -168,6 +173,7 @@ export function PasswordField({
               setRevealedValue(null);
             }}
             aria-label="Wert ändern"
+            tooltip="Öffnet ein Feld, in dem Sie einen neuen Wert eingeben."
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -215,6 +221,11 @@ export function PasswordField({
             className="absolute top-1/2 right-1 -translate-y-1/2"
             tabIndex={-1}
             aria-label={showValue ? "Wert verbergen" : "Wert anzeigen"}
+            tooltip={
+              showValue
+                ? "Verbirgt Ihre Eingabe wieder hinter Punkten."
+                : "Zeigt Ihre Eingabe lesbar an."
+            }
           >
             {showValue ? (
               <EyeOff className="h-4 w-4" aria-hidden="true" />

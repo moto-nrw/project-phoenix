@@ -179,6 +179,11 @@ function SettingsTabContent({
               size="compact"
               className="self-start sm:self-auto"
               onClick={() => setAllExpanded(!allExpanded)}
+              tooltip={
+                allExpanded
+                  ? "Klappt alle Bereiche wieder zu."
+                  : "Zeigt alle Einstellungen dieser Seite auf einmal."
+              }
             >
               {allExpanded ? "Alle einklappen" : "Alle ausklappen"}
             </Button>

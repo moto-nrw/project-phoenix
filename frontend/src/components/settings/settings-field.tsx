@@ -35,6 +35,7 @@ import {
 } from "~/lib/api-error";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Textarea } from "~/components/ui/textarea";
@@ -1206,10 +1207,11 @@ export function SettingsField({
             variant="surface"
             size="compact"
             onClick={handleReset}
-            title={
+            aria-label="Zurücksetzen"
+            tooltip={
               restoresTraegerValue
-                ? "Auf den Wert des Trägers zurücksetzen"
-                : "Auf Standard zurücksetzen"
+                ? "Übernimmt wieder den Wert, den Ihr Träger vorgibt."
+                : "Stellt den Wert wieder auf die Grundeinstellung."
             }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1682,44 +1684,58 @@ function renderAGBSourceEditor({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {documentManagementDisabledReason == null && (
-                <label
-                  className={buttonClassName({
-                    variant: "surface",
-                    size: "compact",
-                    className:
-                      !canManageDocument || documentSaving
-                        ? "pointer-events-none cursor-pointer opacity-50"
-                        : "cursor-pointer",
-                  })}
+                <ActionHint
+                  text={
+                    hasDocument
+                      ? "Ersetzt die gespeicherte PDF durch eine Datei von Ihrem Gerät."
+                      : "Lädt eine PDF von Ihrem Gerät hoch."
+                  }
                 >
-                  <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    className="sr-only"
-                    disabled={!canManageDocument || documentSaving}
-                    onChange={(event) => {
-                      onDocumentUpload(event.currentTarget.files?.[0] ?? null);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                </label>
+                  <label
+                    className={buttonClassName({
+                      variant: "surface",
+                      size: "compact",
+                      className:
+                        !canManageDocument || documentSaving
+                          ? "pointer-events-none cursor-pointer opacity-50"
+                          : "cursor-pointer",
+                    })}
+                  >
+                    <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>
+                      {hasDocument ? "PDF ersetzen" : "PDF hochladen"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="sr-only"
+                      disabled={!canManageDocument || documentSaving}
+                      onChange={(event) => {
+                        onDocumentUpload(
+                          event.currentTarget.files?.[0] ?? null,
+                        );
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                </ActionHint>
               )}
               {hasDocument && (
-                <a
-                  href={publicLegalDocumentURL(documentURL)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClassName({
-                    variant: "surface",
-                    size: "compact",
-                    className: "",
-                  })}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Öffnen</span>
-                </a>
+                <ActionHint text="Öffnet die gespeicherte PDF in einem neuen Tab.">
+                  <a
+                    href={publicLegalDocumentURL(documentURL)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonClassName({
+                      variant: "surface",
+                      size: "compact",
+                      className: "",
+                    })}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Öffnen</span>
+                  </a>
+                </ActionHint>
               )}
               {hasDocument &&
                 canManageDocument &&
@@ -1730,6 +1746,7 @@ function renderAGBSourceEditor({
                     size="compact"
                     onClick={onDocumentDelete}
                     disabled={documentSaving}
+                    tooltip="Löscht die PDF sofort aus dem Anmeldeformular."
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Entfernen</span>
@@ -1844,6 +1861,7 @@ function renderEnrollmentLegalTextEditor(
         onClick={onEdit}
         disabled={!writable}
         className="shrink-0"
+        tooltip="Öffnet den Text, den Eltern im Anmeldeformular lesen, zum Bearbeiten."
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>

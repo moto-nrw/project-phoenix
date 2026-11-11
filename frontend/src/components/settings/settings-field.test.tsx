@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/react";
+import { render, fireEvent, waitFor, screen } from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsField } from "./settings-field";
 import type { ResolvedSetting } from "~/lib/settings-api";
@@ -650,7 +650,7 @@ describe("SettingsField", () => {
   });
 
   it("hides reset button when is_default", () => {
-    const { container, getByText } = renderWithProviders(
+    const { getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: true })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -659,14 +659,15 @@ describe("SettingsField", () => {
     );
     // Anker: die Einstellung ist gerendert.
     expect(getByText("Test Setting")).toBeInTheDocument();
-    const resetBtn = container.querySelector(
-      "button[title='Auf Standard zurücksetzen']",
-    );
+    const resetBtn = screen.queryByRole("button", {
+      name: "Zurücksetzen",
+      description: "Stellt den Wert wieder auf die Grundeinstellung.",
+    });
     expect(resetBtn).toBeNull();
   });
 
   it("shows reset button for a regular textarea field", () => {
-    const { container, getByText } = renderWithProviders(
+    const { getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({
           key: "test.textarea",
@@ -681,7 +682,10 @@ describe("SettingsField", () => {
 
     expect(getByText("Test Setting")).toBeInTheDocument();
     expect(
-      container.querySelector("button[title='Auf Standard zurücksetzen']"),
+      screen.queryByRole("button", {
+        name: "Zurücksetzen",
+        description: "Stellt den Wert wieder auf die Grundeinstellung.",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -725,7 +729,7 @@ describe("SettingsField", () => {
   });
 
   it("hides reset button for enrollment legal text fields", () => {
-    const { container, getByText } = renderWithProviders(
+    const { getByText } = renderWithProviders(
       <SettingsField
         setting={makeSetting({
           key: "enrollment.legal_dsgvo_text",
@@ -740,9 +744,10 @@ describe("SettingsField", () => {
 
     // Anker: das Rechtstext-Feld ist gerendert.
     expect(getByText("Test Setting")).toBeInTheDocument();
-    const resetBtn = container.querySelector(
-      "button[title='Auf Standard zurücksetzen']",
-    );
+    const resetBtn = screen.queryByRole("button", {
+      name: "Zurücksetzen",
+      description: "Stellt den Wert wieder auf die Grundeinstellung.",
+    });
     expect(resetBtn).toBeNull();
   });
 
@@ -965,7 +970,7 @@ describe("SettingsField", () => {
 
   it("calls onReset when reset button clicked", async () => {
     const onReset = vi.fn().mockResolvedValue(null);
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <SettingsField
         setting={makeSetting({ is_default: false })}
         onSave={vi.fn().mockResolvedValue(null)}
@@ -973,9 +978,10 @@ describe("SettingsField", () => {
       />,
     );
 
-    const resetBtn = container.querySelector(
-      "button[title='Auf Standard zurücksetzen']",
-    );
+    const resetBtn = screen.queryByRole("button", {
+      name: "Zurücksetzen",
+      description: "Stellt den Wert wieder auf die Grundeinstellung.",
+    });
     expect(resetBtn).not.toBeNull();
     fireEvent.click(resetBtn!);
 
@@ -1458,7 +1464,7 @@ describe("SettingsField", () => {
 
     it("shows a failed reset as a toast", async () => {
       const onReset = vi.fn().mockRejectedValue(new ApiError("boom", 503));
-      const { container, findByText } = renderWithProviders(
+      const { findByText } = renderWithProviders(
         <SettingsField
           setting={makeSetting({ label: "Startzeit" })}
           onSave={vi.fn().mockResolvedValue(null)}
@@ -1467,7 +1473,10 @@ describe("SettingsField", () => {
       );
 
       fireEvent.click(
-        container.querySelector("button[title='Auf Standard zurücksetzen']")!,
+        screen.queryByRole("button", {
+          name: "Zurücksetzen",
+          description: "Stellt den Wert wieder auf die Grundeinstellung.",
+        })!,
       );
 
       expect(

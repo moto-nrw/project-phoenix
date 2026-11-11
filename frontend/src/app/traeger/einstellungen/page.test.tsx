@@ -273,7 +273,12 @@ describe("TraegerSettingsPage", () => {
     mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
     renderPage();
 
-    fireEvent.click(await screen.findByTitle("Auf Standard zurücksetzen"));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Zurücksetzen",
+        description: "Stellt den Wert wieder auf die Grundeinstellung.",
+      }),
+    );
 
     await waitFor(() =>
       expect(mockClear).toHaveBeenCalledWith("parent.news_enabled"),
@@ -296,7 +301,12 @@ describe("TraegerSettingsPage", () => {
     expect(
       screen.getByRole("switch", { name: "Neuigkeiten im Elternportal" }),
     ).toBeDisabled();
-    expect(screen.queryByTitle("Auf Standard zurücksetzen")).toBeNull();
+    expect(
+      screen.queryByRole("button", {
+        name: "Zurücksetzen",
+        description: "Stellt den Wert wieder auf die Grundeinstellung.",
+      }),
+    ).toBeNull();
   });
 
   it("shows a failed load where the list is missing and retries", async () => {

@@ -11,6 +11,8 @@ interface CopyFieldProps {
   readonly monospace?: boolean;
   /** Text of the button. Name the object where one screen shows several. */
   readonly copyLabel?: string;
+  /** What the copy button does, in one sentence (`Button` `tooltip`). */
+  readonly copyHint?: string;
   /**
    * The browser refused the clipboard. The value stays selectable; the caller
    * tells the person to copy it by hand.
@@ -27,6 +29,7 @@ export function CopyField({
   value,
   monospace = false,
   copyLabel = "Kopieren",
+  copyHint,
   onCopyFailed,
   className,
 }: CopyFieldProps) {
@@ -48,6 +51,7 @@ export function CopyField({
         variant="outline"
         size="md"
         className="inline-flex shrink-0 items-center gap-2"
+        tooltip={copyHint}
         onClick={() => {
           void copy(value).then((ok) => {
             if (!ok) onCopyFailed?.();
