@@ -1068,6 +1068,42 @@ describe("GuardiansPanel", () => {
       },
     );
 
+    it.each(["guardians", "accounts"])(
+      "hides retained contacts and accounts when %s refuses access",
+      async (failed) => {
+        mocks.listRelatedAccounts.mockResolvedValue([petra]);
+        render(<GuardiansPanel studentId="42" canInvite canRemove />);
+        expect(await screen.findByText("petra@example.test")).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+        const failing =
+          failed === "guardians"
+            ? mocks.listChildGuardians
+            : mocks.listRelatedAccounts;
+        failing.mockRejectedValueOnce(
+          new ApiError("refused", 403, { code: "general.permission" }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+        // Anker: der Nachladefehler bestätigt das erfolgreiche Schreiben.
+        expect(
+          await screen.findByText(
+            `${catalogText("general.permission", "die Anzeige der Kontakte")} ${SAVED_BUT_STALE_SUFFIX}`,
+          ),
+        ).toBeVisible();
+        expect(screen.queryByText("Helga Schneider")).not.toBeInTheDocument();
+        expect(
+          screen.queryByText("petra@example.test"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Zugang entziehen" }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Einladen" }),
+        ).not.toBeInTheDocument();
+        expect(mocks.updateGuardianContact).toHaveBeenCalledTimes(1);
+      },
+    );
+
     async function retryOnlyReloads(writeMock: { mock: { calls: unknown[] } }) {
       const loads = mocks.listChildGuardians.mock.calls.length;
       // Other cards on the page may offer their own retry.

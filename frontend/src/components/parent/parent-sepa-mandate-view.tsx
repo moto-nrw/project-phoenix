@@ -85,10 +85,20 @@ export function ParentSepaMandateView({
   const { show: showLoadError, clear: clearLoadError } = loadError;
 
   // Rejects on failure: after the revocation the card shows it as a reload
-  // of a saved change, the mandate stays (#6652).
+  // of a saved change; only an access refusal discards the mandate (#6652).
   const fetchView = useCallback(async () => {
-    setView(await fetchSepaMandate(organizationId, contractId));
-    clearLoadError();
+    try {
+      setView(await fetchSepaMandate(organizationId, contractId));
+      clearLoadError();
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        setView(null);
+      }
+      throw error;
+    }
   }, [organizationId, contractId, clearLoadError]);
   const load = useCallback(async () => {
     try {
@@ -111,11 +121,11 @@ export function ParentSepaMandateView({
     savedSuffix: t("savedButStale"),
   });
 
-  // Ein bestätigtes Mandat bleibt bei einem Ladefehler stehen (#6652).
-  if (loadError.error && !view) {
+  // Bei vorübergehenden Ladefehlern bleibt das bestätigte Mandat stehen (#6652).
+  if ((loadError.error ?? afterRevoke.error) && !view) {
     return (
       <SectionCard concept={billingConcept} title={t("title")}>
-        <LoadErrorAlert error={loadError.error} />
+        <LoadErrorAlert error={loadError.error ?? afterRevoke.error} />
       </SectionCard>
     );
   }

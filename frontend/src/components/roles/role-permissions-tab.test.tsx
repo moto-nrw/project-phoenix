@@ -272,6 +272,8 @@ describe("RolePermissionsTab", () => {
         `${catalogText("general.unavailable", "die Anzeige der Berechtigungen")} ${SAVED_BUT_STALE_SUFFIX}`,
       ),
     ).toBeInTheDocument();
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() =>
       expect(mockGetRolePermissions).toHaveBeenCalledTimes(3),
@@ -280,6 +282,7 @@ describe("RolePermissionsTab", () => {
     await act(async () => retry.resolve([allPermissions[2]!]));
     expect(screen.getByLabelText("rooms:read")).toBeEnabled();
     expect(mockReplaceRolePermissions).toHaveBeenCalledTimes(1);
+    expect(onSaved).toHaveBeenCalledOnce();
   });
 
   it("toggles a whole resource group and filters by search", async () => {

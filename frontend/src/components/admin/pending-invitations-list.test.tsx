@@ -2,12 +2,19 @@
  * Tests for PendingInvitationsList Component
  * Tests the rendering and management of pending invitations
  */
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PendingInvitationsList } from "./pending-invitations-list";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 // Mock dependencies. Load and dialog errors run through the real hooks; the
@@ -108,6 +115,45 @@ describe("PendingInvitationsList", () => {
     mockRevokeInvitation.mockResolvedValue(undefined);
   });
 
+  it.each(["success", "failure"])(
+    "ignores a superseded invitation reload (%s)",
+    async (outcome) => {
+      const older = deferred<PendingInvitation[]>();
+      mockListPendingInvitations
+        .mockResolvedValueOnce(mockInvitations)
+        .mockReturnValueOnce(older.promise)
+        .mockResolvedValueOnce([]);
+      render(<PendingInvitationsList refreshKey={0} />);
+      for (const email of ["test1@example.com", "test2@example.com"]) {
+        fireEvent.click(
+          await screen.findByRole("button", { name: `Aktionen für ${email}` }),
+        );
+        fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+        fireEvent.click(screen.getByTestId("confirm-button"));
+        await waitFor(() =>
+          expect(mockRevokeInvitation).toHaveBeenCalledTimes(
+            email === "test1@example.com" ? 1 : 2,
+          ),
+        );
+      }
+      expect(
+        await screen.findByText("Keine offenen Einladungen"),
+      ).toBeVisible();
+      await act(async () => {
+        if (outcome === "success") older.resolve([mockInvitations[1]!]);
+        else
+          older.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          );
+      });
+      // Anker: der neueste Abruf hat beide widerrufenen Einladungen entfernt.
+      expect(screen.getByText("Keine offenen Einladungen")).toBeVisible();
+      expect(screen.queryByText("test2@example.com")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Wiederholen" }),
+      ).not.toBeInTheDocument();
+    },
+  );
   it("shows loading state initially", () => {
     render(<PendingInvitationsList refreshKey={0} />);
 

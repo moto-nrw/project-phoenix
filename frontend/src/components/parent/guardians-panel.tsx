@@ -36,6 +36,7 @@ import {
   updateGuardianContact,
   updateGuardianRelationship,
 } from "~/lib/parent-api";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { displayEmail, isDemoBuild } from "~/lib/demo-build";
@@ -143,6 +144,7 @@ export default function GuardiansPanel({
     PickupPermissionRequest[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [accessRefused, setAccessRefused] = useState(false);
   const [editingContact, setEditingContact] = useState<ChildGuardian | null>(
     null,
   );
@@ -181,6 +183,26 @@ export default function GuardiansPanel({
   // error path (#2518).
   const [message, setMessage] = useState<string | null>(null);
 
+  const discardRefusedAccess = useCallback((failures: unknown[]) => {
+    const refusal = failures.find(
+      (error) =>
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403),
+    );
+    if (!refusal) return;
+    // Contacts and accounts project each other's data and actions.
+    setAccessRefused(true);
+    setGuardians([]);
+    setAccounts([]);
+    setPermissionRequests([]);
+    setEditingContact(null);
+    setEditingPickup(null);
+    setAddMode(null);
+    setUpgradePrompt(null);
+    setConfirmRemoveId(null);
+    return refusal;
+  }, []);
+
   const load = useCallback(async () => {
     setIsLoading(true);
     clearGuardiansLoadError();
@@ -193,11 +215,22 @@ export default function GuardiansPanel({
         listRelatedAccounts(studentId),
         listPickupPermissionRequests(studentId),
       ]);
+    const refused = discardRefusedAccess(
+      [guardianResult, accountResult].flatMap((result) =>
+        result.status === "rejected" ? [result.reason as unknown] : [],
+      ),
+    );
+    if (
+      guardianResult.status === "fulfilled" &&
+      accountResult.status === "fulfilled"
+    ) {
+      setAccessRefused(false);
+    }
     // Ohne die Liste fehlt nur der Hinweis „Wartet auf die OGS“; die
     // Kontakte bleiben vollständig.
-    if (requestResult.status === "fulfilled") {
+    if (requestResult.status === "fulfilled" && !refused) {
       setPermissionRequests(requestResult.value);
-    } else {
+    } else if (requestResult.status === "rejected") {
       logger.warn("pickup_permission_requests_load_failed", {
         error:
           requestResult.reason instanceof Error
@@ -206,7 +239,7 @@ export default function GuardiansPanel({
       });
     }
     if (guardianResult.status === "fulfilled") {
-      setGuardians(guardianResult.value);
+      if (!refused) setGuardians(guardianResult.value);
     } else {
       logger.error("guardians_load_failed", {
         error:
@@ -220,7 +253,7 @@ export default function GuardiansPanel({
       });
     }
     if (accountResult.status === "fulfilled") {
-      setAccounts(accountResult.value);
+      if (!refused) setAccounts(accountResult.value);
     } else {
       logger.error("related_accounts_load_failed", {
         error:
@@ -237,6 +270,7 @@ export default function GuardiansPanel({
   }, [
     clearAccountsLoadError,
     clearGuardiansLoadError,
+    discardRefusedAccess,
     showAccountsLoadError,
     showGuardiansLoadError,
     studentId,
@@ -262,6 +296,17 @@ export default function GuardiansPanel({
         listRelatedAccounts(studentId),
         listPickupPermissionRequests(studentId),
       ]);
+    const failures = [nextGuardians, nextAccounts].flatMap((result) =>
+      result.status === "rejected" ? [result.reason as unknown] : [],
+    );
+    const refusal = discardRefusedAccess(failures);
+    if (refusal) throw refusal;
+    if (
+      nextGuardians.status === "fulfilled" &&
+      nextAccounts.status === "fulfilled"
+    ) {
+      setAccessRefused(false);
+    }
     if (nextGuardians.status === "fulfilled") {
       clearGuardiansLoadError();
       setGuardians(nextGuardians.value);
@@ -283,7 +328,12 @@ export default function GuardiansPanel({
     }
     if (nextGuardians.status === "rejected") throw nextGuardians.reason;
     if (nextAccounts.status === "rejected") throw nextAccounts.reason;
-  }, [clearAccountsLoadError, clearGuardiansLoadError, studentId]);
+  }, [
+    clearAccountsLoadError,
+    clearGuardiansLoadError,
+    discardRefusedAccess,
+    studentId,
+  ]);
   const { error: reloadError, refresh: refreshAfterWrite } =
     useRefreshAfterWrite(t("guardians.reloadObject"), readGuardians, {
       savedSuffix: t("guardians.savedButStale"),
@@ -408,6 +458,14 @@ export default function GuardiansPanel({
   useLayoutEffect(() => {
     removeRef.current = handleRemove;
   });
+
+  if (accessRefused) {
+    return (
+      <LoadErrorAlert
+        error={reloadError ?? guardiansLoadError ?? accountsLoadError}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">

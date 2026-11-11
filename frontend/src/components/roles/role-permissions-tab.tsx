@@ -113,7 +113,9 @@ export function RolePermissionsTab({
     show: showLoadError,
     clear: clearLoadError,
   } = useApiLoadError();
-  const [saving, setSaving] = useState(false);
+  const [completingSave, setSaving] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  const saving = completingSave || reloading;
   const formRef = useRef<HTMLFormElement>(null);
   const {
     error: saveError,
@@ -174,12 +176,11 @@ export function RolePermissionsTab({
   const afterSave = useRefreshAfterWrite(
     "die Anzeige der Berechtigungen",
     async () => {
-      setSaving(true);
+      setReloading(true);
       try {
         await fetchPermissions(true, { rethrow: true });
-        await onSaved();
       } finally {
-        setSaving(false);
+        setReloading(false);
       }
     },
   );
@@ -292,7 +293,14 @@ export function RolePermissionsTab({
       setSaving(false);
       return;
     }
-    await afterSave.refresh();
+    // The write confirms this selection even if the following reads fail.
+    setAssignedMap({ ...draftMap });
+    try {
+      await afterSave.refresh();
+      await onSaved();
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Wiederholen speichert den aktuellen Entwurf.

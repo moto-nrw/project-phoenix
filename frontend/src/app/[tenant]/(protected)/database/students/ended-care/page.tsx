@@ -28,6 +28,7 @@ import { formatCount } from "~/lib/format-utils";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { useToast } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   CARE_EXIT_REASON_LABELS,
@@ -99,12 +100,15 @@ export default function EndedCarePage() {
       }),
     { keepPreviousData: true },
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
   // Ladefehler mit Katalogtext und Wiederholen (#2517).
   const loadError = useSwrLoadError(
     canManage ? swrError : undefined,
     "die Liste der beendeten Betreuungen",
     () => mutate(),
-    data === undefined ? undefined : STALE_DATA_SUFFIX,
+    data === undefined || accessRefused ? undefined : STALE_DATA_SUFFIX,
   );
   // Nachladen nach Wiederaufnahme oder Löschung: ein Fehler dabei steht über
   // der Liste, auch wenn der Dialog schon zu ist (#6652).
@@ -124,6 +128,13 @@ export default function EndedCarePage() {
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  useEffect(() => {
+    if (accessRefused) {
+      setResumeTarget(null);
+      setDeleteTarget(null);
+    }
+  }, [accessRefused]);
 
   const columns: DataTableColumn<EndedCareEntry>[] = [
     {
@@ -196,7 +207,7 @@ export default function EndedCarePage() {
   // Statuszeile des Seitenkopfs aus der bereits geladenen Seite. Ohne
   // geladene Seite steht keine "0 Kinder" neben dem Ladefehler (#2517).
   const statusLine =
-    data === undefined
+    data === undefined || accessRefused
       ? null
       : [
           `${formatCount(total)} ${total === 1 ? "Kind" : "Kinder"}`,
@@ -209,7 +220,7 @@ export default function EndedCarePage() {
           .filter(Boolean)
           .join(" · ");
 
-  const contentEmpty = status !== "loading" && !canManage;
+  const contentEmpty = status !== "loading" && (!canManage || accessRefused);
 
   return (
     <TenantPage
@@ -226,13 +237,13 @@ export default function EndedCarePage() {
           : undefined
       }
       loading={status === "loading"}
-      error={data === undefined ? loadError : null}
+      error={data === undefined || accessRefused ? loadError : null}
       back
       backHref="/database/students"
       backLabel="Zurück zu den Kinderdaten"
       overlays={
         <>
-          {resumeTarget ? (
+          {resumeTarget && !accessRefused ? (
             <CareResumeModal
               isOpen
               studentId={resumeTarget.studentId}
@@ -248,7 +259,7 @@ export default function EndedCarePage() {
             />
           ) : null}
 
-          {deleteTarget ? (
+          {deleteTarget && !accessRefused ? (
             <StudentDeletionModal
               isOpen
               studentId={deleteTarget.studentId}

@@ -166,6 +166,37 @@ describe("PasskeySettingsSection", () => {
     expect(mockListPasskeys).toHaveBeenCalledTimes(2);
   });
 
+  it("recovers from an initial load error after registering a passkey", async () => {
+    mockListPasskeys
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValueOnce([
+        {
+          id: "3",
+          name: "MacBook",
+          created_at: "2026-06-15T10:00:00Z",
+        },
+      ]);
+    renderWithToast(<PasskeySettingsSection />);
+    const errorText = catalogText(
+      "general.unavailable",
+      "die Liste der Passkeys",
+    );
+    expect(await screen.findByText(errorText)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+    fireEvent.click(screen.getByRole("button", { name: "E-Mail senden" }));
+    fireEvent.change(await screen.findByLabelText("Code"), {
+      target: { value: "123456" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    // Anker: der bestätigte Passkey erscheint nach dem erfolgreichen Nachladen.
+    expect(await screen.findByText("MacBook")).toBeVisible();
+    expect(screen.queryByText(errorText)).not.toBeInTheDocument();
+    expect(mockRegisterPasskey).toHaveBeenCalledTimes(1);
+  });
+
   it("revokes a passkey and reloads the list", async () => {
     mockListPasskeys
       .mockResolvedValueOnce([

@@ -82,6 +82,7 @@ export function PendingInvitationsList({
   const showLoadError = loadError.show;
   const clearLoadError = loadError.clear;
   const latestLoadRef = useRef<() => void>(() => undefined);
+  const latestRequest = useRef(0);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(
     null,
@@ -97,17 +98,27 @@ export function PendingInvitationsList({
   // Rejects on failure: after a write the caller shows it as a reload of a
   // saved change (#6652).
   const fetchInvitations = useCallback(async () => {
-    const data = await listPendingInvitations();
+    const request = ++latestRequest.current;
+    let data: PendingInvitation[];
+    try {
+      data = await listPendingInvitations();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    }
+    if (request !== latestRequest.current) return;
     setInvitations(data);
     setLoadFailed(false);
     clearLoadError();
   }, [clearLoadError]);
   // Never rejects: a failed load shows its error in the card.
   const loadInvitations = useCallback(async () => {
+    const request = latestRequest.current + 1;
     try {
       setIsLoading(true);
       await fetchInvitations();
     } catch (err) {
+      if (request !== latestRequest.current) return;
       logger.error("failed to load invitations", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -117,7 +128,7 @@ export function PendingInvitationsList({
         retry: () => latestLoadRef.current(),
       });
     } finally {
-      setIsLoading(false);
+      if (request === latestRequest.current) setIsLoading(false);
     }
   }, [showLoadError, fetchInvitations]);
   useLayoutEffect(() => {

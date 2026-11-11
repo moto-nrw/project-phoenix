@@ -105,6 +105,8 @@ export function PasskeySettingsSection({
     "die Liste der Passkeys",
     async () => {
       setCredentials(await listPasskeys(scope));
+      setLoadFailed(false);
+      clear();
     },
   );
 
