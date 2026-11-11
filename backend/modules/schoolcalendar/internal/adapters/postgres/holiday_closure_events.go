@@ -250,25 +250,9 @@ func RecordHolidayClosureChange(ctx context.Context, db bun.IDB, schoolID int64,
 		return nil
 	}
 	from, to := change.Span()
-	var supersedes *int64
-	var predecessor eventSpanRow
-	switch err := db.NewRaw(unfinishedHolidayClosureEventSQL, schoolID, change.SourceKind, change.SourceID).Scan(ctx, &predecessor); {
-	case err == nil:
-		supersedes = &predecessor.ID
-		// Carry the last source range that could have been told, not an
-		// intermediate confirmed version that prepared no mail.
-		change.Previous = predecessor.previousRange(change)
-		from, to = min(from, predecessor.SpanFrom), max(to, predecessor.SpanTo)
-		// A deleted source ends a command that awaited renewed approval and
-		// prepared no mail: nobody can approve it any more, and it would
-		// hold its authorization history past retirement.
-		if change.Current == nil && predecessor.State == schoolcalendar.HolidayClosureEventNeedsConfirmation {
-			if _, err := db.NewRaw(withdrawUnpreparedHolidayClosureSQL, schoolID, change.SourceKind, change.SourceID).Exec(ctx); err != nil {
-				return wrapProposal(err)
-			}
-		}
-	case !errors.Is(err, sql.ErrNoRows):
-		return wrapProposal(err)
+	supersedes, err := supersedePredecessor(ctx, db, schoolID, &change, &from, &to)
+	if err != nil {
+		return err
 	}
 	if change.Previous == nil && change.Current == nil {
 		_, err = db.NewRaw(withdrawUnpreparedHolidayClosureSQL, schoolID, change.SourceKind, change.SourceID).Exec(ctx)
@@ -278,6 +262,32 @@ func RecordHolidayClosureChange(ctx context.Context, db bun.IDB, schoolID int64,
 		startOf(change.Previous), endOf(change.Previous), startOf(change.Current), endOf(change.Current), from, to,
 		change.Revision, supersedes).Exec(ctx)
 	return wrapProposal(err)
+}
+
+// supersedePredecessor links the new proposal to the source's unfinished
+// command and widens its span and previous range to that command.
+func supersedePredecessor(ctx context.Context, db bun.IDB, schoolID int64, change *domain.HolidayClosureChange, from, to *calendar.Date) (*int64, error) {
+	var predecessor eventSpanRow
+	err := db.NewRaw(unfinishedHolidayClosureEventSQL, schoolID, change.SourceKind, change.SourceID).Scan(ctx, &predecessor)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, wrapProposal(err)
+	}
+	// Carry the last source range that could have been told, not an
+	// intermediate confirmed version that prepared no mail.
+	change.Previous = predecessor.previousRange(*change)
+	*from, *to = min(*from, predecessor.SpanFrom), max(*to, predecessor.SpanTo)
+	// A deleted source ends a command that awaited renewed approval and
+	// prepared no mail: nobody can approve it any more, and it would hold
+	// its authorization history past retirement.
+	if change.Current == nil && predecessor.State == schoolcalendar.HolidayClosureEventNeedsConfirmation {
+		if _, err := db.NewRaw(withdrawUnpreparedHolidayClosureSQL, schoolID, change.SourceKind, change.SourceID).Exec(ctx); err != nil {
+			return nil, wrapProposal(err)
+		}
+	}
+	return &predecessor.ID, nil
 }
 
 func wrapProposal(err error) error {
