@@ -117,11 +117,8 @@ func (s *Service) guardChildWrite(ctx context.Context, accountID, studentID int6
 	if access.readReceipt {
 		return nil
 	}
-	if accountID <= 0 || studentID <= 0 || child == nil || child.GuardianProfileID <= 0 {
-		return ErrChildNotLinked
-	}
-	if s.Memberships == nil || s.StudentRepo == nil || s.GuardianProfileRepo == nil || s.StudentGuardianRepo == nil {
-		return ErrChildWriteGuardUnavailable
+	if err := s.childWriteGuardable(accountID, studentID, child); err != nil {
+		return err
 	}
 	if access.InviteEmail != "" {
 		if s.InvitationAccounts == nil {
@@ -148,6 +145,18 @@ func (s *Service) guardChildWrite(ctx context.Context, accountID, studentID int6
 		return err
 	}
 	return s.requireWritePermissions(link, access)
+}
+
+// childWriteGuardable refuses a write the guard cannot hold: an unresolved
+// child, or a service composed without the ports the guard locks through.
+func (s *Service) childWriteGuardable(accountID, studentID int64, child *Child) error {
+	if accountID <= 0 || studentID <= 0 || child == nil || child.GuardianProfileID <= 0 {
+		return ErrChildNotLinked
+	}
+	if s.Memberships == nil || s.StudentRepo == nil || s.GuardianProfileRepo == nil || s.StudentGuardianRepo == nil {
+		return ErrChildWriteGuardUnavailable
+	}
+	return nil
 }
 
 // lockSchoolMembership pins the account's active mapping at the school.
