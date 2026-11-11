@@ -29,6 +29,11 @@ import { GroupsMasterDetail } from "@/components/groups/groups-master-detail";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -93,8 +98,17 @@ function GroupsPageContent() {
     groupsKeys.fetcher({ page: 1, pageSize: 500 }),
   );
 
-  const error = useSwrLoadError(groupsError, "die Liste der Gruppen", () =>
-    mutateGroups(),
+  const error = useSwrLoadError(
+    groupsError,
+    "die Liste der Gruppen",
+    () => mutateGroups(),
+    groupsData === undefined ? undefined : STALE_DATA_SUFFIX,
+  );
+  // A write's reload stands above the list as a load error, never as an
+  // error of the form or the deletion (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Gruppen",
+    refreshGroups,
   );
   // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen.
   const loading = swrLoading || (Boolean(groupsError) && error === null);
@@ -192,9 +206,9 @@ function GroupsPageContent() {
       const created = await service.create(payload);
       toastSuccess(`Die Gruppe „${created.name}“ ist angelegt.`);
       setShowCreateModal(false);
-      await refreshGroups();
+      await afterWrite.refresh();
     },
-    [service, refreshGroups, toastSuccess],
+    [service, afterWrite, toastSuccess],
   );
 
   const handleUpdateGroup = useCallback(
@@ -208,9 +222,9 @@ function GroupsPageContent() {
       toastSuccess(
         `Die Gruppe „${data.name ?? selectedGroup.name}“ ist gespeichert.`,
       );
-      await refreshGroups();
+      await afterWrite.refresh();
     },
-    [selectedGroup, service, refreshGroups, toastSuccess],
+    [selectedGroup, service, afterWrite, toastSuccess],
   );
 
   const handleDeleteGroup = useCallback(async () => {
@@ -219,11 +233,10 @@ function GroupsPageContent() {
     deleteErrors.clear();
     try {
       const deleted = await service.remove(selectedGroup.id);
-      if (!deleted) return;
-      toastSuccess(`Die Gruppe „${selectedGroup.name}“ ist gelöscht.`);
-      handleDeleteCancel();
-      handleSelectGroup(null);
-      await refreshGroups();
+      if (!deleted) {
+        setDeletePending(false);
+        return;
+      }
     } catch (err) {
       logger.warn("group_delete_failed", {
         group_id: selectedGroup.id,
@@ -234,16 +247,21 @@ function GroupsPageContent() {
         object: "das Löschen der Gruppe",
         retry: () => latestDeleteRef.current(),
       });
-    } finally {
       setDeletePending(false);
+      return;
     }
+    setDeletePending(false);
+    toastSuccess(`Die Gruppe „${selectedGroup.name}“ ist gelöscht.`);
+    handleDeleteCancel();
+    handleSelectGroup(null);
+    await afterWrite.refresh();
   }, [
     selectedGroup,
     service,
     toastSuccess,
     handleDeleteCancel,
     handleSelectGroup,
-    refreshGroups,
+    afterWrite,
     deleteErrors,
   ]);
 
@@ -258,7 +276,7 @@ function GroupsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      error={error}
+      error={groupsData === undefined ? error : null}
       empty={
         filteredGroups.length === 0 && selectedGroup === null
           ? {
@@ -357,6 +375,8 @@ function GroupsPageContent() {
         />
       }
     >
+      <LoadErrorAlert error={groupsData === undefined ? null : error} />
+      <LoadErrorAlert error={afterWrite.error} />
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">
           <GroupsMasterDetail

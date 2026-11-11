@@ -26,7 +26,11 @@ import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { TenantPasswordChangeModal } from "~/components/auth/tenant-password-change-modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -63,6 +67,15 @@ function ProfileContent() {
   });
   const { success: toastSuccess } = useToast();
   const { profile, updateProfileData, refreshProfile } = useProfile();
+  const profileAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Profils",
+    async (options: { sessionName?: string } = {}) => {
+      await refreshProfile(true);
+      if ("sessionName" in options) {
+        await updateSession({ name: options.sessionName });
+      }
+    },
+  );
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -108,20 +121,6 @@ function ProfileContent() {
       };
 
       await updateProfile(updateData);
-
-      updateProfileData({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-      });
-
-      await refreshProfile(true);
-
-      const newName =
-        `${formData.firstName} ${formData.lastName}`.trim() || undefined;
-      await updateSession({ name: newName });
-
-      setIsEditing(false);
-      toastSuccess("Ihr Profil ist gespeichert.");
     } catch (err) {
       logger.error("profile_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -130,9 +129,23 @@ function ProfileContent() {
         object: "das Profil",
         retry: () => latestSaveRef.current(),
       });
-    } finally {
       setIsSaving(false);
+      return;
     }
+
+    updateProfileData({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+    });
+    setIsEditing(false);
+    setIsSaving(false);
+    toastSuccess("Ihr Profil ist gespeichert.");
+    // Profil und Sitzung laden nach dem Speichern; ein Fehler dabei ist ein
+    // Ladefehler, kein Fehler des Speicherns (#6652).
+    await profileAfterWrite.refresh({
+      sessionName:
+        `${formData.firstName} ${formData.lastName}`.trim() || undefined,
+    });
   };
 
   const handleAvatarChange = async (file: File) => {
@@ -142,8 +155,6 @@ function ProfileContent() {
       setIsSaving(true);
       const compressedFile = await compressAvatar(file);
       await uploadAvatar(compressedFile);
-      await refreshProfile(true);
-      toastSuccess("Ihr Profilbild ist gespeichert.");
     } catch (err) {
       logger.error("avatar_upload_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -152,9 +163,12 @@ function ProfileContent() {
         object: "das Profilbild",
         retry: () => latestAvatarRef.current(file),
       });
-    } finally {
       setIsSaving(false);
+      return;
     }
+    setIsSaving(false);
+    toastSuccess("Ihr Profilbild ist gespeichert.");
+    await profileAfterWrite.refresh();
   };
 
   useLayoutEffect(() => {
@@ -212,6 +226,7 @@ function ProfileContent() {
         </>
       }
     >
+      <LoadErrorAlert error={profileAfterWrite.error} />
       <SectionCard
         title="Persönliche Daten"
         actions={
