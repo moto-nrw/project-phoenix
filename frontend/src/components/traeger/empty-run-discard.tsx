@@ -15,8 +15,10 @@ import { formatDate } from "~/lib/date-helpers";
 export interface RunPeriod {
   /** „Monatslauf“ or „Jahreslauf“. */
   readonly runLabel: string;
-  /** „Januar 2030“ or „2030“, as it reads after „für“. */
+  /** „Januar 2030“ or „das Jahr 2030“, as it reads after „für“. */
   readonly period: string;
+  /** The span the facts name: „Januar 2030“, „01.09.–31.12.2030“. */
+  readonly range: string;
   /** „der Monat“ or „das Jahr“, as it reads before „ist frei“. */
   readonly periodNoun: string;
   /** „keine Rechnung“ or „keinen Bescheid“, what the run would issue. */
@@ -36,7 +38,7 @@ function RunFacts({
   return (
     <div className="mt-2 border-t border-gray-100 pt-5">
       <DataGrid columns={2}>
-        <DataField label="Zeitraum">{run.period}</DataField>
+        <DataField label="Zeitraum">{run.range}</DataField>
         <DataField label="Schulen">{run.schools}</DataField>
         <DataField label="Gestartet am">{formatDate(run.createdAt)}</DataField>
         {discardedAt === undefined ? null : (

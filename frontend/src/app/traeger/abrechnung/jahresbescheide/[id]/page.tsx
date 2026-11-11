@@ -127,7 +127,8 @@ function runPeriod(run: CareNoticeRunDetail): RunPeriod {
   const schools = run.schoolIds.length;
   return {
     runLabel: "Jahreslauf",
-    period: noticePeriod(run.periodFrom, run.periodUntil),
+    period: `das Jahr ${run.year}`,
+    range: noticePeriod(run.periodFrom, run.periodUntil),
     periodNoun: "das Jahr",
     nothing: "keinen Bescheid",
     schools: schools === 1 ? "1 Schule" : `${schools} Schulen`,

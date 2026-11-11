@@ -143,6 +143,7 @@ function runPeriod(run: CareRunDetail): RunPeriod {
   return {
     runLabel: "Monatslauf",
     period: formatMonth(run.billingMonth),
+    range: formatMonth(run.billingMonth),
     periodNoun: "der Monat",
     nothing: "keine Rechnung",
     schools: run.schools.map((school) => school.name).join(", ") || "–",
@@ -429,7 +430,16 @@ export default function TraegerCareRunPage() {
       {run && discarded ? (
         <DiscardedRunCard run={runPeriod(run)} discardedAt={run.discardedAt} />
       ) : run && empty ? (
-        <EmptyRunCard run={runPeriod(run)} />
+        <>
+          <EmptyRunCard run={runPeriod(run)} />
+          {/* Mensa months a school has not released yet come with a later
+              run; the empty run still names them. */}
+          <CareRunMealsCard
+            gaps={run.mealGaps}
+            unbilled={run.mealUnbilled}
+            changed={run.mealChanged}
+          />
+        </>
       ) : run ? (
         <>
           {preview ? (
