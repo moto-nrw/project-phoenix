@@ -1,5 +1,3 @@
-"use client";
-
 import type { ComponentPropsWithoutRef } from "react";
 
 const ROW_ALIGN = {
