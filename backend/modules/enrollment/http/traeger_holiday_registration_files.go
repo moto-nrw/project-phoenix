@@ -213,13 +213,16 @@ func writeHolidayArchive(w http.ResponseWriter, set capability.HolidayRegistrati
 	archive := zip.NewWriter(w)
 	file := first
 	for index := 0; file != nil; index++ {
+		// The errors name the registration by its number: a file name
+		// carries the family name, which belongs in no log.
+		registrationID := set.Records[index].Detail.ID
 		// The embedded fonts of a file deflate to about half its size.
 		entry, err := archive.CreateHeader(&zip.FileHeader{Name: textnorm.ASCII(file.Filename), Method: zip.Deflate, Modified: names.generatedAt})
 		if err != nil {
-			return fmt.Errorf("add %s to the archive: %w", file.Filename, err)
+			return fmt.Errorf("add holiday registration %d to the archive: %w", registrationID, err)
 		}
 		if _, err := entry.Write(file.Data); err != nil {
-			return fmt.Errorf("write %s to the archive: %w", file.Filename, err)
+			return fmt.Errorf("write holiday registration %d to the archive: %w", registrationID, err)
 		}
 		// Each file leaves at once; a writer that cannot flush still sends.
 		_ = http.NewResponseController(w).Flush()
