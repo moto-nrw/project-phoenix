@@ -108,7 +108,9 @@ const listContent = (
 
 /**
  * Such- und Filterzeile der Kopfkarte wie auf den Datenbankseiten: Suchfeld,
- * Filter in der Zeile, Zähler-Plakette und Chips der aktiven Filter.
+ * Filter in der Zeile und Zähler-Plakette. Ohne Chips: Ihr Entfernen-X
+ * rasterte auf dem Telefon in dieser Zeile nicht stabil (5 Pixel, #6578). Die
+ * Chips zeigt `DatabasePageLayout` `WithSearch`.
  */
 export const SearchWithFiltersAndBadge: Story = {
   args: {
@@ -116,7 +118,6 @@ export const SearchWithFiltersAndBadge: Story = {
     stats: "116 Kinder",
     search: { value: "", onChange: fn(), placeholder: "Kinder suchen…" },
     filters: [statusFilter],
-    activeFilters: activeStatusFilter,
     onClearAllFilters: fn(),
     badge: { icon: <Users className="h-5 w-5" />, count: 9, label: "Kinder" },
     children: listContent,
