@@ -53,3 +53,23 @@ func NewStaffRetentionDeletion(tenantID, staffID int64, recordsDeleted int, pers
 	record.SetTenantID(tenantID)
 	return record
 }
+
+// NewStudentPhotoRetentionDeletion is the deletion log entry of one child
+// whose photo data ended after the care (#6650): the last care day, whether
+// the child graduated, and what went. It holds no file name and no content.
+func NewStudentPhotoRetentionDeletion(tenantID, studentID int64, lastCareDay string, graduated, photoRemoved, consentEnded bool) *DataDeletion {
+	recordsDeleted := 0
+	if photoRemoved {
+		recordsDeleted = 1
+	}
+	record := NewDataDeletion(studentID, DeletionTypeStudentPhotoRetention, recordsDeleted, "system")
+	record.SetTenantID(tenantID)
+	record.DeletionReason = "care_ended"
+	if lastCareDay != "" {
+		record.SetMetadata("last_care_day", lastCareDay)
+	}
+	record.SetMetadata("graduated", graduated)
+	record.SetMetadata("photo_removed", photoRemoved)
+	record.SetMetadata("consent_ended", consentEnded)
+	return record
+}

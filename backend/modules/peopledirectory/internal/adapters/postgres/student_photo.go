@@ -128,3 +128,39 @@ func (s *StudentStore) PurgePhotos(ctx context.Context) ([]string, domain.Operat
 	}
 	return urls, stats, nil
 }
+
+// ListPhotosPastPurpose names, in ascending id order, the children of the
+// tenant whose care is over on today (last care day before today, or
+// graduated) and whose row still holds a photo, a photo consent or who
+// recorded it (#6650). The candidates come from the database on every run,
+// so a child a run deferred is found again by the next one.
+func (s *StudentStore) ListPhotosPastPurpose(ctx context.Context, today string) ([]int64, domain.OperationStats, error) {
+	db, scope, err := s.reads.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	if scope.AcrossSchools || scope.TenantID <= 0 {
+		return nil, domain.OperationStats{}, errors.New("people directory postgres: one tenant is required to list photos past their purpose")
+	}
+	var ids []int64
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = withStudentTenant(s.reads.studentRows(db, scope).
+		ColumnExpr(`"student".id`).
+		Where(`("student".status = ? OR "student".enrolled_until < ?::date)`, domain.StudentStatusAlumnus, today).
+		Where(`("student".photo_path IS NOT NULL OR "student".photo_consent_given_at IS NOT NULL OR "student".photo_consent_given_by IS NOT NULL)`).
+		OrderExpr(`"student".id ASC`), scope).
+		Scan(ctx, &ids)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: list photos past their purpose: %w", err)
+	}
+	stats.Rows = int64(len(ids))
+	return ids, stats, nil
+}
+
+// TryLockPhotoRecord re-reads one child's row under a row lock that never
+// waits: a row another transaction holds fails with ErrStudentLockBusy.
+func (s *StudentStore) TryLockPhotoRecord(ctx context.Context, studentID int64) (domain.StudentRecord, bool, domain.OperationStats, error) {
+	return s.FindRecord(ctx, studentID, "UPDATE NOWAIT")
+}

@@ -281,6 +281,26 @@ func guardianRetentionSteps(guardians guardianRetention, settings settingsModule
 	}}
 }
 
+// studentPhotoCareEndStep ends the photo data of the children whose care is
+// over (#6650): the photo, the photo consent and who recorded it go in the
+// first nightly run after the last care day or the graduation, without a
+// further period. It runs after the deletion of whole children and writes
+// one deletion-log entry per child itself.
+func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, audit auditModels.Command) schedulerPorts.RetentionStep {
+	return schedulerPorts.RetentionStep{
+		Kind:         auditModels.DeletionTypeStudentPhotoRetention,
+		LogsSubjects: true,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			result, err := photos.EndStudentPhotosAfterCare(ctx, calendar.TodayDate(), func(ctx context.Context, ended peopleModule.StudentPhotoCareEnd) error {
+				return audit.Append(ctx, auditModels.NewStudentPhotoRetentionDeletion(
+					ended.TenantID, ended.StudentID, ended.LastCareDay, ended.Graduated, ended.PhotoRemoved, ended.ConsentEnded,
+				))
+			})
+			return schedulerPorts.RetentionOutcome{Deleted: result.Ended}, err
+		},
+	}
+}
+
 // studentRetentionStep is the automatic deletion of children (#3962). It
 // runs first: the shorter windows of the other steps then apply to the rows
 // of the children that stay (schedulerPorts.RetentionPlan).

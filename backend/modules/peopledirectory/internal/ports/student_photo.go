@@ -22,6 +22,12 @@ type StudentPhotoStore interface {
 	// PurgePhotos clears every stored photo of the tenant and returns the
 	// URLs it detached.
 	PurgePhotos(ctx context.Context) ([]string, domain.OperationStats, error)
+	// ListPhotosPastPurpose names the children whose care is over on today
+	// and whose row still holds photo data, in ascending id order (#6650).
+	ListPhotosPastPurpose(ctx context.Context, today string) ([]int64, domain.OperationStats, error)
+	// TryLockPhotoRecord re-reads one child's row under a row lock that
+	// never waits; a held row fails with domain.ErrStudentLockBusy.
+	TryLockPhotoRecord(ctx context.Context, studentID int64) (domain.StudentRecord, bool, domain.OperationStats, error)
 }
 
 // StudentPhotoRuntime is the caller-supplied surface the photo lifecycle
