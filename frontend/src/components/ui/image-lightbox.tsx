@@ -83,7 +83,7 @@ export function ImageLightbox({
 
   if (!open || index === null) return null;
   const image = images[index];
-  if (!image) return null;
+  if (!image || typeof document === "undefined") return null;
   const several = images.length > 1;
 
   return createPortal(

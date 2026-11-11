@@ -140,7 +140,9 @@ export function MessageComposer({
   const labels = attachments?.labels ?? GERMAN_ATTACHMENT_LABELS;
   const [pending, setPending] = useState<readonly PendingAttachment[]>([]);
   const pendingRef = useRef(pending);
-  pendingRef.current = pending;
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
   const fileInput = useRef<HTMLInputElement>(null);
   // Eine abgelehnte Datei meldet der Composer selbst, über dem Feld.
   const attachError = useApiFormError();
