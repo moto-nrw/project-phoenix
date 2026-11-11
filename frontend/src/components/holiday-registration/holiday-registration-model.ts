@@ -75,6 +75,8 @@ export interface ChildDraft {
   readonly wishProof?: string;
   /** Answers to the Träger's questions per child, by key (#5198). */
   readonly answers: Readonly<Record<string, unknown>>;
+  /** Yes/no to the criteria per child, by criterion ID (#4700). */
+  readonly criteria?: Readonly<Record<string, boolean>>;
 }
 
 export interface ContactDraft {
@@ -121,6 +123,8 @@ export interface RegistrationDraft {
   readonly benefitsProofs: readonly NewUploadValue[];
   /** Answers to the Träger's questions per family, by key (#5198). */
   readonly answers: Readonly<Record<string, unknown>>;
+  /** Yes/no to the criteria of the family, by criterion ID (#4700). */
+  readonly criteria?: Readonly<Record<string, boolean>>;
 }
 
 /** Hint of a refused field, translated, or undefined. */
@@ -425,6 +429,52 @@ function childAnswersToSend(
   );
 }
 
+/**
+ * The criteria of one scope as yes/no questions (#4700): required, keyed by
+ * the criterion's ID, so the answer fields of the form can show them.
+ */
+export function criterionQuestions(
+  offer: HolidayRegistrationOffer,
+  scope: "family" | "child",
+): HolidayFormField[] {
+  if (offer.allocationMode !== "criteria") return [];
+  return (offer.criteria ?? [])
+    .filter((criterion) => criterion.scope === scope)
+    .map((criterion, index) => ({
+      sort_order: index + 1,
+      key: criterion.id,
+      label: criterion.question,
+      type: "boolean",
+      required: true,
+    }));
+}
+
+/** Every criterion of the scope needs a yes or a no. */
+function requireCriteria(
+  errors: Record<string, FieldErrorKey>,
+  prefix: string,
+  questions: readonly HolidayFormField[],
+  answers: Readonly<Record<string, boolean>> | undefined,
+) {
+  for (const field of questions) {
+    if (typeof answers?.[field.key] !== "boolean") {
+      errors[`${prefix}criteria.${field.key}`] = "yesNo";
+    }
+  }
+}
+
+/** The answers the backend reads: only the current criteria of the scope. */
+function criteriaToSend(
+  questions: readonly HolidayFormField[],
+  answers: Readonly<Record<string, boolean>> | undefined,
+): Record<string, boolean> {
+  return Object.fromEntries(
+    questions
+      .filter((field) => typeof answers?.[field.key] === "boolean")
+      .map((field) => [field.key, answers?.[field.key] === true]),
+  );
+}
+
 function requireAnswers(
   errors: Record<string, FieldErrorKey>,
   prefix: string,
@@ -655,6 +705,22 @@ export function validateRegistration(
     visibleQuestions(offer.form, false, familyContext(draft, offer.form)),
     draft.answers,
   );
+  // The criteria follow the questions in the form (#4700).
+  requireCriteria(
+    errors,
+    "",
+    criterionQuestions(offer, "family"),
+    draft.criteria,
+  );
+  const childCriteria = criterionQuestions(offer, "child");
+  draft.children.forEach((child, index) => {
+    requireCriteria(
+      errors,
+      `children.${index}.`,
+      childCriteria,
+      child.criteria,
+    );
+  });
   validateContacts(errors, draft.contacts);
   if (!draft.privacyConsent) errors.privacy_consent = "privacy";
   if (hasHealthInfo(draft, offer.form) && !draft.healthConsent) {
@@ -752,6 +818,14 @@ export function payloadFromDraft(
         bookings: quoteBookings(child, offer),
         custom_data: childAnswersToSend(draft, child, offer.form),
         ...(child.wishProof && !guest ? { wish_proof: child.wishProof } : {}),
+        ...(offer.allocationMode === "criteria"
+          ? {
+              criteria: criteriaToSend(
+                criterionQuestions(offer, "child"),
+                child.criteria,
+              ),
+            }
+          : {}),
       };
     }),
     emergency_contacts: draft.contacts
@@ -779,5 +853,13 @@ export function payloadFromDraft(
     // The version of the texts the form showed, as the offer named them.
     consent_version: offer.consentTexts.version,
     custom_data: familyAnswersToSend(draft, offer.form),
+    ...(offer.allocationMode === "criteria"
+      ? {
+          criteria: criteriaToSend(
+            criterionQuestions(offer, "family"),
+            draft.criteria,
+          ),
+        }
+      : {}),
   };
 }

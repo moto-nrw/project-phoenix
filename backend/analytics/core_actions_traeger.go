@@ -35,6 +35,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/details"}: notCaptured,
 	// The office's decision on a holiday care wish (#4703).
 	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/holiday-wish"}: notCaptured,
+	// The allocation of holiday places by criteria (#4700) belongs to the
+	// Träger, not to a school: no school to count it for.
+	{http.MethodPut, "/traeger/holiday-periods/criteria"}:                                     notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/allocation/decisions"}:                   notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}/registrations/{registrationId}/criteria"}: notCaptured,
 	// The closing days of a Träger (#4702) belong to the Träger, not to a
 	// school: no school to count them for.
 	{http.MethodPost, "/traeger/closing-days/"}:       notCaptured,
@@ -158,6 +163,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/finance-exports/settings/sollstellung"}:      notCaptured,
 	{http.MethodDelete, "/traeger/finance-exports/settings/sollstellung"}:   notCaptured,
 	{http.MethodPut, "/traeger/finance-exports/settings/file-number-start"}: notCaptured,
+	// The revenue accounts and cost centers (#4821) belong to the Träger,
+	// no school to count them for.
+	{http.MethodPut, "/traeger/finance-exports/booking-accounts/revenue-accounts"}:     notCaptured,
+	{http.MethodPost, "/traeger/finance-exports/booking-accounts/cost-centers"}:        notCaptured,
+	{http.MethodDelete, "/traeger/finance-exports/booking-accounts/cost-centers/{id}"}: notCaptured,
 	// The import of existing mandates (#6198) belongs to the Träger, not to
 	// a school; the preview stores nothing.
 	{http.MethodPost, "/traeger/sepa-mandates/imports"}:         notCaptured,

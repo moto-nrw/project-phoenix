@@ -31,6 +31,7 @@ const (
 // and the places of their weeks (#4699).
 type HolidayReviewStore interface {
 	HolidayPlaceStore
+	HolidayAllocationStore
 	// ReadHolidayReview reads the registrations of a period, or the one
 	// registrationID names, with children and bookings; a booking names
 	// only its week and time model. It reads no health information.
@@ -65,7 +66,8 @@ type HolidayReviewStore interface {
 	// ReplaceHolidayChildBookings makes bookings the child's bookings and
 	// returns the weeks whose places changed: those it left and those it
 	// newly books, which wait for their placement (#4699).
-	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) ([]int64, error)
+	// A new or grown booking takes the placement waiting (#4700).
+	ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput, waiting string) ([]int64, error)
 	// WriteHolidayRegistrationDetails writes the details of a locked
 	// registration (#5629): both guardians with the address, the family's
 	// answers, the contacts, and the details and answers of the changed
@@ -102,8 +104,10 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // versions the answers belong to (#5198), health opens the health
 // information (#4722), schoolCalendar names the host schools' days without
 // care (#4702), traeger names the Träger and the host schools in the mail of
-// a booking that moved up (#6437). A nil today uses the Berlin calendar day.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces) {
+// a booking that moved up (#6437) and of a decision by criteria. A nil today
+// uses the Berlin calendar day. The allocation by criteria shares the
+// review's store, locks and mail (#4700).
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation) {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
@@ -117,14 +121,7 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 		store: store, periods: periods, forms: forms, health: health, today: today,
 		placement: holidayPlacement{store: store, traeger: traeger, mail: mail}, calendar: schoolCalendar,
 	}
-	return review, NewHolidayPlaces(store, periods, traeger, mail)
-}
-
-// moveUp gives the places of the weeks to their waiting lists after a
-// change of the locked registration.
-func (h *HolidayRegistrationReview) moveUp(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, weekIDs []int64) ([]enrollment.HolidayPromotion, error) {
-	_, promoted, err := h.placement.place(ctx, reviewer.OrganizationID, period, weekIDs, 0, reviewer.AccountID)
-	return promoted, err
+	return review, NewHolidayPlaces(store, periods, traeger, mail), NewHolidayAllocation(review)
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
@@ -424,7 +421,7 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	kept := make([]enrollment.HolidayBookingInput, len(child.Bookings))
 	for i, booking := range child.Bookings {
 		before[i] = enrollment.HolidayBookingChange{
-			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted,
+			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Waitlisted: booking.Placement != enrollment.HolidayPlacementPlaced,
 			PromotedAt: booking.PromotedAt, Days: booking.Days,
 		}
 		kept[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
@@ -449,7 +446,7 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	for i, booking := range bookings {
 		after[i] = enrollment.HolidayBookingChange{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
 	}
-	changed, err := h.store.ReplaceHolidayChildBookings(ctx, organizationID, period.ID, childID, bookings)
+	changed, err := h.store.ReplaceHolidayChildBookings(ctx, organizationID, period.ID, childID, bookings, holidayWaitingPlacement(period, current.Status))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -589,6 +586,9 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration proofs: %w", err)
 	}
 	if err := h.detailAnswers(ctx, reviewer.OrganizationID, period.ID, &detail); err != nil {
+		return enrollment.HolidayRegistrationDetail{}, err
+	}
+	if detail.Criteria, err = h.detailCriteria(ctx, reviewer.OrganizationID, period, detail); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
 	return detail, nil

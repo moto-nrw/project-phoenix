@@ -156,5 +156,9 @@
   "holiday_registration_form_changed": "The provider has just changed the form. Please check your entries and send the registration again.",
   "holiday_proof_limit": "{object} could not be changed. Please check its current status.",
   "family_children_closed": "The number of children can no longer be changed here. You will find it in your care contract.",
-  "family_children_invalid": "Please enter a number from 1 to 20."
+  "family_children_invalid": "Please enter a number from 1 to 20.",
+  "holiday_allocation_mode_locked": "There are registrations already, so the allocation stays as it is.",
+  "holiday_allocation_pending": "Please give out the places in the “Vergabe” tab first.",
+  "holiday_allocation_full": "There are no free places left in this week. Please reload the list.",
+  "holiday_allocation_changed": "The list has changed. Please check your decision again."
 }

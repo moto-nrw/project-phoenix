@@ -48,6 +48,7 @@ type holidayPeriodBody struct {
 	Notes                string            `json:"notes"`
 	Status               string            `json:"status,omitempty"`
 	PublishedAt          *string           `json:"published_at,omitempty"`
+	AllocationMode       string            `json:"allocation_mode,omitempty"`
 	Weeks                []holidayWeekBody `json:"weeks"`
 }
 

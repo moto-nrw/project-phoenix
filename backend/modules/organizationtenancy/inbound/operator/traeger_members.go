@@ -172,6 +172,8 @@ func traegerErrorRenderer(err error) (render.Renderer, bool) {
 	switch {
 	case errors.Is(err, organizationtenancy.ErrTraegerAccountNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "No account with this e-mail address"), true
+	case errors.Is(err, organizationtenancy.ErrTraegerAccountInactive):
+		return common.OperatorRejection(http.StatusConflict, common.CodeTraegerAccountInactive, "The account is deactivated"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerMemberNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Account is no member of this Träger-Büro"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerInvitationNotFound):

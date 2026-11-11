@@ -38,7 +38,7 @@ func TestSeedDatevFileHandlesLegacyRunsWithoutHidingOtherFailures(t *testing.T) 
 				case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/traeger/settings/values/"):
 					_, _ = fmt.Fprint(w, `{"data":{}}`)
 				case r.Method == http.MethodGet && r.URL.Path == "/traeger/care-billing-runs/":
-					_, _ = fmt.Fprint(w, `{"data":{"runs":[{"id":5,"billing_month":"2026-11-01","status":"released"}]}}`)
+					_, _ = fmt.Fprint(w, `{"data":{"runs":[{"id":5,"billing_month":"2026-11-01","status":"released","school_ids":[7]}]}}`)
 				case r.Method == http.MethodGet && r.URL.Path == "/traeger/finance-exports/runs/care-runs/5/datev":
 					downloads++
 					w.WriteHeader(scenario.status)
@@ -49,7 +49,7 @@ func TestSeedDatevFileHandlesLegacyRunsWithoutHidingOtherFailures(t *testing.T) 
 			})
 			defer srv.Close()
 
-			err := seedDatevFile(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, calendar.NewDate(2026, 11, 1))
+			err := seedDatevFile(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 7, calendar.NewDate(2026, 11, 1))
 			if scenario.wantError {
 				require.Error(t, err)
 			} else {

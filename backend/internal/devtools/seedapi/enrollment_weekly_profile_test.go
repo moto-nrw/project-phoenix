@@ -165,6 +165,12 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		// The feedback history (#5029) reads the closed days and its own
 		// past entries; the full demo school's children are not served here.
 		data = []any{}
+	case path == "/traeger/holiday-periods/criteria":
+		// The criteria of the allocation as stored (#4700).
+		data = map[string]any{"criteria": []map[string]any{{"id": 71}, {"id": 72}, {"id": 73}, {"id": 74}}, "periods": []any{}}
+	case strings.HasPrefix(path, "/traeger/holiday-periods/") && strings.HasSuffix(path, "/allocation"):
+		// The allocation list with its first pending child (#4700).
+		data = map[string]any{"weeks": []map[string]any{{"pending": []map[string]any{{"booking_id": 81, "proposal": "placed"}}}}}
 	case strings.HasPrefix(path, "/traeger/holiday-periods/") && strings.HasSuffix(path, "/publish"):
 		// The published period carries its public link and weeks for the
 		// holiday registration of the same step (#4661).

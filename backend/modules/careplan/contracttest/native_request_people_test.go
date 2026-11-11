@@ -74,7 +74,7 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 			audit := &requestPlanAudit{}
 			service := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 				f.reposCare.CarePlan(), directory, f.schedules.Arrivals, f.schedules.Pickups,
-				nil, nil, nil, f.caller, nil, nil,
+				nil, f.autoExcusal, nil, f.caller, nil, nil,
 				testpkg.RequestReviewPolicy[*peopledirectory.StudentState]{UserContext: f.caller}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,
 				// The child is enrolled until 2026-12-31; on a live clock the
 				// approval finds no request from 2027 on (#4027).

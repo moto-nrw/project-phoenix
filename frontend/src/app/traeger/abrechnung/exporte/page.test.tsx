@@ -151,6 +151,7 @@ it("offers older files of the protocol", async () => {
     reference: "",
     repeatOf: null,
     datevAll: false,
+    resolvedPositions: 0,
     exportedByYou: true,
     exportedByAccount: true,
     exportedAt: "2026-11-09T10:00:00Z",
@@ -217,7 +218,7 @@ it("names the missing DATEV values and keeps the DATEV download off", async () =
   ).toBeInTheDocument();
   expect(screen.getByText("Beraternummer: fehlt")).toBeInTheDocument();
   expect(
-    screen.getByText("Erlöskonto für Elternbeiträge: passt nicht"),
+    screen.getByText("Standard-Erlöskonto: passt nicht"),
   ).toBeInTheDocument();
   expect(
     screen.getByRole("link", { name: "DATEV-Werte eintragen" }),
@@ -347,6 +348,7 @@ const LAST_DATEV = {
   reference: "",
   repeatOf: null,
   datevAll: false,
+  resolvedPositions: 0,
   exportedByYou: true,
   exportedByAccount: true,
   exportedAt: "2026-11-09T10:00:00Z",

@@ -450,7 +450,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.AssignTraegerRole",
-      "binding_digest": "3cf3935d4265a0dc4e270e8eeade4332",
+      "binding_digest": "11b4fd05b4ef77eddb2455f7c6f58585",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.AssignTraegerRole",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignTraegerRole",

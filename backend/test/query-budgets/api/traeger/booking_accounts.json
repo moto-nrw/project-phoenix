@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.booking_accounts",
+  "max": 9,
+  "exact": true,
+  "description": "Real Träger finance-export resource including permissions, session and organization transaction; positive N=3/N=8 schools with distinct offerings, revenue accounts and dated cost centers. Full HTTP statement count stays flat as every result collection grows.",
+  "route": "GET /traeger/finance-exports/booking-accounts"
+}

@@ -156,5 +156,9 @@
   "holiday_registration_form_changed": "Organizatori sapo ndryshoi formularin. Ju lutemi kontrolloni të dhënat dhe dërgojeni regjistrimin përsëri.",
   "holiday_proof_limit": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "family_children_closed": "Numri i fëmijëve nuk mund të ndryshohet më këtu. Do ta gjeni në kontratën e kujdesit.",
-  "family_children_invalid": "Ju lutemi shkruani një numër nga 1 deri në 20."
+  "family_children_invalid": "Ju lutemi shkruani një numër nga 1 deri në 20.",
+  "holiday_allocation_mode_locked": "Ka tashmë regjistrime, ndaj ndarja e vendeve nuk ndryshon.",
+  "holiday_allocation_pending": "Ndani fillimisht vendet te skeda „Vergabe“.",
+  "holiday_allocation_full": "Në këtë javë nuk ka më vende të lira. Ju lutemi ngarkoni listën përsëri.",
+  "holiday_allocation_changed": "Lista ndryshoi. Kontrolloni vendimin përsëri."
 }
