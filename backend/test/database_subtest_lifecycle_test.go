@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,6 +14,17 @@ import (
 // the first sibling ends while the second still queries the database.
 func TestIsolatedCloneOutlivesFirstParallelSibling(t *testing.T) {
 	t.Parallel()
+	if parallelism() < 2 {
+		// The siblings must overlap. In serial diagnostic mode, run only this
+		// test in a child whose default -test.parallel derives from GOMAXPROCS=2.
+		// With one root test, the child's package leftover gate also covers it.
+		output, exitCode, err := testdb.RunTestProcess(t.Context(), t.Name(),
+			"GOMAXPROCS=2", leftoverModeEnv+"=1",
+			testdb.RunIDEnv+"="+testdb.SanitizeRunID(""))
+		require.NoError(t, err, "%s", output)
+		require.Zero(t, exitCode, "%s", output)
+		return
+	}
 	opened, joined, firstCleanedUp := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	// A failing sibling still releases the other instead of hanging it.
 	closeOpened, closeJoined := sync.OnceFunc(func() { close(opened) }), sync.OnceFunc(func() { close(joined) })
