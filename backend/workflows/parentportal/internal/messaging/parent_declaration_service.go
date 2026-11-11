@@ -228,9 +228,8 @@ func (s *Service) ownDeclarationHistory(ctx context.Context, announcementID, acc
 func (s *Service) authorizeDeclarationChild(ctx context.Context, accountID, studentID, tenantID int64, action string) (*Child, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, declarationPermission(action))
 	switch {
-	case action == DeclarationActionRevoked && (errors.Is(err, care.ErrGuardianPermissionDenied) || errors.Is(err, care.ErrChildNotLinked)):
-		return nil, ErrDeclarationNotPermitted
-	case errors.Is(err, care.ErrGuardianPermissionDenied):
+	case errors.Is(err, care.ErrGuardianPermissionDenied),
+		errors.Is(err, care.ErrChildNotLinked) && action == DeclarationActionRevoked:
 		return nil, ErrDeclarationNotPermitted
 	case errors.Is(err, care.ErrChildNotLinked):
 		return nil, ErrChildNotAnswerable
