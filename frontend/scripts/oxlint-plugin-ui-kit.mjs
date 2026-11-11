@@ -2257,7 +2257,7 @@ const confirmationDismissLock = {
     },
     messages: {
       reason:
-        "`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading=\"Lädt nur die Vorschau; nichts wird gespeichert.\"`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).",
+        '`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).',
     },
     schema: [],
   },
@@ -4115,6 +4115,48 @@ const noHandRolledStickyBar = {
   },
 };
 
+// ui-kit/no-hand-rolled-action-row (#6571, hard-zero) — eine Zeile mit eigener
+// Aktionsspalte ist `ResponsiveActionRow`. Fund: `grid-cols-subgrid` außerhalb
+// des Kits, in einem Klassen-String oder einer Konstante.
+function isHandRolledActionRow(text) {
+  return text
+    .split(/\s+/)
+    .some((token) => bareUtility(token) === "grid-cols-subgrid");
+}
+
+const noHandRolledActionRow = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built subgrid rows outside the UI kit; use ResponsiveActionRow.",
+    },
+    messages: {
+      handRolled:
+        "Keine eigene Zeile mit Aktionsspalte: ResponsiveActionRow (~/components/ui/responsive-action-list) in ResponsiveActionList (#6571).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith(UI_KIT_DIR)) return {};
+    const check = (node, text) => {
+      if (isHandRolledActionRow(text)) {
+        context.report({ node, messageId: "handRolled" });
+      }
+    };
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) check(node, quasi.value.raw);
+      },
+    };
+  },
+};
+
 // ui-kit/no-hand-rolled-field-label (#5589) — die Beschriftung eines Felds kommt
 // aus `FieldLabel` oder der `label`-Prop. Fund: `<label>` mit text-xs/text-sm und
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
@@ -5803,6 +5845,7 @@ export default {
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-arbitrary-slide-over-width": noArbitrarySlideOverWidth,
     "no-hand-rolled-sticky-bar": noHandRolledStickyBar,
+    "no-hand-rolled-action-row": noHandRolledActionRow,
     "no-slide-over-row-override": noSlideOverRowOverride,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,

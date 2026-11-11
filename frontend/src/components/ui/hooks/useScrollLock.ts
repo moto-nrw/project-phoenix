@@ -15,8 +15,6 @@ export function useScrollLock(isLocked: boolean) {
   const modalContentElements = useRef<WeakSet<Element>>(new WeakSet());
 
   useLayoutEffect(() => {
-    if (typeof globalThis === "undefined") return;
-
     if (isLocked) {
       // Simply hide overflow - scrollbar-gutter: stable in globals.css
       // prevents layout shift from scrollbar disappearing. Capture the prior
