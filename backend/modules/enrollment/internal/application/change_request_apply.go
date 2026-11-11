@@ -435,6 +435,7 @@ func (a *approvalAuthority) hold(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("change request approve: %w", companionLockConflict(err, a.s.deps.CompanionLockBusy))
 		}
+		a.run.reads.holds[approvalAuthorityKey{tenantID: a.run.req.TenantID, submitter: key}] = holds
 		graph = nil
 		if group.pins {
 			for _, id := range group.ids {

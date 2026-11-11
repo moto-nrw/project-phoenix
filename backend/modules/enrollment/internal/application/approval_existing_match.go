@@ -116,6 +116,13 @@ func (d *Decisions) parentStudentAuthorityLapsed(ctx context.Context, request *e
 	if submitter.AdminManaged {
 		return false, nil
 	}
+	// Change-request approval held every identity/student before dedup and
+	// match locks. Reuse that verdict, including refusals; an unheld pair
+	// fails closed instead of taking new locks after those phase locks.
+	if reads, _ := ctx.Value(approvalAuthorityReadsKey{}).(*approvalAuthorityReads); reads != nil {
+		key := approvalAuthorityKey{tenantID: request.TenantID, submitter: submitterKey(submitter)}
+		return !reads.holds[key][studentID], nil
+	}
 	grants, err := submitterHoldsRenewal(ctx, d.deps.GuardianHold, submitter, append([]int64{studentID}, others...), nil, request.TenantID)
 	if err != nil {
 		return false, fmt.Errorf("decision: hold relationship of child %d: %w", childID, err)

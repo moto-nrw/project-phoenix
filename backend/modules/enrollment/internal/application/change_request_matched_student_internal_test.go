@@ -74,6 +74,7 @@ func TestApprovalAuthorityBatchesRolloverOriginsAndReusesIdentities(t *testing.T
 			require.Len(t, store.batches[1], count)
 			require.Equal(t, 1, store.requestBatches)
 			require.Equal(t, 1, store.inviteBatches)
+			heldStudents := len(hold.gotStudents)
 			ctx := context.WithValue(context.Background(), approvalAuthorityReadsKey{}, run.reads)
 			decisions := &Decisions{deps: DecisionDependencies{LateInvites: store, GuardianHold: hold}}
 			for _, child := range run.children {
@@ -91,6 +92,7 @@ func TestApprovalAuthorityBatchesRolloverOriginsAndReusesIdentities(t *testing.T
 			require.Len(t, store.batches, 2)
 			require.Equal(t, 1, store.requestBatches)
 			require.Equal(t, 1, store.inviteBatches)
+			require.Len(t, hold.gotStudents, heldStudents, "child synchronization must reuse the transaction-held grants")
 			for _, email := range hold.gotEmails {
 				require.Equal(t, "invited@example.test", email)
 			}
@@ -513,4 +515,47 @@ func TestValidateChildClassEligibility(t *testing.T) {
 		require.NoError(t, validateChildClassEligibility(&enrollmentNative.Phase{},
 			[]SubmitChild{{FirstName: "Kim", TargetSchoolClass: classPtr("9z")}}))
 	})
+}
+
+// Reusing one transaction's held grants must preserve refusals and distinguish
+// the school, identity and student. A standalone sync still takes a fresh hold.
+func TestApprovedChildSyncUsesOnlyItsHeldAuthority(t *testing.T) {
+	t.Parallel()
+	accountID, studentID := int64(42), int64(70)
+	request := &enrollmentNative.Request{GuardianAccountID: &accountID}
+	request.TenantID = 90
+	key := approvalAuthorityKey{tenantID: request.TenantID, submitter: "account:42"}
+	for _, scenario := range []string{"granted", "refused", "other school", "other account", "other student", "standalone"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+			identity := *request
+			student := studentID
+			holds := renewalHolds{studentID: scenario != "refused"}
+			ctx := context.WithValue(context.Background(), approvalAuthorityReadsKey{}, &approvalAuthorityReads{
+				holds: map[approvalAuthorityKey]renewalHolds{key: holds},
+			})
+			switch scenario {
+			case "other school":
+				identity.TenantID++
+			case "other account":
+				other := accountID + 1
+				identity.GuardianAccountID = &other
+			case "other student":
+				student++
+			case "standalone":
+				ctx = context.Background()
+			}
+			hold := &stubReEnrollAuthorizer{granted: true}
+			decisions := &Decisions{deps: DecisionDependencies{GuardianHold: hold}}
+			run := &approvedChildSync{request: &identity, child: &enrollmentNative.RequestChild{CreatedStudentID: &student}}
+			lapsed, err := decisions.childEnrollmentOnly(ctx, run)
+			require.NoError(t, err)
+			require.Equal(t, scenario != "granted" && scenario != "standalone", lapsed)
+			if scenario == "standalone" {
+				require.Equal(t, []int64{studentID}, hold.gotStudents)
+			} else {
+				require.Empty(t, hold.gotStudents, "an approval must not acquire more authority after the phase locks")
+			}
+		})
+	}
 }

@@ -11,11 +11,18 @@ import (
 
 type approvalAuthorityReadsKey struct{}
 
-// approvalAuthorityReads belongs to one approval transaction. Only identity
-// reads are reused; the parent guard still checks and holds live authority.
+// approvalAuthorityReads belongs to one approval transaction. Identity
+// reads and grants acquired by the parent guard are reused until commit.
 type approvalAuthorityReads struct {
 	origins map[int64]*enrollmentNative.Request
 	invites map[int64]*enrollmentNative.LateInvite
+	holds   map[approvalAuthorityKey]renewalHolds
+}
+
+// approvalAuthorityKey keeps held grants scoped to the school and identity.
+type approvalAuthorityKey struct {
+	tenantID  int64
+	submitter string
 }
 
 func (s *ChangeRequests) loadApprovalAuthorityReads(ctx context.Context, run *approval) (*approvalAuthorityReads, error) {
@@ -40,7 +47,7 @@ func (s *ChangeRequests) loadApprovalAuthorityReads(ctx context.Context, run *ap
 	if err != nil {
 		return nil, err
 	}
-	return &approvalAuthorityReads{origins: origins, invites: invites}, nil
+	return &approvalAuthorityReads{origins: origins, invites: invites, holds: map[approvalAuthorityKey]renewalHolds{}}, nil
 }
 
 func (s *ChangeRequests) loadApprovalInvites(ctx context.Context, identities []*enrollmentNative.Request) (map[int64]*enrollmentNative.LateInvite, error) {
