@@ -464,6 +464,8 @@ export default function TraegerHolidayRegistrationsPage() {
         await readRegistrations(current);
       } catch (err) {
         if (current === generation.current) throw err;
+      } finally {
+        if (current === generation.current) setLoading(false);
       }
     },
   );

@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ApiError } from "~/lib/api-error";
 import type { Permission, Role } from "~/lib/auth-helpers";
 import { catalogText } from "~/test/error-catalog-text";
@@ -210,16 +211,49 @@ describe("RolePermissionsTab", () => {
     );
   });
 
+  it("locks editing until the saved permissions and parent finish reloading", async () => {
+    const reload = deferred<Permission[]>();
+    const parentReload = deferred();
+    mockGetRolePermissions
+      .mockResolvedValueOnce([allPermissions[0]!])
+      .mockReturnValueOnce(reload.promise);
+    const saved = vi.fn(() => parentReload.promise);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={saved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+    const checkbox = await screen.findByLabelText("rooms:read");
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mockGetRolePermissions).toHaveBeenCalledTimes(2),
+    );
+    expect(checkbox).toBeDisabled();
+    await act(async () =>
+      reload.resolve([allPermissions[0]!, allPermissions[2]!]),
+    );
+    expect(saved).toHaveBeenCalledOnce();
+    expect(checkbox).toBeDisabled();
+    await act(async () => parentReload.resolve());
+    expect(checkbox).toBeEnabled();
+    expect(checkbox).toBeChecked();
+  });
+
   // #6652: the permissions hold once the write is through; a failed reload is
   // a load error that says the change is saved, and its retry only reloads.
   it("keeps saved permissions saved when the reload fails", async () => {
+    const retry = deferred<Permission[]>();
     mockGetRolePermissions
       .mockReset()
       .mockResolvedValueOnce([allPermissions[0]!])
       .mockRejectedValueOnce(
         new ApiError("down", 503, { code: "general.unavailable" }),
       )
-      .mockResolvedValue([allPermissions[2]!]);
+      .mockReturnValueOnce(retry.promise);
     render(
       <RolePermissionsTab
         role={role}
@@ -242,6 +276,9 @@ describe("RolePermissionsTab", () => {
     await waitFor(() =>
       expect(mockGetRolePermissions).toHaveBeenCalledTimes(3),
     );
+    expect(screen.getByLabelText("rooms:read")).toBeDisabled();
+    await act(async () => retry.resolve([allPermissions[2]!]));
+    expect(screen.getByLabelText("rooms:read")).toBeEnabled();
     expect(mockReplaceRolePermissions).toHaveBeenCalledTimes(1);
   });
 

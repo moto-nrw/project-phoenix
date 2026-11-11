@@ -599,6 +599,7 @@ function ClassDayOverviewContent({
     report: reportAbsence,
     withdraw: withdrawAbsenceReport,
     onChanged: schoolDayAfterWrite.refresh,
+    onRejected: refreshReports,
   });
   const canReportAbsences =
     absenceReports.available && schoolDay?.can_report_absences === true;

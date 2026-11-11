@@ -151,12 +151,12 @@ export function ContributionRulesCard({
           size="md"
           onClick={() => setEdit({ kind: "create", ruleKind: kind })}
         >
-          <LoadErrorAlert error={afterWrite.error} className="mb-4" />
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           {text.add}
         </Button>
       }
     >
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       <DataTable
         columns={columns}
         rows={[...rules]}

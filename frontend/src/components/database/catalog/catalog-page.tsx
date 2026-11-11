@@ -268,7 +268,11 @@ export function CatalogPage<T extends CatalogItem>({
    * Bestätigungsdialoge schließen danach, Listenaktionen haben kein Formular.
    */
   const runWrite = useCallback(
-    async (event: string, write: () => Promise<unknown>) => {
+    async (
+      event: string,
+      write: () => Promise<unknown>,
+      afterWritten?: () => void,
+    ) => {
       setBusy(true);
       try {
         await write();
@@ -280,6 +284,7 @@ export function CatalogPage<T extends CatalogItem>({
         setBusy(false);
         return { saved: false, refreshed: false };
       }
+      afterWritten?.();
       setBusy(false);
       return { saved: true, refreshed: await refreshAfterWrite() };
     },
@@ -323,10 +328,12 @@ export function CatalogPage<T extends CatalogItem>({
     const target = retireTarget;
     const retire = config.retire;
     if (!target || !retire) return;
-    const result = await runWrite("catalog_retire_failed", () =>
-      retire.run(target),
+    const result = await runWrite(
+      "catalog_retire_failed",
+      () => retire.run(target),
+      () => setRetireTarget(null),
     );
-    setRetireTarget(null);
+    if (!result.saved) setRetireTarget(null);
     if (result.saved && result.refreshed) toast.success(retire.toast(target));
   }, [config, retireTarget, runWrite, toast]);
 
@@ -346,14 +353,16 @@ export function CatalogPage<T extends CatalogItem>({
     const target = removeTarget;
     const remove = config.remove;
     if (!target || !remove) return;
-    const result = await runWrite("catalog_remove_failed", () =>
-      remove.run(target),
+    const result = await runWrite(
+      "catalog_remove_failed",
+      () => remove.run(target),
+      () => {
+        setRemoveTarget(null);
+        select(null);
+      },
     );
-    setRemoveTarget(null);
-    if (result.saved) {
-      select(null);
-      if (result.refreshed) toast.success(remove.toast(target));
-    }
+    if (!result.saved) setRemoveTarget(null);
+    if (result.saved && result.refreshed) toast.success(remove.toast(target));
   }, [config, removeTarget, runWrite, select, toast]);
 
   const handleMove = useCallback(
@@ -602,7 +611,7 @@ export function CatalogPage<T extends CatalogItem>({
       error={items === undefined ? error : null}
       className="flex w-full flex-col"
       empty={
-        hasNothing
+        hasNothing && !error && !afterWrite.error
           ? {
               title: isSearching
                 ? "Nichts gefunden"

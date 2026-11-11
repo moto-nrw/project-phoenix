@@ -1,6 +1,7 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -9,6 +10,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
@@ -377,6 +379,61 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       screen.queryByRole("button", { name: "Als Geschwister zusammenführen" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each([false, true])(
+    "unlocks after a merge refresh supersedes a pending filter (failure: %s)",
+    async (fails) => {
+      const merge = deferred();
+      const filter = deferred<typeof SIBLING_LIST>();
+      const refresh = deferred<typeof SIBLING_LIST>();
+      mockMerge.mockReturnValueOnce(merge.promise);
+      renderPage();
+      const table = within(await screen.findByRole("table"));
+      fireEvent.click(
+        await table.findByRole("checkbox", {
+          name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+        }),
+      );
+      fireEvent.click(
+        table.getByRole("checkbox", {
+          name: "Anmeldung Nr. 8 von Tom Muster auswählen",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Als Geschwister zusammenführen" }),
+      );
+      mockFetchList
+        .mockReturnValueOnce(filter.promise)
+        .mockReturnValueOnce(refresh.promise);
+      fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: "Eingegangen" }),
+      );
+      await waitFor(() => expect(mockFetchList).toHaveBeenCalledTimes(2));
+      await act(async () => merge.resolve());
+      expect(mockFetchList).toHaveBeenCalledTimes(3);
+      const checkbox = table.getByRole("checkbox", {
+        name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+      });
+      expect(checkbox).toBeDisabled();
+      await act(async () => {
+        if (fails)
+          refresh.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          );
+        else refresh.resolve(SIBLING_LIST);
+      });
+      expect(checkbox).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Anmeldungen herunterladen" }),
+      ).toBeEnabled();
+      await act(async () =>
+        filter.resolve({ ...SIBLING_LIST, registrations: [] }),
+      );
+      expect(table.getByText("Eva Muster")).toBeVisible();
+      expect(checkbox).toBeEnabled();
+    },
+  );
 
   it("locks the selection while new results load and keeps only shown rows", async () => {
     renderPage();

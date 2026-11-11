@@ -138,9 +138,9 @@ export function useClassHomework({
       setRemoving(false);
       return;
     }
+    setDeleting((current) => (current === deleting ? null : current));
     setRemoving(false);
     await onChanged();
-    setDeleting(null);
   };
 
   return {

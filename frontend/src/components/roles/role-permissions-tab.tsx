@@ -174,8 +174,13 @@ export function RolePermissionsTab({
   const afterSave = useRefreshAfterWrite(
     "die Anzeige der Berechtigungen",
     async () => {
-      await fetchPermissions(true, { rethrow: true });
-      await onSaved();
+      setSaving(true);
+      try {
+        await fetchPermissions(true, { rethrow: true });
+        await onSaved();
+      } finally {
+        setSaving(false);
+      }
     },
   );
 
@@ -287,7 +292,6 @@ export function RolePermissionsTab({
       setSaving(false);
       return;
     }
-    setSaving(false);
     await afterSave.refresh();
   };
 

@@ -43,6 +43,8 @@ interface Options {
   /** Lädt die Tagesübersicht nach einer Änderung neu. */
   /** Reloads the school day; never rejects (#6652). */
   readonly onChanged: RefreshAfterWrite;
+  /** Recovery reload after a rejected write, without saved-change feedback. */
+  readonly onRejected: () => void;
 }
 
 function childKey(target: AbsenceReportTarget): string {
@@ -54,6 +56,7 @@ export function useSchoolAbsenceReports({
   report,
   withdraw,
   onChanged,
+  onRejected,
 }: Options) {
   const errors = useApiFormError();
   const [pending, setPending] = useState<string | null>(null);
@@ -82,7 +85,7 @@ export function useSchoolAbsenceReports({
       // Die Liste kann veraltet sein, etwa wenn die Lehrkraft das Kind
       // inzwischen als da eingetragen hat: neu laden, damit es verschwindet.
       // Scheitert auch das, bleibt die Meldung oben der sichtbare Fehler.
-      void onChanged();
+      onRejected();
       setPending(null);
       return false;
     }

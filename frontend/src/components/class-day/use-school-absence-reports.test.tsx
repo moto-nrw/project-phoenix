@@ -27,6 +27,7 @@ describe("useSchoolAbsenceReports withdraw", () => {
         report: vi.fn(),
         withdraw,
         onChanged,
+        onRejected: vi.fn(),
       }),
     );
     const mia = target("1");
@@ -60,6 +61,7 @@ describe("useSchoolAbsenceReports withdraw", () => {
         report: vi.fn(),
         withdraw,
         onChanged: () => Promise.resolve(true),
+        onRejected: vi.fn(),
       }),
     );
     const mia = target("1");

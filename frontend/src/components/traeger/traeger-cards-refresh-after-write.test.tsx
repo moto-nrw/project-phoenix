@@ -212,7 +212,12 @@ describe("Träger cards reload after a confirmed write", () => {
       onChanged,
       api.deleteContributionRule,
     );
-    expect(screen.queryByText("Regel löschen?")).toBeNull();
+    // Anker: retry left the confirmed rule visible and did not open creation.
+    expect(screen.getByText("Befreit")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Befreiungsregel hinzufügen" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   const bearer = {

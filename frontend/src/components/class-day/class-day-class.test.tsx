@@ -13,6 +13,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
@@ -1066,6 +1067,33 @@ describe("ClassDayClass homework (#4796)", () => {
     await waitFor(() =>
       expect(homework.remove).toHaveBeenCalledWith("4a", "12"),
     );
+  });
+
+  it("closes a deleted homework entry's confirmation while reloading", async () => {
+    const homework = api();
+    const reload = deferred<ClassDayReport>();
+    const fetchClassDay = vi
+      .fn()
+      .mockResolvedValueOnce(homeworkReport())
+      .mockReturnValueOnce(reload.promise);
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={fetchClassDay}
+        homework={homework}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen zur Hausaufgabe" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ja, löschen" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+    await waitFor(() => expect(fetchClassDay).toHaveBeenCalledTimes(2));
+    expect(dialog).not.toBeInTheDocument();
+    await act(async () => reload.resolve(homeworkReport({ homework: [] })));
+    expect(homework.remove).toHaveBeenCalledOnce();
   });
 
   // #6652: the deletion holds; a failed reload is a load error.
