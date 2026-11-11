@@ -45,23 +45,32 @@ func (s *Phases) careBeyondShortenedEnd(ctx context.Context, before, after *enro
 	today := s.todayDate()
 	var result []enrollment.CareBeyondPhaseEnd
 	for _, student := range students {
-		end := student.CareEnd
-		if student.Status != enrollment.PhaseCareStudentPending && student.Status != enrollment.PhaseCareStudentActive {
-			continue
-		}
-		if end.IsZero() || !end.After(newEnd) || end.After(oldEnd) || end.Before(today) {
-			continue
-		}
-		if reach, ok := otherReach[student.ID]; ok && !reach.Before(end) {
+		if !cutByEdit(student, oldEnd, newEnd, today, otherReach) {
 			continue
 		}
 		result = append(result, enrollment.CareBeyondPhaseEnd{
 			StudentID: student.ID, FirstName: student.FirstName, LastName: student.LastName,
-			SchoolClass: student.SchoolClass, CareEnd: end, PhaseEnd: newEnd,
+			SchoolClass: student.SchoolClass, CareEnd: student.CareEnd, PhaseEnd: newEnd,
 		})
 	}
 	slices.SortFunc(result, compareCareBeyondEnd)
 	return result, nil
+}
+
+// cutByEdit reports whether the edit from oldEnd to newEnd cut off the
+// child's care: it is pending or active, its care end lies after the new and
+// not after the old end, has not passed, and no approval in another phase
+// reaches it.
+func cutByEdit(student enrollment.PhaseCareStudent, oldEnd, newEnd, today calendar.Date, otherReach map[int64]calendar.Date) bool {
+	if student.Status != enrollment.PhaseCareStudentPending && student.Status != enrollment.PhaseCareStudentActive {
+		return false
+	}
+	end := student.CareEnd
+	if end.IsZero() || !end.After(newEnd) || end.After(oldEnd) || end.Before(today) {
+		return false
+	}
+	reach, ok := otherReach[student.ID]
+	return !ok || reach.Before(end)
 }
 
 // confirmedPhaseStudents lists, in ascending order, the children an approval

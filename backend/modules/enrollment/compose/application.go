@@ -72,14 +72,12 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		Resyncer:                        deps.Resyncer,
-		Students:                        deps.Students,
-		Bookings:                        deps.Bookings,
-		CareStudents:                    deps.CareStudents,
-		Settings:                        deps.Settings,
-		Responses:                       responses,
-		Runtime:                         tenantRuntime(),
-		Logger:                          deps.Logger,
-		Today:                           deps.Today,
+		Students:                        deps.Students, Bookings: deps.Bookings, CareStudents: deps.CareStudents,
+		Settings:  deps.Settings,
+		Responses: responses,
+		Runtime:   tenantRuntime(),
+		Logger:    deps.Logger,
+		Today:     deps.Today,
 	})
 }
 
