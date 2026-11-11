@@ -16,6 +16,7 @@ import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
@@ -31,7 +32,8 @@ export function PaperSignatureModal({
 }: Readonly<{
   contract: CareContractDetail;
   onClose: () => void;
-  onSaved: () => Promise<void>;
+  /** Closes the dialog and reloads the contract; never rejects (#6652). */
+  onSaved: RefreshAfterWrite;
 }>) {
   const party = contract.parties[0];
   const [signerName, setSignerName] = useState(
@@ -57,15 +59,16 @@ export function PaperSignatureModal({
           signerName,
           signedOn: toISODate(signedOn),
         });
-        success("Der Papiervertrag ist erfasst. Der Vertrag ist jetzt aktiv.");
-        if (op.isCurrent()) await onSaved();
       } catch (err) {
         logger.error("traeger_care_contract_paper_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
         void formError.show(err, { object: "der Papiervertrag" });
+        return;
       }
+      success("Der Papiervertrag ist erfasst. Der Vertrag ist jetzt aktiv.");
+      if (op.isCurrent()) await onSaved();
     });
   };
 

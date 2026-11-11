@@ -22,6 +22,8 @@ import {
   type BelegClarification,
 } from "~/lib/operator/beleg-retention-api";
 
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
+
 const logger = createLogger({ component: "BelegClarificationReviewModal" });
 
 /** Längste Spanne bis zur nächsten Prüfung, wie das Backend sie prüft. */
@@ -61,7 +63,8 @@ export function ClarificationReviewModal({
   readonly entry: BelegClarification | null;
   readonly organizationId: string;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<unknown>;
+  /** Reloads the section; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [note, setNote] = useState("");
   const [escalated, setEscalated] = useState(false);
@@ -107,9 +110,6 @@ export function ClarificationReviewModal({
           escalation_reason: escalating ? escalationReason.trim() : "",
           next_review_on: nextReviewOn,
         });
-        success("Die Prüfung ist erfasst.");
-        if (op.isCurrent()) close();
-        await onSaved();
       } catch (saveError) {
         logger.warn("beleg_clarification_review_failed", {
           error:
@@ -117,7 +117,11 @@ export function ClarificationReviewModal({
         });
         if (!op.isCurrent()) return;
         void formErrors.show(saveError, { object: "die Prüfung" });
+        return;
       }
+      success("Die Prüfung ist erfasst.");
+      if (op.isCurrent()) close();
+      await onSaved();
     });
   };
 

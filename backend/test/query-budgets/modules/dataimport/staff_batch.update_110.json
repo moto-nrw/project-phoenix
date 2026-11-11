@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.staff_batch.update_110",
-  "max": 911,
+  "max": 908,
   "exact": false,
   "description": "110-row staff update like staff_batch.update in two write transactions. Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). The batch path writes each row without a row savepoint, because a failed row aborts its whole chunk (#5552, ADR 0067 addendum step 3)."
 }

@@ -1,3 +1,4 @@
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
@@ -8,7 +9,13 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,6 +25,7 @@ import {
 import type { SectionConfig } from "~/lib/database/types";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { activitiesConcept } from "~/lib/concepts/activities";
 
 const mockUpdateUrlParams = vi.hoisted(() => vi.fn());
@@ -102,6 +110,7 @@ function buildConfig(overrides: Partial<CatalogConfig<Sorte>> = {}) {
       menuLabel: "Archivieren",
       confirmTitle: "Kategorie archivieren?",
       confirmLabel: "Archivieren",
+      loadingLabel: "Wird archiviert …",
       describe: (item) => `„${item.name}" wird nicht mehr angeboten.`,
       run: retire,
       toast: (item) => `„${item.name}" archiviert`,
@@ -188,6 +197,33 @@ afterEach(() => {
 // Die gemeinsame Fläche der Stammdaten-Kataloge (#3114): Sammlung links,
 // Objektansicht rechts, Anlegen als Kopf-Aktion.
 describe("CatalogPage", () => {
+  it("closes the create dialog when the resource loses its confirmed data", async () => {
+    const { config } = buildConfig();
+    const props = {
+      config,
+      items: ITEMS,
+      isLoading: false,
+      error: null,
+      onChanged: vi.fn(),
+      canManage: true,
+      selectedId: "1",
+    };
+    const view = render(<CatalogPage {...props} />);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Kategorie anlegen" })[0]!,
+    );
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    view.rerender(
+      <CatalogPage {...props} items={undefined} error="Kein Zugriff" />,
+    );
+    // Anker: der blockierende Fehler ersetzt den verweigerten Katalog.
+    expect(await screen.findByText("Kein Zugriff")).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Kategorie anlegen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("splits the collection into what is offered and what is not", () => {
     renderPage();
 
@@ -300,10 +336,103 @@ describe("CatalogPage", () => {
 
     await waitFor(() => expect(update).toHaveBeenCalled());
     expect(toastError).not.toHaveBeenCalled();
-    expect(toastWarning).toHaveBeenCalledWith(
-      "Die Änderung wurde gespeichert. Laden Sie die Seite neu.",
-    );
+    // #6652: the failed reload is a load error above the list that says the
+    // change is saved; its retry only reloads.
+    expect(
+      await screen.findByText((text) => text.endsWith(SAVED_BUT_STALE_SUFFIX)),
+    ).toBeInTheDocument();
+    expect(toastWarning).not.toHaveBeenCalled();
   });
+
+  it("keeps the first entry's failed refresh visible in an empty catalog", async () => {
+    const onChanged = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+    const { create } = renderPage({ items: [], onChanged });
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Kategorie anlegen" })[0]!,
+    );
+    fireEvent.change(await screen.findByLabelText(/Name/), {
+      target: { value: "Essen" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    expect(
+      await screen.findByText((text) => text.endsWith(SAVED_BUT_STALE_SUFFIX)),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(2));
+    expect(create).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the refresh error visible when the search matches no entries", async () => {
+    const onChanged = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+    renderPage({ onChanged });
+    fireEvent.click(screen.getByRole("button", { name: "Lernzeit nach oben" }));
+    expect(
+      await screen.findByText((text) => text.endsWith(SAVED_BUT_STALE_SUFFIX)),
+    ).toBeVisible();
+    fireEvent.change(search(), { target: { value: "kein Treffer" } });
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
+  });
+
+  it.each([{ items: [] }, { items: ITEMS }])(
+    "keeps an ordinary reload error visible with confirmed data %j",
+    ({ items }) => {
+      render(
+        <CatalogPage
+          config={buildConfig().config}
+          items={items}
+          isLoading={false}
+          error="Die Kategorien konnten nicht geladen werden."
+          onChanged={vi.fn()}
+          canManage
+          selectedId={null}
+        />,
+      );
+      if (items.length > 0)
+        fireEvent.change(search(), { target: { value: "kein Treffer" } });
+      expect(
+        screen.getByText("Die Kategorien konnten nicht geladen werden."),
+      ).toBeVisible();
+    },
+  );
+
+  it.each(["archive", "delete"])(
+    "closes the %s confirmation before the reload settles",
+    async (action) => {
+      const reload = deferred();
+      const onChanged = vi.fn(() => reload.promise);
+      const { retire, remove } = renderPage({ selectedId: "1", onChanged });
+      fireEvent.click(
+        screen.getByRole("button", { name: /Aktionen für Essen/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("menuitem", {
+          name: action === "archive" ? "Archivieren" : "Löschen",
+        }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      if (action === "delete")
+        fireEvent.click(screen.getByRole("button", { name: "Ja, löschen" }));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: action === "archive" ? "Archivieren" : "Endgültig löschen",
+        }),
+      );
+
+      await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+      expect(dialog).not.toBeInTheDocument();
+      await act(async () => reload.resolve());
+      expect(action === "archive" ? retire : remove).toHaveBeenCalledOnce();
+    },
+  );
 
   it("asks before taking an entry out of the selection", async () => {
     const { retire } = renderPage({ selectedId: "1" });
@@ -329,9 +458,12 @@ describe("CatalogPage", () => {
 
     await waitFor(() => expect(retire).toHaveBeenCalledWith(ITEMS[0]));
     expect(toastError).not.toHaveBeenCalled();
-    expect(toastWarning).toHaveBeenCalledWith(
-      "Die Änderung wurde gespeichert. Laden Sie die Seite neu.",
-    );
+    // #6652: the failed reload is a load error above the list that says the
+    // change is saved; its retry only reloads.
+    expect(
+      await screen.findByText((text) => text.endsWith(SAVED_BUT_STALE_SUFFIX)),
+    ).toBeInTheDocument();
+    expect(toastWarning).not.toHaveBeenCalled();
   });
 
   it("offers a retired entry back", async () => {

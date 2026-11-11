@@ -66,6 +66,7 @@ type PersonDirectory interface {
 	FindPersonByAccount(context.Context, int64) (Person, error)
 	SearchPersons(context.Context, PersonFilter) ([]Person, error)
 	ListPersonsByID(context.Context, []int64) ([]Person, error)
+	ListPersonsByAccount(context.Context, []int64) ([]Person, error)
 }
 
 // StudentDirectory is the bounded student owner seam: the same enrollment

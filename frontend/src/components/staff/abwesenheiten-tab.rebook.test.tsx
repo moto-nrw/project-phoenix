@@ -6,6 +6,9 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
@@ -100,6 +103,23 @@ vi.mock("~/lib/absence-type-api", () => ({
 }));
 
 import { AbwesenheitenTab } from "./abwesenheiten-tab";
+
+// #6652: the second load of the tab (the reload after the write) fails once.
+function failSecondLoad(mock: ReturnType<typeof vi.fn>) {
+  const original = mock.getMockImplementation() as (
+    ...args: unknown[]
+  ) => unknown;
+  let calls = 0;
+  mock.mockImplementation((...args: unknown[]) => {
+    calls += 1;
+    return calls === 2
+      ? Promise.reject(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+      : original(...args);
+  });
+}
+const RELOAD_TEXT = `${catalogText("general.unavailable", "die Anzeige der Abwesenheiten")} ${SAVED_BUT_STALE_SUFFIX}`;
 
 // Test clock: 2026-09-09. Two past Fridays on Freizeitausgleich and a past
 // sick report, which cannot be rebooked.
@@ -198,6 +218,48 @@ describe("AbwesenheitenTab Art ändern (#3258)", () => {
     );
     // Nach dem Speichern ist der Auswahlmodus vorbei.
     expect(within(history()).queryAllByRole("checkbox")).toHaveLength(0);
+  });
+
+  it("lässt die Umbuchung gelten, wenn das Nachladen scheitert (#6652)", async () => {
+    failSecondLoad(mocks.getAbsences);
+    render(
+      <AbwesenheitenTab
+        staffId="4"
+        canEdit
+        canEditQuota
+        canManageSickReports
+        staff={{ id: "4", firstName: "Swantje", lastName: "Kollegin" }}
+      />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Art ändern" }));
+    const list = history();
+    fireEvent.click(
+      within(list).getByRole("checkbox", {
+        name: /Freizeitausgleich 07\.08\.2026 auswählen/,
+      }),
+    );
+    fireEvent.click(within(list).getByRole("button", { name: "Weiter" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Art ändern: Swantje Kollegin",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: /Krank-Urlaubstag/ }),
+    );
+    await within(dialog).findByText("+8h");
+    fireEvent.change(within(dialog).getByLabelText("Grund (Pflicht)"), {
+      target: { value: "Kontingent angelegt" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Art ändern" }));
+
+    expect(await screen.findByText(RELOAD_TEXT)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mocks.getAbsences).toHaveBeenCalledTimes(3));
+    expect(
+      mocks.rebookAbsences.mock.calls.filter(
+        ([, body]) => (body as { dryRun: boolean }).dryRun === false,
+      ),
+    ).toHaveLength(1);
   });
 
   it("verlässt den Auswahlmodus mit Abbrechen", async () => {

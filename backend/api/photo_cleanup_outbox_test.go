@@ -201,3 +201,12 @@ func TestLegalDocumentCleanupOutboxIsAtomicWithSetting(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, n)
 }
+
+func (r photoCleanupRuntime) QueueUnlinkStoredPhotos(ctx context.Context, urls []string) error {
+	for _, url := range urls {
+		if err := r.QueueUnlinkStoredPhoto(ctx, url); err != nil {
+			return err
+		}
+	}
+	return nil
+}

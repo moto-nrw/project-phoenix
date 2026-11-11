@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -50,6 +51,9 @@ func (l offboardingLock) scan(ctx context.Context, query *bun.SelectQuery, opera
 
 // absences locks open requests and every absence that has not ended before from.
 func (l offboardingLock) absences(ctx context.Context) ([]domain.StaffAbsence, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "active.staff_absences"); err != nil {
+		return nil, err
+	}
 	absences := []staffAbsenceRow{}
 	query := withTenant(l.db.NewSelect().Model(&absences).
 		ModelTableExpr(`active.staff_absences AS "staff_absence"`).
@@ -64,6 +68,9 @@ func (l offboardingLock) absences(ctx context.Context) ([]domain.StaffAbsence, e
 
 // series locks every series still valid after from.
 func (l offboardingLock) series(ctx context.Context) ([]domain.StaffShiftSeries, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.staff_shift_series"); err != nil {
+		return nil, err
+	}
 	series := []staffShiftSeriesRow{}
 	query := withTenant(l.db.NewSelect().Model(&series).
 		ModelTableExpr(`schedule.staff_shift_series AS "staff_shift_series"`).
@@ -82,6 +89,9 @@ func (l offboardingLock) series(ctx context.Context) ([]domain.StaffShiftSeries,
 
 // shifts locks every shift on or after from.
 func (l offboardingLock) shifts(ctx context.Context) ([]domain.StaffShift, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.staff_shifts"); err != nil {
+		return nil, err
+	}
 	shifts := []staffShiftRow{}
 	query := withTenant(l.db.NewSelect().Model(&shifts).
 		ModelTableExpr(`schedule.staff_shifts AS "staff_shift"`).
@@ -97,6 +107,9 @@ func (l offboardingLock) shifts(ctx context.Context) ([]domain.StaffShift, error
 // substitutions locks every substitution the staff member takes part in that
 // has not ended before from.
 func (l offboardingLock) substitutions(ctx context.Context) ([]domain.GroupSubstitution, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "education.group_substitution"); err != nil {
+		return nil, err
+	}
 	substitutions := []groupSubstitutionRow{}
 	query := withTenant(l.db.NewSelect().Model(&substitutions).
 		ModelTableExpr(`education.group_substitution AS "group_substitution"`).

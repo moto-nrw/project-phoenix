@@ -191,7 +191,10 @@ func (s *TemplateService) updateTemplateLocked(
 // loadUpdateTarget loads the edited segment and validates the references the
 // edit changes. An archived or missing segment is the active-CRUD 404.
 func (s *TemplateService) loadUpdateTarget(ctx context.Context, in TemplateUpdateInput) (*activityContract.Group, error) {
-	existing, err := findLegacyGroup(ctx, s.deps.ActivityGroupRepo, in.TemplateID)
+	// The template row is locked before the days and the staff rows (#6702):
+	// the update writes it after its roster's staff rows, and an activity
+	// supervisor write locks it before its people, so both take it first.
+	existing, err := findLegacyGroupForUpdate(ctx, s.deps.ActivityGroupRepo, in.TemplateID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
 			return nil, &ports.ScheduleError{Op: "update template: load target", Err: timetable.ErrTemplateSegmentNotEditable}

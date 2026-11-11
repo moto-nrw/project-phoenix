@@ -61,6 +61,7 @@ type StaffImportDeps struct {
 	Transactions                 importModels.Transactions
 	Invitations                  importModels.StaffInviter
 	FindInvitedPeople            func(context.Context, string) ([]int64, error)
+	FindSchoolEmailIdentities    func(context.Context, []string) (map[string]int64, map[string][]int64, error)
 	FindSchoolAccount            func(context.Context, string) (int64, bool, error)
 	Roles                        importModels.SchoolRoleQuery
 	RolePolicy                   importModels.SchoolRolePolicy
@@ -72,7 +73,11 @@ type StaffImportDeps struct {
 	// data and qualifications.
 	Persons    PersonDirectory
 	Membership StaffMembership
-	Records    StaffRecords
+	// LockStaffPersonMerge shares the school's staff person merge gate before
+	// a row's first person or staff lock (#6702): a staff person merge holds
+	// it exclusively while it locks the school's staff rows. Nil takes none.
+	LockStaffPersonMerge func(context.Context) error
+	Records              StaffRecords
 }
 
 // OpeningBalanceImportDeps contains the request-independent dependencies for

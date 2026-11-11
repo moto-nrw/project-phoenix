@@ -191,12 +191,12 @@ export function PushNotificationSection({
     void refresh();
   }, [refresh]);
 
+  // `refresh` liest nur den Zustand dieses Geräts neu und weist nie ab; es
+  // läuft nach dem Schreiben, nie in dessen catch (#6652).
   const enable = async () => {
     setBusy(true);
     try {
       await subscribePush(portal);
-      toast.success(t("enabledMessage"));
-      await refresh();
     } catch (err) {
       logger.error("push_subscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -216,9 +216,12 @@ export function PushNotificationSection({
         });
       }
       await refresh();
-    } finally {
       setBusy(false);
+      return;
     }
+    setBusy(false);
+    toast.success(t("enabledMessage"));
+    await refresh();
   };
 
   const install = async () => {
@@ -243,8 +246,6 @@ export function PushNotificationSection({
     setBusy(true);
     try {
       await unsubscribePush(portal);
-      toast.success(t("disabledMessage"));
-      await refresh();
     } catch (err) {
       logger.error("push_unsubscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -253,9 +254,12 @@ export function PushNotificationSection({
         object: t("errorObjectDisable"),
         retry: () => latestDisableRef.current(),
       });
-    } finally {
       setBusy(false);
+      return;
     }
+    setBusy(false);
+    toast.success(t("disabledMessage"));
+    await refresh();
   };
 
   const sendTest = async () => {

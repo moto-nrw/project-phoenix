@@ -40,13 +40,13 @@ func newTestTimetableWithSessions(tb TestTimetableTB, db transactionruntime.Data
 		// This owner-only harness stubs foreign capabilities: no block has
 		// started and nothing was observed. Lifecycle integration tests
 		// compose the real Student Presence owner and the Membership locker.
-		LockStaffAssignment: func(context.Context, int64) error { return nil },
-		DB:                  db.Pool(),
-		Students:            students,
-		Rooms:               roomDirectory,
-		Sessions:            sessions,
-		Observe:             func(timetableCompose.Observation) {},
-		Provenance:          enrollmentProvenanceView.NewReader(),
+		LockStaffAssignments: func(context.Context, []int64) error { return nil },
+		DB:                   db.Pool(),
+		Students:             students,
+		Rooms:                roomDirectory,
+		Sessions:             sessions,
+		Observe:              func(timetableCompose.Observation) {},
+		Provenance:           enrollmentProvenanceView.NewReader(),
 	})
 	if err != nil {
 		tb.Fatalf("compose test Timetable & Activities: %v", err)

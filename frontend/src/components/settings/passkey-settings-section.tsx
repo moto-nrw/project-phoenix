@@ -27,6 +27,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { suggestCurrentDeviceLabel } from "~/lib/device-label";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   isPasskeyCeremonyIncompleteError,
@@ -98,6 +99,17 @@ export function PasskeySettingsSection({
     }
   }, [clear, scope, showLoadError]);
 
+  // Nachladen nach dem Hinzufügen oder Entfernen: ein Fehler dabei steht
+  // über der Liste, die bestätigten Passkeys bleiben stehen (#6652).
+  const credentialsAfterWrite = useRefreshAfterWrite(
+    "die Liste der Passkeys",
+    async () => {
+      setCredentials(await listPasskeys(scope));
+      setLoadFailed(false);
+      clear();
+    },
+  );
+
   useEffect(() => {
     setSupported(isPasskeySupported());
     void loadCredentials();
@@ -137,7 +149,7 @@ export function PasskeySettingsSection({
       setName("");
       setMaskedEmail("");
       toast.success("Der Passkey ist hinzugefügt.");
-      await loadCredentials();
+      await credentialsAfterWrite.refresh();
     } catch (err) {
       // Abgebrochen am Gerät: kein Fehler, der Bereich bleibt offen und
       // „Speichern“ startet den Vorgang erneut.
@@ -178,7 +190,7 @@ export function PasskeySettingsSection({
       await revokePasskey(scope, revokeTarget.id);
       setRevokeTarget(null);
       toast.success("Der Passkey ist entfernt.");
-      await loadCredentials();
+      await credentialsAfterWrite.refresh();
     } catch (err) {
       logger.warn("passkey_revoke_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -348,6 +360,7 @@ export function PasskeySettingsSection({
 
       {/* Bis der Text eines Ladefehlers da ist, bleibt der Ladehinweis
           stehen; danach steht der Fehler statt einer leeren Liste. */}
+      <LoadErrorAlert error={credentialsAfterWrite.error} />
       {loading || (loadFailed && !loadError) ? (
         <Loading message="Passkeys werden geladen …" />
       ) : loadFailed ? (

@@ -10073,6 +10073,38 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "binding_digest": "7c42484c8947b0a83e178c2ab5b13541",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "binding_digest": "ccd79bd4bb01e567856fe8cd1f8a60c2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoCapability.PurgeStudentPhotos",
       "binding_digest": "d5349101396c74a6f997482c10fd407a",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoPurge.PurgeStudentPhotos",
@@ -10530,10 +10562,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "binding_digest": "f5f63bb986c116a602556e96f8f76a69",
+      "binding_digest": "997c5f3eab9fbdc31b0a29b135f59572",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "binding_digest": "544633358f35316aeaff21a97364c637",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {
@@ -11666,10 +11706,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "binding_digest": "f5f63bb986c116a602556e96f8f76a69",
+      "binding_digest": "997c5f3eab9fbdc31b0a29b135f59572",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "binding_digest": "544633358f35316aeaff21a97364c637",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {
@@ -12298,10 +12346,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "binding_digest": "f5f63bb986c116a602556e96f8f76a69",
+      "binding_digest": "997c5f3eab9fbdc31b0a29b135f59572",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "binding_digest": "544633358f35316aeaff21a97364c637",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {

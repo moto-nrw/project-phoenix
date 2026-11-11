@@ -36,7 +36,9 @@ import {
   updateGuardianContact,
   updateGuardianRelationship,
 } from "~/lib/parent-api";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { displayEmail, isDemoBuild } from "~/lib/demo-build";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -142,6 +144,8 @@ export default function GuardiansPanel({
     PickupPermissionRequest[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [accessRefused, setAccessRefused] = useState(false);
+  const latestRequest = useRef(0);
   const [editingContact, setEditingContact] = useState<ChildGuardian | null>(
     null,
   );
@@ -180,7 +184,28 @@ export default function GuardiansPanel({
   // error path (#2518).
   const [message, setMessage] = useState<string | null>(null);
 
+  const discardRefusedAccess = useCallback((failures: unknown[]) => {
+    const refusal = failures.find(
+      (error) =>
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403),
+    );
+    if (!refusal) return;
+    // Contacts and accounts project each other's data and actions.
+    setAccessRefused(true);
+    setGuardians([]);
+    setAccounts([]);
+    setPermissionRequests([]);
+    setEditingContact(null);
+    setEditingPickup(null);
+    setAddMode(null);
+    setUpgradePrompt(null);
+    setConfirmRemoveId(null);
+    return refusal;
+  }, []);
+
   const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     setIsLoading(true);
     clearGuardiansLoadError();
     clearAccountsLoadError();
@@ -192,11 +217,23 @@ export default function GuardiansPanel({
         listRelatedAccounts(studentId),
         listPickupPermissionRequests(studentId),
       ]);
+    if (request !== latestRequest.current) return;
+    const refused = discardRefusedAccess(
+      [guardianResult, accountResult].flatMap((result) =>
+        result.status === "rejected" ? [result.reason as unknown] : [],
+      ),
+    );
+    if (
+      guardianResult.status === "fulfilled" &&
+      accountResult.status === "fulfilled"
+    ) {
+      setAccessRefused(false);
+    }
     // Ohne die Liste fehlt nur der Hinweis „Wartet auf die OGS“; die
     // Kontakte bleiben vollständig.
-    if (requestResult.status === "fulfilled") {
+    if (requestResult.status === "fulfilled" && !refused) {
       setPermissionRequests(requestResult.value);
-    } else {
+    } else if (requestResult.status === "rejected") {
       logger.warn("pickup_permission_requests_load_failed", {
         error:
           requestResult.reason instanceof Error
@@ -205,7 +242,7 @@ export default function GuardiansPanel({
       });
     }
     if (guardianResult.status === "fulfilled") {
-      setGuardians(guardianResult.value);
+      if (!refused) setGuardians(guardianResult.value);
     } else {
       logger.error("guardians_load_failed", {
         error:
@@ -219,7 +256,7 @@ export default function GuardiansPanel({
       });
     }
     if (accountResult.status === "fulfilled") {
-      setAccounts(accountResult.value);
+      if (!refused) setAccounts(accountResult.value);
     } else {
       logger.error("related_accounts_load_failed", {
         error:
@@ -236,6 +273,7 @@ export default function GuardiansPanel({
   }, [
     clearAccountsLoadError,
     clearGuardiansLoadError,
+    discardRefusedAccess,
     showAccountsLoadError,
     showGuardiansLoadError,
     studentId,
@@ -247,19 +285,80 @@ export default function GuardiansPanel({
     loadRef.current = load;
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
+  // The reload after a confirmed write (#6652) only reads and sets: the shown
+  // contacts and accounts stay while it runs, and a failure rejects, so the
+  // hook reports it as a load error that says the change is saved.
+  const readGuardians = useCallback(async () => {
+    const request = ++latestRequest.current;
+    const [nextGuardians, nextAccounts, nextRequests] =
+      await Promise.allSettled([
+        listChildGuardians(studentId),
+        listRelatedAccounts(studentId),
+        listPickupPermissionRequests(studentId),
+      ]);
+    if (request !== latestRequest.current) return;
+    setIsLoading(false);
+    const failures = [nextGuardians, nextAccounts].flatMap((result) =>
+      result.status === "rejected" ? [result.reason as unknown] : [],
+    );
+    const refusal = discardRefusedAccess(failures);
+    if (refusal) throw refusal;
+    if (
+      nextGuardians.status === "fulfilled" &&
+      nextAccounts.status === "fulfilled"
+    ) {
+      setAccessRefused(false);
+    }
+    if (nextGuardians.status === "fulfilled") {
+      clearGuardiansLoadError();
+      setGuardians(nextGuardians.value);
+    }
+    if (nextAccounts.status === "fulfilled") {
+      clearAccountsLoadError();
+      setAccounts(nextAccounts.value);
+    }
+    if (nextRequests.status === "fulfilled") {
+      setPermissionRequests(nextRequests.value);
+    } else {
+      // Wie beim Erstabruf fehlt nur der optionale Hinweis auf offene Anfragen.
+      logger.warn("pickup_permission_requests_load_failed", {
+        error:
+          nextRequests.reason instanceof Error
+            ? nextRequests.reason.message
+            : String(nextRequests.reason),
+      });
+    }
+    if (nextGuardians.status === "rejected") throw nextGuardians.reason;
+    if (nextAccounts.status === "rejected") throw nextAccounts.reason;
+  }, [
+    clearAccountsLoadError,
+    clearGuardiansLoadError,
+    discardRefusedAccess,
+    studentId,
+  ]);
+  const { error: reloadError, refresh: refreshAfterWrite } =
+    useRefreshAfterWrite(t("guardians.reloadObject"), readGuardians, {
+      savedSuffix: t("guardians.savedButStale"),
+    });
+
+  // A dialog calls this after its write went through.
   const handleSaved = useCallback(
     async (text: string) => {
       setAddMode(null);
       setEditingContact(null);
       setEditingPickup(null);
-      await load();
       setMessage(text);
+      await refreshAfterWrite();
     },
-    [load],
+    [refreshAfterWrite],
   );
 
   const accountById = new Map(
@@ -280,32 +379,12 @@ export default function GuardiansPanel({
     setBusy(true);
     setMessage(null);
     clearInviteError();
+    let result: Awaited<ReturnType<typeof inviteRelatedAccount>>;
     try {
-      const result = await inviteRelatedAccount(
+      result = await inviteRelatedAccount(
         studentId,
         trimmed,
         confirmRoleUpgrade ? { confirmRoleUpgrade: true } : undefined,
-      );
-      if (result.outcome === "existing_contact_restricted") {
-        setAddMode(null);
-        setInviteEmail("");
-        setUpgradePrompt({
-          email: trimmed,
-          name: trimmed,
-          existingRole: result.existing_role,
-        });
-        return;
-      }
-      setUpgradePrompt(null);
-      setInviteEmail("");
-      setAddMode(null);
-      await load();
-      setMessage(
-        result.outcome === "pending_approval"
-          ? t("guardians.access.invitePending")
-          : result.outcome === "invited"
-            ? t("guardians.access.inviteSent", { email: trimmed })
-            : t("guardians.access.inviteLinked"),
       );
     } catch (err) {
       logger.error("related_account_invite_failed", {
@@ -323,9 +402,31 @@ export default function GuardiansPanel({
       } else {
         void showInviteError(err, options);
       }
+      return;
     } finally {
       setBusy(false);
     }
+    if (result.outcome === "existing_contact_restricted") {
+      setAddMode(null);
+      setInviteEmail("");
+      setUpgradePrompt({
+        email: trimmed,
+        name: trimmed,
+        existingRole: result.existing_role,
+      });
+      return;
+    }
+    setUpgradePrompt(null);
+    setInviteEmail("");
+    setAddMode(null);
+    setMessage(
+      result.outcome === "pending_approval"
+        ? t("guardians.access.invitePending")
+        : result.outcome === "invited"
+          ? t("guardians.access.inviteSent", { email: trimmed })
+          : t("guardians.access.inviteLinked"),
+    );
+    await refreshAfterWrite();
   };
   // Retry runs the current handler. Typing in the field clears the error,
   // so its retry always repeats the address that is still in the field.
@@ -346,9 +447,6 @@ export default function GuardiansPanel({
     setMessage(null);
     try {
       await removeRelatedAccount(studentId, guardianProfileId);
-      setConfirmRemoveId(null);
-      await load();
-      setMessage(t("guardians.access.removed"));
     } catch (err) {
       logger.error("related_account_remove_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -358,18 +456,31 @@ export default function GuardiansPanel({
         object: t("guardians.errorObjectRemove"),
         retry: () => void removeRef.current(guardianProfileId),
       });
+      return;
     } finally {
       setBusy(false);
     }
+    setConfirmRemoveId(null);
+    setMessage(t("guardians.access.removed"));
+    await refreshAfterWrite();
   };
   const removeRef = useRef(handleRemove);
   useLayoutEffect(() => {
     removeRef.current = handleRemove;
   });
 
+  if (accessRefused) {
+    return (
+      <LoadErrorAlert
+        error={reloadError ?? guardiansLoadError ?? accountsLoadError}
+      />
+    );
+  }
+
   return (
     <div className="space-y-5">
       {message && <Alert type="success" message={message} />}
+      <LoadErrorAlert error={reloadError} />
 
       <ParentSection
         title={t("guardians.contactsTitle")}
@@ -623,6 +734,7 @@ export default function GuardiansPanel({
         confirmText={t("guardians.access.grant")}
         cancelText={t("guardians.cancel")}
         isConfirmLoading={busy}
+        loadingText={t("guardians.access.grantLoading")}
       >
         <p className="text-sm leading-6 text-gray-600">
           {upgradePrompt

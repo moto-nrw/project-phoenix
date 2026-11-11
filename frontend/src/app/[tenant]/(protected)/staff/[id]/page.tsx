@@ -334,6 +334,10 @@ export default function StaffDetailContent() {
     reloadRecord,
   );
   const { refresh: refreshRecord } = recordRefresh;
+  const familyRefresh = useRefreshAfterWrite(
+    "die Liste des Personals",
+    refreshStaffFamily,
+  );
 
   // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
   // Regel 4). Der Datensatz geht zuerst; scheitert danach der Rollenwechsel,
@@ -385,10 +389,6 @@ export default function StaffDetailContent() {
     clearDeleteError();
     try {
       await teacherService.deleteTeacher(staffId);
-      toastSuccess("Die Person ist gelöscht.");
-      await refreshStaffFamily();
-      setShowDeleteModal(false);
-      router.push(referrer);
     } catch (err) {
       logger.error("failed to delete staff record", {
         staff_id: staffId,
@@ -398,16 +398,23 @@ export default function StaffDetailContent() {
         object: "die Person",
         retry: () => void handleDeleteRecordRef.current(),
       });
-    } finally {
       setDeleting(false);
+      return;
     }
+    toastSuccess("Die Person ist gelöscht.");
+    // The list loads anew after the navigation; a failed refresh here is no
+    // error of the deletion and never deletes again (#6652).
+    await familyRefresh.refresh();
+    setShowDeleteModal(false);
+    router.push(referrer);
+    setDeleting(false);
   }, [
     clearDeleteError,
     referrer,
     router,
     showDeleteError,
     staffId,
-    refreshStaffFamily,
+    familyRefresh,
     toastSuccess,
   ]);
   useLayoutEffect(() => {
@@ -832,9 +839,7 @@ export default function StaffDetailContent() {
                   scope="tenant"
                   accountId={accountId}
                   accountLabel={recordLabel}
-                  onUpdated={async () => {
-                    await refreshRecord();
-                  }}
+                  onUpdated={refreshRecord}
                 />
                 {hasAccess ? (
                   <MFAAdminOverrideModal

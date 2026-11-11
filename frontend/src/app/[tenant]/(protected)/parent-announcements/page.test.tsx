@@ -2,9 +2,12 @@ import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  fetchAnnouncements,
+  createAnnouncement,
   updateAnnouncement,
   type Announcement,
 } from "~/lib/parent-announcements-api";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import ParentAnnouncementsPage from "./page";
@@ -46,7 +49,13 @@ vi.mock("~/lib/tenant-context", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) =>
     key === "parent-announcements-list"
-      ? { ...listState, mutate: vi.fn() }
+      ? {
+          ...listState,
+          mutate: vi.fn(
+            async (data?: Promise<Announcement[]>) =>
+              data ?? fetchAnnouncements(true).catch(() => listState.data),
+          ),
+        }
       : { data: undefined, isLoading: false, error: null, mutate: vi.fn() },
 }));
 
@@ -56,6 +65,7 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => {
   return {
     ...actual,
     fetchAnnouncements: vi.fn(() => Promise.resolve([])),
+    createAnnouncement: vi.fn(() => Promise.resolve({ id: "new" })),
     updateAnnouncement: vi.fn(() => Promise.resolve({ id: "1" })),
     fetchAnnouncementAttachments: vi.fn(() =>
       Promise.resolve({
@@ -439,6 +449,61 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     expect(screen.getByRole("textbox", { name: "Antwort 3" })).toHaveValue(
       "Vielleicht",
     );
+  });
+
+  it("shows the reload failure after creating the first announcement", async () => {
+    listState.data = [];
+    const token = stashAnnouncementStudents("testschule", [
+      { id: "7", name: "Mia Arslan" },
+    ]);
+    searchParams.set("neu", "kinder");
+    searchParams.set("vorbelegung", token!);
+    render(<ParentAnnouncementsPage />);
+    fireEvent.change(await screen.findByRole("textbox", { name: "Titel" }), {
+      target: { value: "Erste Mitteilung" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Text" }), {
+      target: { value: "Bitte lesen." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    vi.mocked(fetchAnnouncements).mockRejectedValueOnce(
+      new ApiError("down", 503),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Mitteilungen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
+    expect(createAnnouncement).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(fetchAnnouncements).toHaveBeenCalledTimes(2));
+    expect(createAnnouncement).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a failed list read after saving a draft", async () => {
+    listState.data = [base];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Weiter" }));
+    vi.mocked(fetchAnnouncements).mockRejectedValueOnce(
+      new ApiError("down", 503),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+    // Anker: der Listenfehler sagt, dass der Entwurf bereits gespeichert ist.
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Mitteilungen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(fetchAnnouncements).toHaveBeenCalledTimes(2));
+    expect(updateAnnouncement).toHaveBeenCalledTimes(1);
   });
 
   it("saves a draft with an elapsed reminder", async () => {

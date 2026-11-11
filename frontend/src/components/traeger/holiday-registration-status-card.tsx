@@ -18,7 +18,10 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -29,6 +32,10 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import {
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { traegerPath } from "~/lib/traeger-url";
 import {
@@ -130,7 +137,8 @@ function DebtorNumberField({
   invoiced: boolean;
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
-  onChanged: () => Promise<unknown>;
+  /** Reloads the registration; never rejects (#6652). */
+  onChanged: RefreshAfterWrite;
 }>) {
   const [value, setValue] = useState(debtorNumber);
   const [saving, setSaving] = useState(false);
@@ -159,17 +167,18 @@ function DebtorNumberField({
     setSaving(true);
     try {
       await changeHolidayDebtorNumber(periodId, registrationId, value.trim());
-      success("Die Debitorennummer ist gespeichert.");
-      onEditingChange(false);
-      await onChanged();
     } catch (err) {
       logger.error("holiday_debtor_number_change_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void formErrors.show(err, { object: "die Debitorennummer" });
-    } finally {
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    success("Die Debitorennummer ist gespeichert.");
+    onEditingChange(false);
+    await onChanged();
   };
 
   if (editing && !invoiced) {
@@ -377,7 +386,8 @@ export function HolidayRegistrationStatusCard({
    * and its contribution again. A cancellation can change the sibling group
    * (#5662).
    */
-  onReload: () => Promise<void>;
+  /** Reads the registration again and rejects when that fails. */
+  onReload: () => Promise<unknown>;
   /** After a change of the debtor number; the page reads it again. */
   onDebtorNumberChanged: () => Promise<unknown>;
   /** Das Recht „Abrechnung“ öffnet die Beitragsregeln. */
@@ -405,6 +415,16 @@ export function HolidayRegistrationStatusCard({
   const confirmRef = useRef<HTMLFormElement>(null);
   const confirmErrors = useApiFormError(confirmRef);
   const errorDisplay = useApiErrorDisplay();
+  // A write's reload stands above the card as a load error, never as an
+  // error of the confirmation, the cancellation or the debtor number (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Anmeldung",
+    onReload,
+  );
+  const debtorAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Anmeldung",
+    onDebtorNumberChanged,
+  );
   const exemptionAvailable = contribution?.exemptionAvailable ?? false;
   const invoiced = contribution?.invoiced ?? false;
   let payer: Payer = "family";
@@ -442,15 +462,16 @@ export function HolidayRegistrationStatusCard({
         debtorNumber.trim(),
         payer === "cost_bearer" ? (costBearerId ?? undefined) : undefined,
       );
-      await onReload();
     } catch (err) {
       logger.error("holiday_registration_confirm_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void confirmErrors.show(err, { object: "die Anmeldung" });
-    } finally {
       setRunning(null);
+      return;
     }
+    await afterWrite.refresh();
+    setRunning(null);
   };
 
   const run = async (action: HolidayRegistrationAction | "cancel") => {
@@ -460,7 +481,6 @@ export function HolidayRegistrationStatusCard({
         // The Elternabrechnung cancels and computes the siblings again
         // (#5662); the page reads both again.
         await cancelHolidayRegistration(periodId, registration.id);
-        await onReload();
       } else {
         onChanged(
           await changeHolidayRegistration(periodId, registration.id, action),
@@ -472,10 +492,13 @@ export function HolidayRegistrationStatusCard({
         error: err instanceof Error ? err.message : String(err),
       });
       void errorDisplay.show(err, { object: "die Anmeldung" });
-    } finally {
       setRunning(null);
       setConfirmingCancel(false);
+      return;
     }
+    setRunning(null);
+    setConfirmingCancel(false);
+    if (action === "cancel") await afterWrite.refresh();
   };
 
   const open = registration.status !== "cancelled";
@@ -559,6 +582,8 @@ export function HolidayRegistrationStatusCard({
   ) : undefined;
   return (
     <SectionCard title="Status" footer={actions}>
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
+      <LoadErrorAlert error={debtorAfterWrite.error} className="mb-4" />
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
         {registration.status === "received" ? (
@@ -646,7 +671,7 @@ export function HolidayRegistrationStatusCard({
             invoiced={invoiced}
             editing={editingDebtorNumber}
             onEditingChange={setEditingDebtorNumber}
-            onChanged={onDebtorNumberChanged}
+            onChanged={debtorAfterWrite.refresh}
           />
         ) : null}
         {choosesPayer ? (

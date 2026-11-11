@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -86,6 +87,9 @@ func (s *Store) NextPayrollDispatchSequence(ctx context.Context, year, month int
 	if err != nil {
 		return 0, 0, err
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "advisory:payroll_dispatch"); err != nil {
+		return 0, 0, err
+	}
 	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`,
 		fmt.Sprintf("payroll_dispatch:%d:%04d-%02d", tenantID, year, month)).Exec(ctx); err != nil {
 		return 0, 0, fmt.Errorf("lock payroll dispatches of the month: %w", err)
@@ -149,6 +153,9 @@ func (s *Store) ClaimPayrollDispatches(ctx context.Context, now time.Time, lease
 	if err != nil {
 		return nil, err
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "active.payroll_dispatches"); err != nil {
+		return nil, err
+	}
 	var rows []payrollDispatchRow
 	err = db.NewRaw(`WITH due AS (
 		SELECT id FROM active.payroll_dispatches
@@ -205,6 +212,9 @@ func (s *Store) FinishPayrollDispatch(ctx context.Context, value domain.PayrollD
 func (s *Store) OpenPayrollDownload(ctx context.Context, tokenHash string, now time.Time) (*domain.PayrollDispatch, error) {
 	db, tenantID, err := s.payrollDatabase(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "active.payroll_dispatches"); err != nil {
 		return nil, err
 	}
 	var rows []payrollDispatchRow

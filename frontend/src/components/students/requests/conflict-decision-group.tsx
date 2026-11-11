@@ -394,6 +394,7 @@ export function ConflictDecisionGroup({
           confirmText="Ergebnis speichern"
           cancelText="Zurück"
           isConfirmLoading={busy}
+          loadingText="Wird gespeichert …"
           isDismissDisabled={busy}
           mobileSheet
         >

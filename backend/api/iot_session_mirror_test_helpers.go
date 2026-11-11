@@ -26,6 +26,6 @@ func (TimetableTestModule) KioskSessionMirror(db transactionruntime.Database, ac
 
 // mirrorKioskSessionAt supplies a captured session instant without changing
 // the process clock or exposing a consumer port to the root's test role.
-func mirrorKioskSessionAt(ctx context.Context, mirror devicescanCompose.SessionMirror, groupID, roomID int64, at time.Time) {
-	mirror.MirrorSession(ctx, deviceScan.LifecycleSession{ID: groupID, RoomID: roomID, StartTime: at}, nil)
+func mirrorKioskSessionAt(ctx context.Context, mirror devicescanCompose.SessionMirror, groupID, roomID int64, at time.Time, supervisorIDs ...int64) {
+	mirror.MirrorSession(ctx, deviceScan.LifecycleSession{ID: groupID, RoomID: roomID, StartTime: at}, supervisorIDs)
 }

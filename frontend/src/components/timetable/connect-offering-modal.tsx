@@ -21,6 +21,7 @@ import { MultiSelect } from "~/components/ui/multi-select";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { useOfferingPreview } from "~/lib/hooks/use-offering-preview";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   describeSelectionFilter,
@@ -94,7 +95,8 @@ export function ConnectOfferingModal({
   deviation: RosterDeviation;
   onClose: () => void;
   /** After a successful save; the caller refreshes plan and lists. */
-  onConnected: () => void | Promise<void>;
+  /** Reloads the plan; never rejects (#6652). */
+  onConnected: RefreshAfterWrite;
 }>) {
   // Another offering fits as well (#5138): the school picks, none is set.
   const initialKey = deviation.ambiguous
@@ -171,11 +173,6 @@ export function ConnectOfferingModal({
           selection,
           preview.from,
         );
-        toastSuccess(
-          `Regeltermin ist mit ${offeringSetNames(selectedOfferings)} verbunden.`,
-        );
-        await onConnected();
-        if (op.isCurrent()) onClose();
       } catch (err) {
         logger.error("offering_connection_failed", {
           template_id: deviation.templateId,
@@ -186,7 +183,13 @@ export function ConnectOfferingModal({
           object: `die Verbindung von „${templateName}“ mit ${selectedOfferings.length > 1 ? "den Angeboten" : "dem Angebot"}`,
           retry: () => latestSaveRef.current(),
         });
+        return;
       }
+      toastSuccess(
+        `Regeltermin ist mit ${offeringSetNames(selectedOfferings)} verbunden.`,
+      );
+      await onConnected();
+      if (op.isCurrent()) onClose();
     });
   };
 

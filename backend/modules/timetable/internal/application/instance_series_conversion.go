@@ -68,9 +68,9 @@ func (s *instanceSeriesConversion) convertLocked(ctx context.Context, in timetab
 	if err != nil {
 		return none, err
 	}
-	// The seed edit locks the block's current and new day; take them now,
-	// before the template's supervisor rows take their staff rows.
-	if err := s.deps.Templates.LockSeriesSeedDays(ctx, calendar.Date(instance.Date), *in.Template.ScheduleValidFrom); err != nil {
+	// Catalogue rows, days and people in the lock order before the first
+	// write; the later writes only take held locks again (#6702).
+	if err := s.deps.Templates.LockSeriesSeed(ctx, in.Template, instance.ID, calendar.Date(instance.Date), *in.Template.ScheduleValidFrom); err != nil {
 		return none, err
 	}
 	created, err := s.deps.Templates.CreateTemplate(ctx, in.Template)

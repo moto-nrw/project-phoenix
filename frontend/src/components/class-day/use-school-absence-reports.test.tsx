@@ -1,6 +1,6 @@
 // #6594: Eine späte Antwort auf „Meldung zurücknehmen“ schließt nur ihre
 // eigene Rückfrage, nicht die inzwischen für ein anderes Kind geöffnete.
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SchoolDayChild } from "~/lib/school-class-day-api";
@@ -20,13 +20,14 @@ describe("useSchoolAbsenceReports withdraw", () => {
   it("lässt eine von außen geschlossene und neu geöffnete Rückfrage offen", async () => {
     const answer = deferred();
     const withdraw = vi.fn(() => answer.promise);
-    const onChanged = vi.fn(() => Promise.resolve());
+    const onChanged = vi.fn(() => Promise.resolve(true));
     const { result } = renderHook(() =>
       useSchoolAbsenceReports({
         dateISO: "2026-09-09",
         report: vi.fn(),
         withdraw,
         onChanged,
+        onRejected: vi.fn(),
       }),
     );
     const mia = target("1");
@@ -52,6 +53,36 @@ describe("useSchoolAbsenceReports withdraw", () => {
     expect(result.current.withdrawTarget).toBe(ben);
   });
 
+  it("closes the confirmed withdrawal before its reload finishes", async () => {
+    const reload = deferred<boolean>();
+    const withdraw = vi.fn().mockResolvedValue(undefined);
+    const onChanged = vi.fn(() => reload.promise);
+    const { result } = renderHook(() =>
+      useSchoolAbsenceReports({
+        dateISO: "2026-09-09",
+        report: vi.fn(),
+        withdraw,
+        onChanged,
+        onRejected: vi.fn(),
+      }),
+    );
+    act(() => result.current.askWithdraw(target("1")));
+    let running!: Promise<void>;
+    act(() => {
+      running = result.current.confirmWithdraw();
+    });
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(result.current.withdrawTarget).toBeNull();
+    await act(async () => {
+      await result.current.confirmWithdraw();
+    });
+    expect(withdraw).toHaveBeenCalledOnce();
+    await act(async () => {
+      reload.resolve(true);
+      await running;
+    });
+  });
+
   it("schließt die eigene Rückfrage nach dem Zurücknehmen", async () => {
     const withdraw = vi.fn(() => Promise.resolve());
     const { result } = renderHook(() =>
@@ -59,7 +90,8 @@ describe("useSchoolAbsenceReports withdraw", () => {
         dateISO: "2026-09-09",
         report: vi.fn(),
         withdraw,
-        onChanged: () => Promise.resolve(),
+        onChanged: () => Promise.resolve(true),
+        onRejected: vi.fn(),
       }),
     );
     const mia = target("1");

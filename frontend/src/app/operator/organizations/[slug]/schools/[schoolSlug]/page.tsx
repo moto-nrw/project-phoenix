@@ -1,8 +1,16 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, use, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -44,6 +52,10 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import { PlusIcon } from "~/app/operator/provisioning/provisioning-shared";
@@ -142,7 +154,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   );
 
   const {
-    data: organizations,
+    data: cachedOrganizations,
     error: organizationsError,
     mutate: mutateOrganizations,
   } = useSWRAuth(
@@ -154,6 +166,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: organizations, accessRefused: organizationsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
+      cachedOrganizations,
+      organizationsError,
+    );
 
   const organization: OrganizationSummary | undefined = useMemo(
     () => organizations?.find((item) => item.slug === slug),
@@ -169,7 +187,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   );
 
   const {
-    data: schools,
+    data: cachedSchools,
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchools,
@@ -182,6 +200,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schools, accessRefused: schoolsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+      cachedSchools,
+      schoolsError,
+    );
 
   const school: SchoolSummary | undefined = useMemo(
     () =>
@@ -210,7 +234,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const accountsActive =
     activeTab === "konten" && isAuthenticated && school != null;
   const {
-    data: schoolAccounts,
+    data: cachedSchoolAccounts,
     error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateSchoolAccounts,
@@ -223,11 +247,19 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolAccounts, accessRefused: schoolAccountsAccessRefused } =
+    useAccessControlledData(
+      accountsActive
+        ? operatorProvisioningKeys.schoolAccounts(school?.id)
+        : null,
+      cachedSchoolAccounts,
+      accountsError,
+    );
 
   const devicesActive =
     activeTab === "geraete" && isAuthenticated && school != null;
   const {
-    data: schoolDevices,
+    data: cachedSchoolDevices,
     error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateSchoolDevices,
@@ -240,11 +272,17 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolDevices, accessRefused: schoolDevicesAccessRefused } =
+    useAccessControlledData(
+      devicesActive ? operatorProvisioningKeys.schoolDevices(school?.id) : null,
+      cachedSchoolDevices,
+      devicesError,
+    );
 
   const personsActive =
     activeTab === "personen" && isAuthenticated && school != null;
   const {
-    data: schoolPersons,
+    data: cachedSchoolPersons,
     error: personsError,
     isLoading: personsLoading,
     mutate: mutateSchoolPersons,
@@ -257,10 +295,16 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolPersons, accessRefused: schoolPersonsAccessRefused } =
+    useAccessControlledData(
+      personsActive ? operatorProvisioningKeys.schoolPersons(school?.id) : null,
+      cachedSchoolPersons,
+      personsError,
+    );
 
   // PWA standalone usage (#2189): one of the figures on the overview tab.
   const {
-    data: pwaUsage,
+    data: cachedPwaUsage,
     error: pwaUsageError,
     mutate: mutatePwaUsage,
   } = useSWRAuth(
@@ -273,6 +317,13 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  const { data: pwaUsage } = useAccessControlledData(
+    activeTab === "uebersicht" && isAuthenticated && school != null
+      ? operatorProvisioningKeys.schoolPwaUsage(school.id)
+      : null,
+    cachedPwaUsage,
+    pwaUsageError,
   );
 
   // One alert for the page head: the provider and school lists it is built
@@ -291,16 +342,73 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     accountsError,
     "die Liste der Konten",
     () => void mutateSchoolAccounts(),
+    schoolAccounts?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const devicesLoadError = useSwrLoadError(
     devicesError,
     "die Liste der Geräte",
     () => void mutateSchoolDevices(),
+    schoolDevices?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const personsLoadError = useSwrLoadError(
     personsError,
     "die Liste der Personen",
     () => void mutateSchoolPersons(),
+    schoolPersons?.length ? STALE_DATA_SUFFIX : undefined,
+  );
+
+  // A write's reload runs after the write; its failure is a load error above
+  // the data it reloads, also after the dialog closed (#6652).
+  const statusAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Schule",
+    async (subdomain: string) => {
+      await refreshSchoolDetail();
+      await revalidateTenantCache([subdomain]);
+    },
+  );
+  const editAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Schule",
+    async (subdomains: readonly string[]) => {
+      if (subdomains.length > 0) {
+        await revalidateTenantCache([...subdomains]);
+      }
+      const [refreshedOrganizations] = await Promise.all([
+        mutateOrganizations(),
+        mutateSchools(),
+      ]);
+      const refreshedSchools =
+        await operatorProvisioningService.listSchoolSummaries();
+      const updatedSchool = refreshedSchools.find(
+        (item) => item.id === school?.id,
+      );
+      if (!updatedSchool) {
+        return;
+      }
+      const targetOrganization =
+        refreshedOrganizations?.find(
+          (item) => item.id === updatedSchool.organizationId,
+        ) ??
+        organizations?.find((item) => item.id === updatedSchool.organizationId);
+      if (!targetOrganization) {
+        return;
+      }
+      const nextPath = `/operator/organizations/${encodeURIComponent(targetOrganization.slug)}/schools/${encodeURIComponent(updatedSchool.slug)}${currentTabSearch}`;
+      const currentPath = `/operator/organizations/${encodeURIComponent(slug)}/schools/${encodeURIComponent(schoolSlug)}${currentTabSearch}`;
+      if (nextPath !== currentPath) {
+        router.replace(nextPath);
+      }
+    },
+  );
+  const accountsAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Konten",
+    () => mutateSchoolAccounts(),
+  );
+  const devicesAfterWrite = useRefreshAfterWrite("die Anzeige der Geräte", () =>
+    Promise.all([mutateSchoolDevices(), refreshSchoolDetail()]),
+  );
+  const personsAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Personen",
+    () => Promise.all([mutateSchoolPersons(), refreshSchoolDetail()]),
   );
 
   const selectedSchoolForTable = useMemo(
@@ -345,6 +453,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
 
   const handleToggleSchoolActive = useCallback(async () => {
     if (!school) return;
+    let subdomain: string;
     try {
       const fresh = await mutateSchools();
       const current = fresh?.find((item) => item.id === school.id) ?? school;
@@ -362,8 +471,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         active: !current.active,
         hidden: current.hidden,
       });
-      await refreshSchoolDetail();
-      await revalidateTenantCache([current.subdomain]);
+      subdomain = current.subdomain;
     } catch (error) {
       logger.warn("school_toggle_active_failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -371,8 +479,10 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       // No retry: the toggle reads the current state again, so a repeat
       // after an unknown outcome could switch the school back.
       void showToggleError(error, { object: "die Änderung des Status" });
+      return;
     }
-  }, [mutateSchools, refreshSchoolDetail, school, showToggleError]);
+    await statusAfterWrite.refresh(subdomain);
+  }, [mutateSchools, school, showToggleError, statusAfterWrite]);
 
   const schoolDelete = useSoftDeletable<SchoolSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteSchool,
@@ -383,6 +493,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       restore: "die Wiederherstellung der Schule",
     },
     logEventPrefix: "school",
+    reloadObject: "die Anzeige der Schule",
     onAfterSoftDelete: async (target) => {
       await revalidateTenantCache([target.subdomain]);
       router.push(
@@ -393,14 +504,6 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       await revalidateTenantCache([target.subdomain]);
     },
   });
-
-  const handleDeviceDeleted = useCallback(async () => {
-    await Promise.all([mutateSchoolDevices(), refreshSchoolDetail()]);
-  }, [mutateSchoolDevices, refreshSchoolDetail]);
-
-  const handlePersonDeleted = useCallback(async () => {
-    await Promise.all([mutateSchoolPersons(), refreshSchoolDetail()]);
-  }, [mutateSchoolPersons, refreshSchoolDetail]);
 
   const handleTabValueChange = useCallback(
     (value: string) => {
@@ -568,6 +671,42 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     label: "Zurück zum Träger",
   };
 
+  const {
+    setDeleteTarget: setSchoolDeleteTarget,
+    setRestoreTarget: setSchoolRestoreTarget,
+  } = schoolDelete;
+  const headRefused = organizationsAccessRefused || schoolsAccessRefused;
+  useLayoutEffect(() => {
+    if (headRefused) {
+      setEditSchoolOpen(false);
+      setChildQuotaOpen(false);
+      setSchoolDeleteTarget(null);
+      setSchoolRestoreTarget(null);
+    }
+    if (headRefused || schoolAccountsAccessRefused) {
+      setInviteOpen(false);
+      setCreateAccountOpen(false);
+      setCaregiverAccount(null);
+      setCaregiverSchoolContext(null);
+      setMfaAccount(null);
+      setMfaSchoolContext(null);
+    }
+    if (headRefused || schoolDevicesAccessRefused) {
+      setCreateDeviceOpen(false);
+      setSetKeyDevice(null);
+      setTransferDevice(null);
+      setDeleteDevice(null);
+    }
+    if (headRefused || schoolPersonsAccessRefused) setDeletePersonTarget(null);
+  }, [
+    headRefused,
+    schoolAccountsAccessRefused,
+    schoolDevicesAccessRefused,
+    schoolPersonsAccessRefused,
+    setSchoolDeleteTarget,
+    setSchoolRestoreTarget,
+  ]);
+
   if (!school && headLoadError) {
     return (
       <TenantPage
@@ -580,7 +719,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     );
   }
 
-  if ((!organizations || schoolsLoading) && !school) {
+  if (
+    !school &&
+    (!organizations ||
+      schoolsLoading ||
+      ((organizationsError || schoolsError) && !headLoadError))
+  ) {
     return (
       <TenantPage
         title="Schule"
@@ -691,9 +835,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
               accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
               schoolId={caregiverSchoolContext.id}
               schoolName={caregiverSchoolContext.name}
-              onUpdated={async () => {
-                await mutateSchoolAccounts();
-              }}
+              onUpdated={accountsAfterWrite.refresh}
             />
           ) : null}
 
@@ -729,35 +871,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
             onClose={() => setEditSchoolOpen(false)}
             school={summaryToSchool(school)}
             organizations={activeOrganizations}
-            onUpdated={async () => {
-              const [refreshedOrganizations] = await Promise.all([
-                mutateOrganizations(),
-                mutateSchools(),
-              ]);
-              const refreshedSchools =
-                await operatorProvisioningService.listSchoolSummaries();
-              const updatedSchool = refreshedSchools.find(
-                (item) => item.id === school.id,
-              );
-              if (!updatedSchool) {
-                return;
-              }
-              const targetOrganization =
-                refreshedOrganizations?.find(
-                  (item) => item.id === updatedSchool.organizationId,
-                ) ??
-                organizations?.find(
-                  (item) => item.id === updatedSchool.organizationId,
-                );
-              if (!targetOrganization) {
-                return;
-              }
-              const nextPath = `/operator/organizations/${encodeURIComponent(targetOrganization.slug)}/schools/${encodeURIComponent(updatedSchool.slug)}${currentTabSearch}`;
-              const currentPath = `/operator/organizations/${encodeURIComponent(slug)}/schools/${encodeURIComponent(schoolSlug)}${currentTabSearch}`;
-              if (nextPath !== currentPath) {
-                router.replace(nextPath);
-              }
-            }}
+            onUpdated={editAfterWrite.refresh}
           />
 
           <CreateAccountModal
@@ -799,24 +913,27 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
             device={transferDevice}
             schools={transferSchools}
             onClose={() => setTransferDevice(null)}
-            onTransferred={handleDeviceDeleted}
+            onTransferred={devicesAfterWrite.refresh}
           />
 
           <DeleteDeviceModal
             device={deleteDevice}
             onClose={() => setDeleteDevice(null)}
-            onDeleted={handleDeviceDeleted}
+            onDeleted={devicesAfterWrite.refresh}
           />
 
           <DeletePersonModal
             person={deletePersonTarget}
             onClose={() => setDeletePersonTarget(null)}
-            onDeleted={handlePersonDeleted}
+            onDeleted={personsAfterWrite.refresh}
           />
         </>
       }
     >
       <LoadErrorAlert error={headLoadError} />
+      <LoadErrorAlert error={schoolDelete.reloadError} />
+      <LoadErrorAlert error={statusAfterWrite.error} />
+      <LoadErrorAlert error={editAfterWrite.error} />
 
       {activeTab === "uebersicht" ? (
         <>
@@ -828,8 +945,10 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       {activeTab === "konten" ? (
         <>
           <LoadErrorAlert error={accountsLoadError} className="mb-4" />
+          <LoadErrorAlert error={accountsAfterWrite.error} className="mb-4" />
           {(schoolAccounts === undefined && !accountsLoading) ||
-          accountsError ? null : !accountsLoading &&
+          (accountsError && !schoolAccounts?.length) ? null : !accountsError &&
+            !accountsLoading &&
             schoolAccounts?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Konten für diese Schule." />
@@ -849,8 +968,10 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       {activeTab === "geraete" ? (
         <>
           <LoadErrorAlert error={devicesLoadError} className="mb-4" />
+          <LoadErrorAlert error={devicesAfterWrite.error} className="mb-4" />
           {(schoolDevices === undefined && !devicesLoading) ||
-          devicesError ? null : !devicesLoading &&
+          (devicesError && !schoolDevices?.length) ? null : !devicesError &&
+            !devicesLoading &&
             schoolDevices?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Geräte für diese Schule." />
@@ -870,8 +991,10 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       {activeTab === "personen" ? (
         <>
           <LoadErrorAlert error={personsLoadError} className="mb-4" />
+          <LoadErrorAlert error={personsAfterWrite.error} className="mb-4" />
           {(schoolPersons === undefined && !personsLoading) ||
-          personsError ? null : !personsLoading &&
+          (personsError && !schoolPersons?.length) ? null : !personsError &&
+            !personsLoading &&
             schoolPersons?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Personen für diese Schule." />

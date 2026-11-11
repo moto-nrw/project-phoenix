@@ -6,6 +6,9 @@ import (
 	"context"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -85,4 +88,22 @@ func ReplanTemplateDayForTest(ctx context.Context, module TimetableTestModule, t
 // the day on with its supervisors, for the staff members.
 func AlignSeriesStaffForTest(ctx context.Context, module TimetableTestModule, templateID int64, staffIDs []int64, from calendar.Date) error {
 	return module.TimetableData.Templates.AlignPlannedInstanceStaff(ctx, templateID, staffIDs, from)
+}
+
+// StaffOffboardForTest builds the production staff offboarding over deps,
+// acting as the given staff member and account, and returns its immediate
+// deletion for suites whose test role may not name the workflow (#6702).
+func StaffOffboardForTest(deps offboardingcompose.Dependencies, actorStaffID, actorAccountID int64) (func(context.Context, int64) error, error) {
+	deps.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
+		return staffoffboarding.Actor{StaffID: actorStaffID, AccountID: actorAccountID, TenantID: tenant.FromContext(ctx), Username: "test-admin"}, nil
+	}
+	deps.Cleanup = func(context.Context, int64) error { return nil }
+	workflow, err := NewStaffOffboardingWorkflow(deps)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context, staffID int64) error {
+		_, err := workflow.Offboard(ctx, staffID)
+		return err
+	}, nil
 }

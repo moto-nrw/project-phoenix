@@ -742,6 +742,7 @@ export function ChildOfferingAdjustment({
         confirmText="Änderung speichern"
         cancelText="Zurück"
         isConfirmLoading={saving}
+        loadingText="Wird gespeichert …"
         isDismissDisabled={saving}
       >
         <p>

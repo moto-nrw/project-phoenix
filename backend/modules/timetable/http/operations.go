@@ -301,6 +301,14 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
 		return nil, 0, false
 	}
+	// The recurrence and grade-transition gates the create takes come
+	// before the start's own gates and catalogue rows (#6702).
+	if rs.RecurrenceLock != nil {
+		if err := rs.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(r.Context()); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start failed", err))
+			return nil, 0, false
+		}
+	}
 	if !rs.validateSpontaneousRoom(w, r, req.RoomID) {
 		return nil, 0, false
 	}

@@ -182,6 +182,32 @@ describe("DeletePersonModal", () => {
     });
   });
 
+  // #6652: the deletion is done once the write holds. The reload runs after
+  // the dialog closed; it never decides whether the deletion shows as done.
+  it("closes after the deletion while the reload still runs", async () => {
+    mockSoftDeletePerson.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const onDeleted = vi.fn(() => new Promise<boolean>(() => undefined));
+
+    render(
+      <DeletePersonModal
+        person={makePerson()}
+        onClose={onClose}
+        onDeleted={onDeleted}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByLabelText(/Geben Sie den vollständigen Namen/),
+      { target: { value: "Anna Beispiel" } },
+    );
+    fireEvent.click(getDeleteButton());
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onDeleted).toHaveBeenCalledTimes(1);
+    expect(mockSoftDeletePerson).toHaveBeenCalledTimes(1);
+  });
+
   it("calls onClose without invoking the API when Abbrechen is clicked", () => {
     const onClose = vi.fn();
     render(

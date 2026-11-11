@@ -11,6 +11,8 @@ const captured = vi.hoisted(() => ({
   config: undefined as CapturedConfig | undefined,
 }));
 
+vi.mock("~/lib/swr/hooks", () => ({ useDiscardRefusedEntity: () => vi.fn() }));
+
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));

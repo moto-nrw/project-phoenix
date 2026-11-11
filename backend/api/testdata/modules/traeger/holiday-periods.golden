@@ -8,6 +8,7 @@ GET /traeger/holiday-periods/{id}/form/documents/{documentId} -> basis
 GET /traeger/holiday-periods/{id}/places -> basis
 GET /traeger/holiday-periods/{id}/registrations -> basis
 GET /traeger/holiday-periods/{id}/registrations/export -> basis
+GET /traeger/holiday-periods/{id}/registrations/known-children -> basis
 GET /traeger/holiday-periods/{id}/registrations/pdf -> basis
 GET /traeger/holiday-periods/{id}/registrations/{registrationId} -> basis
 GET /traeger/holiday-periods/{id}/registrations/{registrationId}/health -> basis

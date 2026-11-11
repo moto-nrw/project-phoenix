@@ -123,7 +123,7 @@ const ENDED_WITHOUT_EXIT = {
 };
 
 function renderWith(student: Record<string, unknown>) {
-  const onChanged = vi.fn(() => Promise.resolve());
+  const onChanged = vi.fn(() => Promise.resolve(true));
   const onDeleted = vi.fn(() => Promise.resolve());
   render(
     <StudentRecordActions
