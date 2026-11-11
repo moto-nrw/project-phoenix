@@ -50,20 +50,11 @@ func TestDemoErasureIncludesAConcurrentContractSend(t *testing.T) {
 	order := newHiddenDemoOrder(t)
 	sender, mailID, eventID := pendingContractSend(t, order)
 	order.waitForLocks(t)
-	type outcome struct {
-		erased int
-		err    error
-	}
-	done := make(chan outcome, 1)
-	go func() {
-		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
-		done <- outcome{erased: erased, err: err}
-	}()
 	// Commit only once cleanup is waiting for the sender's contract lock.
 	// Before the fix, mail/event cleanup has already missed these rows.
-	require.Eventually(t, func() bool {
+	done := order.waitingRun(t, "the erasure waits for the sender's contract lock", func() bool {
 		return lockWaits(t, order.db, "retire_expired_demo_schools")
-	}, 5*time.Second, time.Millisecond)
+	})
 	require.NoError(t, sender.Commit())
 	select {
 	case result := <-done:
