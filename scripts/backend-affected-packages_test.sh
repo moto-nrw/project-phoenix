@@ -83,6 +83,8 @@ import "example.test/project/modules/organizationtenancy"
 const Value = organizationtenancy.Value
 EOF
 printf 'package compose\n' >"$fixture/backend/modules/organizationtenancy/compose/compose_test.go"
+mkdir -p "$fixture/backend/modules/organizationtenancy/inbound/datareturn"
+printf 'package datareturn\n' >"$fixture/backend/modules/organizationtenancy/inbound/datareturn/register.go"
 printf 'package migrations\n' >"$fixture/backend/database/migrations/coverage_test.go"
 printf 'package permissions\n\nconst Value = 1\n' >"$fixture/backend/auth/authorize/permissions/constants.go"
 cat >"$fixture/backend/modules/identityaccess/internal/domain/domain.go" <<'EOF'
@@ -282,6 +284,9 @@ rm "$fixture/backend/modules/organizationtenancy/return_register.json"
 printf '{}\n' >"$fixture/backend/modules/organizationtenancy/data_lifecycle_catalog.json"
 assert_output $'example.test/project/database/migrations\nexample.test/project/modules/organizationtenancy\nexample.test/project/modules/organizationtenancy/compose\nexample.test/project/test'
 rm "$fixture/backend/modules/organizationtenancy/data_lifecycle_catalog.json"
+printf '{}\n' >"$fixture/backend/modules/organizationtenancy/inbound/datareturn/openapi.json"
+assert_output $'example.test/project/modules/organizationtenancy/inbound/datareturn\nexample.test/project/test'
+rm "$fixture/backend/modules/organizationtenancy/inbound/datareturn/openapi.json"
 
 # Read by path from tests only: no production closure, although the permission
 # catalog sits beside a widely imported package.
@@ -431,6 +436,7 @@ assert_workflow_filter backend-tests 'backend/test/*.json' present
 assert_workflow_filter backend-production 'backend/test/*.json' absent
 for pattern in \
   'backend/modules/organizationtenancy/return_register.json' \
+  'backend/modules/organizationtenancy/inbound/datareturn/openapi.json' \
   'backend/modules/organizationtenancy/data_lifecycle_catalog.json'; do
   for filter in backend-tests backend-lint backend-production; do
     assert_workflow_filter "$filter" "$pattern" present
@@ -480,6 +486,7 @@ for path in \
   backend/test/durable_side_effect_notices.json \
   backend/test/module_contract_inventory.json \
   backend/modules/organizationtenancy/return_register.json \
+  backend/modules/organizationtenancy/inbound/datareturn/openapi.json \
   backend/modules/organizationtenancy/data_lifecycle_catalog.json \
   backend/database/migrations/data_lifecycle_coverage_test.go \
   backend/auth/authorize/permissions/catalog.json \

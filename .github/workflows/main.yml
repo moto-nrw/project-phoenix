@@ -130,6 +130,7 @@ jobs:
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
               # Embedded into the backend build (go:embed).
               - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/inbound/datareturn/openapi.json'
               - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
@@ -146,6 +147,7 @@ jobs:
               - 'backend/tools/go.sum'
               # Embedded into the backend build (go:embed).
               - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/inbound/datareturn/openapi.json'
               - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               # Notes such as backend/architecture/WORKPLAN.md feed no check.
               # Without a Go change they would select a full ./... lint.
@@ -179,6 +181,7 @@ jobs:
               - 'backend/go.sum'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
               - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/inbound/datareturn/openapi.json'
               - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
