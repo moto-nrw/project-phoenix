@@ -33,7 +33,7 @@ import { Z_INDEX } from "./overlay-styles";
 // strings alongside a matching `locale`. The DatePickerLabels contract itself
 // lives in ~/lib/date-picker-labels so the hook that builds it stays inside
 // src/lib.
-export const CALENDAR_LABELS = {
+const CALENDAR_LABELS = {
   clear: "Datum löschen",
   previousMonth: "Vorheriger Monat",
   nextMonth: "Nächster Monat",

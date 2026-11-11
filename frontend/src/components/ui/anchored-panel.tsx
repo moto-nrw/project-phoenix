@@ -40,7 +40,7 @@ import { useOverlay, type OverlayOwner } from "./overlay-stack";
  */
 
 /** Why the engine closes a panel. */
-export type PanelCloseReason = "outside" | "escape" | "scroll";
+type PanelCloseReason = "outside" | "escape" | "scroll";
 
 interface AnchoredPanelOptions {
   readonly open: boolean;
