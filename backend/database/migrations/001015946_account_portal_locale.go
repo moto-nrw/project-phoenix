@@ -9,7 +9,7 @@ import (
 
 func init() {
 	MigrationRegistry.Register(&Migration{
-		Version:     "1.15.943",
+		Version:     "1.15.946",
 		Description: "Persist the parents-portal language for accounts without a school profile",
 		DependsOn:   []string{holidayRegistrationParentAccountVersion},
 	})

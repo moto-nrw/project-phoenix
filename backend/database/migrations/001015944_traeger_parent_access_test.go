@@ -18,7 +18,7 @@ func insertParentSession(ctx context.Context, db bun.IDB, accountID int64, tenan
 }
 
 // TestTraegerParentSessionNamesTraegerWithoutSchool pins the parent session
-// at a Träger of 1.15.941 (ADR 0216 point 7): it names its Träger and no
+// at a Träger of 1.15.944 (ADR 0216 point 7): it names its Träger and no
 // school, and every other parent session still names a school and no Träger.
 func TestTraegerParentSessionNamesTraegerWithoutSchool(t *testing.T) {
 	t.Parallel()
@@ -36,7 +36,7 @@ func TestTraegerParentSessionNamesTraegerWithoutSchool(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestTraegerParentAccessKeepsTheAccount pins the retention of 1.15.941 (ADR
+// TestTraegerParentAccessKeepsTheAccount pins the retention of 1.15.944 (ADR
 // 0216 point 10): an account set up for a holiday registration has no school,
 // no profile and no child; its access keeps it from the hourly erasure only
 // at an active, undeleted Träger and only for the 30 days of the setup link,
@@ -83,7 +83,7 @@ func TestTraegerParentAccessKeepsTheAccount(t *testing.T) {
 	assert.True(t, unused(), "without the access the account is unused again")
 }
 
-// TestTraegerParentAccessMigrationRollsBack runs 1.15.941 down and up again on
+// TestTraegerParentAccessMigrationRollsBack runs 1.15.944 down and up again on
 // its own database: the down removes the parent sessions at a Träger before
 // it restores the old constraint, and the table and the retention clause go.
 func TestTraegerParentAccessMigrationRollsBack(t *testing.T) {
