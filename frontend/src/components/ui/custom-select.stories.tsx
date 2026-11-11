@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { ComponentProps } from "react";
 import { useState } from "react";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { CustomSelect } from "./custom-select";
 
 const OPTIONS = [
@@ -73,5 +74,23 @@ export const Empty: Story = {
   args: {
     options: [],
     ariaLabel: "Gruppe auswählen",
+  },
+};
+
+/** Offene Liste mit Suchfeld (#6576, Baseline des Pixel-Vergleichs). */
+export const SearchableOpened: Story = {
+  render: (args) => <ControlledCustomSelect {...args} />,
+  args: {
+    options: OPTIONS,
+    ariaLabel: "Gruppe auswählen",
+    searchable: true,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("combobox", { name: "Gruppe auswählen" }),
+    );
+    await expect(
+      await screen.findByRole("textbox", { name: "Suchen" }),
+    ).toBeVisible();
   },
 };
