@@ -220,7 +220,7 @@ export function CarePriceModuleEditor({
                 ariaLabel={`Werte für ${moduleName} von einem anderen Modul übernehmen`}
                 options={copySources}
                 onChange={onCopyFrom}
-                controlSize="compact"
+                controlSize="dense"
                 className="w-56"
               />
             ) : null}

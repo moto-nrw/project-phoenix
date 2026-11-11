@@ -97,7 +97,7 @@ export const Compact: Story = {
     options: OPTIONS,
     value: "group-a",
     ariaLabel: "Gruppe auswählen",
-    controlSize: "compact",
+    controlSize: "dense",
   },
 };
 

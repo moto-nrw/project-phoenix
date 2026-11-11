@@ -600,7 +600,7 @@ export default function TraegerDashboardPage() {
                   setAlertsExpanded(false);
                 }}
                 ariaLabel="Auffälligkeiten nach Schule filtern"
-                controlSize="compact"
+                controlSize="dense"
                 searchable={alerts.schools.length > 8}
                 searchPlaceholder="Schule suchen"
                 className="w-full sm:w-64"

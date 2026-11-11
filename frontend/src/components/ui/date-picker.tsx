@@ -1,8 +1,9 @@
 "use client";
 
-import { FieldLabel } from "./field-label";
+import { CONTROL_HEIGHT_CLASS, type ControlSize } from "./control-geometry";
+import { FieldHint, FieldShell, useFieldIds } from "./field-shell";
 import { Z_LAYER } from "./overlay-styles";
-import { useState, useRef, useEffect, useCallback, useId } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import type { Matcher } from "react-day-picker";
@@ -55,25 +56,26 @@ import {
 type CalendarLayout = "overlay" | "inline" | "popover" | "popover-below";
 
 /**
- * Trigger height. The picker replaced native inputs that sat next to kit
- * `Input`s, so it has to be able to match their two sizes — a 38px trigger
+ * Trigger height, from the kit's one size vocabulary (`ControlSize` in
+ * control-geometry.ts). The picker replaced native inputs that sat next to
+ * kit `Input`s, so it has to be able to match their sizes — a 38px trigger
  * beside a 48px input reads as a broken row.
  *
- * - "sm"  (default) the picker's original compact trigger, used by the filter
- *         bars and dropdowns that adopted it first
- * - "md"  matches `Input controlSize="compact"` (h-10)
- * - "lg"  matches the default `Input` (px-4 py-3 text-base)
+ * - "natural" (default) the picker's original trigger, used by the filter
+ *             bars and dropdowns that adopted it first
+ * - "compact" matches `Input controlSize="compact"`
+ * - "large"   matches the default `Input` (`large`)
  */
-type ControlSize = "sm" | "md" | "lg";
+type DatePickerSize = Extract<ControlSize, "natural" | "compact" | "large">;
 
-// "lg" is py-[11px] rather than py-3: the kit Input draws its outline with
+// "large" is py-[11px] rather than py-3: the kit Input draws its outline with
 // border-0 plus an inset ring, which costs no layout height, while this trigger
 // uses a real 1px border. Matching py-3 would leave it 2px taller than the
 // input next to it.
-const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
-  sm: "px-3 py-2 text-sm",
-  md: "h-10 px-3 py-2 text-sm",
-  lg: "px-4 py-[11px] text-base",
+const TRIGGER_SIZE_CLASS: Record<DatePickerSize, string> = {
+  natural: "px-3 py-2 text-sm",
+  compact: `${CONTROL_HEIGHT_CLASS.compact} px-3 py-2 text-sm`,
+  large: "px-4 py-[11px] text-base",
 };
 
 // Geometry lives in calendar-panel-position.ts so this picker and the range
@@ -171,7 +173,7 @@ type DatePickerProps =
       readonly hint?: string;
       readonly invalid?: boolean;
       /** Trigger height. Match the kit Input next to it — see ControlSize. */
-      readonly controlSize?: ControlSize;
+      readonly controlSize?: DatePickerSize;
       // Calendar language. Defaults to German — the staff and operator portals
       // are German-only; the parent-facing surfaces pass their resolved locale.
       readonly locale?: Locale;
@@ -209,7 +211,6 @@ export function DatePicker({
   ...props
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const fallbackId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -245,11 +246,12 @@ export function DatePicker({
       : null;
   const iconOnly = !isMultiple && props.iconOnly === true;
   const hint = isMultiple ? undefined : props.hint;
-  const hintId =
-    !isMultiple && hint ? `${props.id ?? fallbackId}-hint` : undefined;
-  const triggerDescribedBy = isMultiple
-    ? undefined
-    : [props.ariaDescribedBy, hintId].filter(Boolean).join(" ") || undefined;
+  const fieldIds = useFieldIds({
+    id: isMultiple ? undefined : props.id,
+    hint,
+    describedBy: isMultiple ? undefined : props.ariaDescribedBy,
+  });
+  const triggerDescribedBy = isMultiple ? undefined : fieldIds.describedBy;
   const canClear =
     Boolean(displayValue) &&
     !iconOnly &&
@@ -408,10 +410,10 @@ export function DatePicker({
           className={cn(
             "flex items-center rounded-lg border transition-all",
             iconOnly
-              ? "h-10 w-10 shrink-0 justify-center"
+              ? `${CONTROL_HEIGHT_CLASS.compact} w-10 shrink-0 justify-center`
               : `min-w-0 flex-1 justify-between ${
                   TRIGGER_SIZE_CLASS[
-                    (isMultiple ? undefined : props.controlSize) ?? "sm"
+                    (isMultiple ? undefined : props.controlSize) ?? "natural"
                   ]
                 }`,
             !isMultiple && props.invalid
@@ -451,7 +453,7 @@ export function DatePicker({
             variant="surface"
             size="icon"
             // Neben dem großen Feld (44 px) so hoch wie das Feld (#5608).
-            touchTarget={!isMultiple && props.controlSize === "lg"}
+            touchTarget={!isMultiple && props.controlSize === "large"}
             onClick={() => {
               if (isMultiple) {
                 props.onChangeDates([]);
@@ -479,11 +481,8 @@ export function DatePicker({
           </Button>
         )}
       </div>
-      {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
-          {hint}
-        </p>
-      )}
+      {/* Inside the positioned box: an overlay calendar opens under it. */}
+      {hint && <FieldHint id={fieldIds.hintId}>{hint}</FieldHint>}
 
       {/* The overlay/inline layouts render in place; the popover layout renders
           the calendar into document.body at a viewport-fixed position. Portals
@@ -681,23 +680,23 @@ export function ISODatePicker({
   readonly ariaLabel?: string;
   readonly ariaDescribedBy?: string;
   readonly invalid?: boolean;
-  readonly controlSize?: ControlSize;
+  readonly controlSize?: DatePickerSize;
   readonly locale?: Locale;
   readonly labels?: DatePickerLabels;
 }) {
-  const fallbackId = useId();
-  const errorId = error && rest.id ? `${rest.id}-error` : undefined;
-  // Rendered here rather than by DatePicker, so it reads before the error as
-  // in the kit `Input`.
-  const hintId = hint ? `${rest.id ?? fallbackId}-hint` : undefined;
-  const describedBy =
-    [rest.ariaDescribedBy, hintId, errorId].filter(Boolean).join(" ") ||
-    undefined;
+  // Hint and error belong to the field hull here rather than to DatePicker,
+  // so the hint reads before the error as in the kit `Input`.
+  const ids = useFieldIds({
+    id: rest.id,
+    hint,
+    error,
+    describedBy: rest.ariaDescribedBy,
+  });
   const picker = (
     <DatePicker
       {...rest}
       invalid={rest.invalid ?? Boolean(error)}
-      ariaDescribedBy={describedBy}
+      ariaDescribedBy={ids.describedBy}
       value={toDateOrNull(value)}
       defaultMonth={toDateOrNull(defaultMonth) ?? undefined}
       minDate={toDateOrNull(min) ?? undefined}
@@ -708,33 +707,22 @@ export function ISODatePicker({
     />
   );
 
-  if (!label && !error && !hint) {
-    return picker;
-  }
-
   return (
-    <div>
-      {label && (
-        <FieldLabel
-          htmlFor={rest.id}
-          required={rest.required}
-          invalid={Boolean(error)}
-        >
-          {label}
-        </FieldLabel>
-      )}
+    <FieldShell
+      ids={ids}
+      label={label}
+      // Only a caller's id links the label to the trigger; without one the
+      // trigger keeps its date text as its name, as before #6579.
+      labelFor={rest.id ?? null}
+      required={rest.required}
+      invalid={Boolean(error)}
+      hint={hint}
+      error={error}
+      errorLive
+      errorTone="base"
+    >
       {picker}
-      {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
-          {hint}
-        </p>
-      )}
-      {error && (
-        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
-          {error}
-        </p>
-      )}
-    </div>
+    </FieldShell>
   );
 }
 
@@ -785,8 +773,8 @@ export function ISODateInput({
       maxDateError,
     ),
   );
-  const errorId = `${id}-error`;
   const shownError = inputError ?? error ?? null;
+  const ids = useFieldIds({ id, error: shownError });
 
   useEffect(() => {
     setInputValue(formatISODateInputValue(value));
@@ -838,8 +826,16 @@ export function ISODateInput({
   };
 
   return (
-    <div>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <FieldShell
+      ids={ids}
+      keepWrapper
+      label={label}
+      error={shownError}
+      // The field's own check runs while typing and is read out at once; the
+      // form's error arrives after saving and stays quiet.
+      errorLive={inputError !== null}
+      errorTone="base"
+    >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <Input
@@ -854,7 +850,7 @@ export function ISODateInput({
             value={inputValue}
             disabled={disabled}
             aria-invalid={shownError ? true : undefined}
-            aria-describedby={shownError ? errorId : undefined}
+            aria-describedby={ids.errorId}
             onChange={(event) => {
               const nextValue = event.target.value;
               setInputValue(nextValue);
@@ -883,16 +879,7 @@ export function ISODateInput({
           invalid={Boolean(shownError)}
         />
       </div>
-      {inputError ? (
-        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
-          {inputError}
-        </p>
-      ) : error ? (
-        <p id={errorId} className="text-moto-red mt-1 text-xs">
-          {error}
-        </p>
-      ) : null}
-    </div>
+    </FieldShell>
   );
 }
 

@@ -298,9 +298,7 @@ export const IconAndTextActions: Story = {
     stats: "116 Kinder · 107 zuhause · 9 krank",
     actions: (
       <>
-        <div data-icon-only="">
-          <CollectionViewSwitch value="tiles" onChange={fn()} />
-        </div>
+        <CollectionViewSwitch value="tiles" onChange={fn()} />
         <Button
           type="button"
           variant="outline"
@@ -330,30 +328,28 @@ export const SymbolActionsWithTourAndPreload: Story = {
     stats: "116 Kinder · 107 zuhause · 9 krank",
     actions: (
       <>
-        <div data-icon-only="" onPointerEnter={fn()} onFocus={fn()}>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="Anpassen"
-            tooltip="Anpassen"
-          >
-            <SlidersHorizontal className="h-4 w-4" aria-hidden />
-          </Button>
-        </div>
+        <Button
+          onPointerEnter={fn()}
+          onFocus={fn()}
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Anpassen"
+          tooltip="Anpassen"
+        >
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+        </Button>
         <Button type="button" size="md">
           Kind anlegen
         </Button>
-        <div data-icon-only="" data-setup-tour="student-menu">
-          <OverflowMenu items={[{ label: "Importieren", onClick: fn() }]} />
-        </div>
-        <div
-          className="contents"
-          data-icon-only=""
-          data-setup-tour="child-search-menu"
-        >
-          <OverflowMenu items={[{ label: "Abwesenheiten", onClick: fn() }]} />
-        </div>
+        <OverflowMenu
+          tourTarget="student-menu"
+          items={[{ label: "Importieren", onClick: fn() }]}
+        />
+        <OverflowMenu
+          tourTarget="child-search-menu"
+          items={[{ label: "Abwesenheiten", onClick: fn() }]}
+        />
       </>
     ),
     children: pageContent,

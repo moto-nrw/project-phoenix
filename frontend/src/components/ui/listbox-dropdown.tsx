@@ -181,7 +181,7 @@ interface ListboxDropdownProps<K extends string> {
    * height and radius come from the kit; pick `size` instead.
    */
   readonly className?: string;
-  /** Field height: `default` 40 px, `compact` 36 px for dense rows. */
+  /** Field height: `compact` 40 px (default), `dense` 36 px for dense rows. */
   readonly size?: ListboxDropdownSize;
   /**
    * Kit-internal only: the caller draws the whole trigger itself (the filter
@@ -358,7 +358,7 @@ export function ListboxDropdown<K extends string>({
   portalScopeSelector,
   containerNodeRef,
   className = "",
-  size = "default",
+  size = "compact",
   unstyledTrigger = false,
   menuClassName = "",
   menuAlign = "start",

@@ -15,7 +15,7 @@ import { cn } from "~/lib/utils";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
-import { Input } from "./input";
+import { Input, type InputControlSize } from "./input";
 import { OVERLAY_SCOPE_SELECTOR } from "./overlay-stack";
 import { Z_LAYER } from "./overlay-styles";
 
@@ -53,7 +53,7 @@ interface SuggestInputProps extends NativeInputProps {
   readonly label?: string;
   readonly hint?: string;
   readonly error?: string;
-  readonly controlSize?: "default" | "compact";
+  readonly controlSize?: Extract<InputControlSize, "large" | "compact">;
   /** Symbol at the start of the field, e.g. a magnifier. */
   readonly leadingIcon?: ReactNode;
   /** Show at most this many matches. */
@@ -78,7 +78,7 @@ export function SuggestInput({
   label,
   hint,
   error,
-  controlSize = "default",
+  controlSize = "large",
   leadingIcon,
   maxSuggestions,
   highlightFirst = false,

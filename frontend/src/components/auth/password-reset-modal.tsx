@@ -12,7 +12,7 @@ import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SpinnerIcon } from "~/components/ui/icons";
-import { Input } from "~/components/ui/input";
+import { Input, type InputControlSize } from "~/components/ui/input";
 import type { DatabaseFormErrorPath } from "~/components/database/database-form";
 import { wireErrorCode } from "~/lib/api-error";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
@@ -27,7 +27,7 @@ interface PasswordResetModalProps {
   readonly onRequestReset?: (email: string) => Promise<{ message: string }>;
   readonly rateLimitStorageKey?: string;
   /** Matches the reset field to the owning login form. */
-  readonly inputControlSize?: "default" | "compact";
+  readonly inputControlSize?: InputControlSize;
   readonly copy?: PasswordResetModalCopy;
   /**
    * The owner's shared API error path (`useApiFormError`), handed in by the
@@ -129,7 +129,7 @@ export function PasswordResetModal({
   onClose,
   onRequestReset = requestPasswordReset,
   rateLimitStorageKey = "passwordResetRateLimitUntil",
-  inputControlSize = "default",
+  inputControlSize = "large",
   copy = DEFAULT_PASSWORD_RESET_MODAL_COPY,
   errorPath,
   formRef,

@@ -1,13 +1,14 @@
 "use client";
 
 import { Clock } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useTranslations } from "next-intl";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { Button } from "./button";
-import { FieldLabel } from "./field-label";
+import { CONTROL_HEIGHT_CLASS } from "./control-geometry";
+import { FieldShell, useFieldIds } from "./field-shell";
 import { TimePickerPanel, type TimePickerLabels } from "./time-picker-panel";
 import { MODAL_SCOPE_SELECTOR, SHEET_SCOPE_SELECTOR } from "./overlay-stack";
 
@@ -136,8 +137,7 @@ export function TimeField({
     [tTimePicker],
   );
   const pickerLabels = timePickerLabels ?? localizedTimePickerLabels;
-  const inputId = useId();
-  const hintId = useId();
+  const ids = useFieldIds({ hint, describedBy });
   const completedOneDigitHour = useRef<string | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   const initialOptionRef = useRef<HTMLElement>(null);
@@ -179,16 +179,22 @@ export function TimeField({
   }, [open, onBlur]);
 
   return (
-    <div className="block">
-      {!inline && (
-        <FieldLabel htmlFor={inputId} required={required}>
-          {label}
-        </FieldLabel>
-      )}
+    <FieldShell
+      ids={ids}
+      keepWrapper
+      className="block"
+      // Inline trägt das Feld seinen Namen selbst (`aria-label`); das Umfeld
+      // zeigt die sichtbare Beschriftung.
+      label={inline ? undefined : label}
+      required={required}
+      hint={hint}
+      hintTone="muted"
+      hintHidden={inline}
+    >
       <div ref={fieldRef} className="relative">
         <input
           ref={inputRef}
-          id={inputId}
+          id={ids.id}
           name={name}
           type="text"
           inputMode="numeric"
@@ -201,7 +207,7 @@ export function TimeField({
           aria-label={inline ? label : undefined}
           aria-required={required}
           aria-invalid={invalid}
-          aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
+          aria-describedby={ids.describedBy}
           onChange={(event) => {
             const nextValue = normalizeTimeInput(
               event.target.value,
@@ -227,7 +233,7 @@ export function TimeField({
             completedOneDigitHour.current = null;
             handleFocusLeave(event);
           }}
-          className={`h-10 w-full rounded-lg border pr-10 pl-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 pointer-coarse:pr-12 ${
+          className={`${CONTROL_HEIGHT_CLASS.compact} w-full rounded-lg border pr-10 pl-3 text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 pointer-coarse:pr-12 ${
             inline ? "bg-white text-sm" : "text-base"
           } ${
             invalid
@@ -290,12 +296,6 @@ export function TimeField({
           }}
         </AnchoredPopover>
       </div>
-      <span
-        id={hintId}
-        className={inline ? "sr-only" : "mt-1 block text-xs text-gray-500"}
-      >
-        {hint}
-      </span>
-    </div>
+    </FieldShell>
   );
 }

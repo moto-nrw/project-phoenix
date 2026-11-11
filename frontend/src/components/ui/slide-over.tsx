@@ -54,6 +54,7 @@ import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { cn } from "~/lib/utils";
 import { buttonClassName } from "./button";
 import { CloseIcon } from "./close-icon";
+import { ICON_ONLY } from "./control-geometry";
 import { FormErrorAlert } from "./form-error-alert";
 import { useBusyFocus } from "./hooks/useBusyFocus";
 import { useSheetAboveKeyboard } from "./hooks/useSheetAboveKeyboard";
@@ -365,7 +366,7 @@ const SlideOverCloseButton = React.forwardRef<
       disabled={disabled || busy}
       // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
       data-overlay-close=""
-      data-icon-only=""
+      {...ICON_ONLY}
       className={buttonClassName({
         variant: "ghost",
         size: "icon",

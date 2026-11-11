@@ -37,7 +37,7 @@ interface MultiSelectProps {
   readonly menuClassName?: string;
   /** Opens the menu from the trigger's right edge, e.g. near the window's. */
   readonly menuAlign?: "start" | "end";
-  /** Field height: `default` 40 px, `compact` 36 px for dense rows. */
+  /** Field height: `compact` 40 px (default), `dense` 36 px for dense rows. */
   readonly controlSize?: ListboxDropdownSize;
   /**
    * Trigger text for an empty selection — say what "nothing selected" means in
@@ -105,7 +105,7 @@ export function MultiSelect({
   className = "",
   menuClassName = "",
   menuAlign = "start",
-  controlSize = "default",
+  controlSize = "compact",
   placeholder = "Alle",
   unavailableLabel,
   summaryLabel,

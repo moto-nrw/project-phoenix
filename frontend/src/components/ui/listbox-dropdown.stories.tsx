@@ -53,7 +53,7 @@ export const Opened: Story = {
 
 export const Compact: Story = {
   args: {
-    size: "compact",
+    size: "dense",
   },
 };
 

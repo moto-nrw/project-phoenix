@@ -3153,82 +3153,73 @@ function SearchPageContent() {
         statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
           <>
-            <div data-icon-only="">
-              <CollectionViewSwitch
-                value={collectionView.view}
-                onChange={changeView}
-              />
-            </div>
-            {/* Der Rahmen gibt der Einstiegs-Tour ein eindeutiges Ziel: über
+            <CollectionViewSwitch
+              value={collectionView.view}
+              onChange={changeView}
+            />
+            {/* `tourTarget` gibt der Einstiegs-Tour ein eindeutiges Ziel: über
                 dieses Menü erreicht man die Aufsicht, wenn die Schule Kinder
                 nur hier finden lässt (#1321). */}
-            <div
-              className="contents"
-              data-icon-only=""
-              data-setup-tour="child-search-menu"
-            >
-              <OverflowMenu
-                items={[
-                  ...childScope.menuItems,
-                  {
-                    // Abwesenheits-Übersicht (#2288): bewusst kein eigener
-                    // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
-                    // ohnehin nach einem Kind sucht.
-                    label: "Abwesenheiten",
-                    icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-                    onClick: () => router.push("/absences"),
-                  },
-                  // Der Export verlangt users:read; der Gast hat es nicht.
-                  ...(canExportStudents(session)
-                    ? [
-                        {
-                          label: "Exportieren",
-                          icon: <Download className="h-4 w-4" aria-hidden />,
-                          onClick: () => setIsExportOpen(true),
-                          badge: rowsLoaded
-                            ? filteredStudents.length
-                            : undefined,
-                        },
-                      ]
-                    : []),
-                  // Nur mit vollständig geladenen, sichtbaren Kindern: ein
-                  // Brief an eine abgeschnittene Liste würde Empfänger
-                  // auslassen.
-                  ...(parentAnnouncementsAvailable &&
-                  rowsLoaded &&
-                  !isSearchResultValidating &&
-                  !hasLoadError &&
-                  truncatedTotal === null &&
-                  filteredStudents.length > 0
-                    ? [
-                        {
-                          label: "Elternbrief schreiben",
-                          icon: <FileText className="h-4 w-4" aria-hidden />,
-                          onClick: writeParentLetter,
-                          badge: filteredStudents.length,
-                        },
-                      ]
-                    : []),
-                  // Die Spaltenwahl der Liste (#3834) steht hier und nicht
-                  // als eigener Knopf neben dem Umschalter.
-                  ...(showTable && !isPhone
-                    ? columnMenuEntries(
-                        tableColumns,
-                        collectionView.hiddenColumns,
-                        collectionView.setColumnVisible,
-                      )
-                    : []),
-                  ...(showTable && isPhone
-                    ? phoneDetailMenuEntries(
-                        tableColumns,
-                        collectionView.phoneDetail,
-                        collectionView.setPhoneDetail,
-                      )
-                    : []),
-                ]}
-                ariaLabel="Weitere Aktionen"
-              />
-            </div>
+            <OverflowMenu
+              tourTarget="child-search-menu"
+              items={[
+                ...childScope.menuItems,
+                {
+                  // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+                  // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+                  // ohnehin nach einem Kind sucht.
+                  label: "Abwesenheiten",
+                  icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+                  onClick: () => router.push("/absences"),
+                },
+                // Der Export verlangt users:read; der Gast hat es nicht.
+                ...(canExportStudents(session)
+                  ? [
+                      {
+                        label: "Exportieren",
+                        icon: <Download className="h-4 w-4" aria-hidden />,
+                        onClick: () => setIsExportOpen(true),
+                        badge: rowsLoaded ? filteredStudents.length : undefined,
+                      },
+                    ]
+                  : []),
+                // Nur mit vollständig geladenen, sichtbaren Kindern: ein
+                // Brief an eine abgeschnittene Liste würde Empfänger
+                // auslassen.
+                ...(parentAnnouncementsAvailable &&
+                rowsLoaded &&
+                !isSearchResultValidating &&
+                !hasLoadError &&
+                truncatedTotal === null &&
+                filteredStudents.length > 0
+                  ? [
+                      {
+                        label: "Elternbrief schreiben",
+                        icon: <FileText className="h-4 w-4" aria-hidden />,
+                        onClick: writeParentLetter,
+                        badge: filteredStudents.length,
+                      },
+                    ]
+                  : []),
+                // Die Spaltenwahl der Liste (#3834) steht hier und nicht
+                // als eigener Knopf neben dem Umschalter.
+                ...(showTable && !isPhone
+                  ? columnMenuEntries(
+                      tableColumns,
+                      collectionView.hiddenColumns,
+                      collectionView.setColumnVisible,
+                    )
+                  : []),
+                ...(showTable && isPhone
+                  ? phoneDetailMenuEntries(
+                      tableColumns,
+                      collectionView.phoneDetail,
+                      collectionView.setPhoneDetail,
+                    )
+                  : []),
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
           </>
         }
         // Der Zähler ändert sich mit der Filterung und gehört deshalb in

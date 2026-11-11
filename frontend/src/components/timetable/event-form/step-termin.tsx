@@ -327,7 +327,7 @@ export function StepTermin({
             id="event_date"
             ariaDescribedBy={dateHint ? "event_date_hint" : undefined}
             name="date"
-            controlSize="md"
+            controlSize="compact"
             value={form.date}
             error={fieldErrors.date}
             calendarLayout="popover"
@@ -384,7 +384,7 @@ export function StepTermin({
                 ? "event_series_start_hint event_series_start_error"
                 : "event_series_start_hint"
             }
-            controlSize="md"
+            controlSize="compact"
             value={form.seriesStartDate}
             min={seriesStartEdit.min}
             max={seriesStartEdit.original}

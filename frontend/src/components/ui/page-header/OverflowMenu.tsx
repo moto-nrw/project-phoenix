@@ -1,5 +1,6 @@
 "use client";
 
+import { iconOnlyMarker } from "../control-geometry";
 import { Z_LAYER } from "../overlay-styles";
 import {
   useEffect,
@@ -70,6 +71,11 @@ interface OverflowMenuProps {
   /** Layout of the box around the trigger (width, flex); default `inline-block`. */
   readonly wrapperClassName?: string;
   /**
+   * Stop of a guided tour (`data-setup-tour`) on the box around the trigger,
+   * like `tourTarget` of an entry. Spares the caller a wrapper of its own.
+   */
+  readonly tourTarget?: string;
+  /**
    * Optional CSS selector for an ancestor of the trigger. When set, the menu
    * stretches to that ancestor's width and sits inside it (8px inset), instead
    * of the default 220px popover anchored to the trigger. Use this when the
@@ -109,6 +115,7 @@ export function OverflowMenu({
   triggerContent,
   triggerButton,
   wrapperClassName = "inline-block",
+  tourTarget,
   matchContainerSelector,
   portalOwnerId,
   portalZIndex,
@@ -396,7 +403,8 @@ export function OverflowMenu({
       className={`relative ${wrapperClassName}`}
       // Das Gerüst der Kopfkarte streckt auf dem Telefon Textknöpfe über die
       // Zeile; ein reines Symbol behält sein Maß.
-      data-icon-only={triggerContent == null ? "" : undefined}
+      {...iconOnlyMarker(triggerContent == null)}
+      data-setup-tour={tourTarget}
     >
       <button
         ref={triggerRef}

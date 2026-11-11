@@ -143,7 +143,7 @@ function ISOFieldDemo() {
         error="Das Datum liegt in den Ferien."
         value={value}
         onChange={setValue}
-        controlSize="md"
+        controlSize="compact"
       />
     </div>
   );
@@ -162,13 +162,13 @@ function SizesDemo() {
         value={null}
         onChange={() => undefined}
         ariaLabel="Mittel"
-        controlSize="md"
+        controlSize="compact"
       />
       <DatePicker
         value={null}
         onChange={() => undefined}
         ariaLabel="Groß"
-        controlSize="lg"
+        controlSize="large"
         hint="Neben einem großen Eingabefeld."
       />
       <DatePicker

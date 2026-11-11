@@ -37,6 +37,12 @@ import {
 } from "~/components/ui/tenant-page-search-row";
 import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { createLogger } from "~/lib/logger";
+import {
+  HEAD_ACTIONS_LAYOUT,
+  HEAD_CONTROL_HEIGHT,
+  HEAD_PADDING,
+  HEAD_TITLE_SIZE,
+} from "./control-geometry";
 import { cn } from "~/lib/utils";
 
 /**
@@ -123,7 +129,8 @@ export interface TenantPageProps extends TenantPageSearchRowProps {
 
   /**
    * Hoehe der Elemente im searchSlot. "controls" (Standard) zieht Knoepfe,
-   * Felder und Auswahllisten auf die einheitliche Bedienhoehe von 36 px.
+   * Felder und Auswahllisten auf die Bedienhoehe der Kopfkarte
+   * (`HEAD_CONTROL_HEIGHT`).
    * "natural" laesst dem Slot seine eigene Hoehe -- fuer Inhalte, die keine
    * Bedienzeile sind, sondern die Hauptaktion der Seite (die grossen
    * Aktionskarten in der Kindakte).
@@ -345,24 +352,6 @@ export function TenantPageStats({
 }
 
 /**
- * Eine Bedienhöhe im Seitenkopf. Ohne diese Klammer stehen dort 32, 36 und
- * 40 px nebeneinander, je nachdem welches Kit-Bauteil eine Seite gerade
- * greift — gemessen auf /statistics: Zeitraum 32, Export 36, Filter 40.
- * Der Selektor greift auch verschachtelte Auslöser, deshalb Nachfahren und
- * nicht nur direkte Kinder.
- */
-// Eine Bedienhöhe in der Kopfkarte: 40 px für Schaltflächen, Links in
-// Button-Optik (`ButtonLink`), Auswahl- UND Eingabefelder, auf dem Telefon
-// 44 px (die Untergrenze für eine Touch-Fläche, dieselbe wie die
-// Fingerregel des Kits). Das Eingabefeld fehlte hier anfangs, deshalb stand das
-// Suchfeld mit 42 px neben Filterknöpfen mit 36 — auf acht Seiten derselbe
-// Versatz; ebenso stand ein `ButtonLink` mit 32 oder 36 px neben 40-px-Knöpfen
-// (#5531). Der `SegmentedControl` behauptet seine Segmenthöhe mit `!` und
-// kommt mitsamt Spur ebenfalls auf 40 px — siehe dort.
-const CONTROL_HEIGHT =
-  "[&_button]:h-10 [&_a[data-button-link]]:h-10 [&_select]:h-10 [&_input]:h-10 max-sm:[&_button]:h-11 max-sm:[&_a[data-button-link]]:h-11 max-sm:[&_select]:h-11 max-sm:[&_input]:h-11";
-
-/**
  * Die Such- und Filterzeile der Kopfkarte als eigene Fläche im Inhalt, direkt
  * über der Liste, die sie filtert. Nur für eine Seite, deren Liste weit unter
  * der Kopfkarte beginnt, weil andere Flächen davor stehen (Aktuelle Aufsicht,
@@ -387,7 +376,7 @@ export function TenantPageListSearch({
   return (
     // Die Auswahl „Gruppe“ öffnet über den Kartenrand hinaus.
     <SectionCard overflow="visible">
-      <div role="search" aria-label={label} className={CONTROL_HEIGHT}>
+      <div role="search" aria-label={label} className={HEAD_CONTROL_HEIGHT}>
         <TenantPageSearchRow
           search={search}
           filters={filters}
@@ -579,7 +568,8 @@ function TenantPageView({
       <header
         ref={headRef}
         className={cn(
-          "moto-content-surface compact:p-4 rounded-2xl border p-5 max-sm:p-4",
+          "moto-content-surface rounded-2xl border",
+          HEAD_PADDING,
           printHideHeader && "print:hidden",
         )}
       >
@@ -605,9 +595,7 @@ function TenantPageView({
                     // Dichte-Stufe kleiner Bildschirme ziehen ihn je eine
                     // Stufe herunter (#2824). Beide Varianten schliessen
                     // einander aus, es gilt also immer genau eine.
-                    prominent
-                      ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
-                      : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
+                    HEAD_TITLE_SIZE[prominent ? "prominent" : "standard"],
                   )}
                 >
                   {title}
@@ -643,16 +631,10 @@ function TenantPageView({
               actions
                 ? "ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2"
                 : "contents",
-              "[&>div[data-icon-only]]:inline-flex",
-              // Unter sm gilt: JEDE Zeile ist voll. Textknöpfe bekommen
-              // eine eigene, volle Zeile (auch ein einzelner — rechtsbündig
-              // neben Leerraum las er sich als toter Bereich); reine
-              // Symbolknöpfe (das Kebab-Menü, `Button size="icon"`, per
-              // `data-icon-only`) behalten ihr Maß und bleiben in der
-              // Titel-/Statuszeile, die ihr Text füllt.
-              "max-sm:contents",
-              "max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full",
-              CONTROL_HEIGHT,
+              // Unter sm gilt: JEDE Zeile ist voll. Ein einzelner Textknopf
+              // rechtsbündig neben Leerraum las sich als toter Bereich.
+              HEAD_ACTIONS_LAYOUT,
+              HEAD_CONTROL_HEIGHT,
             )}
           >
             {actions}
@@ -669,7 +651,7 @@ function TenantPageView({
           <div
             className={cn(
               "compact:mt-3 mt-4 max-sm:mt-3",
-              searchSlotHeight === "controls" && CONTROL_HEIGHT,
+              searchSlotHeight === "controls" && HEAD_CONTROL_HEIGHT,
             )}
           >
             {searchSlot}
@@ -877,13 +859,20 @@ function TenantPageTabs({
     </>
   );
 
+  // `overflow`: ein gemessen verborgener Reiter. Auf dem Desktop steht er
+  // unter „Mehr“ und ist im Band ausgeblendet, auf dem Telefon bleibt er im
+  // scrollenden Band stehen.
   const renderTab = (
     item: TenantPageTab,
     measuring = false,
-    extraClassName?: string,
+    overflow = false,
   ) => {
     const active = item.value === value;
-    const className = cn(tabClass(active, item.disabled), extraClassName);
+    const className = cn(
+      tabClass(active, item.disabled),
+      overflow && "sm:hidden",
+    );
+    const overflowMarker = overflow ? { "data-tab-overflow": "" } : {};
     if (item.href && !item.disabled) {
       return (
         <Link
@@ -893,6 +882,7 @@ function TenantPageTabs({
           aria-selected={measuring ? undefined : active}
           tabIndex={measuring ? -1 : item.value === rovingValue ? 0 : -1}
           data-tab-value={item.value}
+          {...overflowMarker}
           className={className}
           onClick={(event: MouseEvent<HTMLAnchorElement>) => {
             // Mittelklick und Klick mit Zusatztaste öffnen ein zweites
@@ -923,6 +913,7 @@ function TenantPageTabs({
         aria-selected={measuring ? undefined : active}
         tabIndex={measuring ? -1 : item.value === rovingValue ? 0 : -1}
         data-tab-value={item.value}
+        {...overflowMarker}
         disabled={item.disabled}
         onClick={() => onChange(item.value)}
         className={className}
@@ -982,11 +973,12 @@ function TenantPageTabs({
       tablistRef.current.querySelectorAll<HTMLElement>('[role="tab"]'),
     ).filter((tab) => {
       if (tab.hasAttribute("disabled")) return false;
-      // Desktop: die via `sm:hidden` gerenderten Überlauf-Reiter sind nicht
-      // sichtbar. Telefon: „Mehr“ ist via `max-sm:hidden` ausgeblendet.
+      // Desktop: die Überlauf-Reiter stehen unter „Mehr“, nicht im Band.
+      // Telefon: „Mehr“ ist ausgeblendet; als einziger Reiter trägt er
+      // keinen Wert.
       return isPhone
-        ? !tab.classList.contains("max-sm:hidden")
-        : !tab.classList.contains("sm:hidden");
+        ? tab.dataset.tabValue !== undefined
+        : !tab.hasAttribute("data-tab-overflow");
     });
     const index = tabs.indexOf(current);
     if (index === -1 || tabs.length === 0) return;
@@ -1049,7 +1041,7 @@ function TenantPageTabs({
             {visible.map((item) => renderTab(item))}
             {/* Auf dem Telefon bleiben auch die gemessen verborgenen Reiter im
                 Band stehen; der Sammelreiter verschwindet dort. */}
-            {hidden.map((item) => renderTab(item, false, "sm:hidden"))}
+            {hidden.map((item) => renderTab(item, false, true))}
             {/* Der Sammelreiter gehört semantisch zum Reiterband. Außerhalb
                 davon würde er sich für Screenreader zwar als Reiter, aber
                 nicht als Teil dieser Seitennavigation ankündigen. */}

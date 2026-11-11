@@ -97,8 +97,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | What a click does (hover, key focus, never tap) | `tooltip` on `Button`/`ButtonLink`, else `ActionHint`; no `title`. `Tooltip`: text only | `~/components/ui/button` |
-| Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px below `lg`), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
-| Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
+| Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px <`lg`; `ControlSize`), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
+| Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Use `FieldShell`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` (gray-900), in your own `<label>`; framed row: `ChoiceTile` or `CheckboxCard` (`label`, `hint`); box inside a toggle button: `CheckboxIndicator` | `~/components/ui/checkbox` |
 | On/off setting | `Switch` (`ariaLabel`); with label, description `SwitchRow` (`framed`) | `~/components/ui/switch` |

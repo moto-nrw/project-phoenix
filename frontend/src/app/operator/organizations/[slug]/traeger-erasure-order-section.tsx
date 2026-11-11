@@ -441,7 +441,7 @@ function RecordErasureOrderForm({
               onChange={setConfirmedOn}
               maxDate={parseISODate(berlinTodayISO())}
               placeholder="Datum auswählen"
-              controlSize="lg"
+              controlSize="large"
               required
             />
           </FormField>
@@ -456,7 +456,7 @@ function RecordErasureOrderForm({
               onChange={setEraseNotBefore}
               minDate={tomorrow()}
               placeholder="Datum auswählen"
-              controlSize="lg"
+              controlSize="large"
               required
             />
           </FormField>
@@ -641,7 +641,7 @@ function RecordsHandoverFields({
               onChange={onHandedOverOn}
               maxDate={parseISODate(berlinTodayISO())}
               placeholder="Datum auswählen"
-              controlSize="lg"
+              controlSize="large"
               required
             />
           </FormField>

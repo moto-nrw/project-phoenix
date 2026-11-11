@@ -6,7 +6,7 @@
 // durch das Träger-Büro (#5629) nutzen dieselben Felder; die Beschriftung
 // bringt der Aufrufer mit, damit das Modul keine Übersetzungen lädt.
 
-import { Input } from "~/components/ui/input";
+import { Input, type InputControlSize } from "~/components/ui/input";
 
 /** The postal address as a form edits it: empty parts, never null. */
 export interface GuardianAddressDraft {
@@ -36,7 +36,7 @@ export function GuardianAddressFields({
   fieldError: (name: string) => string | undefined;
   onChange: (address: GuardianAddressDraft) => void;
   /** The Träger-App sets its fields to 40 px; the parents' form keeps the default. */
-  controlSize?: "default" | "compact";
+  controlSize?: InputControlSize;
 }>) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,1fr)]">

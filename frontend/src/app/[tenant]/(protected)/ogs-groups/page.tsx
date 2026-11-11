@@ -1370,12 +1370,10 @@ function OGSGroupPageContent() {
             {/* Der An- und Abmelde-Modus ist ab 1024px eine Kopfaktion;
                 darunter tragen ihn die Leiste am unteren Rand (Phone) und
                 der schwebende Knopf (Tablet). */}
-            <div data-icon-only="">
-              <CollectionViewSwitch
-                value={collectionView.view}
-                onChange={changeView}
-              />
-            </div>
+            <CollectionViewSwitch
+              value={collectionView.view}
+              onChange={changeView}
+            />
             {offersCheckinMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
