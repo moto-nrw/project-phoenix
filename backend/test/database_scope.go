@@ -33,22 +33,6 @@ func PerTestDatabases() { perTestDatabases = true }
 // parallel.
 const maxConcurrentIsolatedTestDatabases = 1
 
-type isolatedTestDatabaseLimiter struct {
-	slots chan struct{}
-}
-
-func newIsolatedTestDatabaseLimiter(limit int) *isolatedTestDatabaseLimiter {
-	return &isolatedTestDatabaseLimiter{slots: make(chan struct{}, limit)}
-}
-
-func (l *isolatedTestDatabaseLimiter) acquire() func() {
-	l.slots <- struct{}{}
-	var once sync.Once
-	return func() {
-		once.Do(func() { <-l.slots })
-	}
-}
-
 var isolatedTestDatabaseSlots = newIsolatedTestDatabaseLimiter(maxConcurrentIsolatedTestDatabases)
 
 type isolatedTestDatabase struct {
@@ -78,17 +62,18 @@ func setupIsolatedTestDB(tb testing.TB) *bun.DB {
 		entry.err = entry.open(tb, name)
 	})
 	if entry.err != nil {
+		isolatedTestDatabases.CompareAndDelete(name, entry)
 		tb.Fatalf("setup isolated test database: %v", entry.err)
 	}
 	return entry.db
 }
 
 func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) {
-	if !perTestDatabases {
-		entry.releaseSlot = isolatedTestDatabaseSlots.acquire()
+	if err = entry.acquireSlot(tb, name); err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), isolatedTestDatabaseOpenTimeout)
 	defer cancel()
 
 	entry.clone, err = testdb.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
@@ -126,6 +111,15 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 
 	entry.registerCleanup(tb, name)
 	return nil
+}
+
+func (entry *isolatedTestDatabase) acquireSlot(tb testing.TB, name string) error {
+	if perTestDatabases {
+		return nil
+	}
+	var err error
+	entry.releaseSlot, err = isolatedTestDatabaseSlots.acquireForTest(tb, name)
+	return err
 }
 
 func (entry *isolatedTestDatabase) registerCleanup(tb testing.TB, name string) {
@@ -173,7 +167,7 @@ func (entry *isolatedTestDatabase) drop() error {
 		}
 		if entry.clone != nil {
 			entry.dropErr = errors.Join(entry.dropErr, entry.clone.Close())
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), isolatedTestDatabaseDropTimeout)
 			defer cancel()
 			entry.dropErr = errors.Join(entry.dropErr, testdb.DropClone(ctx, packageCloneCfg, entry.clone.Name))
 		}

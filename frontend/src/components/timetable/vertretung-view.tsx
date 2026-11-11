@@ -614,7 +614,8 @@ function VertretungContent() {
           toast.success(
             cancelledToast("Der Block ist abgesagt.", result.guardianNotice),
           );
-          updateUrlParams({ block: null, verlauf: null });
+          // Das Panel schließt sich selbst (closeEditor), nur solange es
+          // denselben Block zeigt (#6593).
         } else {
           toast.success(deviationSuccessMessage(input, result, staffNames));
           if (result.warnings.length > 0) {
@@ -634,7 +635,7 @@ function VertretungContent() {
         await revalidate();
       }
     },
-    [selectedInstance, revalidate, staffNames, toast, updateUrlParams],
+    [selectedInstance, revalidate, staffNames, toast],
   );
 
   // Solange die Session lädt, ist noch nicht entscheidbar, welche Aktionen

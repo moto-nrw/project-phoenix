@@ -177,6 +177,7 @@ export function BillingDocumentBreakdown({
   onReissue?: (document: BillingDocument) => void;
 }>) {
   return (
+    // oxlint-disable-next-line ui-kit/slide-over-pending -- zeigt den Beleg an; „Neu ausstellen“ öffnet nur den Lauf und speichert nichts.
     <SlideOver
       open={document !== null}
       onOpenChange={(open) => {

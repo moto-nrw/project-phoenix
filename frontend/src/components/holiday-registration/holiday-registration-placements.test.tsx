@@ -83,4 +83,18 @@ describe("HolidayRegistrationPlacements", () => {
     expect(screen.getByText("Platz reserviert")).toBeInTheDocument();
     expect(screen.queryByText(/Wird ein Platz frei/)).toBeNull();
   });
+
+  it("names an open place when the office gives the places (#4700)", () => {
+    renderPlacements([
+      { childPosition: 1, weekId: "51", placement: "pending" },
+      { childPosition: 2, weekId: "51", placement: "pending" },
+    ]);
+    expect(screen.getAllByText("Platz offen")).toHaveLength(2);
+    expect(
+      screen.getByText(
+        "Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Platz reserviert")).not.toBeInTheDocument();
+  });
 });

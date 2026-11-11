@@ -104,6 +104,13 @@
   "placementHeading": "Places",
   "placementPlaced": "Place reserved",
   "placementWaitlisted": "Waiting list",
+  "placementPending": "Place open",
+  "pendingNote": "The office gives out the places. You will get an email.",
+  "criteriaTitle": "Questions for giving out places",
+  "criteriaText": "The office gives out the places by fixed rules. Your answers help with this. The office may ask for proof.",
+  "criteriaFamily": "For your family",
+  "criteriaChild": "For {name}",
+  "criteriaChildNumber": "For child {number}",
   "waitlistNote": "Some weeks are already full. In those weeks your child is on the waiting list. If a place becomes free, your child gets it automatically. We will then send you an email.",
   "errors": {
     "phone": "Please enter a valid phone number.",

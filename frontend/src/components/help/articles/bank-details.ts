@@ -15,6 +15,9 @@ export function bankDetailsTopic(): HelpTopic {
     group: "elternarbeit",
     audience: "lead",
     icon: "Landmark",
+    image: "/help/screens/bankverbindungen-export.webp",
+    imageAlt:
+      "Das Fenster zum Exportieren der Bankverbindungen mit der Auswahl des Formats.",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Bankverbindungen`.",

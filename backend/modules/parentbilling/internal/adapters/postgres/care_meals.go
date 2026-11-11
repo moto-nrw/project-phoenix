@@ -59,6 +59,7 @@ type careMealPositionRow struct {
 	AmountCents    int64         `bun:"amount_cents"`
 	NetCents       int64         `bun:"net_cents"`
 	ReleaseVersion int           `bun:"release_version"`
+	positionAccountsColumns
 }
 
 // CareMealTariffs reads the Mensa prices of the Träger.
@@ -199,7 +200,8 @@ func insertCareMealPositions(ctx context.Context, db bun.IDB, organizationID int
 			positions = append(positions, careMealPositionRow{OrganizationID: organizationID, InvoiceID: rows[i].ID,
 				Replaces: replaces, Position: j + 1, ReleaseVersion: max(meal.ReleaseVersion, 1),
 				SchoolID: meal.SchoolID, StudentID: meal.StudentID, MealMonth: meal.MealMonth, Mode: meal.Mode, Quantity: meal.Quantity,
-				UnitCents: meal.UnitCents, AmountCents: meal.AmountCents, NetCents: meal.AmountCents})
+				UnitCents: meal.UnitCents, AmountCents: meal.AmountCents, NetCents: meal.AmountCents,
+				positionAccountsColumns: positionAccountsOf(meal.Accounts)})
 		}
 	}
 	if len(positions) == 0 {

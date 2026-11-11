@@ -1769,6 +1769,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/traeger/holiday-periods/criteria" {
+			// The criteria of the allocation as stored (#4700).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"criteria":[{"id":71},{"id":72},{"id":73},{"id":74}],"periods":[]}}`)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/allocation") {
+			// The allocation list with its first pending child (#4700).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"weeks":[{"pending":[{"booking_id":81,"proposal":"placed"}]}]}}`)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/publish") {
 			// The published period carries its public link and its weeks
 			// for the holiday registration of the same step (#4661).

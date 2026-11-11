@@ -11,6 +11,7 @@
 // fest.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -562,6 +563,27 @@ export function HolidayRegistrationStatusCard({
         <p>{statusText(registration)}</p>
         {registration.status === "received" ? (
           <p>Eltern bekommen beim Bestätigen noch keine Nachricht von moto.</p>
+        ) : null}
+        {registration.status === "received" &&
+        registration.children.some((child) =>
+          child.bookings.some((booking) => booking.placement === "pending"),
+        ) ? (
+          <Alert
+            type="warning"
+            message={
+              <>
+                Für ein Kind ist noch ein Platz offen. Bestätigen geht erst,
+                wenn das Büro im Reiter{" "}
+                <NavigationLink
+                  href={traegerPath(`/traeger/ferien/${periodId}/vergabe`)}
+                  className="font-medium underline"
+                >
+                  Vergabe
+                </NavigationLink>{" "}
+                entschieden hat.
+              </>
+            }
+          />
         ) : null}
         {registration.status === "received" &&
         benefitsText(registration, contribution, canManageBillingSettings) ? (

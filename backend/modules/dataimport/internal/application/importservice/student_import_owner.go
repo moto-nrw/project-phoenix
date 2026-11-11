@@ -54,14 +54,15 @@ func (c *StudentImportConfig) createAllEntities(ctx context.Context, row importM
 // value carries the instant its row computed at the step the row path
 // computes it, so no row shares a time stamp the row path would not.
 type studentLeafWrites struct {
+	guardians   []ports.NewStudentGuardianLink
 	consents    []ports.PrivacyConsent
 	transitions []ports.ConsentTransition
 }
 
 // createStudentEntities creates everything of a row that follows its person:
 // the student, its guardians, the retention consent and the schedules. With
-// leafs, the consent and the consent history are collected instead of
-// written; the schedules are still written here, in their place (their
+// leafs, the consent, the consent history and guardians that are new by
+// construction (guardianBatchRow) are collected instead of written; the schedules are still written here, in their place (their
 // created_by lock on the importing staff member stays where the row path
 // takes it, PR #6408, Befundklasse 6).
 func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personID int64, row importModels.StudentImportRow, leafs *studentLeafWrites) (int64, error) {
@@ -69,10 +70,12 @@ func (c *StudentImportConfig) createStudentEntities(ctx context.Context, personI
 	if err != nil {
 		return 0, err
 	}
-	if err := c.createGuardianRelationships(ctx, student, row.Guardians); err != nil {
+	studentID := student.ID
+	if leafs != nil && guardianBatchRow(row) {
+		collectGuardians(studentID, row, leafs)
+	} else if err := c.createGuardianRelationships(ctx, student, row.Guardians); err != nil {
 		return 0, err
 	}
-	studentID := student.ID
 	if leafs != nil {
 		if err := c.collectPrivacyConsent(studentID, row, leafs); err != nil {
 			return 0, err

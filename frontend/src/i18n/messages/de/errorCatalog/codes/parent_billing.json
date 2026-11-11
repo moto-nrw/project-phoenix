@@ -113,5 +113,7 @@
   "export_mapping_invalid": "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
   "beleg_retention_basis_cites_statute": "Die Grundlage nennt § 147 AO, § 257 HGB oder § 14b UStG. Dann gelten deren Fristen. Bitte prüfen Sie die Grundlage.",
   "online_mandate_disabled": "Ihr Träger nimmt das Lastschrift-Mandat gerade nicht in der App an.",
-  "sepa_mandate_text_changed": "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal."
+  "sepa_mandate_text_changed": "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal.",
+  "cost_center_date_taken": "Ab diesem Tag gibt es schon eine Kostenstelle. Wählen Sie einen anderen Tag oder löschen Sie die alte.",
+  "sollstellung_revenue_account_missing": "Bei {count} Rechnungen fehlt das Erlöskonto. Tragen Sie in den DATEV-Werten ein Standard-Erlöskonto ein."
 }

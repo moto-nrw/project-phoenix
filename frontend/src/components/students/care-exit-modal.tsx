@@ -25,6 +25,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate, berlinTodayISO } from "~/lib/date-helpers";
@@ -110,7 +111,7 @@ export function CareExitModal({
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<CareExitPreview | null>(null);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
   const errors = useApiFormError();
   const showError = errors.show;
   const clearErrors = errors.clear;
@@ -184,20 +185,44 @@ export function CareExitModal({
 
   const handleConfirm = async () => {
     if (!preview || !reason || preview.blocked) return;
-    setSaving(true);
-    errors.clear();
-    try {
-      const input = {
-        studentIds: ids,
-        lastCareDay,
-        reason,
-        reasonNote: note,
-      };
-      if (completionId) {
-        await confirmWithdrawalCareEnd(completionId, preview.token, input);
-      } else {
-        await confirmCareExit(preview.token, input);
+    await save.run(async (op) => {
+      errors.clear();
+      try {
+        const input = {
+          studentIds: ids,
+          lastCareDay,
+          reason,
+          reasonNote: note,
+        };
+        if (completionId) {
+          await confirmWithdrawalCareEnd(completionId, preview.token, input);
+        } else {
+          await confirmCareExit(preview.token, input);
+        }
+      } catch (confirmError) {
+        logger.error("care_exit_confirm_failed", {
+          student_count: ids.length,
+          error:
+            confirmError instanceof Error
+              ? confirmError.message
+              : String(confirmError),
+        });
+        // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+        if (!op.isCurrent()) return;
+        // Der Vorschau-Stand ist verbraucht: neu laden, damit die Liste zeigt,
+        // was sich geändert hat. Scheitert auch das, steht dessen Meldung.
+        const reloaded = await loadPreview();
+        if (reloaded && op.isCurrent()) {
+          await errors.show(confirmError, {
+            object: "das Betreuungsende",
+            retry: () => void latestConfirmRef.current(),
+          });
+        }
+        return;
       }
+      // onFinished schließt das Panel beim Aufrufer; nach dem Schließen oder
+      // in einem neuen Vorgang darf eine späte Antwort das nicht mehr.
+      if (!op.isCurrent()) return;
       try {
         await onFinished();
       } catch (refreshError) {
@@ -210,28 +235,9 @@ export function CareExitModal({
               ? refreshError.message
               : String(refreshError),
         });
-        onClose();
+        if (op.isCurrent()) onClose();
       }
-    } catch (confirmError) {
-      logger.error("care_exit_confirm_failed", {
-        student_count: ids.length,
-        error:
-          confirmError instanceof Error
-            ? confirmError.message
-            : String(confirmError),
-      });
-      // Der Vorschau-Stand ist verbraucht: neu laden, damit die Liste zeigt,
-      // was sich geändert hat. Scheitert auch das, steht dessen Meldung.
-      const reloaded = await loadPreview();
-      if (reloaded) {
-        await errors.show(confirmError, {
-          object: "das Betreuungsende",
-          retry: () => void latestConfirmRef.current(),
-        });
-      }
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   useLayoutEffect(() => {
     latestConfirmRef.current = handleConfirm;
@@ -268,7 +274,6 @@ export function CareExitModal({
           variant="outline"
           size="md"
           onClick={() => setStep(1)}
-          disabled={saving}
         >
           Zurück
         </Button>
@@ -276,9 +281,9 @@ export function CareExitModal({
           type="button"
           variant="primary"
           size="md"
-          isLoading={saving}
+          isLoading={save.pending}
           loadingText="Wird beendet…"
-          disabled={saving || !preview || preview.blocked}
+          disabled={!preview || preview.blocked}
           onClick={() => void handleConfirm()}
         >
           <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -297,11 +302,12 @@ export function CareExitModal({
     <SlideOver
       open={isOpen}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && !saving) onClose();
+        if (!nextOpen) onClose();
       }}
+      pending={save}
     >
       <SlideOverContent size="md">
-        <SlideOverHeader close={<SlideOverCloseButton disabled={saving} />}>
+        <SlideOverHeader close={<SlideOverCloseButton />}>
           <SlideOverTitle>{title}</SlideOverTitle>
           <SlideOverDescription>
             {step === 1

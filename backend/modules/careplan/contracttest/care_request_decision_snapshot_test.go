@@ -132,6 +132,7 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 		f.persons,
 		f.schedules.Arrivals,
 		failingPickupReadService{PickupScheduleService: f.schedules.Pickups, err: readErr},
+		f.autoExcusal,
 		f.caller,
 		f.services,
 		nil,

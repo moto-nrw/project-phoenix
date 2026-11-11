@@ -41,6 +41,9 @@ type (
 	GuardianWithLink         = peopledirectory.GuardianWithLink
 	GuardianLink             = peopledirectory.GuardianLink
 	LinkGuardian             = peopledirectory.LinkGuardian
+	NewStudentGuardianLink   = peopledirectory.NewStudentGuardianLink
+	NewStudentGuardian       = peopledirectory.NewStudentGuardian
+	NewGuardianPhone         = peopledirectory.NewGuardianPhone
 	GuardianLinkUpdate       = peopledirectory.GuardianLinkUpdate
 )
 
@@ -182,6 +185,12 @@ type PrivacyConsentBatches interface {
 // executor (#5552).
 type PersonBatches interface {
 	CreatePersons(context.Context, []CreatePerson) ([]Person, error)
+}
+
+// NewGuardianBatches is the People Directory new-guardian batch slice of the
+// student chunk executor (#5552, step 5c).
+type NewGuardianBatches interface {
+	CreateNewStudentGuardians(context.Context, []NewStudentGuardianLink) error
 }
 
 // AuditBatchCommand appends many events at once, all or nothing.

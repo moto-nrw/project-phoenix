@@ -3,6 +3,7 @@ package observability
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -301,13 +302,14 @@ func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 
 	RegisterDBStatsProvider(func() DBStats {
 		return DBStats{
-			OpenConnections:   8,
-			InUse:             3,
-			Idle:              5,
-			WaitCount:         13,
-			WaitDuration:      2 * time.Second,
-			MaxIdleClosed:     21,
-			MaxLifetimeClosed: 34,
+			MaxOpenConnections: 40,
+			OpenConnections:    8,
+			InUse:              3,
+			Idle:               5,
+			WaitCount:          13,
+			WaitDuration:       2 * time.Second,
+			MaxIdleClosed:      21,
+			MaxLifetimeClosed:  34,
 		}
 	})
 	ch := make(chan prometheus.Metric, 10)
@@ -319,7 +321,17 @@ func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
 	for range ch {
 		metricCount++
 	}
-	assert.Equal(t, 7, metricCount)
+	assert.Equal(t, 8, metricCount)
+
+	// The pool-utilization alert divides in-use by this limit (#6465).
+	require.NoError(t, testutil.CollectAndCompare(dbStatsCollector{}, strings.NewReader(`
+# HELP phoenix_db_in_use_connections DB connections currently in use.
+# TYPE phoenix_db_in_use_connections gauge
+phoenix_db_in_use_connections 3
+# HELP phoenix_db_max_open_connections Configured upper limit of open DB connections in the pool (DB_MAX_OPEN_CONNS).
+# TYPE phoenix_db_max_open_connections gauge
+phoenix_db_max_open_connections 40
+`), "phoenix_db_in_use_connections", "phoenix_db_max_open_connections"))
 }
 
 func TestDBStatsCollectorDescribesEveryEmittedMetric(t *testing.T) {
@@ -334,7 +346,7 @@ func TestDBStatsCollectorDescribesEveryEmittedMetric(t *testing.T) {
 	for range ch {
 		descCount++
 	}
-	assert.Equal(t, 7, descCount)
+	assert.Equal(t, 8, descCount)
 }
 
 func TestMain(m *testing.M) {
