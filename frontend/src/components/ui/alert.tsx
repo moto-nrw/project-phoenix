@@ -178,6 +178,15 @@ export function Alert({
     icons[type]
   );
   const padding = compact ? "px-3 py-2 text-xs" : "p-4 text-sm";
+  // The symbol stands beside the first line as soon as something stacks
+  // under the message (details, a stacked action, a responsive action on a
+  // phone). Centred, it would float between the message and the action.
+  const align =
+    (title && details) || onDismiss || (action && actionLayout === "stacked")
+      ? "items-start"
+      : action && actionLayout === "responsive"
+        ? "items-start sm:items-center"
+        : "items-center";
 
   return (
     <div
@@ -192,7 +201,7 @@ export function Alert({
       }
       aria-live={announcement === "off" ? undefined : announcement}
       aria-atomic={announcement === "off" ? undefined : "true"}
-      className={`flex ${(title && details) || onDismiss ? "items-start" : "items-center"} rounded-xl border shadow-sm ${padding} ${action ? "flex-wrap gap-y-2" : ""} ${onDismiss ? "relative pr-12" : ""} ${tone ? "" : styles[type]} ${className}`}
+      className={`flex ${align} rounded-xl border shadow-sm ${padding} ${action ? "flex-wrap gap-y-2" : ""} ${onDismiss ? "relative pr-12" : ""} ${tone ? "" : styles[type]} ${className}`}
     >
       {leading}
       {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde
