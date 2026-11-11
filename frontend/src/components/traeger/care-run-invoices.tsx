@@ -415,10 +415,10 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
       key: "total",
       // The invoice's sum at the top of its row, beside the child and the
       // menu: an open menu leaves it in view, and its own header keeps it
-      // apart from the amounts of the positions. Where the table is tight
-      // the header breaks at its soft hyphen and leaves the width to the
+      // apart from the amounts of the positions. One short word, so the
+      // column stays as narrow as its amounts and leaves the width to the
       // positions.
-      header: "Rechnungs\u00ADbetrag",
+      header: "Summe",
       align: "right",
       stacked: "meta",
       stackedTone: "figure",
