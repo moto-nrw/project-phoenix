@@ -234,7 +234,8 @@ func (c parentBillingCareContracts) Recipients(ctx context.Context, organization
 // Träger.
 func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher) (*parentBillingHTTP.BillingRunResource, *parentBillingHTTP.DocumentKindResource) {
 	review, _, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil, nil, nil)
-	registrations := parentBillingBillingRegistrations{periods: enrollmentCompose.NewHolidayPeriods(nil, nil), review: review}
+	registrations := parentBillingBillingRegistrations{periods: enrollmentCompose.NewHolidayPeriods(nil, nil), review: review,
+		hosts: enrollmentCompose.NewHolidayWeekHosts()}
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
 	runs, kinds := parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}, newParentBillingLetterheads(settings))
 	return parentBillingHTTP.NewBillingRunResource(runs,
@@ -647,6 +648,22 @@ func (b parentBillingHolidayRegistrations) RecordHolidaySiblings(ctx context.Con
 type parentBillingBillingRegistrations struct {
 	periods enrollmentOwner.HolidayPeriods
 	review  enrollmentOwner.HolidayRegistrationReview
+	hosts   enrollmentOwner.HolidayWeekHosts
+}
+
+// HolidayWeekHosts reads the host school of each week of the period
+// through Enrollment's narrow read, in the Träger transaction of the
+// reviewer (#6624).
+func (b parentBillingBillingRegistrations) HolidayWeekHosts(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayWeekHost, error) {
+	weeks, err := b.hosts.HolidayWeekHosts(ctx, reviewer.OrganizationID, periodID)
+	if err != nil {
+		return nil, parentBillingHolidayError(err)
+	}
+	hosts := make([]parentbilling.HolidayWeekHost, len(weeks))
+	for i, week := range weeks {
+		hosts[i] = parentbilling.HolidayWeekHost{WeekID: week.WeekID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID}
+	}
+	return hosts, nil
 }
 
 func (b parentBillingBillingRegistrations) HolidayBillingPeriods(ctx context.Context, reviewer parentbilling.HolidayReviewer) ([]parentbilling.HolidayBillingPeriod, error) {

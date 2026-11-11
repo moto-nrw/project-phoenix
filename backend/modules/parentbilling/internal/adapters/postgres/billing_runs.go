@@ -167,6 +167,9 @@ type documentPositionRow struct {
 	CostBearerID               *int64         `bun:"cost_bearer_id"`
 	CostBearerName             string         `bun:"cost_bearer_name"`
 	positionAccountsColumns
+	// CostCenterFallback is why the position books on the KOST1 of the
+	// holiday care (#6624), nil for its host school's.
+	CostCenterFallback *string `bun:"cost_center_fallback"`
 }
 
 // ListBillingRuns lists the runs of the Träger, newest first.
@@ -501,7 +504,7 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 					ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 					DiscountCents: position.DiscountCents, Note: position.Note,
 					CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
-					positionAccountsColumns: positionAccountsOf(document.Accounts),
+					positionAccountsColumns: positionAccountsOf(position.Accounts), CostCenterFallback: textRef(position.CostCenterFallback),
 				})
 			}
 		}
@@ -614,10 +617,6 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 		documents[i].FamilyEmail = textOf(row.FamilyEmail)
 		documents[i].RecipientKind, documents[i].RecipientSecondName = textOf(row.RecipientKind), textOf(row.RecipientSecondName)
 		documents[i].Payment = row.snapshot().payment()
-		// Every position of a document books where the release put it.
-		if issued := byDocument[row.ID]; len(issued) > 0 {
-			documents[i].Accounts = issued[0].accounts()
-		}
 	}
 	return documents, nil
 }
@@ -683,6 +682,7 @@ func issuedChildren(positions []documentPositionRow) []parentbilling.BillingChil
 			TimeModelName: position.TimeModelName, ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 			DiscountCents: position.DiscountCents, Note: position.Note,
 			CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
+			Accounts: position.accounts(), CostCenterFallback: textOf(position.CostCenterFallback),
 		})
 		children[at].TotalCents += position.AmountCents
 	}
