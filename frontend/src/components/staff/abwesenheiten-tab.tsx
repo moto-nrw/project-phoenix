@@ -790,9 +790,9 @@ export function AbwesenheitenTab({
         <DenyAbsenceModal
           absence={denyModal}
           onClose={() => setDenyModal(null)}
-          onDenied={async () => {
+          onDenied={() => {
             setDenyModal(null);
-            await reload();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -800,9 +800,9 @@ export function AbwesenheitenTab({
         <QuestionAbsenceModal
           absence={questionModal}
           onClose={() => setQuestionModal(null)}
-          onQuestioned={async () => {
+          onQuestioned={() => {
             setQuestionModal(null);
-            await reload();
+            return afterWrite.refresh();
           }}
         />
       )}

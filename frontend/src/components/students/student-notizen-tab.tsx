@@ -23,6 +23,10 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   NOTE_KIND_JOURNAL,
@@ -469,6 +473,12 @@ export function StudentNotizenTab({
     }
     await Promise.all(revalidations);
   };
+  // Nachladen nach Speichern oder Löschen: ein Fehler dabei ist ein
+  // Ladefehler über den Notizen, kein Fehler des Formulars (#6652).
+  const notesAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Notizen",
+    revalidateNotes,
+  );
 
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState<StudentNoteDraft>(emptyDraft);
@@ -490,12 +500,15 @@ export function StudentNotizenTab({
     if (error) {
       void showLoadError(error, {
         object: "die Liste der Notizen",
+        // Bestätigte Notizen bleiben stehen; der Hinweis sagt, dass sie
+        // veraltet sein können (#6652).
+        messageSuffix: data === undefined ? undefined : STALE_DATA_SUFFIX,
         retry: () => void mutate(),
       });
     } else {
       clearLoadError();
     }
-  }, [error, mutate, showLoadError, clearLoadError]);
+  }, [data, error, mutate, showLoadError, clearLoadError]);
 
   const notes = useMemo(() => data ?? [], [data]);
   // Dauerhafte Hinweise stehen außerhalb der Chronik: sie beschreiben keinen
@@ -558,7 +571,7 @@ export function StudentNotizenTab({
       });
       setComposing(false);
       setDraft(emptyDraft());
-      await revalidateNotes(draft.kind === NOTE_KIND_PERMANENT);
+      await notesAfterWrite.refresh(draft.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
       logger.error("student_note_create_failed", {
         error: caught instanceof Error ? caught.message : String(caught),
@@ -584,7 +597,7 @@ export function StudentNotizenTab({
         body: editDraft.body.trim(),
       });
       setEditing(null);
-      await revalidateNotes(
+      await notesAfterWrite.refresh(
         editing.kind === NOTE_KIND_PERMANENT ||
           editDraft.kind === NOTE_KIND_PERMANENT,
       );
@@ -615,7 +628,7 @@ export function StudentNotizenTab({
     try {
       await studentNotesService.remove(studentId, deleteTarget.id);
       setDeleteTarget(null);
-      await revalidateNotes(deleteTarget.kind === NOTE_KIND_PERMANENT);
+      await notesAfterWrite.refresh(deleteTarget.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
       logger.error("student_note_delete_failed", {
         error: caught instanceof Error ? caught.message : String(caught),
@@ -685,7 +698,7 @@ export function StudentNotizenTab({
     </InsetPanel>
   );
 
-  if (error && !isLoading) {
+  if (error && !isLoading && data === undefined) {
     return <LoadErrorAlert error={load.error} />;
   }
 
@@ -704,6 +717,8 @@ export function StudentNotizenTab({
       }
     >
       <div ref={formAreaRef} className="space-y-6">
+        {data === undefined ? null : <LoadErrorAlert error={load.error} />}
+        <LoadErrorAlert error={notesAfterWrite.error} />
         <FormErrorAlert message={formErrors.error} />
 
         {composing ? (
