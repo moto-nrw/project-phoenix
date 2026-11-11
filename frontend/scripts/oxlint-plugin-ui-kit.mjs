@@ -5883,26 +5883,31 @@ function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
   );
 }
 
-function hasSpreadThatMaySetTooltip(openingElement) {
-  return openingElement.attributes.some((attribute) => {
-    if (attribute.type !== "JSXSpreadAttribute") return false;
+function tooltipFromSpread(openingElement) {
+  let unknownSpread = false;
+  for (const attribute of openingElement.attributes) {
+    if (attribute.type !== "JSXSpreadAttribute") continue;
     const argument = attribute.argument;
-    if (argument?.type !== "ObjectExpression") return true;
-    return argument.properties.some(
-      (property) =>
-        property.type === "SpreadElement" ||
-        ["tooltip", "noTooltip"].includes(propertyName(property)),
-    );
-  });
+    if (argument?.type !== "ObjectExpression") {
+      unknownSpread = true;
+      continue;
+    }
+    for (const property of argument.properties) {
+      if (property.type === "SpreadElement") {
+        unknownSpread = true;
+        continue;
+      }
+      const name = propertyName(property);
+      if (name === "tooltip" || name === "noTooltip") {
+        return { name, node: property, value: property.value };
+      }
+    }
+  }
+  return unknownSpread ? { name: null } : null;
 }
 
-/** Static string of an attribute, also from a template without expressions. */
-function staticAttributeText(attribute) {
-  const value = attribute?.value;
-  if (!value) return null;
-  if (value.type === "Literal") return String(value.value);
-  if (value.type !== "JSXExpressionContainer") return null;
-  const expression = value.expression;
+/** Static string of an expression, also from a template without expressions. */
+function staticExpressionText(expression) {
   if (expression.type === "Literal") return String(expression.value);
   if (
     expression.type === "TemplateLiteral" &&
@@ -5913,14 +5918,21 @@ function staticAttributeText(attribute) {
   return null;
 }
 
-function isBlankAttribute(attribute) {
-  if (!attribute.value) return true;
-  const expression = attribute.value.expression;
+function isBlankExpression(expression) {
   if (expression?.type === "Identifier" && expression.name === "undefined") {
     return true;
   }
-  const text = staticAttributeText(attribute);
+  const text = expression ? staticExpressionText(expression) : null;
   return text !== null && text.trim() === "";
+}
+
+function isBlankAttribute(attribute) {
+  if (!attribute.value) return true;
+  if (attribute.value.type === "Literal") {
+    return String(attribute.value.value).trim() === "";
+  }
+  if (attribute.value.type !== "JSXExpressionContainer") return false;
+  return isBlankExpression(attribute.value.expression);
 }
 
 function usesButtonClassName(node, bindings, constants, depth = 0) {
@@ -6058,7 +6070,27 @@ const buttonNeedsTooltip = {
             }
             return;
           }
-          if (hasSpreadThatMaySetTooltip(node)) return;
+          const tooltipSpread = tooltipFromSpread(node);
+          if (tooltipSpread) {
+            if (
+              tooltipSpread.name === "tooltip" &&
+              isBlankExpression(tooltipSpread.value)
+            ) {
+              context.report({
+                node: tooltipSpread.node,
+                messageId: "emptyTooltip",
+              });
+            } else if (
+              tooltipSpread.name === "noTooltip" &&
+              isBlankExpression(tooltipSpread.value)
+            ) {
+              context.report({
+                node: tooltipSpread.node,
+                messageId: "emptyReason",
+              });
+            }
+            return;
+          }
           context.report({ node, messageId: "missing" });
           return;
         }

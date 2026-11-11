@@ -4583,6 +4583,10 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     ],
     ["spread props", `<Button {...props}>Weiter</Button>`],
     [
+      "a tooltip from a spread object literal",
+      `<Button {...{ tooltip: "Öffnet die Akte." }}>Akte</Button>`,
+    ],
+    [
       "noTooltip with a reason",
       `<Button noTooltip="Abbrechen schließt nur den Dialog.">Abbrechen</Button>`,
     ],
@@ -4620,6 +4624,26 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
       "a spread object literal without tooltip",
       `<Button {...{ type: "button" as const }}>Senden</Button>`,
       "Knopf ohne Erklärung",
+    ],
+    [
+      "an empty tooltip in a spread object literal",
+      `<Button {...{ tooltip: "" }}>Löschen</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "an undefined tooltip in a spread object literal",
+      `<Button {...{ tooltip: undefined }}>Löschen</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "an empty noTooltip reason in a spread object literal",
+      `<Button {...{ noTooltip: "" }}>Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "an undefined noTooltip reason in a spread object literal",
+      `<Button {...{ noTooltip: undefined }}>Abbrechen</Button>`,
+      "braucht einen Grund",
     ],
     [
       "a button-looking anchor without ActionHint",
