@@ -480,7 +480,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Bitte wählen Sie, ob Ihr Kind in den Ferien Betreuung braucht.",
       "enrollment.holiday_child_day_limit":
-        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. {elsewhere, plural, =0 {Gewählt sind {days}.} one {Mit einer anderen Anmeldung dieses Kindes wären es {days} Tage. Dort ist schon # Tag angemeldet.} other {Mit anderen Anmeldungen dieses Kindes wären es {days} Tage. Dort sind schon # Tage angemeldet.}} Bitte wählen Sie weniger Tage.",
+        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Insgesamt wären es {days} Tage. Davon in anderen Anmeldungen: {elsewhere}. Bitte wählen Sie weniger Tage.",
       "enrollment.holiday_form_field_not_allowed":
         "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
       "enrollment.holiday_guest_group_invalid":
@@ -2223,7 +2223,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Please choose whether your child needs care during the holidays.",
       "enrollment.holiday_child_day_limit":
-        "In these holidays a child can come on at most {limit} days. {elsewhere, plural, =0 {{days} are chosen.} one {With another registration of this child it would be {days} days. # day is already registered there.} other {With other registrations of this child it would be {days} days. # days are already registered there.}} Please choose fewer days.",
+        "In these holidays a child can come on at most {limit} days. The total would be {days} days. Days in other registrations: {elsewhere}. Please choose fewer days.",
       "enrollment.holiday_guest_group_invalid":
         "This group no longer exists. Please choose another group.",
       "enrollment.holiday_guest_not_found":
@@ -2880,7 +2880,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Пожалуйста, укажите, нужен ли вашему ребёнку присмотр во время каникул.",
       "enrollment.holiday_child_day_limit":
-        "В эти каникулы ребёнок может прийти не больше {limit} дней. {elsewhere, plural, =0 {Выбрано: {days}.} other {Вместе с другой заявкой этого ребёнка будет {days} дн. Там уже записано дней: #.}} Выберите меньше дней.",
+        "В эти каникулы ребёнок может прийти не больше {limit} дней. Всего будет дней: {days}. Из них в других заявках: {elsewhere}. Выберите меньше дней.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
       "enrollment.holiday_registration_form_changed":
@@ -3450,7 +3450,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Ju lutemi zgjidhni nëse fëmija juaj ka nevojë për kujdes gjatë pushimeve.",
       "enrollment.holiday_child_day_limit":
-        "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. {elsewhere, plural, =0 {Janë zgjedhur {days}.} other {Bashkë me një regjistrim tjetër të këtij fëmije do të ishin {days} ditë. Atje janë regjistruar tashmë # ditë.}} Ju lutemi zgjidhni më pak ditë.",
+        "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Gjithsej do të ishin {days} ditë. Ditë në regjistrime të tjera: {elsewhere}. Ju lutemi zgjidhni më pak ditë.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
       "enrollment.holiday_registration_form_changed":
@@ -4014,7 +4014,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Proszę wybrać, czy Państwa dziecko potrzebuje opieki w czasie ferii.",
       "enrollment.holiday_child_day_limit":
-        "W te ferie dziecko może przyjść najwyżej {limit} dni. {elsewhere, plural, =0 {Wybrano {days}.} other {Razem z innym zgłoszeniem tego dziecka byłoby to {days} dni. Tam zgłoszono już dni: #.}} Wybierz mniej dni.",
+        "W te ferie dziecko może przyjść najwyżej {limit} dni. Łącznie byłoby to {days} dni. Dni w innych zgłoszeniach: {elsewhere}. Wybierz mniej dni.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
       "enrollment.holiday_registration_form_changed":
@@ -4580,7 +4580,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Lütfen çocuğunuzun tatilde bakıma ihtiyacı olup olmadığını seçin.",
       "enrollment.holiday_child_day_limit":
-        "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. {elsewhere, plural, =0 {{days} gün seçildi.} other {Bu çocuğun diğer kaydıyla birlikte {days} gün olurdu. Orada zaten # gün kayıtlı.}} Lütfen daha az gün seçin.",
+        "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. Toplam {days} gün olurdu. Diğer kayıtlardaki gün sayısı: {elsewhere}. Lütfen daha az gün seçin.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
       "enrollment.holiday_registration_form_changed":
@@ -5139,7 +5139,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Будь ласка, вкажіть, чи потрібен вашій дитині догляд під час канікул.",
       "enrollment.holiday_child_day_limit":
-        "У ці канікули дитина може прийти не більше {limit} днів. {elsewhere, plural, =0 {Обрано: {days}.} other {Разом з іншою заявкою цієї дитини було б {days} дн. Там уже записано днів: #.}} Оберіть менше днів.",
+        "У ці канікули дитина може прийти не більше {limit} днів. Загалом буде днів: {days}. З них в інших заявках: {elsewhere}. Оберіть менше днів.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
       "enrollment.holiday_registration_form_changed":

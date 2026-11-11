@@ -148,7 +148,7 @@
   "holiday_registration_state_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_week_booked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_booking_unit_booked": "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
-  "holiday_child_day_limit": "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. {elsewhere, plural, =0 {Janë zgjedhur {days}.} other {Bashkë me një regjistrim tjetër të këtij fëmije do të ishin {days} ditë. Atje janë regjistruar tashmë # ditë.}} Ju lutemi zgjidhni më pak ditë.",
+  "holiday_child_day_limit": "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Gjithsej do të ishin {days} ditë. Ditë në regjistrime të tjera: {elsewhere}. Ju lutemi zgjidhni më pak ditë.",
   "holiday_weeks_booked_together": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "holiday_week_day_limit": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "hosted_holiday_week_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

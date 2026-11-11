@@ -3,6 +3,24 @@ import { ApiError } from "./api-error";
 import { presentError } from "./error-presentation";
 
 describe("presentError", () => {
+  it.each(["de", "en", "pl", "ru", "sq", "tr", "uk"] as const)(
+    "formats the holiday day limit and other registrations in %s",
+    (locale) => {
+      for (const elsewhere of [0, 1, 3]) {
+        const error = new ApiError("internal day limit diagnostic", 409, {
+          code: "enrollment.holiday_child_day_limit",
+          details: { limit: 5, days: 8, elsewhere, child: "child-17" },
+        });
+        const result = presentError(error, "die Anmeldung", locale);
+        expect(result.message).toContain("5");
+        expect(result.message).toContain("8");
+        expect(result.message).toContain(String(elsewhere));
+        expect(result.message).not.toMatch(/[{}#]|plural|child-17|diagnostic/);
+        expect(result.retryable).toBe(false);
+      }
+    },
+  );
+
   it.each([
     [
       "display.manage_forbidden",

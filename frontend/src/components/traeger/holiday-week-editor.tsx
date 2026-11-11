@@ -18,13 +18,11 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TimeField } from "~/components/ui/time-field";
 import { formatDate } from "~/lib/date-helpers";
+import { bookableHolidayDays, holidayCareDays } from "~/lib/holiday-days";
 import type { HolidayBookingUnit, TraegerSchool } from "~/lib/traeger-api";
 import { formatDayWithWeekday } from "./closing-day-format";
 import type { WeekNoCareDays } from "./use-week-no-care-days";
-import {
-  bookableHolidayDays,
-  HolidayWeekCareDays,
-} from "./holiday-week-care-days";
+import { HolidayDayPlacesGrid } from "./holiday-week-places";
 import {
   emptyTimeModel,
   MAX_TIME_MODELS_PER_WEEK,
@@ -350,9 +348,8 @@ export function HolidayWeekEditor({
             {bookingUnitHint(week.bookingUnit ?? "week", booked)}
           </p>
           {week.bookingUnit === "day" && week.startsOn && week.endsOn ? (
-            <HolidayWeekCareDays
-              startsOn={week.startsOn}
-              endsOn={week.endsOn}
+            <HolidayDayPlacesGrid
+              dates={holidayCareDays(week.startsOn, week.endsOn)}
               noCareDays={noCareDays?.days ?? []}
               labelId={`${prefix}.care_days-label`}
             />

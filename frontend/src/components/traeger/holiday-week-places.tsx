@@ -161,23 +161,35 @@ export function HolidayWeekPlacesCard({
  * mit vergebenen Plätzen und Balken. Ein voller Tag ist orange. Ein Tag ohne
  * Betreuung (#6447) ist grau und nennt den Grund statt einer Belegung.
  */
-function HolidayDayPlacesGrid({
+export function HolidayDayPlacesGrid({
   week,
+  dates,
   noCareDays,
-}: Readonly<{
-  week: HolidayWeekPlaces;
-  noCareDays: readonly HolidayNoCareDay[];
-}>) {
-  const capacity = week.capacity;
+  labelId,
+}: Readonly<
+  { noCareDays: readonly HolidayNoCareDay[] } & (
+    | { week: HolidayWeekPlaces; dates?: never; labelId?: never }
+    | { week?: never; dates: readonly string[]; labelId: string }
+  )
+>) {
+  const capacity = week?.capacity ?? null;
+  const days = week?.days ?? dates?.map((date) => ({ date, placed: 0 })) ?? [];
+  if (!week && days.length === 0) return null;
+  const heading = week
+    ? capacity === null
+      ? "Angemeldete Kinder je Tag"
+      : `Plätze je Tag · ${capacity} ${capacity === 1 ? "Platz" : "Plätze"} an jedem Tag`
+    : `Buchbare Tage · ${days.filter((day) => !noCareDays.some((none) => none.date === day.date)).length} von ${days.length}`;
   return (
     <div className="space-y-2">
-      <SectionLabel as="h3">
-        {capacity === null
-          ? "Angemeldete Kinder je Tag"
-          : `Plätze je Tag · ${capacity} ${capacity === 1 ? "Platz" : "Plätze"} an jedem Tag`}
+      <SectionLabel as={week ? "h3" : "p"} id={labelId}>
+        {heading}
       </SectionLabel>
-      <ul className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-5">
-        {(week.days ?? []).map((day) => {
+      <ul
+        aria-labelledby={labelId}
+        className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-5"
+      >
+        {days.map((day) => {
           const none = noCareDays.find((d) => d.date === day.date);
           if (none && day.placed === 0) {
             const reason = none.kind === "holiday" ? "Feiertag" : "Schließtag";
@@ -191,6 +203,21 @@ function HolidayDayPlacesGrid({
                   value="–"
                   hint={`${reason}: ${none.name}`}
                   tone="gray"
+                />
+              </li>
+            );
+          }
+          if (!week) {
+            return (
+              <li
+                key={day.date}
+                aria-label={`${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}: buchbar`}
+              >
+                <StatCard
+                  label={`${holidayWeekdayShort(day.date)} ${holidayDayDate(day.date)}`}
+                  value="✓"
+                  hint="buchbar"
+                  tone="green"
                 />
               </li>
             );

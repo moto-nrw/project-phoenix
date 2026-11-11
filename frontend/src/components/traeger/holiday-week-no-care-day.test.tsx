@@ -7,7 +7,7 @@ import { HolidayWeekEditor } from "./holiday-week-editor";
 import { holidayWeekFill } from "./holiday-week-places";
 
 // A statutory holiday in a week by days (#6447): the Träger-Büro sees the
-// week with the day struck through and is told that only that day falls
+// week with the day marked as unavailable and is told that only that day falls
 // away; a whole week keeps the warning and names the way out.
 
 const epiphany: HolidayNoCareDay = {
@@ -43,7 +43,7 @@ function renderEditor(draft: WeekDraft, days: readonly HolidayNoCareDay[]) {
 }
 
 describe("holiday week editor with a day without care", () => {
-  it("strikes the holiday through and keeps the other days of a week by days", () => {
+  it("names the holiday and keeps the other days of a week by days", () => {
     renderEditor(week("day"), [epiphany]);
     expect(
       screen.getByText(
@@ -53,11 +53,15 @@ describe("holiday week editor with a day without care", () => {
     const days = screen.getByRole("list", { name: /Buchbare Tage · 4 von 5/ });
     expect(
       within(days).getByLabelText(
-        "Mi 06.01.: keine Betreuung, Feiertag (Heilige Drei Könige)",
+        "Mittwoch, 06.01.: keine Betreuung, Feiertag (Heilige Drei Könige)",
       ),
     ).toBeInTheDocument();
     expect(
-      within(days).getByLabelText("Do 07.01.: buchbar"),
+      within(days).getByText("Feiertag: Heilige Drei Könige"),
+    ).toBeInTheDocument();
+    expect(within(days).getAllByText("buchbar")).toHaveLength(4);
+    expect(
+      within(days).getByLabelText("Donnerstag, 07.01.: buchbar"),
     ).toBeInTheDocument();
   });
 
