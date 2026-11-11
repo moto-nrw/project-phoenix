@@ -1922,7 +1922,7 @@ describe("OperatorOrganizationDetailPage", () => {
       "keeps the confirmed rows of %s when their reload fails",
       async (tab, opts, object, row) => {
         currentSearchParams = new URLSearchParams(`tab=${tab}`);
-        setupSWR(opts as SetupOpts);
+        setupSWR(opts as unknown as SetupOpts);
 
         await renderPage();
 

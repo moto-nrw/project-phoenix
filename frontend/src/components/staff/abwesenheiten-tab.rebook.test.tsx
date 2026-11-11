@@ -106,7 +106,9 @@ import { AbwesenheitenTab } from "./abwesenheiten-tab";
 
 // #6652: the second load of the tab (the reload after the write) fails once.
 function failSecondLoad(mock: ReturnType<typeof vi.fn>) {
-  const original = mock.getMockImplementation()!;
+  const original = mock.getMockImplementation() as (
+    ...args: unknown[]
+  ) => unknown;
   let calls = 0;
   mock.mockImplementation((...args: unknown[]) => {
     calls += 1;
