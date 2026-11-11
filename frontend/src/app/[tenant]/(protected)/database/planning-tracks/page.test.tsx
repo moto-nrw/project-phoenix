@@ -7,6 +7,8 @@ import { ApiError } from "~/lib/api-error";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 import { catalogText } from "~/test/error-catalog-text";
 
+vi.mock("~/lib/swr/hooks", () => ({ useDiscardRefusedEntity: () => vi.fn() }));
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),

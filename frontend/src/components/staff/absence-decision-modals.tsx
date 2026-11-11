@@ -8,6 +8,7 @@ import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { absenceRowLabel, formatAbsenceRange } from "~/lib/absence-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   staffAbsenceService,
@@ -50,7 +51,9 @@ function AbsenceNoteModal({
   readonly successMessage: string;
   readonly logEvent: string;
   readonly onClose: () => void;
-  readonly onDone: () => void | Promise<void>;
+  /** Closes the dialog; a reload goes through `useRefreshAfterWrite` and
+   *  never rejects (#6652). */
+  readonly onDone: () => void | ReturnType<RefreshAfterWrite>;
 }) {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -70,8 +73,6 @@ function AbsenceNoteModal({
     setSubmitting(true);
     try {
       await onSubmitNote(note.trim());
-      toast.success(successMessage);
-      await onDone();
     } catch (err) {
       logger.error(logEvent, {
         absence_id: String(absence.id),
@@ -81,9 +82,12 @@ function AbsenceNoteModal({
         object: "die Anfrage",
         retry: () => void latestSubmitRef.current(),
       });
-    } finally {
       setSubmitting(false);
+      return;
     }
+    setSubmitting(false);
+    toast.success(successMessage);
+    await onDone();
   };
 
   useLayoutEffect(() => {
@@ -148,7 +152,7 @@ export function DenyAbsenceModal({
 }: {
   readonly absence: AbsenceDecisionRow | StaffAbsenceRequestRow;
   readonly onClose: () => void;
-  readonly onDenied: () => void | Promise<void>;
+  readonly onDenied: () => void | ReturnType<RefreshAfterWrite>;
 }) {
   return (
     <AbsenceNoteModal
@@ -174,7 +178,7 @@ export function QuestionAbsenceModal({
 }: {
   readonly absence: AbsenceDecisionRow | StaffAbsenceRequestRow;
   readonly onClose: () => void;
-  readonly onQuestioned: () => void | Promise<void>;
+  readonly onQuestioned: () => void | ReturnType<RefreshAfterWrite>;
 }) {
   return (
     <AbsenceNoteModal

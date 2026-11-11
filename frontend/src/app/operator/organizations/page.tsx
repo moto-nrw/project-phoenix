@@ -1,8 +1,9 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
@@ -12,6 +13,10 @@ import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { formatCount } from "~/lib/format-utils";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
@@ -42,7 +47,7 @@ export default function OperatorOrganizationsPage() {
   const [createTestOpen, setCreateTestOpen] = useState(false);
 
   const {
-    data: organizations,
+    data: cachedOrganizations,
     error: orgsError,
     isLoading: orgsLoading,
     mutate: mutateOrgs,
@@ -55,9 +60,15 @@ export default function OperatorOrganizationsPage() {
       dedupingInterval: 5000,
     },
   );
+  const { data: organizations, accessRefused: organizationsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
+      cachedOrganizations,
+      orgsError,
+    );
 
   const {
-    data: stats,
+    data: cachedStats,
     error: statsError,
     mutate: mutateStats,
   } = useSWRAuth(
@@ -69,10 +80,16 @@ export default function OperatorOrganizationsPage() {
       dedupingInterval: 5000,
     },
   );
+  const { data: stats } = useAccessControlledData(
+    isAuthenticated ? operatorProvisioningKeys.provisioningStats() : null,
+    cachedStats,
+    statsError,
+  );
   const orgsLoadError = useSwrLoadError(
     orgsError,
     "die Liste der Träger",
     () => void mutateOrgs(),
+    organizations?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const statsLoadError = useSwrLoadError(
     statsError,
@@ -83,6 +100,12 @@ export default function OperatorOrganizationsPage() {
   const refreshAll = useCallback(async () => {
     await Promise.all([mutateOrgs(), mutateStats()]);
   }, [mutateOrgs, mutateStats]);
+  // The new Träger loads after the write; a failure stands above the list,
+  // also after the dialog closed (#6652).
+  const createdAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Träger",
+    refreshAll,
+  );
 
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
@@ -103,6 +126,7 @@ export default function OperatorOrganizationsPage() {
       restore: "die Wiederherstellung des Trägers",
     },
     logEventPrefix: "organization",
+    reloadObject: "die Anzeige der Träger",
   });
 
   const orgDeleteTargetHasSchools = useMemo(() => {
@@ -110,6 +134,18 @@ export default function OperatorOrganizationsPage() {
     if (!target) return false;
     return target.schulenCount > 0;
   }, [orgDelete.deleteTarget]);
+
+  const {
+    setDeleteTarget: setOrgDeleteTarget,
+    setRestoreTarget: setOrgRestoreTarget,
+  } = orgDelete;
+  useLayoutEffect(() => {
+    if (!organizationsAccessRefused) return;
+    setCreateOrgOpen(false);
+    setCreateTestOpen(false);
+    setOrgDeleteTarget(null);
+    setOrgRestoreTarget(null);
+  }, [organizationsAccessRefused, setOrgDeleteTarget, setOrgRestoreTarget]);
 
   const count = organizations?.length;
 
@@ -205,7 +241,7 @@ export default function OperatorOrganizationsPage() {
           <TenantPageStats items={[{ value: count, label: "Träger" }]} />
         )
       }
-      actions={actionButton}
+      actions={organizationsAccessRefused ? undefined : actionButton}
       overlays={
         <>
           {orgDelete.deleteTarget && (
@@ -243,7 +279,7 @@ export default function OperatorOrganizationsPage() {
           <CreateOrganizationModal
             isOpen={createOrgOpen}
             onClose={() => setCreateOrgOpen(false)}
-            onCreated={() => refreshAll().then(() => undefined)}
+            onCreated={createdAfterWrite.refresh}
           />
         </>
       }
@@ -276,6 +312,8 @@ export default function OperatorOrganizationsPage() {
 
       <div>
         <LoadErrorAlert error={orgsLoadError} />
+        <LoadErrorAlert error={orgDelete.reloadError} />
+        <LoadErrorAlert error={createdAfterWrite.error} />
         {deletedOrganizations.length > 0 && (
           <div className="mb-4 flex justify-end">
             <TrashToggleButton
@@ -309,7 +347,7 @@ export default function OperatorOrganizationsPage() {
             onAction={() => setCreateOrgOpen(true)}
           />
         ) : (organizations === undefined && !orgsLoading) ||
-          orgsError ? null : (
+          (orgsError && !organizations?.length) ? null : (
           <DataTable
             columns={columns}
             rows={activeOrganizations}

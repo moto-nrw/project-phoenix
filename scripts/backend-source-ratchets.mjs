@@ -29,6 +29,7 @@ export const sourceRatchets = [
   entry('test_skip_ratchet', 'TestTestSkipRatchet', go),
   entry('account_credential_writer', 'TestAccountCredentialHasOneWriter', production),
   entry('ordered_lock_acquirers', 'TestOrderedLocksHaveOneAcquirer', production),
+  entry('row_lock_admission', 'TestRowLocksAreAdmittedThroughTheLockOrder', production),
   entry('phase_bounds_reader_guard', 'TestPhaseBoundsWritersUseTheLockedReader TestPhaseBoundsGuardDetectsBypasses', production),
   entry('operator_credential_writer', 'TestOperatorCredentialHasOneWriter TestOperatorCredentialStatementRecognizesWriters', production),
   entry('gdpr_log_pii_ratchet', 'TestGDPRLogPIIRatchet', production),

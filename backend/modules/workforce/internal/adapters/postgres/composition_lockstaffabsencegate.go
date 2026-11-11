@@ -16,6 +16,9 @@ func LockStaffAbsenceGate(ctx context.Context, staffID int64, lock func(context.
 	if tenantID <= 0 {
 		return errors.New("workforce compose: tenant id is required")
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, true)); err != nil {
+		return fmt.Errorf("lock staff absence writes: %w", err)
+	}
 	if err := lock(ctx, fmt.Sprintf("staff-absence:%d:%d", tenantID, staffID)); err != nil {
 		return fmt.Errorf("lock staff absence writes: %w", err)
 	}

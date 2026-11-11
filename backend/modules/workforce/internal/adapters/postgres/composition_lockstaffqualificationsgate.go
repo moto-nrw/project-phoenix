@@ -16,6 +16,9 @@ func LockStaffQualificationsGate(ctx context.Context, staffID int64, lock func(c
 	if tenantID <= 0 {
 		return errors.New("workforce compose: tenant id is required")
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "advisory:staff-qualifications"); err != nil {
+		return fmt.Errorf("lock staff qualification writes: %w", err)
+	}
 	if err := lock(ctx, fmt.Sprintf("staff-qualifications:%d:%d", tenantID, staffID)); err != nil {
 		return fmt.Errorf("lock staff qualification writes: %w", err)
 	}

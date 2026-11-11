@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 func (s *Store) StaffMergePeople(ctx context.Context, schoolID int64, lock bool) ([]peopledirectory.StaffMergePerson, error) {
@@ -28,6 +29,11 @@ func (s *Store) StaffMergePeople(ctx context.Context, schoolID int64, lock bool)
 		ColumnExpr(`EXISTS (SELECT 1 FROM users.student_profiles child WHERE child.tenant_id = person.tenant_id AND child.person_id = person.id) AS has_student`).
 		Where(`person.tenant_id = ? AND person.deleted_at IS NULL`, schoolID).OrderExpr(`person.id ASC`)
 	if lock {
+		// The merge holds the school's staff rows before their people
+		// (Konto → Schule → Profil, #6702); the people are leaves.
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.persons"); err != nil {
+			return nil, err
+		}
 		query = query.For("UPDATE OF person")
 	}
 	if err := query.Scan(ctx, &rows); err != nil {

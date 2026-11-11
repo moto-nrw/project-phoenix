@@ -14399,6 +14399,51 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RegisterAfterCommit (tenant-runtime) through *modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint for the batch, the SKIP LOCKED row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0213); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint for the batch, the SKIP LOCKED row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0213); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.WithSavepoint (tenant-runtime) through *modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint for the batch, the SKIP LOCKED row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0213); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0213",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Existing StudentPhotoService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0213 approves exactly this binding of the nightly photo care end (#6650) to this observer, without classifying it as a query or guarded leaf.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoCapability.PurgeStudentPhotos",
       "classification": "platform",
       "effect": "scope",
@@ -15068,14 +15113,25 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0213",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "classification": "debt",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). ADR 0213 reviews the constructor extension binding QueueAll alongside Queue: the single-file command, its URL validation, tenant scope and error propagation remain unchanged; the extra binding introduces no new single-file protocol.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "reason": "Guarded File Storage command participation (ADR 0067): QueueAll validates and deduplicates managed upload URLs and records durable cleanup intents in the same tenant transaction in one statement. The root binds the consumer-owned photo runtime port; File Storage retains validation and mutation, with no foreign-state reads, coordinated locks or after-commit work in the command (#6650, ADR 0213).",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {
@@ -16602,14 +16658,25 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0213",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "classification": "debt",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). ADR 0213 reviews the constructor extension binding QueueAll alongside Queue: the single-file command, its URL validation, tenant scope and error propagation remain unchanged; the extra binding introduces no new single-file protocol.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "reason": "Guarded File Storage command participation (ADR 0067): QueueAll validates and deduplicates managed upload URLs and records durable cleanup intents in the same tenant transaction in one statement. The root binds the consumer-owned photo runtime port; File Storage retains validation and mutation, with no foreign-state reads, coordinated locks or after-commit work in the command (#6650, ADR 0213).",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {
@@ -17464,14 +17531,25 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0213",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "classification": "debt",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). ADR 0213 reviews the constructor extension binding QueueAll alongside Queue: the single-file command, its URL validation, tenant scope and error propagation remain unchanged; the extra binding introduces no new single-file protocol.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "reason": "Guarded File Storage command participation (ADR 0067): QueueAll validates and deduplicates managed upload URLs and records durable cleanup intents in the same tenant transaction in one statement. The root binds the consumer-owned photo runtime port; File Storage retains validation and mutation, with no foreign-state reads, coordinated locks or after-commit work in the command (#6650, ADR 0213).",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {

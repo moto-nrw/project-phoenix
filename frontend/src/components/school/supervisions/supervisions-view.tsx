@@ -23,6 +23,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { BackAction } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
@@ -244,9 +245,17 @@ export function SchoolSupervisionsView() {
     [showActionError],
   );
 
-  const refreshAll = useCallback(async () => {
-    await Promise.all([reloadList(), reloadRoster()]);
-  }, [reloadList, reloadRoster]);
+  // Nachladen nach einer Aktion: ein Fehler dabei ist ein Ladefehler über
+  // der Aufsicht, kein Fehler der Aktion, und „Wiederholen“ lädt nur (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Aufsicht",
+    async (scope: "all" | "list" = "all") => {
+      await (scope === "list"
+        ? reloadList()
+        : Promise.all([reloadList(), reloadRoster()]));
+    },
+  );
+  const refreshAll = afterWrite.refresh;
 
   const handleStart = useCallback(
     async (instance: PlannedTimetableInstance) => {
@@ -256,7 +265,7 @@ export function SchoolSupervisionsView() {
         // Zurück auf "der Tag entscheidet": die Aufsicht läuft jetzt und ist
         // damit von selbst die, die die Seite zeigt.
         setIntent(AUTO_VIEW);
-        await Promise.all([reloadList(), reloadRoster()]);
+        await afterWrite.refresh();
       } catch (err) {
         report("supervision_start_failed", err, "die Aufsicht", () =>
           retryRef.current.start(instance),
@@ -265,7 +274,7 @@ export function SchoolSupervisionsView() {
         setBusyId(null);
       }
     },
-    [reloadList, reloadRoster, report],
+    [afterWrite, report],
   );
 
   const handleRosterAction = useCallback(
@@ -349,7 +358,7 @@ export function SchoolSupervisionsView() {
       await schoolSupervisionsApi.complete(openId, present);
       // Nichts läuft mehr, also zeigt die Seite wieder den Tag.
       setIntent(AUTO_VIEW);
-      await reloadList();
+      await afterWrite.refresh("list");
     } catch (err) {
       report(
         "supervision_complete_failed",
@@ -360,7 +369,7 @@ export function SchoolSupervisionsView() {
     } finally {
       setBusyId(null);
     }
-  }, [openId, reloadList, report, roster]);
+  }, [afterWrite, openId, report, roster]);
 
   useLayoutEffect(() => {
     retryRef.current = {
@@ -418,6 +427,7 @@ export function SchoolSupervisionsView() {
       }
     >
       <LoadErrorAlert error={listLoadError} />
+      <LoadErrorAlert error={afterWrite.error} />
       {openInstance && wantsRoster ? (
         <LoadErrorAlert error={rosterLoadError} />
       ) : null}

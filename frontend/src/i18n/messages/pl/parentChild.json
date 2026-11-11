@@ -46,8 +46,9 @@
   "consents": {
     "title": "Zgody i potwierdzenia",
     "description": "Tutaj widzą Państwo, co jest zapisane dla Państwa dziecka.",
-    "staffDescription": "Tylko do wiadomości. Rodzice zmieniają zgodę na zdjęcia w portalu dla rodziców.",
+    "staffDescription": "Rodzice zmieniają zgodę na zdjęcia w portalu dla rodziców. Rodzice bez portalu informują Państwa. Wtedy usuń zaznaczenie przy zdjęciu w „Bearbeiten”.",
     "photoDescription": "Zgodę na zdjęcia mogą Państwo zmienić tutaj.",
+    "photoViaCareDescription": "Aby wycofać zgodę na zdjęcia, skontaktuj się z {careTerm}.",
     "items": {
       "agb": "Ogólne warunki umowy (regulamin)",
       "data_processing": "Zapoznano się z informacją o ochronie danych",

@@ -42,6 +42,7 @@ import {
 import { absenceRequestFor, selectValueFor } from "~/lib/absence-type-select";
 import type { AbsenceType } from "~/lib/absence-type-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   staffAbsenceService,
@@ -135,7 +136,8 @@ export function AbsenceRebookModal({
   readonly types: readonly AbsenceType[];
   readonly absences: readonly StaffAbsenceRow[];
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<void>;
+  /** Closes the dialog and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const toast = useToast();
   // Eine Art, die einer der gewählten Einträge schon hat, würde die gesamte
@@ -295,7 +297,6 @@ export function AbsenceRebookModal({
           ? `Der Eintrag ist jetzt ${selected.label}.`
           : `${absences.length} Einträge sind jetzt ${selected.label}.`,
       );
-      await onSaved();
     } catch (error) {
       logger.error("rebooking_failed", {
         staff_id: staff.id,
@@ -306,9 +307,11 @@ export function AbsenceRebookModal({
         object: "die Änderung der Art",
         retry: () => void latestSaveRef.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    await onSaved();
   };
 
   useLayoutEffect(() => {

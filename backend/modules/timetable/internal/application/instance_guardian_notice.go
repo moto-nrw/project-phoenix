@@ -57,7 +57,7 @@ func (s *InstanceLifecycleService) CancelWithNotice(ctx context.Context, in time
 			return nil, err
 		}
 	}
-	instance, err := s.cancel(ctx, in.InstanceID, in.Reason, in.ActorAccountID)
+	instance, err := s.cancel(ctx, in.InstanceID, in.Reason, in.ActorAccountID, true)
 	if err != nil {
 		return nil, err
 	}

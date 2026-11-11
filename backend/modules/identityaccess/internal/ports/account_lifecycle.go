@@ -42,6 +42,11 @@ type StaffDirectory interface {
 	LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	IsStudentPerson(ctx context.Context, personID int64) (bool, error)
 	FindStaffByPerson(ctx context.Context, personID int64) (domain.StaffMember, bool, error)
+	// LockStaffPersonMerge shares the school's staff person merge gate for
+	// the caller's transaction. The identity chain takes it before it writes
+	// a person or a staff row (#6702): the merge holds it exclusively while it
+	// locks the school's staff rows and then their people.
+	LockStaffPersonMerge(ctx context.Context) error
 	CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)

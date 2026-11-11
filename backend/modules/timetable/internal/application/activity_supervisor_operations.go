@@ -23,6 +23,9 @@ func (s *ActivityService) AddSupervisor(ctx context.Context, groupID int64, staf
 // addSupervisorInTx contains the transaction logic for adding a supervisor
 func (s *ActivityService) addSupervisorInTx(ctx context.Context, txService activityContract.ActivityService, groupID, staffID int64, isPrimary bool) (*activityContract.SupervisorPlanned, error) {
 	txActivities := txService.(*ActivityService)
+	if err := txActivities.lockActivitySupervisorStaff(ctx, groupID, staffID); err != nil {
+		return nil, err
+	}
 	if _, err := txService.(*ActivityService).findMutableActivityGroup(ctx, groupID); err != nil {
 		return nil, err
 	}
@@ -158,6 +161,9 @@ func (s *ActivityService) UpdateSupervisor(ctx context.Context, supervisor *acti
 	if err != nil {
 		return nil, &activityContract.ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
+	if err := s.lockActivitySupervisorStaff(ctx, existingSupervisor.GroupID, supervisor.StaffID); err != nil {
+		return nil, &activityContract.ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
 	if _, err := s.findMutableActivityGroup(ctx, existingSupervisor.GroupID); err != nil {
 		return nil, &activityContract.ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
@@ -233,6 +239,9 @@ func (s *ActivityService) DeleteSupervisor(ctx context.Context, id int64) error 
 		if isRepositoryNotFound(err) {
 			return &activityContract.ActivityError{Op: opDeleteSupervisor, Err: activityContract.ErrSupervisorNotFound}
 		}
+		return &activityContract.ActivityError{Op: opDeleteSupervisor, Err: err}
+	}
+	if err := s.lockActivitySupervisorStaff(ctx, supervisor.GroupID); err != nil {
 		return &activityContract.ActivityError{Op: opDeleteSupervisor, Err: err}
 	}
 	if _, err := s.findMutableActivityGroup(ctx, supervisor.GroupID); err != nil {
@@ -401,6 +410,9 @@ func (s *ActivityService) SetPrimarySupervisor(ctx context.Context, id int64) er
 		}
 		return &activityContract.ActivityError{Op: "set primary supervisor", Err: err}
 	}
+	if err := s.lockActivitySupervisorStaff(ctx, supervisor.GroupID); err != nil {
+		return &activityContract.ActivityError{Op: "set primary supervisor", Err: err}
+	}
 	if _, err := s.findMutableActivityGroup(ctx, supervisor.GroupID); err != nil {
 		return &activityContract.ActivityError{Op: "set primary supervisor", Err: err}
 	}
@@ -437,6 +449,9 @@ func (s *ActivityService) updateSupervisorPrimaryStatusInTx(ctx context.Context,
 // UpdateGroupSupervisors updates the supervisors for a group
 // This follows the UpdateGroupEnrollments pattern but for supervisors
 func (s *ActivityService) UpdateGroupSupervisors(ctx context.Context, groupID int64, staffIDs []int64) error {
+	if err := s.lockActivitySupervisorStaff(ctx, groupID, staffIDs...); err != nil {
+		return &activityContract.ActivityError{Op: "update group supervisors", Err: err}
+	}
 	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
 		return &activityContract.ActivityError{Op: "UpdateGroupSupervisors", Err: err}

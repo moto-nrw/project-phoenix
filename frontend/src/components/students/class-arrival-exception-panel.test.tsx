@@ -3,6 +3,7 @@ import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { toISODate } from "~/lib/date-helpers";
@@ -24,6 +25,8 @@ const {
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
 }));
+
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 vi.mock("~/lib/student-arrival-api", async () => {
   const actual = await vi.importActual<
@@ -469,6 +472,69 @@ describe("ClassArrivalExceptionPanel", () => {
       expect(
         screen.queryByRole("heading", { name: "Abweichung entfernen?" }),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  // #6652: the day holds once the write is through; a failed reload of the
+  // list is a load error that says the change is saved, never a form error.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Abweichungen")} ${SAVED_BUT_STALE_SUFFIX}`;
+    function failSecondFetch(exceptions: (typeof savedException)[]) {
+      const list = { school_class: "4a", can_edit: true, exceptions };
+      mockFetchExceptions
+        .mockReset()
+        .mockResolvedValueOnce(list)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(list);
+    }
+
+    it("keeps a saved day saved when the reload fails", async () => {
+      failSecondFetch([]);
+      mockUpsert.mockResolvedValue(savedException);
+      render(
+        <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+      );
+      await screen.findByLabelText("Kommt um");
+      fireEvent.change(screen.getByLabelText("Datum"), {
+        target: { value: "2099-03-02" },
+      });
+      fireEvent.change(screen.getByLabelText("Kommt um"), {
+        target: { value: "12:45" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Tag speichern" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Abweichung"),
+        ),
+      ).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockFetchExceptions).toHaveBeenCalledTimes(3));
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a removed day removed when the reload fails", async () => {
+      failSecondFetch([savedException]);
+      mockDelete.mockResolvedValue(undefined);
+      render(
+        <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: /^Aktionen für/ }),
+      );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+      fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Endgültig entfernen" }),
+      );
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockFetchExceptions).toHaveBeenCalledTimes(3));
+      expect(mockDelete).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -30,6 +30,11 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CostBearer,
@@ -152,7 +157,7 @@ function CostBearerCreateModal({
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
-  onSaved: () => Promise<unknown>;
+  onSaved: RefreshAfterWrite;
 }>) {
   const [draft, setDraft] = useState<CostBearerInput>(EMPTY);
   const formRef = useRef<HTMLFormElement>(null);
@@ -224,7 +229,7 @@ function CostBearerEditRow({
 }: Readonly<{
   bearer: CostBearer;
   onDone: () => void;
-  onSaved: () => Promise<unknown>;
+  onSaved: RefreshAfterWrite;
 }>) {
   const [draft, setDraft] = useState<CostBearerInput>(bearer);
   const formRef = useRef<HTMLFormElement>(null);
@@ -285,22 +290,29 @@ export function CostBearersCard({
   const deleteErrors = useApiFormError();
   const { show: showActionError } = useApiErrorDisplay();
   const { success } = useToast();
+  // A write's reload stands above the list as a load error, never as an
+  // error of the write or its closed dialog (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Kostenträger",
+    onChanged,
+  );
 
   const switchActive = async (bearer: CostBearer) => {
     try {
       await saveCostBearer(bearer.id, { ...bearer, active: !bearer.active });
-      success(
-        bearer.active
-          ? "Der Kostenträger ist ausgeschaltet."
-          : "Der Kostenträger ist eingeschaltet.",
-      );
-      await onChanged();
     } catch (err) {
       logger.error("cost_bearer_switch_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, { object: "der Kostenträger" });
+      await showActionError(err, { object: "die Änderung des Kostenträgers" });
+      return;
     }
+    success(
+      bearer.active
+        ? "Der Kostenträger ist ausgeschaltet."
+        : "Der Kostenträger ist eingeschaltet.",
+    );
+    await afterWrite.refresh();
   };
 
   const remove = async () => {
@@ -309,17 +321,18 @@ export function CostBearersCard({
     deleteErrors.clear();
     try {
       await deleteCostBearer(deleting.id);
-      success("Der Kostenträger ist gelöscht.");
-      setDeleting(null);
-      await onChanged();
     } catch (err) {
       logger.error("cost_bearer_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void deleteErrors.show(err, { object: "das Löschen des Kostenträgers" });
-    } finally {
       setBusy(false);
+      return;
     }
+    setBusy(false);
+    success("Der Kostenträger ist gelöscht.");
+    setDeleting(null);
+    await afterWrite.refresh();
   };
 
   return (
@@ -338,6 +351,7 @@ export function CostBearersCard({
         </Button>
       }
     >
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       {bearers.length === 0 ? (
         <EmptyState
           icon={<Building2 className="h-12 w-12" aria-hidden="true" />}
@@ -351,7 +365,7 @@ export function CostBearersCard({
                 key={bearer.id}
                 bearer={bearer}
                 onDone={() => setEditingId(null)}
-                onSaved={onChanged}
+                onSaved={afterWrite.refresh}
               />
             ) : (
               <li
@@ -406,7 +420,7 @@ export function CostBearersCard({
       <CostBearerCreateModal
         isOpen={creating}
         onClose={() => setCreating(false)}
-        onSaved={onChanged}
+        onSaved={afterWrite.refresh}
       />
       <ConfirmDeleteModal
         isOpen={deleting !== null}

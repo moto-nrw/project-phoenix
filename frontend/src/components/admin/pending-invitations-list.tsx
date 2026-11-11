@@ -34,6 +34,7 @@ import { mailStatusCopy } from "~/lib/email-delivery-status";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { isValidDateString, isDateExpired } from "~/lib/utils/date-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
@@ -81,7 +82,18 @@ export function PendingInvitationsList({
   const showLoadError = loadError.show;
   const clearLoadError = loadError.clear;
   const latestLoadRef = useRef<() => void>(() => undefined);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const latestRequest = useRef(0);
+  const [actionLoading, setActionLoading] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const setInvitationLoading = (id: number, loading: boolean) => {
+    setActionLoading((current) => {
+      const next = new Set(current);
+      if (loading) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(
     null,
   );
@@ -93,15 +105,31 @@ export function PendingInvitationsList({
   const clearRevokeError = revokeErrors.clear;
   const latestRevokeRef = useRef<() => void>(() => undefined);
 
-  // Never rejects: a failed load shows its error in the card.
-  const loadInvitations = useCallback(async () => {
+  // Rejects on failure: after a write the caller shows it as a reload of a
+  // saved change (#6652).
+  const fetchInvitations = useCallback(async () => {
+    const request = ++latestRequest.current;
     try {
-      setIsLoading(true);
       const data = await listPendingInvitations();
+      if (request !== latestRequest.current) return;
       setInvitations(data);
       setLoadFailed(false);
       clearLoadError();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    } finally {
+      if (request === latestRequest.current) setIsLoading(false);
+    }
+  }, [clearLoadError]);
+  // Never rejects: a failed load shows its error in the card.
+  const loadInvitations = useCallback(async () => {
+    const request = latestRequest.current + 1;
+    try {
+      setIsLoading(true);
+      await fetchInvitations();
     } catch (err) {
+      if (request !== latestRequest.current) return;
       logger.error("failed to load invitations", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -110,10 +138,8 @@ export function PendingInvitationsList({
         object: "die Liste der offenen Einladungen",
         retry: () => latestLoadRef.current(),
       });
-    } finally {
-      setIsLoading(false);
     }
-  }, [showLoadError, clearLoadError]);
+  }, [showLoadError, fetchInvitations]);
   useLayoutEffect(() => {
     latestLoadRef.current = () => void loadInvitations();
   });
@@ -121,13 +147,16 @@ export function PendingInvitationsList({
   useEffect(() => {
     void loadInvitations();
   }, [loadInvitations, refreshKey]);
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der offenen Einladungen",
+    fetchInvitations,
+  );
 
   const handleResend = async (id: number) => {
+    if (actionLoading.has(id)) return;
     try {
-      setActionLoading(id);
+      setInvitationLoading(id, true);
       await resendInvitation(id);
-      toastSuccess("Die Einladung ist erneut gesendet.");
-      await loadInvitations();
     } catch (err) {
       logger.error("invitation_resend_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -136,21 +165,20 @@ export function PendingInvitationsList({
         object: "das erneute Senden der Einladung",
         retry: () => void handleResend(id),
       });
-    } finally {
-      setActionLoading(null);
+      setInvitationLoading(id, false);
+      return;
     }
+    toastSuccess("Die Einladung ist erneut gesendet.");
+    await afterWrite.refresh();
+    setInvitationLoading(id, false);
   };
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
     clearRevokeError();
     try {
-      setActionLoading(revokeTarget.id);
+      setInvitationLoading(revokeTarget.id, true);
       await revokeInvitation(revokeTarget.id);
-      toastSuccess("Die Einladung ist widerrufen.");
-      setRevokeTarget(null);
-      onRevoked?.();
-      await loadInvitations();
     } catch (err) {
       logger.error("invitation_revoke_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -159,9 +187,14 @@ export function PendingInvitationsList({
         object: "das Widerrufen der Einladung",
         retry: () => latestRevokeRef.current(),
       });
-    } finally {
-      setActionLoading(null);
+      setInvitationLoading(revokeTarget.id, false);
+      return;
     }
+    setInvitationLoading(revokeTarget.id, false);
+    toastSuccess("Die Einladung ist widerrufen.");
+    setRevokeTarget(null);
+    onRevoked?.();
+    await afterWrite.refresh();
   };
   useLayoutEffect(() => {
     latestRevokeRef.current = () => void handleRevoke();
@@ -280,7 +313,7 @@ export function PendingInvitationsList({
                     {
                       label: "Erneut senden",
                       icon: <Send className="h-4 w-4" aria-hidden />,
-                      disabled: actionLoading === invitation.id,
+                      disabled: actionLoading.has(invitation.id),
                       onClick: () => handleResend(invitation.id),
                     },
                   ]),
@@ -288,7 +321,7 @@ export function PendingInvitationsList({
                 label: "Löschen",
                 icon: <Trash2 className="h-4 w-4" aria-hidden />,
                 destructive: true,
-                disabled: actionLoading === invitation.id,
+                disabled: actionLoading.has(invitation.id),
                 onClick: () => setRevokeTarget(invitation),
               },
             ]}
@@ -321,6 +354,7 @@ export function PendingInvitationsList({
       }
     >
       <LoadErrorAlert error={loadError.error} className="mb-4" />
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
 
       {failedWithoutData ? null : sortedInvitations.length === 0 ? (
         <EmptyState

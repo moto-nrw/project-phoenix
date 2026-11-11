@@ -1727,6 +1727,12 @@ function TimetablesContent() {
     await tenantMutate(swrKey);
     await tenantMutate(gapsSWRKey);
   }, [gapsSWRKey, swrKey, templatePeriodID, tenantMutate]);
+  // Nachladen nach dem Verbinden: ein Fehler dabei steht über dem Plan, auch
+  // wenn der Dialog zu ist (#6652).
+  const connectRefresh = useRefreshAfterWrite(
+    "die Anzeige des Betreuungsplans",
+    handleOfferingConnected,
+  );
 
   // Aufrufer ist der Löschdialog im Termin-Formular; er zeigt den Fehler
   // selbst, weil er über den Toasts liegt.
@@ -2281,7 +2287,7 @@ function TimetablesContent() {
           periodId={templatePeriodID}
           deviation={connecting.deviation}
           onClose={() => setConnecting(null)}
-          onConnected={handleOfferingConnected}
+          onConnected={connectRefresh.refresh}
         />
       )}
 
@@ -2559,6 +2565,7 @@ function TimetablesContent() {
       }
     >
       <LoadErrorAlert error={archiveRefresh.error} />
+      <LoadErrorAlert error={connectRefresh.error} />
       <LoadErrorAlert error={periodsLoadError} />
       <LoadErrorAlert error={connectTemplatesLoadError} />
       <LoadErrorAlert error={connectLoadError} />

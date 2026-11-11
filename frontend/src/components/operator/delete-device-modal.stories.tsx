@@ -37,7 +37,7 @@ export const Open: Story = {
   args: {
     device,
     onClose: () => {},
-    onDeleted: () => {},
+    onDeleted: () => Promise.resolve(true),
   },
 };
 
@@ -45,7 +45,7 @@ export const WithoutName: Story = {
   args: {
     device: { ...device, name: "" },
     onClose: () => {},
-    onDeleted: () => {},
+    onDeleted: () => Promise.resolve(true),
   },
 };
 
@@ -53,6 +53,6 @@ export const Closed: Story = {
   args: {
     device: null,
     onClose: () => {},
-    onDeleted: () => {},
+    onDeleted: () => Promise.resolve(true),
   },
 };

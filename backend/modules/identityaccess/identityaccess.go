@@ -207,6 +207,14 @@ type SchoolAccountQuery interface {
 	FindSchoolAccountByEmail(context.Context, string) (Account, error)
 }
 
+// SchoolEmailQuery resolves a set of login addresses to active school accounts
+// and unused invitation person links. Accounts take precedence over invitations;
+// expired invitations keep their identity link, just as in InvitedPersonQuery.
+// Missing addresses are absent from both maps. A tenant is always required.
+type SchoolEmailQuery interface {
+	FindSchoolEmailIdentities(context.Context, []string) (map[string]int64, map[string][]int64, error)
+}
+
 // RFIDQuery resolves the canonical ID of a card belonging to the current
 // tenant. Missing cards return found=false. A tenant is always required.
 type RFIDQuery interface {

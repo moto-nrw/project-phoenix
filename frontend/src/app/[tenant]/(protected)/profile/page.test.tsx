@@ -2,7 +2,14 @@
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import "@testing-library/jest-dom/vitest";
 import ProfilePage from "./page";
 
@@ -388,6 +395,36 @@ describe("ProfilePage", () => {
           "Ihr Profil ist gespeichert.",
         );
       });
+    });
+
+    it("serializes profile and avatar saves through profile and session refresh", async () => {
+      mockUpdateProfile.mockResolvedValue({});
+      const refresh = deferred<void>();
+      const sessionUpdate = deferred<void>();
+      mockRefreshProfile.mockReturnValueOnce(refresh.promise);
+      const updateSession = mockUseSession().update;
+      updateSession.mockReturnValueOnce(sessionUpdate.promise);
+      render(<ProfilePage />);
+      fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+      fireEvent.change(screen.getByLabelText("Vorname"), {
+        target: { value: "Jane" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      await waitFor(() => expect(mockRefreshProfile).toHaveBeenCalledTimes(1));
+
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Profilbild ändern" }),
+      ).toBeDisabled();
+      await act(async () => refresh.resolve());
+      expect(updateSession).toHaveBeenCalledWith({ name: "Jane Doe" });
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeDisabled();
+      await act(async () => sessionUpdate.resolve());
+      expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Profilbild ändern" }),
+      ).toBeEnabled();
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
     });
 
     it("keeps a failed profile save in the form with the reason on top", async () => {

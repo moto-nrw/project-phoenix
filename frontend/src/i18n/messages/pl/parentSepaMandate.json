@@ -2,6 +2,8 @@
   "title": "Polecenie zapłaty",
   "intro": "Mandatem pozwalają Państwo organowi prowadzącemu pobierać opłaty z Państwa konta.",
   "errorObject": "mandat polecenia zapłaty",
+  "reloadObject": "widok mandatu",
+  "savedButStale": "Twoja zmiana została zapisana. Tylko widok nie jest jeszcze aktualny.",
   "offTitle": "Polecenie zapłaty nie jest tu możliwe",
   "off": "Organ prowadzący nie przyjmuje mandatu w aplikacji. Proszę poprosić o formularz papierowy.",
   "creditorMissing": "Organ prowadzący nie może jeszcze przyjmować poleceń zapłaty. Proszę spróbować później.",

@@ -7,6 +7,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { FieldWarning } from "./provisioning-shared";
 
@@ -21,7 +22,8 @@ export function EditOrganizationModal({
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly organization: Organization | null;
-  readonly onUpdated: () => Promise<void>;
+  /** Reloads the Träger; never rejects (#6652). */
+  readonly onUpdated: RefreshAfterWrite;
 }) {
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
@@ -56,16 +58,17 @@ export function EditOrganizationModal({
           slug: orgSlug.trim(),
           active: organization.active,
         });
-        onClose();
-        await onUpdated();
       } catch (error) {
         logger.error("organization_update_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         void showError(error, { object: "die Änderung am Träger" });
-      } finally {
         setOrgSaving(false);
+        return;
       }
+      setOrgSaving(false);
+      onClose();
+      await onUpdated();
     },
     [
       organization,

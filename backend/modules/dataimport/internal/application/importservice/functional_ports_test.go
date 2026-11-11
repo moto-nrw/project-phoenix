@@ -9,13 +9,14 @@ import (
 )
 
 type PersonDirectoryFuncs struct {
-	CreatePersonFunc        func(_ context.Context, input ports.CreatePerson) (ports.Person, error)
-	UpdatePersonFunc        func(_ context.Context, input ports.UpdatePerson) (ports.Person, error)
-	FindPersonFunc          func(_ context.Context, id int64) (ports.Person, error)
-	FindPersonByTagFunc     func(_ context.Context, tag string) (ports.Person, error)
-	FindPersonByAccountFunc func(_ context.Context, accountID int64) (ports.Person, error)
-	SearchPersonsFunc       func(_ context.Context, filter ports.PersonFilter) ([]ports.Person, error)
-	ListPersonsByIDFunc     func(_ context.Context, ids []int64) ([]ports.Person, error)
+	ListPersonsByAccountFunc func(context.Context, []int64) ([]ports.Person, error)
+	CreatePersonFunc         func(_ context.Context, input ports.CreatePerson) (ports.Person, error)
+	UpdatePersonFunc         func(_ context.Context, input ports.UpdatePerson) (ports.Person, error)
+	FindPersonFunc           func(_ context.Context, id int64) (ports.Person, error)
+	FindPersonByTagFunc      func(_ context.Context, tag string) (ports.Person, error)
+	FindPersonByAccountFunc  func(_ context.Context, accountID int64) (ports.Person, error)
+	SearchPersonsFunc        func(_ context.Context, filter ports.PersonFilter) ([]ports.Person, error)
+	ListPersonsByIDFunc      func(_ context.Context, ids []int64) ([]ports.Person, error)
 }
 
 func (f PersonDirectoryFuncs) CreatePerson(arg0 context.Context, arg1 ports.CreatePerson) (ports.Person, error) {
@@ -38,6 +39,10 @@ func (f PersonDirectoryFuncs) SearchPersons(arg0 context.Context, arg1 ports.Per
 }
 func (f PersonDirectoryFuncs) ListPersonsByID(arg0 context.Context, arg1 []int64) ([]ports.Person, error) {
 	return f.ListPersonsByIDFunc(arg0, arg1)
+}
+
+func (f PersonDirectoryFuncs) ListPersonsByAccount(ctx context.Context, ids []int64) ([]ports.Person, error) {
+	return f.ListPersonsByAccountFunc(ctx, ids)
 }
 
 type GuardianDirectoryFuncs struct {

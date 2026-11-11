@@ -1158,3 +1158,7 @@ func tenantPasswordLogin(auth *AccountAuthentication, ctx context.Context, email
 	}
 	return result.AccessToken, result.RefreshToken, nil
 }
+
+func (s *fakeStore) FindSchoolEmailIdentities(context.Context, []string, int64) (map[string]int64, map[string][]int64, domain.OperationStats, error) {
+	return nil, nil, domain.OperationStats{}, nil
+}

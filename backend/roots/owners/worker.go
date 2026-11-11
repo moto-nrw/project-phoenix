@@ -60,7 +60,7 @@ func NewWorker(
 	timetableRepos timetableCompose.Repositories, workTime workforceModule.Capability, staffAdmin *workforceModule.StaffAdmin,
 	workforce WorkforcePlanning, active studentpresence.Presence, reports PresenceReports, lifecycle TimetableLifecycle,
 	days TimetableDays, materialization timetable.MaterializationCapability, schedules CarePlanSchedules,
-	documents carePlanModule.StudentDocuments, services PeopleServices, studentAudit peoplePorts.StudentAuditService,
+	documents carePlanModule.StudentDocuments, services PeopleServices, peopleOwner peopledirectory.Owner, studentAudit peoplePorts.StudentAuditService,
 	notices EnrollmentNotices, flows EnrollmentFlows, studentDeletion *studentdeletion.Workflow, feedback feedbackModule.Capability,
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
@@ -81,7 +81,7 @@ func NewWorker(
 	if err != nil {
 		return nil, err
 	}
-	retention, err := workerRetentionOf(db, logger, settings, audit, fleet, carePlan, communicationCompose.NewParentMessageRetention(db.Pool(), settingsValues.NewParentMessageRetentionValues(settings)), notices.RejectedCleanup, studentDeletion, identity, announcements, timetableRepos.Timetable)
+	retention, err := workerRetentionOf(db, logger, settings, audit, fleet, carePlan, communicationCompose.NewParentMessageRetention(db.Pool(), settingsValues.NewParentMessageRetentionValues(settings)), notices.RejectedCleanup, studentDeletion, identity, announcements, timetableRepos.Timetable, peopleOwner)
 	if err != nil {
 		return nil, err
 	}

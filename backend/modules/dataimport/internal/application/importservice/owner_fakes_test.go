@@ -3,6 +3,7 @@ package importpkg
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -116,6 +117,17 @@ func newFakePersons(persons ...ports.Person) *fakePersons {
 				result = append(result, person)
 			}
 			return result, nil
+		},
+		ListPersonsByAccountFunc: func(_ context.Context, ids []int64) ([]ports.Person, error) {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			var result []ports.Person
+			for _, person := range f.persons {
+				if person.AccountID != nil && slices.Contains(ids, *person.AccountID) {
+					result = append(result, person)
+				}
+			}
+			return result, f.err
 		},
 		ListPersonsByIDFunc: func(_ context.Context, ids []int64) ([]ports.Person, error) {
 			f.mu.Lock()

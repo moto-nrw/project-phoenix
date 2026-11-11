@@ -29,6 +29,10 @@ import { ApiError } from "~/lib/api-error";
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type {
@@ -852,6 +856,7 @@ function EndDialog({
       confirmText="Beenden"
       cancelText="Abbrechen"
       isConfirmLoading={action.saving}
+      loadingText="Wird beendet …"
       isDismissDisabled={action.saving}
     >
       <div ref={action.formRef} className="space-y-3 text-sm text-gray-600">
@@ -869,6 +874,8 @@ function EndDialog({
 
 type PageOverlaysProps = Readonly<{
   data: ReturnType<typeof useOverviewData>;
+  /** Reloads after an added supervisor; never rejects (#6652). */
+  onSupervisorAdded: RefreshAfterWrite;
   admin: boolean;
   canCreateExternalCaregiver: boolean;
   canGrantExternalView: boolean;
@@ -902,7 +909,7 @@ function PageOverlays(props: PageOverlaysProps) {
           canGrantExternalView={props.canGrantExternalView}
           isOpen
           onClose={props.closeRunning}
-          onAdded={data.mutate}
+          onAdded={props.onSupervisorAdded}
         />
       ) : null}
       <EndDialog
@@ -1004,6 +1011,12 @@ function usePageDialogs(data: ReturnType<typeof useOverviewData>) {
 
 function LoadedPage({ session, data, openCare }: LoadedPageProps) {
   const dialogs = usePageDialogs(data);
+  // Nachladen nach dem Eintragen einer Aufsicht: ein Fehler dabei steht über
+  // der Liste, auch wenn der Dialog zu ist (#6652).
+  const supervisorAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Übergaben",
+    data.mutate,
+  );
   return (
     // Die Kopfkarte des Gerüsts ersetzt den früheren PageHeader; Dialoge
     // stehen im overlays-Slot, damit sie in jedem Zustand gemountet bleiben.
@@ -1012,6 +1025,7 @@ function LoadedPage({ session, data, openCare }: LoadedPageProps) {
       overlays={
         <PageOverlays
           data={data}
+          onSupervisorAdded={supervisorAfterWrite.refresh}
           admin={hasEffectiveAdminScope(session)}
           canCreateExternalCaregiver={hasPermission(session, "users:create")}
           canGrantExternalView={canGrantExternalViewAccess(session)}
@@ -1026,6 +1040,7 @@ function LoadedPage({ session, data, openCare }: LoadedPageProps) {
         />
       }
     >
+      <LoadErrorAlert error={supervisorAfterWrite.error} />
       <OverviewContent
         data={data}
         openCare={openCare}
