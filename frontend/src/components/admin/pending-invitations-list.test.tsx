@@ -8,6 +8,7 @@ import { PendingInvitationsList } from "./pending-invitations-list";
 import type { PendingInvitation } from "~/lib/invitation-helpers";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 // Mock dependencies. Load and dialog errors run through the real hooks; the
 // resend error is spied at the action path (#2517).
@@ -411,5 +412,54 @@ describe("PendingInvitationsList mail state (#5934)", () => {
     expect(await screen.findByText(/Beschwerde/)).toBeInTheDocument();
     expect(screen.queryByText(/kam nicht an/)).not.toBeInTheDocument();
     expect(screen.queryByText(/gestoppt/)).not.toBeInTheDocument();
+  });
+
+  // #6652: a write holds once it is through; a failed reload keeps the list
+  // and says the change is saved, and its retry only reloads.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der offenen Einladungen")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    beforeEach(() => {
+      mockListPendingInvitations
+        .mockReset()
+        .mockResolvedValueOnce(mockInvitations)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(mockInvitations);
+    });
+
+    async function openRowMenu(index: number) {
+      const triggers = await screen.findAllByRole("button", {
+        name: /^Aktionen für/,
+      });
+      fireEvent.click(triggers[index]!);
+    }
+
+    async function expectReloadOnly(write: ReturnType<typeof vi.fn>) {
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(mockListPendingInvitations).toHaveBeenCalledTimes(3),
+      );
+      expect(write).toHaveBeenCalledTimes(1);
+    }
+
+    it("keeps a resent invitation sent when the reload fails", async () => {
+      render(<PendingInvitationsList refreshKey={0} />);
+      await openRowMenu(1);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Erneut senden" }));
+
+      await expectReloadOnly(mockResendInvitation);
+    });
+
+    it("keeps a revoked invitation revoked when the reload fails", async () => {
+      render(<PendingInvitationsList refreshKey={0} />);
+      await openRowMenu(1);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+      fireEvent.click(await screen.findByTestId("confirm-button"));
+
+      await expectReloadOnly(mockRevokeInvitation);
+    });
   });
 });
