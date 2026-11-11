@@ -5,7 +5,13 @@ import { Button } from "./button";
 import { CoachMark } from "./coach-mark";
 import { SectionCard } from "./section-card";
 
-function Spot({ withTarget }: { readonly withTarget: boolean }) {
+function Spot({
+  withTarget,
+  action,
+}: {
+  readonly withTarget: boolean;
+  readonly action?: string;
+}) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   return (
     <div className="p-12">
@@ -19,7 +25,8 @@ function Spot({ withTarget }: { readonly withTarget: boolean }) {
         title="Gruppe anlegen"
         text="Hier legen Sie die erste Gruppe Ihrer Schule an."
         progress="Schritt 2 von 4"
-        onNext={() => {}}
+        action={action}
+        onNext={action ? undefined : () => {}}
         onBack={() => {}}
         onClose={() => {}}
       />
@@ -39,3 +46,8 @@ type Story = StoryObj<typeof meta>;
 export const AtTarget: Story = { args: { withTarget: true } };
 
 export const WithoutTarget: Story = { args: { withTarget: false } };
+
+// The hand symbol carries the brand green.
+export const WithAction: Story = {
+  args: { withTarget: true, action: "Klicken Sie auf „Gruppe anlegen“." },
+};

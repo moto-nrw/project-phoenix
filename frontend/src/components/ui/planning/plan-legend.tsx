@@ -1,4 +1,5 @@
 import { COLOR_BAR_FALLBACK, ColorBar } from "../color-bar";
+import { PLANNING_COLORS } from "./planning-colors";
 import { StatusDot } from "../status-dot";
 
 /**
@@ -37,9 +38,6 @@ interface PlanLegendProps {
   readonly "aria-label"?: string;
 }
 
-/** Grays reused for the state glyphs (cancelled edge / hatch strokes). */
-const CANCELLED_GLYPH_COLOR = "#9CA3AF";
-const HATCH_STROKE_COLOR = "#6B7280";
 const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
 
 function LegendGlyph({
@@ -60,8 +58,20 @@ function LegendGlyph({
         aria-hidden="true"
         className="shrink-0 rounded-sm border border-gray-200"
       >
-        <line x1="0" y1="8" x2="8" y2="0" stroke={HATCH_STROKE_COLOR} />
-        <line x1="4" y1="12" x2="12" y2="4" stroke={HATCH_STROKE_COLOR} />
+        <line
+          x1="0"
+          y1="8"
+          x2="8"
+          y2="0"
+          stroke={PLANNING_COLORS.hatchStroke}
+        />
+        <line
+          x1="4"
+          y1="12"
+          x2="12"
+          y2="4"
+          stroke={PLANNING_COLORS.hatchStroke}
+        />
       </svg>
     );
   }
@@ -82,9 +92,15 @@ function LegendGlyph({
           height="11"
           rx="2"
           fill="none"
-          stroke={CANCELLED_GLYPH_COLOR}
+          stroke={PLANNING_COLORS.cancelled}
         />
-        <line x1="1" y1="11" x2="11" y2="1" stroke={CANCELLED_GLYPH_COLOR} />
+        <line
+          x1="1"
+          y1="11"
+          x2="11"
+          y2="1"
+          stroke={PLANNING_COLORS.cancelled}
+        />
       </svg>
     );
   }

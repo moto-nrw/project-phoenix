@@ -19,7 +19,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
   berlinClockFromISO,
@@ -1425,7 +1425,7 @@ function computeRowStatus(
 function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
     // Not StatusBadge tone="blue": that resolves to the same blue.soft/base/
-    // strong triple getLocationBadgeTone returns for ABSENCE_TYPE_HEX.vacation
+    // strong triple getPillTone returns for ABSENCE_TYPE_HEX.vacation
     // (#5080D8), so "Homeoffice" and "Urlaub" rendered as identical pills in
     // this very column. #0EA5E9 is the hue staff-helpers already uses for
     // Homeoffice.

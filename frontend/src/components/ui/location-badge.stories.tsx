@@ -361,3 +361,34 @@ export const LongRoomNameWraps: Story = {
     ),
   ],
 };
+
+// Rooms with their own colour (#1324): a light room hex and #FF3130, the
+// retired Zuhause red that older rooms can still carry.
+export const RoomColors: Story = {
+  args: { student: presentStudent, displayMode: "roomName" },
+  render: () => (
+    <div className="flex flex-col items-start gap-2">
+      <LocationBadge
+        student={{
+          current_location: "Anwesend - Raum 101",
+          current_room_color: "#A3D977",
+        }}
+        displayMode="roomName"
+      />
+      <LocationBadge
+        student={{
+          current_location: "Anwesend - Raum 101",
+          current_room_color: "#FF3130",
+        }}
+        displayMode="roomName"
+      />
+      <LocationBadge
+        student={{
+          current_location: "Schulhof",
+          current_room_color: "#FF3130",
+        }}
+        displayMode="roomName"
+      />
+    </div>
+  ),
+};
