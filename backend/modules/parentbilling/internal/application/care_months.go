@@ -268,6 +268,30 @@ func (c *CareBilling) SaveCarePriceList(ctx context.Context, reviewer parentbill
 	return c.CareTariffs(ctx, reviewer)
 }
 
+// SaveCareModulePrices replaces the prices of one module of a school from
+// a month on (ADR 0195): the list of that month keeps the other modules and
+// the free months it had, or takes the free months of the list before it.
+func (c *CareBilling) SaveCareModulePrices(ctx context.Context, reviewer parentbilling.HolidayReviewer, module parentbilling.CareModulePriceList) error {
+	if err := validReviewer(reviewer); err != nil {
+		return err
+	}
+	if module.CareOfferingID <= 0 || module.SchoolID <= 0 {
+		return validation.Errors{"care_offering_id": errors.New("is required")}
+	}
+	// The lock comes before the read, so no other price of the month is
+	// lost between the read and the replacement.
+	if err := c.store.LockCareBilling(ctx, reviewer.OrganizationID); err != nil {
+		return fmt.Errorf("parent billing: hold the monthly billing: %w", err)
+	}
+	tariffs, heads, err := c.store.CarePriceLists(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return err
+	}
+	list := modulePriceList(tariffs, heads, module)
+	_, err = c.SaveCarePriceList(ctx, reviewer, list)
+	return err
+}
+
 // DeleteCarePriceList removes the prices of a school that start on a month
 // no invoice bills yet.
 func (c *CareBilling) DeleteCarePriceList(ctx context.Context, reviewer parentbilling.HolidayReviewer, schoolID int64, validFrom calendar.Date) (parentbilling.CareTariffs, error) {

@@ -159,7 +159,14 @@ const CodeEnrollmentSignatureRequired = "enrollment.signature_required"
 const CodeEnrollmentStatusLinkInvalid = "enrollment.status_link_invalid"
 const CodeEnrollmentStudentExists = "enrollment.student_exists"
 const CodeEnrollmentSubmissionRateLimited = "enrollment.submission_rate_limited"
+const CodeEnrollmentTraegerCatalogInvalid = "enrollment.traeger_catalog_invalid"
 const CodeEnrollmentTraegerCopyDelete = "enrollment.traeger_copy_delete"
+const CodeEnrollmentTraegerCopyRejected = "enrollment.traeger_copy_rejected"
+const CodeEnrollmentTraegerOfferingNotFound = "enrollment.traeger_offering_not_found"
+const CodeEnrollmentTraegerPhaseNotFound = "enrollment.traeger_phase_not_found"
+const CodeEnrollmentTraegerPreviewStale = "enrollment.traeger_preview_stale"
+const CodeEnrollmentTraegerSchoolOutside = "enrollment.traeger_school_outside"
+const CodeEnrollmentTraegerWithdrawn = "enrollment.traeger_withdrawn"
 const CodeEnrollmentUploadContentMismatch = "enrollment.upload_content_mismatch"
 const CodeEnrollmentUploadExpired = "enrollment.upload_expired"
 const CodeEnrollmentUploadInvalid = "enrollment.upload_invalid"
@@ -328,7 +335,14 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentStatusLinkInvalid, "business_rejection"},
 	{CodeEnrollmentStudentExists, "business_rejection"},
 	{CodeEnrollmentSubmissionRateLimited, "unavailable"},
+	{CodeEnrollmentTraegerCatalogInvalid, "input"},
 	{CodeEnrollmentTraegerCopyDelete, "business_rejection"},
+	{CodeEnrollmentTraegerCopyRejected, "business_rejection"},
+	{CodeEnrollmentTraegerOfferingNotFound, "input"},
+	{CodeEnrollmentTraegerPhaseNotFound, "input"},
+	{CodeEnrollmentTraegerPreviewStale, "business_rejection"},
+	{CodeEnrollmentTraegerSchoolOutside, "input"},
+	{CodeEnrollmentTraegerWithdrawn, "business_rejection"},
 	{CodeEnrollmentUploadContentMismatch, "input"},
 	{CodeEnrollmentUploadExpired, "input"},
 	{CodeEnrollmentUploadInvalid, "input"},

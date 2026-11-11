@@ -52,6 +52,7 @@ type MonthlyBilling interface {
 	parentbilling.CareBilling
 	parentbilling.CareMealBilling
 	parentbilling.CareRunDiscard
+	parentbilling.CareModulePrices
 }
 
 // NewCareBilling builds the monthly contribution of the care contract (#4684), its rule chain (#4685) and its Mensa (#4686) over the contracts, schools, settings and released Mensa months the root binds, and the document templates (#4688).
@@ -96,9 +97,8 @@ func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.Bank
 	return application.NewBankDataRekey(postgres.NewBankDataRekeyStore(), cipher)
 }
 
-// NewSEPAReturn builds the bank data of the Rückgabe of a Träger (#6314)
-// over its creditor account and the field cipher the root binds. Internal
-// procedure only; never bind it to HTTP.
+// NewSEPAReturn builds the bank data of the Rückgabe of a Träger (#6314) over its creditor account and
+// the field cipher the root binds. Internal procedure only; never bind it to HTTP.
 func NewSEPAReturn(creditors parentbilling.SEPACreditorAccounts, cipher parentbilling.BankDataCipher, fingerprint func([]byte) string) parentbilling.SEPAReturn {
 	return application.NewSEPAReturn(postgres.NewStore(), creditors, cipher, fingerprint)
 }

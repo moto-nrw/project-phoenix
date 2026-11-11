@@ -381,16 +381,24 @@ func (s *Store) LinkTraegerOfferingCopy(ctx context.Context, copyID, sourceID in
 	return nil
 }
 
-// ReleaseTraegerOfferingCopy deactivates the copy and drops its link: it
-// stays an ordinary, inactive offering of the school.
-func (s *Store) ReleaseTraegerOfferingCopy(ctx context.Context, copyID int64) error {
+// UnlinkTraegerOfferingCopy drops the Träger link of the copy: it becomes
+// an ordinary offering of the school.
+func (s *Store) UnlinkTraegerOfferingCopy(ctx context.Context, copyID int64) error {
 	db, tenantID, err := s.databaseForWrite(ctx, "release a träger offering copy")
 	if err != nil {
 		return err
 	}
-	if _, err := db.NewRaw(`UPDATE enrollment.care_offerings SET traeger_source_id = NULL, is_active = false, updated_at = NOW()
+	if _, err := db.NewRaw(`UPDATE enrollment.care_offerings SET traeger_source_id = NULL, updated_at = NOW()
 		WHERE tenant_id = ? AND id = ?`, tenantID, copyID).Exec(ctx); err != nil {
-		return fmt.Errorf("care plan postgres: release träger offering copy: %w", err)
+		return fmt.Errorf("care plan postgres: unlink träger offering copy: %w", err)
 	}
 	return nil
+}
+
+// IsReferenceRefusal reports the refusal of a delete by a foreign key that
+// still references the row: the ON DELETE RESTRICT keys of bookings and
+// selections on a care offering.
+func IsReferenceRefusal(err error) bool {
+	var postgresError pgdriver.Error
+	return errors.As(err, &postgresError) && postgresError.Field('C') == "23503"
 }

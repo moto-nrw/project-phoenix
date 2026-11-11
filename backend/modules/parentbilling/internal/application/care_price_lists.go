@@ -170,3 +170,29 @@ func priceError(price parentbilling.CarePrice) string {
 	}
 	return ""
 }
+
+// modulePriceList is the price list of the module's school from its month
+// with the module's prices replaced: the other modules of that month stay,
+// and the free months come from the list of that month or the one before.
+func modulePriceList(tariffs []parentbilling.CareTariff, heads []parentbilling.CarePriceListHead, module parentbilling.CareModulePriceList) parentbilling.CarePriceList {
+	list := parentbilling.CarePriceList{SchoolID: module.SchoolID, ValidFrom: module.ValidFrom, FreeMonths: []int{}}
+	var latest calendar.Date
+	for _, head := range heads {
+		if head.SchoolID == module.SchoolID && !head.ValidFrom.After(module.ValidFrom) && (latest == "" || head.ValidFrom.After(latest)) {
+			latest, list.FreeMonths = head.ValidFrom, slices.Clone(head.FreeMonths)
+		}
+	}
+	for _, tariff := range tariffs {
+		if tariff.SchoolID == module.SchoolID && tariff.ValidFrom == module.ValidFrom && tariff.CareOfferingID != module.CareOfferingID {
+			list.Prices = append(list.Prices, parentbilling.CarePrice{
+				CareOfferingID: tariff.CareOfferingID, ModuleName: tariff.ModuleName, Weekday: tariff.Weekday,
+				DaysPerWeek: tariff.DaysPerWeek, MonthlyCents: tariff.MonthlyCents, SiblingCents: tariff.SiblingCents, MealExtra: tariff.MealExtra,
+			})
+		}
+	}
+	for _, price := range module.Prices {
+		price.CareOfferingID, price.ModuleName = module.CareOfferingID, module.ModuleName
+		list.Prices = append(list.Prices, price)
+	}
+	return list
+}

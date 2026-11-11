@@ -165,5 +165,12 @@
   "holiday_allocation_pending": "Спершу розподіліть місця на вкладці «Vergabe».",
   "holiday_allocation_full": "На цьому тижні вільних місць більше немає. Будь ласка, завантажте список знову.",
   "holiday_allocation_changed": "Список змінився. Перевірте рішення ще раз.",
-  "traeger_copy_delete": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "traeger_copy_delete": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_phase_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_offering_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_withdrawn": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_school_outside": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_catalog_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_preview_stale": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "traeger_copy_rejected": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

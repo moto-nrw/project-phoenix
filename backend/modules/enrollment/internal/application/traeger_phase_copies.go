@@ -10,30 +10,36 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-// TraegerPhaseCopyStateReads read the state of a copy; the copy commands
-// serve it unchanged.
-type TraegerPhaseCopyStateReads interface {
-	TraegerPhaseCopyState(ctx context.Context, sourceID int64, lock bool) (enrollment.TraegerCopyState, error)
-}
-
 // TraegerPhaseCopyStore reads and links the copy of a Träger phase in the
 // school's tenant transaction.
 type TraegerPhaseCopyStore interface {
-	TraegerPhaseCopyStateReads
+	TraegerPhaseCopyState(ctx context.Context, sourceID int64, lock bool) (enrollment.TraegerCopyState, error)
 	LinkTraegerPhaseCopy(ctx context.Context, copyID, sourceID int64, version int, values map[string]any) error
-	ReleaseTraegerPhaseCopy(ctx context.Context, copyID int64) error
+	UnlinkTraegerPhaseCopy(ctx context.Context, copyID int64) error
 }
 
 // TraegerPhaseCopies applies a Träger phase in one school through the
 // school's own phase commands (ADR 0195 sections 5 to 7). It runs in the
 // school's tenant transaction, which the caller opens.
 type TraegerPhaseCopies struct {
-	TraegerPhaseCopyStateReads
 	phases *Phases
 	store  TraegerPhaseCopyStore
 }
 
 var _ enrollment.TraegerPhaseCopies = (*TraegerPhaseCopies)(nil)
+
+// TraegerPhaseCopyState reads the copy of sourceID. With lock it takes the
+// recurrence gate first, then the copy's row: the order of every phase
+// write of the school, so a copy never waits the other way round (ADR 0195
+// section 5).
+func (s *TraegerPhaseCopies) TraegerPhaseCopyState(ctx context.Context, sourceID int64, lock bool) (enrollment.TraegerCopyState, error) {
+	if lock {
+		if err := s.phases.deps.LockTemplateRecurrence(ctx); err != nil {
+			return enrollment.TraegerCopyState{}, fmt.Errorf("lock template recurrence for a träger phase copy: %w", err)
+		}
+	}
+	return s.store.TraegerPhaseCopyState(ctx, sourceID, lock)
+}
 
 // ApplyTraegerPhase creates the copy or brings it to the version. A field
 // the school changed keeps the school's value; every other field of the
@@ -43,7 +49,7 @@ func (s *TraegerPhaseCopies) ApplyTraegerPhase(ctx context.Context, copy enrollm
 		return enrollment.TraegerPhaseApplied{}, fmt.Errorf("%w: träger source and version are required", enrollment.ErrInvalidPhase)
 	}
 	traeger := traegerPhaseValues(copy.Fields, true)
-	state, err := s.store.TraegerPhaseCopyState(ctx, copy.SourceID, true)
+	state, err := s.TraegerPhaseCopyState(ctx, copy.SourceID, true)
 	if err != nil {
 		return enrollment.TraegerPhaseApplied{}, err
 	}
@@ -87,32 +93,45 @@ func (s *TraegerPhaseCopies) create(ctx context.Context, copy enrollment.Traeger
 	return enrollment.TraegerPhaseApplied{CopyID: created.ID, Created: true, Fields: changes}, nil
 }
 
-// WithdrawTraegerPhase removes the copy from the school: it loses its link
-// and becomes inactive, and it is deleted when no enrollment request and no
-// care offering hangs off it (ADR 0195 section 7).
+// WithdrawTraegerPhase removes the copy from the school: it loses its link,
+// and it is deleted when no enrollment request and no care offering hangs
+// off it, otherwise deactivated through the school's own phase update
+// (ADR 0195 section 7).
 func (s *TraegerPhaseCopies) WithdrawTraegerPhase(ctx context.Context, sourceID int64) (enrollment.TraegerWithdrawal, error) {
-	state, err := s.store.TraegerPhaseCopyState(ctx, sourceID, true)
+	state, err := s.TraegerPhaseCopyState(ctx, sourceID, true)
 	if err != nil || !state.Exists {
 		return enrollment.TraegerWithdrawal{}, err
 	}
-	if err := s.store.ReleaseTraegerPhaseCopy(ctx, state.CopyID); err != nil {
+	if err := s.store.UnlinkTraegerPhaseCopy(ctx, state.CopyID); err != nil {
 		return enrollment.TraegerWithdrawal{}, err
 	}
-	requests, err := s.phases.deps.Records.CountPhaseRequests(ctx, state.CopyID)
+	kept, err := s.phaseKept(ctx, state.CopyID)
 	if err != nil {
-		return enrollment.TraegerWithdrawal{}, fmt.Errorf("withdraw träger phase copy: count requests: %w", err)
-	}
-	offerings, err := s.phases.deps.Offerings.CountOfferingsForPhase(ctx, state.CopyID)
-	if err != nil {
-		return enrollment.TraegerWithdrawal{}, fmt.Errorf("withdraw träger phase copy: count care offerings: %w", err)
-	}
-	if requests > 0 || offerings > 0 {
-		return enrollment.TraegerWithdrawal{Found: true}, nil
-	}
-	if err := s.phases.DeletePhase(ctx, state.CopyID); err != nil {
 		return enrollment.TraegerWithdrawal{}, err
 	}
-	return enrollment.TraegerWithdrawal{Found: true, Deleted: true}, nil
+	if !kept {
+		return enrollment.TraegerWithdrawal{Found: true, Deleted: true}, s.phases.DeletePhase(ctx, state.CopyID)
+	}
+	phase, err := s.phases.PhaseByID(ctx, state.CopyID)
+	if err != nil {
+		return enrollment.TraegerWithdrawal{}, err
+	}
+	phase.IsActive = false
+	return enrollment.TraegerWithdrawal{Found: true}, s.phases.UpdatePhase(ctx, phase)
+}
+
+// phaseKept reports whether an enrollment request or a care offering hangs
+// off the phase, so it stays as an inactive phase.
+func (s *TraegerPhaseCopies) phaseKept(ctx context.Context, phaseID int64) (bool, error) {
+	requests, err := s.phases.deps.Records.CountPhaseRequests(ctx, phaseID)
+	if err != nil {
+		return false, fmt.Errorf("withdraw träger phase copy: count requests: %w", err)
+	}
+	offerings, err := s.phases.deps.Offerings.CountOfferingsForPhase(ctx, phaseID)
+	if err != nil {
+		return false, fmt.Errorf("withdraw träger phase copy: count care offerings: %w", err)
+	}
+	return requests > 0 || offerings > 0, nil
 }
 
 // traegerPhaseValues are the Träger's fields of a phase keyed by their

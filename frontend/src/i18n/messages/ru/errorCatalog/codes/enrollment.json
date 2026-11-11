@@ -165,5 +165,12 @@
   "holiday_allocation_pending": "Сначала распределите места на вкладке «Vergabe».",
   "holiday_allocation_full": "На этой неделе свободных мест больше нет. Пожалуйста, загрузите список заново.",
   "holiday_allocation_changed": "Список изменился. Проверьте решение ещё раз.",
-  "traeger_copy_delete": "Не удалось изменить: {object}. Проверьте текущее состояние."
+  "traeger_copy_delete": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_phase_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_offering_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_withdrawn": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_school_outside": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_catalog_invalid": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_preview_stale": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "traeger_copy_rejected": "Не удалось изменить: {object}. Проверьте текущее состояние."
 }

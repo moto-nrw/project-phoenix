@@ -146,7 +146,7 @@ func TestTraegerOfferingCopyKeepsTheSchoolsChanges(t *testing.T) {
 	t.Parallel()
 	db, _, phase := setupCareTest(t)
 	catalog := testCareOfferingCatalog(t, db)
-	copies, err := careplanCompose.NewTraegerOfferingCopies(db, catalog)
+	copies, err := careplanCompose.NewTraegerOfferingCopies(catalog, func(context.Context) error { return nil })
 	require.NoError(t, err)
 	ctx := testpkg.Ctx(t)
 	inTx := func(fn func(context.Context) error) {

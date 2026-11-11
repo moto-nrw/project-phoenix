@@ -131,8 +131,8 @@ func NewTraegerOfferings() careplan.TraegerOfferings {
 	return application.NewTraegerOfferings(postgres.NewTraegerOfferingStore())
 }
 
-// NewTraegerOfferingCopies builds the copy commands of Träger offerings in a school's tenant transaction (ADR 0195).
-func NewTraegerOfferingCopies(db *bun.DB, catalog careplan.CareOfferingCatalog) (careplan.TraegerOfferingCopies, error) {
-	savepoint := application.TraegerSavepoint{Run: tenant.WithSavepoint, ControlFailure: tenant.IsSavepointControlFailure}
-	return application.NewTraegerOfferingCopies(catalog, postgres.New(postgres.CarePlanDatabase(db)), savepoint)
+// NewTraegerOfferingCopies builds the copy commands of Träger offerings in a school's tenant transaction (ADR 0195) over the catalog and its recurrence gate.
+func NewTraegerOfferingCopies(catalog careplan.CareOfferingCatalogCapability, lockRecurrence func(context.Context) error) (careplan.TraegerOfferingCopies, error) {
+	runtime := application.TraegerCopyRuntime{LockRecurrence: lockRecurrence, Savepoint: tenant.WithSavepoint, ControlFailure: tenant.IsSavepointControlFailure, ReferenceRefusal: postgres.IsReferenceRefusal}
+	return application.NewTraegerOfferingCopies(catalog, postgres.New(postgres.CarePlanDatabase(nil)), runtime)
 }

@@ -165,6 +165,10 @@ CREATE TRIGGER update_enrollment_traeger_care_offerings_updated_at
 CREATE FUNCTION enrollment.refuse_traeger_version_change()
 	RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 	BEGIN
+		-- Only the account reference may go, when the account is deleted.
+		IF NEW.released_by IS NULL AND (to_jsonb(NEW) - 'released_by') = (to_jsonb(OLD) - 'released_by') THEN
+			RETURN NEW;
+		END IF;
 		RAISE EXCEPTION 'a released Träger version never changes'
 			USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_traeger_version_immutable';
 	END; $$;

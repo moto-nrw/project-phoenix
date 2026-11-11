@@ -2817,12 +2817,52 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.TraegerPhaseCopyState",
       "binding_digest": "eec0982861818647f14f1c2206dea2a7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.TraegerPhaseCopyState",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "binding_digest": "e91aac8af0e692c9498a7733744f9f46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "binding_digest": "df3d57b36b2ab4336bbda050cb702927",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "binding_digest": "7b787da9338be4cbd057fc5ba4879d6e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "binding_digest": "bf7e6eb0f3b60df445a165639adc2e98",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentUploadAccessLog.RecordUploadAccess",

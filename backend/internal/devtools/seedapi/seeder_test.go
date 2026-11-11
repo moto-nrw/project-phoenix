@@ -1779,6 +1779,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"weeks":[{"pending":[{"booking_id":81,"proposal":"placed"}]}]}}`)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/traeger/catalog/phases/") && strings.HasSuffix(r.URL.Path, "/preview") {
+			// The preview of the Träger phase carries the fingerprint its
+			// rollout confirms (#4704).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"traeger_phase_id":3,"fingerprint":"preview-key","schools":[]}}`)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/publish") {
 			// The published period carries its public link and its weeks
 			// for the holiday registration of the same step (#4661).

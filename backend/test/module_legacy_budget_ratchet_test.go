@@ -280,7 +280,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+5) and their port of
 // workflows/parentportal/compose (+1) add exactly 6 LOC.
 // ADR 0209: the new composition of workflows/holidayallocation (+13).
-const moduleComposeBudgetTotal = 13297
+// ADR 0212: the new composition of workflows/traegercatalog (+34); #4704
+// shortened comments of modules/careplan and modules/enrollment (-2).
+const moduleComposeBudgetTotal = 13331
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -459,7 +461,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/traegerview/compose": 20,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
-	"workflows/studentdeletion/compose":  74,
+	// Added by ADR 0212: the Träger catalog rollout and its runtime (ADR 0195).
+	"workflows/traegercatalog/compose":  34,
+	"workflows/studentdeletion/compose": 74,
 }
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.

@@ -71,9 +71,9 @@ func (r *Store) LinkTraegerPhaseCopy(ctx context.Context, copyID, sourceID int64
 	return nil
 }
 
-// ReleaseTraegerPhaseCopy deactivates the copy and drops its Träger link: it
-// stays an ordinary, inactive phase of the school.
-func (r *Store) ReleaseTraegerPhaseCopy(ctx context.Context, copyID int64) error {
+// UnlinkTraegerPhaseCopy drops the Träger link of the copy: it becomes an
+// ordinary phase of the school.
+func (r *Store) UnlinkTraegerPhaseCopy(ctx context.Context, copyID int64) error {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {
 		return err
@@ -82,9 +82,9 @@ func (r *Store) ReleaseTraegerPhaseCopy(ctx context.Context, copyID int64) error
 	if err != nil {
 		return err
 	}
-	if _, err := db.NewRaw(`UPDATE enrollment.phases SET traeger_source_id = NULL, is_active = false, updated_at = NOW()
+	if _, err := db.NewRaw(`UPDATE enrollment.phases SET traeger_source_id = NULL, updated_at = NOW()
 		WHERE tenant_id = ? AND id = ?`, tenantID, copyID).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: release träger phase copy: %w", err)
+		return fmt.Errorf("enrollment postgres: unlink träger phase copy: %w", err)
 	}
 	return nil
 }

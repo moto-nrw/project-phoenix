@@ -3759,6 +3759,48 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0212",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.TraegerPhaseCopyState",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.TraegerPhaseCopyState",
+      "reason": "Cross-owner lock of the school's own phase and catalog commands, reached through the Träger copy commands (ADR 0195 sections 5 and 7): the copy takes the recurrence gate first, then its rows, exactly as a school edit does; no new protocol. Approved for this binding by ADR 0212.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingCapability.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingGuards.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0195",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
       "classification": "debt",
@@ -3768,6 +3810,17 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.MarkRollback (tenant-runtime) through modules/enrollment/compose.Phases.UpdatePhase. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",

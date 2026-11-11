@@ -490,6 +490,25 @@ type CareRunDiscard interface {
 	DiscardCareRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareRunDetail, error)
 }
 
+// CareModulePriceList holds the prices of one module of a school from the
+// first day of a month on, as a Träger care offering hands them to the
+// school's copy (ADR 0195).
+type CareModulePriceList struct {
+	SchoolID       int64
+	CareOfferingID int64
+	ModuleName     string
+	ValidFrom      calendar.Date
+	Prices         []CarePrice
+}
+
+// CareModulePrices replaces the prices of one module in the price list of a
+// school from a month on and leaves the other modules of that list, with
+// the same lock and the same refusal of a billed month as SaveCarePriceList.
+// It runs in the Träger transaction the caller opens.
+type CareModulePrices interface {
+	SaveCareModulePrices(ctx context.Context, reviewer HolidayReviewer, list CareModulePriceList) error
+}
+
 // CareBilling lets the Abrechnung of a Träger keep the monthly prices of
 // its modules and start, check and release the monthly runs. Every
 // operation names the person of the session and runs in the Träger

@@ -89,7 +89,7 @@ func (s *Phases) TraegerCopies() enrollment.TraegerPhaseCopies {
 	if s.deps.TraegerCopies == nil {
 		return nil
 	}
-	return &TraegerPhaseCopies{TraegerPhaseCopyStateReads: s.deps.TraegerCopies, phases: s, store: s.deps.TraegerCopies}
+	return &TraegerPhaseCopies{phases: s, store: s.deps.TraegerCopies}
 }
 
 // NewResyncingPhases builds the phase administration over the

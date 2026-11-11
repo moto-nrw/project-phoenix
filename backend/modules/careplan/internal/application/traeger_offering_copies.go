@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -18,47 +19,56 @@ const (
 	traegerFieldUnchanged = "unchanged"
 )
 
-// TraegerOfferingCopyStateReads read the state of copies; the copy commands
-// serve it unchanged.
-type TraegerOfferingCopyStateReads interface {
-	TraegerOfferingCopyStates(ctx context.Context, sourceIDs []int64, lock bool) ([]careplan.TraegerOfferingCopyState, error)
-}
-
 // TraegerOfferingCopyStore reads and links the copies of Träger offerings in
 // the school's tenant transaction.
 type TraegerOfferingCopyStore interface {
-	TraegerOfferingCopyStateReads
+	TraegerOfferingCopyStates(ctx context.Context, sourceIDs []int64, lock bool) ([]careplan.TraegerOfferingCopyState, error)
 	LinkTraegerOfferingCopy(ctx context.Context, copyID, sourceID int64, version int, values map[string]any) error
-	ReleaseTraegerOfferingCopy(ctx context.Context, copyID int64) error
+	UnlinkTraegerOfferingCopy(ctx context.Context, copyID int64) error
 }
 
-// TraegerSavepoint runs a delete that the database may refuse without
-// spoiling the school's transaction; ControlFailure reports a savepoint
-// whose state cannot be trusted.
-type TraegerSavepoint struct {
-	Run            func(context.Context, func(context.Context) error) error
-	ControlFailure func(error) bool
+// TraegerCopyRuntime is what the copy commands take from the tenant runtime
+// and the timetable: the recurrence gate every catalog write takes first,
+// and a savepoint for a delete the database may refuse. ControlFailure
+// reports a savepoint whose state cannot be trusted; ReferenceRefusal a
+// delete a booking or selection still references.
+type TraegerCopyRuntime struct {
+	LockRecurrence   func(context.Context) error
+	Savepoint        func(context.Context, func(context.Context) error) error
+	ControlFailure   func(error) bool
+	ReferenceRefusal func(error) bool
 }
 
 // TraegerOfferingCopies applies Träger offerings in one school through the
 // catalog's own commands (ADR 0195 sections 5 to 7), in the school's tenant
 // transaction, which the caller opens.
 type TraegerOfferingCopies struct {
-	TraegerOfferingCopyStateReads
-	catalog   careplan.CareOfferingCatalog
-	store     TraegerOfferingCopyStore
-	savepoint TraegerSavepoint
+	catalog careplan.CareOfferingCatalogCapability
+	store   TraegerOfferingCopyStore
+	runtime TraegerCopyRuntime
 }
 
 var _ careplan.TraegerOfferingCopies = (*TraegerOfferingCopies)(nil)
 
 // NewTraegerOfferingCopies builds the copy commands over the catalog, whose
 // validation every copy write runs through.
-func NewTraegerOfferingCopies(catalog careplan.CareOfferingCatalog, store TraegerOfferingCopyStore, savepoint TraegerSavepoint) (*TraegerOfferingCopies, error) {
-	if catalog == nil || store == nil || savepoint.Run == nil || savepoint.ControlFailure == nil {
-		return nil, errors.New("care plan träger offering copies: catalog, store and savepoint are required")
+func NewTraegerOfferingCopies(catalog careplan.CareOfferingCatalogCapability, store TraegerOfferingCopyStore, runtime TraegerCopyRuntime) (*TraegerOfferingCopies, error) {
+	if catalog == nil || store == nil || runtime.LockRecurrence == nil || runtime.Savepoint == nil || runtime.ControlFailure == nil || runtime.ReferenceRefusal == nil {
+		return nil, errors.New("care plan träger offering copies: catalog, store and runtime are required")
 	}
-	return &TraegerOfferingCopies{TraegerOfferingCopyStateReads: store, catalog: catalog, store: store, savepoint: savepoint}, nil
+	return &TraegerOfferingCopies{catalog: catalog, store: store, runtime: runtime}, nil
+}
+
+// TraegerOfferingCopyStates reads the copies of sourceIDs. With lock it
+// takes the recurrence gate first, then the copies' rows in ID order: the
+// order of every catalog write of the school (ADR 0195 section 5).
+func (s *TraegerOfferingCopies) TraegerOfferingCopyStates(ctx context.Context, sourceIDs []int64, lock bool) ([]careplan.TraegerOfferingCopyState, error) {
+	if lock {
+		if err := s.runtime.LockRecurrence(ctx); err != nil {
+			return nil, fmt.Errorf("care offering: lock template recurrence for a träger copy: %w", err)
+		}
+	}
+	return s.store.TraegerOfferingCopyStates(ctx, sourceIDs, lock)
 }
 
 // ApplyTraegerOffering creates the copy in the school's phase copy or brings
@@ -70,7 +80,7 @@ func (s *TraegerOfferingCopies) ApplyTraegerOffering(ctx context.Context, copy c
 		return careplan.TraegerOfferingApplied{}, careOfferingInvalidf("träger source, version and phase are required")
 	}
 	traeger := traegerOfferingValues(copy.Fields, true)
-	states, err := s.store.TraegerOfferingCopyStates(ctx, []int64{copy.SourceID}, true)
+	states, err := s.TraegerOfferingCopyStates(ctx, []int64{copy.SourceID}, true)
 	if err != nil {
 		return careplan.TraegerOfferingApplied{}, err
 	}
@@ -115,28 +125,36 @@ func (s *TraegerOfferingCopies) create(ctx context.Context, copy careplan.Traege
 }
 
 // WithdrawTraegerOffering removes the copy from the school: it loses its
-// link and becomes inactive, and it is deleted when no booking and no
-// selection hangs off it (ADR 0195 section 7). The ON DELETE RESTRICT keys
-// of bookings and selections decide; a refused delete rolls back to its
-// savepoint and leaves the inactive offering.
+// link and is deleted when no booking and no selection hangs off it (ADR
+// 0195 section 7). The ON DELETE RESTRICT keys of bookings and selections
+// decide; a refused delete rolls back to its savepoint, and the offering is
+// deactivated through the catalog's own update, which reconciles its
+// rosters and pickup times like a school's deactivation.
 func (s *TraegerOfferingCopies) WithdrawTraegerOffering(ctx context.Context, sourceID int64) (careplan.TraegerOfferingWithdrawal, error) {
-	states, err := s.store.TraegerOfferingCopyStates(ctx, []int64{sourceID}, true)
+	states, err := s.TraegerOfferingCopyStates(ctx, []int64{sourceID}, true)
 	if err != nil || len(states) == 0 {
 		return careplan.TraegerOfferingWithdrawal{}, err
 	}
 	copyID := states[0].CopyID
-	if err := s.store.ReleaseTraegerOfferingCopy(ctx, copyID); err != nil {
+	if err := s.store.UnlinkTraegerOfferingCopy(ctx, copyID); err != nil {
 		return careplan.TraegerOfferingWithdrawal{}, err
 	}
-	err = s.savepoint.Run(ctx, func(ctx context.Context) error { return s.catalog.DeleteOffering(ctx, copyID) })
+	err = s.runtime.Savepoint(ctx, func(ctx context.Context) error { return s.catalog.DeleteOffering(ctx, copyID) })
 	switch {
 	case err == nil:
 		return careplan.TraegerOfferingWithdrawal{Found: true, Deleted: true}, nil
-	case s.savepoint.ControlFailure(err):
+	case s.runtime.ControlFailure(err) || !s.runtime.ReferenceRefusal(err):
 		return careplan.TraegerOfferingWithdrawal{}, err
-	default:
-		return careplan.TraegerOfferingWithdrawal{Found: true}, nil
 	}
+	offering, err := s.catalog.FindOffering(ctx, copyID)
+	if err != nil {
+		return careplan.TraegerOfferingWithdrawal{}, err
+	}
+	offering.IsActive = false
+	if _, err := s.catalog.UpdateOffering(ctx, offering); err != nil {
+		return careplan.TraegerOfferingWithdrawal{}, err
+	}
+	return careplan.TraegerOfferingWithdrawal{Found: true}, nil
 }
 
 // traegerOfferingValues are the Träger's fields of an offering keyed by

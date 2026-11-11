@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 100,
+  "policy_epoch": 101,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -307,6 +307,10 @@
     },
     {
       "id": "caterer-portal",
+      "kind": "workflow"
+    },
+    {
+      "id": "traeger-catalog-rollout",
       "kind": "workflow"
     },
     {
