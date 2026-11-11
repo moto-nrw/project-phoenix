@@ -11,6 +11,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 import type { TraegerMasterData } from "~/lib/traeger-api";
 import type {
@@ -581,5 +582,54 @@ describe("TraegerVorlagePage", () => {
       ),
     ).toBeInTheDocument();
     expect(templatesApi.fetchDocumentTemplate).not.toHaveBeenCalled();
+  });
+  // #6652: after a saved version a failed reload is a load error above the
+  // template, not a page error that replaces the editor.
+  describe("reload after a write (#6652)", () => {
+    it("keeps a saved template version when the reload fails", async () => {
+      renderPage();
+      const subject = await screen.findByLabelText(/Betreff/);
+      fireEvent.change(subject, { target: { value: "Ihre Rechnung" } });
+      const saved: DocumentTemplateDetail["current"] = {
+        kind: "rechnung",
+        version: 1,
+        standard: false,
+        createdAt: "2026-09-09T10:00:00Z",
+        ...STANDARD,
+        subject: "Ihre Rechnung",
+      };
+      templatesApi.saveDocumentTemplate.mockResolvedValue(saved);
+      templatesApi.fetchDocumentTemplate.mockClear();
+      templatesApi.fetchDocumentTemplate.mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      templatesApi.fetchDocumentTemplate.mockResolvedValue(detail([saved]));
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Vorlage",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(templatesApi.saveDocumentTemplate).toHaveBeenCalledTimes(1);
+      // Anker: the editor and its preview still show the saved text.
+      expect(screen.getByLabelText(/Betreff/)).toHaveValue("Ihre Rechnung");
+      expect(
+        screen.getByRole("figure", { name: "Vorschau des Briefs" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Vorlage")),
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/Betreff/)).toBeEnabled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByText("Gilt für neue Schreiben"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+      expect(templatesApi.fetchDocumentTemplate).toHaveBeenCalledTimes(2);
+      expect(templatesApi.saveDocumentTemplate).toHaveBeenCalledTimes(1);
+    });
   });
 });

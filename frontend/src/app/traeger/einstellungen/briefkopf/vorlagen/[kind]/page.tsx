@@ -20,7 +20,10 @@ import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resou
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -32,6 +35,7 @@ import {
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { formatDate } from "~/lib/date-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import {
@@ -119,19 +123,26 @@ function TemplateEditorPage({
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
 
+  // Liest die Vorlage und setzt sie; weist bei einem Fehler ab. Das
+  // Nachladen nach dem Speichern nutzt sie direkt, damit ein Fehler dabei
+  // den gespeicherten Stand stehen lässt (#6652).
+  const readTemplate = useCallback(async () => {
+    const [detail, masterData] = await Promise.all([
+      fetchDocumentTemplate(kind),
+      fetchTraegerMasterData(),
+    ]);
+    const current = templateTextOf(detail.current);
+    const preview = await previewDocumentTemplate(kind, current);
+    setData({ detail, masterData, preview });
+    setDraft(current);
+    setPreviewed(current);
+  }, [kind]);
+
   const load = useCallback(async () => {
     previewRequest.current++;
     setPreviewing(false);
     try {
-      const [detail, masterData] = await Promise.all([
-        fetchDocumentTemplate(kind),
-        fetchTraegerMasterData(),
-      ]);
-      const current = templateTextOf(detail.current);
-      const preview = await previewDocumentTemplate(kind, current);
-      setData({ detail, masterData, preview });
-      setDraft(current);
-      setPreviewed(current);
+      await readTemplate();
       clearLoadError();
     } catch (err) {
       logger.error("traeger_document_template_load_failed", {
@@ -142,11 +153,17 @@ function TemplateEditorPage({
         retry: () => void load(),
       });
     }
-  }, [kind, clearLoadError, showLoadError]);
+  }, [readTemplate, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
   }, [load]);
+  // Nachladen nach dem Speichern: ein Fehler dabei ist ein Ladefehler über
+  // der Vorlage, kein gescheitertes Speichern (#6652).
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige der Vorlage",
+    readTemplate,
+  );
 
   const showPreview = async () => {
     if (!draft || !data || saving || previewing) return;
@@ -176,20 +193,23 @@ function TemplateEditorPage({
     setPreviewing(false);
     formErrors.clear();
     setSaving(true);
+    let saved: Awaited<ReturnType<typeof saveDocumentTemplate>>;
     try {
-      const saved = await saveDocumentTemplate(kind, draft);
-      success(
-        `Die Vorlage ist gespeichert. Neue Schreiben nutzen Version ${saved.version}.`,
-      );
-      await load();
+      saved = await saveDocumentTemplate(kind, draft);
     } catch (err) {
       logger.error("traeger_document_template_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void formErrors.show(err, { object: "die Vorlage" });
-    } finally {
       setSaving(false);
+      return;
     }
+    success(
+      `Die Vorlage ist gespeichert. Neue Schreiben nutzen Version ${saved.version}.`,
+    );
+    // Das Formular bleibt gesperrt, bis der neue Stand geladen ist.
+    await afterSave.refresh();
+    setSaving(false);
   };
 
   const error = pageLoad.error ?? schemaError;
@@ -275,6 +295,7 @@ function TemplateEditorPage({
     >
       {data && draft && schema ? (
         <>
+          <LoadErrorAlert error={afterSave.error} className="mb-4" />
           {!canEdit ? (
             <Alert
               type="info"

@@ -60,6 +60,7 @@ import {
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
@@ -279,22 +280,29 @@ export default function TraegerHolidayRegistrationPage() {
   const [splitting, setSplitting] = useState(false);
   const splitErrors = useApiErrorDisplay();
   const { success } = useToast();
+  // Reload after the split: a failure there is a load error above the
+  // registration, not a failed split (#6652).
+  const afterSplit = useRefreshAfterWrite(
+    "die Anzeige der Anmeldung",
+    fetchRegistration,
+  );
   const splitSiblings = async () => {
     setSplitting(true);
     try {
       await splitHolidaySibling(periodId, registrationId);
-      success("Die Anmeldung ist von den Geschwistern getrennt.");
-      setConfirmingSplit(false);
-      await load();
     } catch (err) {
       logger.error("holiday_registration_sibling_split_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       setConfirmingSplit(false);
-      void splitErrors.show(err, { object: "die Geschwister" });
-    } finally {
       setSplitting(false);
+      void splitErrors.show(err, { object: "die Geschwister" });
+      return;
     }
+    success("Die Anmeldung ist von den Geschwistern getrennt.");
+    setConfirmingSplit(false);
+    await afterSplit.refresh();
+    setSplitting(false);
   };
 
   const changeExemption = useCallback(
@@ -395,6 +403,7 @@ export default function TraegerHolidayRegistrationPage() {
       {registration && view && period && schools ? (
         <>
           <LoadErrorAlert error={registrationLoad.error} />
+          <LoadErrorAlert error={afterSplit.error} className="mb-4" />
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}

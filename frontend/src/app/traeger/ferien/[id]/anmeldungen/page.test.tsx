@@ -10,6 +10,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import type { HolidayRegistrationFilter } from "~/lib/traeger-holiday-registrations-api";
 import {
   HOLIDAY_PERIOD,
@@ -450,6 +452,62 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/2 Anmeldungen ausgewählt/)).toBeInTheDocument();
+  });
+  // #6652: after a confirmed merge a failed reload is a load error above the
+  // list, not a failed merge or a page error that replaces the rows.
+  describe("reload after a write (#6652)", () => {
+    it("keeps merged siblings merged when the reload fails", async () => {
+      mockMerge.mockResolvedValue({ id: "3", registrationIds: ["7", "8"] });
+      renderPage();
+      const table = within(await screen.findByRole("table"));
+      fireEvent.click(
+        await table.findByRole("checkbox", {
+          name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+        }),
+      );
+      fireEvent.click(
+        table.getByRole("checkbox", {
+          name: "Anmeldung Nr. 8 von Tom Muster auswählen",
+        }),
+      );
+      mockFetchList.mockClear();
+      mockFetchList.mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      mockFetchGroups.mockResolvedValue([
+        { id: "3", registrationIds: ["7", "8"] },
+      ]);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Als Geschwister zusammenführen" }),
+      );
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Ferienanmeldungen",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(mockMerge).toHaveBeenCalledTimes(1);
+      // Anker: the confirmed rows stay listed.
+      expect(screen.getByText("Tom Muster")).toBeInTheDocument();
+      expect(screen.getByText("Ute Muster")).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Geschwister"),
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Ferienanmeldungen"),
+        ),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(await table.findByText("mit Nr. 8")).toBeInTheDocument();
+      expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+      expect(mockFetchList).toHaveBeenCalledTimes(2);
+      expect(mockMerge).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

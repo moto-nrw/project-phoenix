@@ -10,6 +10,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
   HOLIDAY_CONTRIBUTION,
@@ -207,6 +209,59 @@ describe("TraegerHolidayRegistrationPage", () => {
       expect(
         screen.queryByRole("button", { name: "Trennen" }),
       ).not.toBeInTheDocument();
+    });
+
+    // #6652: after a confirmed split a failed reload is a load error above
+    // the registration, not a failed split.
+    describe("reload after a write (#6652)", () => {
+      it("keeps a split registration split when the reload fails", async () => {
+        mockContribution.mockResolvedValue({
+          ...HOLIDAY_CONTRIBUTION,
+          siblings: SIBLINGS,
+        });
+        mockSplit.mockResolvedValue(undefined);
+        renderPage();
+        await screen.findByRole("link", { name: "Anmeldung Nr. 8" });
+        mockRegistration.mockClear();
+        mockRegistration.mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        );
+        mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
+
+        await confirmSplit();
+
+        const reloadText = `${catalogText(
+          "general.unavailable",
+          "die Anzeige der Anmeldung",
+        )} ${SAVED_BUT_STALE_SUFFIX}`;
+        expect(await screen.findByText(reloadText)).toBeInTheDocument();
+        expect(mockSplit).toHaveBeenCalledTimes(1);
+        // Anker: the confirmed registration stays shown.
+        expect(
+          screen.getByRole("heading", {
+            level: 1,
+            name: "Anmeldung von Eva Muster",
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("link", { name: "Anmeldung Nr. 8" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            catalogText("general.unavailable", "die Geschwister"),
+          ),
+        ).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        await waitFor(() =>
+          expect(
+            screen.queryByRole("heading", { name: "Geschwister" }),
+          ).not.toBeInTheDocument(),
+        );
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+        expect(mockRegistration).toHaveBeenCalledTimes(2);
+        expect(mockSplit).toHaveBeenCalledTimes(1);
+      });
     });
 
     it("asks to check the invoice when a cancelled sibling changed the amount (#5662)", async () => {

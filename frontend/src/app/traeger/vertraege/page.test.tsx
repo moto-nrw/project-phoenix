@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   CareContractSummary,
   ContractCandidate,
@@ -443,5 +446,55 @@ describe("TraegerVertraegePage", () => {
     expect((await screen.findAllByText("Aktiv"))[0]).toBeInTheDocument();
     expect(screen.getByText("seit 03.09.2026")).toBeInTheDocument();
     expect(screen.getByText("aktiv")).toBeInTheDocument();
+  });
+  // #6652: after a confirmed send a failed reload is a load error above the
+  // list, not a failed send or a page error that replaces the contracts.
+  describe("reload after a write (#6652)", () => {
+    it("keeps sent drafts sent when the reload fails", async () => {
+      api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
+      renderPage();
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(
+        screen.getAllByLabelText("Vertrag von Lina Muster auswählen")[0]!,
+      );
+      const sendButton = await screen.findByRole("button", {
+        name: "1 Entwurf senden",
+      });
+      api.fetchCareContracts.mockClear();
+      api.fetchCareContracts
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue({
+          contracts: [{ ...DRAFT, status: "versendet" }, SENT],
+          counts: { versendet: 2 },
+          hasMore: false,
+        });
+
+      fireEvent.click(sendButton);
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Verträge",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+      // Anker: the confirmed rows stay listed.
+      expect(screen.getAllByText("Lina Muster")[0]).toBeInTheDocument();
+      expect(screen.getAllByText("Ben Muster")[0]).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Verträge")),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(api.fetchCareContracts).toHaveBeenCalledTimes(2),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+      );
+      expect(screen.getAllByText("Lina Muster")[0]).toBeInTheDocument();
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+    });
   });
 });

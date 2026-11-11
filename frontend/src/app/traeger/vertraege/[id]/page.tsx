@@ -33,7 +33,10 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { PdfPreview } from "~/components/ui/pdf-preview";
 import { SectionCard } from "~/components/ui/section-card";
 import {
@@ -57,6 +60,7 @@ import {
 import { mailStatusCopy } from "~/lib/email-delivery-status";
 import { downloadBlob } from "~/lib/file-download";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
@@ -92,9 +96,15 @@ export default function TraegerVertragPage() {
   const { success, warning } = useToast();
   const today = useBerlinToday();
 
+  // Reads the contract and sets it; rejects on a failure. The reload after a
+  // send uses it directly, so a failure there keeps the contract (#6652).
+  const readContract = useCallback(async () => {
+    setContract(await fetchCareContract(id));
+  }, [id]);
+
   const load = useCallback(async () => {
     try {
-      setContract(await fetchCareContract(id));
+      await readContract();
       clearLoadError();
     } catch (err) {
       logger.error("traeger_care_contract_load_failed", {
@@ -105,13 +115,20 @@ export default function TraegerVertragPage() {
         retry: () => void load(),
       });
     }
-  }, [id, clearLoadError, showLoadError]);
+  }, [readContract, clearLoadError, showLoadError]);
 
   // A new Berlin day can put another version in force: read the contract
   // again, so booked care, contribution and PDF follow it (#4681).
   useEffect(() => {
     void load();
   }, [load, today]);
+
+  // Reload after a send: a failure there is a load error above the contract,
+  // not a failed send (#6652).
+  const afterSend = useRefreshAfterWrite(
+    "die Anzeige des Vertrags",
+    readContract,
+  );
 
   // The preview follows the stored PDF once the contract is sent.
   const frozen = contract?.documentFrozen;
@@ -154,46 +171,50 @@ export default function TraegerVertragPage() {
   const send = async () => {
     if (!contract) return;
     setSending(true);
+    let result: Awaited<ReturnType<typeof sendCareContracts>>;
     try {
-      const result = await sendCareContracts([contract.id]);
-      const skip = result.skipped[0];
-      if (skip) warning(`Nicht gesendet: ${SEND_SKIP_LABELS[skip.reason]}.`);
-      else
-        success(
-          contract.status === "entwurf"
-            ? "Der Vertrag ist unterwegs: per Mail und in die Eltern-App."
-            : "Der Vertrag ist noch einmal unterwegs.",
-        );
-      await load();
+      result = await sendCareContracts([contract.id]);
     } catch (err) {
       logger.error("traeger_care_contract_send_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void actionError.show(err, { object: "der Vertrag" });
-    } finally {
       setSending(false);
+      return;
     }
+    const skip = result.skipped[0];
+    if (skip) warning(`Nicht gesendet: ${SEND_SKIP_LABELS[skip.reason]}.`);
+    else
+      success(
+        contract.status === "entwurf"
+          ? "Der Vertrag ist unterwegs: per Mail und in die Eltern-App."
+          : "Der Vertrag ist noch einmal unterwegs.",
+      );
+    await afterSend.refresh();
+    setSending(false);
   };
 
   const resendToAddress = async () => {
     if (!contract) return;
     recipientErrors.clear();
     setSending(true);
+    let result: Awaited<ReturnType<typeof resendCareContract>>;
     try {
-      const result = await resendCareContract(contract.id, recipientEmail);
-      const skip = result.skipped[0];
-      if (skip) warning(`Nicht gesendet: ${SEND_SKIP_LABELS[skip.reason]}.`);
-      else success("Der Vertrag ist an die neue Adresse unterwegs.");
-      setRecipientEmail("");
-      await load();
+      result = await resendCareContract(contract.id, recipientEmail);
     } catch (err) {
       logger.error("traeger_care_contract_recipient_retry_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void recipientErrors.show(err, { object: "die Versandadresse" });
-    } finally {
       setSending(false);
+      return;
     }
+    const skip = result.skipped[0];
+    if (skip) warning(`Nicht gesendet: ${SEND_SKIP_LABELS[skip.reason]}.`);
+    else success("Der Vertrag ist an die neue Adresse unterwegs.");
+    setRecipientEmail("");
+    await afterSend.refresh();
+    setSending(false);
   };
 
   const download = async () => {
@@ -349,6 +370,7 @@ export default function TraegerVertragPage() {
     >
       {contract ? (
         <>
+          <LoadErrorAlert error={afterSend.error} className="mb-4" />
           <StatusNotice contract={contract} />
           {planned ? (
             <Alert

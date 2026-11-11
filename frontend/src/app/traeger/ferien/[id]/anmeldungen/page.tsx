@@ -38,6 +38,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import {
   ExportMenu,
@@ -62,6 +63,7 @@ import {
 } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   SIBLING_HINT_LABELS,
   type SiblingHint,
@@ -402,10 +404,10 @@ export default function TraegerHolidayRegistrationsPage() {
     [status, school, weekId, timeModel, wish],
   );
 
-  const load = useCallback(async () => {
-    const current = ++generation.current;
-    setLoading(true);
-    try {
+  // Reads the list for generation `current` and sets it; rejects on a
+  // failure. An answer for an older generation is dropped.
+  const readRegistrations = useCallback(
+    async (current: number) => {
       const [loaded, loadedGroups] = await Promise.all([
         fetchHolidayRegistrations(periodId, filter),
         fetchHolidaySiblingGroups(periodId),
@@ -422,6 +424,16 @@ export default function TraegerHolidayRegistrationsPage() {
         const kept = [...selection].filter((id) => shown.has(id));
         return kept.length === selection.size ? selection : new Set(kept);
       });
+    },
+    [periodId, filter],
+  );
+
+  const load = useCallback(async () => {
+    const current = ++generation.current;
+    setLoading(true);
+    try {
+      await readRegistrations(current);
+      if (current !== generation.current) return;
       clearLoadError();
     } catch (err) {
       if (current !== generation.current) return;
@@ -435,11 +447,26 @@ export default function TraegerHolidayRegistrationsPage() {
     } finally {
       if (current === generation.current) setLoading(false);
     }
-  }, [periodId, filter, clearLoadError, showLoadError]);
+  }, [readRegistrations, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Reload after a merge: a failure there is a load error above the
+  // confirmed rows, not a failed merge (#6652). The rows stay; a reload that
+  // a newer filter overtook fails silently, the newer load answers for it.
+  const afterMerge = useRefreshAfterWrite(
+    "die Anzeige der Ferienanmeldungen",
+    async () => {
+      const current = ++generation.current;
+      try {
+        await readRegistrations(current);
+      } catch (err) {
+        if (current === generation.current) throw err;
+      }
+    },
+  );
 
   // A new filter shows other rows; a selection the list no longer shows
   // would be merged unseen.
@@ -467,17 +494,19 @@ export default function TraegerHolidayRegistrationsPage() {
     setMerging(true);
     try {
       await mergeHolidaySiblings(periodId, [...selected]);
-      success("Die Anmeldungen sind als Geschwister zusammengeführt.");
-      setSelected(new Set());
-      await load();
     } catch (err) {
       logger.error("traeger_holiday_siblings_merge_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, { object: "die Geschwister" });
-    } finally {
       setMerging(false);
+      await showActionError(err, { object: "die Geschwister" });
+      return;
     }
+    success("Die Anmeldungen sind als Geschwister zusammengeführt.");
+    setSelected(new Set());
+    // The selection stays locked until the new rows are there.
+    await afterMerge.refresh();
+    setMerging(false);
   };
 
   const names = schoolNames(schools);
@@ -670,6 +699,7 @@ export default function TraegerHolidayRegistrationsPage() {
       onClearAllFilters={clearFilters}
       error={loadError}
     >
+      <LoadErrorAlert error={afterMerge.error} className="mb-4" />
       {duplicates > 0 ? (
         <Alert
           type="warning"
