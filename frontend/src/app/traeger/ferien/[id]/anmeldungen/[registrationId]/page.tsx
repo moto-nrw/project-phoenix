@@ -33,6 +33,9 @@ import {
   HOLIDAY_REGISTRATION_STATUS_TONES,
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
+import { Alert } from "~/components/ui/alert";
+import { HolidayRegistrationPdfMenu } from "~/components/traeger/holiday-registration-pdf-menu";
+import { holidayRegistrationDeletionNotice } from "~/components/traeger/holiday-registration-retention";
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
@@ -355,6 +358,10 @@ export default function TraegerHolidayRegistrationPage() {
     ? `Anmeldung von ${registration.guardianFirstName} ${registration.guardianLastName}`
     : "Anmeldung";
 
+  const deletionNotice = registration
+    ? holidayRegistrationDeletionNotice(registration)
+    : null;
+
   return (
     <TenantPage
       title={title}
@@ -380,11 +387,23 @@ export default function TraegerHolidayRegistrationPage() {
         ) : null
       }
       statsLoading={!registration && !loadError}
+      actions={
+        registration ? (
+          <HolidayRegistrationPdfMenu
+            periodId={periodId}
+            registrationId={registrationId}
+            canSeeHealth={canSeeHealth}
+          />
+        ) : null
+      }
       error={loadError}
       loading={!loadError && !(registration && period && schools)}
     >
       {registration && view && period && schools ? (
         <>
+          {deletionNotice ? (
+            <Alert type="info" message={deletionNotice} />
+          ) : null}
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}

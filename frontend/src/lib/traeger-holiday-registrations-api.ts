@@ -140,6 +140,12 @@ export interface HolidayRegistrationSummary {
    * confirmation (#5621); empty without one.
    */
   readonly debtorNumber: string;
+  /**
+   * The day moto deletes the registration and the day its health information
+   * goes (#6691), as "YYYY-MM-DD"; null for a period without weeks.
+   */
+  readonly deletesOn: string | null;
+  readonly healthDeletesOn: string | null;
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -362,6 +368,8 @@ interface BackendSummary {
   guardian_phone: string;
   benefits_declared?: boolean;
   debtor_number?: string;
+  deletes_on?: string | null;
+  health_deletes_on?: string | null;
   children?: BackendChild[] | null;
 }
 
@@ -474,6 +482,8 @@ function summaryFromBackend(
     guardianPhone: registration.guardian_phone,
     benefitsDeclared: registration.benefits_declared ?? false,
     debtorNumber: registration.debtor_number ?? "",
+    deletesOn: registration.deletes_on ?? null,
+    healthDeletesOn: registration.health_deletes_on ?? null,
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -946,16 +956,17 @@ export async function editHolidayRegistration(
   );
 }
 
-/** The export of a filter as CSV or Excel, with the backend's file name. */
-export async function downloadHolidayRegistrations(
-  periodId: string,
-  filter: HolidayRegistrationFilter,
-  format: "csv" | "xlsx",
-): Promise<{ readonly blob: Blob; readonly filename: string | null }> {
-  const response = await transportFetch(
-    `${registrationsPath(periodId)}/export${holidayRegistrationQuery(filter, { format })}`,
-    { credentials: "include", cache: "no-store" },
-  );
+interface DownloadedFile {
+  readonly blob: Blob;
+  readonly filename: string | null;
+}
+
+/** Fetches a file of the Träger portal with the backend's file name. */
+async function downloadTraegerFile(path: string): Promise<DownloadedFile> {
+  const response = await transportFetch(path, {
+    credentials: "include",
+    cache: "no-store",
+  });
   if (!response.ok) {
     const text = await response.text();
     let body: unknown = null;
@@ -974,6 +985,47 @@ export async function downloadHolidayRegistrations(
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
   };
+}
+
+/** The export of a filter as CSV or Excel, with the backend's file name. */
+export async function downloadHolidayRegistrations(
+  periodId: string,
+  filter: HolidayRegistrationFilter,
+  format: "csv" | "xlsx",
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationsPath(periodId)}/export${holidayRegistrationQuery(filter, { format })}`,
+  );
+}
+
+/** The query that asks for the health information in a file (#6691). */
+function healthQuery(withHealth: boolean): Record<string, string> {
+  return withHealth ? { health: "true" } : {};
+}
+
+/**
+ * One registration as a PDF (#6691). With `withHealth` the file names the
+ * health information; the backend admits that only with the right to see it.
+ */
+export async function downloadHolidayRegistrationPdf(
+  periodId: string,
+  registrationId: string,
+  withHealth: boolean,
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationPath(periodId, registrationId)}/pdf${withHealth ? "?health=true" : ""}`,
+  );
+}
+
+/** The registrations of a filter as a ZIP with one PDF each (#6691). */
+export async function downloadHolidayRegistrationPdfs(
+  periodId: string,
+  filter: HolidayRegistrationFilter,
+  withHealth: boolean,
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationsPath(periodId)}/pdf${holidayRegistrationQuery(filter, healthQuery(withHealth))}`,
+  );
 }
 
 /**

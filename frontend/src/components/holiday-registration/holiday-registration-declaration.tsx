@@ -9,7 +9,10 @@ import { useLocale, useTranslations } from "next-intl";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
-import type { HolidayConsentTexts } from "~/lib/holiday-consent-texts";
+import {
+  HOLIDAY_LEGACY_RETENTION_DAYS,
+  type HolidayConsentTexts,
+} from "~/lib/holiday-consent-texts";
 import {
   DECLARATION_NAME_MAX_LENGTH,
   type FieldError,
@@ -66,7 +69,13 @@ export function HolidayRegistrationDeclaration({
   const translation = (key: TranslatedKey) =>
     readingAid ? (
       <span lang={readingAid}>
-        {t("translationNote")} {t(key)}
+        {t("translationNote")}{" "}
+        {key === "privacyConsent"
+          ? t(key, {
+              days: texts.retentionDays,
+              healthDays: HOLIDAY_LEGACY_RETENTION_DAYS,
+            })
+          : t(key)}
       </span>
     ) : undefined;
   return (

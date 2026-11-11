@@ -78,6 +78,8 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   guardianPhone: "0151 2345678",
   benefitsDeclared: false,
   debtorNumber: "",
+  deletesOn: null,
+  healthDeletesOn: null,
   guardianAddress: null,
   secondGuardian: null,
   children: [
@@ -145,7 +147,7 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   bindingConfirmedAt: "2026-09-03T08:00:00Z",
   custodyConfirmedAt: "2026-09-03T08:00:00Z",
   declarationName: "Eva Muster",
-  consentVersion: 3,
+  consentVersion: 4,
   consentTexts: HOLIDAY_CONSENT_TEXTS,
   benefitsProofs: [],
   history: [],

@@ -70,7 +70,7 @@
   "addPickup": "Dodaj osobę",
   "remove": "Usuń",
   "consentTitle": "Zgoda",
-  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je trzy miesiące po feriach. OGS, która opiekuje się moim dzieckiem w tygodniu ferii, widzi imię, nazwisko i telefon drugiego opiekuna prawnego. Widzi też odpowiedzi, które organizator jej udostępni. Informacje o zdrowiu widzi tylko wtedy, gdy się zgodzę. OGS widzi to już przed tygodniem ferii, aby się przygotować. Listę dzieci widzi do ostatniego dnia tygodnia. Potem może czytać imię, nazwisko, telefon i odpowiedzi jeszcze najwyżej 7 dni. Następnie są one usuwane.",
+  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je {days} dni po feriach. Informacje o zdrowiu usunie już {healthDays} dni po feriach. OGS, która opiekuje się moim dzieckiem w tygodniu ferii, widzi imię, nazwisko i telefon drugiego opiekuna prawnego. Widzi też odpowiedzi, które organizator jej udostępni. Informacje o zdrowiu widzi tylko wtedy, gdy się zgodzę. OGS widzi to już przed tygodniem ferii, aby się przygotować. Listę dzieci widzi do ostatniego dnia tygodnia. Potem może czytać imię, nazwisko, telefon i odpowiedzi jeszcze najwyżej 7 dni. Następnie są one usuwane.",
   "healthConsent": "Zgadzam się: organizator i OGS widzą informacje o zdrowiu moich dzieci. Chodzi o OGS, która opiekuje się dzieckiem w tygodniu ferii. Widzi je od potwierdzenia do ostatniego dnia tygodnia.",
   "bindingConfirmed": "Wiem, że zgłoszenie jest wiążące.",
   "custodyConfirmed": "Mogę samodzielnie złożyć zgłoszenie: mam wyłączną władzę rodzicielską albo druga osoba z władzą rodzicielską się zgadza.",
