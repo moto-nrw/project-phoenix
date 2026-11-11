@@ -1,0 +1,21 @@
+{
+  "defaultSeconds": 90,
+  "packages": {
+    "modules/dataimport/importtest": {
+      "seconds": 300,
+      "reason": "Fault matrices of the import batch work (#6307, #6408, #6514, #6558): about 5000 uploads, each in a school of its own. Full suite on blacksmith-8vcpu 11/2026: 245 s warm, 389 s with a cold build cache before #6784."
+    },
+    "api": {
+      "seconds": 200,
+      "reason": "Route-sized routers for every portal plus TestFullProductionRouterGolden and the meal-message write matrices (#6510). Full suite 11/2026: 147 s warm, 178 s cold."
+    },
+    "modules/organizationtenancy/compose": {
+      "seconds": 180,
+      "reason": "Per-test tenants for school lifecycle and erasure (#6452). Full suite 11/2026: 121 s warm, 158 s cold."
+    },
+    "database/migrations": {
+      "seconds": 120,
+      "reason": "Runs every migration on fresh databases. Full suite 11/2026: 55 s warm, 76 s cold."
+    }
+  }
+}

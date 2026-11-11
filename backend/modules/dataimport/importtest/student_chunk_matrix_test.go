@@ -28,18 +28,24 @@ import (
 // statement under the bound and every owner write after it, inner
 // savepoints included; a new statement joins the matrix by itself.
 //
-// Part 1: each statement fails once with each kind of main error while every
-// cleanup succeeds. The batch path must end as the row path does when the
+// Representatives are the first and the last statement of each equivalence
+// class by position and every set and reset of every bound.
+//
+// Part 1: each representative fails once with each kind of main error, every
+// other statement once with one of them (rotating over the positions), while
+// every cleanup succeeds. The batch path must end as the row path does when the
 // same statement fails there: with the same status and the same persistence.
 // Where the batch command replays the chunk (a failed write that is neither a
 // broken connection nor a failed savepoint statement), the replay is a
 // row-path run after the fault, so the batch path ends as the row path
 // without it.
 //
-// Part 2: the whole cross of main error × cleanup point × cleanup error for
-// the first and the last statement of each equivalence class, and for every
-// other statement the main errors 40P01, 57014 and one without SQLSTATE ×
-// every cleanup point of its class × every cleanup error. The executor
+// Part 2: each representative × the main errors 40P01, 57014 and one without
+// SQLSTATE × every cleanup point of its class × the cleanup errors 40P01 and
+// a broken connection. A failed cleanup ends the upload whatever its error;
+// the main error decides only E13′ and the outer ROLLBACK, and the three main
+// errors carry both. The cross over every statement and every error (#6514)
+// ran about 5000 uploads and set the CI time of the job (#6784). The executor
 // reads two things of a failing statement only: whether it ran in the
 // bounded call, and which savepoints enclose it, which fixes the cleanup
 // statements after it. Its SQL enters no decision. The classes are those two
@@ -741,11 +747,45 @@ func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []imp
 		statements = kept
 	}
 
-	// Part 1: every statement × every main error, cleanups succeed.
+	// Representatives (#6784): the first and the last statement of each class
+	// by position, and every set and reset of every bound. The executor
+	// decides by class, not by position, so the statements between them
+	// repeat their representatives' cells; each of them still meets one main
+	// error, so a statement in the wrong class still fails.
+	members := map[string][]int{}
+	var classOrder []string
+	for i, statement := range statements {
+		class := string(statement.class)
+		if _, seen := members[class]; !seen {
+			classOrder = append(classOrder, class)
+		}
+		members[class] = append(members[class], i)
+	}
+	extremes := classExtremes(statements)
+	representative := map[int]bool{}
+	for _, class := range classOrder {
+		indices := members[class]
+		first, last := statements[indices[0]], statements[indices[len(indices)-1]]
+		require.Equal(t, extremes[first.class], [2]int{first.index, last.index}, "the representatives are the first and the last statement of %s by position", class)
+		for position, at := range indices {
+			if position == 0 || position == len(indices)-1 || statements[at].class == classBoundControl {
+				representative[at] = true
+			}
+		}
+	}
+
+	// Part 1: each representative × every main error, every other statement ×
+	// one main error (the errors rotate over the positions), cleanups succeed.
 	var mainOnly sync.Map // "index err" -> matrixUpload of the batch path
+	mainCases := 0
 	t.Run("main error", func(t *testing.T) {
-		for _, statement := range statements {
-			for _, err := range matrixFailures {
+		for at, statement := range statements {
+			mains := []error{matrixFailures[at%len(matrixFailures)]}
+			if representative[at] {
+				mains = matrixFailures
+			}
+			for _, err := range mains {
+				mainCases++
 				t.Run(fmt.Sprintf("%s × %v", statement.label(), err), func(t *testing.T) {
 					t.Parallel()
 					logStatementOnFailure(t, statement)
@@ -799,65 +839,41 @@ func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []imp
 		}
 	})
 
-	// Part 2: main error × cleanup point × cleanup error, per class: the
-	// first and the last statement of each class (and owner savepoint) with
-	// every main error, every other one with the minimum main errors; each
-	// against every cleanup point of its class and every cleanup error.
+	// Part 2: each representative × the minimum main errors × every cleanup
+	// point of its class × the minimum cleanup errors. A failed cleanup ends
+	// the upload whatever its error (E19); only E13′ and the outer ROLLBACK
+	// rest on the main error, and the minimum main errors carry both
+	// (#6514, reduced to the representatives in #6784).
 	cases := 0
-	members := map[string][]int{}
-	var classOrder []string
-	for i, statement := range statements {
-		class := string(statement.class)
-		if _, seen := members[class]; !seen {
-			classOrder = append(classOrder, class)
-		}
-		members[class] = append(members[class], i)
-	}
-	extremes := classExtremes(statements)
-	for _, class := range classOrder {
-		indices := members[class]
-		first, last := statements[indices[0]], statements[indices[len(indices)-1]]
-		require.Equal(t, extremes[first.class], [2]int{first.index, last.index}, "the whole cross takes the first and the last statement of %s by position", class)
-	}
 	t.Run("cleanup", func(t *testing.T) {
-		for _, class := range classOrder {
-			indices := members[class]
-			for position, at := range indices {
-				statement := statements[at]
-				mains, cleanups := minimumCleanupFailures, minimumCleanupErrors
-				if position == 0 || position == len(indices)-1 || statement.class == classBoundControl {
-					// First and last of each class (the quota classes
-					// included), and every set and reset of every bound, get
-					// the whole cross; every other statement takes the
-					// minimum, so the package stays inside CI's ten minutes.
-					mains, cleanups = matrixFailures, matrixFailures
-				}
-				for _, err := range mains {
-					for _, point := range cleanupPoints[statement.class] {
-						for _, err2 := range cleanups {
-							cases++
-							t.Run(fmt.Sprintf("%s × %v, cleanup %d × %v", statement.label(), err, point, err2), func(t *testing.T) {
-								t.Parallel()
-								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2, fixture)
-							})
-						}
+		for at, statement := range statements {
+			if !representative[at] {
+				continue
+			}
+			for _, err := range minimumCleanupFailures {
+				for _, point := range cleanupPoints[statement.class] {
+					for _, err2 := range minimumCleanupErrors {
+						cases++
+						t.Run(fmt.Sprintf("%s × %v, cleanup %d × %v", statement.label(), err, point, err2), func(t *testing.T) {
+							t.Parallel()
+							runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2, fixture)
+						})
 					}
 				}
 			}
 		}
 	})
-	t.Logf("%d statements in %d classes; %d main-error cases, %d cleanup cases", len(statements), len(classOrder), len(statements)*len(matrixFailures), cases)
+	t.Logf("%d statements in %d classes; %d main-error cases, %d cleanup cases", len(statements), len(classOrder), mainCases, cases)
 }
 
-// minimumCleanupErrors are the cleanup errors every statement that does not
-// stand first or last for its class meets at each cleanup point: a failed
-// cleanup ends the upload whatever its error (E19), except E13′, which rests
-// on the main error; a retryable SQLSTATE and a broken connection stand for
-// the rest (#6514, to keep the package inside CI's ten minutes).
+// minimumCleanupErrors are the cleanup errors each representative meets at
+// each cleanup point: a failed cleanup ends the upload whatever its error
+// (E19), except E13′, which rests on the main error; a retryable SQLSTATE and
+// a broken connection stand for the rest (#6514, #6784).
 var minimumCleanupErrors = []error{injectedSQLState("40P01"), driver.ErrBadConn}
 
-// minimumCleanupFailures are the main errors every statement that does not
-// stand first or last for its class is crossed with.
+// minimumCleanupFailures are the main errors the cleanup cases cross: the
+// retry (40P01), E13′ (57014) and a failure without SQLSTATE.
 var minimumCleanupFailures = []error{
 	injectedSQLState("40P01"), injectedSQLState("57014"), errors.New("injected failure without SQLSTATE"),
 }

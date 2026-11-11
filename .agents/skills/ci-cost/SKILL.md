@@ -80,6 +80,16 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   fresh hosted VM; test it repeatedly before moving it.
 - The nightly race run keeps four backend shards (`SPLIT_SUITES`): race
   builds allow two packages per runner.
+- The backend test job saturates its 8 vCPU (about 5 % idle, load 23–37), so
+  its wall time follows total CPU work. A cold Go build cache cost 260 s of
+  the 574 s test step on the same commit (#6784); before #6784 every pull
+  request compiled cold, because pull requests saved 2 GB caches no other
+  pull request could read and the repository sat above its 10 GB limit.
+  Check a slow job's "Restore backend build cache" line first.
+- Package wall times under that load are 2–3 times a local run: `importtest`
+  136 s locally, 245–389 s in the full suite. Long packages start first
+  (`scripts/backend-package-budgets.mjs order`); a long one started late ran
+  alone for the last minutes of the job.
 - A pull request run with the full suites cost about $0.18–0.27 after #5770
   (check "CI cost"); the backend tests alone, warm, about $0.05.
 
