@@ -20762,6 +20762,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.ArchiveTemplate",
+      "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.ArchiveTemplate",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.ArchiveTemplate",
       "binding_digest": "761cd05599199a2e2f91f406b31af52f",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.ArchiveTemplate",
       "source_owner": "timetable-activities",
@@ -20807,6 +20815,14 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
@@ -21722,6 +21738,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.UpdateTemplate",
+      "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.UpdateTemplate",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.UpdateTemplate",
       "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.UpdateTemplate",
       "source_owner": "timetable-activities",
@@ -21895,6 +21919,14 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource",
+      "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.ConnectOfferingSource",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource",
@@ -26015,6 +26047,14 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidateTemplateSeries",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateService.ArchiveTemplate",
+      "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministrationQueries.ArchiveTemplate",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateService.ArchiveTemplate",
@@ -31047,6 +31087,14 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",

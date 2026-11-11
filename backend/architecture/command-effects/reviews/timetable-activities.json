@@ -28055,6 +28055,16 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.ArchiveTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.ArchiveTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.ArchiveTemplate. No persistent, lock or scope effect; template writes now take the grade-transition gate with the recurrence gate, before their supervisor rows take staff rows (#6583).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.ArchiveTemplate",
@@ -28119,6 +28129,16 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.CreateTemplate. No persistent, lock or scope effect; template writes now take the grade-transition gate with the recurrence gate, before their supervisor rows take staff rows (#6583).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "adr": "0083",
@@ -29317,6 +29337,16 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.UpdateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.UpdateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateAdministration.UpdateTemplate. No persistent, lock or scope effect; template writes now take the grade-transition gate with the recurrence gate, before their supervisor rows take staff rows (#6583).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.UpdateTemplate",
       "classification": "platform",
@@ -29551,6 +29581,16 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.ConnectOfferingSource",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. No persistent, lock or scope effect; template writes now take the grade-transition gate with the recurrence gate, before their supervisor rows take staff rows (#6583).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "adr": "0083",
@@ -34866,6 +34906,16 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidateTemplateSeries",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateService.ArchiveTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministrationQueries.ArchiveTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through *modules/timetable/internal/application.TemplateService.ArchiveTemplate. No persistent, lock or scope effect; template writes now take the grade-transition gate with the recurrence gate, before their supervisor rows take staff rows (#6583).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "adr": "0083",
@@ -41513,6 +41563,16 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.TransitionsLockKey (school-structure) through modules/timetable.TemplateAdministration.CreateTemplate. No persistent, lock or scope effect; template writes now take the grade-transition gate with the recurrence gate, before their supervisor rows take staff rows (#6583).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
+      "target_owner": "school-structure"
     },
     {
       "adr": "0083",
