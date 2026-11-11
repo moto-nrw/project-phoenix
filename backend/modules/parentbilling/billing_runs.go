@@ -25,9 +25,9 @@ import (
 const (
 	RunCalculated = "calculated"
 	RunReleased   = "released"
-	// RunDiscarded is a monthly or notice run the Abrechnung discarded
-	// while it was open and had nothing to issue (#6626). It issued nothing
-	// and never changes.
+	// RunDiscarded is a holiday, monthly or notice run the Abrechnung
+	// discarded while it was open and had nothing to issue (#6626, #6628).
+	// It issued nothing and never changes.
 	RunDiscarded = "discarded"
 )
 
@@ -86,6 +86,8 @@ type BillingRun struct {
 	IssuedOn        *calendar.Date `json:"issued_on"`
 	DocumentCount   *int           `json:"document_count"`
 	TotalCents      *int64         `json:"total_cents"`
+	// DiscardedAt is set once the Abrechnung discarded the empty run (#6628).
+	DiscardedAt *time.Time `json:"discarded_at"`
 }
 
 // BillingCorrection is one entry of the history of a child's amount.
@@ -316,6 +318,11 @@ type BillingRuns interface {
 	BillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
 	CorrectBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, input BillingCorrectionInput) (BillingRunDetail, error)
 	ReleaseBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release BillingRelease) (BillingRunDetail, error)
+	// DiscardBillingRun discards an open run whose preview has no invoice
+	// and no registration waiting for its contribution, under the locks of
+	// the release (#6628); a run with content is ErrBillingRunNotEmpty. The
+	// period is free for a new run afterwards.
+	DiscardBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
 	// RemoveCarriedCorrection and ChangeCarriedCorrection decide a correction
 	// of a cancelled invoice the preview proposes (#5663). A position that is
 	// no proposal of the run is ErrCarriedCorrectionNotFound.

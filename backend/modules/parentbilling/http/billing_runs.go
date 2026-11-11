@@ -52,6 +52,7 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
+		billing.Post("/{id}/discard", rs.discard)
 		billing.Put("/{id}/carried-corrections/{positionID}", rs.changeCarried)
 		billing.Delete("/{id}/carried-corrections/{positionID}", rs.removeCarried)
 		billing.Get("/{id}/export", rs.export)
@@ -215,6 +216,21 @@ func (rs *BillingRunResource) correct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, detail, "Billing correction recorded successfully")
+}
+
+// discard discards an open run that has nothing to issue (#6628).
+func (rs *BillingRunResource) discard(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	detail, err := rs.runs.DiscardBillingRun(r.Context(), reviewer, runID)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderBillingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Billing run discarded successfully")
 }
 
 // release issues the invoices. Any refusal rolls the Träger transaction

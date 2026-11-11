@@ -73,3 +73,47 @@ func TestRunDiscardsKeepTheTraegerBelowRLS(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// The discard of an empty holiday run (#6628) names its Träger below row
+// level security too: another Träger's open run stays open only because
+// MarkRunDiscarded filters by the Träger. Removing the filter turns it red.
+func TestHolidayRunDiscardKeepsTheTraegerBelowRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	own := newCareScope(t, db, "Träger Ferienlauf Verwerfen A")
+	other := newCareScope(t, db, "Träger Ferienlauf Verwerfen B")
+	store := NewStore()
+	rollback := errors.New("roll the discard rows back")
+
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, own.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, own.organization)
+		require.NoError(t, err)
+		openRun := func(organization, period int64) int64 {
+			var id int64
+			require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.runs (organization_id, service, holiday_period_id, period_name,
+				service_from, service_until) VALUES (?, 'holiday', ?, 'Herbstferien', DATE '2029-10-15', DATE '2029-10-26') RETURNING id`,
+				organization, period).Scan(ctx, &id))
+			return id
+		}
+		ownRun, otherRun := openRun(own.organization, own.contract), openRun(other.organization, other.contract)
+
+		_, err = store.MarkRunDiscarded(ctx, own.organization, otherRun)
+		assert.ErrorIs(t, err, parentbilling.ErrBillingRunReleased, "MarkRunDiscarded of another Träger's run")
+		var status string
+		require.NoError(t, tx.NewRaw(`SELECT status FROM parent_billing.runs WHERE id = ?`, otherRun).Scan(ctx, &status))
+		assert.Equal(t, parentbilling.RunCalculated, status, "the other Träger's holiday run stays open")
+
+		run, err := store.MarkRunDiscarded(ctx, own.organization, ownRun)
+		require.NoError(t, err)
+		assert.Equal(t, parentbilling.RunDiscarded, run.Status)
+		assert.NotNil(t, run.DiscardedAt)
+		again := openRun(own.organization, own.contract)
+		assert.NotEqual(t, ownRun, again, "the period is free for a new run")
+		_, err = store.MarkRunDiscarded(ctx, own.organization, ownRun)
+		assert.ErrorIs(t, err, parentbilling.ErrBillingRunReleased, "a discarded run is never discarded again")
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
