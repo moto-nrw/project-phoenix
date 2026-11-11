@@ -19,7 +19,8 @@ type billing struct {
 // the month of the service start, at the earliest the current month. A
 // school compares the immutable applied version for its current copy with
 // the target, including after missed releases. Changed terms start next
-// month; the same copy at the same version gets nothing. Historical outcomes
+// month; a first price starts in the service month, at the earliest this
+// month. The same copy at the same version gets nothing. Historical outcomes
 // of another copy cannot complete the current copy's financial initialization.
 func billingFor(offering careplan.TraegerOffering, next offeringRelease, schoolID int64, phase enrollment.TraegerPhaseFields, today calendar.Date, copy careplan.TraegerOfferingApplied) billing {
 	recorded := recordedVersion(offering, schoolID)
@@ -33,7 +34,11 @@ func billingFor(offering careplan.TraegerOffering, next offeringRelease, schoolI
 		return result
 	case previous != nil:
 		if !sameJSON(previous.Prices, next.draft.Prices) {
-			result.pricesFrom = monthFrom(phase.ServiceStartDate, nextMonthStart(today))
+			start := nextMonthStart(today)
+			if len(previous.Prices) == 0 {
+				start = monthStart(today)
+			}
+			result.pricesFrom = monthFrom(phase.ServiceStartDate, start)
 		}
 		result.template = !sameJSON(previous.ContractTemplate, next.draft.ContractTemplate)
 	default:

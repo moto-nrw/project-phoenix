@@ -17732,6 +17732,36 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.Child",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.Child",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.ChildByID; modules/enrollment.BookingProjection (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.ChildByID",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.Child",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.Child",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.RequestChild.IsApproved; modules/enrollment/request_child.go:86. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.RequestChild.IsApproved",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.Child",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.Child",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.Owner.ChildByID; modules/enrollment.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.Owner.ChildByID",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.Child",
       "classification": "query",
       "effect": "query",
@@ -17782,6 +17812,26 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.Phases",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.Phases",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.Phases; modules/enrollment.BookingProjection (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.Phases",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.Phases",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.Phases",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.Owner.Phases; modules/enrollment.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.Owner.Phases",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.Phases",
       "classification": "query",
       "effect": "query",
@@ -17799,6 +17849,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.Owner.Phases; modules/enrollment.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.Owner.Phases",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.PhasesByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.PhasesByID",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.PhasesByID; modules/enrollment.BookingProjection (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.PhasesByID",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.PhasesByID",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.PhasesByID",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.Owner.PhasesByID; modules/enrollment.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.Owner.PhasesByID",
       "target_owner": "enrollment"
     },
     {
@@ -17822,6 +17892,26 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.Request",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.Request",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.RequestByID; modules/enrollment.BookingProjection (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.RequestByID",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.Request",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.Request",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.Owner.RequestByID; modules/enrollment.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.Owner.RequestByID",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.Request",
       "classification": "query",
       "effect": "query",
@@ -17842,6 +17932,16 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.SelectionHistory",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.SelectionHistory",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.RequestChildOfferingHistory; modules/enrollment/booking_reads.go:8. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.RequestChildOfferingHistory",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.SelectionHistory",
       "classification": "query",
       "effect": "query",
@@ -17852,6 +17952,16 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.SelectionsAt",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.SelectionsAt",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.RequestChildOfferingsAtDate; modules/enrollment/booking_reads.go:58. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.RequestChildOfferingsAtDate",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.SelectionsAt",
       "classification": "query",
       "effect": "query",
@@ -17859,6 +17969,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.RequestChildOfferingsAtDate; modules/enrollment/booking_reads.go:58. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.RequestChildOfferingsAtDate",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterEnrollmentSnapshot.StudentSelectionsBetween",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsBetween",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read: the roster impact of a booking change reads the selections of the student's other approved request children from the first rewritten day over the next school year, so their bookings may carry a hand-maintained Regeltermin on that day (#5366, ADR 0128) or end its gap later (#5497). The binding filters the student and maps the rows onto Care Plan's booked offerings. Target modules/enrollment.BookingProjection.ApprovedSelectionsForStudents; modules/enrollment/booking_approved.go:26 reads approved request children and Care Plan's booking history; no owned-row mutation or locking read.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.ApprovedSelectionsForStudents",
       "target_owner": "enrollment"
     },
     {
@@ -18100,63 +18220,237 @@
       "target_owner": "timetable-activities"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupEnrollments",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListStudentsByID; modules/peopledirectory/internal/application/capability_student.go:9. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListStudentsByID; modules/peopledirectory/internal/application/capability_student.go:9. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentsByID",
       "target_owner": "people-directory"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupEnrollments",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListStudentsByID; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListStudentsByID; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
       "target_owner": "people-directory"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupEnrollments",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListStudentsByID; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListStudentsByID; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
       "target_owner": "people-directory"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupEnrollments",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Student.IsAlumnus; modules/peopledirectory/student.go:63. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Student.IsAlumnus; modules/peopledirectory/student.go:63. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
       "target_owner": "people-directory"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupEnrollments",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupEnrollments",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Read-only newly exposed target: care-plan reaches modules/timetable.Capability.ListStudentEnrollments (timetable-activities) through roots/owners.bookingRosters.GroupEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.ListStudentEnrollments",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "approval_adr": "0215",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupEnrollments",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Read-only newly exposed target: care-plan reaches modules/timetable.Owner.ListStudentEnrollments (timetable-activities) through roots/owners.bookingRosters.GroupEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.ListStudentEnrollments",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListStudentsByID; modules/peopledirectory/internal/application/capability_student.go:9. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListStudentsByID; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListStudentsByID; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Student.IsAlumnus; modules/peopledirectory/student.go:63. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
       "reason": "Read-only newly exposed target: care-plan reaches modules/timetable.Capability.ListStudentEnrollments (timetable-activities) through roots/owners.bookingRosters.GroupEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.ListStudentEnrollments",
       "target_owner": "timetable-activities"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupEnrollments",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.GroupsEnrollments",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupEnrollments",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
       "reason": "Read-only newly exposed target: care-plan reaches modules/timetable.Owner.ListStudentEnrollments (timetable-activities) through roots/owners.bookingRosters.GroupEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.ListStudentEnrollments",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListStudentsByID; modules/peopledirectory/internal/application/capability_student.go:9. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListStudentsByID; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListStudentsByID; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Student.IsAlumnus; modules/peopledirectory/student.go:63. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/timetable.Capability.ListStudentEnrollments (timetable-activities) through roots/owners.bookingRosters.GroupEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.ListStudentEnrollments",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.GroupsEnrollments",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.GroupsEnrollments",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/timetable.Owner.ListStudentEnrollments (timetable-activities) through roots/owners.bookingRosters.GroupEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.ListStudentEnrollments",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.ReconcileTemplateRosterBatch",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.ReconcileTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. E4 named Care booking/roster reconciliation, offering adjustment, master-data approval or HTTP child-creation surface (not a general Care exception). Preserve class/recurrence/child order, in-lock authorization, request state rechecks and child-creation rollback. Hand rows 29-32, ADR 0067 E4. Target modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosters; modules/timetable/roster_maintenance.go:44. ",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.ReconcileTemplateRosterBatch",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.ReconcileTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. E4 named Care booking/roster reconciliation, offering adjustment, master-data approval or HTTP child-creation surface (not a general Care exception). Preserve class/recurrence/child order, in-lock authorization, request state rechecks and child-creation rollback. Hand rows 29-32, ADR 0067 E4. Target modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosters; modules/timetable/ports/services.go:31. ",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0215",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.ReconcileTemplateRosterBatch",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.ReconcileTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. E4 named Care booking/roster reconciliation, offering adjustment, master-data approval or HTTP child-creation surface (not a general Care exception). Preserve class/recurrence/child order, in-lock authorization, request state rechecks and child-creation rollback. Hand rows 29-32, ADR 0067 E4. Target modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosters; modules/timetable/roster_maintenance.go:44. ",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0215",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.ReconcileTemplateRosterBatch",
+      "classification": "E4",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.ReconcileTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. E4 named Care booking/roster reconciliation, offering adjustment, master-data approval or HTTP child-creation surface (not a general Care exception). Preserve class/recurrence/child order, in-lock authorization, request state rechecks and child-creation rollback. Hand rows 29-32, ADR 0067 E4. Target modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosters; modules/timetable/ports/services.go:31. ",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
       "target_owner": "timetable-activities"
     },
     {
@@ -18181,6 +18475,28 @@
       "reason": "E4 named Care booking/roster reconciliation, offering adjustment, master-data approval or HTTP child-creation surface (not a general Care exception). Preserve class/recurrence/child order, in-lock authorization, request state rechecks and child-creation rollback. Hand rows 29-32, ADR 0067 E4. Target modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosters; modules/timetable/ports/services.go:31. ",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosters",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.rosterBatch.SaveRosterChanges",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.SaveRosterChanges",
+      "reason": "Validated tenant-local roster diff or source update through the narrow SourcedRosterCommands capability. The target validates fields and writes only Timetable rows in the ambient transaction; the caller holds the recurrence gate.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedRosterCommands.SaveSourcedRosterChanges",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingRosters.SaveRosterChanges",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingRosters.SaveRosterChanges",
+      "reason": "Validated tenant-local roster diff or source update through the narrow SourcedRosterCommands capability. The target validates fields and writes only Timetable rows in the ambient transaction; the caller holds the recurrence gate.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedRosterCommands.SaveSourcedRosterChanges",
       "target_owner": "timetable-activities"
     },
     {
@@ -18467,6 +18783,17 @@
       "reason": "E4 named Care booking/roster reconciliation, offering adjustment, master-data approval or HTTP child-creation surface (not a general Care exception). Preserve class/recurrence/child order, in-lock authorization, request state rechecks and child-creation rollback. Hand rows 29-32, ADR 0067 E4. Target modules/timetable.Owner.UpdateGroupOfferingSource; modules/timetable.Owner (supplied contract method). ",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.UpdateGroupOfferingSource",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingTemplates.UpdateTemplateOfferingSources",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingTemplates.UpdateTemplateOfferingSources",
+      "reason": "Validated tenant-local roster diff or source update through the narrow SourcedRosterCommands capability. The target validates fields and writes only Timetable rows in the ambient transaction; the caller holds the recurrence gate.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedRosterCommands.UpdateGroupOfferingSources",
       "target_owner": "timetable-activities"
     },
     {

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
@@ -130,6 +131,12 @@ type catalogBatchRecords struct {
 func (r catalogBatchRecords) ListCareOfferings(_ context.Context, filter careplan.CareOfferingFilter) ([]careplan.CareOffering, error) {
 	result := []careplan.CareOffering{}
 	for _, row := range r.rows {
+		if filter.IDs != nil && !slices.Contains(filter.IDs, row.ID) {
+			continue
+		}
+		if filter.ActivityGroupIDs != nil && (row.ActivityGroupID == nil || !slices.Contains(filter.ActivityGroupIDs, *row.ActivityGroupID)) {
+			continue
+		}
 		include := filter.PhaseIDs == nil
 		for _, phase := range filter.PhaseIDs {
 			if row.PhaseID == phase {

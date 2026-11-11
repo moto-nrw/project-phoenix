@@ -4209,6 +4209,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r bookingRosters) ReconcileTemplateRosterBatch(ctx context.Context, changes []careplanCompose.RosterReconcile) error {\n\tinputs := make([]timetable.SourcedTemplateRosterReconcile, 0, len(changes))\n\tfor _, change := range changes {\n\t\tvar rows []timetable.RosterEnrollment\n\t\tif change.Prior != nil {\n\t\t\trows = make([]timetable.RosterEnrollment, 0, len(change.Prior))\n\t\t}\n\t\tfor _, row := range change.Prior {\n\t\t\trows = append(rows, timetable.RosterEnrollment{StudentID: row.StudentID, ValidFrom: row.ValidFrom, ValidUntil: row.ValidUntil, CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday, SelectedWeekdays: row.SelectedWeekdays, StudentAlumnus: row.StudentAlumnus})\n\t\t}\n\t\tinputs = append(inputs, timetable.SourcedTemplateRosterReconcile{TemplateID: change.TemplateID, StudentIDs: change.StudentIDs, From: change.From, Prior: rows})\n\t}\n\treturn r.rosters.ReconcileSourcedTemplateRosterBatch(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingRosters.ReconcileTemplateRosterBatch",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r bookingRosters) SetEnrollmentValidUntil(ctx context.Context, id int64, validUntil calendar.Date) error {\n\treturn r.timetable.SetStudentEnrollmentValidUntil(ctx, id, validUntil.String())\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingRosters.SetEnrollmentValidUntil",

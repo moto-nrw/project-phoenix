@@ -263,3 +263,10 @@ type SessionCareDayLocker interface {
 	LockStudentAndExceptionDay(context.Context, int64, string) error
 	LockExceptionDay(context.Context, int64, string) error
 }
+
+// SourcedRosterAttendance applies the day rules to a batch of newly planned
+// participants. Every supplied instance belongs to the supplied calendar date.
+type SourcedRosterAttendance interface {
+	ApplyActiveStatusDaysForInstances(context.Context, []int64, string) (int, error)
+	ApplyActivePartialAbsencesForInstances(context.Context, []int64, string) (int, error)
+}

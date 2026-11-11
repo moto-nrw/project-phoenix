@@ -16,7 +16,17 @@ func (m *BookingMaterialization) ResyncTemplatesSourcedFromOfferings(ctx context
 	if err != nil {
 		return err
 	}
-	return m.resyncSourcedTemplateList(ctx, templates, from, false)
+	if len(templates) == 0 {
+		return nil
+	}
+	materialization, batch, err := m.sourcedRosterBatch(ctx, templates, from)
+	if err != nil {
+		return err
+	}
+	if err := materialization.resyncSourcedTemplateList(ctx, templates, from, false); err != nil {
+		return err
+	}
+	return batch.flush(ctx)
 }
 
 func (m *BookingMaterialization) ReconcileOfferingPickupForOfferings(ctx context.Context, ids []int64) error {
@@ -40,23 +50,36 @@ func (m *BookingMaterialization) DetachTemplatesSourcedFromOfferings(ctx context
 	if err != nil {
 		return err
 	}
+	if len(templates) == 0 {
+		return nil
+	}
+	materialization, batch, err := m.sourcedRosterBatch(ctx, templates, from)
+	if err != nil {
+		return err
+	}
 	removed := map[int64]bool{}
 	for _, id := range ids {
 		removed[id] = true
 	}
-	children, err := m.deps.Enrollment.ApprovedChildren(ctx, ids, from)
+	children, err := materialization.deps.Enrollment.ApprovedChildren(ctx, ids, from)
 	if err != nil {
 		return err
 	}
+	sources := []ports.TemplateSourceChange{}
 	for _, tmpl := range templates {
-		if err := m.detachTraegerTemplate(ctx, tmpl, removed, children, from); err != nil {
+		change, err := materialization.detachTraegerTemplate(ctx, tmpl, removed, children, from)
+		if err != nil {
 			return err
 		}
+		sources = append(sources, change)
 	}
-	return nil
+	if err := batch.flush(ctx); err != nil {
+		return err
+	}
+	return m.deps.Templates.UpdateTemplateOfferingSources(ctx, sources)
 }
 
-func (m *BookingMaterialization) detachTraegerTemplate(ctx context.Context, tmpl ports.SourcedTemplate, removed map[int64]bool, children []ports.ApprovedOfferingChild, from calendar.Date) error {
+func (m *BookingMaterialization) detachTraegerTemplate(ctx context.Context, tmpl ports.SourcedTemplate, removed map[int64]bool, children []ports.ApprovedOfferingChild, from calendar.Date) (ports.TemplateSourceChange, error) {
 	remaining := []int64{}
 	departing := map[int64]bool{}
 	for _, id := range tmpl.SourceCareOfferingIDs {
@@ -72,13 +95,13 @@ func (m *BookingMaterialization) detachTraegerTemplate(ctx context.Context, tmpl
 	}
 	if err := m.ResyncTemplateOfferingRoster(ctx, in); err != nil {
 		if len(remaining) == 0 || !m.catalog.deps.SourceRules.IsRejection(err) {
-			return err
+			return ports.TemplateSourceChange{}, err
 		}
 		if err := m.retireTraegerSourceChildren(ctx, in, departing, children); err != nil {
-			return err
+			return ports.TemplateSourceChange{}, err
 		}
 	}
-	return m.deps.Templates.UpdateTemplateOfferingSource(ctx, tmpl.ID, remaining, in.GradeLevels, in.SchoolClasses)
+	return ports.TemplateSourceChange{TemplateID: tmpl.ID, OfferingIDs: remaining, GradeLevels: in.GradeLevels, SchoolClasses: in.SchoolClasses}, nil
 }
 
 func (m *BookingMaterialization) retireTraegerSourceChildren(ctx context.Context, in careplan.OfferingRosterResync, departing map[int64]bool, children []ports.ApprovedOfferingChild) error {

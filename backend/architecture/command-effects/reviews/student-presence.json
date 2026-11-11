@@ -15790,6 +15790,72 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstances",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActivePartialAbsencesForInstances",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstances",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActivePartialAbsencesForInstances",
+      "reason": "Reads the ambient tenant transaction; no mutation or locking at this terminal.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstances",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActivePartialAbsencesForInstances",
+      "reason": "Existing injected Student Presence observation callback, now exposed through the narrow SourcedRosterAttendance capability. No observer behavior change; the unresolved binding remains explicit.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstances",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstances",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
+      "reason": "Reads the ambient tenant transaction; no mutation or locking at this terminal.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstances",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
+      "reason": "Existing injected Student Presence observation callback, now exposed through the narrow SourcedRosterAttendance capability. No observer behavior change; the unresolved binding remains explicit.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverruns",
       "classification": "query",
       "effect": "query",

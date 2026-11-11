@@ -85,7 +85,9 @@ func traegerCatalogRouter(t *testing.T, db *bun.DB, tariffOverride ...parentbill
 	if len(tariffOverride) > 0 {
 		billing = tariffOverride[0]
 	}
-	catalog, err := NewCareOfferingCatalog(database, unit)
+	bookings, err := NewBookingMaterialization(database, unit)
+	require.NoError(t, err)
+	catalog, err := NewCareOfferingCatalog(database, unit, WithCareOfferingRosterResync(bookings.Bookings), WithCareOfferingPickupResync(bookings.Bookings))
 	require.NoError(t, err)
 	noLock := func(context.Context) error { return nil }
 	phases, err := enrollmentCompose.NewResyncingPhases(enrollmentCompose.PhaseDependencies{
@@ -424,6 +426,19 @@ func TestTraegerCatalogStatementCountDoesNotGrowWithOfferings(t *testing.T) {
 		for _, school := range result.Schools {
 			require.Equal(t, "applied", school.Outcome, school.ErrorCode)
 		}
+		// Every offering feeds a distinct live template in each school.
+		// Counting only empty catalogs misses per-template reads and source writes.
+		for _, schoolID := range office.schools {
+			var copies []struct{ ID int64 }
+			err := db.NewSelect().Table("enrollment.care_offerings").Column("id").Where("tenant_id = ?", schoolID).Where("traeger_source_id IN (?)", bun.List(ids)).Order("id").Scan(t.Context(), &copies)
+			require.NoError(t, err)
+			require.Len(t, copies, size)
+			for _, copy := range copies {
+				group := testpkg.CreateTestActivityGroupForTenant(t, db, schoolID, fmt.Sprintf("Quelle %d", copy.ID))
+				_, err := db.NewUpdate().Table("activities.groups").Set("is_template = TRUE").Set("target_group_type = ?", "angebot").Set("source_care_offering_ids = ?::jsonb", fmt.Sprintf("[%d]", copy.ID)).Where("tenant_id = ?", schoolID).Where("id = ?", group.ID).Exec(t.Context())
+				require.NoError(t, err)
+			}
+		}
 		for index, id := range ids {
 			draft := catalogOffering(30, 1800)
 			draft["fields"].(map[string]any)["name"] = fmt.Sprintf("Modul %d", index)
@@ -525,4 +540,48 @@ func TestTraegerCatalogFinancialWritesAreAtomic(t *testing.T) {
 	rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/rollout", map[string]any{"fingerprint": preview.Fingerprint})
 	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
 	checkTerms()
+}
+
+func TestTraegerCatalogRejectsInvalidOfferingFields(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	portal := traegerPortalWithDays(t, db, testpkg.TenantRuntime(t, db), owners.HolidayTestSchoolCalendar{})
+	office := newTraegerOffice(t, db, portal, "Träger Validierung", identityaccess.TraegerRoleAdministration)
+	testpkg.OwnTraegerCatalog(t, db, office.organization)
+	router := traegerCatalogRouter(t, db)
+	rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/catalog/phases", map[string]any{
+		"name": "Validierung", "kind": "school_year", "service_start_date": "2027-08-01", "service_end_date": "2028-07-31", "all_schools": true,
+	})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	phase := decodeSchoolPortalData[catalogPhaseBody](t, rec.Body.Bytes())
+	path := fmt.Sprintf("/traeger/catalog/phases/%d/offerings", phase.ID)
+	rec = traegerJSON(t, router, office.token, http.MethodPost, path, catalogOffering(20, 1600))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	offering := decodeSchoolPortalData[careplan.TraegerOffering](t, rec.Body.Bytes())
+	for _, invalid := range []struct {
+		field string
+		value any
+		code  string
+	}{
+		{"days_of_week_mode", "unknown", "enrollment.traeger_catalog_invalid"},
+		{"available_days", []string{"unknown"}, "enrollment.traeger_catalog_invalid"},
+		{"pickup_times", map[string]string{"unknown": "08:30"}, "enrollment.traeger_catalog_invalid"},
+		{"available_days", []string{}, "enrollment.care_offering_days_required"},
+		{"name", "", careplan.CodeCareOfferingNameRequired},
+		{"capacity", -1, careplan.CodeCareOfferingCapacityInvalid},
+	} {
+		for _, method := range []string{http.MethodPost, http.MethodPut} {
+			t.Run(invalid.field+"/"+method, func(t *testing.T) {
+				draft := catalogOffering(20, 1600)
+				draft["fields"].(map[string]any)[invalid.field] = invalid.value
+				target := path
+				if method == http.MethodPut {
+					target = fmt.Sprintf("/traeger/catalog/offerings/%d", offering.ID)
+				}
+				rec := traegerJSON(t, router, office.token, method, target, draft)
+				assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+				assert.Contains(t, rec.Body.String(), fmt.Sprintf(`"code":%q`, invalid.code))
+			})
+		}
+	}
 }

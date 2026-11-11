@@ -365,6 +365,25 @@ func TestBillingFollowsTheRecordedVersion(t *testing.T) {
 	assert.Equal(t, calendar.NewDate(2026, 11, 1), *fresh.pricesFrom, "a new copy is priced from the current month at the earliest")
 }
 
+func TestBillingInitializesPreviouslyUnpricedCopy(t *testing.T) {
+	t.Parallel()
+	one, copyID := 1, int64(1001)
+	before := careplan.TraegerOfferingDraft{Prices: []careplan.TraegerCarePrice{}}
+	offering := careplan.TraegerOffering{Schools: []careplan.TraegerOfferingSchool{
+		{SchoolID: 10, AppliedVersion: &one, AppliedCopyID: &copyID, Applied: &before, Outcome: "applied"},
+	}}
+	next := offeringRelease{version: 2, draft: careplan.TraegerOfferingDraft{Prices: []careplan.TraegerCarePrice{{Weekday: "mon", MonthlyCents: 1600}}}}
+	for _, start := range []calendar.Date{"2026-08-01", "2027-02-15"} {
+		plan := billingFor(offering, next, 10, enrollment.TraegerPhaseFields{ServiceStartDate: enrollment.Date(start)}, calendar.NewDate(2026, 11, 11), careplan.TraegerOfferingApplied{CopyID: copyID})
+		require.NotNil(t, plan.pricesFrom)
+		want := calendar.NewDate(2026, 11, 1)
+		if start.After(want) {
+			want = monthStart(start)
+		}
+		assert.Equal(t, want, *plan.pricesFrom)
+	}
+}
+
 func TestRolloutRevalidatesSchoolOwnership(t *testing.T) {
 	t.Parallel()
 	f := newFakeOwners()

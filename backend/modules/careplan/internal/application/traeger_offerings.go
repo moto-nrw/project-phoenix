@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -154,7 +155,10 @@ func (s *TraegerOfferings) RecordTraegerOfferingOutcomes(ctx context.Context, or
 func normalizeTraegerOfferingDraft(traegerPhaseID int64, draft careplan.TraegerOfferingDraft) (careplan.TraegerOfferingDraft, error) {
 	offering := traegerOfferingOf(draft.Fields, traegerPhaseID)
 	if err := validateOfferingFields(&offering); err != nil {
-		return draft, err
+		if errors.Is(err, careplan.ErrCareOfferingDaysRequired) {
+			return draft, err
+		}
+		return draft, wrapCareOfferingInvalid(err, "validate traeger care offering")
 	}
 	if missing := missingPickupWeekdays(offering); len(missing) > 0 {
 		return draft, fmt.Errorf("%w: %s", careplan.ErrCareOfferingPickupTimesRequired, strings.Join(missing, ", "))
