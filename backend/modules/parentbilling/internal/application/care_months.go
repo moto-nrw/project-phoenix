@@ -25,6 +25,7 @@ type CareStore interface {
 	// head of its list and DeleteCarePrices removes it.
 	CarePriceLists(ctx context.Context, organizationID int64) ([]parentbilling.CareTariff, []parentbilling.CarePriceListHead, error)
 	ReplaceCarePrices(ctx context.Context, organizationID, accountID int64, list parentbilling.CarePriceList) error
+	ReplaceCarePriceLists(ctx context.Context, organizationID, accountID int64, lists []parentbilling.CarePriceList) error
 	DeleteCarePrices(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date) (int64, error)
 	CareBilledUntil(ctx context.Context, organizationID int64) (map[int64]calendar.Date, error)
 	// CareBilledPrices lists the months an issued invoice of the school
@@ -268,28 +269,56 @@ func (c *CareBilling) SaveCarePriceList(ctx context.Context, reviewer parentbill
 	return c.CareTariffs(ctx, reviewer)
 }
 
-// SaveCareModulePrices replaces the prices of one module of a school from
-// a month on (ADR 0195): the list of that month keeps the other modules and
-// the free months it had, or takes the free months of the list before it.
-func (c *CareBilling) SaveCareModulePrices(ctx context.Context, reviewer parentbilling.HolidayReviewer, module parentbilling.CareModulePriceList) error {
+// SaveCareModulePrices merges a school's complete module batch in memory,
+// checks billed months once, and persists every affected month as one batch.
+// It deliberately builds no organization-wide response view.
+func (c *CareBilling) SaveCareModulePrices(ctx context.Context, reviewer parentbilling.HolidayReviewer, modules []parentbilling.CareModulePriceList) error {
 	if err := validReviewer(reviewer); err != nil {
 		return err
 	}
-	if module.CareOfferingID <= 0 || module.SchoolID <= 0 {
-		return validation.Errors{"care_offering_id": errors.New("is required")}
+	if len(modules) == 0 {
+		return nil
 	}
-	// The lock comes before the read, so no other price of the month is
-	// lost between the read and the replacement.
+	schoolID, err := moduleBatchSchool(modules)
+	if err != nil {
+		return err
+	}
+	if own, err := c.ownSchool(ctx, reviewer.OrganizationID, schoolID); err != nil || !own {
+		if err != nil {
+			return err
+		}
+		return validation.Errors{"school_id": errors.New("is no school of the Träger")}
+	}
 	if err := c.store.LockCareBilling(ctx, reviewer.OrganizationID); err != nil {
-		return fmt.Errorf("parent billing: hold the monthly billing: %w", err)
+		return err
 	}
 	tariffs, heads, err := c.store.CarePriceLists(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return err
 	}
-	list := modulePriceList(tariffs, heads, module)
-	_, err = c.SaveCarePriceList(ctx, reviewer, list)
-	return err
+	billed, err := c.store.CareBilledPrices(ctx, reviewer.OrganizationID, schoolID)
+	if err != nil {
+		return err
+	}
+	lists, after, headsAfter, err := mergeModulePrices(tariffs, heads, modules)
+	if err != nil {
+		return err
+	}
+	earliest := lists[0].ValidFrom
+	if changesBilledPrice(schoolID, earliest, billed, newPriceBook(tariffs), newPriceBook(after)) || freesBilledMonth(schoolID, earliest, billed, newFreeMonths(headsAfter)) {
+		return parentbilling.ErrCareTariffMonthBilled
+	}
+	return c.store.ReplaceCarePriceLists(ctx, reviewer.OrganizationID, reviewer.AccountID, lists)
+}
+
+func moduleBatchSchool(modules []parentbilling.CareModulePriceList) (int64, error) {
+	schoolID := modules[0].SchoolID
+	for _, module := range modules {
+		if module.SchoolID != schoolID || schoolID <= 0 || module.CareOfferingID <= 0 {
+			return schoolID, validation.Errors{"care_offering_id": errors.New("modules must belong to one school")}
+		}
+	}
+	return schoolID, nil
 }
 
 // DeleteCarePriceList removes the prices of a school that start on a month

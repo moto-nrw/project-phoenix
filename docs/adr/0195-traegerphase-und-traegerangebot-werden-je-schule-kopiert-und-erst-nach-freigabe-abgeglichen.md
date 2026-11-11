@@ -134,21 +134,28 @@ Root bindet sie an die öffentlichen Fähigkeiten der Owner.
 | `PhaseTemplates`: Entwurf, Version, Schulauswahl, Ergebnis je Schule | Enrollment, neue Fähigkeit `TraegerPhases` | Träger |
 | `OfferingTemplates`: dasselbe für Angebote | Care Plan, neue Fähigkeit `TraegerOfferings` | Träger |
 | `SchoolPhases`: `CopyState`, `Apply`, `Withdraw` | Enrollment, neue Fähigkeit `TraegerPhaseCopies` | Schule |
-| `SchoolOfferings`: `CopyStates`, `Apply`, `Withdraw` | Care Plan, neue Fähigkeit `TraegerOfferingCopies` | Schule |
-| `Tariffs`: Preise eines Moduls ab einem Monat | Parent Billing, neue Methode `SaveCareModulePrices` | Träger |
-| `ContractTemplates`: Vertragsvorlage eines Moduls | Care Contract, bestehendes `Intake.SaveTemplate` | öffnet eigene |
-| `Runtime`: `WithinTraeger`, `WithinSchool` | Tenant Runtime | beides, nie zugleich |
+| `SchoolOfferings`: `CopyStates`, `ApplyTraegerOfferings` (Stapel mit Rücknahmen) | Care Plan, neue Fähigkeit `TraegerOfferingCopies` | Schule |
+| `Tariffs`: Preise aller geänderten Module einer Schule ab ihrem Monat | Parent Billing, neue Methode `SaveCareModulePrices` | Träger |
+| `ContractTemplates`: Vertragsvorlagen einer Schule | Care Contract, `Intake.PrepareTemplateBatch` | Vorbereitung in Schule, Schreiben in gemeinsamer Träger-Transaktion |
+| `Runtime`: `WithinExclusive`, `WithinTraeger`, `WithinSchool` | Tenant Runtime | exklusive Verbindung ohne Transaktion; Einheiten nacheinander |
 
 **Vorschau:** Der Workflow ruft in der Tenant-Transaktion der Schule dieselben
 `Apply`-Befehle auf wie beim Übertragen und verwirft die Transaktion danach.
 So prüft die Vorschau genau das, was das Übertragen prüft. `Apply` gibt je
 Feld „neu“, „ändert sich“, „weicht ab, bleibt“ oder einen Fehlercode
 zurück. `Apply` erzeugt oder ändert die Kopie über die vorhandenen Befehle
-(`CreatePhase`/`UpdatePhase`, `CreateOffering`/`UpdateOffering`) und prüft
-dabei alles, was eine Änderung der Schule auch prüft.
+(`CreatePhase`/`UpdatePhase`, `ApplyTraegerOfferings`) und prüft
+dabei alles, was eine Änderung der Schule auch prüft. Der Angebotskatalog
+führt den Stapel im Speicher zusammen und prüft Auswahlgruppen gegen diesen
+Endzustand. Er lädt Prüfgrundlagen und schreibt Kopien, Herkunft und
+Auslöser gesammelt; die Sperre nimmt er einmal je Schule. Abgeleitete
+Vorlagen und Kinder werden vor dem Abgleich dedupliziert.
 
-`SaveCareModulePrices` ersetzt die Preise genau eines Moduls ab einem Monat
-und lässt die übrigen Module der Preisliste dieses Monats stehen; es nimmt
+`SaveCareModulePrices` ersetzt die Preise eines ganzen Modulstapels einer Schule
+ab dem jeweiligen Monat und lässt die übrigen Module der Preisliste stehen.
+Es lädt Tarifstand und Abrechnungsbelege einmal, prüft den gemeinsamen Endstand
+und schreibt die betroffenen Monatslisten gesammelt, ohne eine ungenutzte
+Tarifansicht aufzubauen. Es nimmt
 dieselbe Sperre und dieselbe Prüfung abgerechneter Monate wie
 `SaveCarePriceList` (ADR 0158 Punkt 6).
 
@@ -215,8 +222,10 @@ Abweichung des Felds `is_active`.
    Transaktion. Die Antwort zeigt je Schule „neu“, „übernimmt Änderungen“,
    „weicht ab“, „lehnt ab (Grund)“ oder „wird zurückgezogen“, dazu je Angebot
    den neuen Tarif ab Monat und ob eine Vertragsvorlage entsteht, und einen
-   Fingerabdruck über Entwurf, Schulliste und den gelesenen Stand jeder
-   Schule.
+   Fingerabdruck über Entwurf, Schulliste, den Kalendermonat der
+   Tarifberechnung, die angewandten Vergleichsversionen der Abrechnung
+   und den gelesenen Stand jeder Schule. Nach einem
+   Monatswechsel ist eine neue Vorschau nötig.
 3. **Freigabe:** Das Büro bestätigt mit dem Fingerabdruck. Der Workflow
    sperrt die Trägerphase in der Träger-Transaktion (`FOR UPDATE`), prüft,
    dass Entwurf und Schulliste unverändert sind, und schreibt neue Versionen
@@ -230,12 +239,19 @@ Abweichung des Felds `is_active`.
    ihrer bisherigen Version (`rejected` mit Fehlercode).
 5. **Tarif und Vertragsvorlage:** Nach der Schul-Transaktion schreibt der
    Workflow für jedes neue Angebot und jedes Angebot mit geändertem Preis
-   die Preise des Moduls in einer Träger-Transaktion
-   (`SaveCareModulePrices`), danach die Vertragsvorlage (`SaveTemplate`), wenn
-   sie neu ist oder sich geändert hat.
-6. **Ergebnis:** Zuletzt schreibt der Workflow das Ergebnis je Schule in einer
-   eigenen Träger-Transaktion in die Schulauswahl. `applied` steht erst, wenn
-   Kopie, Tarif und Vertragsvorlage geschrieben sind.
+   die Preise der Module (`SaveCareModulePrices`), die vorbereiteten
+   Vertragsvorlagen und deren angewandte Versionen in **einer gemeinsamen
+   Träger-Transaktion je Schule**. Die Vorbereitung prüft die Vorlagen und
+   die Modulzuordnung noch in der Schul-Transaktion. Schlägt ein
+   Finanzschritt oder das Vermerken seines Standes fehl, wird die ganze
+   Finanz-Transaktion verworfen. Die Tarifdaten verwenden den einmal
+   bestätigten Kalendermonat auch bei einem Monatswechsel während des Laufs.
+6. **Ergebnis:** Der erfolgreiche Finanzschritt schreibt `applied` und die
+   Vergleichsversionen in derselben Transaktion wie Tarif und Vertragsvorlage.
+   Fehler späterer Schulen oder der abschließenden Ergebnisaufzeichnung
+   können diesen Stand nicht verlieren. Zuletzt schreibt der Workflow alle
+   Ergebnisse gesammelt; vor jedem Kopieren sind die versuchten Schulen
+   bereits als Wiederaufnahmeziele vermerkt.
 7. **Wiederholen:** Für Schulen mit `stale`, `rejected` oder ohne Ergebnis
    startet das Büro eine neue Vorschau und überträgt dieselbe Version
    erneut. Bricht ein Lauf ab, bleiben die übrigen Schulen bei ihrer Version;
@@ -244,16 +260,23 @@ Abweichung des Felds `is_active`.
    Workflow mit der zuletzt als `applied` gemeldeten Version und schreibt sie
    bei einer Wiederholung mit demselben Ergebnis noch einmal.
 
-Teilfehler über mehrere Schulen sind nicht atomar (ADR 0067). Der Lauf ist
-je Schule atomar und zeigt jede Schule mit ihrem Ergebnis. Zwischen Kopie und
+Teilfehler über mehrere Schulen sind nicht atomar (ADR 0067). Kopien und
+Finanzdaten bilden je Schule zwei atomare Einheiten; jede Schule zeigt ihr
+Ergebnis. Zwischen Kopie und
 Tarif einer Schule liegen zwei Transaktionen; bricht der Lauf dazwischen ab,
 steht die Schule nicht auf `applied`, und die Wiederholung schreibt Tarif und
 Vertragsvorlage nach.
 
-**Sperrreihenfolge:** Trägerphase (Träger-Transaktion, nur während der
-Freigabe) → Kopie der Phase → Kopien der Angebote nach `id`
-(Schul-Transaktion). Die Freigabe ist abgeschlossen, bevor eine
-Schul-Transaktion beginnt; keine Sperre wird über beide gehalten.
+**Sperrreihenfolge:** Eine verbindungsgebundene Advisory-Sperre je
+Trägerphase umfasst Freigabe, alle Schulen, ihre Finanzdaten und die letzte
+Ergebnisaufzeichnung. Sie hält keine Transaktion offen. So kann kein älterer
+Lauf nach einem neueren Lauf Tarife oder Vergleichsversionen zurückschreiben.
+Die Runtime reserviert Poolkapazität für die nacheinander geöffneten Einheiten
+und gibt die Verbindung bei Erfolg, Fehler und Abbruch frei. Innerhalb des
+Laufs: Trägerphase (Träger-Transaktion, nur während der Freigabe) →
+Wiederholungssperre → Phasenkopie → Angebotskopien nach `id`
+(Schul-Transaktion). Die Freigabe endet vor der Schul-Transaktion; beide
+Transaktionen laufen nie zugleich.
 
 ### 6. Abweichung und Konflikt
 

@@ -280,9 +280,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+5) and their port of
 // workflows/parentportal/compose (+1) add exactly 6 LOC.
 // ADR 0209: the new composition of workflows/holidayallocation (+13).
-// ADR 0212: the new composition of workflows/traegercatalog (+34); #4704
+// ADR 0212: workflows/traegercatalog (+38), enrollment copy references (+4),
+// and the careplan copy-reference binding (+1); #4704
 // shortened comments of modules/careplan and modules/enrollment (-2).
-const moduleComposeBudgetTotal = 13331
+const moduleComposeBudgetTotal = 13340
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -308,7 +309,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the booked care offering constructor (+13).
 	// #4704 added the Träger offering constructors and shortened comments of
 	// the package by more than it added (-1).
-	"modules/careplan/compose":             1679,
+	// ADR 0212: bind the batch copy references (+1).
+	"modules/careplan/compose":             1680,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -340,7 +342,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0207: the constructor of the announced holiday periods (+5).
 	// #4704 added the Träger phase constructor and shortened comments of the
 	// package by more than it added (-1).
-	"modules/enrollment/compose":                   612,
+	// ADR 0212: the batched offering selection-reference constructor (+4).
+	"modules/enrollment/compose":                   616,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -462,7 +465,7 @@ var moduleComposeBudgets = map[string]int{
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
 	// Added by ADR 0212: the Träger catalog rollout and its runtime (ADR 0195).
-	"workflows/traegercatalog/compose":  34,
+	"workflows/traegercatalog/compose":  38,
 	"workflows/studentdeletion/compose": 74,
 }
 

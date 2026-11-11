@@ -124,8 +124,9 @@ type catalogPreviewBody struct {
 }
 
 type catalogResult struct {
-	SchoolID int64  `json:"school_id"`
-	Outcome  string `json:"outcome"`
+	ErrorCode string `json:"error_code"`
+	SchoolID  int64  `json:"school_id"`
+	Outcome   string `json:"outcome"`
 }
 
 type catalogRolloutBody struct {
@@ -270,7 +271,7 @@ func catalogRollout(t *testing.T, router http.Handler, token, phasePath, fingerp
 
 type catalogFailedTariffs struct{ err error }
 
-func (f catalogFailedTariffs) SaveCareModulePrices(context.Context, parentbilling.HolidayReviewer, parentbilling.CareModulePriceList) error {
+func (f catalogFailedTariffs) SaveCareModulePrices(context.Context, parentbilling.HolidayReviewer, []parentbilling.CareModulePriceList) error {
 	return f.err
 }
 
@@ -335,4 +336,193 @@ func TestTraegerCatalogRecoversCopiesAfterBillingFailure(t *testing.T) {
 			assert.Zero(t, copies, "withdrawal removes unfinished copies")
 		})
 	}
+}
+
+func TestTraegerCatalogChangesSelectionGroupsTogether(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	portal := traegerPortalWithDays(t, db, testpkg.TenantRuntime(t, db), owners.HolidayTestSchoolCalendar{})
+	office := newTraegerOffice(t, db, portal, "Träger Auswahlgruppe", identityaccess.TraegerRoleAdministration)
+	testpkg.OwnTraegerCatalog(t, db, office.organization)
+	testpkg.OwnTenantRows(t, db, office.schools...)
+	router := traegerCatalogRouter(t, db)
+	rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/catalog/phases", map[string]any{
+		"name": "Wahlphase", "kind": "school_year", "service_start_date": "2027-08-01", "service_end_date": "2028-07-31", "all_schools": true,
+	})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	phase := decodeSchoolPortalData[catalogPhaseBody](t, rec.Body.Bytes())
+	path := fmt.Sprintf("/traeger/catalog/phases/%d", phase.ID)
+	ids := []int64{}
+	for index := range 2 {
+		draft := catalogOffering(20, 1600)
+		fields := draft["fields"].(map[string]any)
+		fields["name"] = fmt.Sprintf("Wahlmodul %d", index)
+		fields["selection_group"] = "Betreuung"
+		delete(draft, "prices")
+		delete(draft, "contract_template")
+		rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/offerings", draft)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		ids = append(ids, decodeSchoolPortalData[careplan.TraegerOffering](t, rec.Body.Bytes()).ID)
+	}
+	preview := catalogPreview(t, router, office.token, path)
+	catalogRollout(t, router, office.token, path, preview.Fingerprint)
+	for index, id := range ids {
+		draft := catalogOffering(20, 1600)
+		fields := draft["fields"].(map[string]any)
+		fields["name"] = fmt.Sprintf("Wahlmodul %d", index)
+		fields["selection_group"], fields["selection_rule"] = "Betreuung", "exactly_one"
+		delete(draft, "prices")
+		delete(draft, "contract_template")
+		rec = traegerJSON(t, router, office.token, http.MethodPut, fmt.Sprintf("/traeger/catalog/offerings/%d", id), draft)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}
+	preview = catalogPreview(t, router, office.token, path)
+	for _, school := range preview.Schools {
+		assert.Equal(t, "ready", school.Outcome, school.ErrorCode)
+	}
+	result := catalogRollout(t, router, office.token, path, preview.Fingerprint)
+	for _, school := range result.Schools {
+		assert.Equal(t, "applied", school.Outcome)
+	}
+}
+
+func TestTraegerCatalogStatementCountDoesNotGrowWithOfferings(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	portal := traegerPortalWithDays(t, db, testpkg.TenantRuntime(t, db), owners.HolidayTestSchoolCalendar{})
+	office := newTraegerOffice(t, db, portal, "Träger Stapelprüfung", identityaccess.TraegerRoleAdministration)
+	testpkg.OwnTraegerCatalog(t, db, office.organization)
+	testpkg.OwnTraegerCareContracts(t, db, office.organization)
+	testpkg.OwnTenantRows(t, db, office.schools...)
+	router := traegerCatalogRouter(t, db)
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	counted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		router.ServeHTTP(w, r.WithContext(counter.Context(r.Context())))
+	})
+	var previews, rollouts, updates, withdrawals []int
+	for _, size := range []int{1, 5} {
+		rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/catalog/phases", map[string]any{
+			"name": fmt.Sprintf("Stapel %d", size), "kind": "school_year", "service_start_date": "2027-08-01", "service_end_date": "2028-07-31", "all_schools": true,
+		})
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		phase := decodeSchoolPortalData[catalogPhaseBody](t, rec.Body.Bytes())
+		path := fmt.Sprintf("/traeger/catalog/phases/%d", phase.ID)
+		ids := []int64{}
+		for index := range size {
+			draft := catalogOffering(20, 1600)
+			draft["fields"].(map[string]any)["name"] = fmt.Sprintf("Modul %d", index)
+			rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/offerings", draft)
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			ids = append(ids, decodeSchoolPortalData[careplan.TraegerOffering](t, rec.Body.Bytes()).ID)
+		}
+		counter.Reset()
+		preview := catalogPreview(t, counted, office.token, path)
+		previews = append(previews, counter.Total())
+		counter.Reset()
+		result := catalogRollout(t, counted, office.token, path, preview.Fingerprint)
+		rollouts = append(rollouts, counter.Total())
+		for _, school := range result.Schools {
+			require.Equal(t, "applied", school.Outcome, school.ErrorCode)
+		}
+		for index, id := range ids {
+			draft := catalogOffering(30, 1800)
+			draft["fields"].(map[string]any)["name"] = fmt.Sprintf("Modul %d", index)
+			draft["contract_template"].(map[string]any)["contract_partner"] = "Aktualisierter Vertragspartner"
+			rec = traegerJSON(t, router, office.token, http.MethodPut, fmt.Sprintf("/traeger/catalog/offerings/%d", id), draft)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		}
+		preview = catalogPreview(t, router, office.token, path)
+		counter.Reset()
+		result = catalogRollout(t, counted, office.token, path, preview.Fingerprint)
+		updates = append(updates, counter.Total())
+		for _, school := range result.Schools {
+			require.Equal(t, "applied", school.Outcome, school.ErrorCode)
+		}
+		rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/withdraw", nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		preview = catalogPreview(t, router, office.token, path)
+		counter.Reset()
+		result = catalogRollout(t, counted, office.token, path, preview.Fingerprint)
+		withdrawals = append(withdrawals, counter.Total())
+		for _, school := range result.Schools {
+			require.Equal(t, "withdrawn", school.Outcome)
+		}
+	}
+	assert.Equal(t, previews[0], previews[1], "preview statement count")
+	assert.Equal(t, rollouts[0], rollouts[1], "creation includes tariffs and templates")
+	assert.Equal(t, updates[0], updates[1], "updates include tariffs and templates")
+	assert.Equal(t, withdrawals[0], withdrawals[1], "withdrawal statement count")
+	t.Logf("1/5 offerings: preview %v, create %v, update %v, withdraw %v", previews, rollouts, updates, withdrawals)
+}
+
+func TestTraegerCatalogFinancialWritesAreAtomic(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	portal := traegerPortalWithDays(t, db, testpkg.TenantRuntime(t, db), owners.HolidayTestSchoolCalendar{})
+	office := newTraegerOffice(t, db, portal, "Träger Finanzprüfung", identityaccess.TraegerRoleAdministration)
+	testpkg.OwnTraegerCatalog(t, db, office.organization)
+	testpkg.OwnTraegerCareContracts(t, db, office.organization)
+	testpkg.OwnTenantRows(t, db, office.schools...)
+	router := traegerCatalogRouter(t, db)
+	rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/catalog/phases", map[string]any{
+		"name": "Finanzprüfung", "kind": "school_year", "service_start_date": "2027-08-01", "service_end_date": "2028-07-31", "all_schools": true,
+	})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	phase := decodeSchoolPortalData[catalogPhaseBody](t, rec.Body.Bytes())
+	path := fmt.Sprintf("/traeger/catalog/phases/%d", phase.ID)
+	draft := catalogOffering(20, 1600)
+	draft["contract_template"].(map[string]any)["contract_partner"] = "Ursprüngliche Bedingungen"
+	rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/offerings", draft)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	offering := decodeSchoolPortalData[careplan.TraegerOffering](t, rec.Body.Bytes())
+	preview := catalogPreview(t, router, office.token, path)
+	catalogRollout(t, router, office.token, path, preview.Fingerprint)
+	_, err := db.ExecContext(t.Context(), `CREATE FUNCTION care_contract.refuse_catalog_template_test() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN IF NEW.contract_partner = 'Abgelehnte Bedingungen' THEN RAISE EXCEPTION 'template write refused'; END IF; RETURN NEW; END $$;
+  CREATE TRIGGER refuse_catalog_template_test BEFORE INSERT OR UPDATE ON care_contract.contract_templates
+  FOR EACH ROW EXECUTE FUNCTION care_contract.refuse_catalog_template_test()`)
+	require.NoError(t, err)
+	dearer := catalogOffering(30, 1800)
+	dearer["contract_template"].(map[string]any)["contract_partner"] = "Abgelehnte Bedingungen"
+	rec = traegerJSON(t, router, office.token, http.MethodPut, fmt.Sprintf("/traeger/catalog/offerings/%d", offering.ID), dearer)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview = catalogPreview(t, router, office.token, path)
+	rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/rollout", map[string]any{"fingerprint": preview.Fingerprint})
+	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
+	checkTerms := func() {
+		t.Helper()
+		for _, school := range office.schools {
+			var cents int64
+			var partner string
+			require.NoError(t, db.NewRaw(`SELECT tariff.monthly_cents, template.contract_partner FROM enrollment.care_offerings AS offering
+    JOIN parent_billing.care_tariffs AS tariff ON tariff.school_id=offering.tenant_id AND tariff.care_offering_id=offering.id AND tariff.organization_id=? AND tariff.weekday='mon'
+    JOIN care_contract.contract_templates AS template ON template.school_id=offering.tenant_id AND template.care_offering_id=offering.id AND template.organization_id=?
+    WHERE offering.tenant_id=? AND offering.traeger_source_id=? ORDER BY tariff.valid_from DESC LIMIT 1`, office.organization, office.organization, school, offering.ID).Scan(t.Context(), &cents, &partner))
+			assert.Equal(t, int64(1600), cents, "a failed template cannot leave the higher tariff committed")
+			assert.Equal(t, "Ursprüngliche Bedingungen", partner)
+		}
+	}
+	checkTerms()
+	rec = traegerJSON(t, router, office.token, http.MethodPut, fmt.Sprintf("/traeger/catalog/offerings/%d", offering.ID), draft)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview = catalogPreview(t, router, office.token, path)
+	result := catalogRollout(t, router, office.token, path, preview.Fingerprint)
+	for _, school := range result.Schools {
+		require.Equal(t, "applied", school.Outcome, school.ErrorCode)
+	}
+	checkTerms()
+	// Outcome persistence shares the financial commit, so a failed outcome
+	// cannot leave the next release comparing against an obsolete baseline.
+	_, err = db.ExecContext(t.Context(), `CREATE FUNCTION enrollment.refuse_catalog_outcome_test() RETURNS trigger LANGUAGE plpgsql AS $$
+  BEGIN IF NEW.applied_version IS DISTINCT FROM OLD.applied_version THEN RAISE EXCEPTION 'outcome write refused'; END IF; RETURN NEW; END $$;
+  CREATE TRIGGER refuse_catalog_outcome_test BEFORE UPDATE ON enrollment.traeger_care_offering_schools
+  FOR EACH ROW EXECUTE FUNCTION enrollment.refuse_catalog_outcome_test()`)
+	require.NoError(t, err)
+	dearer["contract_template"].(map[string]any)["contract_partner"] = "Neue Bedingungen"
+	rec = traegerJSON(t, router, office.token, http.MethodPut, fmt.Sprintf("/traeger/catalog/offerings/%d", offering.ID), dearer)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview = catalogPreview(t, router, office.token, path)
+	rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/rollout", map[string]any{"fingerprint": preview.Fingerprint})
+	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
+	checkTerms()
 }

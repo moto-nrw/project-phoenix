@@ -20,7 +20,7 @@ für den Ferienplatz-Workflow.
 1. `workflows/traegercatalog/compose` baut den Workflow und bindet die
    Träger-Transaktion und die Tenant-Transaktion je Schule (ADR 0068). Jedes
    Compose-Paket hat einen Eintrag im Compose-LOC-Register von
-   `backend/test/module_legacy_budget_ratchet_test.go`. Gemessen: 34 LOC.
+   `backend/test/module_legacy_budget_ratchet_test.go`. Gemessen nach der Absicherung überlappender Läufe: 38 LOC.
 2. `TraegerOfferingCopies.ApplyTraegerOffering` und
    `WithdrawTraegerOffering` (Care Plan) schreiben die Kopie über
    `CreateOffering`, `UpdateOffering` und `DeleteOffering` des Katalogs. Der
@@ -42,15 +42,29 @@ für den Ferienplatz-Workflow.
 
 ## Entscheidung
 
-- `moduleComposeBudgets["workflows/traegercatalog/compose"] = 34`,
-  `moduleComposeBudgetTotal` + 34.
+- `moduleComposeBudgets["workflows/traegercatalog/compose"] = 38`,
+  davon 4 LOC für `WithinExclusive` über der transaktionsfreien,
+  verbindungsgebundenen Workflow-Sperre. Zusätzlich 4 LOC in
+  `modules/enrollment/compose` für den mengenweisen Schutz vor dem Löschen
+  noch gewählter Angebote und 1 LOC in `modules/careplan/compose` für die
+  private Kopiereferenz-Bindung. Gegenüber dem ursprünglichen Stand dieses
+  PR: insgesamt +9 LOC, ohne neue fachübergreifende Owner-Bindung.
 - `crossOwnerTriggerWrites` bekommt die zwei Schreibstellen von
   `release_traeger_copies`.
-- Die Command-Effects der Kopie-Befehle von Care Plan und Enrollment auf
+- Die Command-Effects der Kopie-Befehle einschließlich `ApplyTraegerOfferings`
+  von Care Plan und Enrollment auf
   `timetable.RecurrenceWriteLock.LockRecurrenceWrites` stehen als `debt`/`lock`
   mit `approval_adr` 0212, ihre unaufgelösten Felder als `unresolved` mit
   `approval_adr` 0212. Die Sperrreihenfolge bleibt die der Schule
   (ADR 0195 Abschnitt 5).
+
+Die Erweiterung der Katalogfähigkeit ändert auch die berechneten
+Bindungsdigests bestehender Schüler- und Wiederholungssperren. Die exakten
+Einträge werden mit neu geprüftem Grund eingefroren; Ziel, Sperrreihenfolge
+und Uhrbindung bleiben gleich. Die Stapel-Ports zur
+Roster- und Gehzeitpflege nutzen dieselben Transaktions-, Schüler- und
+Uhrbindungen wie die vorhandenen Einzelbefehle; die unaufgelösten
+Gehzeit-Rückrufe bleiben ausdrücklich als solche vermerkt.
 
 Weitere Erhöhungen, auch für spätere Teilnehmer des Workflows, brauchen
 einen eigenen Beleg.

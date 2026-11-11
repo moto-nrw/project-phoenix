@@ -134,3 +134,15 @@ type SourcedTemplateResyncer interface {
 type PickupResyncer interface {
 	ReconcileOfferingPickupForOffering(ctx context.Context, offeringID int64) error
 }
+
+// CatalogCopyReferences reads copy locks and booking references owned by Care Plan.
+type CatalogCopyReferences interface {
+	TraegerOfferingCopyStates(context.Context, []int64, bool) ([]careplan.TraegerOfferingCopyState, error)
+	BookedOfferingIDs(context.Context, []int64) (map[int64]bool, error)
+}
+
+// CatalogCopyWrites saves owner-validated copy batches without widening the
+// ordinary catalog-record facade.
+type CatalogCopyWrites interface {
+	SaveTraegerOfferingRows(context.Context, []careplan.TraegerOfferingWrite, []int64) ([]careplan.CareOffering, error)
+}

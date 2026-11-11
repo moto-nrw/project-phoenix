@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,8 @@ import (
 // fakeOwners stands in for every owner port and records the order of the
 // transactions and calls.
 type fakeOwners struct {
+	mutex     sync.Mutex
+	exclusive bool
 	schools   []int64
 	phase     enrollment.TraegerPhase
 	offerings []careplan.TraegerOffering
@@ -62,13 +65,15 @@ func (f *fakeOwners) catalog(t *testing.T) *Catalog {
 	catalog, err := New(ports.Dependencies{
 		Schools: fakeSchools{f}, Phases: fakePhases{f}, Offerings: fakeOfferings{f},
 		SchoolPhases: fakeSchoolPhases{f}, SchoolOfferings: fakeSchoolOfferings{f},
-		Tariffs: func(_ context.Context, _, _ int64, prices ports.ModulePrices) error {
-			f.trail = append(f.trail, fmt.Sprintf("tariff %d in träger %d", prices.SchoolID, f.inTraeger))
-			f.prices = append(f.prices, prices)
+		Tariffs: func(_ context.Context, _, _ int64, prices []ports.ModulePrices) error {
+			if len(prices) > 0 {
+				f.trail = append(f.trail, fmt.Sprintf("tariff %d in träger %d", prices[0].SchoolID, f.inTraeger))
+			}
+			f.prices = append(f.prices, prices...)
 			return f.billingError
 		},
-		ContractTemplates: func(context.Context, int64, int64, int64, int64, careplan.TraegerContractTemplate) error {
-			return f.templateError
+		ContractTemplates: func(context.Context, int64, int64, int64, []ports.ModuleTemplate) (func(context.Context) error, error) {
+			return func(context.Context) error { return f.templateError }, nil
 		},
 		Runtime:     fakeRuntime{f},
 		Today:       func() calendar.Date { return calendar.NewDate(2026, 11, 11) },
@@ -80,13 +85,26 @@ func (f *fakeOwners) catalog(t *testing.T) *Catalog {
 
 type fakeRuntime struct{ f *fakeOwners }
 
+func (r fakeRuntime) WithinExclusive(ctx context.Context, _ string, fn func(context.Context) error) error {
+	r.f.mutex.Lock()
+	defer r.f.mutex.Unlock()
+	r.f.exclusive = true
+	defer func() { r.f.exclusive = false }()
+	return fn(ctx)
+}
+
 func (r fakeRuntime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
 	if r.f.inSchool != 0 || r.f.inTraeger != 0 {
 		return errors.New("nested transaction")
 	}
 	r.f.inTraeger = organizationID
 	defer func() { r.f.inTraeger = 0 }()
-	return fn(ctx)
+	before := len(r.f.prices)
+	err := fn(ctx)
+	if err != nil {
+		r.f.prices = r.f.prices[:before]
+	}
+	return err
 }
 
 func (r fakeRuntime) WithinSchool(ctx context.Context, schoolID int64, fn func(context.Context) error) error {
@@ -132,6 +150,9 @@ func (p fakePhases) LockTraegerPhase(context.Context, int64, int64) (enrollment.
 }
 
 func (p fakePhases) ReleaseTraegerPhase(context.Context, int64, int64, int64) (int, error) {
+	if !p.f.exclusive {
+		return 0, errors.New("release outside the rollout mutex")
+	}
 	p.f.released = true
 	p.f.trail = append(p.f.trail, fmt.Sprintf("release in träger %d", p.f.inTraeger))
 	return 1, nil
@@ -139,6 +160,9 @@ func (p fakePhases) ReleaseTraegerPhase(context.Context, int64, int64, int64) (i
 
 func (p fakePhases) RecordTraegerPhaseOutcomes(_ context.Context, _, _ int64, outcomes []enrollment.TraegerCopyOutcome) error {
 	p.f.trail = append(p.f.trail, fmt.Sprintf("record in träger %d", p.f.inTraeger))
+	if !p.f.exclusive {
+		return errors.New("outcome outside the rollout mutex")
+	}
 	p.f.recordCalls++
 	if p.f.recordCalls > 1 && p.f.recordError != nil {
 		return p.f.recordError
@@ -230,10 +254,10 @@ func TestRolloutFollowsThePreview(t *testing.T) {
 	assert.Equal(t, []traegercatalog.SchoolResult{{SchoolID: 10, Outcome: "applied"}, {SchoolID: 20, Outcome: "applied"}}, rollout.Schools)
 	assert.Equal(t, []string{
 		"lock phase in träger 1", "release in träger 1", "record in träger 1",
-		"lock copy in school 10", "tariff 10 in träger 1",
-		"lock copy in school 20", "tariff 20 in träger 1",
+		"lock copy in school 10", "tariff 10 in träger 1", "record in träger 1",
+		"lock copy in school 20", "tariff 20 in träger 1", "record in träger 1",
 		"record in träger 1",
-	}, f.trail, "release, then each school and its tariff, then the outcomes")
+	}, f.trail, "release, then each school and its atomic financial outcome, then all outcomes")
 	require.Len(t, f.prices, 2)
 	assert.Equal(t, int64(1001), f.prices[0].CareOfferingID, "the tariff names the school's copy")
 	require.Len(t, f.offered[70], 2)
@@ -408,7 +432,8 @@ func TestRolloutRetainsRecoveryTargetsWhenRecordingFails(t *testing.T) {
 	f.recordError = errors.New("outcomes unavailable")
 	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
 	require.ErrorIs(t, err, f.recordError)
-	require.Len(t, f.applied, 2, "the copies committed before final recording failed")
+	require.Len(t, f.applied, 1, "the first school copy committed before its financial outcome failed")
+	assert.Empty(t, f.prices, "a failed financial outcome rolls tariffs back")
 	require.Len(t, f.recorded, 2, "the earlier recovery targets survive")
 	for _, outcome := range f.recorded {
 		assert.Equal(t, enrollment.TraegerOutcomeStale, outcome.Outcome)
@@ -438,4 +463,60 @@ func TestBillingPreservesTermsAcrossMissedReleases(t *testing.T) {
 		enrollment.TraegerPhaseFields{ServiceStartDate: "2026-08-01"}, calendar.NewDate(2026, 11, 11))
 	assert.Nil(t, plan.pricesFrom, "a capacity-only catch-up preserves the school's tariff")
 	assert.False(t, plan.template, "a capacity-only catch-up preserves the school's contract template")
+}
+
+func TestRolloutDoesNotKeepTariffsAfterTemplateRefusal(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	f.offerings[0].Draft.ContractTemplate = &careplan.TraegerContractTemplate{TermKind: "school_year"}
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	f.templateError = &ports.Refusal{Code: "care_contract.template_invalid", Err: errors.New("template refused")}
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	require.NoError(t, err)
+	assert.Empty(t, f.prices, "a template refusal rolls back the tariff in the same financial transaction")
+}
+
+func TestRolloutRejectsPreviewFromAnotherBillingMonth(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	catalog := f.catalog(t)
+	today := calendar.NewDate(2026, 11, 30)
+	catalog.deps.Today = func() calendar.Date { return today }
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	today = calendar.NewDate(2026, 12, 1)
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	assert.ErrorIs(t, err, traegercatalog.ErrPreviewStale)
+	assert.Empty(t, f.applied)
+}
+
+func (o fakeSchoolOfferings) ApplyTraegerOfferings(ctx context.Context, copies []careplan.TraegerOfferingCopy, withdraw []int64) (careplan.TraegerOfferingBatchApplied, error) {
+	result := careplan.TraegerOfferingBatchApplied{Withdrawn: map[int64]careplan.TraegerOfferingWithdrawal{}}
+	for _, copy := range copies {
+		applied, err := o.ApplyTraegerOffering(ctx, copy)
+		if err != nil {
+			return result, err
+		}
+		result.Applied = append(result.Applied, applied)
+	}
+	for _, id := range withdraw {
+		result.Withdrawn[id] = careplan.TraegerOfferingWithdrawal{Found: true}
+	}
+	return result, nil
+}
+
+func TestRolloutRejectsPreviewWithChangedBillingBaseline(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	version := 1
+	applied := f.offerings[0].Draft
+	f.offerings[0].Schools = []careplan.TraegerOfferingSchool{{SchoolID: 10, AppliedVersion: &version, Applied: &applied, Outcome: "applied"}}
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	assert.ErrorIs(t, err, traegercatalog.ErrPreviewStale)
+	assert.Empty(t, f.applied, "a concurrent financial commit needs a new preview even when copy stamps stayed unchanged")
 }

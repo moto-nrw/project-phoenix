@@ -55,48 +55,50 @@ func (c *Catalog) applySchool(ctx context.Context, snap snapshot, next release, 
 		plan.Action = traegercatalog.ActionCreate
 	}
 	plan.Phase = applied.Fields
-	copies := map[int64]int64{}
+	copies := []careplan.TraegerOfferingCopy{}
+	withdrawn := []int64{}
 	for _, offering := range snap.offerings {
-		offeringPlan, copyID, err := c.applyOffering(ctx, offering, next, applied.CopyID)
-		if err != nil {
-			return plan, nil, err
+		if offering.WithdrawnAt != nil {
+			withdrawn = append(withdrawn, offering.ID)
+			continue
+		}
+		released := next.offerings[offering.ID]
+		copies = append(copies, careplan.TraegerOfferingCopy{SourceID: offering.ID, Version: released.version, Fields: released.draft.Fields, PhaseID: applied.CopyID})
+	}
+	batch, err := c.deps.SchoolOfferings.ApplyTraegerOfferings(ctx, copies, withdrawn)
+	if err != nil {
+		return plan, nil, err
+	}
+	bySource := map[int64]careplan.TraegerOfferingApplied{}
+	copyIDs := map[int64]int64{}
+	for _, row := range batch.Applied {
+		bySource[row.SourceID] = row
+		copyIDs[row.SourceID] = row.CopyID
+	}
+	for _, offering := range snap.offerings {
+		row := bySource[offering.ID]
+		offeringPlan := traegercatalog.OfferingPlan{TraegerOfferingID: offering.ID, Name: offering.Draft.Fields.Name, Fields: row.Fields, Action: traegercatalog.ActionUpdate}
+		if offering.WithdrawnAt != nil {
+			offeringPlan.Action = traegercatalog.ActionWithdraw
+		} else if row.Created {
+			offeringPlan.Action = traegercatalog.ActionCreate
 		}
 		plan.Offerings = append(plan.Offerings, offeringPlan)
-		if copyID > 0 {
-			copies[offering.ID] = copyID
-		}
 	}
-	return plan, copies, nil
-}
-
-func (c *Catalog) applyOffering(ctx context.Context, offering careplan.TraegerOffering, next release, phaseCopyID int64) (traegercatalog.OfferingPlan, int64, error) {
-	plan := traegercatalog.OfferingPlan{TraegerOfferingID: offering.ID, Name: offering.Draft.Fields.Name, Fields: []careplan.TraegerFieldChange{}}
-	if offering.WithdrawnAt != nil {
-		plan.Action = traegercatalog.ActionWithdraw
-		_, err := c.deps.SchoolOfferings.WithdrawTraegerOffering(ctx, offering.ID)
-		return plan, 0, err
-	}
-	released := next.offerings[offering.ID]
-	applied, err := c.deps.SchoolOfferings.ApplyTraegerOffering(ctx, careplan.TraegerOfferingCopy{
-		SourceID: offering.ID, Version: released.version, Fields: released.draft.Fields, PhaseID: phaseCopyID,
-	})
-	if err != nil {
-		return plan, 0, err
-	}
-	plan.Action, plan.Fields = traegercatalog.ActionUpdate, applied.Fields
-	if applied.Created {
-		plan.Action = traegercatalog.ActionCreate
-	}
-	return plan, applied.CopyID, nil
+	return plan, copyIDs, nil
 }
 
 // withdrawSchool withdraws the offering copies first, then the phase copy,
 // which only goes when no offering is left in it.
 func (c *Catalog) withdrawSchool(ctx context.Context, snap snapshot, plan *traegercatalog.SchoolPlan) error {
+	sources := make([]int64, 0, len(snap.offerings))
 	for _, offering := range snap.offerings {
-		if _, err := c.deps.SchoolOfferings.WithdrawTraegerOffering(ctx, offering.ID); err != nil {
-			return err
-		}
+		sources = append(sources, offering.ID)
+	}
+	if _, err := c.deps.SchoolOfferings.ApplyTraegerOfferings(ctx, nil, sources); err != nil {
+		return err
+	}
+	for _, offering := range snap.offerings {
 		plan.Offerings = append(plan.Offerings, traegercatalog.OfferingPlan{
 			TraegerOfferingID: offering.ID, Name: offering.Draft.Fields.Name, Action: traegercatalog.ActionWithdraw,
 			Fields: []careplan.TraegerFieldChange{},

@@ -319,3 +319,71 @@ func TestTraegerOfferingOutcomesAreBatchedAndKeepAppliedTerms(t *testing.T) {
 		return nil
 	}))
 }
+
+func TestTraegerOfferingBatchKeepsDeviationsAndBookedWithdrawals(t *testing.T) {
+	t.Parallel()
+	db, _, phase := setupCareTest(t)
+	catalog := testCareOfferingCatalog(t, db)
+	batchCommand, ok := catalog.(careplan.TraegerOfferingBatch)
+	require.True(t, ok)
+	ctx := testpkg.Ctx(t)
+	sources := []int64{testpkg.UniqueTestTenantID(t), testpkg.UniqueTestTenantID(t)}
+	inputs := []careplan.TraegerOfferingCopy{
+		{SourceID: sources[0], Version: 1, PhaseID: phase.ID, Fields: traegerOfferingDraft("Früh", 20).Fields},
+		{SourceID: sources[1], Version: 1, PhaseID: phase.ID, Fields: traegerOfferingDraft("Spät", 20).Fields},
+	}
+	copyIDs := map[int64]int64{}
+	require.NoError(t, fixtureEnrollmentCommand(ctx, func(ctx context.Context) error {
+		batch, err := batchCommand.ApplyTraegerOfferings(ctx, inputs, nil)
+		if err != nil {
+			return err
+		}
+		for _, row := range batch.Applied {
+			copyIDs[row.SourceID] = row.CopyID
+		}
+		return nil
+	}))
+	require.Len(t, copyIDs, 2)
+	bookTraegerCopy(t, db, phase.ID, copyIDs[sources[1]])
+	require.NoError(t, fixtureEnrollmentCommand(ctx, func(ctx context.Context) error {
+		row, err := catalog.FindOffering(ctx, copyIDs[sources[0]])
+		if err != nil {
+			return err
+		}
+		capacity := 25
+		row.Capacity, row.IsActive = &capacity, false
+		_, err = catalog.UpdateOffering(ctx, row)
+		return err
+	}))
+	for index := range inputs {
+		capacity := 30
+		inputs[index].Version, inputs[index].Fields.Capacity = 2, &capacity
+	}
+	require.NoError(t, fixtureEnrollmentCommand(ctx, func(ctx context.Context) error {
+		_, err := batchCommand.ApplyTraegerOfferings(ctx, inputs, nil)
+		return err
+	}))
+	row, err := catalog.FindOffering(ctx, copyIDs[sources[0]])
+	require.NoError(t, err)
+	require.NotNil(t, row.Capacity)
+	assert.Equal(t, 25, *row.Capacity)
+	assert.False(t, row.IsActive)
+	require.NotNil(t, row.Traeger)
+	assert.Equal(t, 2, row.Traeger.Version)
+	assert.Equal(t, []string{"capacity", "is_active"}, row.Traeger.Deviations)
+	require.NoError(t, fixtureEnrollmentCommand(ctx, func(ctx context.Context) error {
+		batch, err := batchCommand.ApplyTraegerOfferings(ctx, nil, sources)
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, careplan.TraegerOfferingWithdrawal{Found: true, Deleted: true}, batch.Withdrawn[sources[0]])
+		assert.Equal(t, careplan.TraegerOfferingWithdrawal{Found: true}, batch.Withdrawn[sources[1]])
+		return nil
+	}))
+	_, err = catalog.FindOffering(ctx, copyIDs[sources[0]])
+	assert.ErrorIs(t, err, careplan.ErrCareOfferingNotFound)
+	row, err = catalog.FindOffering(ctx, copyIDs[sources[1]])
+	require.NoError(t, err)
+	assert.False(t, row.IsActive)
+	assert.Nil(t, row.Traeger)
+}

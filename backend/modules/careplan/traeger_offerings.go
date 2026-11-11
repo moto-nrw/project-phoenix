@@ -179,6 +179,7 @@ type TraegerOfferingWithdrawal struct {
 // TraegerOfferingCopies applies Träger offerings in one school. Every method
 // runs in the tenant transaction of that school, which the caller opens.
 type TraegerOfferingCopies interface {
+	TraegerOfferingBatch
 	// TraegerOfferingCopyStates reads the copies of sourceIDs; lock takes
 	// their row locks in ID order.
 	TraegerOfferingCopyStates(ctx context.Context, sourceIDs []int64, lock bool) ([]TraegerOfferingCopyState, error)
@@ -188,4 +189,24 @@ type TraegerOfferingCopies interface {
 	// WithdrawTraegerOffering deletes a copy without bookings and
 	// selections; otherwise it deactivates it and drops its link.
 	WithdrawTraegerOffering(ctx context.Context, sourceID int64) (TraegerOfferingWithdrawal, error)
+}
+
+// TraegerOfferingBatchApplied is the complete school catalog change.
+type TraegerOfferingBatchApplied struct {
+	Applied   []TraegerOfferingApplied
+	Withdrawn map[int64]TraegerOfferingWithdrawal
+}
+
+// TraegerOfferingWrite is an owner-validated copy and its immutable baseline.
+type TraegerOfferingWrite struct {
+	Offering CareOffering
+	SourceID int64
+	Version  int
+	Baseline TraegerOfferingFields
+	Unlink   bool
+}
+
+// TraegerOfferingBatch validates and writes a school's complete merged catalog.
+type TraegerOfferingBatch interface {
+	ApplyTraegerOfferings(ctx context.Context, copies []TraegerOfferingCopy, withdrawSourceIDs []int64) (TraegerOfferingBatchApplied, error)
 }

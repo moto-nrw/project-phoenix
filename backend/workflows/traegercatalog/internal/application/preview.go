@@ -36,7 +36,7 @@ func decodeFingerprint(token string) (fingerprint, error) {
 }
 
 // draftHash covers everything a rollout releases and where: the phase and
-// offering drafts, their withdrawals and the target schools.
+// offering drafts, their withdrawals, target schools and billing baselines.
 func (c *Catalog) draftHash(snap snapshot, targets []target) string {
 	offerings := make([]any, 0, len(snap.offerings))
 	for _, offering := range snap.offerings {
@@ -44,9 +44,13 @@ func (c *Catalog) draftHash(snap snapshot, targets []target) string {
 	}
 	plan := make([]any, 0, len(targets))
 	for _, t := range targets {
-		plan = append(plan, []any{t.schoolID, t.action})
+		baselines := make([]any, 0, len(snap.offerings))
+		for _, offering := range snap.offerings {
+			baselines = append(baselines, []any{offering.ID, recordedVersion(offering, t.schoolID)})
+		}
+		plan = append(plan, []any{t.schoolID, t.action, baselines})
 	}
-	return c.hashOf([]any{snap.phase.ID, snap.phase.Draft, snap.phase.WithdrawnAt != nil, offerings, plan})
+	return c.hashOf([]any{snap.phase.ID, snap.phase.Draft, snap.phase.WithdrawnAt != nil, offerings, plan, snap.month})
 }
 
 // Preview runs the rollout in every target school and rolls each school
@@ -118,7 +122,7 @@ func (c *Catalog) planBilling(snap snapshot, next release, schoolID int64, plan 
 		if !ok || offering.WithdrawnAt != nil {
 			continue
 		}
-		billing := billingFor(offering, next.offerings[offering.ID], schoolID, snap.phase.Draft, c.deps.Today())
+		billing := billingFor(offering, next.offerings[offering.ID], schoolID, snap.phase.Draft, next.month)
 		plan.Offerings[index].PricesFrom = billing.pricesFrom
 		plan.Offerings[index].ContractTemplate = billing.template
 	}

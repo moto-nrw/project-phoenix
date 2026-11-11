@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerCatalogVersion = "1.15.928"
+const traegerCatalogVersion = "1.15.929"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

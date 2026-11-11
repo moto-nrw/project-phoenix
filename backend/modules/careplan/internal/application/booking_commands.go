@@ -189,10 +189,12 @@ func (m *bookingCommands) TemplateRosterMaintenanceFeeds(ctx context.Context, te
 }
 
 type bookingCommands struct {
+	traegerBatchEffects
+	traegerBatchPickup
 	careplan.BookingMaterializationCapability
 	commands *BookingMaterialization
 }
 
 func NewBookingCommands(records *BookingMaterialization) careplan.BookingMaterializationCapability {
-	return &bookingCommands{records, records}
+	return &bookingCommands{traegerBatchEffects: records, traegerBatchPickup: records, BookingMaterializationCapability: records, commands: records}
 }

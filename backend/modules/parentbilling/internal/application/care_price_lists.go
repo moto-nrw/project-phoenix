@@ -62,7 +62,7 @@ func priceListsAfter(tariffs []parentbilling.CareTariff, heads []parentbilling.C
 		return after, headsAfter
 	}
 	for _, price := range replacement.Prices {
-		after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID,
+		after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID, ModuleName: price.ModuleName,
 			Weekday: price.Weekday, DaysPerWeek: price.DaysPerWeek, ValidFrom: validFrom,
 			MonthlyCents: price.MonthlyCents, SiblingCents: price.SiblingCents, MealExtra: price.MealExtra})
 	}
@@ -195,4 +195,32 @@ func modulePriceList(tariffs []parentbilling.CareTariff, heads []parentbilling.C
 		list.Prices = append(list.Prices, price)
 	}
 	return list
+}
+
+// mergeModulePrices combines all changes of a month before validation. The
+// result keeps the other modules and free months; input order cannot lose a
+// preceding module of the same batch.
+func mergeModulePrices(tariffs []parentbilling.CareTariff, heads []parentbilling.CarePriceListHead, modules []parentbilling.CareModulePriceList) ([]parentbilling.CarePriceList, []parentbilling.CareTariff, []parentbilling.CarePriceListHead, error) {
+	after, headsAfter := tariffs, heads
+	byMonth := map[calendar.Date]parentbilling.CarePriceList{}
+	seen := map[[2]string]bool{}
+	for _, module := range modules {
+		key := [2]string{module.ValidFrom.String(), fmt.Sprint(module.CareOfferingID)}
+		if seen[key] {
+			return nil, nil, nil, validation.Errors{"prices": errors.New("module repeated in a month")}
+		}
+		seen[key] = true
+		list, err := normalizePriceList(modulePriceList(after, headsAfter, module))
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		byMonth[module.ValidFrom] = list
+		after, headsAfter = priceListsAfter(after, headsAfter, module.SchoolID, module.ValidFrom, &list)
+	}
+	lists := make([]parentbilling.CarePriceList, 0, len(byMonth))
+	for _, list := range byMonth {
+		lists = append(lists, list)
+	}
+	slices.SortFunc(lists, func(a, b parentbilling.CarePriceList) int { return a.ValidFrom.Compare(b.ValidFrom) })
+	return lists, after, headsAfter, nil
 }

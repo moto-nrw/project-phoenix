@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -16,6 +17,8 @@ type schoolRun struct {
 	result      traegercatalog.SchoolResult
 	copies      map[int64]int64
 	leftTraeger bool
+	prices      []ports.ModulePrices
+	templates   func(context.Context) error
 	// offeringCodes names an offering whose tariff or template a school
 	// refused.
 	offeringCodes map[int64]string
@@ -30,21 +33,25 @@ func (c *Catalog) Rollout(ctx context.Context, actor traegercatalog.Actor, traeg
 	if err != nil {
 		return traegercatalog.Rollout{}, err
 	}
-	snap, next, err := c.release(ctx, actor, traegerPhaseID, print)
-	if err != nil {
-		return traegercatalog.Rollout{}, err
-	}
-	rollout := traegercatalog.Rollout{TraegerPhaseID: traegerPhaseID, Version: next.phaseVersion, Schools: []traegercatalog.SchoolResult{}}
-	runs := make([]schoolRun, 0, len(snap.targets()))
-	for _, t := range snap.targets() {
-		run, err := c.rollOutSchool(ctx, actor, snap, next, t, print.Schools[t.schoolID])
+	var result traegercatalog.Rollout
+	err = c.deps.Runtime.WithinExclusive(ctx, fmt.Sprintf("traeger-catalog:%d:%d", actor.OrganizationID, traegerPhaseID), func(ctx context.Context) error {
+		snap, next, err := c.release(ctx, actor, traegerPhaseID, print)
 		if err != nil {
-			return traegercatalog.Rollout{}, err
+			return err
 		}
-		runs = append(runs, run)
-		rollout.Schools = append(rollout.Schools, run.result)
-	}
-	return rollout, c.record(ctx, actor, snap, next, runs)
+		result = traegercatalog.Rollout{TraegerPhaseID: traegerPhaseID, Version: next.phaseVersion, Schools: []traegercatalog.SchoolResult{}}
+		runs := make([]schoolRun, 0, len(snap.targets()))
+		for _, target := range snap.targets() {
+			run, err := c.rollOutSchool(ctx, actor, snap, next, target, print.Schools[target.schoolID])
+			if err != nil {
+				return err
+			}
+			runs = append(runs, run)
+			result.Schools = append(result.Schools, run.result)
+		}
+		return c.record(ctx, actor, snap, next, runs)
+	})
+	return result, err
 }
 
 // release checks the draft against the preview under the lock of the Träger
@@ -55,7 +62,7 @@ func (c *Catalog) release(ctx context.Context, actor traegercatalog.Actor, id in
 	if err != nil {
 		return snapshot{}, release{}, err
 	}
-	snap := snapshot{schools: schools}
+	snap := snapshot{schools: schools, month: monthStart(c.deps.Today())}
 	var next release
 	err = c.deps.Runtime.WithinTraeger(ctx, actor.OrganizationID, func(ctx context.Context) error {
 		var err error
@@ -112,7 +119,7 @@ func (c *Catalog) writeVersions(ctx context.Context, actor traegercatalog.Actor,
 	if c.draftHash(validated, snap.targets()) != c.draftHash(snap, snap.targets()) {
 		return release{}, traegercatalog.ErrPreviewStale
 	}
-	next := release{phaseVersion: version, phase: snap.phase.Draft, offerings: map[int64]offeringRelease{}}
+	next := release{month: snap.month, phaseVersion: version, phase: snap.phase.Draft, offerings: map[int64]offeringRelease{}}
 	for _, offering := range released {
 		if offering.ReleasedVersion != nil && offering.Released != nil {
 			next.offerings[offering.ID] = offeringRelease{version: *offering.ReleasedVersion, draft: *offering.Released}
@@ -140,6 +147,10 @@ func (c *Catalog) rollOutSchool(ctx context.Context, actor traegercatalog.Actor,
 			return errStale
 		}
 		_, run.copies, err = c.applySchool(ctx, snap, next, t.action)
+		if err != nil || t.action == traegercatalog.ActionWithdraw {
+			return err
+		}
+		run.prices, run.templates, err = c.prepareBilling(ctx, actor, snap, next, run)
 		return err
 	})
 	switch code, refused := rejectionCode(err); {
@@ -158,45 +169,52 @@ func (c *Catalog) rollOutSchool(ctx context.Context, actor traegercatalog.Actor,
 	return run, nil
 }
 
-// writeBilling writes the school's tariffs in the Träger transaction and
-// then its contract templates, which Care Contract writes in its own
-// transactions. A refusal rejects the school and preserves its applied version.
-func (c *Catalog) writeBilling(ctx context.Context, actor traegercatalog.Actor, snap snapshot, next release, run *schoolRun) error {
+// prepareBilling validates all templates before the school commits. The
+// returned command contains only owner-validated inputs for the financial unit.
+func (c *Catalog) prepareBilling(ctx context.Context, actor traegercatalog.Actor, snap snapshot, next release, run schoolRun) ([]ports.ModulePrices, func(context.Context) error, error) {
+	prices := []ports.ModulePrices{}
+	templates := []ports.ModuleTemplate{}
 	for _, offering := range snap.offerings {
 		copyID := run.copies[offering.ID]
 		if copyID == 0 {
 			continue
 		}
-		plan := billingFor(offering, next.offerings[offering.ID], run.target.schoolID, next.phase, c.deps.Today())
-		err := c.writeOfferingBilling(ctx, actor, run.target.schoolID, copyID, next.offerings[offering.ID].draft, plan)
-		if code, refused := rejectionCode(err); refused {
-			run.offeringCodes[offering.ID] = code
-			run.result.Outcome = enrollment.TraegerOutcomeRejected
-			if run.result.ErrorCode == "" {
-				run.result.ErrorCode = code
-			}
-		} else if err != nil {
-			return err
+		released := next.offerings[offering.ID]
+		plan := billingFor(offering, released, run.target.schoolID, next.phase, next.month)
+		if plan.pricesFrom != nil {
+			prices = append(prices, ports.ModulePrices{SchoolID: run.target.schoolID, CareOfferingID: copyID,
+				ModuleName: released.draft.Fields.Name, ValidFrom: *plan.pricesFrom, Prices: released.draft.Prices})
+		}
+		if plan.template {
+			templates = append(templates, ports.ModuleTemplate{CareOfferingID: copyID, Template: *released.draft.ContractTemplate})
 		}
 	}
-	return nil
+	prepared, err := c.deps.ContractTemplates(ctx, actor.OrganizationID, actor.AccountID, run.target.schoolID, templates)
+	return prices, prepared, err
 }
 
-func (c *Catalog) writeOfferingBilling(ctx context.Context, actor traegercatalog.Actor, schoolID, copyID int64, draft careplan.TraegerOfferingDraft, plan billing) error {
-	if plan.pricesFrom != nil {
-		err := c.deps.Runtime.WithinTraeger(ctx, actor.OrganizationID, func(ctx context.Context) error {
-			return c.deps.Tariffs(ctx, actor.OrganizationID, actor.AccountID, ports.ModulePrices{
-				SchoolID: schoolID, CareOfferingID: copyID, ModuleName: draft.Fields.Name, ValidFrom: *plan.pricesFrom, Prices: draft.Prices,
-			})
-		})
-		if err != nil {
+// writeBilling commits every tariff and template of a school together. A
+// refusal rolls all financial writes back and preserves its applied version.
+func (c *Catalog) writeBilling(ctx context.Context, actor traegercatalog.Actor, snap snapshot, next release, run *schoolRun) error {
+	err := c.deps.Runtime.WithinTraeger(ctx, actor.OrganizationID, func(ctx context.Context) error {
+		if err := c.deps.Tariffs(ctx, actor.OrganizationID, actor.AccountID, run.prices); err != nil {
 			return err
 		}
+		if err := run.templates(ctx); err != nil {
+			return err
+		}
+		// Billing and its comparison baseline must commit together. A later
+		// school or final-outcome failure must not hide committed terms.
+		return c.recordOutcomes(ctx, actor, snap, next, []schoolRun{*run})
+	})
+	if code, refused := rejectionCode(err); refused {
+		run.result.Outcome, run.result.ErrorCode = enrollment.TraegerOutcomeRejected, code
+		for id := range run.copies {
+			run.offeringCodes[id] = code
+		}
+		return nil
 	}
-	if plan.template {
-		return c.deps.ContractTemplates(ctx, actor.OrganizationID, actor.AccountID, schoolID, copyID, *draft.ContractTemplate)
-	}
-	return nil
+	return err
 }
 
 // record writes the outcome of every school in one Träger transaction,
@@ -205,6 +223,12 @@ func (c *Catalog) record(ctx context.Context, actor traegercatalog.Actor, snap s
 	if len(runs) == 0 {
 		return nil
 	}
+	return c.deps.Runtime.WithinTraeger(ctx, actor.OrganizationID, func(ctx context.Context) error {
+		return c.recordOutcomes(ctx, actor, snap, next, runs)
+	})
+}
+
+func (c *Catalog) recordOutcomes(ctx context.Context, actor traegercatalog.Actor, snap snapshot, next release, runs []schoolRun) error {
 	phaseOutcomes := make([]enrollment.TraegerCopyOutcome, 0, len(runs))
 	offeringOutcomes := map[int64][]careplan.TraegerOfferingOutcome{}
 	for _, run := range runs {
@@ -218,12 +242,10 @@ func (c *Catalog) record(ctx context.Context, actor traegercatalog.Actor, snap s
 			}
 		}
 	}
-	return c.deps.Runtime.WithinTraeger(ctx, actor.OrganizationID, func(ctx context.Context) error {
-		if err := c.deps.Phases.RecordTraegerPhaseOutcomes(ctx, actor.OrganizationID, snap.phase.ID, phaseOutcomes); err != nil {
-			return err
-		}
-		return c.deps.Offerings.RecordTraegerOfferingOutcomes(ctx, actor.OrganizationID, offeringOutcomes)
-	})
+	if err := c.deps.Phases.RecordTraegerPhaseOutcomes(ctx, actor.OrganizationID, snap.phase.ID, phaseOutcomes); err != nil {
+		return err
+	}
+	return c.deps.Offerings.RecordTraegerOfferingOutcomes(ctx, actor.OrganizationID, offeringOutcomes)
 }
 
 func phaseOutcome(run schoolRun, version int) enrollment.TraegerCopyOutcome {

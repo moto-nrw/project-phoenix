@@ -501,12 +501,12 @@ type CareModulePriceList struct {
 	Prices         []CarePrice
 }
 
-// CareModulePrices replaces the prices of one module in the price list of a
-// school from a month on and leaves the other modules of that list, with
+// CareModulePrices replaces a batch of modules in one school's price lists
+// from their respective months on and leaves the other modules, with
 // the same lock and the same refusal of a billed month as SaveCarePriceList.
 // It runs in the Träger transaction the caller opens.
 type CareModulePrices interface {
-	SaveCareModulePrices(ctx context.Context, reviewer HolidayReviewer, list CareModulePriceList) error
+	SaveCareModulePrices(ctx context.Context, reviewer HolidayReviewer, lists []CareModulePriceList) error
 }
 
 // CareBilling lets the Abrechnung of a Träger keep the monthly prices of
