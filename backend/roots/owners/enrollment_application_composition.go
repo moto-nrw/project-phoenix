@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -211,55 +210,30 @@ type HolidayAcceptanceAccounts interface {
 	FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error)
 }
 
-// holidayParentAccount reports whether the address has a parent account. An
-// unknown address has none; a lookup that fails is an error, never "none".
-func holidayParentAccount(ctx context.Context, accounts HolidayAcceptanceAccounts, address string) (bool, error) {
-	account, err := accounts.FindAccountByEmail(ctx, address)
+// holidayAcceptanceAccounts maps Identity account lookups to Enrollment's
+// account-eligibility port in the worker's administrative scope.
+type holidayAcceptanceAccounts struct {
+	accounts HolidayAcceptanceAccounts
+}
+
+func (a holidayAcceptanceAccounts) HasParentAccount(ctx context.Context, address string) (bool, error) {
+	if a.accounts == nil {
+		return false, nil
+	}
+	account, err := a.accounts.FindAccountByEmail(ctx, address)
 	if errors.Is(err, identityaccess.ErrAccountNotFound) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
-	guardian, _, err := accounts.FindGuardianTenant(ctx, account.ID)
+	guardian, _, err := a.accounts.FindGuardianTenant(ctx, account.ID)
 	return guardian, err
 }
 
-// holidayAcceptanceParentApp adds the link to the parents portal to the
-// acceptance mail of a holiday registration (#6672) when it is sent: a
-// parent with a parent account at the address gets it, everyone else none,
-// a staff account of the address too. The
-// Träger-Büro that confirmed never learns which. Without accounts or a
-// parents portal the mail goes out without the link.
-func holidayAcceptanceParentApp(renderer enrollmentOwner.MailRenderer, accounts HolidayAcceptanceAccounts, parentsURL string) enrollmentOwner.MailRenderer {
-	return func(ctx context.Context, kind string, raw json.RawMessage) (*enrollmentOwner.RenderedMail, error) {
-		var mail enrollmentOwner.HolidayRegistrationAcceptedMail
-		if err := json.Unmarshal(raw, &mail); err != nil {
-			return renderer(ctx, kind, raw)
-		}
-		mail.ParentAppURL = ""
-		if accounts != nil && strings.TrimSpace(parentsURL) != "" && strings.TrimSpace(mail.Recipient) != "" {
-			parent, err := holidayParentAccount(ctx, accounts, mail.Recipient)
-			if err != nil {
-				return nil, fmt.Errorf("%s: find the parent account: %w", kind, err)
-			}
-			if parent {
-				mail.ParentAppURL = strings.TrimRight(strings.TrimSpace(parentsURL), "/") + "/"
-			}
-		}
-		linked, err := json.Marshal(mail)
-		if err != nil {
-			return nil, fmt.Errorf("%s payload: %w", kind, err)
-		}
-		return renderer(ctx, kind, linked)
-	}
-}
-
 // enrollmentMailRenderers registers Enrollment's renderers by outbox kind.
-// Delivery chooses the sender from the mail's school name. accounts and
-// parentsURL link the acceptance of a holiday registration to the parents
-// portal (#6672).
-func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFrom email.Email, accounts HolidayAcceptanceAccounts, parentsURL string) map[string]deliveryCompose.MailRenderer {
+// Delivery chooses the sender from the mail's school name.
+func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFrom email.Email) map[string]deliveryCompose.MailRenderer {
 	render := func(renderer enrollmentOwner.MailRenderer) deliveryCompose.MailRenderer {
 		return deliveryCompose.MailRendererFunc(func(ctx context.Context, intent *deliveryCompose.MailIntent) (*email.Message, error) {
 			payload, err := json.Marshal(intent.Payload)
@@ -301,7 +275,7 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		enrollmentOwner.MailKindHolidayClosureNotice: render(renderers.HolidayClosureNotice),
 		// The acceptance of a holiday registration (#6672): a mail of the
 		// Träger like the receipt.
-		enrollmentOwner.MailKindHolidayRegistrationAccepted: render(holidayAcceptanceParentApp(renderers.HolidayRegistrationAccepted, accounts, parentsURL)),
+		enrollmentOwner.MailKindHolidayRegistrationAccepted: render(renderers.HolidayRegistrationAccepted),
 	}
 }
 

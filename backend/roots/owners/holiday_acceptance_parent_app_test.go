@@ -17,9 +17,10 @@ import (
 // acceptanceAccounts knows the accounts in known, by address, and the
 // parent accounts among them in guardians; failure fails every lookup.
 type acceptanceAccounts struct {
-	known     map[string]int64
-	guardians map[int64]bool
-	failure   error
+	known           map[string]int64
+	guardians       map[int64]bool
+	failure         error
+	guardianFailure error
 }
 
 func (a *acceptanceAccounts) FindAccountByEmail(_ context.Context, email string) (identityaccess.Account, error) {
@@ -33,14 +34,14 @@ func (a *acceptanceAccounts) FindAccountByEmail(_ context.Context, email string)
 }
 
 func (a *acceptanceAccounts) FindGuardianTenant(_ context.Context, accountID int64) (bool, int64, error) {
-	return a.guardians[accountID], 0, nil
+	return a.guardians[accountID], 0, a.guardianFailure
 }
 
 func renderAcceptance(t *testing.T, accounts HolidayAcceptanceAccounts, parentsURL string, mail enrollmentOwner.HolidayRegistrationAcceptedMail) (*enrollmentOwner.RenderedMail, error) {
 	t.Helper()
 	raw, err := json.Marshal(mail)
 	require.NoError(t, err)
-	renderer := holidayAcceptanceParentApp(enrollmentCompose.NewMailRenderers().HolidayRegistrationAccepted, accounts, parentsURL)
+	renderer := enrollmentCompose.NewMailRenderers(holidayAcceptanceAccounts{accounts: accounts}, parentsURL).HolidayRegistrationAccepted
 	return renderer(context.Background(), enrollmentOwner.MailKindHolidayRegistrationAccepted, raw)
 }
 
@@ -91,4 +92,8 @@ func TestHolidayAcceptanceLinksTheParentsPortalOnlyForAParentAccount(t *testing.
 	failing := &acceptanceAccounts{failure: errors.New("database unavailable")}
 	_, err = renderAcceptance(t, failing, "https://eltern.example.org", mail)
 	require.Error(t, err, "a failed lookup fails the attempt, so the worker tries again")
+
+	failing = &acceptanceAccounts{known: accounts.known, guardianFailure: errors.New("guardian lookup unavailable")}
+	_, err = renderAcceptance(t, failing, "https://eltern.example.org", mail)
+	require.Error(t, err, "a failed guardian lookup also fails the attempt")
 }

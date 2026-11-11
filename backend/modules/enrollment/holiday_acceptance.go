@@ -1,11 +1,13 @@
 package enrollment
 
+import "context"
+
 // The acceptance mail of a holiday registration (#6672): when the
 // Träger-Büro confirms a registration, the parent who registered gets one
 // mail of the Träger with the children, their weeks and time models and the
 // text the Träger wrote for the period. Without a text the mail has its
 // fixed part only. A parent with an account gets the link to the parents
-// portal, which the root adds when Delivery sends the mail: the Träger
+// portal, which Enrollment adds when Delivery sends the mail: the Träger
 // transaction of the confirmation does not read accounts.
 
 // MailKindHolidayRegistrationAccepted is the Delivery outbox kind of the
@@ -20,7 +22,7 @@ const HolidayAcceptanceMailTextMaxLength = 2000
 // names the children with their weeks and time models, no date of birth and
 // no health information. TraegerText is the period's text as the Träger
 // wrote it, plain text. ParentAppURL is the link to the parents portal for a
-// parent with an account, empty otherwise; the root sets it at sending, the
+// parent with an account, empty otherwise; the renderer sets it at sending, the
 // outbox never carries it.
 type HolidayRegistrationAcceptedMail struct {
 	Recipient    string                         `json:"recipient_email"`
@@ -31,4 +33,12 @@ type HolidayRegistrationAcceptedMail struct {
 	Children     []HolidayRegistrationMailChild `json:"children"`
 	TraegerText  string                         `json:"traeger_text,omitempty"`
 	ParentAppURL string                         `json:"parent_app_url,omitempty"`
+}
+
+// HolidayAcceptanceAccounts reports whether an address has a parent account:
+// an account with the guardian role at an active school. The delivery worker
+// supplies this capability in its administrative scope, outside the Träger
+// transaction that confirms the registration.
+type HolidayAcceptanceAccounts interface {
+	HasParentAccount(ctx context.Context, address string) (bool, error)
 }

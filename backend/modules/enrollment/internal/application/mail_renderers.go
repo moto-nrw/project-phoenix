@@ -11,10 +11,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
-// NewMailRenderers returns Enrollment's mail renderers. Every field a
-// template needs is captured in the payload at enqueue time, so the
-// renderers are pure (no DB lookups).
-func NewMailRenderers() enrollment.MailRenderers {
+// NewMailRenderers returns Enrollment's mail renderers. Only holiday acceptance
+// mails look up account eligibility at delivery time; other fields are captured
+// in the outbox payload. Without a lookup or parents URL, no app link is shown.
+func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) enrollment.MailRenderers {
 	return enrollment.MailRenderers{
 		Submitted:                decodingRenderer(renderSubmitted),
 		AdminNotification:        decodingRenderer(renderAdminNotification),
@@ -44,7 +44,9 @@ func NewMailRenderers() enrollment.MailRenderers {
 		HolidayRegistrationReceived: renderHolidayRegistrationReceived,
 		HolidayPlaceGranted:         renderHolidayPlaceGranted,
 		HolidayClosureNotice:        renderHolidayClosureNotice,
-		HolidayRegistrationAccepted: renderHolidayRegistrationAccepted,
+		HolidayRegistrationAccepted: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+			return renderHolidayRegistrationAccepted(ctx, kind, raw, accounts, parentsURL)
+		},
 	}
 }
 
@@ -172,13 +174,25 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 // renderHolidayRegistrationAccepted renders the acceptance mail of a
 // confirmed holiday registration (#6672). The Träger is the sender; its
 // text is plain text, which the template escapes and keeps the lines of.
-func renderHolidayRegistrationAccepted(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+func renderHolidayRegistrationAccepted(ctx context.Context, kind string, raw json.RawMessage, accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) (*enrollment.RenderedMail, error) {
 	var payload enrollment.HolidayRegistrationAcceptedMail
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, fmt.Errorf("%s payload is not a holiday acceptance mail: %w", kind, err)
 	}
 	if strings.TrimSpace(payload.Recipient) == "" {
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	// Never trust a link from the outbox. Account eligibility is checked at
+	// delivery time, after the confirmation's Träger transaction has ended.
+	payload.ParentAppURL = ""
+	if accounts != nil && strings.TrimSpace(parentsURL) != "" {
+		parent, err := accounts.HasParentAccount(ctx, payload.Recipient)
+		if err != nil {
+			return nil, fmt.Errorf("%s: find the parent account: %w", kind, err)
+		}
+		if parent {
+			payload.ParentAppURL = strings.TrimRight(strings.TrimSpace(parentsURL), "/") + "/"
+		}
 	}
 	subject := "Ferienanmeldung bestätigt"
 	if payload.PeriodName != "" {

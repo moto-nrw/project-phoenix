@@ -64,16 +64,14 @@ export function HolidayAcceptanceMailField({
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold text-gray-600">
-          Annahme-Mail an Eltern
-        </h3>
+        <SectionLabel as="h3">Annahme-Mail an Eltern</SectionLabel>
         <p className="text-sm text-gray-600">
           Eltern bekommen diese E-Mail, wenn Sie ihre Anmeldung bestätigen.
           Kinder, Wochen und Zeitmodell setzt moto selbst ein.
         </p>
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-1">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="min-w-0 space-y-1">
           <Textarea
             name="acceptance_mail_text"
             label="Text der Annahme-Mail"
@@ -94,7 +92,10 @@ export function HolidayAcceptanceMailField({
             {`${used} von ${MAX_ACCEPTANCE_MAIL_TEXT} Zeichen`}
           </p>
         </div>
-        <section aria-label="Vorschau der Annahme-Mail" className="space-y-2">
+        <section
+          aria-label="Vorschau der Annahme-Mail"
+          className="min-w-0 space-y-2 [overflow-wrap:anywhere]"
+        >
           <SectionLabel as="h4">Vorschau</SectionLabel>
           <InsetPanel padding="md">
             <InsetPanel

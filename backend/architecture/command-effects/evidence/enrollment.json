@@ -1305,6 +1305,22 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "binding_digest": "1c8c3bd37faa5530dce6889d6a75a68c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "binding_digest": "4ade80137b47a684dc12ac6f3d63a76c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindGuardianTenant",
+      "target_owner": "identity-access"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
       "binding_digest": "d39cd75aea417360e3819014cc9944ba",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
