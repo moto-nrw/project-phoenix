@@ -480,7 +480,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_care_wish_required":
         "Bitte wählen Sie, ob Ihr Kind in den Ferien Betreuung braucht.",
       "enrollment.holiday_child_day_limit":
-        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Insgesamt wären es {days} Tage. Davon in anderen Anmeldungen: {elsewhere}. Bitte wählen Sie weniger Tage.",
+        "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Mit allen Anmeldungen des Kindes wären es {days} Tage, davon {elsewhere} in anderen Anmeldungen. Bitte wählen Sie weniger Tage.",
       "enrollment.holiday_form_field_not_allowed":
         "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
       "enrollment.holiday_guest_group_invalid":
