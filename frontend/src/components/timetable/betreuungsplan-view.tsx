@@ -1916,7 +1916,7 @@ function TimetablesContent() {
     await tenantMutate(gapsSWRKey);
   }, [gapsSWRKey, swrKey, templatePeriodID, tenantMutate]);
   const archiveRefresh = useRefreshAfterWrite(
-    "die Liste der Regeltermine",
+    "die Anzeige der Regeltermine",
     reloadAfterArchive,
   );
   const { refresh: refreshAfterArchive } = archiveRefresh;

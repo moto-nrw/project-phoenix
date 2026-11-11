@@ -83,7 +83,10 @@ import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-moda
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
-import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { formatDate, isValidISODate, berlinTodayISO } from "~/lib/date-helpers";
@@ -267,10 +270,13 @@ export default function StaffDetailContent() {
   // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
   // Ein 404 ist kein Ladefehler, sondern eine Person, die es nicht mehr gibt.
   const staffNotFound = error instanceof ApiError && error.status === 404;
+  // Mit geladener Person bleibt die Akte stehen und der Fehler darüber; nur
+  // ohne Daten ersetzt er die Seite (#6636).
   const staffLoadError = useSwrLoadError(
     staffNotFound ? undefined : error,
     "die Personalakte",
     mutateStaff,
+    staff && !staff.endedOn ? STALE_DATA_SUFFIX : undefined,
   );
   const recordLoadError = useSwrLoadError(
     recordError,
@@ -323,7 +329,10 @@ export default function StaffDetailContent() {
   }, [staffId, tenantMutate, refreshStaffFamily]);
   // Nachladen nach einem gelungenen Schreiben: ein Fehler dabei ist ein
   // Ladefehler über dem Reiter, kein Fehler der Aktion (#6636).
-  const recordRefresh = useRefreshAfterWrite("die Personalakte", reloadRecord);
+  const recordRefresh = useRefreshAfterWrite(
+    "die Anzeige der Personalakte",
+    reloadRecord,
+  );
   const { refresh: refreshRecord } = recordRefresh;
 
   // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
@@ -507,7 +516,9 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton referrer={referrer} backLabel={backLabel} />;
   }
 
-  if (!isLoading && error && !staffNotFound) {
+  // Die frühere Beschäftigung hat keinen Platz für den Hinweis über der
+  // Akte; dort ersetzt der Fehler weiter die Seite.
+  if (!isLoading && error && !staffNotFound && (!staff || staff.endedOn)) {
     // Bis der Katalogtext geladen ist, bleibt das Skelett stehen.
     if (!staffLoadError)
       return <StaffDetailSkeleton referrer={referrer} backLabel={backLabel} />;
@@ -841,6 +852,7 @@ export default function StaffDetailContent() {
     >
       {staff ? (
         <>
+          <LoadErrorAlert error={staffLoadError} />
           <LoadErrorAlert error={recordRefresh.error} />
           {activeTab === "uebersicht" && showTimeTracking && (
             <UebersichtTab staffId={staffId} />

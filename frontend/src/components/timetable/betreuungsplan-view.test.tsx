@@ -2980,7 +2980,7 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("archive-template"));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
 
-    const message = `${catalogText("general.unavailable", "die Liste der Regeltermine")} ${SAVED_BUT_STALE_SUFFIX}`;
+    const message = `${catalogText("general.unavailable", "die Anzeige der Regeltermine")} ${SAVED_BUT_STALE_SUFFIX}`;
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Der Regeltermin „Yoga“ ist archiviert.",

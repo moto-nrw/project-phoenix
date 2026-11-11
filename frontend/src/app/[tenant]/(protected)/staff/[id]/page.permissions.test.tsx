@@ -15,7 +15,10 @@ import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
-import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import {
+  SAVED_BUT_STALE_SUFFIX,
+  STALE_DATA_SUFFIX,
+} from "~/lib/hooks/use-refresh-after-write";
 import {
   staffAbsenceService,
   staffPlannedExitService,
@@ -38,6 +41,8 @@ const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
 );
 const detailRequest = vi.hoisted(() => ({
   error: null as unknown,
+  // A failed revalidation: SWR keeps the confirmed data and sets the error.
+  staleError: null as unknown,
   endedOn: null as string | null,
   avatarUrl: undefined as string | undefined,
   plannedExitDate: null as string | null,
@@ -142,7 +147,7 @@ vi.mock("~/lib/swr", () => ({
       return {
         data: staffRecord(),
         isLoading: false,
-        error: null,
+        error: detailRequest.staleError,
         mutate: detailRequest.mutate,
       };
     }
@@ -324,6 +329,7 @@ describe("StaffDetailContent permissions", () => {
     vi.clearAllMocks();
     mockTenantMutate.mockImplementation(() => Promise.resolve(undefined));
     detailRequest.error = null;
+    detailRequest.staleError = null;
     detailRequest.endedOn = null;
     detailRequest.avatarUrl = undefined;
     detailRequest.plannedExitDate = null;
@@ -1050,6 +1056,33 @@ describe("StaffDetailContent permissions", () => {
       expect(detailRequest.mutate).toHaveBeenCalled();
     });
 
+    // #6636: nach einem Schreiben setzt ein gescheitertes Nachladen nur den
+    // SWR-Fehler; die geladene Akte bleibt stehen, der Fehler steht darüber.
+    it("behält die geladene Personalakte, wenn das Nachladen scheitert", async () => {
+      detailRequest.plannedExitDate = "2026-12-31";
+      detailRequest.staleError = new ApiError("down", 503, {
+        code: "general.unavailable",
+      });
+      mockAdmin(["users:read", "users:delete"]);
+
+      render(<StaffDetailContent />);
+
+      const loadText = catalogText("general.unavailable", "die Personalakte");
+      expect(
+        await screen.findByText((text) => text.startsWith(loadText)),
+      ).toBeInTheDocument();
+      // Anker: die Akte mit Kopf und Aktionen bleibt stehen.
+      expect(screen.getByText("Austritt am 31.12.2026")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Weitere Aktionen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(`${loadText} ${STALE_DATA_SUFFIX}`),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(detailRequest.mutate).toHaveBeenCalled();
+    });
+
     it("nennt eine gelöschte Person statt eines Ladefehlers", () => {
       detailRequest.error = new ApiError("not found", 404, {
         code: "general.input",
@@ -1092,7 +1125,7 @@ describe("StaffDetailContent permissions", () => {
         }),
       );
 
-      const message = `${catalogText("general.unavailable", "die Personalakte")} ${SAVED_BUT_STALE_SUFFIX}`;
+      const message = `${catalogText("general.unavailable", "die Anzeige der Personalakte")} ${SAVED_BUT_STALE_SUFFIX}`;
       expect(await screen.findByText(message)).toBeInTheDocument();
       expect(
         screen.queryByRole("heading", { name: "Austritt zurücknehmen?" }),

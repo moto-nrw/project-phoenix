@@ -226,7 +226,10 @@ function OpenErasureOrder({
   const { success: toastSuccess } = useToast();
   // Only a failed withdrawal is an error of the withdrawal; a failed reload
   // afterwards is a load error with a retry that only reloads (#6636).
-  const withdrawRefresh = useRefreshAfterWrite("der Löschauftrag", onChanged);
+  const withdrawRefresh = useRefreshAfterWrite(
+    "die Anzeige des Löschauftrags",
+    onChanged,
+  );
   const { refresh: refreshAfterWithdraw } = withdrawRefresh;
 
   const handleWithdraw = useCallback(async () => {

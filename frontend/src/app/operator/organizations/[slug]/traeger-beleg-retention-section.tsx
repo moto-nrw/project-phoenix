@@ -411,7 +411,7 @@ function SuspensionsCard({
   // Only a failed lift is an error of the lift; a failed reload afterwards
   // is a load error with a retry that only reloads (#6636).
   const liftRefresh = useRefreshAfterWrite(
-    "die Liste der Aussetzungen",
+    "die Anzeige der Aussetzungen",
     onChanged,
   );
   const { refresh: refreshAfterLift } = liftRefresh;
