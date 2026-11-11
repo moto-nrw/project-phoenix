@@ -90,3 +90,30 @@ export const WithFormError: Story = {
     </SlideOver>
   ),
 };
+
+/** Footer with two actions: shows the spacing between them (#6567). */
+export const WithFooterActions: Story = {
+  render: () => (
+    <SlideOver defaultOpen>
+      <DrawerPrimitive.Trigger asChild>
+        <Button type="button">Formular öffnen</Button>
+      </DrawerPrimitive.Trigger>
+      <SlideOverContent>
+        <SlideOverHeader>
+          <SlideOverTitle>Termin bearbeiten</SlideOverTitle>
+        </SlideOverHeader>
+        <SlideOverBody className="text-sm text-slate-600">
+          Inhalt des Panels.
+        </SlideOverBody>
+        <SlideOverFooter>
+          <DrawerPrimitive.Close asChild>
+            <Button type="button" variant="outline">
+              Abbrechen
+            </Button>
+          </DrawerPrimitive.Close>
+          <Button type="button">Speichern</Button>
+        </SlideOverFooter>
+      </SlideOverContent>
+    </SlideOver>
+  ),
+};

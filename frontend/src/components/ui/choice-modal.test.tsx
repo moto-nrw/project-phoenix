@@ -190,6 +190,60 @@ describe("ChoiceModal", () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  // #6567: the busy check used to sit in ChoiceModal's own onClose, so
+  // Modal still ran its exit animation and left an open, invisible dialog.
+  it.each([
+    {
+      path: "Escape",
+      dismiss: () => fireEvent.keyDown(document, { key: "Escape" }),
+    },
+    {
+      path: "backdrop",
+      dismiss: () =>
+        fireEvent.click(
+          screen.getByRole("button", {
+            name: "Hintergrund - Klicken zum Schließen",
+          }),
+        ),
+    },
+    {
+      path: "close button",
+      dismiss: () =>
+        fireEvent.click(
+          screen.getByRole("button", { name: "Modal schließen" }),
+        ),
+    },
+  ])("stays visible and open on $path while isBusy", async ({ dismiss }) => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <ChoiceModal
+          isOpen
+          onClose={onClose}
+          title="Änderung anwenden"
+          options={options}
+          onSelect={vi.fn()}
+          isBusy
+        />
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // Anker: the open dialog, before any dismiss attempt.
+    const dialog = screen.getByRole("dialog", { name: "Änderung anwenden" });
+    dismiss();
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialog).not.toHaveClass("animate-modalExit");
+    expect(dialog).toHaveClass("animate-modalEnter");
+  });
+
   it("ignores backdrop, Escape and close button while isBusy", async () => {
     const onClose = vi.fn();
     render(

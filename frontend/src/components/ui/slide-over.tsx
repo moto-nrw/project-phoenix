@@ -423,7 +423,7 @@ const SlideOverFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-row flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4",
+      "flex flex-row flex-wrap justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4",
       className,
     )}
     {...props}

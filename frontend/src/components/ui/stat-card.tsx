@@ -220,13 +220,10 @@ export function StatCard(
     ) : (
       <div
         title={title}
-        // `shadow-md!`: moto-content-surface setzt seinen Schatten unlayered
-        // und schlägt jede normale Utility; nur `!important` hebt die
-        // verlinkte Kachel beim Überfahren an (#5577).
-        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 max-sm:p-3 ${
-          href
-            ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md!"
-            : ""
+        // Verlinkt reagiert die Kachel beim Überfahren wie `TileCard`, und
+        // jede Kachel hat deren Innenabstand: eine Karte, ein Verhalten (#6565).
+        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 max-sm:p-4 ${
+          href ? "moto-hover-elevated" : ""
         }`}
       >
         {/* Absolute so a tile carrying an action keeps the same label→value
@@ -297,7 +294,12 @@ export function StatCard(
             ? `${label}: ${loading ? "…" : value}, Liste öffnen`
             : undefined
         }
-        className={`focus-visible:ring-moto-blue group block cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${props.variant === "row" ? "rounded-xl" : "h-full rounded-2xl"}`}
+        className={
+          props.variant === "row"
+            ? "focus-visible:ring-moto-blue group block cursor-pointer rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            : // Derselbe Fokusring wie `TileCard`, in moto-blue für 3:1 Kontrast (#6565).
+              "group focus-visible:outline-moto-blue block h-full cursor-pointer rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
+        }
       >
         {card}
       </Link>
