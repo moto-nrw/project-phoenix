@@ -560,5 +560,4 @@ export {
   SlideOverDescription,
   SlideOverCloseButton,
   SlideOverCancelButton,
-  useSlideOverDismissDisabled,
 };
