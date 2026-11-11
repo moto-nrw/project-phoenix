@@ -1103,6 +1103,19 @@ export function PhasesEditor() {
                 .slice(0, CARE_EXIT_BATCH_SIZE)
                 .map((child) => child.studentId)}
               suggestedLastCareDay={careBeyondEnd.phaseEnd}
+              onExcludeBlocked={(studentIds) => {
+                const excluded = new Set(studentIds);
+                setCareExitOpen(false);
+                setCareBeyondEnd((current) => {
+                  if (!current) return null;
+                  const remaining = current.students.filter(
+                    (child) => !excluded.has(child.studentId),
+                  );
+                  return remaining.length > 0
+                    ? { ...current, students: remaining }
+                    : null;
+                });
+              }}
               onClose={() => setCareExitOpen(false)}
               onFinished={() => {
                 setCareExitOpen(false);

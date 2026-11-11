@@ -75,6 +75,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen`, der Link zum Kopieren und der QR-Code. Diese Eltern melden sich im Elternportal an.",
     ],
     troubleshootingDetails: [
+      "Beim Beenden nennt moto Kinder, deren Betreuung nicht beendet werden kann? Wählen Sie unter diesen Kindern `Aus Auswahl nehmen`. Danach können Sie die Betreuung der übrigen Kinder erneut prüfen und beenden.",
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
       "Auf `Betreuungsangebote` steht `Erst eine Anmeldephase anlegen`? Dann fehlt die Phase noch. Angebote gibt es nur innerhalb einer Phase.",
       "Oben steht `Anschlussphase fehlt`? Dann laufen die Buchungen aus. Wählen Sie `Anschlussphase erstellen`.",

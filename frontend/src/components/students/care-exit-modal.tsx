@@ -80,6 +80,8 @@ interface CareExitModalProps {
   /** Durable follow-up created by an authoritative complete withdrawal. */
   readonly completionId?: string;
   readonly firstBookinglessDay?: string;
+  /** Entfernt blockierte Kinder aus der Auswahl beim Aufrufer. */
+  readonly onExcludeBlocked?: (studentIds: readonly string[]) => void;
   readonly onClose: () => void;
   readonly onFinished: () => Promise<void> | void;
 }
@@ -98,6 +100,7 @@ export function CareExitModal({
   suggestedLastCareDay,
   completionId,
   firstBookinglessDay,
+  onExcludeBlocked,
   onClose,
   onFinished,
 }: CareExitModalProps) {
@@ -383,7 +386,11 @@ export function CareExitModal({
           ) : null}
 
           {step === 2 && preview ? (
-            <CareExitPreviewList preview={preview} />
+            <CareExitPreviewList
+              preview={preview}
+              pending={save.pending}
+              onExcludeBlocked={onExcludeBlocked}
+            />
           ) : null}
         </div>
         <SlideOverFooter>{footer}</SlideOverFooter>
@@ -395,8 +402,12 @@ export function CareExitModal({
 /** Die Vorschau: jedes Kind namentlich, mit dem, was sich für es ändert. */
 function CareExitPreviewList({
   preview,
+  pending,
+  onExcludeBlocked,
 }: {
   readonly preview: CareExitPreview;
+  readonly pending: boolean;
+  readonly onExcludeBlocked?: (studentIds: readonly string[]) => void;
 }) {
   const blocked = preview.students.filter((student) => student.blocker);
   const ready = preview.students.filter((student) => !student.blocker);
@@ -422,6 +433,20 @@ function CareExitPreviewList({
               </li>
             ))}
           </ul>
+          {onExcludeBlocked ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="mt-3"
+              disabled={pending}
+              onClick={() =>
+                onExcludeBlocked(blocked.map((student) => student.studentId))
+              }
+            >
+              Aus Auswahl nehmen
+            </Button>
+          ) : null}
         </InsetPanel>
       ) : null}
 
