@@ -211,3 +211,24 @@ func TestHoldInsertedAdmitsTheOwnRowOutOfOrder(t *testing.T) {
 	})
 	require.ErrorIs(t, err, tenant.ErrLockOrder)
 }
+
+// AdmitBefore admits the ordered lock before every acquisition and takes
+// nothing once the order refuses it (#6702).
+func TestAdmitBeforeAdmitsBeforeItAcquires(t *testing.T) {
+	t.Parallel()
+	var acquired []string
+	acquire := func(ctx context.Context, key string, _ bool) error {
+		acquired = append(acquired, key)
+		if !tenant.HoldsLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, false)) {
+			return errors.New("acquired before the admission")
+		}
+		return nil
+	}
+	err := inLedgerTransaction(t, func(ctx context.Context) error {
+		require.NoError(t, tenant.AdmitBefore(tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, false), acquire)(ctx, "staff-balance:7:9", false))
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(9)))
+		return tenant.AdmitBefore(tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(12, false), acquire)(ctx, "staff-balance:7:12", false)
+	})
+	require.ErrorIs(t, err, tenant.ErrLockOrder)
+	assert.Equal(t, []string{"staff-balance:7:9"}, acquired, "the refused gate is never taken")
+}

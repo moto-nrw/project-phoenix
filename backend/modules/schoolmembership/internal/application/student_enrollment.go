@@ -21,9 +21,6 @@ func (s *Service) TransitionStatus(ctx context.Context, id int64, expected, next
 		}
 	}
 	err = s.runWrite(ctx, "transition_student_status", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -58,9 +55,6 @@ func (s *Service) SetStatus(ctx context.Context, id int64, status string) (chang
 		return false, invalid("status change requires a non-alumni lifecycle state")
 	}
 	err = s.runWrite(ctx, "set_student_status", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -98,9 +92,6 @@ func (s *Service) ResumeCare(ctx context.Context, id int64, from, status, on str
 		return false, invalid("care resume requires a non-alumni lifecycle status")
 	}
 	err = s.runWrite(ctx, "resume_student_care", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -128,9 +119,6 @@ func (s *Service) EndCare(ctx context.Context, ids []int64, until string) (chang
 		return 0, nil
 	}
 	err = s.runWrite(ctx, "end_student_care", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -161,9 +149,6 @@ func (s *Service) Reactivate(ctx context.Context, ids []int64, status string, ch
 	}
 	enforceChildQuota := check == schoolmembership.EnforceChildQuota
 	err = s.runWrite(ctx, "reactivate_students", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -192,9 +177,6 @@ func (s *Service) Graduate(ctx context.Context, ids []int64) (changed int64, err
 		return 0, nil
 	}
 	err = s.runWrite(ctx, "graduate_students", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -220,9 +202,6 @@ func (s *Service) ChangeClass(ctx context.Context, ids []int64, from, to string)
 		return 0, nil
 	}
 	err = s.runWrite(ctx, "change_student_class", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -244,8 +223,12 @@ func (s *Service) LockStudentClassWrites(ctx context.Context, exclusive bool) er
 	}
 
 	err := s.observeRun(ctx, "lock_student_class_writes", func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
+		// Only the exclusive gate is ordered (#6702): a grade transition takes
+		// it as its first lock. A shared holder is a reader of the gate.
+		if exclusive {
+			if err := admitClassWrites(txCtx); err != nil {
+				return err
+			}
 		}
 		queryStats, err := s.store.LockStudentClassWrites(txCtx, exclusive)
 		stats.Add(queryStats)

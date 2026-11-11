@@ -234,7 +234,16 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 // LockStaffPersonMerge shares the school's staff person merge gate, admitted
 // in the unit of work's lock order first (tenant.LockStaffPersonMerge, #6702).
 func (staffDirectory) LockStaffPersonMerge(ctx context.Context) error {
+	return LockStaffPersonMergeShared(ctx)
+}
+
+// LockStaffPersonMergeShared shares the merge gate of the school in context
+// for a writer that creates or adopts a person's staff row (#6702).
+func LockStaffPersonMergeShared(ctx context.Context) error {
 	schoolID := tenant.FromContext(ctx)
+	if tenant.HoldsLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)) {
+		return nil
+	}
 	if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
 		return err
 	}

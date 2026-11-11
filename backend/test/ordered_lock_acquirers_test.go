@@ -139,7 +139,7 @@ func TestOrderedLocksHaveOneAcquirer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(source), "tenant.OrderLock(") {
+			if !strings.Contains(string(source), "tenant.OrderLock(") && !strings.Contains(string(source), "tenant.AdmitBefore(") {
 				t.Errorf("%s takes %s without tenant.OrderLock", acquirer, builder)
 			}
 		}

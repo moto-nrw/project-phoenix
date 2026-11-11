@@ -104,8 +104,10 @@ type StaffImportConfig struct {
 	// rolePermissionsLost is a failed savepoint statement of that read: the
 	// validation transaction can no longer be trusted (E19).
 	rolePermissionsLost error
-	// schoolName is the tenant's display name, shown in invitation emails.
-	schoolName string
+	// schoolName is the tenant's display name, shown in invitation emails;
+	// it is read with the first invitation (schoolNameRead).
+	schoolName     string
+	schoolNameRead bool
 
 	// Existing staff of the tenant, keyed for FindExisting: by lowercased
 	// personnel number and by lowercased "vorname|nachname".

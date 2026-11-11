@@ -116,22 +116,9 @@ func TestMembershipLocksAreAdmittedBeforeTheyWait(t *testing.T) {
 			},
 		},
 		{
-			name: "class-write gate", class: tenant.LockStudentClassWrites, key: tenant.LockIDKey(school),
+			name: "exclusive class-write gate", class: tenant.LockStudentClassWrites, key: tenant.LockIDKey(school),
 			hold: classGateHold(school),
-			path: func(ctx context.Context) error { return module.LockStudentClassWrites(ctx, false) },
-		},
-		{
-			name: "class-write gate of an identity insert", class: tenant.LockStudentClassWrites, key: tenant.LockIDKey(school),
-			hold: classGateHold(school),
-			path: func(ctx context.Context) error {
-				gate, err := StudentClassWriteGateQuery(ctx, db)
-				if err != nil {
-					return err
-				}
-				tx, _ := tenant.CurrentTransaction[bun.IDB](ctx)
-				_, err = tx.NewRaw(`WITH class_write_gate AS MATERIALIZED (?) SELECT 1 FROM class_write_gate`, gate).Exec(ctx)
-				return err
-			},
+			path: func(ctx context.Context) error { return module.LockStudentClassWrites(ctx, true) },
 		},
 		{
 			name: "child quota", class: tenant.LockLeaf, key: "advisory:child-quota",

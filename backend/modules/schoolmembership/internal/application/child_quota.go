@@ -26,9 +26,6 @@ func (s *Service) countingWrite(ctx context.Context, stats *domain.OperationStat
 	if s.quota == nil {
 		return errChildQuotaUnbound
 	}
-	if err := admitClassWrites(ctx); err != nil {
-		return err
-	}
 	gateStats, err := s.store.LockStudentClassWrites(ctx, false)
 	stats.Add(gateStats)
 	if err != nil {

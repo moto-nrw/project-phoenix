@@ -78,26 +78,14 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 	teacherCreationFailed := false
 
 	if err := s.runtime.InTenantTx(ctx, func(ctx context.Context) error {
-		schoolID, err := s.runtime.RequireTenantID(ctx)
-		if err != nil {
-			return err
-		}
-		if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
-			return err
-		}
-		if err := s.runtime.AcquireLock(ctx, peopleValues.StaffPersonMergeLockKey(schoolID), true); err != nil {
-			return err
-		}
-		if err := s.lockLiveStaffOfPerson(ctx, input.PersonID); err != nil {
-			return err
-		}
-		if err := s.requireLivePersonLocked(ctx, input.PersonID); err != nil {
+		if err := s.lockStaffCreation(ctx, input.PersonID); err != nil {
 			return err
 		}
 		if err := s.refuseCaregiverProfileForLehrkraft(ctx, input.PersonID, input.IsTeacher); err != nil {
 			return err
 		}
 
+		var err error
 		if staff, err = s.adoptOrCreateStaff(ctx, input); err != nil {
 			return err
 		}
@@ -114,6 +102,26 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 	}
 
 	return staff, teacher, teacherCreationFailed, nil
+}
+
+// lockStaffCreation takes a staff creation's locks in the lock order
+// (#6702): the school's merge gate (shared), the live staff row an adoption
+// updates, then the person (Konto → Schule → Profil).
+func (s *staffMembershipDirectory) lockStaffCreation(ctx context.Context, personID int64) error {
+	schoolID, err := s.runtime.RequireTenantID(ctx)
+	if err != nil {
+		return err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
+		return err
+	}
+	if err := s.runtime.AcquireLock(ctx, peopleValues.StaffPersonMergeLockKey(schoolID), true); err != nil {
+		return err
+	}
+	if err := s.lockLiveStaffOfPerson(ctx, personID); err != nil {
+		return err
+	}
+	return s.requireLivePersonLocked(ctx, personID)
 }
 
 // requireLivePersonLocked keeps a staff write and a person retirement ordered

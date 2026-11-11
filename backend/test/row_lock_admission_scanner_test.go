@@ -114,10 +114,11 @@ func scanRowLockSites(file string, source []byte) ([]rowLockSite, error) {
 				if sel, ok := n.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "For" && len(n.Args) == 1 {
 					what = "For(" + exprText(n.Args[0]) + ")"
 				}
-				if sel, ok := n.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "AcquireLock" && tenantName != "" {
-					if pkg, ok := sel.X.(*ast.Ident); ok && pkg.Name == tenantName {
-						what = "tenant.AcquireLock"
-					}
+
+			case *ast.SelectorExpr:
+				// The runtime's advisory lock, called or handed on as a value.
+				if pkg, ok := n.X.(*ast.Ident); ok && tenantName != "" && pkg.Name == tenantName && n.Sel.Name == "AcquireLock" {
+					what = "tenant.AcquireLock"
 				}
 			case *ast.BasicLit:
 				if n.Kind == token.STRING {
@@ -189,7 +190,7 @@ func checkedAdmissions(body *ast.BlockStmt, tenantName string, admitters map[str
 
 func isTenantOrderLockCall(call *ast.CallExpr, tenantName string) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != "OrderLock" {
+	if !ok || (sel.Sel.Name != "OrderLock" && sel.Sel.Name != "AdmitBefore") {
 		return false
 	}
 	pkg, ok := sel.X.(*ast.Ident)
@@ -286,22 +287,28 @@ func calledName(call *ast.CallExpr) string {
 	return ""
 }
 
-// everyLockingCallAdmitted checks every function of the directory's non-test
-// files that calls called with a lock: each such call needs a checked
+// everyLockingCallAdmitted checks every function of the file, or of the
+// directory's non-test files, that calls called with a lock: each such call needs a checked
 // admission before it in the same function. A call that passes "" or false
 // takes no lock. found reports whether any locking call exists.
 func everyLockingCallAdmitted(dir, called string) (unadmitted []string, found bool, err error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, false, err
+	paths := []string{dir}
+	if !strings.HasSuffix(dir, ".go") {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, false, err
+		}
+		paths = paths[:0]
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") && !strings.HasSuffix(entry.Name(), "_test.go") {
+				paths = append(paths, filepath.Join(dir, entry.Name()))
+			}
+		}
 	}
 	fset := token.NewFileSet()
 	var files []*ast.File
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		parsed, err := parser.ParseFile(fset, filepath.Join(dir, entry.Name()), nil, parser.SkipObjectResolution)
+	for _, path := range paths {
+		parsed, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
 		if err != nil {
 			return nil, false, err
 		}

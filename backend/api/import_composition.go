@@ -122,6 +122,7 @@ func newStaffImport(
 			SchoolName:                   NewImportSchoolName(organizations),
 			Persons:                      persons,
 			Membership:                   membership,
+			LockStaffPersonMerge:         owners.LockStaffPersonMergeShared,
 			Records:                      workforce,
 		},
 	), runtime)

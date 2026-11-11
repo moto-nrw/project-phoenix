@@ -127,7 +127,9 @@ const (
 
 // rowLockAdmitted maps "file#Function" of a lock statement to its admitters.
 // An admitter with function "*" stands for every function of that directory
-// that calls the statement with a lock: each must admit before the call.
+// that calls the statement with a lock: each must admit before the call. A
+// call that passes false or "" takes no ordered lock (a shared class-write
+// gate, an unlocked read). A nil entry is a documented reader of a gate.
 var rowLockAdmitted = map[string][]rowLockAdmitter{
 	membershipStore + "store.go#Store.FindStaff":                           {{"modules/schoolmembership/internal/application/staff_row_lock.go", "findStaffRow", ""}},
 	membershipStore + "store.go#Store.CreateStaff":                         {{membershipApplication, "*", "CreateStaff"}},
@@ -140,12 +142,12 @@ var rowLockAdmitted = map[string][]rowLockAdmitter{
 	membershipStore + "retired_staff.go#Store.MarkNextRetiredStaffErased":  {{membershipApplication, "*", "MarkNextRetiredStaffErased"}},
 	membershipStore + "student_counts.go#Store.LockChildQuota":             {{membershipApplication, "*", "LockChildQuota"}},
 	membershipStore + "student_enrollment.go#Store.LockStudentClassWrites": {{membershipApplication, "*", "LockStudentClassWrites"}},
-	membershipStore + "student_enrollment.go#StudentClassWriteGateQuery": {
-		{membershipApplication, "*", "EnrollStudent"},
-		{"modules/schoolmembership/compose/student_class_gate.go", "StudentClassWriteGateQuery", "ResolveStudentClassWriteGate"},
-	},
+	// The shared class-write gate a student insert embeds, here and in People
+	// Directory's student statements, is a reader of the gate; only the
+	// exclusive holder is ordered (tenant.LockStudentClassWrites).
+	membershipStore + "student_enrollment.go#StudentClassWriteGateQuery":  nil,
 	membershipStore + "student_membership.go#Store.LockStudentWindow":     {{membershipApplication, "*", "LockStudentWindow"}},
-	membershipStore + "staff_person_merge.go#Store.StaffMergeMemberships": {{"modules/schoolmembership/compose/staff_person_merge.go", "StaffMergeMemberships", ""}},
+	membershipStore + "staff_person_merge.go#Store.StaffMergeMemberships": {{"modules/schoolmembership/internal/application/staff_person_merge.go", "StaffMergeMemberships", ""}},
 	// The person lock of a staff creation is admitted. Two root bindings
 	// under an approved exception (ADR 0067) lock the person unadmitted:
 	// staff admin's LockStaff takes it after the staff row, Care Plan's master

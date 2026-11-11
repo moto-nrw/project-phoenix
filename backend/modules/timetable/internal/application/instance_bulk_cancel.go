@@ -67,7 +67,7 @@ func (s *InstanceLifecycleService) cancelAndDeleteSelected(ctx context.Context, 
 	}
 	reason := bulkCancelReason
 	for _, block := range blocks {
-		if _, err := s.cancelBlock(ctx, block.id, &reason, actorAccountID, false); err != nil {
+		if _, err := s.cancel(ctx, block.id, &reason, actorAccountID, false); err != nil {
 			return err
 		}
 		if err := s.deleteInstance(ctx, block.id, bulkCancelReason, false); err != nil {

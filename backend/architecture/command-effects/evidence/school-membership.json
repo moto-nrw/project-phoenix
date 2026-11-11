@@ -1489,7 +1489,7 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.admittedStaffPersonMerge.ReassignStaffPerson",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.ReassignStaffPerson",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.ReassignStaffPerson",
       "source_owner": "school-membership",
@@ -1497,16 +1497,24 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.admittedStaffPersonMerge.StaffMergeMemberships",
-      "binding_digest": "0c6f15893feb234c5f0b7724032a314d",
-      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.StaffMergeMemberships",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.StaffPersonMerge.ReassignStaffPerson",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.ReassignStaffPerson",
       "source_owner": "school-membership",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.admittedStaffPersonMerge.StaffMergeMemberships",
-      "binding_digest": "95c03ef34eb6864319599ee9f0b034d8",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.StaffMergeMemberships",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.StaffMergeMemberships",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.StaffPersonMerge.StaffMergeMemberships",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.StaffMergeMemberships",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",

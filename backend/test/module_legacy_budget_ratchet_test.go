@@ -276,7 +276,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+2).
 // ADR 0203: the constructors of the HTTPS retrieval and the release CLI of
 // the return package of modules/organizationtenancy/compose add exactly 18 LOC.
-const moduleComposeBudgetTotal = 13280
+const moduleComposeBudgetTotal = 13265
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -313,7 +313,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/devicefleet/compose":                   203,
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
-	"modules/devicescan/compose":        540,
+	"modules/devicescan/compose":        532,
 	"modules/emergencysnapshot/compose": 13,
 	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0110:
 	// the public holiday registration constructors (+18); by ADR 0114: the
@@ -396,7 +396,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).
 	// ADR 0202: the pending-window constructor (+5).
-	"modules/schoolmembership/compose": 207,
+	"modules/schoolmembership/compose": 200,
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;
 	// the 7 LOC come out of modules/enrollment/compose, the total stays.

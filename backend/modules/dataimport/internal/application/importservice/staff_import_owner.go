@@ -31,14 +31,6 @@ func (c *StaffImportConfig) PreloadReferenceData(ctx context.Context) error {
 	}
 	c.roleIndex = buildRoleIndex(roles)
 
-	// School name is best-effort: a missing name only degrades the email text,
-	// it must not abort the import.
-	if c.SchoolName != nil {
-		if name, err := c.SchoolName(ctx); err == nil {
-			c.schoolName = name
-		}
-	}
-
 	c.staffByPersonnelNumber = make(map[string]*indexedStaff)
 	c.staffByName = make(map[string][]*indexedStaff)
 	if c.Membership == nil || c.Persons == nil {
@@ -193,7 +185,6 @@ func (c *StaffImportConfig) Create(ctx context.Context, row importModels.StaffIm
 	if c.Persons == nil || c.Membership == nil {
 		return 0, errors.New("staff import: Stammdaten owners are not wired")
 	}
-
 	var staffID int64
 	err := c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		id, err := c.createRecords(ctx, row)
@@ -268,7 +259,7 @@ func (c *StaffImportConfig) invite(ctx context.Context, personID int64, row impo
 		Position:         importModels.OptionalCell(row.Position),
 		PersonID:         &pid,
 		CreatedBy:        ImporterIDFromContext(ctx),
-		SchoolName:       c.schoolName,
+		SchoolName:       c.invitationSchoolName(ctx),
 		ActorPermissions: importModels.ImporterPermissionsFromContext(ctx),
 	}
 	if err := ports.ObserveCommand(ctx, "identity-access", "create_invitation", func() error {
@@ -385,6 +376,9 @@ func (c *StaffImportConfig) Update(ctx context.Context, staffID int64, row impor
 	if c.Persons == nil || c.Membership == nil {
 		return errors.New("staff import: Stammdaten owners are not wired")
 	}
+	if err := c.lockStaffPersonMerge(ctx); err != nil {
+		return err
+	}
 	return c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		staff, err := c.Membership.FindStaff(ctx, staffID)
 		if err != nil {
@@ -395,6 +389,36 @@ func (c *StaffImportConfig) Update(ctx context.Context, staffID int64, row impor
 		}
 		return c.updateRecords(ctx, staff, row)
 	})
+}
+
+// lockStaffPersonMerge takes the school's staff person merge gate before an
+// upsert's update row locks its staff row, outside the row's savepoint
+// (#6702). A later create of the same import would otherwise ask for the gate
+// while it holds that row, and a merge holds the gate while it waits for the
+// school's staff rows. A create takes the gate before its own staff row.
+// invitationSchoolName reads the tenant's display name once, for the first
+// invitation of the import: an import without e-mail addresses needs no
+// name. The name is best-effort: a missing one only degrades the e-mail
+// text, it must not abort the import.
+func (c *StaffImportConfig) invitationSchoolName(ctx context.Context) string {
+	if c.schoolNameRead || c.SchoolName == nil {
+		return c.schoolName
+	}
+	c.schoolNameRead = true
+	if name, err := c.SchoolName(ctx); err == nil {
+		c.schoolName = name
+	}
+	return c.schoolName
+}
+
+func (c *StaffImportConfig) lockStaffPersonMerge(ctx context.Context) error {
+	if c.LockStaffPersonMerge == nil || importModeFromContext(ctx) != importModels.ImportModeUpsert {
+		return nil
+	}
+	if err := c.LockStaffPersonMerge(ctx); err != nil {
+		return copyErrorf("Mitarbeiter sperren: %w", err)
+	}
+	return nil
 }
 
 func (c *StaffImportConfig) updateRecords(ctx context.Context, staff ports.Staff, row importModels.StaffImportRow) error {

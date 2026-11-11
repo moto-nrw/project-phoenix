@@ -24,7 +24,8 @@ func TestRebookingAndBookingOfTheSameSubjectDoNotDeadlock(t *testing.T) {
 	t.Parallel()
 	f := setupRebookFixture(t, 10)
 	ctx := testpkg.Ctx(t)
-	db := f.tc.db
+	db := testpkg.SetupTestDB(t)
+	require.Same(t, f.tc.db, db, "the fixture runs on the package database")
 
 	holder, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)

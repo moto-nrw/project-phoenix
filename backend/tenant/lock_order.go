@@ -37,8 +37,10 @@ const (
 	// (LockIDKey), ascending.
 	LockAccount LockClass = iota + 1
 	// LockStudentClassWrites is School Membership's tenant-wide class-write
-	// gate (exclusive or shared). A grade transition takes it before the
-	// recurrence gate, an attendance write before a staff balance gate.
+	// gate held exclusively: a grade transition takes it as its first lock,
+	// before the recurrence gate. Shared holders read the gate at different
+	// points of their own protocols (student writes, attendance, reopen) and
+	// stay out of the ledger.
 	LockStudentClassWrites
 	// LockPayrollRules is Workforce's tenant-wide payroll-rules gate; month
 	// close freezes the rules before it locks the staff balances.
@@ -199,6 +201,18 @@ func OrderLock(ctx context.Context, class LockClass, key string) error {
 	ledger.held[request] = struct{}{}
 	ledger.last, ledger.started = request, true
 	return nil
+}
+
+// AdmitBefore binds an advisory acquisition behind the admission of the
+// ordered lock (class, key): every call admits before it takes lockKey
+// (#6702), so a composition binds an ordered gate in one expression.
+func AdmitBefore(class LockClass, key string, acquire func(context.Context, string, bool) error) func(context.Context, string, bool) error {
+	return func(ctx context.Context, lockKey string, shared bool) error {
+		if err := OrderLock(ctx, class, key); err != nil {
+			return err
+		}
+		return acquire(ctx, lockKey, shared)
+	}
 }
 
 // HoldInserted records a row the ambient transaction has just inserted as a

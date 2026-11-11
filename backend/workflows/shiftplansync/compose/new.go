@@ -38,12 +38,9 @@ type (
 type SickCascadeDependencies struct {
 	// Planning is the shift write that rebuilds a cancelled shift's cover set
 	// atomically; Workforce serves the rows and the provenance stamp.
-	Planning        workforce.StaffShiftPlanning
-	Workforce       workforce.Capability
-	LockStaffShifts func(ctx context.Context, staffID int64) error
-	// LockStaff takes School Membership's staff row of a staff member; an
-	// offboarded member is no error (#6702).
-	LockStaff func(ctx context.Context, staffID int64) error
+	Planning                   workforce.StaffShiftPlanning
+	Workforce                  workforce.Capability
+	LockStaffShifts, LockStaff func(ctx context.Context, staffID int64) error
 
 	// Deviations are the Timetable owner's sick-report writes
 	// (timetable.StaffDeviations satisfies them).
@@ -66,11 +63,10 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 	if missing := application.MissingNames(map[string]bool{
 		"Planning":        deps.Planning != nil,
 		"Workforce":       deps.Workforce != nil,
-		"LockStaffShifts": deps.LockStaffShifts != nil,
-		"LockStaff":       deps.LockStaff != nil,
-		"Deviations":      deps.Deviations != nil,
-		"TimetableData":   deps.TimetableData != nil,
-		"InstanceStaff":   deps.InstanceStaff != nil,
+		"LockStaffShifts": deps.LockStaffShifts != nil, "LockStaff": deps.LockStaff != nil,
+		"Deviations":    deps.Deviations != nil,
+		"TimetableData": deps.TimetableData != nil,
+		"InstanceStaff": deps.InstanceStaff != nil,
 	}); len(missing) > 0 {
 		return nil, fmt.Errorf("shift plan sync compose: sick cascade needs %s", strings.Join(missing, ", "))
 	}
@@ -82,8 +78,7 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		InstanceStaff: deps.InstanceStaff,
 		Broadcaster:   deps.Broadcaster,
 		Logger:        deps.Logger,
-		Today:         deps.Today,
-		LockStaff:     deps.LockStaff,
+		Today:         deps.Today, LockStaff: deps.LockStaff,
 	}), nil
 }
 

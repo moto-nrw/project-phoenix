@@ -19,9 +19,6 @@ func (s *Service) Enroll(ctx context.Context, input schoolmembership.StudentEnro
 	}
 	err = s.runWrite(ctx, "enroll_student", func(txCtx context.Context, stats *domain.OperationStats) error {
 		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
-			if err := admitClassWrites(writeCtx); err != nil {
-				return err
-			}
 			id, queryStats, writeErr := s.store.EnrollStudent(writeCtx, input)
 			stats.Add(queryStats)
 			if writeErr == nil && id <= 0 {
@@ -47,9 +44,6 @@ func (s *Service) RenewEnrollment(ctx context.Context, input schoolmembership.St
 		return 0, err
 	}
 	err = s.runWrite(ctx, "renewenrollment_student", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {
@@ -73,9 +67,6 @@ func (s *Service) AssignGroup(ctx context.Context, studentID int64, groupID *int
 		return false, invalid("student and group IDs must be positive")
 	}
 	err = s.runWrite(ctx, "assigngroup_student", func(txCtx context.Context, stats *domain.OperationStats) error {
-		if err := admitClassWrites(txCtx); err != nil {
-			return err
-		}
 		gateStats, gateErr := s.store.LockStudentClassWrites(txCtx, false)
 		stats.Add(gateStats)
 		if gateErr != nil {

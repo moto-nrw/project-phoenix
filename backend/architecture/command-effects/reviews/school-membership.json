@@ -1864,32 +1864,41 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.admittedStaffPersonMerge.ReassignStaffPerson",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.ReassignStaffPerson",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.ReassignStaffPerson",
-      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/compose.admittedStaffPersonMerge.ReassignStaffPerson. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.ReassignStaffPerson. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
     },
     {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.admittedStaffPersonMerge.StaffMergeMemberships",
-      "classification": "platform",
-      "effect": "lock",
-      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.StaffMergeMemberships",
-      "reason": "Platform protocol participation (lock): school-membership reaches tenant.OrderLock (tenant-runtime) through modules/schoolmembership/compose.admittedStaffPersonMerge.StaffMergeMemberships. The caller admits or takes its lock in the unit of work's lock order (#6702); transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.StaffPersonMerge.ReassignStaffPerson",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.ReassignStaffPerson",
+      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/application.StaffPersonMerge.ReassignStaffPerson. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
       "source_owner": "school-membership",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.OrderLock",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.admittedStaffPersonMerge.StaffMergeMemberships",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.StaffMergeMemberships",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.StaffMergeMemberships",
-      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/compose.admittedStaffPersonMerge.StaffMergeMemberships. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.StaffMergeMemberships. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.StaffPersonMerge.StaffMergeMemberships",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.StaffPersonMerge.StaffMergeMemberships",
+      "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/application.StaffPersonMerge.StaffMergeMemberships. No persistent, lock or scope effect; exposed by the #6702 lock admission (ADR 0098).",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
