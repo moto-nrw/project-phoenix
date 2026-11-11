@@ -29031,7 +29031,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067).",
+      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067). Re-reviewed under ADR 0215: the template split and end reach the care-offering catalog through the batch roster binding of the Träger copy commands; the staff-assignment lock, its order and the target stay unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.LockStaffAssignments",
       "target_owner": "school-membership"
@@ -29451,7 +29451,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067).",
+      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067). Re-reviewed under ADR 0215: the template split and end reach the care-offering catalog through the batch roster binding of the Träger copy commands; the staff-assignment lock, its order and the target stay unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.LockStaffAssignments",
       "target_owner": "school-membership"
@@ -36453,7 +36453,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067).",
+      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067). Re-reviewed under ADR 0215: the template split and end reach the care-offering catalog through the batch roster binding of the Träger copy commands; the staff-assignment lock, its order and the target stay unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.LockStaffAssignments",
       "target_owner": "school-membership"
