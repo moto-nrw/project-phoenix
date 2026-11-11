@@ -33,10 +33,10 @@ import {
   type SchoolCheckoutReason,
 } from "~/lib/student-api";
 import {
-  countedDayStatus,
   isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import { useStudentData } from "~/lib/hooks/use-student-data";
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
@@ -689,17 +689,14 @@ function StudentDetailPageContent() {
   // Sick toggle state
   const [showConfirmSick, setShowConfirmSick] = useState(false);
   const [sickLoading, setSickLoading] = useState(false);
-  const sickConfirmText = sickLoading ? "Wird gespeichert…" : "Gesundmelden";
 
   // Excused toggle state
   const [showConfirmExcused, setShowConfirmExcused] = useState(false);
   const [excusedLoading, setExcusedLoading] = useState(false);
   const isQuickExcused = (student?.excused ?? false) && !student?.class_trip;
-  const excusedConfirmText = excusedLoading
-    ? "Wird gespeichert…"
-    : isQuickExcused
-      ? "Entschuldigung aufheben"
-      : "Entschuldigen";
+  const excusedConfirmText = isQuickExcused
+    ? "Entschuldigung aufheben"
+    : "Entschuldigen";
 
   // Switch dialog: shown when the user clicks one flag but the other is set.
   // "sick" = we want to switch TO sick (excused is currently true).
@@ -1607,9 +1604,10 @@ function StudentDetailPageContent() {
             }}
             onConfirm={handleConfirmCheckin}
             title="Kind anmelden"
-            confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
+            confirmText="Anmelden"
             cancelText="Abbrechen"
             isConfirmLoading={checkingIn}
+            loadingText="Wird angemeldet…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1626,9 +1624,10 @@ function StudentDetailPageContent() {
             }}
             onConfirm={handleConfirmSickToggle}
             title="Krankmeldung aufheben"
-            confirmText={sickConfirmText}
+            confirmText="Gesundmelden"
             cancelText="Abbrechen"
             isConfirmLoading={sickLoading}
+            loadingText="Wird gespeichert…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1667,6 +1666,7 @@ function StudentDetailPageContent() {
             confirmText={excusedConfirmText}
             cancelText="Abbrechen"
             isConfirmLoading={excusedLoading}
+            loadingText="Wird gespeichert…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1713,9 +1713,10 @@ function StudentDetailPageContent() {
                 ? "Als krank melden?"
                 : "Als entschuldigt markieren?"
             }
-            confirmText={switchLoading ? "Wird gewechselt…" : "Status wechseln"}
+            confirmText="Status wechseln"
             cancelText="Abbrechen"
             isConfirmLoading={switchLoading}
+            loadingText="Wird gewechselt…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>

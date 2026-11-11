@@ -42,7 +42,7 @@ import {
 } from "./traeger-billing-api";
 
 export type CareWeekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-export type CareRunStatus = "calculated" | "released";
+export type CareRunStatus = "calculated" | "released" | "discarded";
 export type CareMonthRule = "version_on_first" | "pro_rata";
 
 export const CARE_WEEKDAYS: readonly CareWeekday[] = [
@@ -141,6 +141,8 @@ export interface CareRun {
   readonly schoolIds: readonly string[];
   /** The invoice date of the run; null takes the day of the release. */
   readonly invoiceDate: string | null;
+  /** When the Abrechnung discarded the empty open run (#6626). */
+  readonly discardedAt: string | null;
 }
 
 export interface CareRunList {
@@ -486,6 +488,7 @@ interface BackendRun {
   month_rule: CareMonthRule | "";
   school_ids?: number[] | null;
   invoice_date?: string | null;
+  discarded_at?: string | null;
 }
 
 interface BackendInvoice {
@@ -766,6 +769,7 @@ function runFromBackend(run: BackendRun): CareRun {
     monthRule: run.month_rule,
     schoolIds: (run.school_ids ?? []).map(id),
     invoiceDate: run.invoice_date ?? null,
+    discardedAt: run.discarded_at ?? null,
   };
 }
 
@@ -1023,6 +1027,20 @@ export async function releaseCareRun(
           fingerprint: run.fingerprint,
         },
       },
+    ),
+  );
+}
+
+/**
+ * Discards an open run that has nothing to issue or to settle (#6626). The
+ * server checks under the lock of the release; a run with content is refused
+ * (409).
+ */
+export async function discardCareRun(runId: string): Promise<CareRunDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendRunDetail>(
+      `${RUNS_PATH}/${encodeURIComponent(runId)}/discard`,
+      { method: "POST" },
     ),
   );
 }

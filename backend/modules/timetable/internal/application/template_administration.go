@@ -45,6 +45,7 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 		SupervisorRepo:       deps.Supervisors,
 		Directories:          deps.Directories,
 		InstanceRepo:         deps.Instances,
+		InstanceStaff:        deps.InstanceStaff,
 		TimeframeRepo:        deps.Timeframes,
 		Materialization:      deps.Materialization,
 		Deviations:           deps.Deviations,
@@ -84,6 +85,16 @@ func (a *templateAdministration) UpdateTemplate(ctx context.Context, cmd timetab
 
 func (a *templateAdministration) SplitTemplate(ctx context.Context, cmd timetable.SplitTemplateCommand) (*timetable.SplitTemplateResult, error) {
 	return a.split.Split(ctx, templateSplitInput(cmd))
+}
+
+// LockSeriesSeedDays takes the seed's day locks before the conversion writes
+// the template's supervisor rows (#6583): their staff rows follow the days in
+// the lock order, and the seed edit needs the days afterwards.
+func (a *templateAdministration) LockSeriesSeedDays(ctx context.Context, days ...calendar.Date) error {
+	if len(days) == 0 {
+		return nil
+	}
+	return lockTemplateDays(ctx, a.templates.deps.Deviations, "convert instance to series: lock days", days)
 }
 
 func (a *templateAdministration) AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error {

@@ -83,6 +83,8 @@ function run(
     status: "calculated",
     schoolIds: ["3"],
     noticeDate: "2025-09-24",
+    createdAt: "2025-09-01T08:00:00Z",
+    discardedAt: null,
     issuedOn: null,
     noticeCount: null,
     totalCents: null,

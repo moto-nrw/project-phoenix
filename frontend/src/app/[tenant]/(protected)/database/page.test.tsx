@@ -46,8 +46,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({ title }: { title: string }) => (
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({ title }: { title: string }) => (
     <div data-testid="page-header">{title}</div>
   ),
 }));

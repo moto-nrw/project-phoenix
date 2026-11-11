@@ -70,7 +70,7 @@ export function StudentCardGridSkeleton({
  * Page-shell skeleton for the gate/Suspense states of the student-card
  * pages (ogs-groups, students/search): die echte Kopfkarte (Titel und
  * Kicker sind statisch, also muss sie nicht skelettieren) mit dem
- * PageHeaderWithSearch-Platzhalter darin, darunter das Kartenraster, damit
+ * Suchzeilen-Platzhalter darin, darunter das Kartenraster, damit
  * das Einwechseln des echten Inhalts keinen Layoutsprung erzeugt. Owns the
  * single status role for the whole shell.
  */

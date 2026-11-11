@@ -122,6 +122,10 @@ import {
 //                                     isConfirmLoading (#6594); the opt-out
 //                                     `dismissibleWhileLoading` carries its
 //                                     reason as a non-empty string literal.
+//   ui-kit/confirmation-loading-text — a ConfirmationModal's confirmText
+//                                     does not switch on its isConfirmLoading
+//                                     value: the button shows `loadingText`
+//                                     then, the switched text never (#6636).
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
@@ -2284,6 +2288,90 @@ const confirmationDismissLock = {
   },
 };
 
+// --- ui-kit/confirmation-loading-text -----------------------------------------
+//
+// While `isConfirmLoading` the confirm button shows `loadingText` (spinner
+// and text), not `confirmText`. A caller that switches `confirmText` on the
+// same flag („Wird angemeldet…“) writes a text nobody sees; the reader gets
+// the generic default instead (#6636). The rule follows the flag through a
+// local `const` (`const label = busy ? "Wird …" : "Senden"`).
+
+/** `busy`, `state.busy`, `!busy` as one comparable key; null otherwise. */
+function flagKey(node) {
+  if (!node) return null;
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "UnaryExpression" && node.operator === "!") {
+    return flagKey(node.argument);
+  }
+  if (
+    node.type === "MemberExpression" &&
+    !node.computed &&
+    node.property?.type === "Identifier"
+  ) {
+    const object = flagKey(node.object);
+    return object == null ? null : `${object}.${node.property.name}`;
+  }
+  if (node.type === "ChainExpression") return flagKey(node.expression);
+  return null;
+}
+
+function attributeExpression(node, name) {
+  const attribute = node.attributes.find(
+    (item) => item.type === "JSXAttribute" && item.name?.name === name,
+  );
+  if (attribute?.value?.type !== "JSXExpressionContainer") return null;
+  return attribute.value.expression ?? null;
+}
+
+/** Whether `expression` (or the `const` it names) branches on `flag`. */
+function switchesOnFlag(expression, flag, sourceCode, depth = 0) {
+  if (!expression || depth > 3) return false;
+  if (expression.type === "ConditionalExpression") {
+    return (
+      flagKey(expression.test) === flag ||
+      switchesOnFlag(expression.consequent, flag, sourceCode, depth + 1) ||
+      switchesOnFlag(expression.alternate, flag, sourceCode, depth + 1)
+    );
+  }
+  if (expression.type === "Identifier" && sourceCode) {
+    const init = constantInitializer(expression, new Map(), sourceCode);
+    return switchesOnFlag(init, flag, sourceCode, depth + 1);
+  }
+  return false;
+}
+
+const confirmationLoadingText = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A ConfirmationModal shows its loading text through `loadingText`, not a switched `confirmText`.",
+    },
+    messages: {
+      switched:
+        "`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText=\"Wird …\"` und `confirmText` auf die Aktion.",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (node.name?.type !== "JSXIdentifier") return;
+        if (node.name.name !== "ConfirmationModal") return;
+        const flag = flagKey(attributeExpression(node, "isConfirmLoading"));
+        if (flag == null) return;
+        const confirmText = attributeExpression(node, "confirmText");
+        if (switchesOnFlag(confirmText, flag, context.sourceCode)) {
+          context.report({ node: confirmText, messageId: "switched" });
+        }
+      },
+    };
+  },
+};
+
 // --- ui-kit/no-kit-domain-import ---------------------------------------------
 //
 // The kit works in every portal, so it knows no domain: a file under
@@ -4112,6 +4200,48 @@ const noHandRolledStickyBar = {
   },
 };
 
+// ui-kit/no-hand-rolled-action-row (#6571, hard-zero) — eine Zeile mit eigener
+// Aktionsspalte ist `ResponsiveActionRow`. Fund: `grid-cols-subgrid` außerhalb
+// des Kits, in einem Klassen-String oder einer Konstante.
+function isHandRolledActionRow(text) {
+  return text
+    .split(/\s+/)
+    .some((token) => bareUtility(token) === "grid-cols-subgrid");
+}
+
+const noHandRolledActionRow = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built subgrid rows outside the UI kit; use ResponsiveActionRow.",
+    },
+    messages: {
+      handRolled:
+        "Keine eigene Zeile mit Aktionsspalte: ResponsiveActionRow (~/components/ui/responsive-action-list) in ResponsiveActionList (#6571).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith(UI_KIT_DIR)) return {};
+    const check = (node, text) => {
+      if (isHandRolledActionRow(text)) {
+        context.report({ node, messageId: "handRolled" });
+      }
+    };
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) check(node, quasi.value.raw);
+      },
+    };
+  },
+};
+
 // ui-kit/no-hand-rolled-field-label (#5589) — die Beschriftung eines Felds kommt
 // aus `FieldLabel` oder der `label`-Prop. Fund: `<label>` mit text-xs/text-sm und
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
@@ -4356,7 +4486,14 @@ const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "sidebarRowClasses",
   "sidebarLabelClasses",
   "SIDEBAR_GROUP_HEADING_CLASSES",
-  "SIDEBAR_SUB_ITEM_CLASSES",
+  "sidebarSubItemClasses",
+  "sidebarGroupBodyClasses",
+  "sidebarGroupIconClasses",
+  "sidebarChevronClasses",
+  "sidebarFadeClasses",
+  "SIDEBAR_RAIL_BADGE_CLASSES",
+  "SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES",
+  "SidebarRowContent",
 ]);
 
 function hasPortalNavShellSignature(text) {
@@ -5762,6 +5899,7 @@ export default {
     "form-modal-pending": formModalPending,
     "slide-over-pending": slideOverPending,
     "confirmation-dismiss-lock": confirmationDismissLock,
+    "confirmation-loading-text": confirmationLoadingText,
     "green-fill-white-text": greenFillWhiteText,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,
@@ -5800,6 +5938,7 @@ export default {
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-arbitrary-slide-over-width": noArbitrarySlideOverWidth,
     "no-hand-rolled-sticky-bar": noHandRolledStickyBar,
+    "no-hand-rolled-action-row": noHandRolledActionRow,
     "no-slide-over-row-override": noSlideOverRowOverride,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,

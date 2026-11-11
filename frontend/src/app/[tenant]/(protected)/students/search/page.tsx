@@ -73,7 +73,6 @@ import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
-  countedDayStatus,
   parseLocation,
   isAtSchoolLocation,
   isInClassLocation,
@@ -82,6 +81,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus, dayStatusLabel } from "~/lib/presence-status";
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   teacherHintKey,
@@ -183,10 +183,7 @@ import {
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import {
   matchesTrackingFilter,
   parseTrackingFilter,
@@ -720,18 +717,12 @@ const HOME_STATUSES: ReadonlySet<string> = new Set([
   LOCATION_STATUSES.NOT_ARRIVAL,
 ]);
 
-const DAY_STATUS_LABELS = {
-  sick: "Krank",
-  class_trip: "Klassenfahrt",
-  excused: "Entschuldigt",
-} as const;
-
 // Ort vor Status (#6371): Ein eingechecktes Kind steht unter seinem Ort, auch
 // mit Krankmeldung, Entschuldigung oder Klassenfahrt. Der Status bleibt als
 // Hinweis am Ortsbadge.
 function statusLabelForStudent(student: Student): string {
   const dayStatus = countedDayStatus(student);
-  if (dayStatus) return DAY_STATUS_LABELS[dayStatus];
+  if (dayStatus) return dayStatusLabel(dayStatus);
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";
@@ -2007,7 +1998,7 @@ function SearchPageContent() {
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for search-students-* keys automatically.
 
-  // Prepare filter configurations for PageHeaderWithSearch
+  // Prepare filter configurations for the TenantPage search row
   const orderedRoomOptions = useMemo(
     () => orderedRooms(rooms, myGroupRooms, mySupervisedRooms),
     [rooms, myGroupRooms, mySupervisedRooms],
@@ -3266,9 +3257,6 @@ function SearchPageContent() {
             />
           ) : undefined
         }
-        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten;
-        // darunter sammelt die Filterschaltfläche sie hinter einer Fläche.
-        desktopFiltersFrom="xl"
         search={{
           value: searchTerm,
           onChange: updateSearchTerm,
@@ -3278,9 +3266,9 @@ function SearchPageContent() {
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
-        activeFilterDisplay="count"
-        filterVariant="quiet"
-        filterSections={filterSections}
+        // Sechs Filter sprengen die Zeile bis hinauf zu Tablet-Breiten; die
+        // Filterschaltfläche sammelt sie hinter einer Fläche mit Abschnitten.
+        filterPanel={{ sections: filterSections }}
         onClearAllFilters={clearAllFilters}
         // Ein Ladefehler ist der Fehlerzustand des Gerüsts. Fehlende Rechte
         // stehen als eingebetteter Standardzustand im Inhalt.
@@ -3642,17 +3630,7 @@ function SearchPageContent() {
                       locationBadge={
                         isToday ? (
                           <StudentPresenceBadge
-                            student={(() => {
-                              const badgePlanning =
-                                getStudentPresenceBadgePlanning(student);
-                              return {
-                                ...student,
-                                not_arrival_today:
-                                  badgePlanning.notArrivalToday,
-                                not_arrival_reason:
-                                  badgePlanning.notArrivalReason,
-                              };
-                            })()}
+                            student={student}
                             displayMode="contextAware"
                             userGroups={myGroups}
                             groupRooms={myGroupRooms}
@@ -3870,8 +3848,8 @@ function SearchPageContent() {
       </TenantPage>
 
       {/* Tablet (md..xl) check-in mode trigger, floating FAB. Tablet
-          range is bumped to `xl` here to stay aligned with the header's
-          desktopFiltersFrom="xl". Both the filter sheet and the FAB
+          range is bumped to `xl` here to stay aligned with the header,
+          whose filter panel switches to desktop at `xl`. Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
       {checkinModeAvailable && !schoolCheckin.isActive && !showTable && (

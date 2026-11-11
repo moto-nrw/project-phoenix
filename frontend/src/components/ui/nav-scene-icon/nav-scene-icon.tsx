@@ -3,8 +3,8 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
+import { MOTO_DUOTONE_PALETTE } from "~/lib/kit-palette";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 import { NAV_SCENES } from "./nav-scenes";
 
@@ -135,7 +135,9 @@ export function NavSceneIcon({
       height={size}
       className={cn("ns-icon shrink-0", className)}
       style={
-        active && tone ? { color: MOTO_DUOTONE_TONES[tone].primary } : undefined
+        active && tone
+          ? { color: MOTO_DUOTONE_PALETTE[tone].primary }
+          : undefined
       }
       data-nav-scene={icon.displayName}
       // Dasselbe Merkmal wie MotoDuotoneIcon: aktiv trägt das Icon den Ton
@@ -151,10 +153,11 @@ export function NavSceneIcon({
 }
 
 /**
- * Die Standardbewegung für Icons ohne Szene: das ganze Icon hüpft einmal.
- * Für die alten Pfad-Icons der Operator-Navigation, die kein Konzept tragen.
+ * Die Standardbewegung für Glyphen ohne eigene Szene: das ganze Icon hüpft
+ * einmal. Seit #6580 trägt jede Zeile ein Konzept; Pfad-Icons gibt es in den
+ * Seitenleisten nicht mehr.
  */
-export function NavSceneFallback({
+function NavSceneFallback({
   className,
   children,
 }: Readonly<{ className?: string; children: ReactNode }>) {

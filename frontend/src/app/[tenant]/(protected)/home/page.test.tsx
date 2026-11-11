@@ -360,11 +360,12 @@ describe("Startseite", () => {
 
     const button = await screen.findByRole("button", { name: "Anpassen" });
     expect(button).toHaveTextContent(/^$/);
-    const tooltipId = button.getAttribute("aria-describedby");
-    expect(tooltipId).toBeTruthy();
-    const tooltip = document.getElementById(tooltipId ?? "");
-    expect(tooltip).toHaveAttribute("role", "tooltip");
-    expect(tooltip).toHaveTextContent("Anpassen");
+    fireEvent.pointerEnter(button, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(
+        document.body.querySelector("[data-action-hint]"),
+      ).toHaveTextContent("Anpassen"),
+    );
   });
 
   // Das Issue verlangt für Mischrollen die Vereinigung: die Leitung, die

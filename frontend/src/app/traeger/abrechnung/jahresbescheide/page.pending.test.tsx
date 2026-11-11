@@ -57,6 +57,8 @@ const RUN: CareNoticeRun = {
   status: "calculated",
   schoolIds: ["1"],
   noticeDate: null,
+  createdAt: "2025-09-01T08:00:00Z",
+  discardedAt: null,
   issuedOn: null,
   noticeCount: null,
   totalCents: null,

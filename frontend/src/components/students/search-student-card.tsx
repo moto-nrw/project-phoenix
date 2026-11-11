@@ -41,10 +41,7 @@ import {
   getStudentAbsence,
   getStudentDayTimes,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import {
   dayHomeChange,
@@ -88,14 +85,7 @@ export function SearchStudentStatusBadge({
 }>) {
   return isToday ? (
     <StudentPresenceBadge
-      student={(() => {
-        const badgePlanning = getStudentPresenceBadgePlanning(student);
-        return {
-          ...student,
-          not_arrival_today: badgePlanning.notArrivalToday,
-          not_arrival_reason: badgePlanning.notArrivalReason,
-        };
-      })()}
+      student={student}
       displayMode="contextAware"
       userGroups={userGroups}
       groupRooms={groupRooms}

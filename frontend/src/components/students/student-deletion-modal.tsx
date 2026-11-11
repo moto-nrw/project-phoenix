@@ -273,7 +273,6 @@ export function StudentDeletionModal({
               <InfoSection
                 title={`Was wird gelöscht oder gelöst? (${impact.total})`}
                 icon={<Database className="h-full w-full" strokeWidth={2} />}
-                accentColor="red"
               >
                 {countRows.length > 0 ? (
                   <DataGrid>
@@ -295,7 +294,6 @@ export function StudentDeletionModal({
                 icon={
                   <MotoConceptIcon concept={permissionsConcept} size="100%" />
                 }
-                accentColor="gray"
               >
                 <InfoText>
                   Elternkonten und Profile der Erziehungsberechtigten, andere

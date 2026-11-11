@@ -10,6 +10,9 @@ import {
 } from "~/components/ui/notification-badge";
 import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import {
+  SIDEBAR_RAIL_BADGE_CLASSES,
+  sidebarChevronClasses,
+  sidebarFadeClasses,
   sidebarLabelClasses,
   sidebarRowClasses,
 } from "~/components/ui/sidebar-geometry";
@@ -61,31 +64,42 @@ export function combineSidebarRowBadges(
   };
 }
 
-function fadeClasses(visible: boolean): string {
-  return `motion-safe:transition-opacity motion-safe:duration-150 ${visible ? "opacity-100" : "opacity-0"}`;
-}
-
 /**
- * Icon, Bezeichnung und Beiwerk einer Zeile. Ausgeklappt steht der Zähler
- * rechts und blendet mit der Bezeichnung aus; im Streifen sitzt er als Punkt
- * auf der Ecke des Icons und blendet gegengleich ein. Für die Dauer der Blende
- * stehen beide im Baum; der ausblendende ist `aria-hidden`, sonst läse ein
- * Vorleseprogramm die Zahl zweimal (#2923).
+ * Der Inhalt jeder Zeile der Seitenleiste (#6580): Zeile, Kopfzeile einer
+ * Gruppe, Akkordeon-Bereich und Unterpunkt. Reihenfolge: Icon, Bezeichnung,
+ * Beiwerk (Schloss, Anwesenheit), Zähler, Chevron. Ausgeklappt steht der
+ * Zähler rechts und blendet mit der Bezeichnung aus; im Streifen sitzt er als
+ * Punkt auf der Ecke des Icons und blendet gegengleich ein. Für die Dauer der
+ * Blende stehen beide im Baum; der ausblendende ist `aria-hidden`, sonst läse
+ * ein Vorleseprogramm die Zahl zweimal (#2923).
+ *
+ * Maße, Farben und Lage stehen in `sidebar-geometry.ts`; die Hülle (Link oder
+ * Schalter) bringt jede Zeilenart selbst mit.
  */
-function SidebarRowContent({
+export function SidebarRowContent({
   icon,
   label,
+  labelClassName,
   trailing,
   badge,
+  chevronOpen,
+  railBadgeClassName = SIDEBAR_RAIL_BADGE_CLASSES,
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
 }: SidebarRowCollapseState & {
-  readonly icon: ReactNode;
+  /** Fehlt beim Unterpunkt; dann rückt die Bezeichnung nicht ein. */
+  readonly icon?: ReactNode;
   readonly label: string;
-  /** Beiwerk hinter der Bezeichnung, das mit ihr ausblendet (Schloss). */
+  /** Schrift der Bezeichnung, wenn sie keine Zeilenschrift ist (Gruppe). */
+  readonly labelClassName?: string;
+  /** Beiwerk hinter der Bezeichnung, das mit ihr ausblendet. */
   readonly trailing?: ReactNode;
   readonly badge?: SidebarRowBadge | null;
+  /** Gesetzt, wenn die Zeile klappt: `true` heißt offen. */
+  readonly chevronOpen?: boolean;
+  /** Lage des Punkts im Streifen. */
+  readonly railBadgeClassName?: string;
 }) {
   const showBadge = badge != null && badge.count > 0;
   return (
@@ -93,10 +107,14 @@ function SidebarRowContent({
       {icon}
       {labelsMounted && (
         <>
-          <span className={sidebarLabelClasses(labelsVisible)}>{label}</span>
+          <span
+            className={`${sidebarLabelClasses(labelsVisible, icon != null)}${labelClassName ? ` ${labelClassName}` : ""}`}
+          >
+            {label}
+          </span>
           {trailing ? (
             <span
-              className={`ml-2 inline-flex shrink-0 ${fadeClasses(labelsVisible)}`}
+              className={`ml-2 inline-flex shrink-0 ${sidebarFadeClasses(labelsVisible)}`}
             >
               {trailing}
             </span>
@@ -104,7 +122,7 @@ function SidebarRowContent({
           {showBadge && (
             <span
               aria-hidden={!labelsVisible}
-              className={`ml-2 shrink-0 ${fadeClasses(labelsVisible)}`}
+              className={`ml-2 shrink-0 ${sidebarFadeClasses(labelsVisible)}`}
             >
               <NotificationBadge
                 count={badge.count}
@@ -113,12 +131,28 @@ function SidebarRowContent({
               />
             </span>
           )}
+          {chevronOpen === undefined ? null : (
+            <svg
+              className={sidebarChevronClasses(chevronOpen, labelsVisible)}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          )}
         </>
       )}
       {collapsed && showBadge && (
         <span
           aria-hidden={labelsVisible}
-          className={`absolute top-1 right-1 ${fadeClasses(!labelsVisible)}`}
+          className={`${railBadgeClassName} ${sidebarFadeClasses(!labelsVisible)}`}
         >
           <NotificationBadge
             count={badge.count}
@@ -280,7 +314,7 @@ export function SidebarSectionHeading({
     <span
       id={id}
       aria-hidden={collapsed || undefined}
-      className={`mb-1.5 block truncate px-3 ${SECTION_LABEL_CLASS} ${fadeClasses(labelsVisible)}`}
+      className={`mb-1.5 block truncate px-3 ${SECTION_LABEL_CLASS} ${sidebarFadeClasses(labelsVisible)}`}
     >
       {children}
     </span>

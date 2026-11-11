@@ -178,5 +178,8 @@
   ],
   "api/parent/me/pwa-usage": [
     "POST parent /parent/me/pwa-usage"
+  ],
+  "api/parent/me/holiday-registrations": [
+    "GET parent /parent/me/holiday-registrations"
   ]
 }

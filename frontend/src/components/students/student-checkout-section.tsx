@@ -9,7 +9,7 @@ import { homeConcept } from "~/lib/concepts/home";
 import { sickConcept } from "~/lib/concepts/sick";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { TILE_CARD_SURFACE, TileCard } from "~/components/ui/tile-card";
+import { TileCard, tileCardSurface } from "~/components/ui/tile-card";
 import { cn } from "~/lib/utils";
 
 // Die Schnellaktionen stehen als gleich hohe Kacheln nebeneinander; das
@@ -213,7 +213,7 @@ export function StudentStatusActionsMenu({
         // des Auslösers.
         <span
           className={cn(
-            TILE_CARD_SURFACE,
+            tileCardSurface({ padding: "none" }),
             // self-stretch statt h-full: Die Höhe des Auslösers kommt aus der
             // Zeile (Flex-Streckung), nicht aus einer festen Angabe; eine
             // Prozenthöhe fiel deshalb am Desktop auf eine Zeile zusammen.

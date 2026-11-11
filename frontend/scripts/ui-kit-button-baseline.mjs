@@ -39,20 +39,14 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/page-header/NavigationTabs.tsx",
-    lines: [201],
-    reason: "Reiter: Auslöser des mobilen Reiter-Menüs",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [461],
+    lines: [472],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/planning/plan-block.tsx",
-    lines: [213],
+    lines: [210],
     reason: "Planungsblock im Raster: Kachel, kein Knopf",
   },
   {
@@ -120,7 +114,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1067],
+    lines: [1068],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -158,12 +152,6 @@ export const buttonRatchetAllowlist = [
   // Felder. Sie sind keine Knöpfe im Sinn von #5529.
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/tile-card.tsx",
-    lines: [94, 149],
-    reason: "TileCard selbst: der Kit-Baustein für klickbare Kacheln",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/color-swatch-input.tsx",
     lines: [21],
     reason: "Farbfeld: zeigt die gewählte Farbe und öffnet die Farbauswahl",
@@ -190,7 +178,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1016],
+    lines: [1017],
     reason: "Termin-Block in der Wochenansicht: Kalenderzelle",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder

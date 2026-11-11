@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import {
   SlideOver,
   SlideOverContent,

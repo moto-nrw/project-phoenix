@@ -16,7 +16,6 @@ import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { ChildQuotaStatus } from "~/components/database/child-quota-status";
 import { fetchChildQuota } from "~/lib/child-quota-api";
 import { formatCount } from "~/lib/format-utils";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type {
   ActiveFilter,
@@ -590,34 +589,30 @@ function StudentsPageContent() {
           </>
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={childrenConcept.icon}
-                tone={childrenConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredStudents.length,
-            label: "Kinder",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Kinder suchen…",
-          }}
-          filters={filters}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setGroupFilter("all");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={childrenConcept.icon}
+              tone={childrenConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredStudents.length,
+          label: "Kinder",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Kinder suchen…",
+        },
+        filters,
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+          setGroupFilter("all");
+        },
+      }}
     >
       {canShowList ? (
         <div className="min-h-0 flex-1 pb-4">

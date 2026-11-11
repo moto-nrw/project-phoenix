@@ -85,6 +85,18 @@
       "legacy": "parent_billing.billing_run_released"
     },
     {
+      "code": "parent_billing.billing_run_discarded",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_discarded"
+    },
+    {
+      "code": "parent_billing.billing_run_not_empty",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_not_empty"
+    },
+    {
       "code": "parent_billing.invoice_number_taken",
       "class": "business_rejection",
       "parameters": [],

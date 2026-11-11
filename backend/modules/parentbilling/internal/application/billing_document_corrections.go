@@ -211,12 +211,17 @@ func cancellationOf(invoice parentbilling.BillingDocument, reason string) parent
 }
 
 // creditOf is the credit of one child of an invoice: one position with the
-// reason as its note.
+// reason as its note, booked where the child's first position booked, so
+// it relieves the KOST1 of the child's first week (#6624).
 func creditOf(invoice parentbilling.BillingDocument, child parentbilling.BillingChild, input parentbilling.BillingCreditInput) parentbilling.BillingDocument {
 	credit := correctionOf(invoice, parentbilling.DocumentCredit, input.Reason)
+	position := parentbilling.BillingPosition{Kind: parentbilling.LineCredit, AmountCents: -input.AmountCents, Note: input.Reason}
+	if len(child.Positions) > 0 {
+		position.Accounts, position.CostCenterFallback = child.Positions[0].Accounts, child.Positions[0].CostCenterFallback
+	}
 	credit.Children = []parentbilling.BillingChild{{
 		ChildID: child.ChildID, FirstName: child.FirstName, LastName: child.LastName,
-		Positions:   []parentbilling.BillingPosition{{Kind: parentbilling.LineCredit, AmountCents: -input.AmountCents, Note: input.Reason}},
+		Positions:   []parentbilling.BillingPosition{position},
 		Corrections: []parentbilling.BillingCorrection{}, TotalCents: -input.AmountCents,
 	}}
 	credit.TotalCents = -input.AmountCents
@@ -224,9 +229,9 @@ func creditOf(invoice parentbilling.BillingDocument, child parentbilling.Billing
 }
 
 // correctionOf copies what a document of an invoice keeps of it: the
-// registration, the recipient as the invoice has it, the service days and
-// where it booked, so a Storno or credit relieves the same accounts
-// (#4821).
+// registration, the recipient as the invoice has it and the service days.
+// Its positions carry where the invoice's booked, so a Storno or credit
+// relieves the same accounts (#4821, #6624).
 func correctionOf(invoice parentbilling.BillingDocument, kind, reason string) parentbilling.BillingDocument {
 	reference := invoice.ID
 	return parentbilling.BillingDocument{
@@ -236,7 +241,6 @@ func correctionOf(invoice parentbilling.BillingDocument, kind, reason string) pa
 		RecipientAddress: invoice.RecipientAddress, RecipientKind: invoice.RecipientKind,
 		RecipientSecondName: invoice.RecipientSecondName, DebtorNumber: invoice.DebtorNumber,
 		ServiceFrom: invoice.ServiceFrom, ServiceUntil: invoice.ServiceUntil, Children: []parentbilling.BillingChild{},
-		Accounts: invoice.Accounts,
 	}
 }
 

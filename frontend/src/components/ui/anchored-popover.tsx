@@ -17,7 +17,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
-import { SHEET_SCOPE_SELECTOR } from "./overlay-stack";
+import { SHEET_SCOPE_SELECTOR, useOverlay } from "./overlay-stack";
 
 const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
@@ -111,6 +111,11 @@ export function AnchoredPopover<
   const bodyRef = useRef<HTMLDivElement>(null);
   const hasFocusedOnOpenRef = useRef(false);
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
+  // In the overlay stack (#6732): a press in a calendar opened from the panel
+  // is not outside, and a calendar open below leaves Escape to the panel.
+  const { isInsideOverlayAbove, isTopmost } = useOverlay(open, "popover", {
+    elementRef: panelRef,
+  });
   const portalContainer =
     typeof document === "undefined"
       ? null
@@ -216,7 +221,8 @@ export function AnchoredPopover<
     const isOutside = (target: Node) =>
       !triggerRef.current?.contains(target) &&
       !panelRef.current?.contains(target) &&
-      !belongsToPopoverMenu(target);
+      !belongsToPopoverMenu(target) &&
+      !isInsideOverlayAbove(target);
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       if (isOutside(event.target as Node)) close(false);
     };
@@ -228,7 +234,7 @@ export function AnchoredPopover<
     };
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (belongsToPopoverMenu(event.target)) return;
-      if (event.key === "Escape") close();
+      if (event.key === "Escape" && isTopmost()) close();
     };
     if (swallowOutsideClick) {
       document.addEventListener("click", handleOutsideClick, true);
@@ -245,7 +251,14 @@ export function AnchoredPopover<
       document.removeEventListener("touchstart", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [close, open, panelId, swallowOutsideClick]);
+  }, [
+    close,
+    isInsideOverlayAbove,
+    isTopmost,
+    open,
+    panelId,
+    swallowOutsideClick,
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -346,7 +359,7 @@ export function AnchoredPopover<
           leavePanelOnTab(event);
           return;
         }
-        if (event.key !== "Escape") return;
+        if (event.key !== "Escape" || !isTopmost()) return;
         event.preventDefault();
         event.stopPropagation();
         event.nativeEvent.stopImmediatePropagation();

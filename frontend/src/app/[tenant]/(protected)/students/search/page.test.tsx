@@ -63,7 +63,7 @@ vi.mock("~/components/ui/alert", () => ({
 }));
 
 // Mock OverflowMenu: das Aktionsmenü der Seite sitzt seit der Kopfkarte in
-// PageIntro und nicht mehr in PageHeaderSearchLayout; die Testids bleiben.
+// PageIntro und nicht mehr in TenantPageSearchRow; die Testids bleiben.
 vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
   OverflowMenu: ({
     items,
@@ -87,9 +87,9 @@ vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
   ),
 }));
 
-// Mock PageHeaderSearchLayout
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({
+// Mock TenantPageSearchRow
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     filters,
     activeFilters,
     onClearAllFilters,
@@ -242,6 +242,7 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
       EXCUSED: "#7C3AED",
     },
     LOCATION_STATUSES: {
+      ...actual.LOCATION_STATUSES,
       PRESENT: "Anwesend",
       HOME: "Zuhause",
       SCHOOLYARD: "Schulhof",

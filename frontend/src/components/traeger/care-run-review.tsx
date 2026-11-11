@@ -16,7 +16,10 @@ import {
   exportFormatOptions,
 } from "~/components/ui/export-menu";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -157,10 +160,7 @@ export function CareExcludedCard({
     >
       <ResponsiveActionList>
         {invoices.map((invoice) => (
-          <li
-            key={invoiceKey(invoice)}
-            className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-          >
+          <ResponsiveActionRow key={invoiceKey(invoice)}>
             <div className="min-w-0">
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-semibold text-gray-900">
@@ -197,7 +197,7 @@ export function CareExcludedCard({
                 Wieder aufnehmen
               </Button>
             </div>
-          </li>
+          </ResponsiveActionRow>
         ))}
       </ResponsiveActionList>
     </SectionCard>
@@ -346,10 +346,7 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
     >
       <ResponsiveActionList>
         {shown.map(({ item, text }) => (
-          <li
-            key={item.key}
-            className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-          >
+          <ResponsiveActionRow key={item.key}>
             <div className="min-w-0">
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                 <span className="font-semibold text-gray-900">{item.name}</span>
@@ -372,7 +369,7 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
                 Mandat prüfen
               </ButtonLink>
             </div>
-          </li>
+          </ResponsiveActionRow>
         ))}
       </ResponsiveActionList>
       {hints.length > DEBIT_HINTS_SHOWN ? (

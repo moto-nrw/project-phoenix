@@ -130,13 +130,32 @@ func (r bookingResolver) meal(schoolID int64, month calendar.Date) parentbilling
 	}
 }
 
-// holiday is where a holiday document of the Träger books from day on.
+// holiday is where a holiday position books from day on on the KOST1 of
+// the holiday care: a position issued before #4821 at export, and the
+// fallback of holidayWeek.
 func (r bookingResolver) holiday(day calendar.Date) parentbilling.PositionAccounts {
 	return parentbilling.PositionAccounts{
 		RevenueAccount: r.account(bookingScope{parentbilling.BookingScopeHoliday, 0}),
 		CostCenter:     r.costCenter(bookingScope{parentbilling.BookingScopeHoliday, 0}, day),
 		Frozen:         true,
 	}
+}
+
+// holidayWeek is where a position of a holiday week books (invariant 5):
+// on the KOST1 of its host school on the first day of the week, else on
+// the holiday care's with the reason. hostSchoolID is zero without a host
+// school.
+func (r bookingResolver) holidayWeek(hostSchoolID int64, day calendar.Date) (parentbilling.PositionAccounts, string) {
+	accounts := r.holiday(day)
+	if hostSchoolID == 0 {
+		return accounts, parentbilling.CostCenterFallbackNoHostSchool
+	}
+	code := r.costCenter(bookingScope{parentbilling.BookingScopeSchool, hostSchoolID}, day)
+	if code == "" {
+		return accounts, parentbilling.CostCenterFallbackNoSchoolCostCenter
+	}
+	accounts.CostCenter = code
+	return accounts, ""
 }
 
 // bookingResolverOf reads the assignments and the standard account of the
@@ -171,19 +190,81 @@ func freezeCareAccounts(resolver bookingResolver, invoices []parentbilling.CareI
 	}
 }
 
-// freezeHolidayAccounts copies where the holiday documents book onto them;
-// their first service day picks the cost center.
+// freezeHolidayAccounts copies where each position of the holiday
+// documents books onto it (invariants 1 and 5). A base line books on the
+// host school of its week, found by its ID or else by its days; every
+// other line of a child (discount, exemption, cost takeover, correction)
+// books like the child's first week, so it relieves the same KOST1. A
+// child without a week books on the holiday care from the first day of
+// the document.
 func freezeHolidayAccounts(ctx context.Context, store BookingAssignmentReader, settings parentbilling.DatevBillingSettings,
-	organizationID int64, documents []parentbilling.BillingDocument,
+	organizationID int64, weeks []parentbilling.HolidayWeekHost, documents []parentbilling.BillingDocument,
 ) error {
 	resolver, err := bookingResolverOf(ctx, store, settings, organizationID)
 	if err != nil {
 		return err
 	}
+	hosts := newHolidayHosts(weeks)
 	for i := range documents {
-		documents[i].Accounts = resolver.holiday(documents[i].ServiceFrom)
+		for j := range documents[i].Children {
+			freezeHolidayChild(resolver, hosts, documents[i].ServiceFrom, &documents[i].Children[j])
+		}
 	}
 	return nil
+}
+
+func freezeHolidayChild(resolver bookingResolver, hosts holidayHosts, serviceFrom calendar.Date, child *parentbilling.BillingChild) {
+	other, reason := resolver.holiday(serviceFrom), parentbilling.CostCenterFallbackNoHostSchool
+	first := true
+	for i := range child.Positions {
+		position := &child.Positions[i]
+		if position.WeekStartsOn == nil {
+			continue
+		}
+		position.Accounts, position.CostCenterFallback = resolver.holidayWeek(hosts.school(*position), *position.WeekStartsOn)
+		if first {
+			other, reason, first = position.Accounts, position.CostCenterFallback, false
+		}
+	}
+	for i := range child.Positions {
+		if position := &child.Positions[i]; position.WeekStartsOn == nil {
+			position.Accounts, position.CostCenterFallback = other, reason
+		}
+	}
+}
+
+// holidayHosts finds the host school of the week of a position.
+type holidayHosts struct {
+	byID   map[int64]int64
+	byDays map[[2]calendar.Date][]int64
+}
+
+func newHolidayHosts(weeks []parentbilling.HolidayWeekHost) holidayHosts {
+	hosts := holidayHosts{byID: map[int64]int64{}, byDays: map[[2]calendar.Date][]int64{}}
+	for _, week := range weeks {
+		hosts.byID[week.WeekID] = week.HostSchoolID
+		days := [2]calendar.Date{week.StartsOn, week.EndsOn}
+		if !slices.Contains(hosts.byDays[days], week.HostSchoolID) {
+			hosts.byDays[days] = append(hosts.byDays[days], week.HostSchoolID)
+		}
+	}
+	return hosts
+}
+
+// school is the host school of the position's week, zero when no week of
+// the period has its ID, or, without one, when no week or weeks of more
+// than one school have its days.
+func (h holidayHosts) school(position parentbilling.BillingPosition) int64 {
+	if position.WeekID != 0 {
+		return h.byID[position.WeekID]
+	}
+	if position.WeekEndsOn == nil {
+		return 0
+	}
+	if schools := h.byDays[[2]calendar.Date{*position.WeekStartsOn, *position.WeekEndsOn}]; len(schools) == 1 {
+		return schools[0]
+	}
+	return 0
 }
 
 // BookingAccounts serves parentbilling.BookingAccountService.

@@ -2,7 +2,7 @@
 
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions -- the ARIA tooltip pattern requires a focusable trigger even on non-interactive text; the only handler is Escape-to-dismiss */
 
-import { Children, cloneElement, isValidElement, useId, useState } from "react";
+import { useId, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { Z_LAYER } from "./overlay-styles";
@@ -20,6 +20,10 @@ import { Z_LAYER } from "./overlay-styles";
  *
  * Placement is below the trigger, left-aligned. Inside overflow containers
  * check for clipping and pass `bubbleClassName` to reposition if needed.
+ *
+ * For text only. A button or link says what a click does through its own
+ * `tooltip` prop (`Button`, `ButtonLink`; `ActionHint` for other controls),
+ * which never opens on tap and adds no extra tab stop (#6643).
  */
 interface TooltipProps {
   /** Plain-text content, announced via aria-describedby. */
@@ -29,15 +33,6 @@ interface TooltipProps {
   className?: string;
   /** Extra classes for the bubble (e.g. to adjust placement). */
   bubbleClassName?: string;
-  /** Use the interactive child itself as the trigger, without an extra tab stop. */
-  asChild?: boolean;
-  /** Keep an icon control compact in responsive page action rows. */
-  iconOnly?: boolean;
-}
-
-interface InteractiveTooltipChildProps {
-  readonly "aria-describedby"?: string;
-  readonly onKeyDown?: React.KeyboardEventHandler<HTMLElement>;
 }
 
 export function Tooltip({
@@ -45,8 +40,6 @@ export function Tooltip({
   children,
   className,
   bubbleClassName,
-  asChild = false,
-  iconOnly = false,
 }: TooltipProps) {
   const id = useId();
   const [isDismissed, setIsDismissed] = useState(false);
@@ -57,24 +50,13 @@ export function Tooltip({
     }
   };
 
-  let trigger: React.ReactNode;
-  if (asChild) {
-    const child = Children.only(children);
-    if (!isValidElement<InteractiveTooltipChildProps>(child)) {
-      throw new Error("Tooltip with asChild requires one React element");
-    }
-    const describedBy = [child.props["aria-describedby"], id]
-      .filter(Boolean)
-      .join(" ");
-    trigger = cloneElement(child, {
-      "aria-describedby": describedBy,
-      onKeyDown: (event) => {
-        child.props.onKeyDown?.(event);
-        if (!event.defaultPrevented) dismissOnEscape(event);
-      },
-    });
-  } else {
-    trigger = (
+  return (
+    <span
+      className={cn("group relative inline-block", className)}
+      onFocusCapture={() => setIsDismissed(false)}
+      onPointerEnter={() => setIsDismissed(false)}
+      onPointerLeave={() => setIsDismissed(false)}
+    >
       <span
         tabIndex={0}
         aria-describedby={id}
@@ -83,18 +65,6 @@ export function Tooltip({
       >
         {children}
       </span>
-    );
-  }
-
-  return (
-    <span
-      data-icon-only={iconOnly ? "" : undefined}
-      className={cn("group relative inline-block", className)}
-      onFocusCapture={() => setIsDismissed(false)}
-      onPointerEnter={() => setIsDismissed(false)}
-      onPointerLeave={() => setIsDismissed(false)}
-    >
-      {trigger}
       <span
         role="tooltip"
         id={id}

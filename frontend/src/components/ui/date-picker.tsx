@@ -31,6 +31,7 @@ import {
   MODAL_SCOPE_SELECTOR,
   SCROLL_AREA_PROPS,
   SHEET_SCOPE_SELECTOR,
+  useOverlay,
 } from "./overlay-stack";
 import {
   DAY_PICKER_CLASSNAMES,
@@ -292,10 +293,20 @@ export function DatePicker({
     if (isDisabled) setIsOpen(false);
   }, [isDisabled]);
 
+  // The open calendar takes its place in the overlay stack (#6732): over the
+  // overlay it opened from, under one that opens later. It closes when that
+  // overlay closes or rests, or when a dialog, side panel or tour opens above
+  // it, as the click that usually opens them would have.
+  const closeCovered = useCallback(() => setIsOpen(false), []);
+  const { isTopmost } = useOverlay(isOpen && !isDisabled, "popover", {
+    elementRef: popoverRef,
+    onCovered: closeCovered,
+  });
+
   useEffect(() => {
     if (!isOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || !isTopmost()) return;
       const target = event.target;
       if (
         target instanceof Element &&
@@ -312,7 +323,7 @@ export function DatePicker({
     };
     document.addEventListener("keydown", closeOnEscape, true);
     return () => document.removeEventListener("keydown", closeOnEscape, true);
-  }, [isOpen]);
+  }, [isOpen, isTopmost]);
 
   const syncPopoverPosition = useCallback(() => {
     if (!containerRef.current) return;

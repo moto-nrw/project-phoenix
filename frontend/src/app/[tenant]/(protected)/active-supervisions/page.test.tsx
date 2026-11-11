@@ -80,9 +80,9 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: vi.fn(
+// Mock TenantPageSearchRow (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -308,7 +308,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
+import { TenantPageSearchRow } from "~/components/ui/tenant-page-search-row";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
@@ -334,7 +334,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderSearchLayout)
+  .mocked(TenantPageSearchRow)
   .getMockImplementation()!;
 
 beforeEach(() => {
@@ -345,7 +345,7 @@ beforeEach(() => {
   localStorage.clear();
   // The sidebar memory belongs to the signed-in account (#5000).
   localStorage.setItem("moto:personal-storage-owner", "1:7");
-  vi.mocked(PageHeaderSearchLayout)
+  vi.mocked(TenantPageSearchRow)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)
@@ -1271,11 +1271,12 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     vi.clearAllMocks();
     global.fetch = vi.fn();
 
-    // Override PageHeaderSearchLayout to render action buttons and interactive controls
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow. The row never receives `actionButton`
+    // (TenantPage renders actions itself), so that read stays empty; the
+    // override only replaces the search row.
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const actionButton = p.actionButton as React.ReactNode;
@@ -1867,11 +1868,10 @@ describe("EmptyRoomsView without children lists", () => {
       status: "authenticated",
     } as never);
 
-    // Override PageHeaderSearchLayout to render onClearAllFilters button
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow to render onClearAllFilters button
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -2235,11 +2235,10 @@ describe("matchesStudentFilters edge cases", () => {
     // The sidebar memory belongs to the signed-in account (#5000).
     localStorage.setItem("moto:personal-storage-owner", "1:7");
 
-    // Override PageHeaderSearchLayout to expose search and filter
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow to expose search and filter
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -2938,11 +2937,10 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
     // The sidebar memory belongs to the signed-in account (#5000).
     localStorage.setItem("moto:personal-storage-owner", "1:7");
 
-    // Override PageHeaderSearchLayout to expose year filter
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow to expose year filter
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -4605,11 +4603,12 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
     setViewportWidth(500);
 
-    // Override PageHeaderSearchLayout to render tabs with onTabChange
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as
@@ -5176,11 +5175,12 @@ describe("ID-based selection coverage: localStorage room restore", () => {
     localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
 
-    // Override PageHeaderSearchLayout to render tabs
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const badge = p.badge as { count: number } | undefined;
@@ -5713,11 +5713,12 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
     setViewportWidth(500);
 
-    // Override PageHeaderSearchLayout to render tabs
-    const mod =
-      await import("~/components/ui/page-header/PageHeaderSearchLayout");
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
+    const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
-      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
+      mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as

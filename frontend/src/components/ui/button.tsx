@@ -1,5 +1,6 @@
 "use client";
 
+import { ActionHint } from "./action-hint";
 import {
   buttonStyles,
   type ButtonSize,
@@ -29,6 +30,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   touchTarget?: boolean;
+  /**
+   * One sentence on what a click does, shown on mouse hover and keyboard
+   * focus (`ActionHint`, #6643). Replaces a `title` attribute.
+   */
+  tooltip?: string;
 }
 
 interface ButtonLinkProps extends Omit<NavigationLinkProps, "className"> {
@@ -36,6 +42,8 @@ interface ButtonLinkProps extends Omit<NavigationLinkProps, "className"> {
   readonly variant?: ButtonVariant;
   readonly size?: ButtonSize;
   readonly className?: string;
+  /** See `ButtonProps.tooltip`. */
+  readonly tooltip?: string;
 }
 
 export function Button({
@@ -47,9 +55,10 @@ export function Button({
   className = "",
   touchTarget = false,
   disabled,
+  tooltip,
   ...props
 }: Readonly<ButtonProps>) {
-  return (
+  const button = (
     <button
       type="submit"
       data-icon-only={size === "icon" ? "" : undefined}
@@ -62,6 +71,7 @@ export function Button({
       {isLoading ? (loadingText ?? "Wird geladen …") : children}
     </button>
   );
+  return tooltip ? <ActionHint text={tooltip}>{button}</ActionHint> : button;
 }
 
 /**
@@ -72,9 +82,10 @@ export function ButtonLink({
   variant = "primary",
   size = "base",
   className = "",
+  tooltip,
   ...linkProps
 }: Readonly<ButtonLinkProps>) {
-  return (
+  const link = (
     <NavigationLink
       {...linkProps}
       className={buttonClassName({ variant, size, className })}
@@ -85,4 +96,5 @@ export function ButtonLink({
       data-icon-only={size === "icon" ? "" : undefined}
     />
   );
+  return tooltip ? <ActionHint text={tooltip}>{link}</ActionHint> : link;
 }

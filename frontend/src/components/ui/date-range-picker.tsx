@@ -1,16 +1,13 @@
 "use client";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
-import { Z_LAYER, zLayerValue } from "./overlay-styles";
-import {
-  MODAL_SCOPE_SELECTOR,
-  OVERLAY_SCOPE_SELECTOR,
-  SCROLL_AREA_PROPS,
-} from "./overlay-stack";
+import { Z_LAYER } from "./overlay-styles";
+import { SCROLL_AREA_PROPS } from "./overlay-stack";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useOverlay } from "./overlay-stack";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import type { DateRange, Matcher } from "react-day-picker";
@@ -70,46 +67,6 @@ const RANGE_CLASSNAMES = {
 const RANGE_PILL_CLASS =
   "[&>button]:!bg-gray-900 [&>button]:!text-white [&>button:hover]:!bg-gray-800";
 
-// Calendar panels are portaled, so the DOM cannot tell which one a body-level
-// Escape belongs to. Keep opening order separately for Safari, which leaves a
-// clicked trigger unfocused and dispatches the key event from document.body.
-const openRangePickers = new Set<HTMLElement>();
-// A lower dialog may carry `aria-hidden` from a slide-over opened later; it is
-// still open, and its level decides whether it lies above.
-const ACTIVE_OVERLAY_SELECTOR = OVERLAY_SCOPE_SELECTOR;
-
-function isLastOpenedRangePicker(picker: HTMLElement | null): boolean {
-  let lastOpenedPicker: HTMLElement | undefined;
-  for (const openPicker of openRangePickers) lastOpenedPicker = openPicker;
-  return lastOpenedPicker === picker;
-}
-
-// The overlay stack's order: a higher `Z_LAYER` level wins (a dialog lies
-// above a slide-over), on the same level the overlay opened later, which
-// portals to the end of body. A picker on the page lies below every overlay.
-function overlayLevel(overlay: Element | null): number {
-  if (!overlay) return -1;
-  return zLayerValue(overlay.matches(MODAL_SCOPE_SELECTOR) ? "modal" : "sheet");
-}
-
-function isBehindActiveOverlay(picker: HTMLElement | null): boolean {
-  if (!picker) return false;
-  const host = picker.parentElement?.closest(ACTIVE_OVERLAY_SELECTOR) ?? null;
-  const hostLevel = overlayLevel(host);
-  return Array.from(
-    document.querySelectorAll<HTMLElement>(ACTIVE_OVERLAY_SELECTOR),
-  ).some((overlay) => {
-    if (overlay.contains(picker)) return false;
-    const level = overlayLevel(overlay);
-    if (level !== hostLevel) return level > hostLevel;
-    return (
-      (picker.compareDocumentPosition(overlay) &
-        Node.DOCUMENT_POSITION_FOLLOWING) !==
-      0
-    );
-  });
-}
-
 /**
  * Compact date-range picker for chart card headers. Trigger is a small chip,
  * popover shows preset shortcuts on the left and a two-month range calendar
@@ -131,15 +88,15 @@ export function DateRangePicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const picker = containerRef.current;
-    if (!isOpen || !picker) return;
-    openRangePickers.delete(picker);
-    openRangePickers.add(picker);
-    return () => {
-      openRangePickers.delete(picker);
-    };
-  }, [isOpen]);
+  // The open calendar takes its place in the overlay stack (#6732): over the
+  // overlay it opened from, under one that opens later. It closes when that
+  // overlay closes or rests, or when a dialog, side panel or tour opens above
+  // it, as the click that usually opens them would have.
+  const closeCovered = useCallback(() => setIsOpen(false), []);
+  const { isTopmost } = useOverlay(isOpen, "popover", {
+    elementRef: panelRef,
+    onCovered: closeCovered,
+  });
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -158,61 +115,21 @@ export function DateRangePicker({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Escape closes only the calendar: the window capture phase runs before the
-  // document listeners of Modal (bubble) and slide-over (Radix, capture). An
-  // open select keeps its own Escape, like in `DatePicker`.
+  // Escape closes only the calendar, like in `DatePicker`. The overlay stack
+  // decides whether it is the topmost overlay (several calendars, a popover or
+  // a dialog above it). The window capture phase runs before the document
+  // listeners of Modal (bubble) and slide-over (Radix, capture), which decide
+  // Escape only among themselves. An open select keeps its own Escape.
   useEffect(() => {
     if (!isOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || !isTopmost()) return;
       const target = event.target;
-      // With several calendars open, Escape from inside one belongs to it.
-      // Escape from outside every picker (Safari leaves a clicked button
-      // unfocused) still closes this one.
-      const owner =
-        target instanceof Element
-          ? target.closest("[data-range-picker], [data-range-panel]")
-          : null;
-      if (owner && owner !== containerRef.current && owner !== panelRef.current)
-        return;
-      // A calendar can remain open behind a modal or slide-over. Escape from
-      // that higher overlay belongs there, not to the hidden calendar.
-      const activeOverlay =
-        target instanceof Element
-          ? target.closest(ACTIVE_OVERLAY_SELECTOR)
-          : null;
-      if (activeOverlay && !activeOverlay.contains(containerRef.current)) {
-        return;
-      }
-      // Safari dispatches Escape from body after clicking a button without
-      // focusing it. Look for active overlays independently of that target,
-      // so a hidden calendar cannot intercept Escape meant for the overlay.
-      // A tour coach mark lies below calendars (`Z_LAYER`), so the calendar
-      // closes first. An `AnchoredPopover` and a calendar close each other on
-      // an outside press, and Escape inside the popover stays there (below).
-      if (
-        target === document.body &&
-        isBehindActiveOverlay(containerRef.current)
-      ) {
-        return;
-      }
-      if (!owner && !isLastOpenedRangePicker(containerRef.current)) return;
       if (
         target instanceof Element &&
         target.closest(
           '[role="combobox"][aria-expanded="true"], [aria-haspopup="listbox"][aria-expanded="true"], [role="listbox"], [data-listbox-panel]',
         )
-      ) {
-        return;
-      }
-      // Escape inside another dialog surface (an `AnchoredPopover`, a dialog
-      // that does not hold this picker) belongs to that surface.
-      const surface =
-        target instanceof Element ? target.closest('[role="dialog"]') : null;
-      if (
-        surface &&
-        surface !== panelRef.current &&
-        !surface.contains(containerRef.current)
       ) {
         return;
       }
@@ -223,14 +140,10 @@ export function DateRangePicker({
     };
     window.addEventListener("keydown", closeOnEscape, true);
     return () => window.removeEventListener("keydown", closeOnEscape, true);
-  }, [isOpen]);
+  }, [isOpen, isTopmost]);
 
   return (
-    <div
-      className={`relative ${className}`}
-      ref={containerRef}
-      data-range-picker
-    >
+    <div className={`relative ${className}`} ref={containerRef}>
       <button
         ref={triggerRef}
         type="button"
@@ -402,9 +315,6 @@ function RangeCalendar({
   // content, so its calendar stays at the body with its own FocusScope.
   // Inside a modal the panel shares the modal's stacking context, exactly like
   // `DatePicker`: a tour coach mark over an open dialog lies above both alike.
-  // Known limits, shared with `DatePicker` (#6732): a dialog opened without a
-  // click over an open calendar lies below it; inside an `AnchoredPopover` a
-  // press in the calendar counts as outside the popover.
   const modalScope = triggerRef.current?.closest("[data-modal-focus-scope]");
   const needsPortalledFocusScope =
     !modalScope &&

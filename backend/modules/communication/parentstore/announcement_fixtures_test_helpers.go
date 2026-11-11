@@ -4,6 +4,7 @@ package parentstore
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
@@ -35,6 +36,21 @@ func (f ParentAnnouncementFixtures) Create(ctx context.Context, value *ParentAnn
 func (f ParentAnnouncementFixtures) FindByID(ctx context.Context, id int64) (*ParentAnnouncementFixture, error) {
 	row, err := f.repo.FindByID(ctx, id)
 	return announcementFixtureFromRow(row), err
+}
+
+// UpdateDeclarationSettings changes the declaration settings of a draft
+// through the store's draft write, the write the staff edit takes after
+// retracting an announcement.
+func (f ParentAnnouncementFixtures) UpdateDeclarationSettings(ctx context.Context, id int64, settings communication.ParentDeclarationSettings) error {
+	row, err := f.repo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if row == nil {
+		return fmt.Errorf("update declaration settings: announcement %d not found", id)
+	}
+	row.Declaration = communication.PortalAnnouncementDeclarationSettings(settings)
+	return f.repo.Update(ctx, row)
 }
 
 func (f ParentAnnouncementFixtures) Delete(ctx context.Context, id int64) error {

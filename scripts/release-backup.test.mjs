@@ -304,6 +304,34 @@ test('migration failure invokes complete automatic rollback', t => {
   assert.match(f.calls(), /find \/volume/);
   assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
 });
+test('rollback revokes every data-return grant before the uploads return (ADR 0203)', t => {
+  const f = fixture(t);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'migrate' });
+  assert.equal(result.status, 10, result.stdout + result.stderr);
+  const calls = f.calls().trim().split('\n');
+  const restored = calls.findIndex(line => line.includes('pg_restore -U'));
+  const revoked = calls.findIndex(line => line.includes('UPDATE platform.data_return_grants'));
+  const uploads = calls.findIndex(line => line.includes('find /volume'));
+  assert.ok(restored >= 0 && revoked > restored && uploads > revoked, f.calls());
+  assert.match(calls[revoked], /revoked_by = COALESCE\(revoked_by, 'restore'\), wrapped_key = NULL WHERE purged_at IS NULL/);
+  assert.match(result.stdout + result.stderr, /restore_data_return_revoked=2/);
+});
+test('rollback to a snapshot without data-return tables revokes nothing', t => {
+  const f = fixture(t);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'migrate', RELEASE_TEST_DATA_RETURN: 'absent' });
+  assert.equal(result.status, 10, result.stdout + result.stderr);
+  assert.doesNotMatch(f.calls(), /UPDATE platform\.data_return_grants/);
+  assert.match(result.stdout + result.stderr, /restore_data_return_revoked=0/);
+  assert.match(f.calls(), /find \/volume/);
+});
+test('a failed data-return revocation stops the restore loudly', t => {
+  const f = fixture(t);
+  f.backup();
+  const result = f.run('restore-db.sh', [f.bundle], { RELEASE_TEST_FAIL: 'revoke-data-return' });
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stderr, /Data return revocation failed; application remains stopped/);
+  assert.doesNotMatch(f.calls(), /find \/volume/);
+});
 test('successful deployment records a complete snapshot', t => {
   const f = fixture(t); const result = f.run('deploy-remote.sh');
   assert.equal(result.status, 0, result.stdout + result.stderr);

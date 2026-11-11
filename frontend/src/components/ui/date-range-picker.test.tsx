@@ -199,27 +199,34 @@ describe("DateRangePicker", () => {
 
   it("leaves Escape in a higher modal to that modal", async () => {
     const onClose = vi.fn();
-    render(
-      <>
-        <DateRangePicker value={undefined} onChange={vi.fn()} />
-        <Modal isOpen onClose={onClose} title="Bestätigung">
-          <button type="button">Abbrechen</button>
-        </Modal>
-      </>,
-    );
+    // The dialog opens after the calendar, so it lies above it (#6782).
+    function Page({ modalOpen }: Readonly<{ modalOpen: boolean }>) {
+      return (
+        <>
+          <DateRangePicker value={undefined} onChange={vi.fn()} />
+          <Modal isOpen={modalOpen} onClose={onClose} title="Bestätigung">
+            <button type="button">Abbrechen</button>
+          </Modal>
+        </>
+      );
+    }
+    const { rerender } = render(<Page modalOpen={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
     await waitFor(() => {
       expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
     });
+    rerender(<Page modalOpen />);
 
-    fireEvent.keyDown(screen.getByRole("dialog", { name: "Bestätigung" }), {
-      key: "Escape",
-    });
+    fireEvent.keyDown(
+      await screen.findByRole("dialog", { name: "Bestätigung" }),
+      { key: "Escape" },
+    );
 
     await waitFor(() => {
       expect(onClose).toHaveBeenCalledOnce();
     });
-    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    // #6782: an overlay opening above the calendar closes it.
+    expect(document.querySelector("[data-range-panel]")).toBeNull();
   });
 
   it.each([
@@ -265,7 +272,8 @@ describe("DateRangePicker", () => {
       await waitFor(() => {
         expect(onClose).toHaveBeenCalledOnce();
       });
-      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+      // #6782: an overlay opening above the calendar closes it.
+      expect(document.querySelector("[data-range-panel]")).toBeNull();
     },
   );
 });
@@ -521,59 +529,68 @@ describe("DateRangePicker in a dialog", () => {
 
   it("leaves a body Escape to a higher modal that lies earlier in the document", async () => {
     const onClose = vi.fn();
-    render(
-      <>
-        <Modal isOpen onClose={onClose} title="Bestätigung">
-          <p>Wirklich?</p>
-        </Modal>
-        <SlideOver defaultOpen>
-          <SlideOverContent>
-            <DateRangePicker value={undefined} onChange={vi.fn()} />
-          </SlideOverContent>
-        </SlideOver>
-      </>,
-    );
+    // The dialog opens after the slide-over's calendar, so it lies above it.
+    function Stack({ modalOpen }: Readonly<{ modalOpen: boolean }>) {
+      return (
+        <>
+          <Modal isOpen={modalOpen} onClose={onClose} title="Bestätigung">
+            <p>Wirklich?</p>
+          </Modal>
+          <SlideOver defaultOpen>
+            <SlideOverContent>
+              <DateRangePicker value={undefined} onChange={vi.fn()} />
+            </SlideOverContent>
+          </SlideOver>
+        </>
+      );
+    }
+    const { rerender } = render(<Stack modalOpen={false} />);
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Zeitraum wählen",
-        hidden: true,
-      }),
+      await screen.findByRole("button", { name: "Zeitraum wählen" }),
     );
     await waitFor(() => {
       expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
     });
+    rerender(<Stack modalOpen />);
+    await screen.findByRole("dialog", { name: "Bestätigung", hidden: true });
 
     fireEvent.keyDown(document.body, { key: "Escape" });
 
     await waitFor(() => {
       expect(onClose).toHaveBeenCalledOnce();
     });
-    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    // #6782: an overlay opening above the calendar closes it.
+    expect(document.querySelector("[data-range-panel]")).toBeNull();
   });
 
   it("leaves Escape from an open anchored popover to that popover", async () => {
     const onOpenChange = vi.fn();
-    render(
-      <>
-        <DateRangePicker value={undefined} onChange={vi.fn()} />
-        <AnchoredPopover
-          open
-          onOpenChange={onOpenChange}
-          ariaLabel="Hinweise"
-          renderTrigger={({ ref }) => (
-            <button ref={ref} type="button">
-              Hinweise
-            </button>
-          )}
-        >
-          {() => <button type="button">Im Popover</button>}
-        </AnchoredPopover>
-      </>,
-    );
+    // The popover opens after the calendar, so it lies above it (#6782).
+    function Page({ popoverOpen }: Readonly<{ popoverOpen: boolean }>) {
+      return (
+        <>
+          <DateRangePicker value={undefined} onChange={vi.fn()} />
+          <AnchoredPopover
+            open={popoverOpen}
+            onOpenChange={onOpenChange}
+            ariaLabel="Hinweise"
+            renderTrigger={({ ref }) => (
+              <button ref={ref} type="button">
+                Hinweise
+              </button>
+            )}
+          >
+            {() => <button type="button">Im Popover</button>}
+          </AnchoredPopover>
+        </>
+      );
+    }
+    const { rerender } = render(<Page popoverOpen={false} />);
     fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
     await waitFor(() => {
       expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
     });
+    rerender(<Page popoverOpen />);
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Im Popover" }), {
       key: "Escape",

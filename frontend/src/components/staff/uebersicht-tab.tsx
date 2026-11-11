@@ -23,7 +23,7 @@ import {
   staffMonthSummaryService,
 } from "~/lib/staff-api";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import {
   endOfWeek,
   getDeltaStatus,
@@ -484,7 +484,7 @@ const dailyConfig = {
 const distributionConfig = {
   ogs: { label: "OGS", color: MOTO_COLOR_PALETTE.green.base },
   // Muss dem RowStatusBadge in staff-session-table folgen: blue.base ist der
-  // Ton, den getLocationBadgeTone fuer ABSENCE_TYPE_HEX.vacation liefert, und
+  // Ton, den getPillTone fuer ABSENCE_TYPE_HEX.vacation liefert, und
   // Uebersicht, Zeiterfassung und Abwesenheiten sind Tabs derselben Seite.
   homeoffice: {
     label: "Unterwegs",

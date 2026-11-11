@@ -32,6 +32,8 @@ func inLedgerTransaction(t *testing.T, fn func(context.Context) error) error {
 
 // The canonical order (#6232): classes ascending, keys ascending within a
 // class, held locks again at any time.
+// Staff rows come after the days in any key order (#6583): composed writers
+// learn their people one by one.
 func TestOrderLockAdmitsTheCanonicalOrder(t *testing.T) {
 	t.Parallel()
 	err := inLedgerTransaction(t, func(ctx context.Context) error {
@@ -48,6 +50,10 @@ func TestOrderLockAdmitsTheCanonicalOrder(t *testing.T) {
 			{tenant.LockStaffShifts, tenant.LockIDKey(9)},
 			{tenant.LockScheduleDay, "2026-08-31"},
 			{tenant.LockScheduleDay, "2026-09-14"},
+			{tenant.LockStaffRows, tenant.LockIDKey(12)},
+			{tenant.LockStaffRows, tenant.LockIDKey(9)},
+			{tenant.LockScheduleDay, "2026-09-07"},
+			{tenant.LockStaffRows, tenant.LockIDKey(12)},
 		} {
 			if err := tenant.OrderLock(ctx, step.class, step.key); err != nil {
 				return err
@@ -69,6 +75,8 @@ func TestOrderLockRefusesALockAgainstTheOrder(t *testing.T) {
 		{name: "earlier day after a later day", first: tenant.LockScheduleDay, firstKey: "2026-09-07", later: tenant.LockScheduleDay, laterKey: "2026-08-31"},
 		{name: "staff-shift gate after a day", first: tenant.LockScheduleDay, firstKey: "2026-08-31", later: tenant.LockStaffShifts, laterKey: tenant.LockIDKey(3)},
 		{name: "recurrence after a day", first: tenant.LockScheduleDay, firstKey: "2026-08-31", later: tenant.LockRecurrence, laterKey: "7"},
+		{name: "day after a staff row", first: tenant.LockStaffRows, firstKey: tenant.LockIDKey(3), later: tenant.LockScheduleDay, laterKey: "2026-08-31"},
+		{name: "staff-shift gate after a staff row", first: tenant.LockStaffRows, firstKey: tenant.LockIDKey(3), later: tenant.LockStaffShifts, laterKey: tenant.LockIDKey(3)},
 		{name: "lower staff after a higher staff", first: tenant.LockStaffShifts, firstKey: tenant.LockIDKey(12), later: tenant.LockStaffShifts, laterKey: tenant.LockIDKey(9)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -146,6 +154,20 @@ func TestOrderLockNestedSavepointsRestoreTheirOwnLocks(t *testing.T) {
 		require.ErrorIs(t, err, operationErr)
 		// The outer rollback also releases locks kept by the successful inner savepoint.
 		return tenant.OrderLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(9))
+	})
+	require.NoError(t, err)
+}
+
+func TestHoldsLockReportsTheLedger(t *testing.T) {
+	t.Parallel()
+	assert.False(t, tenant.HoldsLock(context.Background(), tenant.LockStaffRows, tenant.LockIDKey(3)), "outside a transaction nothing is held")
+	err := inLedgerTransaction(t, func(ctx context.Context) error {
+		assert.False(t, tenant.HoldsLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(3)))
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(3)))
+		assert.True(t, tenant.HoldsLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(3)))
+		assert.False(t, tenant.HoldsLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(4)))
+		assert.False(t, tenant.HoldsLock(ctx, tenant.LockStaffShifts, tenant.LockIDKey(3)), "the class is part of the key")
+		return nil
 	})
 	require.NoError(t, err)
 }

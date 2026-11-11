@@ -102,12 +102,14 @@ var (
 )
 
 // HolidayChildDayLimitRefusal is a refused rebooking over the care days of
-// its period (#4701): the bound and the days asked for. It unwraps to
+// its period (#4701): the bound and the days asked for in all, Elsewhere of
+// them in other registrations of the same child (#6446). It unwraps to
 // ErrHolidayChildDayLimit.
 type HolidayChildDayLimitRefusal struct {
-	Limit int
-	Days  int
-	Err   error
+	Limit     int
+	Days      int
+	Elsewhere int
+	Err       error
 }
 
 func (r *HolidayChildDayLimitRefusal) Error() string {
@@ -355,14 +357,6 @@ type HolidayRegistrations interface {
 	// CancelHolidayRegistration cancels the registration (#5662); a
 	// registration after the deadline is ErrHolidayRegistrationFrozen.
 	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayRegistration, error)
-	// RebookHolidayChild replaces the bookings of one child (#4699); a week
-	// it leaves gives its place to the waiting list. MovedUp names the
-	// registrations that moved up.
-	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingChoice) (HolidayRegistration, error)
-	// SetHolidayWeekCapacity sets the places of a week, nil for unlimited,
-	// and moves bookings up into the places it frees; it returns the
-	// registrations that moved up.
-	SetHolidayWeekCapacity(ctx context.Context, reviewer HolidayReviewer, periodID, weekID int64, capacity *int) ([]int64, error)
 	// HoldHolidayPeriod locks the period until the transaction ends, so no
 	// registration of it changes while a sibling group is read and decided
 	// on (#5628). A period of another Träger is ErrHolidayPeriodNotFound.
@@ -436,15 +430,20 @@ type HolidayQuoteChild struct {
 	AgeRank  int
 }
 
-// HolidayAllocationBilling keeps direct allocations and promotions consistent
-// with frozen contributions and the invoices of their period.
+// HolidayAllocationBilling is this owner's part of the holiday allocation
+// workflow (ADR 0206): a rebooking, a new capacity or the Büro's decision by
+// criteria in Enrollment. Both commands join the workflow's Träger
+// transaction; any error rolls back places, decisions, mail and
+// contributions together.
 type HolidayAllocationBilling interface {
-	// AllocateHolidayPlaces holds the period's invoices before the allocation
-	// command, then recomputes the confirmed siblings of every registration
-	// that gained a place. decide joins the caller's transaction and returns
-	// registration IDs for both direct allocations and promotions.
-	// Any error must roll back the complete allocation, outbox and contributions.
-	AllocateHolidayPlaces(ctx context.Context, organizationID, accountID, periodID int64, decide func(context.Context) ([]int64, error)) error
+	// HoldHolidayAllocationInvoices takes the billing lock of the period's
+	// holiday invoices, before the workflow holds Enrollment's period.
+	HoldHolidayAllocationInvoices(ctx context.Context, organizationID, accountID, periodID int64) error
+	// RefreezeHolidayAllocationContributions computes the confirmed sibling
+	// groups of the registrations that gained a place, directly or by moving
+	// up, while the workflow still holds both locks. A received
+	// registration freezes nothing itself.
+	RefreezeHolidayAllocationContributions(ctx context.Context, organizationID, accountID, periodID int64, registrationIDs []int64) error
 }
 
 // HolidayContributions computes, shows and freezes the holiday contribution
@@ -484,15 +483,6 @@ type HolidayContributions interface {
 	// ErrHolidayRegistrationStateConflict, one after the deadline
 	// ErrHolidayRegistrationFrozen.
 	CancelHolidayRegistration(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID int64) (HolidayCancellation, error)
-	// RebookHolidayChild replaces the bookings of a child through Enrollment
-	// (#4699). A week the child leaves gives its place to the waiting list;
-	// every confirmed registration that moves up gets its contribution
-	// computed again, with its sibling group, in the same transaction.
-	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingChoice) (HolidayPlaceChange, error)
-	// SetHolidayWeekCapacity sets the places of a week through Enrollment,
-	// nil for unlimited, and computes the contribution of every confirmed
-	// registration that moves up again (#4699).
-	SetHolidayWeekCapacity(ctx context.Context, reviewer HolidayReviewer, periodID, weekID int64, capacity *int) (HolidayPlaceChange, error)
 	// HolidayConfirmationSettings reports what a confirmation of the
 	// session's Träger needs (#5621).
 	HolidayConfirmationSettings(ctx context.Context, reviewer HolidayReviewer) (HolidayConfirmationSettings, error)

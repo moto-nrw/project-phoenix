@@ -1430,7 +1430,7 @@ function StaffCalendarPageInner() {
               clearOverviewError();
             }}
             title="Teilnehmer"
-            widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
+            size="md-wide"
           >
             {overviewLoading ? (
               <SkeletonRegion label="Teilnehmer werden geladen…">

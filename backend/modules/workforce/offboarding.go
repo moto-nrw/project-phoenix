@@ -25,26 +25,29 @@ type OffboardingPreview struct {
 // Offboarding removes operational plans, not work-session or decided absence
 // history. Its audit callback must append in the supplied UnitOfWork.
 type Offboarding struct {
-	lock    func(context.Context, int64) error
+	lock    func(context.Context, ...int64) error
 	preview func(context.Context, int64, string) (OffboardingPreview, error)
 	execute func(context.Context, int64, int64, string, string) (OffboardingCounts, error)
 }
 
-func NewOffboarding(lock func(context.Context, int64) error, preview func(context.Context, int64, string) (OffboardingPreview, error), execute func(context.Context, int64, int64, string, string) (OffboardingCounts, error)) *Offboarding {
+func NewOffboarding(lock func(context.Context, ...int64) error, preview func(context.Context, int64, string) (OffboardingPreview, error), execute func(context.Context, int64, int64, string, string) (OffboardingCounts, error)) *Offboarding {
 	if lock == nil || preview == nil || execute == nil {
 		panic("workforce: offboarding queries and commands are required")
 	}
 	return &Offboarding{lock: lock, preview: preview, execute: execute}
 }
 
-// Lock holds the balance, absence and shift advisory locks, in that order.
+// Lock holds all balance and absence gates before any shift gate, each
+// phase ascending by staff ID. A batch must be passed in one call.
 // Workflows call it before acquiring Membership row locks; an ambient tenant
 // transaction is required so the lock lifetime covers the entire workflow.
-func (o *Offboarding) Lock(ctx context.Context, staffID int64) error {
-	if staffID <= 0 {
-		return errors.New("workforce: staff ID is required")
+func (o *Offboarding) Lock(ctx context.Context, staffIDs ...int64) error {
+	for _, staffID := range staffIDs {
+		if staffID <= 0 {
+			return errors.New("workforce: staff ID is required")
+		}
 	}
-	return o.lock(ctx, staffID)
+	return o.lock(ctx, staffIDs...)
 }
 
 func (o *Offboarding) Preview(ctx context.Context, staffID int64, from string) (OffboardingPreview, error) {

@@ -64,8 +64,11 @@ func (s *staffDeviations) ApplyBulkSubstitution(ctx context.Context, in timetabl
 		}
 	}
 
-	plans, err := s.planBulkDays(ctx, in, dates, reason)
+	plans, staff, err := s.planBulkDays(ctx, in, dates, reason)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.lockDeviationStaff(ctx, staff); err != nil {
 		return nil, err
 	}
 	return s.executeBulkPlans(ctx, in.ActorAccountID, plans)
@@ -135,21 +138,22 @@ func staffField(label string) string {
 // plan and stays a no-op. The read sets of all dates load before the first
 // classification (#5808); Phase A writes nothing, so every date still
 // classifies against the rows read after all its locks.
-func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSubstitutionInput, dates []calendar.Date, reason *string) ([]bulkDayPlan, error) {
+func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSubstitutionInput, dates []calendar.Date, reason *string) ([]bulkDayPlan, []int64, error) {
 	deviations := bulkDeviationInput(in, reason)
 	readSets, err := s.loadBulkDeviationReadSets(ctx, deviations, dates)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	plans := make([]bulkDayPlan, 0, len(dates))
 	for i, date := range dates {
 		plan, err := planBulkDay(in, deviations, date, readSets[i])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		plans = append(plans, plan)
 	}
-	return plans, nil
+	// Every date reads the same staff references.
+	return plans, lockableDeviationStaff(deviations, readSets[0]), nil
 }
 
 // bulkDeviationInput is the single-day deviation input every selected date

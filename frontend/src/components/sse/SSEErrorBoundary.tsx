@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import React from "react";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { logDisplayedCrash } from "~/lib/error-log";
@@ -35,6 +36,8 @@ export class SSEErrorBoundary extends React.Component<
       error_info: String(errorInfo),
     });
     logDisplayedCrash(error);
+    // No route error page sees this crash, so nothing else reports it.
+    Sentry.captureException(error, { tags: { surface: "page" } });
   }
 
   render() {

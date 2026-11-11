@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 import NavigationLink from "~/components/ui/navigation-link";
 import { cn } from "~/lib/utils";
+import { CARD_FRAME } from "./card-surface";
 import { listRowLinkStateClasses } from "./list-row-styles";
 
 type ListRowLinkTarget =
@@ -242,9 +243,8 @@ export function ListRowLink({
     </button>
   );
   if (!framed) return row;
-  return (
-    <div className={cn("moto-content-surface rounded-2xl border", className)}>
-      {row}
-    </div>
-  );
+  // Gerahmt teilt die Zeile nur den Rahmen der Karte. Polster und Fokusring
+  // bleiben die der Zeile, beim Überfahren wird nur der Pfeil dunkler; ob sie
+  // wie `TileCard` reagieren soll, klärt #6731.
+  return <div className={cn(CARD_FRAME, className)}>{row}</div>;
 }

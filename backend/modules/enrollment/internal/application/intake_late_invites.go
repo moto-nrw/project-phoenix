@@ -126,6 +126,12 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 		"send_notification":          input.SendNotification,
 		"actor_account_id":           input.ActorID,
 	}
+	// The approval takes the class-writes gate before the recurrence gate.
+	// The submission takes the recurrence gate first thing in its write, so
+	// both gates are taken here, in that order, before any lock of its own.
+	if err := s.deps.ManualDecider.LockApprovalGates(ctx); err != nil {
+		return nil, err
+	}
 	submitted, err := s.submit(ctx, req)
 	if err != nil {
 		return nil, err

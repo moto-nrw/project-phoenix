@@ -88,8 +88,7 @@ func TestDemoSchoolQueueErasesThePushSubscriptionsOfTheVisitor(t *testing.T) {
 	otherInReal := pushSubscription(t, db, realID, otherAccount.ID, "staff")
 
 	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 
 	ids := []int64{caregiverInDemo, parentInDemo, caregiverElsewhere, parentInReal, otherInReal}
@@ -127,8 +126,7 @@ func TestDemoSchoolQueueErasesTheProfileAndAvatarFilesOfAnAnonymizedVisitor(t *t
 	}
 
 	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 
 	var queued []string
@@ -188,8 +186,7 @@ func TestDemoVisitorErasureKeepsAnAccountWithARoleInARealSchool(t *testing.T) {
 	before := stateOfAccount(t, db, accounts.caregiver)
 
 	queue, slug := finishedVisitorOrder(t, db, schoolID, accounts)
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 
 	assert.Equal(t, before, stateOfAccount(t, db, accounts.caregiver), "the account with a role in a real school keeps its address and access")
