@@ -53,5 +53,5 @@ export function holidayRegistrationDeletionNotice(
   registration: Retained,
 ): string | null {
   if (!registration.deletesOn) return null;
-  return `moto löscht diese Anmeldung am ${formatDate(registration.deletesOn)}. Laden Sie sie vorher herunter, wenn Sie sie länger brauchen.${healthSentence(registration.deletesOn, [registration])}`;
+  return `moto löscht diese Anmeldung am ${formatDate(registration.deletesOn)}. ${DOWNLOAD_HINT}${healthSentence(registration.deletesOn, [registration])}`;
 }

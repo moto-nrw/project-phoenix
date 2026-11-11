@@ -2,11 +2,14 @@
 // (#5626), shared by the parents' form and the Träger portal. Its own
 // module, so the Träger pages do not pull in the parents' API client.
 
-/**
- * Days the consent texts before version 4 promise, and the days after which
- * the health information of every registration goes (#6691).
- */
+/** Days the consent texts before version 4 promise: three months (#6691). */
 export const HOLIDAY_LEGACY_RETENTION_DAYS = 92;
+
+/**
+ * Days after the holidays the health information of every registration
+ * goes, whatever the registration itself keeps (#6691).
+ */
+export const HOLIDAY_HEALTH_RETENTION_DAYS = 92;
 
 /**
  * The German texts of the fixed declarations of one version (#5626). They

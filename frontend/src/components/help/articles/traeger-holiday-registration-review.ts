@@ -117,7 +117,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         steps: [
           "Über der Liste steht, wann moto die Anmeldungen löscht.",
           "Wählen Sie `Herunterladen` und dann `Alle als PDF (ZIP)`. Sie bekommen eine ZIP-Datei mit einem PDF je Anmeldung.",
-          "Haben Sie Filter eingestellt? Dann heißt der Eintrag `Auswahl als PDF (ZIP)`. Die ZIP-Datei enthält nur die gefilterten Anmeldungen.",
+          "Haben Sie Filter eingestellt? Dann heißt der Eintrag `Gefilterte als PDF (ZIP)`. Die ZIP-Datei enthält nur die gefilterten Anmeldungen.",
           "Für eine einzelne Anmeldung öffnen Sie die Anmeldung. Wählen Sie `Herunterladen` und dann `PDF`.",
           "Speichern Sie die Dateien bei Ihrem Träger. Für diese Kopien sind Sie selbst verantwortlich.",
         ],

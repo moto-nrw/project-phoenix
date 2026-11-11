@@ -262,8 +262,12 @@ func holidayRecordDeclaration(detail capability.HolidayRegistrationDetail) lists
 		record.Fields = append(fields, field("Wortlaut", "Der Wortlaut dieser Fassung ist nicht gespeichert."))
 		return record
 	}
-	record.Fields = append(fields, field("Fassung der Texte",
-		fmt.Sprintf("Fassung %d, Löschung %d Tage nach den Ferien", texts.Version, texts.RetentionDays)))
+	version := fmt.Sprintf("Fassung %d", texts.Version)
+	if texts.Version >= capability.HolidayConsentVersionRetention {
+		// Only these versions name the days; an earlier one says "drei Monate".
+		version += fmt.Sprintf(", Löschung %d Tage nach den Ferien", texts.RetentionDays)
+	}
+	record.Fields = append(fields, field("Fassung der Texte", version))
 	given := func(title, text string, at *time.Time) {
 		if at == nil || text == "" {
 			return

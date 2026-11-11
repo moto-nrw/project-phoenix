@@ -154,6 +154,17 @@ func TestHolidayRegistrationFileOfAnOldVersionSaysItsWordingIsNotKept(t *testing
 	assert.Contains(t, text, "Schule: Schule nicht mehr vorhanden")
 }
 
+func TestHolidayRegistrationFileOfTheThreeMonthsTextQuotesItsWording(t *testing.T) {
+	t.Parallel()
+	period, record := holidayTestRecord(t)
+	texts, ok := capability.HolidayConsentTextsOf(3, capability.HolidayLegacyRetentionDays)
+	require.True(t, ok)
+	record.Detail.ConsentVersion, record.Detail.ConsentTexts = 3, &texts
+	text := recordText(holidayRegistrationRecordDocument(period, record, holidayRecordNames{}))
+	assert.Contains(t, text, "Fassung der Texte: Fassung 3\n", "an earlier version names no days it never named")
+	assert.Contains(t, text, "Er löscht sie drei Monate nach den Ferien.")
+}
+
 func TestHolidayArchiveNameIsPlainASCII(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "ferienanmeldungen-weihnachtsferien-2026-2027.zip", holidayArchiveName(capability.HolidayPeriod{Name: "Weihnachtsferien 2026/2027"}))

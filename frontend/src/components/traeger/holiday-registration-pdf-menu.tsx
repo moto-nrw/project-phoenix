@@ -13,7 +13,8 @@ import { downloadHolidayRegistrationPdf } from "~/lib/traeger-holiday-registrati
 
 const logger = createLogger({ component: "HolidayRegistrationPdfMenu" });
 
-const HEALTH_KEY = "pdf-health";
+/** The menu entry that asks for the file with health information. */
+export const HOLIDAY_PDF_HEALTH_KEY = "pdf-health";
 
 function options(canSeeHealth: boolean): readonly ExportMenuOption[] {
   return [
@@ -21,7 +22,7 @@ function options(canSeeHealth: boolean): readonly ExportMenuOption[] {
     ...(canSeeHealth
       ? [
           {
-            key: HEALTH_KEY,
+            key: HOLIDAY_PDF_HEALTH_KEY,
             format: "pdf" as const,
             label: "PDF mit Gesundheitsangaben",
           },
@@ -48,7 +49,7 @@ export function HolidayRegistrationPdfMenu({
       const file = await downloadHolidayRegistrationPdf(
         periodId,
         registrationId,
-        key === HEALTH_KEY,
+        key === HOLIDAY_PDF_HEALTH_KEY,
       );
       downloadBlob(
         file.blob,

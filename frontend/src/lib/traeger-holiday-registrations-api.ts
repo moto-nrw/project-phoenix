@@ -1013,7 +1013,7 @@ export async function downloadHolidayRegistrationPdf(
   withHealth: boolean,
 ): Promise<DownloadedFile> {
   return downloadTraegerFile(
-    `${registrationPath(periodId, registrationId)}/pdf${withHealth ? "?health=true" : ""}`,
+    `${registrationPath(periodId, registrationId)}/pdf${holidayRegistrationQuery(EMPTY_HOLIDAY_REGISTRATION_FILTER, healthQuery(withHealth))}`,
   );
 }
 

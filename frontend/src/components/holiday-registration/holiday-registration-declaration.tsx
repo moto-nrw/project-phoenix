@@ -10,7 +10,7 @@ import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import {
-  HOLIDAY_LEGACY_RETENTION_DAYS,
+  HOLIDAY_HEALTH_RETENTION_DAYS,
   type HolidayConsentTexts,
 } from "~/lib/holiday-consent-texts";
 import {
@@ -73,7 +73,7 @@ export function HolidayRegistrationDeclaration({
         {key === "privacyConsent"
           ? t(key, {
               days: texts.retentionDays,
-              healthDays: HOLIDAY_LEGACY_RETENTION_DAYS,
+              healthDays: HOLIDAY_HEALTH_RETENTION_DAYS,
             })
           : t(key)}
       </span>

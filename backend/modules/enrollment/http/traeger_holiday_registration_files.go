@@ -3,6 +3,7 @@ package enrollmenthttp
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -153,13 +154,20 @@ func (rs *HolidayPeriodResource) downloadRegistrationPDFs(withTx common.Middlewa
 		w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", holidayArchiveName(set.Period)))
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusOK)
-		if err := writeHolidayArchive(w, set, first, names); err != nil {
+		err = writeHolidayArchive(w, set, first, names)
+		if errors.Is(err, errHolidayRecordRender) {
 			// The status is sent; the connection is cut so the browser reports
 			// a failed download instead of saving half an archive.
 			slog.ErrorContext(r.Context(), "holiday registration archive failed",
 				slog.Int64("holiday_period_id", set.Period.ID),
 				slog.String("error", err.Error()))
 			panic(http.ErrAbortHandler)
+		}
+		if err != nil {
+			// The person closed the download; nothing is left to answer.
+			slog.InfoContext(r.Context(), "holiday registration archive not delivered",
+				slog.Int64("holiday_period_id", set.Period.ID),
+				slog.String("error", err.Error()))
 		}
 	}
 }
@@ -181,6 +189,10 @@ func holidayArchiveName(period capability.HolidayPeriod) string {
 	return strings.TrimSuffix("ferienanmeldungen-"+name.String(), "-") + ".zip"
 }
 
+// errHolidayRecordRender reports a file that could not be rendered, apart
+// from a response that could not be written.
+var errHolidayRecordRender = errors.New("render holiday registration")
+
 // holidayRecordEntry renders the file at index; nil without one.
 func holidayRecordEntry(set capability.HolidayRegistrationRecordSet, index int, names holidayRecordNames) (*lists.File, error) {
 	if index >= len(set.Records) {
@@ -188,7 +200,7 @@ func holidayRecordEntry(set capability.HolidayRegistrationRecordSet, index int, 
 	}
 	file, err := holidayRecordFile(set.Period, set.Records[index], names)
 	if err != nil {
-		return nil, fmt.Errorf("render holiday registration %d: %w", set.Records[index].Detail.ID, err)
+		return nil, fmt.Errorf("%w %d: %w", errHolidayRecordRender, set.Records[index].Detail.ID, err)
 	}
 	return &file, nil
 }

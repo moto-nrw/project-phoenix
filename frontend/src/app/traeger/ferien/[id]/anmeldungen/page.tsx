@@ -52,6 +52,7 @@ import type {
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
+import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/holiday-registration-pdf-menu";
 import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -111,14 +112,15 @@ function exportOptions(
   filtered: boolean,
   canSeeHealth: boolean,
 ): readonly ExportMenuOption[] {
-  const scope = filtered ? "Auswahl" : "Alle";
+  // Not "Auswahl": the ticked rows are for merging siblings, not for this.
+  const scope = filtered ? "Gefilterte" : "Alle";
   return [
     ...LIST_FORMATS,
     { key: "pdf", format: "pdf", label: `${scope} als PDF (ZIP)` },
     ...(canSeeHealth
       ? [
           {
-            key: "pdf-health",
+            key: HOLIDAY_PDF_HEALTH_KEY,
             format: "pdf" as const,
             label: `${scope} als PDF mit Gesundheitsangaben (ZIP)`,
           },
@@ -715,7 +717,10 @@ export default function TraegerHolidayRegistrationsPage() {
               if (option.format === "csv" || option.format === "xlsx") {
                 void exportFile(option.format);
               } else if (option.format === "pdf") {
-                void exportPdfs(option.key, option.key === "pdf-health");
+                void exportPdfs(
+                  option.key,
+                  option.key === HOLIDAY_PDF_HEALTH_KEY,
+                );
               }
             }}
           />
