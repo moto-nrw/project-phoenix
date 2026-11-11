@@ -152,12 +152,6 @@ export const buttonRatchetAllowlist = [
   // Felder. Sie sind keine Knöpfe im Sinn von #5529.
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/ui/tile-card.tsx",
-    lines: [94, 149],
-    reason: "TileCard selbst: der Kit-Baustein für klickbare Kacheln",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/ui/color-swatch-input.tsx",
     lines: [21],
     reason: "Farbfeld: zeigt die gewählte Farbe und öffnet die Farbauswahl",
