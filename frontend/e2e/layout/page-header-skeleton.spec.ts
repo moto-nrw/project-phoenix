@@ -65,6 +65,23 @@ const VIEWPORTS = [
 
 const search = { value: "", onChange: () => undefined, placeholder: "Suchen" };
 
+// `MobilePageHelpPortal` setzt diesen echten Link nach der Registrierung des
+// Ziels in beide Kopfvarianten. Der Komponenten-Test prüft die Registrierung
+// mit dem auflösbaren Hilfe-Thema; hier messen wir seinen CSS-Vertrag. Die
+// Layouttests rendern bewusst statisches Produktionsmarkup, in dem Reacts
+// `useEffect` für die Portalregistrierung nicht läuft.
+const MOBILE_HELP = `
+  <span class="group relative inline-flex shrink-0 lg:hidden" data-icon-only>
+    <a
+      class="inline-flex aspect-square h-8 items-center justify-center shrink-0"
+      data-button-link
+      data-icon-only
+      aria-label="Hilfe zu dieser Seite"
+    >
+      <svg class="size-5" aria-hidden="true"></svg>
+    </a>
+  </span>`;
+
 const CASES: readonly {
   name: string;
   skeleton: SkeletonProps;
@@ -88,8 +105,18 @@ const CASES: readonly {
   },
 ];
 
-async function headHeight(page: Page, markup: string): Promise<number> {
+async function headHeight(
+  page: Page,
+  markup: string,
+  { mobileHelp = false }: { mobileHelp?: boolean } = {},
+): Promise<number> {
   await render(page, compiledCss, `<div style="padding:16px">${markup}</div>`);
+  if (mobileHelp) {
+    const target = page.locator("header .contents").last();
+    await target.evaluate((element, help) => {
+      element.insertAdjacentHTML("beforeend", help);
+    }, MOBILE_HELP);
+  }
   const head = await page.locator("header").first().boundingBox();
   if (!head) throw new Error("head is not rendered");
   return head.height;
@@ -116,6 +143,30 @@ test("the skeleton head has the height of the loaded head", async ({
       );
       expect.soft(skeleton, `${testCase.name}, ${viewport.name}`).toBe(loaded);
     }
+  }
+});
+
+// Unter `lg` wird die Hilfe aus der persistenten Portalhülle in den Kopf
+// gesetzt. Sie ist genau der Fall, wegen dem der Ladekopf seinen Zielplatz
+// braucht: ohne den Link stimmt der nackte Kopf, aber nicht der eingeloggte
+// mobile Zustand. Desktop lässt den Link mit `lg:hidden` aus und braucht
+// deshalb keinen eigenen Vergleich.
+test("the skeleton head keeps the portaled mobile help control in place", async ({
+  page,
+}) => {
+  for (const viewport of VIEWPORTS.filter(({ width }) => width < 1024)) {
+    await page.setViewportSize(viewport);
+    const skeleton = await headHeight(
+      page,
+      renderToStaticMarkup(createElement(SkeletonHead, { stats: false })),
+      { mobileHelp: true },
+    );
+    const loaded = await headHeight(
+      page,
+      renderToStaticMarkup(createElement(LoadedHead, { title: "Kinder" })),
+      { mobileHelp: true },
+    );
+    expect.soft(skeleton, viewport.name).toBe(loaded);
   }
 });
 
