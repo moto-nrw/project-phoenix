@@ -1,7 +1,8 @@
 "use client";
 
-// Formular eines Ferienzeitraums (#4659): Anmeldung, Hinweise für Eltern und
-// die buchbaren Wochen mit ausrichtender OGS und Zeitmodellen.
+// Formular eines Ferienzeitraums (#4659): Anmeldung, Hinweise für Eltern,
+// die buchbaren Wochen mit ausrichtender OGS und Zeitmodellen und der Text
+// der Annahme-Mail (#6672).
 
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -35,6 +36,7 @@ import {
   validateHolidayPeriod,
   type WeekDraft,
 } from "./holiday-period-model";
+import { HolidayAcceptanceMailField } from "./holiday-acceptance-mail-field";
 import { HolidayAllocationModeField } from "./holiday-allocation-mode-field";
 import { HolidayWeekEditor } from "./holiday-week-editor";
 import type { HolidayCriterion } from "~/lib/traeger-holiday-allocation-api";
@@ -391,6 +393,17 @@ export function HolidayPeriodForm({
                 Ein Ferienzeitraum hat höchstens {MAX_HOLIDAY_WEEKS} Wochen.
               </p>
             )}
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <HolidayAcceptanceMailField
+              draft={draft}
+              schools={schools}
+              error={fieldError("acceptance_mail_text") ?? undefined}
+              onChange={(acceptanceMailText) =>
+                setDraft({ ...draft, acceptanceMailText })
+              }
+            />
           </div>
         </fieldset>
       </SectionCard>

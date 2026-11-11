@@ -44,6 +44,7 @@ func NewMailRenderers() enrollment.MailRenderers {
 		HolidayRegistrationReceived: renderHolidayRegistrationReceived,
 		HolidayPlaceGranted:         renderHolidayPlaceGranted,
 		HolidayClosureNotice:        renderHolidayClosureNotice,
+		HolidayRegistrationAccepted: renderHolidayRegistrationAccepted,
 	}
 }
 
@@ -164,6 +165,48 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 			"Waitlisted":        waitlisted,
 			"Pending":           pending,
 			"KeepsContribution": payload.KeepsContribution,
+		},
+	}, nil
+}
+
+// renderHolidayRegistrationAccepted renders the acceptance mail of a
+// confirmed holiday registration (#6672). The Träger is the sender; its
+// text is plain text, which the template escapes and keeps the lines of.
+func renderHolidayRegistrationAccepted(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayRegistrationAcceptedMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday acceptance mail: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	subject := "Ferienanmeldung bestätigt"
+	if payload.PeriodName != "" {
+		subject += ": " + payload.PeriodName
+	}
+	children := make([]map[string]any, 0, len(payload.Children))
+	waitlisted := false
+	for _, child := range payload.Children {
+		children = append(children, map[string]any{
+			"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks,
+			"PendingWeeks": child.PendingWeeks,
+		})
+		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    subject,
+		Template:   "holiday-registration-accepted.html",
+		Content: map[string]any{
+			"GuardianName": payload.GuardianName,
+			"SchoolName":   payload.TraegerName,
+			"PeriodName":   payload.PeriodName,
+			"Binding":      payload.Binding,
+			"Children":     children,
+			"Waitlisted":   waitlisted,
+			"TraegerText":  payload.TraegerText,
+			"ParentAppURL": payload.ParentAppURL,
 		},
 	}, nil
 }

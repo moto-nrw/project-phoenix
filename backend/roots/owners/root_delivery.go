@@ -109,20 +109,20 @@ func BuildDeliveryNotifications(
 func BuildDeliveryWorker(
 	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, mailIdentity email.ReplyToResolver,
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
-	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices,
+	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices, accounts HolidayAcceptanceAccounts,
 ) (*deliveryModule.Worker, error) {
 	subscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
 	tenants := deliveryCompose.NewTenantTransactions(db.Pool())
 	push := deliveryCompose.NewWebPushSender(deliveryContract.WebPushConfig{
 		Subscriber: pushVAPID.Subscriber, PublicKey: pushVAPID.PublicKey, PrivateKey: pushVAPID.PrivateKey,
 	}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, subscriptions))
-	return buildDeliveryWorker(db, env, mailSender, mailFrom, mailIdentity, delivery, appointments, identityRenderers, reminders, modules, documents, push)
+	return buildDeliveryWorker(db, env, mailSender, mailFrom, mailIdentity, delivery, appointments, identityRenderers, reminders, modules, documents, push, accounts)
 }
 
 func buildDeliveryWorker(
 	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, mailIdentity email.ReplyToResolver,
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
-	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices, push deliveryContract.PushSender,
+	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices, push deliveryContract.PushSender, accounts HolidayAcceptanceAccounts,
 ) (*deliveryModule.Worker, error) {
 	defaultFrom := mailFrom
 	renderers := map[string]deliveryCompose.MailRenderer{
@@ -142,7 +142,7 @@ func buildDeliveryWorker(
 		carecontract.MailKindNotice: careContractNoticeMailRenderer(careContractCompose.NewNoticeMailRenderer(), defaultFrom),
 	}
 	enrollmentKinds := []string{}
-	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
+	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom, accounts, env.Links.ParentsURL) {
 		renderers[kind] = renderer
 		enrollmentKinds = append(enrollmentKinds, kind)
 	}

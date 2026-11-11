@@ -213,6 +213,60 @@ describe("HolidayPeriodForm", () => {
     );
   });
 
+  it("writes the text of the acceptance mail and shows it in the preview (#6672)", async () => {
+    const onSaved = vi.fn();
+    mockUpdate.mockResolvedValue(stored);
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={onSaved}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    const preview = screen.getByRole("region", {
+      name: "Vorschau der Annahme-Mail",
+    });
+    expect(
+      within(preview).getByText("Ferienanmeldung bestätigt: Osterferien"),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText(
+        "22.03.2027 bis 26.03.2027: OGS Am Bach, bis 13 Uhr (08:00 bis 13:00 Uhr)",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText(/Ohne Text geht die E-Mail ohne Hinweise raus/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Text der Annahme-Mail"), {
+      target: {
+        value:
+          "  Bitte Mittagessen mitgeben.\nWechselkleidung <b>nicht</b> vergessen.  ",
+      },
+    });
+    expect(
+      within(preview).getByText(/Wechselkleidung <b>nicht<\/b> vergessen\./),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText("Hinweise vom Träger"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("71 von 2000 Zeichen")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(stored));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "5",
+      expect.objectContaining({
+        acceptanceMailText:
+          "Bitte Mittagessen mitgeben.\nWechselkleidung <b>nicht</b> vergessen.",
+      }),
+    );
+  });
+
   it("does not save while a typed date is no valid date", async () => {
     render(
       <ToastProvider>

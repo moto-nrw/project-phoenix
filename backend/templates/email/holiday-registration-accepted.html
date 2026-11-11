@@ -1,0 +1,67 @@
+{{define "holiday-registration-accepted.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ihre Ferienanmeldung ist bestätigt</h1>
+
+    <p>Guten Tag {{.GuardianName}},</p>
+
+    <p>der Träger{{if .SchoolName}} <strong>{{.SchoolName}}</strong>{{end}} hat Ihre Anmeldung für <strong>{{.PeriodName}}</strong> angenommen.</p>
+
+    {{range .Children}}
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
+        {{if .Weeks}}
+        {{if or .WaitlistWeeks .PendingWeeks}}<p style="margin: 0 0 4px 0; font-size: 14px;">Platz bekommen:</p>{{end}}
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .Weeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+        {{if .WaitlistWeeks}}
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">Auf der Warteliste:</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .WaitlistWeeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+        {{if .PendingWeeks}}
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">Noch offen:</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .PendingWeeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+    </div>
+    {{end}}
+
+    {{if .TraegerText}}
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Hinweise vom Träger</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px; white-space: pre-line;">{{.TraegerText}}</p>
+    </div>
+    {{end}}
+
+    {{if .Waitlisted}}
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Warteliste</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Wir schreiben Ihnen dann eine E-Mail.</p>
+    </div>
+    {{end}}
+
+    {{if .Binding}}<p style="font-size: 14px;">Die Anmeldung ist verbindlich.</p>{{end}}
+
+    {{if .ParentAppURL}}
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.ParentAppURL}}">In der Eltern-App ansehen</a>
+    </div>
+    {{end}}
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

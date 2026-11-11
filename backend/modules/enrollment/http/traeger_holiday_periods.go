@@ -106,7 +106,9 @@ type HolidayPeriodRequest struct {
 	RegistrationClosesOn calendar.Date `json:"registration_closes_on"`
 	Binding              bool          `json:"binding"`
 	Notes                string        `json:"notes"`
-	HolidayWishRule      bool          `json:"holiday_wish_rule"`
+	// AcceptanceMailText is the text of the acceptance mail (#6672).
+	AcceptanceMailText string `json:"acceptance_mail_text"`
+	HolidayWishRule    bool   `json:"holiday_wish_rule"`
 	// MaxDaysPerChild bounds the care days per child, null for no bound
 	// (#4701).
 	MaxDaysPerChild *int `json:"max_days_per_child"`
@@ -132,7 +134,7 @@ func (req *HolidayPeriodRequest) input() capability.HolidayPeriodInput {
 	}
 	return capability.HolidayPeriodInput{
 		Name: req.Name, RegistrationOpensOn: req.RegistrationOpensOn, RegistrationClosesOn: req.RegistrationClosesOn,
-		Binding: req.Binding, Notes: req.Notes, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
+		Binding: req.Binding, Notes: req.Notes, AcceptanceMailText: req.AcceptanceMailText, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
 		AllocationMode: req.AllocationMode,
 	}
 }

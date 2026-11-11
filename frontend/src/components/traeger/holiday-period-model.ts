@@ -46,6 +46,8 @@ export interface HolidayPeriodDraft {
   readonly registrationClosesOn: string;
   readonly binding: boolean;
   readonly notes: string;
+  /** The Träger's text in the acceptance mail to the parents (#6672). */
+  readonly acceptanceMailText: string;
   readonly holidayWishRule: boolean;
   /** Care days per child as typed; empty is no bound (#4701). */
   readonly maxDaysPerChild: string;
@@ -57,6 +59,8 @@ export interface HolidayPeriodDraft {
 const MAX_WEEK_DAYS = 7;
 /** The backend's bound of care days per child (holiday_days.go). */
 const MAX_DAYS_PER_CHILD = 366;
+/** The backend's bound of the acceptance mail text (holiday_acceptance.go). */
+export const MAX_ACCEPTANCE_MAIL_TEXT = 2000;
 /** The backend's limits of one period (holiday_periods.go). */
 export const MAX_HOLIDAY_WEEKS = 26;
 export const MAX_TIME_MODELS_PER_WEEK = 10;
@@ -103,6 +107,7 @@ export function emptyHolidayPeriod(): HolidayPeriodDraft {
     registrationClosesOn: "",
     binding: true,
     notes: "",
+    acceptanceMailText: "",
     holidayWishRule: false,
     maxDaysPerChild: "",
     allocationMode: "arrival",
@@ -156,6 +161,7 @@ export function draftFromPeriod(period: HolidayPeriod): HolidayPeriodDraft {
     registrationClosesOn: period.registrationClosesOn,
     binding: period.binding,
     notes: period.notes,
+    acceptanceMailText: period.acceptanceMailText ?? "",
     holidayWishRule: period.holidayWishRule,
     maxDaysPerChild:
       period.maxDaysPerChild == null ? "" : String(period.maxDaysPerChild),
@@ -172,6 +178,7 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
     registrationClosesOn: draft.registrationClosesOn,
     binding: draft.binding,
     notes: draft.notes.trim(),
+    acceptanceMailText: draft.acceptanceMailText.trim(),
     holidayWishRule: draft.holidayWishRule,
     maxDaysPerChild: draft.maxDaysPerChild.trim()
       ? Number(draft.maxDaysPerChild.trim())
@@ -305,6 +312,9 @@ export function validateHolidayPeriod(
       Number(limit) > MAX_DAYS_PER_CHILD)
   ) {
     errors.max_days_per_child = `Bitte eine Zahl von 1 bis ${MAX_DAYS_PER_CHILD} eingeben oder das Feld leer lassen.`;
+  }
+  if (draft.acceptanceMailText.trim().length > MAX_ACCEPTANCE_MAIL_TEXT) {
+    errors.acceptance_mail_text = `Der Text darf höchstens ${MAX_ACCEPTANCE_MAIL_TEXT} Zeichen lang sein.`;
   }
   draft.weeks.forEach((week, index) => {
     const prefix = `weeks.${index}`;
