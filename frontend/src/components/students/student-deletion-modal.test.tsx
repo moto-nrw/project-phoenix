@@ -245,4 +245,17 @@ describe("StudentDeletionModal", () => {
       screen.queryByText("Das Kind konnte nicht gelöscht werden."),
     ).not.toBeInTheDocument();
   });
+
+  // #6652: the deletion is done once the write holds; the caller's reload
+  // runs afterwards and never holds the dialog in its deleting state.
+  it("leaves the deleting state while the caller's reload still runs", async () => {
+    const onDeleted = vi.fn(() => new Promise<boolean>(() => undefined));
+    renderModal(onDeleted);
+
+    fireEvent.click(await advanceToFinalConfirmation());
+
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("button", { name: CONFIRM })).toBeEnabled();
+    expect(mockDeleteStudent).toHaveBeenCalledTimes(1);
+  });
 });
