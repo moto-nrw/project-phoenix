@@ -73,7 +73,7 @@ const announcedHolidayRegistrationsQuery = `SELECT period.organization_id, perio
 			WHERE week.organization_id = period.organization_id AND week.holiday_period_id = period.id) AS last_day
 	FROM enrollment.holiday_periods AS period
 	WHERE period.organization_id = ANY(?) AND period.status = 'published' AND period.registration_closes_on >= ?
-	ORDER BY period.registration_opens_on, period.id`
+	ORDER BY period.registration_closes_on, period.registration_opens_on, period.id`
 
 // AnnouncedHolidayRegistrations reads the published periods of the given
 // Träger whose registration has not closed before on, in one statement

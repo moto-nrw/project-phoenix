@@ -1327,6 +1327,36 @@ export async function listMessageThreads(): Promise<ThreadSummary[]> {
   return Array.isArray(threads) ? threads : [];
 }
 
+/** A holiday period a parent can register children for (#6671). */
+export interface HolidayOffer {
+  /** The key of the period's registration link. */
+  token: string;
+  name: string;
+  traeger_name: string;
+  /** "YYYY-MM-DD" */
+  registration_opens_on: string;
+  /** "YYYY-MM-DD", the last day of the registration. */
+  registration_closes_on: string;
+  /** First and last care day, absent while the period has no weeks. */
+  first_day?: string;
+  last_day?: string;
+  open: boolean;
+  /** The account's children the period is for. */
+  children: { student_id: string; first_name: string }[];
+}
+
+/**
+ * The published holiday periods of the Träger of the account's children
+ * whose registration has not closed. Empty without a child the account may
+ * register.
+ */
+export async function listHolidayOffers(): Promise<HolidayOffer[]> {
+  const offers = await getJson<HolidayOffer[]>(
+    "/api/parent/me/holiday-registrations",
+  );
+  return Array.isArray(offers) ? offers : [];
+}
+
 /**
  * Counts the conversations with unread staff-side activity for the badge:
  * exactly the rows the inbox shows (#5200), team and leadership ones per

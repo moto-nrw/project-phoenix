@@ -335,7 +335,7 @@ type HolidayRegistrationAnnouncement struct {
 }
 
 // HolidayRegistrationAnnouncements lists the published periods of the
-// given Träger whose registration has not closed before on, by the start of
+// given Träger whose registration has not closed before on, by the end of
 // the registration. Like the link lookup it reads across Träger and
 // therefore runs only in the administrative transaction; it returns nothing
 // of a draft and no registration.

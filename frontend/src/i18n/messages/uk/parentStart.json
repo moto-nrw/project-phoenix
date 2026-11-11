@@ -33,6 +33,25 @@
     "loading": "Завантаження завдань",
     "errorObject": "повний список справ"
   },
+  "holiday": {
+    "listTitle": "Догляд у канікули",
+    "badgeOpen": "Запис відкрито",
+    "badgeUpcoming": "Запис з {date}",
+    "care": "Догляд",
+    "registration": "Запис",
+    "range": "{from} – {to}",
+    "until": "до {date}",
+    "lastDay": "Сьогодні останній день",
+    "daysLeft": "{days, plural, one {залишився # день} few {залишилося # дні} other {залишилося # днів}}",
+    "for": "Для",
+    "register": "Записати зараз",
+    "registerLabel": "{name}: Записати зараз",
+    "forChildren": "Для: {names}",
+    "offeredByTraeger": "Організатор: {traeger}",
+    "careLine": "Догляд {from} – {to}",
+    "registrationLine": "Запис до {date}",
+    "registrationRangeLine": "Запис {from} – {to}"
+  },
   "childrenLoading": "Завантаження дітей",
   "noChildren": "З вашим обліковим записом ще не пов'язано жодної дитини. Це може зробити {careTerm} вашої школи.",
   "errorObject": "огляд ваших дітей"

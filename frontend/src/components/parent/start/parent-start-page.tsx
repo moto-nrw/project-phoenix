@@ -13,6 +13,7 @@ import {
 import { isOpenDeclaration } from "~/components/parent/news/declaration-section";
 import { isOpenSurvey } from "~/components/parent/news/survey-section";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
+import { HolidayOffers } from "~/components/parent/start/holiday-offers";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -218,6 +219,8 @@ export function ParentStartPage() {
           gleicher Breite; innerhalb eines Abschnitts liegen die Kinderkarten
           weiter in einem auto-fit-Raster. */}
       <div className="space-y-5">
+        <HolidayOffers />
+
         <div data-parent-tour="start-todo">
           <StartTodoSection />
         </div>
