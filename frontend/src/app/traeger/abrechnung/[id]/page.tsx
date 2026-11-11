@@ -453,6 +453,7 @@ export default function TraegerBillingRunPage() {
                   `Ausgestellt am ${formatDate(run.issuedOn)}`
                 ) : run.numberRangeSet ? (
                   <>
+                    <span className="text-gray-600">z.&nbsp;B. </span>
                     <span className="font-mono">
                       {numberPatternPreview(
                         run.numberPattern,
