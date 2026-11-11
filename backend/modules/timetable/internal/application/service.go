@@ -26,7 +26,7 @@ func New(store internalports.Store, tx internalports.Transaction, students inter
 	if store == nil || tx == nil || students == nil || rooms == nil || sessions == nil || lockStaffAssignment == nil || today == nil || observe == nil || provenance == nil {
 		panic("timetable application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, students: students, rooms: rooms, sessions: sessions, lockStaffAssignment: lockStaffAssignment, today: today, observe: observe, provenance: provenance}
+	return &Service{store: store, tx: tx, students: students, rooms: rooms, sessions: sessions, lockStaffAssignment: skipHeldStaffRow(lockStaffAssignment), today: today, observe: observe, provenance: provenance}
 }
 
 // idSet answers membership questions the session facts port returns as lists.

@@ -352,13 +352,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) LockStaffOffboarding(ctx context.Context, staffID int64) error {\n\tif _, ok := tenant.TransactionFromContext(ctx); !ok {\n\t\treturn errors.New(\"workforce: offboarding lock requires a transaction\")\n\t}\n\tif err := s.LockStaffAbsenceWrites(ctx, staffID); err != nil {\n\t\treturn err\n\t}\n\treturn MapError(s.transaction.LockStaffShifts(ctx, staffID))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/workforce/internal/application/Service.LockStaffOffboarding",
-      "owner": "modules/workforce"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *Service) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) (result workforce.OffboardingPreview, err error) {\n\terr = s.run(ctx, \"preview_staff_offboarding\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\treturn s.transaction.RunWrite(ctx, func(txCtx context.Context) error {\n\t\t\t_, result, err = s.offboardingSnapshot(txCtx, staffID, from, stats)\n\t\t\treturn err\n\t\t})\n\t})\n\treturn result, MapError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/application/Service.PreviewStaffOffboarding",

@@ -263,7 +263,10 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0184: the suspensions of the Beleg retention of
 // modules/parentbilling, which validate and evaluate the Träger again (+2).
 // ADR 0198: the transaction-bound account-retention read adds one floor hit.
-const modulePassthroughOwnerBudgetTotal = 1404
+// Lowered by #6583: offboarding locks the whole roster in two phases (-1).
+// Lowered by ADR 0196: the holiday closure notices leave School Calendar two
+// pass-throughs fewer (-2).
+const modulePassthroughOwnerBudgetTotal = 1403
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -330,7 +333,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/studentpresence": 123,
 	"modules/timetable":       203,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
-	"modules/workforce":      140,
+	"modules/workforce":      139,
 	"workflows/openroommove": 1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.
 	"workflows/parentportal": 18,

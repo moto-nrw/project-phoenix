@@ -65,6 +65,9 @@ type deviationPlan struct {
 	finalAck     bool
 	finalAckNote *string
 	ackChanged   bool
+	// staff are the referenced staff members whose rows Phase B locks
+	// before its first block row (#6583).
+	staff []int64
 }
 
 // deviationProjection is the projected staff state of every touched
@@ -212,6 +215,20 @@ func deviationInputStaffIDs(in timetable.ApplyDeviationsInput) []int64 {
 	return set.ids
 }
 
+// lockableDeviationStaff lists the referenced staff members that exist:
+// Phase B updates their rows, adds their rows and names them in the
+// Änderungsprotokoll (whose foreign key takes a key share), so it takes their
+// staff rows first. A missing reference fails classification anyway.
+func lockableDeviationStaff(in timetable.ApplyDeviationsInput, readSet *deviationReadSet) []int64 {
+	staff := make([]int64, 0, len(readSet.staffExists))
+	for _, staffID := range deviationInputStaffIDs(in) {
+		if readSet.staffExists[staffID] {
+			staff = append(staff, staffID)
+		}
+	}
+	return staff
+}
+
 func deviationInputInstanceIDs(instanceID int64, in timetable.ApplyDeviationsInput, rows []*scheduleModel.InstanceStaff) []int64 {
 	set := newOrderedIDs()
 	set.add(instanceID)
@@ -259,6 +276,7 @@ func (s *staffDeviations) planDeviations(ctx context.Context, instanceID int64, 
 		return nil, err
 	}
 	plan.instance = locked
+	plan.staff = lockableDeviationStaff(in, readSet)
 
 	// Restoring a persisted absence must not orphan an already-assigned
 	// substitute (over-staffing). Reject before any write (#1840).
