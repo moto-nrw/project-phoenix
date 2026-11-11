@@ -88,7 +88,7 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 - The fixture catalog lives in `backend/test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
 - From `backend/`, run the gate before pushing: `../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run TestHermeticTestPatterns -v`
-- Preserve test contracts; use `.claude/rules/no-test-modifications.md` to distinguish regressions from authorized expectation changes.
+- Reshape tests freely and preserve what they assert; use `.claude/rules/no-test-modifications.md` to distinguish regressions from authorized expectation changes.
 
 ## Skipped tests
 

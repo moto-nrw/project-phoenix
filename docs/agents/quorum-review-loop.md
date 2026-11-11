@@ -83,6 +83,8 @@ time and failures. Separate server I/O, SQL waits and pool waits before adding
 throttling. Follow the [test-server lifecycle](operations.md#test-database)
 and preserve other sessions and persistent data during cleanup.
 
-Do not increase test deadlines, add retries, remove parallel tests or weaken
-assertions to make an overloaded gate pass. Follow the
-[test-contract rule](../../.claude/rules/no-test-modifications.md).
+Make an overloaded gate pass by making tests cheaper: reshape, merge or thin
+them while their assertions hold
+([test-contract rule](../../.claude/rules/no-test-modifications.md)). Test
+deadlines, retries, dropped `t.Parallel()` and weaker assertions hide the load
+instead of removing it.
