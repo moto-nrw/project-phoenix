@@ -14,12 +14,19 @@ import {
   NOTICE_RUN_STATUS_LABELS,
   NOTICE_RUN_STATUS_TONES,
   formatDelta,
+  isEmptyNoticeRun,
   noticeCountLabel,
   noticePeriod,
   noticeRateLabel,
   rateCountLabel,
 } from "~/components/traeger/care-notice-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import {
+  DiscardRunModal,
+  DiscardedRunCard,
+  EmptyRunCard,
+  type RunPeriod,
+} from "~/components/traeger/empty-run-discard";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -39,6 +46,7 @@ import { createLogger } from "~/lib/logger";
 import {
   type CareNotice,
   type CareNoticeRunDetail,
+  discardCareNoticeRun,
   fetchCareNoticeRun,
   releaseCareNoticeRun,
 } from "~/lib/traeger-care-notices-api";
@@ -114,6 +122,19 @@ const noticeColumns: DataTableColumn<CareNotice>[] = [
   },
 ];
 
+/** The year of a run as the empty and the discarded run name it (#6626). */
+function runPeriod(run: CareNoticeRunDetail): RunPeriod {
+  const schools = run.schoolIds.length;
+  return {
+    runLabel: "Jahreslauf",
+    period: noticePeriod(run.periodFrom, run.periodUntil),
+    periodNoun: "das Jahr",
+    nothing: "keinen Bescheid",
+    schools: schools === 1 ? "1 Schule" : `${schools} Schulen`,
+    createdAt: run.createdAt,
+  };
+}
+
 /** "1 Kind", "3 Kinder". */
 function childrenLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
@@ -126,6 +147,8 @@ export default function TraegerCareNoticeRunPage() {
   const [run, setRun] = useState<CareNoticeRunDetail | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const releaseErrors = useApiErrorDisplay();
@@ -173,6 +196,27 @@ export default function TraegerCareNoticeRunPage() {
     }
   };
 
+  const discard = async () => {
+    if (!run) return;
+    setDiscarding(true);
+    try {
+      setRun(await discardCareNoticeRun(run.id));
+      setConfirmingDiscard(false);
+      success(
+        `Der Lauf ist verworfen. Für ${run.year} können Sie einen neuen Jahreslauf starten.`,
+      );
+    } catch (err) {
+      logger.error("traeger_care_notice_run_discard_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setConfirmingDiscard(false);
+      void releaseErrors.show(err, { object: "der Jahreslauf" });
+      void load();
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
   const openNotice = (notice: CareNotice) =>
     router.push(
       traegerPath(
@@ -181,6 +225,8 @@ export default function TraegerCareNoticeRunPage() {
     );
 
   const preview = run?.status === "calculated";
+  const discarded = run?.status === "discarded";
+  const empty = run ? isEmptyNoticeRun(run) : false;
   const changes =
     run?.notices.filter((notice) => notice.kind === "change") ?? [];
   const canRelease =
@@ -207,7 +253,12 @@ export default function TraegerCareNoticeRunPage() {
             <span className="tabular-nums">
               {noticePeriod(run.periodFrom, run.periodUntil)}
             </span>
-            {run.issuedOn ? (
+            {discarded ? (
+              <span>
+                Verworfen am{" "}
+                {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+              </span>
+            ) : run.issuedOn ? (
               <span>
                 {run.previewCount === 0 ? "Abgeschlossen" : "Ausgestellt"} am{" "}
                 {formatDate(run.issuedOn)}
@@ -220,7 +271,16 @@ export default function TraegerCareNoticeRunPage() {
       }
       statsLoading={!run && !pageLoad.error}
       actions={
-        preview ? (
+        empty ? (
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            onClick={() => setConfirmingDiscard(true)}
+          >
+            Leeren Lauf verwerfen
+          </Button>
+        ) : preview ? (
           <Button
             type="button"
             variant="primary"
@@ -260,7 +320,15 @@ export default function TraegerCareNoticeRunPage() {
       error={pageLoad.error}
       loading={!pageLoad.error && !run}
       overlays={
-        run ? (
+        run && empty ? (
+          <DiscardRunModal
+            run={runPeriod(run)}
+            isOpen={confirmingDiscard}
+            discarding={discarding}
+            onClose={() => setConfirmingDiscard(false)}
+            onConfirm={() => void discard()}
+          />
+        ) : run ? (
           <ConfirmationModal
             isOpen={confirming}
             title={
@@ -303,7 +371,11 @@ export default function TraegerCareNoticeRunPage() {
         ) : null
       }
     >
-      {run ? (
+      {run && discarded ? (
+        <DiscardedRunCard run={runPeriod(run)} discardedAt={run.discardedAt} />
+      ) : run && empty ? (
+        <EmptyRunCard run={runPeriod(run)} />
+      ) : run ? (
         <>
           {preview && run.previewCount > 0 && run.legalRemedyMissing ? (
             <Alert

@@ -18,7 +18,14 @@ import {
   MONTH_RULE_LABELS,
   formatMonth,
   invoiceCountLabel,
+  isEmptyCareRun,
 } from "~/components/traeger/care-billing-format";
+import {
+  DiscardRunModal,
+  DiscardedRunCard,
+  EmptyRunCard,
+  type RunPeriod,
+} from "~/components/traeger/empty-run-discard";
 import {
   CareRunInvoices,
   CareDuplicatesCard,
@@ -60,6 +67,7 @@ import {
   type CareInvoice,
   type CareLetters,
   type CareRunDetail,
+  discardCareRun,
   fetchCareLetters,
   fetchCareRun,
   releaseCareRun,
@@ -130,6 +138,18 @@ function feeNoticeHeldText(held: readonly CareFeeNoticeHold[]): string {
   return `${subject} Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.`;
 }
 
+/** The month of a run as the empty and the discarded run name it (#6626). */
+function runPeriod(run: CareRunDetail): RunPeriod {
+  return {
+    runLabel: "Monatslauf",
+    period: formatMonth(run.billingMonth),
+    periodNoun: "der Monat",
+    nothing: "keine Rechnung",
+    schools: run.schools.map((school) => school.name).join(", ") || "–",
+    createdAt: run.createdAt,
+  };
+}
+
 function notBilledLabel(children: number, released = false): string {
   if (children === 1) {
     return `1 Kind mit doppeltem Vertrag ${released ? "ist" : "wird"} nicht abgerechnet.`;
@@ -144,6 +164,8 @@ export default function TraegerCareRunPage() {
   const [run, setRun] = useState<CareRunDetail | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const releaseErrors = useApiErrorDisplay();
@@ -221,6 +243,27 @@ export default function TraegerCareRunPage() {
     }
   };
 
+  const discard = async () => {
+    if (!run) return;
+    setDiscarding(true);
+    try {
+      setRun(await discardCareRun(run.id));
+      setConfirmingDiscard(false);
+      success(
+        `Der Lauf ist verworfen. Für ${formatMonth(run.billingMonth)} können Sie einen neuen Lauf starten.`,
+      );
+    } catch (err) {
+      logger.error("traeger_care_run_discard_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setConfirmingDiscard(false);
+      void releaseErrors.show(err, { object: "der Monatslauf" });
+      void load();
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
   const include = async (invoice: CareInvoice) => {
     if (!run) return;
     setReturning(`${invoice.contractId}-${invoice.service}`);
@@ -264,6 +307,8 @@ export default function TraegerCareRunPage() {
   };
 
   const preview = run?.status === "calculated";
+  const discarded = run?.status === "discarded";
+  const empty = run ? isEmptyCareRun(run) : false;
   const canRelease =
     preview &&
     !(run.previewCount > 0 && run.legalRemedyMissing) &&
@@ -293,16 +338,32 @@ export default function TraegerCareRunPage() {
               label={CARE_RUN_STATUS_LABELS[run.status]}
               tone={CARE_RUN_STATUS_TONES[run.status]}
             />
-            <span className="tabular-nums">
-              {invoiceCountLabel(run.previewCount)} ·{" "}
-              {formatEuro(run.previewCents)}
-            </span>
+            {discarded ? (
+              <span>
+                Verworfen am{" "}
+                {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+              </span>
+            ) : (
+              <span className="tabular-nums">
+                {invoiceCountLabel(run.previewCount)} ·{" "}
+                {formatEuro(run.previewCents)}
+              </span>
+            )}
           </HolidayHeadFacts>
         ) : null
       }
       statsLoading={!run && !pageLoad.error}
       actions={
-        preview ? (
+        empty ? (
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            onClick={() => setConfirmingDiscard(true)}
+          >
+            Leeren Lauf verwerfen
+          </Button>
+        ) : preview ? (
           <Button
             type="button"
             variant="primary"
@@ -317,7 +378,15 @@ export default function TraegerCareRunPage() {
       error={pageLoad.error}
       loading={!pageLoad.error && !run}
       overlays={
-        run ? (
+        run && empty ? (
+          <DiscardRunModal
+            run={runPeriod(run)}
+            isOpen={confirmingDiscard}
+            discarding={discarding}
+            onClose={() => setConfirmingDiscard(false)}
+            onConfirm={() => void discard()}
+          />
+        ) : run ? (
           <ConfirmationModal
             isOpen={confirming}
             title="Monatslauf freigeben?"
@@ -357,7 +426,11 @@ export default function TraegerCareRunPage() {
         ) : null
       }
     >
-      {run ? (
+      {run && discarded ? (
+        <DiscardedRunCard run={runPeriod(run)} discardedAt={run.discardedAt} />
+      ) : run && empty ? (
+        <EmptyRunCard run={runPeriod(run)} />
+      ) : run ? (
         <>
           {preview ? (
             <>
