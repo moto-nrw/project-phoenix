@@ -49,6 +49,9 @@ func (s *StaffBankRekeyStore) RewriteStaffBankData(ctx context.Context, schoolID
 func rewriteStaffBankRows(ctx context.Context, tx bun.IDB, schoolID, afterID int64, limit int,
 	rewrite func(*domain.StaffFinancialData) (bool, error),
 ) (workforce.BankDataRekeyResult, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.staff_financial_data"); err != nil {
+		return workforce.BankDataRekeyResult{}, err
+	}
 	var rows []staffBankRekeyRow
 	// The school filter stays explicit: the maintenance login bypasses RLS.
 	if err := tx.NewRaw(`SELECT id, staff_id, iban_sealed, iban_masked, tax_id_sealed, social_security_number_sealed

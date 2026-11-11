@@ -70,6 +70,40 @@ func (w *materializationWorld) templateStaff(tmpl *activityContract.Group, sched
 	return staff
 }
 
+// lockMaterializationStaff takes the staff row of every live supervisor the
+// run can copy, ascending and before its first occurrence row (#6702). The
+// copy itself then only re-reads held rows: two runs, or a run and a writer
+// that locks the same people, never hold one person each while they wait
+// for the other's. Offboarded people are left out; a supervisor row of an
+// offboarded person never reaches a future occurrence.
+func (s *materializationService) lockMaterializationStaff(
+	ctx context.Context,
+	templates []*activityContract.Group,
+	schedules map[int64][]*activityContract.Schedule,
+	people map[int64]templateRoster,
+	world *materializationWorld,
+) error {
+	var staff []int64
+	for _, tmpl := range templates {
+		staff = append(staff, world.templateStaff(tmpl, schedules[tmpl.ID], people[tmpl.ID].supervisors)...)
+	}
+	if len(staff) == 0 {
+		return nil
+	}
+	live, err := s.directories.StaffPersons(ctx, staff, false)
+	if err != nil {
+		return &ports.ScheduleError{Op: "materialize for tenant: load supervisor staff", Err: err}
+	}
+	ids := make([]int64, 0, len(live))
+	for id := range live {
+		ids = append(ids, id)
+	}
+	if err := lockStaffRows(ctx, s.staffRepo, ids); err != nil {
+		return &ports.ScheduleError{Op: "materialize for tenant: lock supervisor staff", Err: err}
+	}
+	return nil
+}
+
 // A candidate may already be occupied by immutable history of a retired
 // person. Materialization skips that slot; a retired person needs no lock.
 func (s *InstanceLifecycleService) liveMaterializationStaff(ctx context.Context, ids []int64) ([]int64, error) {

@@ -39,7 +39,12 @@ func (r TenantSettingsRuntime) DB(ctx context.Context) (bun.IDB, error) {
 	return tenant.CurrentTransaction[bun.IDB](ctx)
 }
 
+// LockStaffBalance takes Workforce's staff balance gate, admitted in the
+// unit of work's lock order first (#6702).
 func (r TenantSettingsRuntime) LockStaffBalance(ctx context.Context, staffID int64) error {
+	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, false)); err != nil {
+		return err
+	}
 	return app.LockSettingStaffBalance(ctx, staffID, r.TenantID, r.AcquireLock)
 }
 

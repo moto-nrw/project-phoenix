@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -89,6 +90,9 @@ func (s *Store) FindGroup(ctx context.Context, id int64, lock string) (timetable
 	query := db.NewSelect().Model(&row).ModelTableExpr(`activities.groups AS "group"`).ColumnExpr(`"group".*`).
 		Where(`"group".tenant_id = ?`, tenantID).Where(`"group".id = ?`, id)
 	if lock != "" {
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "activities.groups"); err != nil {
+			return timetable.Group{}, false, domain.OperationStats{}, err
+		}
 		query = query.For(lock)
 	}
 	found, stats, err := scanOne(ctx, query, "find group")

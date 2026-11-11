@@ -1,0 +1,239 @@
+package test
+
+import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// Every lock a Timetable, Workforce or School Membership transaction takes,
+// and every lock of the workflows that compose them, is admitted through the
+// unit of work's lock order (tenant.OrderLock) before it can wait (#6702).
+// The ledger then refuses a gate, day or staff row after a later lock, and a
+// staff row below one the transaction already holds, so a writer fails
+// instead of closing a 40P01 cycle with offboarding, a sick report or
+// another writer. The lock classes and their order are documented on
+// tenant.LockClass.
+//
+// The scan covers every non-test Go file under rowLockAdmissionRoots and the
+// listed files of other owners whose locks take part in the same protocol
+// (offboarding's person and supervision rows, the staff person merge). A lock
+// site is a BUN For(...) call or a string literal or package constant with
+// FOR UPDATE / FOR NO KEY UPDATE / FOR SHARE / FOR KEY SHARE, LOCK TABLE or a
+// pg_advisory lock. Each site needs a tenant.OrderLock call before it in the
+// same or an enclosing function whose error is used.
+//
+// rowLockPrimitives lists the lock statements whose key is a parameter: they
+// cannot know the class, so the callers admit. Every file that may reference
+// a primitive is listed with it and must itself call tenant.OrderLock.
+var rowLockAdmissionRoots = []string{
+	"modules/timetable",
+	"modules/workforce",
+	"modules/schoolmembership",
+	"workflows/shiftplansync",
+	"workflows/staffoffboarding",
+	"workflows/staffpersonmerge",
+}
+
+var rowLockAdmissionFiles = []string{
+	"api/timetable_advisory_locks.go",
+	"modules/studentpresence/internal/application/presence/presence_guards.go",
+	"modules/peopledirectory/internal/adapters/peoplepostgres/person.go",
+	"modules/peopledirectory/internal/adapters/postgres/staff_person_merge.go",
+	"modules/studentpresence/internal/adapters/postgres/offboarding.go",
+}
+
+type rowLockPrimitive struct {
+	// site is "file#Function" of the lock statement.
+	site string
+	// refs are the source texts that reference the primitive.
+	refs   []string
+	reason string
+	// callers hand it a key; each calls tenant.OrderLock first.
+	callers []string
+	// wiring binds the primitive to an admitting acquirer and takes no lock
+	// of its own.
+	wiring []string
+}
+
+var rowLockPrimitives = []rowLockPrimitive{
+	{
+		site:   "modules/timetable/internal/adapters/postgres/store.go#Store.AcquireTransactionLock",
+		refs:   []string{".AcquireTransactionLock"},
+		reason: "the recurrence and grade-transition gates and the day locks share one advisory statement",
+		callers: []string{
+			"modules/timetable/internal/adapters/postgres/native_compose_bindings_recurrence_lock.go",
+		},
+		wiring: []string{
+			"modules/timetable/ports/tenant_transactions.go",
+			"modules/timetable/internal/adapters/postgres/native_compose_bindings_instance_lifecycle_ports.go",
+			// Both hand the statement to lockScheduleDays (day_locks.go),
+			// which admits every day before it calls it.
+			"modules/timetable/internal/application/staff_deviations.go",
+			"modules/timetable/internal/application/instance_lifecycle.go",
+		},
+	},
+	{
+		site:   "modules/workforce/internal/adapters/postgres/absence_store.go#Store.AcquireXactLock",
+		refs:   []string{"store.AcquireXactLock", "New(DatabaseRuntime(db)).AcquireXactLock"},
+		reason: "Workforce's per-staff gates share one advisory statement; the gate functions admit (TestOrderedLocksHaveOneAcquirer)",
+		callers: []string{
+			"modules/workforce/internal/adapters/postgres/native_compose_bindings_staff_shift_lock.go",
+		},
+		wiring: []string{
+			"modules/workforce/compose/new.go",
+			"modules/workforce/compose/documentcleanup.go",
+			"modules/workforce/compose/staffadmin.go",
+		},
+	},
+	{
+		site:   "modules/workforce/internal/adapters/postgres/native_compose_bindings_staff_shift_lock.go#AcquireXactLock",
+		refs:   []string{"postgres.AcquireXactLock(", "AcquireXactLock(ctx, key, New("},
+		reason: "Workforce's per-staff gates share one advisory statement; the gate functions admit (TestOrderedLocksHaveOneAcquirer)",
+		callers: []string{
+			"modules/workforce/internal/adapters/postgres/native_compose_bindings_staff_shift_lock.go",
+		},
+		wiring: []string{
+			// transaction.acquireXactLock hands it to the gate functions.
+			"modules/workforce/compose/new.go",
+		},
+	},
+	{
+		site:   "api/timetable_advisory_locks.go#timetableAdvisoryLocks.AcquireXactLock",
+		refs:   []string{"Advisory.AcquireXactLock"},
+		reason: "the spontaneous start's advisory locks run on the root's tenant runtime",
+		callers: []string{
+			"modules/timetable/internal/application/timetable_data_spontaneous.go",
+		},
+	},
+}
+
+func TestRowLocksAreAdmittedThroughTheLockOrder(t *testing.T) {
+	t.Parallel()
+	root, err := findBackendRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	primitives := map[string]rowLockPrimitive{}
+	for _, primitive := range rowLockPrimitives {
+		primitives[primitive.site] = primitive
+	}
+	files, err := rowLockAdmissionScope(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seenPrimitives := map[string]bool{}
+	for _, rel := range files {
+		source, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		sites, err := scanRowLockSites(rel, source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, site := range sites {
+			if _, ok := primitives[rel+"#"+site.function]; ok {
+				seenPrimitives[rel+"#"+site.function] = true
+				continue
+			}
+			if !site.admitted {
+				t.Errorf("%s takes a lock without tenant.OrderLock before it: admit the lock in its class (tenant.LockClass) first", site)
+			}
+		}
+	}
+	for _, primitive := range rowLockPrimitives {
+		if !seenPrimitives[primitive.site] {
+			t.Errorf("rowLockPrimitives lists %s, which holds no lock statement any more: remove the entry", primitive.site)
+		}
+		checkRowLockPrimitiveCallers(t, root, primitive)
+	}
+}
+
+func rowLockAdmissionScope(root string) ([]string, error) {
+	var files []string
+	for _, dir := range rowLockAdmissionRoots {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				if strings.HasPrefix(entry.Name(), ".") || entry.Name() == "testdata" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			files = append(files, filepath.ToSlash(rel))
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return append(files, rowLockAdmissionFiles...), nil
+}
+
+// checkRowLockPrimitiveCallers requires every production reference to the
+// primitive to sit in a listed caller that admits, or in listed wiring.
+func checkRowLockPrimitiveCallers(t *testing.T, root string, primitive rowLockPrimitive) {
+	t.Helper()
+	allowed := map[string]bool{strings.SplitN(primitive.site, "#", 2)[0]: true}
+	for _, file := range primitive.wiring {
+		allowed[file] = true
+	}
+	for _, file := range primitive.callers {
+		allowed[file] = true
+		source, err := os.ReadFile(filepath.Join(root, file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(source), "tenant.OrderLock(") {
+			t.Errorf("%s hands a key to %s without tenant.OrderLock", file, primitive.site)
+		}
+	}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if strings.HasPrefix(entry.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		referenced := false
+		for _, ref := range primitive.refs {
+			referenced = referenced || strings.Contains(string(source), ref)
+		}
+		if !referenced {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if !allowed[filepath.ToSlash(rel)] {
+			t.Errorf("%s references the lock primitive %s (%s); take the lock through its admitting caller instead", filepath.ToSlash(rel), primitive.site, primitive.reason)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

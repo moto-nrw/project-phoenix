@@ -104,6 +104,9 @@ func (s *service) lockStaffForSupervision(ctx context.Context, staffID int64) er
 	if tenant.FromContext(ctx) <= 0 || staffID <= 0 {
 		return ErrStaffNotFound
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, false)); err != nil {
+		return err
+	}
 	if err := tenant.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenant.FromContext(ctx), staffID), false); err != nil {
 		return err
 	}

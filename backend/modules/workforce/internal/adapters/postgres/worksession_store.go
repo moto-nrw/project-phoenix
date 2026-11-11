@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -52,6 +53,9 @@ func (s *Store) LockOpenWorkSession(ctx context.Context, id int64) (workforce.Wo
 	if err != nil {
 		return workforce.WorkSession{}, false, domain.OperationStats{}, err
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "active.work_sessions"); err != nil {
+		return workforce.WorkSession{}, false, domain.OperationStats{}, err
+	}
 	row := &workSessionRow{}
 	query := withTenant(db.NewSelect().Model(row).
 		ModelTableExpr(tableWorkSessions+` AS "work_session"`).
@@ -77,6 +81,9 @@ func (s *Store) OpenWorkSessionOn(ctx context.Context, staffID int64, date strin
 		Where(`"work_session".date = ?`, date).
 		Where(`"work_session".check_out_time IS NULL`), aliasWorkSession, scope)
 	if lock {
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "active.work_sessions"); err != nil {
+			return workforce.WorkSession{}, false, domain.OperationStats{}, err
+		}
 		query = query.For("UPDATE")
 	}
 	found, stats, err := scanOne(ctx, query, "find open work session on day")
