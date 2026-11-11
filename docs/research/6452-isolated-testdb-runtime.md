@@ -261,9 +261,10 @@ Nicht bestätigt:
 - `STRATEGY FILE_COPY` gegenüber `WAL_LOG`, je sechs Clones des 43-MB-Templates
   im Wechsel bei Load 420: 65 bis 721 ms gegenüber 226 bis 810 ms. Kein
   belastbarer Unterschied, keine Änderung.
-- fsync des Exports: `TestTenantExport*` mit `TMPDIR` auf tmpfs gegenüber btrfs,
-  je zwei Läufe im Wechsel: 34,3/54,6 s gegenüber 48,6/52,8 s. Auf diesem
-  Rechner kein Unterschied. `F_FULLFSYNC` unter macOS ist damit nicht geprüft.
+- fsync des Exports mit `TMPDIR` auf btrfs im direkten Aufruf: zunächst kein
+  Unterschied (34,3/54,6 s auf tmpfs gegenüber 48,6/52,8 s, nur
+  `TestTenantExport*`). Der Befund kippte in der Umgebung des Gates, siehe
+  „fsync im Gate“.
 
 ### Zeitabhängige Erwartungen
 
@@ -291,7 +292,10 @@ die Löschung beginnt nach 250 ms Budget keinen Auftrag mehr.
    (`waitForLocks`). Mit den 100 ms der Produktion musste der Test das Warten
    sehen und den Halter committen, bevor der Lauf aufgab; im Gate nach dem
    Rebase scheiterte daran `TestDemoErasureIncludesASendOfAConcurrentRelease`
-   (Paket 499 s, vermutlich mit Neuaufbau des Templates).
+   (Paket 499 s).
+6. Der Export ruft das `fsync` seiner Artefakte über eine Paketvariable auf;
+   `tenantexport.SkipFileSyncForTests` (Build-Tag `testhooks`) schaltet es für
+   die Tests dieses Pakets ab. Produktionsverhalten unverändert.
 
 ### Nachher
 
@@ -328,6 +332,35 @@ Clone, auf dem geteilten 1,3 bis 6 s. Was die Lifecycles aufbläht, ist also
 die Belegung des geteilten Testservers durch andere Sessions (129 Datenbanken
 bei der Stichprobe), nicht die CPU-Last des Rechners. Der Slot machte daraus
 die Paketzeit, weil er alle Lifecycles hintereinander legte.
+
+### fsync im Gate
+
+Das Gate blieb trotzdem langsam: 179,7 bis 346,6 s für das Paket, nach dem
+Rebase 296,7 s und einmal 499,3 s. Der Unterschied zum direkten Aufruf:
+`scripts/go-test-workspace.sh` legt `TMPDIR` in den Go-Build-Cache, hier auf
+btrfs, während `/tmp` tmpfs ist. Der Export sichert jedes Artefakt mit
+`fsync`, mehrere hundert Dateien je Paket. Derselbe Stand mit `TMPDIR` im
+Cache-Verzeichnis, geteilter Server, Per-Test-Datenbanken, im Wechsel mit und
+ohne `fsync` (`tenantexport.SkipFileSyncForTests`), Load-1 28 bis 43:
+
+| Lauf | Paket | Testkörper Σ | davon `TestTenantExport*`/`TestPersonExport*` (Laufzeit Σ) |
+| --- | ---: | ---: | ---: |
+| ohne fsync 1 | 95,4 s | 191,3 s | 294,2 s |
+| mit fsync 1 | 562,8 s | 3921,3 s | 3953,8 s |
+| ohne fsync 2 | 86,2 s | 172,5 s | 188,8 s |
+| mit fsync 2 | 394,6 s | 1698,8 s | 1768,3 s |
+
+Einzelne Export-Tests brauchten mit `fsync` bis 399 s. Im Slot-Modus liefen
+diese Testkörper zusätzlich nacheinander und kamen zu den Clone-Lifecycles
+hinzu. Das passt zu den 500 bis 535 s und den Paket-Timeouts des
+Ausgangsbefunds; im Slot-Modus mit `fsync` ist es hier nicht eigens gemessen.
+Die Tests dieses Pakets schalten das `fsync` der Artefakte deshalb
+ab; die Tests des Rückgabe-Befehls in `backend/cmd` behalten es. Ein Lauf mit
+`fsync` zeigte außerdem einen Durchgang, der keinen Auftrag löschte
+(`TestDemoSchoolQueueErasesTheMonthlyLettersOfTheRetiredSchool`): Das Budget
+von 250 ms läuft ab Funktionsbeginn, bei stockender Datenbank also schon vor
+dem ersten Auftrag. Ohne die fsync-Last trat das in keinem Lauf auf; nicht
+geändert.
 
 Der Preis: 32 Clones mehr je Paketlauf und etwa doppelt so viel aufsummierte
 Datenbankarbeit, weil die Lifecycles einander bremsen. Bis zu acht statt
