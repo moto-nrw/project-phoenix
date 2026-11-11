@@ -320,16 +320,13 @@ export default function StaffDetailContent() {
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
   const hasAccess = hasSessionAccess(session);
 
-  const readRecord = recordRequest.readCurrent;
-  const readProfile = profileRequest.readCurrent;
   const reloadRecord = useCallback(async () => {
     await Promise.all([
       tenantMutate(staffKeys.recordKey(staffId)),
       tenantMutate(staffKeys.profileKey(staffId)),
       refreshStaffFamily(),
     ]);
-    return { error: readRecord?.().error ?? readProfile?.().error };
-  }, [staffId, tenantMutate, refreshStaffFamily, readRecord, readProfile]);
+  }, [staffId, tenantMutate, refreshStaffFamily]);
   // Nachladen nach einem gelungenen Schreiben: ein Fehler dabei ist ein
   // Ladefehler über dem Reiter, kein Fehler der Aktion (#6636).
   const recordRefresh = useRefreshAfterWrite(

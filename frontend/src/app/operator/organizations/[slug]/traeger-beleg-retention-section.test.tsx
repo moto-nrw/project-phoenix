@@ -12,10 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
-import {
-  SAVED_BUT_STALE_SUFFIX,
-  STALE_DATA_SUFFIX,
-} from "~/lib/hooks/use-refresh-after-write";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
   belegRetentionService,
   mapBelegRetentionOverview,
@@ -572,8 +569,6 @@ describe("TraegerBelegRetentionSection reload errors", () => {
     ).toBeInTheDocument();
     const message = `${loadText} ${STALE_DATA_SUFFIX}`;
     expect(screen.getByText(message)).toBeInTheDocument();
-    const savedMessage = `${catalogText("general.unavailable", "die Anzeige der Aussetzungen")} ${SAVED_BUT_STALE_SUFFIX}`;
-    expect(await screen.findByText(savedMessage)).toBeVisible();
     expect(
       screen.queryByText(
         catalogText("general.unavailable", "die Aufhebung der Aussetzung"),
@@ -581,7 +576,7 @@ describe("TraegerBelegRetentionSection reload errors", () => {
     ).not.toBeInTheDocument();
 
     mockGetOverview.mockResolvedValue(overview);
-    const alert = screen.getByText(savedMessage).closest('[role="alert"]');
+    const alert = screen.getByText(message).closest('[role="alert"]');
     expect(alert).not.toBeNull();
     await user.click(
       within(alert as HTMLElement).getByRole("button", {
