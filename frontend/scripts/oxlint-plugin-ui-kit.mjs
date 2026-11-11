@@ -5906,7 +5906,9 @@ const noHandRolledCopyField = {
 // Gespreizte Props (`{...props}`) gelten als erfüllt: ob der Typ hinter
 // `props` einen `tooltip` durchreicht, ist ohne Typinformation nicht
 // entscheidbar, und eine Meldung wäre dann geraten. Nur ein gespreiztes
-// Objektliteral wird geprüft, weil seine Schlüssel im Code stehen.
+// Objektliteral wird geprüft, weil seine Schlüssel im Code stehen. Steht ein
+// unbekannter Spread hinter `tooltip`/`noTooltip`, wird gemeldet: Er kann die
+// Erklärung überschreiben, und der Spread davor kostet nichts.
 //
 // Die Regel gilt nur in TOOLTIP_SCOPE. Die Liste wächst nur: Jedes
 // Bereichs-Ticket des Epics trägt seine Ordner oder Dateien ein. Ordner enden
@@ -5935,9 +5937,14 @@ function tooltipPropsFromAttributes(openingElement) {
     title: null,
   };
   let unknownSpread = false;
+  // Ein unbekannter Spread hinter `tooltip`/`noTooltip` kann die Erklärung zur
+  // Laufzeit überschreiben, auch mit `undefined`.
+  let spreadAfterExplanation = false;
   for (const attribute of openingElement.attributes) {
     if (attribute.type === "JSXAttribute") {
       const name = attribute.name?.name;
+      if (name === "tooltip" || name === "noTooltip")
+        spreadAfterExplanation = false;
       if (name === "tooltip" || name === "noTooltip" || name === "title") {
         props[name] = {
           node: attribute,
@@ -5950,11 +5957,13 @@ function tooltipPropsFromAttributes(openingElement) {
     const argument = attribute.argument;
     if (argument?.type !== "ObjectExpression") {
       unknownSpread = true;
+      if (props.tooltip || props.noTooltip) spreadAfterExplanation = true;
       continue;
     }
     for (const property of argument.properties) {
       if (property.type === "SpreadElement") {
         unknownSpread = true;
+        if (props.tooltip || props.noTooltip) spreadAfterExplanation = true;
         continue;
       }
       const name = propertyName(property);
@@ -5967,7 +5976,7 @@ function tooltipPropsFromAttributes(openingElement) {
       }
     }
   }
-  return { props, unknownSpread };
+  return { props, unknownSpread, spreadAfterExplanation };
 }
 
 /** Static string of an expression, also from a template without expressions. */
@@ -6079,7 +6088,9 @@ const buttonNeedsTooltip = {
       emptyTooltip:
         'Leerer `tooltip`: einen Satz zur Folge des Klicks schreiben oder `noTooltip="<Grund>"` setzen (#6643).',
       conflictingExplanation:
-        '`tooltip` und `noTooltip` dürfen nicht zusammen gesetzt sein (#6643).',
+        "`tooltip` und `noTooltip` dürfen nicht zusammen gesetzt sein (#6643).",
+      spreadAfterExplanation:
+        "Gespreizte Props hinter `tooltip`/`noTooltip` können die Erklärung überschreiben: den Spread vor die Erklärung stellen (#6643).",
       missingHint:
         'Element in Knopf-Optik ohne Erklärung: in `ActionHint text="…"` einschließen (#6643).',
     },
@@ -6123,8 +6134,11 @@ const buttonNeedsTooltip = {
         const name = jsxName(node.name);
         if (name === null || actionHints.has(name)) return;
         if (bindings.kitButtons.has(name)) {
-          const { props: tooltipProps, unknownSpread } =
-            tooltipPropsFromAttributes(node);
+          const {
+            props: tooltipProps,
+            unknownSpread,
+            spreadAfterExplanation,
+          } = tooltipPropsFromAttributes(node);
           const { title, tooltip, noTooltip } = tooltipProps;
           if (title) {
             context.report({ node: title.node, messageId: "title" });
@@ -6135,6 +6149,10 @@ const buttonNeedsTooltip = {
               node: noTooltip.node,
               messageId: "conflictingExplanation",
             });
+            return;
+          }
+          if ((tooltip || noTooltip) && spreadAfterExplanation) {
+            context.report({ node, messageId: "spreadAfterExplanation" });
             return;
           }
           if (tooltip) {

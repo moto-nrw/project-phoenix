@@ -4639,6 +4639,10 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     ],
     ["spread props", `<Button {...props}>Weiter</Button>`],
     [
+      "spread props before the tooltip",
+      `<Button {...props} tooltip="Öffnet die Akte.">Akte</Button>`,
+    ],
+    [
       "a tooltip from a spread object literal",
       `<Button {...{ tooltip: "Öffnet die Akte." }}>Akte</Button>`,
     ],
@@ -4744,6 +4748,11 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
       "a button-looking label through a constant",
       `<label className={look}>Datei</label>`,
       "in `ActionHint text=",
+    ],
+    [
+      "an unknown spread after the tooltip",
+      `<Button tooltip="Öffnet die Akte." {...props}>Akte</Button>`,
+      "Spread vor die Erklärung",
     ],
     [
       "a noTooltip set to undefined",
