@@ -1737,6 +1737,39 @@ describe("OperatorOrganizationDetailPage", () => {
       expect(mockCreateSampleChildren).toHaveBeenCalledTimes(1);
     });
 
+    it("keeps a restored school restored when the portal cache reload fails", async () => {
+      currentSearchParams = new URLSearchParams("tab=schulen");
+      mockRestoreSchool.mockResolvedValue(undefined);
+      vi.mocked(revalidateTenantCache).mockRejectedValueOnce(down());
+      setupSWR({
+        schools: [
+          mockSchool,
+          {
+            ...mockSchool,
+            id: "20",
+            name: "Deleted School",
+            subdomain: "deleted-school",
+            deletedAt: "2025-06-01T00:00:00Z",
+          },
+        ],
+      });
+
+      await renderPage();
+      fireEvent.click(await screen.findByText("Papierkorb (1)"));
+      fireEvent.click(await screen.findByText("Wiederherstellen"));
+      fireEvent.click(await screen.findByTestId("confirm-btn"));
+
+      expect(
+        await screen.findByText(reloadText("die Anzeige der Schulen")),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("confirmation-modal")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(revalidateTenantCache).toHaveBeenCalledTimes(2),
+      );
+      expect(mockRestoreSchool).toHaveBeenCalledTimes(1);
+    });
+
     describe("in the Träger-Büro", () => {
       const invitation = {
         id: "7",

@@ -258,7 +258,8 @@ export function CaregiverCapabilityModal({
       }
       if (op.isCurrent()) setState(nextState);
       toastSuccess(`Die Betreuung für ${accountLabel} ist eingeschaltet.`);
-      await onUpdated?.();
+      // Never rejects; the dialog does not wait for the page's reload.
+      void onUpdated?.();
     });
   }
 
@@ -319,7 +320,8 @@ export function CaregiverCapabilityModal({
       }
       if (op.isCurrent()) setState(nextState);
       toastSuccess(`Die Betreuung für ${accountLabel} ist ausgeschaltet.`);
-      await onUpdated?.();
+      // Never rejects; the dialog does not wait for the page's reload.
+      void onUpdated?.();
     });
   }
 

@@ -331,7 +331,8 @@ export function AccountTenantAccessModal({
       // Ein gescheitertes Nachladen zeigt die Seite als Ladefehler (#6652).
       if (op.isCurrent()) setAccess(next);
       toastSuccess(successMessage);
-      await onUpdated?.();
+      // Never rejects; the dialog does not wait for the page's reload.
+      void onUpdated?.();
       return op.isCurrent();
     });
     return ok === true;

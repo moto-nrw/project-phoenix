@@ -194,6 +194,35 @@ describe("EditSchoolModal", () => {
   });
 
   // Replies from parents reach the school only through this address (#2872).
+  // #6652: the portal cache reloads after the write and outside its catch: a
+  // failed reload is no failed change and leaves no retry that saves again.
+  it("closes a saved change even when the portal cache reload would fail", async () => {
+    mockUpdateSchool.mockResolvedValue(mockSchool);
+    mockRevalidateTenantCache.mockRejectedValue(new Error("cache down"));
+    const updated = vi.fn().mockResolvedValue(false);
+
+    render(
+      <EditSchoolModal
+        isOpen={true}
+        onClose={onClose}
+        school={mockSchool}
+        organizations={[mockOrg]}
+        onUpdated={updated}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("switch", { name: "Sichtbarkeit umschalten" }),
+    );
+    fireEvent.click(screen.getByText("Speichern"));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(updated).toHaveBeenCalledWith(["test-school", "test-school"]);
+    expect(mockUpdateSchool).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText(/Die Änderung an der Schule/),
+    ).not.toBeInTheDocument();
+  });
+
   it("cannot clear an existing contact email", () => {
     render(
       <EditSchoolModal
