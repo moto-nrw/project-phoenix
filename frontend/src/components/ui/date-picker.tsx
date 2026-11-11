@@ -686,12 +686,18 @@ export function ISODatePicker({
 }) {
   // Hint and error belong to the field hull here rather than to DatePicker,
   // so the hint reads before the error as in the kit `Input`.
+  // Only a caller's id links the error to the trigger; without one the error
+  // stays unlinked, as before #6579 (decision pending in #6800).
   const ids = useFieldIds({
     id: rest.id,
     hint,
-    error,
+    error: rest.id ? error : undefined,
     describedBy: rest.ariaDescribedBy,
   });
+  const shellIds = {
+    ...ids,
+    errorId: error ? `${ids.id}-error` : undefined,
+  };
   const picker = (
     <DatePicker
       {...rest}
@@ -709,10 +715,10 @@ export function ISODatePicker({
 
   return (
     <FieldShell
-      ids={ids}
+      ids={shellIds}
       label={label}
       // Only a caller's id links the label to the trigger; without one the
-      // trigger keeps its date text as its name, as before #6579.
+      // trigger keeps its date text as its name, as before #6579 (#6800).
       labelFor={rest.id ?? null}
       required={rest.required}
       invalid={Boolean(error)}
