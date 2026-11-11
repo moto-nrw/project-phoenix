@@ -378,6 +378,17 @@ export function PersonalInfoEditPanel({
     setEditedStudent((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Bei ausgeschalteten Kinderfotos liefert die Akte kein
+  // `photo_consent_given`, wohl aber die Einwilligungsliste. Eine dort
+  // hinterlegte Foto-Einwilligung bleibt so entfernbar (#6650); ohne
+  // Änderung bleibt das Feld leer und geht nicht in den Speicherauftrag.
+  const standingPhotoConsent =
+    student.photo_consent_given ??
+    (student.consents?.some(
+      (consent) => consent.key === "photo" && consent.state === "granted",
+    ) ||
+      false);
+
   // Ein Foto ohne Einwilligung gibt es nicht: nimmt jemand die Einwilligung
   // zurück, fällt ein gewählter, noch nicht gespeicherter Entwurf weg.
   const handlePhotoConsentChange = useCallback((value: boolean) => {
@@ -836,11 +847,13 @@ export function PersonalInfoEditPanel({
       {/* Ausgeschaltete Fotos verbergen nur das Hochladen: Eine bestehende
           Einwilligung bleibt entfernbar, damit das Team einen Widerruf von
           Eltern ohne Elternportal eintragen kann (#6650). */}
-      {photosEnabled || student.photo_consent_given ? (
+      {photosEnabled || standingPhotoConsent ? (
         <StudentPhotoSection
           uploadsEnabled={photosEnabled}
           student={editedStudent}
-          consentGiven={Boolean(editedStudent.photo_consent_given)}
+          consentGiven={
+            editedStudent.photo_consent_given ?? standingPhotoConsent
+          }
           onConsentChange={handlePhotoConsentChange}
           pendingPhotoBlob={pendingPhotoBlob}
           pendingPhotoRemoved={pendingPhotoRemoved}

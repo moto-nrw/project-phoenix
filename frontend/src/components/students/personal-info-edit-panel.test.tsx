@@ -911,13 +911,26 @@ describe("PersonalInfoEditPanel", () => {
       render(
         <PersonalInfoEditPanel
           onCancel={mockOnCancel}
-          student={createMockStudent({ photo_consent_given: true })}
+          // So liefert die Akte ein Kind bei ausgeschalteten Fotos: ohne
+          // photo_consent_given, mit der Einwilligung in der Liste.
+          student={createMockStudent({
+            consents: [
+              {
+                key: "photo",
+                state: "granted",
+                changed_at: "2026-09-01T08:00:00Z",
+              },
+            ],
+          })}
           onSave={mockOnSave}
         />,
       );
 
       const section = screen.getByTestId("photo-section");
       expect(section).toHaveAttribute("data-uploads", "0");
+      expect(screen.getByTestId("toggle-photo-consent")).toHaveTextContent(
+        "Einwilligung liegt vor",
+      );
       fireEvent.click(screen.getByTestId("toggle-photo-consent"));
       fireEvent.click(screen.getByText("Speichern"));
 
