@@ -1,7 +1,11 @@
 import * as React from "react";
 
 import type { StudentLocationContext } from "@/lib/location-helper";
-import { locationPillShape } from "./location-badge";
+import {
+  formatLocationSince,
+  locationPillShape,
+  showsLocationSince,
+} from "./location-badge";
 import { PresenceHint } from "./presence-hint";
 import { StatusColorBadge } from "./status-color-badge";
 import {
@@ -11,6 +15,7 @@ import {
   isInClassLocation,
   isNotCheckedInLocation,
   isSchoolyardLocation,
+  isTransitLocation,
   parseLocation,
 } from "@/lib/location-helper";
 
@@ -40,9 +45,7 @@ import {
  * into "anwesend" when this component is reached via the wrapper in
  * unexpected circumstances.
  */
-function derivePresenceState(
-  location?: string | null,
-): "anwesend" | "schulhof" | "abwesend" {
+function derivePresenceState(location?: string | null): PresenceState {
   if (isNotCheckedInLocation(location)) {
     return "abwesend";
   }
@@ -50,22 +53,6 @@ function derivePresenceState(
     return "schulhof";
   }
   return "anwesend";
-}
-
-function formatLocationSince(
-  isoTimestamp: string | null | undefined,
-): string | null {
-  if (!isoTimestamp) return null;
-  try {
-    const date = new Date(isoTimestamp);
-    if (Number.isNaN(date.getTime())) return null;
-    return date.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return null;
-  }
 }
 
 interface PresenceBadgeProps {
@@ -78,12 +65,16 @@ interface PresenceBadgeProps {
 
 const DEFAULT_SIZE = "md";
 
+type PresenceState = "anwesend" | "schulhof" | "abwesend";
+type BadgeStyle = { label: string; color: string };
+
 // Sick/excused status takes visual precedence over absence (a sick student
 // at home reads as "Krank", not "Abwesend") — matches LocationBadge behaviour.
-function resolveBadgeStyle(
-  state: "anwesend" | "schulhof" | "abwesend",
+// Null when no day status replaces the location.
+function resolveDayStatusStyle(
+  state: PresenceState,
   student: StudentLocationContext,
-): { label: string; color: string } {
+): BadgeStyle | null {
   const atHome = state === "abwesend";
   if (student.sick && atHome) {
     return { label: LOCATION_STATUSES.SICK, color: LOCATION_COLORS.SICK };
@@ -103,7 +94,14 @@ function resolveBadgeStyle(
       color: LOCATION_COLORS.NOT_ARRIVAL,
     };
   }
+  return null;
+}
 
+/** The location the pill shows when no day status replaces it. */
+function resolveLocationStyle(
+  state: PresenceState,
+  student: StudentLocationContext,
+): BadgeStyle {
   switch (state) {
     case "anwesend":
       return {
@@ -146,8 +144,11 @@ export function PresenceBadge({
   size = DEFAULT_SIZE,
   showLocationSince = false,
 }: PresenceBadgeProps) {
+  const parsedLocation = parseLocation(student.current_location);
   const state = derivePresenceState(student.current_location);
-  const { label, color } = resolveBadgeStyle(state, student);
+  const location = resolveLocationStyle(state, student);
+  const dayStatus = resolveDayStatusStyle(state, student);
+  const { label, color } = dayStatus ?? location;
 
   const sizeKey = size ?? DEFAULT_SIZE;
 
@@ -182,12 +183,23 @@ export function PresenceBadge({
           : null;
   const timeSource = replaceTimeSource ?? student.location_since;
   const formattedTime = formatLocationSince(timeSource);
-  const showSinceTime = showLocationSince && formattedTime !== null;
+  const locationStatusForSince =
+    // A room name has no status prefix but is displayed as „Anwesend“ in
+    // binary mode. Unknown and missing locations must not inherit that time.
+    parsedLocation.status === LOCATION_STATUSES.UNKNOWN
+      ? parsedLocation.status
+      : isTransitLocation(student.current_location)
+        ? LOCATION_STATUSES.TRANSIT
+        : location.label;
+  const showSinceTime =
+    showLocationSince &&
+    formattedTime !== null &&
+    showsLocationSince(locationStatusForSince, replaceTimeSource !== null);
 
-  const dataStatus = parseLocation(student.current_location).status;
+  const dataStatus = parsedLocation.status;
 
   return (
-    <div className="flex flex-col items-end">
+    <div className="flex max-w-full min-w-0 flex-col items-end">
       <StatusColorBadge
         {...locationPillShape(sizeKey, variant)}
         wrap
@@ -195,6 +207,11 @@ export function PresenceBadge({
         color={color}
         data-location-status={dataStatus}
         data-presence-state={state}
+        title={
+          label === LOCATION_STATUSES.NOT_ARRIVAL
+            ? (student.not_arrival_reason ?? undefined)
+            : undefined
+        }
       />
       {showSinceTime && (
         <span className="mt-0.5 text-xs text-gray-500">
@@ -202,7 +219,11 @@ export function PresenceBadge({
         </span>
       )}
       {showUnplannedOverlay && (
-        <PresenceHint kind="notArrival" size={sizeKey} />
+        <PresenceHint
+          kind="notArrival"
+          size={sizeKey}
+          title={student.not_arrival_reason ?? undefined}
+        />
       )}
       {showSickOverlay && <PresenceHint kind="sick" size={sizeKey} />}
       {showClassTripOverlay && <PresenceHint kind="classTrip" size={sizeKey} />}
