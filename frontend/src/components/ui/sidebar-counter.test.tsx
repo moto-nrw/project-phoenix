@@ -153,8 +153,7 @@ describe("Sidebar-Zähler (#6566)", () => {
         badge={{
           count: 5,
           tone: "parents",
-          ariaLabel:
-            "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
+          ariaLabel: "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
         }}
         {...railProps("rail")}
       >
@@ -165,6 +164,28 @@ describe("Sidebar-Zähler (#6566)", () => {
     expect(
       screen.getByRole("button", {
         name: "Eltern, 2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("nennt im Streifen den Bereich und seinen Zähler", () => {
+    render(
+      <SidebarAccordionSection
+        label="Anmeldungen"
+        isExpanded={false}
+        onToggle={() => undefined}
+        isActive={false}
+        hasChildren={false}
+        badgeCount={3}
+        badgeTone="staff"
+        badgeNoun="ungelesene Anmeldungen"
+        {...railProps("rail")}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "Anmeldungen, 3 ungelesene Anmeldungen",
       }),
     ).toBeInTheDocument();
   });

@@ -82,6 +82,8 @@ export function SidebarAccordionSection({
   // dort ganz ohne Markierung da, obwohl man in ihm ist — etwa auf
   // /database/rooms oder /ogs-groups?group=… (#2923).
   const rowActive = collapsed ? showActiveIcon : isActive;
+  const collapsedLabel =
+    badgeCount > 0 ? `${label}, ${badgeCount} ${badgeNoun}` : label;
 
   return (
     <div>
@@ -106,7 +108,7 @@ export function SidebarAccordionSection({
         data-active={rowActive ? "true" : "false"}
         aria-controls={bodyId}
         aria-expanded={bodyExpanded}
-        {...(collapsed ? { title: label, "aria-label": label } : {})}
+        {...(collapsed ? { title: label, "aria-label": collapsedLabel } : {})}
       >
         {conceptDefinition ? (
           <MotoNavIcon
