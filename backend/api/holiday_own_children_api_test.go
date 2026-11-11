@@ -243,7 +243,7 @@ func TestHolidayOwnChildReadsStayWithinTheirQueryBudget(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Eigene Kinder Budget")
 	week := f.offer.Weeks[0].ID
-	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead, permissions.StudentsRead)
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead, permissions.StudentsRead, permissions.GroupsRead)
 	lia := f.liaOfNord(t, "Lia")
 	f.confirm(t, f.siblings, "confirm")
 	require.Equal(t, http.StatusOK, f.assign(t, lead, week, f.group).Code)
@@ -265,7 +265,7 @@ func TestHolidayGroupSaysBeforeItsWeekHowManyGuestsJoinIt(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Gruppenhinweis")
 	week := f.offer.Weeks[0].ID
-	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead, permissions.StudentsRead)
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead, permissions.StudentsRead, permissions.GroupsRead)
 	hints := func(token string) []enrollment.HolidayGuestGroupHint {
 		rec := f.do(t, token, http.MethodGet, "/api/holiday-guests/groups", nil)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -279,11 +279,13 @@ func TestHolidayGroupSaysBeforeItsWeekHowManyGuestsJoinIt(t *testing.T) {
 		GroupID: f.group, WeekID: week, StartsOn: calendar.NewDate(2099, 7, 6), EndsOn: calendar.NewDate(2099, 7, 10), Guests: 1,
 	}}, hints(lead), "before the week the group says how many guests join it and when")
 
-	sued := f.staffOf(t, f.office.schools[1], permissions.StudentsRead)
+	sued := f.staffOf(t, f.office.schools[1], permissions.StudentsRead, permissions.GroupsRead)
 	assert.Empty(t, hints(sued), "another school sees no hint of this one")
 	rec := f.do(t, f.staffOf(t, f.nord, permissions.ConfigRead), http.MethodGet, "/api/holiday-guests/groups", nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 
 	f.today.Store(calendar.NewDate(2099, 7, 6))
-	assert.Empty(t, hints(lead), "from the first day the guests stand in the group and the hint goes")
+	assert.Len(t, hints(lead), 1, "the shared group list remains available during the week; the client only shows future-week hints")
+	f.today.Store(calendar.NewDate(2099, 7, 11))
+	assert.Empty(t, hints(lead), "after the week the group is no longer a holiday group")
 }

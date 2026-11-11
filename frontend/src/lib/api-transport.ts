@@ -4,6 +4,7 @@ import { clientEnv } from "~/env.client";
 import { sanitizeEndpoint } from "~/lib/log-sanitize";
 import { createLogger } from "~/lib/logger";
 import {
+  isRequestLimitRefusal,
   rateLimitBlockedError,
   recordRateLimit,
 } from "~/lib/rate-limit-backoff";
@@ -142,11 +143,13 @@ api.interceptors.response.use(
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
     if (error.response?.status === 429) {
-      const retryAfter = error.response.headers?.["retry-after"];
-      recordRateLimit(
-        typeof retryAfter === "string" ? retryAfter : null,
-        originalRequest?.method,
-      );
+      if (isRequestLimitRefusal(error.response.data)) {
+        const retryAfter = error.response.headers?.["retry-after"];
+        recordRateLimit(
+          typeof retryAfter === "string" ? retryAfter : null,
+          originalRequest?.method,
+        );
+      }
       throw error;
     }
 

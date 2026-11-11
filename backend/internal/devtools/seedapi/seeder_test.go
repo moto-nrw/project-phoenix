@@ -1031,6 +1031,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	t.Helper()
 	weeklyMock := &weeklyProfileAPIMock{traces: traces}
 	idCounter := int64(0)
+	holidayGuestGroupID := "0"
 	// The first staff members the seed creates; the Frühbetreuung's
 	// deviation needs the second.
 	var planningStaffIDs []map[string]any
@@ -1172,7 +1173,17 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		}
 		if r.URL.Path == "/api/holiday-weeks/51/guest-group" {
 			// The holiday guest joins the Feriengruppe (#4666).
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"week_id":51,"group_id":5,"guests":1,"own_children":1}}`)
+			var body struct {
+				GroupID string `json:"group_id"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			holidayGuestGroupID = body.GroupID
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"week_id":51,"group_id":%s,"guests":1,"own_children":1}}`, body.GroupID)
+			return
+		}
+		if r.URL.Path == "/api/holiday-guests/groups" {
+			// The group management names the Feriengruppe before its week.
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":[{"group_id":%s,"week_id":51,"guests":1}]}`, holidayGuestGroupID)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/traeger/billing-runs/") && !strings.HasSuffix(r.URL.Path, "/release") && r.URL.Path != "/traeger/billing-runs/" {

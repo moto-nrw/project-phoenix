@@ -7,7 +7,7 @@
 
 import {
   fetchHolidayGuestGroupHints,
-  type HolidayGuestGroupHint,
+  type HolidayGuestGroup,
 } from "~/lib/holiday-host-api";
 import { useSWRAuth } from "~/lib/swr";
 import { holidayKeys } from "~/lib/swr/portal-keys";
@@ -24,12 +24,12 @@ const HOLIDAY_GUEST_GROUP_HINT_OPTIONS = {
 /**
  * Gibt den Hinweis der Gruppe zurück, bei mehreren kommenden Wochen den der
  * nächsten; `undefined` für eine gewöhnliche Gruppe. Scheitert das Laden
- * (etwa ohne das Recht der Kinderliste), bleibt die Seite wie ohne Hinweis:
+ * (etwa ohne das Recht der Gruppenliste), bleibt die Seite wie ohne Hinweis:
  * die Gruppe selbst ist geladen, der Hinweis ergänzt sie nur.
  */
 export function useHolidayGuestGroupHint(
   groupId: string | null | undefined,
-): HolidayGuestGroupHint | undefined {
+): HolidayGuestGroup | undefined {
   const { data } = useSWRAuth(
     groupId ? holidayKeys.guestGroupHints() : null,
     fetchHolidayGuestGroupHints,

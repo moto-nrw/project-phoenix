@@ -40,7 +40,7 @@ type HolidayGuestDirectory interface {
 // uses the Berlin calendar day.
 func NewHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
 	ownPlans, ownAuthors := NewHolidayOwnChildPlans(care, staff)
-	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayHostSchoolNames(schools), NewHolidayGuestCareDays(care, staff),
+	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayHostSchoolNames(schools), NewHolidayGuestCareDays(care),
 		StatisticsHolidayStudents{Students: students}, ownPlans, ownAuthors, health, NewHolidayGuestAccessLog(accessLog), today)
 }
 
@@ -227,28 +227,22 @@ type HolidayGuestStaff interface {
 // ADR 0120) to Care Plan: a dated arrival and pickup exception for each day,
 // with the times of the booked time model and the reason "Ferienbetreuung",
 // so the day planning of the group expects the guest on exactly those days.
-func NewHolidayGuestCareDays(care HolidayGuestCarePlan, staff HolidayGuestStaff) enrollmentOwner.HolidayGuestCareDays {
-	if care == nil || staff == nil {
+// The booking is the author (source holiday_booking, no staff member), so the
+// days do not depend on who picked the group (addendum of 2026-11-11).
+func NewHolidayGuestCareDays(care HolidayGuestCarePlan) enrollmentOwner.HolidayGuestCareDays {
+	if care == nil {
 		return nil
 	}
-	return holidayGuestCareDays{care: care, staff: staff}
+	return holidayGuestCareDays{care: care}
 }
 
 type holidayGuestCareDays struct {
-	care  HolidayGuestCarePlan
-	staff HolidayGuestStaff
+	care HolidayGuestCarePlan
 }
 
 const holidayGuestCareReason = "Ferienbetreuung"
 
-func (c holidayGuestCareDays) PlanHolidayGuestDays(ctx context.Context, studentID, actorAccountID int64, days []calendar.Date, arrival, pickup string) error {
-	if actorAccountID <= 0 {
-		return enrollmentOwner.ErrHolidayGuestPlanAuthorMissing
-	}
-	staffID, err := c.staff.ResolveStaffIDByAccountID(ctx, actorAccountID)
-	if err != nil {
-		return fmt.Errorf("%w: %w", enrollmentOwner.ErrHolidayGuestPlanAuthorMissing, err)
-	}
+func (c holidayGuestCareDays) PlanHolidayGuestDays(ctx context.Context, studentID int64, days []calendar.Date, arrival, pickup string) error {
 	arrivalAt, err := holidayGuestClock(arrival)
 	if err != nil {
 		return err
@@ -263,13 +257,13 @@ func (c holidayGuestCareDays) PlanHolidayGuestDays(ctx context.Context, studentI
 		arrivalAt, pickupAt, reason := arrivalAt, pickupAt, holidayGuestCareReason
 		if _, err := c.care.CreateArrivalException(ctx, careplan.ArrivalException{
 			StudentID: studentID, ExceptionDate: careplan.Date(day), ExpectedArrival: &arrivalAt, Reason: &reason,
-			Source: careplan.ExceptionSourceStaff, CreatedBy: staffID,
+			Source: careplan.ExceptionSourceHolidayBooking,
 		}); err != nil {
 			return err
 		}
 		if _, err := c.care.CreatePickupException(ctx, careplan.PickupException{
 			StudentID: studentID, ExceptionDate: careplan.Date(day), PickupTime: &pickupAt, Reason: &reason,
-			Source: careplan.ExceptionSourceStaff, CreatedBy: staffID,
+			Source: careplan.ExceptionSourceHolidayBooking,
 		}); err != nil {
 			return err
 		}
@@ -282,6 +276,34 @@ func (c holidayGuestCareDays) ClearHolidayGuestDays(ctx context.Context, student
 		return err
 	}
 	return c.care.DeletePickupExceptionsByStudent(ctx, studentID)
+}
+
+// UnplannedHolidayGuests reads the arrival and pickup exceptions of the
+// children in two statements and returns the children with neither.
+func (c holidayGuestCareDays) UnplannedHolidayGuests(ctx context.Context, studentIDs []int64) ([]int64, error) {
+	filter := careplan.StudentScheduleFilter{StudentIDs: studentIDs}
+	arrivals, err := c.care.ListArrivalExceptions(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	pickups, err := c.care.ListPickupExceptions(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	planned := make(map[int64]bool, len(studentIDs))
+	for _, arrival := range arrivals {
+		planned[arrival.StudentID] = true
+	}
+	for _, pickup := range pickups {
+		planned[pickup.StudentID] = true
+	}
+	var unplanned []int64
+	for _, studentID := range studentIDs {
+		if !planned[studentID] {
+			unplanned = append(unplanned, studentID)
+		}
+	}
+	return unplanned, nil
 }
 
 // holidayGuestClock is the wall clock of a time model ("08:00") for a Care

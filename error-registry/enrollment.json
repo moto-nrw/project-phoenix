@@ -930,6 +930,12 @@
       "legacy": "enrollment.submission_rate_limited"
     },
     {
+      "code": "enrollment.submission_email_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "enrollment.submission_email_rate_limited"
+    },
+    {
       "code": "enrollment.upload_expired",
       "class": "input",
       "parameters": [],

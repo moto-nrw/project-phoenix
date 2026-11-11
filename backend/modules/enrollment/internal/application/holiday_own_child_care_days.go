@@ -101,7 +101,7 @@ func (c *HolidayOwnChildCareDays) planMissing(ctx context.Context, today calenda
 		}
 		staffID := authors[day.ActorAccountID]
 		if staffID <= 0 {
-			return fmt.Errorf("%w: account %d", enrollment.ErrHolidayGuestPlanAuthorMissing, day.ActorAccountID)
+			return fmt.Errorf("%w: account %d", enrollment.ErrHolidayOwnChildPlanAuthorMissing, day.ActorAccountID)
 		}
 		if err := appendOwnChildPlans(changes, day, staffID, !arrivalDone[key], !pickupDone[key]); err != nil {
 			return err

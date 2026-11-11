@@ -236,7 +236,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 		return fmt.Errorf("no holiday guest joined the holiday group")
 	}
 	fmt.Printf("  Ausrichtende OGS: %d holiday guest(s) in the Feriengruppe\n", envelope.Data.Guests)
-	return nil
+	return seedHolidayGuestGroupHint(rt, groupID)
 }
 
 // seedHolidayAddressForm saves the next version of the period's form with
@@ -601,13 +601,14 @@ const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
 
 // The public holiday registration always requires Turnstile (ADR 0110). The
 // demo server holds a real Turnstile key, which refuses the test token. It
-// also counts every attempt per Träger, sender e-mail and IP address, and
-// all demo schools share one Träger and the seeded parent's address: after
-// five orders a day the server refuses the attempt before the captcha. On
-// either refusal the holiday step publishes the period without
-// registrations and skips what builds on them, the billing run and the
-// confirmation letters, instead of failing every demo school order.
-var seedHolidayRefusals = []string{seedCaptchaFailed, seedSubmissionRateLimited}
+// also counts every stored registration per Träger, sender e-mail and IP
+// address (#6726), and all demo schools share one Träger and the seeded
+// parent's address: past ten stored registrations a day the server refuses
+// the next one. On any of these refusals the holiday step publishes the
+// period without registrations and skips what builds on them, the billing
+// run and the confirmation letters, instead of failing every demo school
+// order.
+var seedHolidayRefusals = []string{seedCaptchaFailed, seedSubmissionRateLimited, seedSubmissionEmailRateLimited}
 
 var errSeedHolidayRegistrationRefused = errors.New("the server refuses the seeded holiday registration")
 

@@ -7,7 +7,7 @@
  */
 
 import { apiErrorFromText, transportFetch } from "~/lib/api-error";
-import { formatDate } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 export interface HostedHolidayWeek {
@@ -380,6 +380,105 @@ export interface HolidayGuestTransfer {
 }
 
 /**
+ * Eine Gruppe, die die Schule als Feriengruppe einer Woche gewählt hat
+ * (ADR 0120, Nachtrag 2026-11-11). Vor dem ersten Tag der Woche sind die
+ * Feriengäste noch in keiner Gruppe; die Gruppe steht dann leer da.
+ */
+export interface HolidayGuestGroup {
+  readonly groupId: string;
+  readonly weekId: string;
+  /** Kalendertage als „YYYY-MM-DD“. */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  /** Feriengäste der Woche, deren Zugriff nicht vorzeitig endete. */
+  readonly guests: number;
+}
+
+/**
+ * Die Feriengruppen der Schule, deren Woche noch nicht vorbei ist, nach dem
+ * ersten Tag geordnet.
+ */
+export async function fetchHolidayGuestGroups(): Promise<HolidayGuestGroup[]> {
+  const groups = await readData<
+    | {
+        group_id: number | string;
+        week_id: number | string;
+        starts_on: string;
+        ends_on: string;
+        guests: number;
+      }[]
+    | null
+  >(
+    "/api/holiday-guests/groups",
+    "Die Feriengruppen konnten nicht geladen werden",
+  );
+  return (groups ?? []).map((group) => ({
+    groupId: String(group.group_id),
+    weekId: String(group.week_id),
+    startsOn: group.starts_on,
+    endsOn: group.ends_on,
+    guests: group.guests,
+  }));
+}
+
+/** „04.–08.01.2027“, über Monate „29.06.–03.07.2027“, über Jahre ganz. */
+export function formatHolidayWeekRange(
+  startsOn: string,
+  endsOn: string,
+): string {
+  const [fromYear, fromMonth, fromDay] = startsOn.split("-");
+  const [toYear, toMonth, toDay] = endsOn.split("-");
+  const to = `${toDay}.${toMonth}.${toYear}`;
+  if (fromYear !== toYear) return `${fromDay}.${fromMonth}.${fromYear}–${to}`;
+  if (fromMonth !== toMonth) return `${fromDay}.${fromMonth}.–${to}`;
+  return `${fromDay}.–${to}`;
+}
+
+/** Der Hinweis an einer Feriengruppe in der Gruppenverwaltung. */
+export interface HolidayGuestGroupHint {
+  /** „Feriengruppe 04.–08.01.2027“ */
+  readonly label: string;
+  /** Ein bis drei kurze Sätze: wer kommt wann, und was das heißt. */
+  readonly message: string;
+}
+
+/**
+ * Erklärt eine Feriengruppe (ADR 0120, Nachtrag 2026-11-11). Vor der Woche
+ * kommen die Feriengäste erst am ersten Tag in die Gruppe. Eine Gruppe ohne
+ * eigene Kinder steht bis dahin nicht unter „Gruppen“; Raum und
+ * Gruppenleitung kann die Leitung schon vorher festlegen.
+ */
+export function holidayGuestGroupHint(
+  group: HolidayGuestGroup,
+  today: string,
+  ownChildren: number,
+): HolidayGuestGroupHint {
+  const label = `Feriengruppe ${formatHolidayWeekRange(group.startsOn, group.endsOn)}`;
+  const guests =
+    group.guests === 1 ? "1 Feriengast" : `${group.guests} Feriengäste`;
+  if (group.startsOn <= today) {
+    const message =
+      group.guests === 0
+        ? "Diese Woche sind keine Feriengäste angemeldet."
+        : `${guests} ${group.guests === 1 ? "ist" : "sind"} diese Woche in der Gruppe.`;
+    return { label, message };
+  }
+  const [, month, day] = group.startsOn.split("-");
+  const arrival =
+    group.guests === 0
+      ? "Noch sind keine Feriengäste angemeldet."
+      : `${guests} ${group.guests === 1 ? "kommt" : "kommen"} am ${day}.${month}. in die Gruppe.`;
+  const waiting =
+    ownChildren > 0
+      ? ""
+      : ` Bis zum ${day}.${month}. steht die Gruppe nicht unter „Gruppen“.`;
+  return {
+    label,
+    message: `${arrival}${waiting} Raum und Gruppenleitung können Sie schon jetzt festlegen.`,
+  };
+}
+
+/**
  * Wählt die Gruppe für die Feriengäste einer Woche. Das Backend übernimmt
  * die bestätigten Gäste sofort, plant die gebuchten Tage der eigenen Kinder
  * ein und gibt beide Zahlen zurück.
@@ -593,43 +692,14 @@ export async function fetchHolidayStudentRegistrations(
 
 // ─── Feriengruppe vor ihrer Woche (#6680) ───────────────────────────────────
 
-/**
- * Eine Gruppe, die als Feriengruppe einer Woche gewählt ist, die noch nicht
- * begonnen hat: Die Feriengäste kommen erst am ersten Tag dazu.
- */
-export interface HolidayGuestGroupHint {
-  readonly groupId: string;
-  readonly weekId: string;
-  /** Kalendertage der Ferienwoche als „YYYY-MM-DD“. */
-  readonly startsOn: string;
-  readonly endsOn: string;
-  readonly guests: number;
-}
-
 /** Die Feriengruppen der Schule, deren Woche noch nicht begonnen hat. */
 export async function fetchHolidayGuestGroupHints(): Promise<
-  HolidayGuestGroupHint[]
+  HolidayGuestGroup[]
 > {
-  const hints = await readData<
-    | {
-        group_id: number | string;
-        week_id: number | string;
-        starts_on: string;
-        ends_on: string;
-        guests: number;
-      }[]
-    | null
-  >(
-    "/api/holiday-guests/groups",
-    "Der Hinweis zur Feriengruppe konnte nicht geladen werden",
+  const today = berlinTodayISO();
+  return (await fetchHolidayGuestGroups()).filter(
+    (group) => group.startsOn > today,
   );
-  return (hints ?? []).map((hint) => ({
-    groupId: String(hint.group_id),
-    weekId: String(hint.week_id),
-    startsOn: hint.starts_on,
-    endsOn: hint.ends_on,
-    guests: hint.guests,
-  }));
 }
 
 /**
@@ -637,7 +707,7 @@ export async function fetchHolidayGuestGroupHints(): Promise<
  * Überall gleich: auf der Gruppenseite und im Check-in.
  */
 export function holidayGuestGroupHintText(
-  hint: Pick<HolidayGuestGroupHint, "startsOn" | "guests">,
+  hint: Pick<HolidayGuestGroup, "startsOn" | "guests">,
 ): string {
   const day = formatDate(hint.startsOn);
   if (hint.guests === 0) {

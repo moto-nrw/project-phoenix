@@ -106,7 +106,7 @@ func TestPhaseService_Update_MovesPendingActivation(t *testing.T) {
 
 			failure := errors.New("after phase update")
 			err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-				if err := phases.UpdatePhase(txCtx, moved); err != nil {
+				if err := phaseEdit(phases)(txCtx, moved); err != nil {
 					return err
 				}
 				return failure
@@ -114,7 +114,7 @@ func TestPhaseService_Update_MovesPendingActivation(t *testing.T) {
 			require.ErrorIs(t, err, failure)
 			c.assertPlan(t, peopleValues.StudentStatusPending, c.start, "after a rolled back edit")
 
-			require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phases.UpdatePhase, moved))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(phases), moved))
 			c.assertPlan(t, peopleValues.StudentStatusPending, newStart, "after the edit")
 			due, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindPendingDueForActivation, newStart.AddDays(-1))
 			require.NoError(t, err)
@@ -126,7 +126,7 @@ func TestPhaseService_Update_MovesPendingActivation(t *testing.T) {
 			// The start has come: the activation counts as executed.
 			again := enrollmentAPI.OwnerPhaseForTest(moved)
 			again.ServiceStartDate = enrollmentNative.Date(newStart.AddDays(3))
-			require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, followingPhases(t, env, newStart).UpdatePhase, again))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(followingPhases(t, env, newStart)), again))
 			c.assertPlan(t, peopleValues.StudentStatusPending, newStart, "after an edit on the start day")
 		})
 	}
@@ -142,7 +142,7 @@ func TestPhaseService_Update_KeepsActivatedChildStart(t *testing.T) {
 	student.Status = peopleValues.StudentStatusActive
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Student.Update, student))
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, followingPhases(t, env, decisionTestToday).UpdatePhase, c.movedPhase(7)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(followingPhases(t, env, decisionTestToday)), c.movedPhase(7)))
 	c.assertPlan(t, peopleValues.StudentStatusActive, c.start, "an activated child")
 }
 
@@ -181,7 +181,7 @@ func TestPhaseService_Update_KeepsWindowFromSupersedingApproval(t *testing.T) {
 	for _, start := range []enrollmentNative.Date{"2100-07-21", "2100-07-15"} {
 		moved := *oldHoliday
 		moved.ServiceStartDate = start
-		require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phases.UpdatePhase, &moved))
+		require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(phases), &moved))
 		current.assertPlan(t, peopleValues.StudentStatusPending, current.start, "after editing the superseded holiday")
 		assert.Equal(t, calendar.Date(year.ServiceEndDate), *current.student(t).EnrolledUntil)
 		due, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindPendingDueForActivation, current.start.AddDays(-1))
@@ -254,7 +254,7 @@ func TestPhaseService_Update_ActivationTickKeepsDueStart(t *testing.T) {
 	phases := followingPhases(t, env, c.start)
 
 	editErr, tickErr := whileHolding(t, env,
-		func(ctx context.Context) error { return phases.UpdatePhase(ctx, c.movedPhase(7)) },
+		func(ctx context.Context) error { return phaseEdit(phases)(ctx, c.movedPhase(7)) },
 		func(ctx context.Context) error {
 			due, err := env.repos.Student.FindPendingDueForActivation(ctx, c.start)
 			if err != nil {
@@ -292,7 +292,7 @@ func TestPhaseService_Update_WaitsForConcurrentActivation(t *testing.T) {
 			student.Status = peopleValues.StudentStatusActive
 			return env.repos.Student.Update(ctx, student)
 		},
-		func(ctx context.Context) error { return phases.UpdatePhase(ctx, c.movedPhase(7)) }, nil)
+		func(ctx context.Context) error { return phaseEdit(phases)(ctx, c.movedPhase(7)) }, nil)
 	require.NoError(t, activateErr)
 	require.NoError(t, editErr)
 	c.assertPlan(t, peopleValues.StudentStatusActive, c.start, "after the activation and the edit")
@@ -345,7 +345,7 @@ func TestPhaseService_Update_ReschedulesPendingClassSwitch(t *testing.T) {
 			phase.ServiceStartDate = enrollmentNative.Date(r.start.AddDays(days))
 			newStart := r.start.AddDays(days)
 
-			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), r.env.db, phases.UpdatePhase, phase))
+			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), r.env.db, phaseEdit(phases), phase))
 			r.assertClassSwitch(t, newStart, "2a", "after the edit")
 			weekly, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), r.env.db, r.env.repos.Enrollment().ChildWeeklyPlan, r.childID)
 			require.NoError(t, err)
@@ -358,7 +358,7 @@ func TestPhaseService_Update_ReschedulesPendingClassSwitch(t *testing.T) {
 			assert.Equal(t, "3", r.student(t).SchoolClass, "the class switches on the new start")
 
 			phase.ServiceStartDate = enrollmentNative.Date(newStart.AddDays(1))
-			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), r.env.db, phases.UpdatePhase, phase))
+			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), r.env.db, phaseEdit(phases), phase))
 			planned, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), r.env.db, r.env.repos.Enrollment().ChildClassSwitch, r.childID)
 			require.NoError(t, err)
 			assert.Nil(t, planned, "a phase change never recreates an applied switch")
@@ -401,9 +401,18 @@ func TestPhaseService_Update_NeverWaitsForClassGateAfterRecurrenceGate(t *testin
 
 	gradeErr, editErr := whileHolding(t, env,
 		func(ctx context.Context) error { return membership.LockStudentClassWrites(ctx, true) },
-		func(ctx context.Context) error { return phases.UpdatePhase(ctx, c.movedPhase(7)) },
+		func(ctx context.Context) error { return phaseEdit(phases)(ctx, c.movedPhase(7)) },
 		recurrence)
 	require.NoError(t, gradeErr, "the grade transition must not deadlock")
 	require.NoError(t, editErr, "the edit runs after the grade transition")
 	c.assertPlan(t, peopleValues.StudentStatusPending, c.start.AddDays(7), "after the grade transition and the edit")
+}
+
+// phaseEdit is the phase edit as a command; the suites here do not read
+// its report (#6598).
+func phaseEdit(phases enrollmentNative.PhaseAdministration) func(context.Context, *enrollmentNative.Phase) error {
+	return func(ctx context.Context, phase *enrollmentNative.Phase) error {
+		_, err := phases.UpdatePhase(ctx, phase)
+		return err
+	}
 }

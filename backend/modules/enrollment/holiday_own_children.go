@@ -2,9 +2,14 @@ package enrollment
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+// ErrHolidayOwnChildPlanAuthorMissing reports a group choice whose account
+// cannot author the care days of the hosting school's own children.
+var ErrHolidayOwnChildPlanAuthorMissing = errors.New("own holiday child plan author has no staff record")
 
 // Children of the hosting school itself in a holiday week it hosts (#6678,
 // ADR 0120 addendum). Such a child is no holiday guest: it is a student of

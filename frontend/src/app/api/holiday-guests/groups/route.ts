@@ -3,9 +3,10 @@ import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 
 /**
- * Proxy GET /api/holiday-guests/groups → backend (#6680): die Feriengruppen,
- * deren Woche noch nicht begonnen hat, mit der Zahl der Feriengäste, die am
- * ersten Tag dazukommen. Keine Namen, keine Kinderdaten.
+ * Proxy GET /api/holiday-guests/groups → backend: jede Feriengruppe einer
+ * ausgerichteten Woche, die noch nicht vorbei ist, mit Woche und Zahl der
+ * Feriengäste (ADR 0120, Nachtrag 2026-11-11). Das Backend verlangt das Recht
+ * der Gruppenlisten.
  */
 export const GET = createGetHandler(
   async (

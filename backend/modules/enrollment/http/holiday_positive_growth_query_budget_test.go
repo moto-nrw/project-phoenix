@@ -88,12 +88,12 @@ func newHolidayGrowthFixture(t *testing.T, db *bun.DB, n int) holidayGrowthFixtu
 	require.NoError(t, err)
 	care, err := owners.NewUnobservedCarePlan(database, owners.MustNewUnobservedTimetable(database), people)
 	require.NoError(t, err)
-	staff, err := api.NewRFIDTestPeople(database)
-	require.NoError(t, err)
 	cipher, err := api.HealthDataCipher(testpkg.TestHealthDataKeys)
 	require.NoError(t, err)
 	audit := owners.NewTestAuditPersistence(database, nil).DataAccessLog
 	today := func() calendar.Date { return calendar.NewDate(2099, 7, 6) }
+	staff, err := api.NewRFIDTestPeople(database)
+	require.NoError(t, err)
 	students := owners.MustNewMembershipTestRepositories(database).Student
 	guests := owners.NewHolidayGuests(people, students, organizations, care, staff, audit, cipher, today)
 	unit := testpkg.TenantRuntime(t, db)

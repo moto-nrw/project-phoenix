@@ -636,6 +636,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0120",
+      "id": "api/groupLiveDirectory.SupervisedGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "api/groupLiveDirectory.SupervisedGroups",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
