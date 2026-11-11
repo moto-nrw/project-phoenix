@@ -276,9 +276,7 @@ const SlideOverContent = React.forwardRef<
       <SlideOverPortal>
         <SlideOverOverlay />
         <DrawerPrimitive.Content
-          ref={(
-            node: React.ComponentRef<typeof DrawerPrimitive.Content> | null,
-          ) => {
+          ref={(node) => {
             sheetRef.current = node;
             if (typeof ref === "function") ref(node);
             else if (ref) ref.current = node;
@@ -319,11 +317,7 @@ const SlideOverContent = React.forwardRef<
               event.preventDefault();
             }
           }}
-          onEscapeKeyDown={(
-            event: Parameters<
-              NonNullable<SlideOverContentProps["onEscapeKeyDown"]>
-            >[0],
-          ) => {
+          onEscapeKeyDown={(event) => {
             onEscapeKeyDown?.(event);
             // Radix handles Escape in capture, before nested controls close.
             if (
