@@ -94,7 +94,8 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 	require.NoError(t, err)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
-	guests := owners.NewHolidayGuests(persons, organizations, carePlan, accessLog, testHealthCipher(), clock)
+	students := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, f.db)).Student
+	guests := owners.NewHolidayGuests(persons, students, organizations, carePlan, accessLog, testHealthCipher(), clock)
 	unit := testpkg.TenantRuntime(t, f.db)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {

@@ -415,6 +415,14 @@ export const holidayKeys = {
   hostedWeeks: () => "holiday-weeks",
   studentHealth: (studentId: string) =>
     `holiday-student-health:${encodeURIComponent(studentId)}`,
+  /** Betreuung, Notfall und Abholung aus der Ferienanmeldung (#6678). */
+  studentRegistration: (studentId: string) =>
+    `holiday-student-registration:${encodeURIComponent(studentId)}`,
+  /** Zuordnung der eigenen Kinder einer Ferienwoche (#6678). */
+  ownChildren: (weekId: string) =>
+    `holiday-own-children:${encodeURIComponent(weekId)}`,
+  /** Feriengruppen, deren Woche noch nicht begonnen hat (#6680). */
+  guestGroupHints: () => "holiday-guest-group-hints",
   /** Die Feriengruppen der Gruppenverwaltung (ADR 0120, Nachtrag 2026-11-11). */
   guestGroups: "holiday-guest-groups",
   /** Je Satz von Feriengästen ein Schlüssel: ein neuer Gast fragt neu. */

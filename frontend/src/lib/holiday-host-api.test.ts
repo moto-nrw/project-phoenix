@@ -9,6 +9,7 @@ import {
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
   fetchHolidayGuestGroups,
+  fetchHolidayGuestGroupHints,
   formatHolidayHostAnswer,
   formatHolidayWeekRange,
   holidayGuestGroupHint,
@@ -282,15 +283,18 @@ describe("holiday host api", () => {
     expect(week?.guests).toBe(2);
   });
 
-  it("takes the holiday guests into a group and returns their number", async () => {
+  it("takes the holiday guests into a group and returns their number and the planned own children (#6678)", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, {
         status: "success",
-        data: { week_id: 51, group_id: 7, guests: 2 },
+        data: { week_id: 51, group_id: 7, guests: 2, own_children: 3 },
       }),
     );
 
-    await expect(assignHolidayGuestGroup("51", "7")).resolves.toBe(2);
+    await expect(assignHolidayGuestGroup("51", "7")).resolves.toEqual({
+      guests: 2,
+      ownChildren: 3,
+    });
 
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(url).toBe("/api/holiday-weeks/51/guest-group");
@@ -454,6 +458,32 @@ describe("Feriengruppe vor ihrer Woche", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
     await expect(fetchHolidayGuestGroups()).resolves.toEqual([week]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/groups");
+  });
+
+  it("derives upcoming hints from the shared list without including a current week", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        data: [
+          {
+            group_id: 3,
+            week_id: 50,
+            starts_on: "2026-09-09",
+            ends_on: "2026-09-13",
+            guests: 2,
+          },
+          {
+            group_id: 7,
+            week_id: 51,
+            starts_on: "2027-01-04",
+            ends_on: "2027-01-08",
+            guests: 3,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchHolidayGuestGroupHints()).resolves.toEqual([week]);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/groups");
   });
 

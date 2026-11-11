@@ -1,0 +1,7 @@
+{
+  "scenario": "api.holiday_weeks.own_children",
+  "max": 4,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-weeks/{weekId}/own-children (#6678):\nthe tenant binding, one statement over the hosted weeks and the school's own\nconfirmed children, one over their contacts and one read of the school's\nchildren born on their dates of birth. Flat in the number of weeks and\nchildren.",
+  "route": "GET /api/holiday-weeks/{weekId}/own-children"
+}
