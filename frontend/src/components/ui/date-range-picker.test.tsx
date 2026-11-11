@@ -170,6 +170,30 @@ describe("DateRangePicker", () => {
 
     expect(document.querySelector("[data-range-panel]")).toBeNull();
   });
+
+  it("closes the last opened calendar with Escape when no control has focus", async () => {
+    render(
+      <>
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+      </>,
+    );
+    const triggers = screen.getAllByRole("button", {
+      name: /zeitraum wählen/i,
+    });
+    fireEvent.click(triggers[0]!);
+    fireEvent.click(triggers[1]!);
+    await waitFor(() => {
+      expect(document.querySelectorAll("[data-range-panel]")).toHaveLength(2);
+    });
+    const panels = document.querySelectorAll("[data-range-panel]");
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    expect(document.querySelectorAll("[data-range-panel]")).toHaveLength(1);
+    expect(document.querySelector("[data-range-panel]")).toBe(panels[0]!);
+    expect(triggers[1]).toHaveFocus();
+  });
 });
 
 describe("DateRangePicker in a dialog", () => {
@@ -234,6 +258,33 @@ describe("DateRangePicker in a dialog", () => {
     expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
 
+  it("leaves Escape from a select search field to the open select", async () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Termine absagen">
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <CustomSelect
+          ariaLabel="Grund"
+          searchable
+          value=""
+          options={[{ value: "krank", label: "Krank" }]}
+          onChange={vi.fn()}
+        />
+      </Modal>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+    const select = screen.getByRole("combobox", { name: "Grund" });
+    fireEvent.keyDown(select, { key: "ArrowDown" });
+    const search = await screen.findByRole("textbox", { name: "Suchen" });
+
+    fireEvent.keyDown(search, { key: "Escape" });
+
+    expect(select).toHaveAttribute("aria-expanded", "false");
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+  });
+
   it("keeps the calendar reachable by keyboard inside the dialog's focus trap", async () => {
     renderInModal();
     const preset = await screen.findByRole("button", { name: "Letzte 7 Tage" });
@@ -289,6 +340,42 @@ describe("DateRangePicker in a dialog", () => {
     await user.tab();
 
     expect(previousMonth).toHaveFocus();
+  });
+
+  it("keeps its portaled panel clickable inside a slide-over", async () => {
+    const onChange = vi.fn();
+    render(
+      <SlideOver defaultOpen>
+        <SlideOverContent>
+          <DateRangePicker
+            value={undefined}
+            onChange={onChange}
+            presets={[
+              {
+                label: "Letzte 7 Tage",
+                range: () => ({
+                  from: new Date(2026, 8, 3),
+                  to: new Date(2026, 8, 9),
+                }),
+              },
+            ]}
+          />
+        </SlideOverContent>
+      </SlideOver>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+    const panel = document.querySelector("[data-range-panel]");
+
+    expect(panel).toHaveStyle({ pointerEvents: "auto" });
+    fireEvent.click(screen.getByRole("button", { name: "Letzte 7 Tage" }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      from: new Date(2026, 8, 3),
+      to: new Date(2026, 8, 9),
+    });
   });
 });
 

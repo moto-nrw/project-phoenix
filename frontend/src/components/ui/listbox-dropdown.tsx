@@ -1111,6 +1111,7 @@ export function ListboxDropdown<K extends string>({
                   "overflow-hidden",
                   menuClassName,
                 )}
+                data-listbox-panel
                 data-modal-content="true"
                 // A pure container: the search field, the listbox and the slot
                 // content carry the semantics, this element only positions

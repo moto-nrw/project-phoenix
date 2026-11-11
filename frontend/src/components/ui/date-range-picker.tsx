@@ -65,6 +65,17 @@ const RANGE_CLASSNAMES = {
 const RANGE_PILL_CLASS =
   "[&>button]:!bg-gray-900 [&>button]:!text-white [&>button:hover]:!bg-gray-800";
 
+// Calendar panels are portaled, so the DOM cannot tell which one a body-level
+// Escape belongs to. Keep opening order separately for Safari, which leaves a
+// clicked trigger unfocused and dispatches the key event from document.body.
+const openRangePickers = new Set<HTMLElement>();
+
+function isLastOpenedRangePicker(picker: HTMLElement | null): boolean {
+  let lastOpenedPicker: HTMLElement | undefined;
+  for (const openPicker of openRangePickers) lastOpenedPicker = openPicker;
+  return lastOpenedPicker === picker;
+}
+
 /**
  * Compact date-range picker for chart card headers. Trigger is a small chip,
  * popover shows preset shortcuts on the left and a two-month range calendar
@@ -85,6 +96,16 @@ export function DateRangePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const picker = containerRef.current;
+    if (!isOpen || !picker) return;
+    openRangePickers.delete(picker);
+    openRangePickers.add(picker);
+    return () => {
+      openRangePickers.delete(picker);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -120,10 +141,11 @@ export function DateRangePicker({
           : null;
       if (owner && owner !== containerRef.current && owner !== panelRef.current)
         return;
+      if (!owner && !isLastOpenedRangePicker(containerRef.current)) return;
       if (
         target instanceof Element &&
         target.closest(
-          '[role="combobox"][aria-expanded="true"], [role="listbox"]',
+          '[role="combobox"][aria-expanded="true"], [role="listbox"], [data-listbox-panel]',
         )
       ) {
         return;
@@ -328,9 +350,10 @@ function RangeCalendar({
         isNarrowViewport || !geometry
           ? {
               ...narrowStyle,
+              pointerEvents: "auto",
               visibility: isNarrowViewport === null ? "hidden" : undefined,
             }
-          : { top: geometry.top, left: geometry.left }
+          : { top: geometry.top, left: geometry.left, pointerEvents: "auto" }
       }
     >
       <RangeCalendarInline {...props} />
