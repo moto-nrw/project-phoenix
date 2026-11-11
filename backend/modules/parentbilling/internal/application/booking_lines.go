@@ -125,17 +125,35 @@ func (r bookingResolver) partAccounts(part parentbilling.ExportBookingPart) (par
 	return r.holiday(part.Day), true
 }
 
-// costCenterFallbacks names the holiday positions of the document with an
-// amount that book on the KOST1 of the holiday care (#6624), for the
-// protocol of the file.
+// costCenterFallbacks names the weeks of the document whose positions with
+// an amount book on the KOST1 of the holiday care (#6624), once per week,
+// for the protocol of the file. A line without a week books like the first
+// week of its child and adds no entry, unless the document has no week on
+// the fallback at all.
 func costCenterFallbacks(invoice parentbilling.ExportInvoice) []parentbilling.CostCenterFallback {
-	var fallbacks []parentbilling.CostCenterFallback
+	var fallbacks, weekless []parentbilling.CostCenterFallback
+	seen := map[[3]string]bool{}
 	for _, part := range invoice.Parts {
 		if part.CostCenterFallback == "" || part.AmountCents == 0 {
 			continue
 		}
-		fallbacks = append(fallbacks, parentbilling.CostCenterFallback{Number: invoice.Number, WeekStartsOn: part.WeekStartsOn,
-			WeekEndsOn: part.WeekEndsOn, Reason: part.CostCenterFallback, CostCenter: part.Accounts.CostCenter})
+		entry := parentbilling.CostCenterFallback{Number: invoice.Number, Reason: part.CostCenterFallback, CostCenter: part.Accounts.CostCenter}
+		if part.WeekStartsOn == nil {
+			if len(weekless) == 0 {
+				weekless = append(weekless, entry)
+			}
+			continue
+		}
+		key := [3]string{part.WeekStartsOn.String(), entry.Reason, entry.CostCenter}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		entry.WeekStartsOn, entry.WeekEndsOn = part.WeekStartsOn, part.WeekEndsOn
+		fallbacks = append(fallbacks, entry)
+	}
+	if len(fallbacks) == 0 {
+		return weekless
 	}
 	return fallbacks
 }

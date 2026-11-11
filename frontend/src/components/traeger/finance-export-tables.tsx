@@ -335,7 +335,7 @@ function entryNotes(entry: ExportProtocolEntry) {
       <StatusBadge
         key="fallback"
         wrap
-        label={`${count} ${count === 1 ? "Ferienposition" : "Ferienpositionen"} auf Ersatz-Kostenstelle`}
+        label={`${count} ${count === 1 ? "Eintrag" : "Einträge"} mit Ersatz-Kostenstelle`}
         tone="orange"
       />,
     );
@@ -372,9 +372,9 @@ const FALLBACK_REASONS: Record<CostCenterFallback["reason"], string> = {
 const FALLBACKS_SHOWN = 5;
 
 /**
- * The holiday positions of a file that booked on the cost center of the
- * holiday care instead of the school of their week (#6624): document, week,
- * reason and the cost center used.
+ * The holiday weeks of a file that booked on the cost center of the holiday
+ * care instead of the school of the week (#6624): document, week, reason and
+ * the cost center used.
  */
 function CostCenterFallbackList({
   fallbacks,

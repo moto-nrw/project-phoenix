@@ -226,3 +226,29 @@ func TestSollstellungBooksHolidayWeeksOnTheirHostSchools(t *testing.T) {
 	mapping.Columns = mapping.Columns[:2]
 	assert.Empty(t, sollCostCenterFallbacks(mapping, invoices), "a file without KOST1 books on none")
 }
+
+// The protocol names each week of a document once; lines without a week
+// (discounts, corrections) follow their child's week and add no entry,
+// unless the document has no week on the fallback.
+func TestCostCenterFallbacksNameEachWeekOnce(t *testing.T) {
+	t.Parallel()
+	october := func(day int) calendar.Date { return calendar.NewDate(2026, time.October, day) }
+	reason := parentbilling.CostCenterFallbackNoSchoolCostCenter
+	weekless := func(cents int64) parentbilling.ExportBookingPart {
+		return parentbilling.ExportBookingPart{AmountCents: cents, CostCenterFallback: reason,
+			Accounts: parentbilling.PositionAccounts{CostCenter: "FER", Frozen: true}}
+	}
+	invoice := parentbilling.ExportInvoice{Number: "FE-1", Parts: []parentbilling.ExportBookingPart{
+		holidayPart("FER", reason, 5000, october(12)),
+		holidayPart("FER", reason, 4000, october(12)), // a sibling in the same week
+		weekless(-900),
+		holidayPart("ISP", "", 3000, october(5)),
+		holidayPart("FER", reason, 0, october(19)), // no amount
+	}}
+	starts, ends := holidayWeekOf(october(12))
+	assert.Equal(t, []parentbilling.CostCenterFallback{{Number: "FE-1", WeekStartsOn: starts, WeekEndsOn: ends, Reason: reason,
+		CostCenter: "FER"}}, costCenterFallbacks(invoice))
+
+	only := parentbilling.ExportInvoice{Number: "FE-2", Parts: []parentbilling.ExportBookingPart{weekless(700), weekless(300)}}
+	assert.Equal(t, []parentbilling.CostCenterFallback{{Number: "FE-2", Reason: reason, CostCenter: "FER"}}, costCenterFallbacks(only))
+}

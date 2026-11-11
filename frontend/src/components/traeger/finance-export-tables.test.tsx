@@ -62,7 +62,7 @@ it("names the holiday positions booked on the fallback cost center", () => {
   );
 
   expect(
-    screen.getAllByText("2 Ferienpositionen auf Ersatz-Kostenstelle").length,
+    screen.getAllByText("2 Einträge mit Ersatz-Kostenstelle").length,
   ).toBeGreaterThan(0);
   const first = screen.getAllByText("FE-2026-0001")[0]!.closest("li")!;
   expect(first).toHaveTextContent(

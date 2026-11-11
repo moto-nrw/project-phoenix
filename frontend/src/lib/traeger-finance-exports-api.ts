@@ -123,8 +123,8 @@ export interface ExportProtocolEntry {
    */
   readonly resolvedPositions: number;
   /**
-   * Holiday positions the file booked on the cost center of the holiday care
-   * instead of the school that hosts their week (#6624).
+   * Holiday weeks of a document the file booked on the cost center of the
+   * holiday care instead of the school that hosts the week (#6624).
    */
   readonly costCenterFallbacks: readonly CostCenterFallback[];
   readonly exportedByYou: boolean;

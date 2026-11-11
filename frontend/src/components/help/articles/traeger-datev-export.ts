@@ -83,7 +83,7 @@ export function traegerDatevExportTopic(): HelpTopic {
       "Über der Liste steht `Die DATEV-Datei fehlt noch`? Es fehlen DATEV-Werte. Der Hinweis nennt sie. Bis dahin lässt sich `DATEV` nicht wählen.",
       "Beim Lauf steht `Alles exportiert`? Alle Buchungen sind schon in einer DATEV-Datei. Darunter steht ihre Nummer.",
       "Sie können die DATEV-Werte nur ansehen? Ändern darf, wer im Träger-Büro das Recht für die Einstellungen hat.",
-      "Im `Exportprotokoll` steht `… auf Ersatz-Kostenstelle`? Diese Ferienwochen fanden an einer Schule ohne Kostenstelle statt. Die Datei bucht sie auf die Kostenstelle der `Ferienbetreuung`. Darunter stehen Rechnung, Woche und Grund. Tragen Sie für die Schule eine Kostenstelle ein. Das gilt für neue Rechnungen.",
+      "Im `Exportprotokoll` steht `… mit Ersatz-Kostenstelle`? Diese Ferienwochen fanden an einer Schule ohne Kostenstelle statt. Die Datei bucht sie auf die Kostenstelle der `Ferienbetreuung`. Darunter stehen Rechnung, Woche und Grund. Tragen Sie für die Schule eine Kostenstelle ein. Das gilt für neue Rechnungen.",
       "Im `Exportprotokoll` steht `… mit Konten vom Exporttag`? Diese Rechnungen wurden ausgestellt, bevor moto die Konten festgehalten hat. Die Datei nutzt dann die Werte vom Tag des Exports.",
     ],
     troubleshootingDetails: [
