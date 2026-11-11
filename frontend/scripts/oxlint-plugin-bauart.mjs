@@ -122,12 +122,11 @@
 //                               string literal or template chunk holding a
 //                               CSS hex color (`#83CD2D`, `text-[#4070C8]`,
 //                               a bare `#666`); one literal counts once.
-//                               The token source (kit-palette.ts, exempt
-//                               with the whole kit), the domain colours in
-//                               location-helper.ts, the web manifest and
-//                               global-error.tsx (no stylesheet at that
-//                               boundary) are exempt; all but the first by
-//                               name (HEX_TOKEN_SOURCES). Hard-zero since #3119;
+//                               The token source (lib/kit-palette.ts), the
+//                               domain colours in location-helper.ts, the web
+//                               manifest and global-error.tsx (no stylesheet
+//                               at that boundary) are exempt by name
+//                               (HEX_TOKEN_SOURCES). Hard-zero since #3119;
 //                               src/test/ excluded.
 //
 //   bauart/no-disabled-menu-item — an action that does not exist is not in
@@ -1895,8 +1894,7 @@ function findShortHexColor(text) {
 }
 
 // Files that define or must emit raw hex by construction. Not a baseline:
-// these do not shrink. The palette itself (lib/kit-palette.ts) is
-// exempt with the whole kit.
+// these do not shrink.
 const HEX_TOKEN_SOURCES = new Set([
   // The dependency-neutral source of UI colour tokens.
   "src/lib/kit-palette.ts",
