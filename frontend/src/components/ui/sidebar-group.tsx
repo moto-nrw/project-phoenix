@@ -66,6 +66,9 @@ export function SidebarGroup({
   // aktuellen Seite darin hebt es an.
   const iconColor = containsActive && !isOpen ? "text-gray-900" : "";
   const shownBadge = badge != null && badge.count > 0 && !isOpen ? badge : null;
+  const collapsedLabel = shownBadge
+    ? `${label}, ${shownBadge.ariaLabel}`
+    : label;
 
   return (
     <div>
@@ -77,7 +80,9 @@ export function SidebarGroup({
         data-setup-tour={tourId}
         className={`${SIDEBAR_GROUP_HEADING_CLASSES} cursor-pointer`}
         aria-expanded={isOpen}
-        {...(collapsed ? { title: label, "aria-label": label } : {})}
+        {...(collapsed
+          ? { title: label, "aria-label": collapsedLabel }
+          : {})}
       >
         <NavSceneIcon
           icon={Icon}

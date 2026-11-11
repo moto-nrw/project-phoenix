@@ -141,6 +141,33 @@ describe("Sidebar-Zähler (#6566)", () => {
       screen.getByLabelText("2 offene Tagesinformationen"),
     ).toBeInTheDocument();
   });
+
+  it("nennt im Streifen die Gruppe und ihren Zähler", () => {
+    render(
+      <SidebarGroup
+        label="Eltern"
+        icon={UsersIcon}
+        isOpen={false}
+        onToggle={() => undefined}
+        containsActive={false}
+        badge={{
+          count: 5,
+          tone: "parents",
+          ariaLabel:
+            "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
+        }}
+        {...railProps("rail")}
+      >
+        <span>Inhalt</span>
+      </SidebarGroup>,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "Eltern, 2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
+      }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("combineSidebarRowBadges (#6566)", () => {
