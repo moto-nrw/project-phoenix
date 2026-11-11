@@ -121,8 +121,8 @@ func TestTraegerParentAccessMigrationRollsBack(t *testing.T) {
 // The new erasure differs only by the deletion of the new access records.
 func TestTraegerParentAccessErasureExtendsAccountErasure(t *testing.T) {
 	t.Parallel()
-	before := "DELETE FROM auth.tokens AS target WHERE target.account_id = ANY (erased_ids);"
-	after := before + "\n\t\t\tDELETE FROM auth.traeger_parent_access AS target WHERE target.account_id = ANY (erased_ids);"
-	require.Equal(t, 1, strings.Count(directPermissionAccountErasureUpSQL, before))
-	assert.Equal(t, strings.Replace(directPermissionAccountErasureUpSQL, before, after, 1), traegerParentAccessAccountErasureSQL)
+	before := "DELETE FROM auth.tokens AS target WHERE target.account_id = candidate;"
+	after := before + "\n\t\t\t\t\tDELETE FROM auth.traeger_parent_access AS target WHERE target.account_id = candidate;"
+	require.Equal(t, 1, strings.Count(unusedAccountErasureWithoutWaitUpSQL, before))
+	assert.Equal(t, strings.Replace(unusedAccountErasureWithoutWaitUpSQL, before, after, 1), traegerParentAccessAccountErasureSQL)
 }

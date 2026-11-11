@@ -14,9 +14,10 @@ func init() {
 		Version:     traegerParentAccessVersion,
 		Description: "Ferienanmeldung: Elternkonto am Träger ohne Schule (#6673, ADR 0216)",
 		DependsOn: []string{
-			holidayKnownChildrenVersion,    // the newest on development (1.15.940)
-			traegerSchoolSessionsVersion,   // chk_tokens_session_owner as it stands
-			retireDirectPermissionsVersion, // auth.account_is_unused as it stands
+			holidayKnownChildrenVersion,            // the newest on development (1.15.940)
+			traegerSchoolSessionsVersion,           // chk_tokens_session_owner as it stands
+			retireDirectPermissionsVersion,         // auth.account_is_unused as it stands
+			unusedAccountErasureWithoutWaitVersion, // auth.erase_unused_accounts as it stands
 		},
 	})
 	Migrations.MustRegister(traegerParentAccessUp, traegerParentAccessDown)
@@ -189,8 +190,8 @@ func traegerParentAccessDown(ctx context.Context, db *bun.DB) error {
 		if err := installDirectPermissionAccountUnusedUp(ctx, tx); err != nil {
 			return fmt.Errorf("restore auth.account_is_unused of 1.15.646: %w", err)
 		}
-		if err := installDirectPermissionAccountErasureUp(ctx, tx); err != nil {
-			return fmt.Errorf("restore account erasure of 1.15.646: %w", err)
+		if _, err := tx.ExecContext(ctx, unusedAccountErasureWithoutWaitUpSQL); err != nil {
+			return fmt.Errorf("restore account erasure of 1.15.736: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, traegerParentAccessDownSQL); err != nil {
 			return fmt.Errorf("remove the parents-portal access at a Träger: %w", err)
