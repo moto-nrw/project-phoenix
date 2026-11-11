@@ -7,13 +7,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const dataReturnGrantsVersion = "1.15.910"
+const dataReturnGrantsVersion = "1.15.917"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     dataReturnGrantsVersion,
 		Description: "Abruf des Rückgabepakets nach Art. 30 Abs. 2 Data Act: Berechtigungen, Abrufe und die Rolle der Freigabe (#3838, ADR 0203)",
-		DependsOn:   []string{offboardingTraegerMembershipVersion, holidayCriteriaAllocationVersion},
+		DependsOn:   []string{offboardingTraegerMembershipVersion, holidayCriteriaAllocationVersion, parentBillingDiscardEmptyRunsVersion},
 	})
 	Migrations.MustRegister(dataReturnGrantsUp, dataReturnGrantsDown)
 }
@@ -64,11 +64,15 @@ CREATE TABLE IF NOT EXISTS platform.data_return_grants (
 	expires_at TIMESTAMPTZ NOT NULL,
 	keep_until TIMESTAMPTZ NOT NULL,
 	revoked_at TIMESTAMPTZ,
+	-- Who ended the token: an operator (its audit entry names them) or a
+	-- database restore, which has no operator and records itself here.
+	revoked_by TEXT CHECK (revoked_by IN ('operator', 'restore')),
 	purged_at TIMESTAMPTZ,
 	max_downloads INTEGER NOT NULL CHECK (max_downloads BETWEEN 1 AND 20),
 	downloads INTEGER NOT NULL DEFAULT 0 CHECK (downloads >= 0 AND downloads <= max_downloads),
 	CONSTRAINT uq_data_return_grants_token UNIQUE (token_lookup),
 	CONSTRAINT chk_data_return_grants_expiry CHECK (expires_at <= keep_until),
+	CONSTRAINT chk_data_return_grants_revoked_by CHECK ((revoked_at IS NULL) = (revoked_by IS NULL)),
 	CONSTRAINT chk_data_return_grants_key CHECK (wrapped_key IS NOT NULL OR revoked_at IS NOT NULL OR purged_at IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_data_return_grants_archive ON platform.data_return_grants (archive_name);
@@ -150,6 +154,15 @@ BEGIN
 		IF NOT FOUND THEN
 			RAISE EXCEPTION 'data return: the school or Träger does not exist or is erased' USING ERRCODE = '55000';
 		END IF;
+		-- An erasure that has begun is no less final than one that is done:
+		-- a school with an erasure order, a Träger whose order has started.
+		-- A recorded Träger order in its grace period does not block: the
+		-- customer may need the return then.
+		IF p_package = 'school' AND EXISTS (SELECT 1 FROM platform.school_erasures WHERE school_id = p_subject)
+			OR p_package = 'organization' AND EXISTS (SELECT 1 FROM platform.organization_erasure_orders
+				WHERE organization_id = p_subject AND started_at IS NOT NULL AND withdrawn_at IS NULL) THEN
+			RAISE EXCEPTION 'data return: the erasure of the school or Träger has begun' USING ERRCODE = '55000';
+		END IF;
 		IF EXISTS (SELECT 1 FROM platform.data_return_grants WHERE archive_name = p_archive_name) THEN
 			RAISE EXCEPTION 'data return: archive already released' USING ERRCODE = '23505';
 		END IF;
@@ -209,7 +222,7 @@ BEGIN
 	IF num_nonnulls(p_grant, p_archive_name, NULLIF(p_all, false)) <> 1 THEN
 		RAISE EXCEPTION 'data return: name exactly one grant, one archive or all' USING ERRCODE = '22023';
 	END IF;
-	FOR r IN UPDATE platform.data_return_grants SET revoked_at = now(), wrapped_key = NULL
+	FOR r IN UPDATE platform.data_return_grants SET revoked_at = now(), revoked_by = 'operator', wrapped_key = NULL
 		WHERE revoked_at IS NULL AND purged_at IS NULL
 			AND (p_all OR id = p_grant OR archive_name = p_archive_name)
 		RETURNING id, package, subject_id, archive_name
@@ -256,6 +269,17 @@ BEGIN
 	RETURN true;
 END $function$;
 
+-- Whether any grant names an archive, under its lock: a release whose
+-- issue is still committing holds that lock, so a failed client never
+-- removes the file of a grant that commits after all.
+CREATE OR REPLACE FUNCTION platform.data_return_archive_released(p_operator BIGINT, p_archive_name TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, platform, pg_temp AS $function$
+BEGIN
+	PERFORM platform.data_return_require_operator(p_operator);
+	PERFORM platform.data_return_lock_archive(p_archive_name);
+	RETURN EXISTS (SELECT 1 FROM platform.data_return_grants WHERE archive_name = p_archive_name);
+END $function$;
+
 -- The archives that may still lie in the store: any grant not purged.
 CREATE OR REPLACE FUNCTION platform.data_return_live_archives(p_operator BIGINT)
 RETURNS SETOF TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, platform, pg_temp AS $function$
@@ -287,7 +311,7 @@ BEGIN
 	PERFORM platform.data_return_require_operator(p_operator);
 	RETURN COALESCE((SELECT jsonb_agg(jsonb_build_object('grant_id', id, 'package', package, 'subject_id', subject_id,
 		'archive_name', archive_name, 'recipient', recipient, 'recipient_name', recipient_name, 'issued_at', issued_at,
-		'expires_at', expires_at, 'keep_until', keep_until, 'revoked_at', revoked_at, 'purged_at', purged_at,
+		'expires_at', expires_at, 'keep_until', keep_until, 'revoked_at', revoked_at, 'revoked_by', revoked_by, 'purged_at', purged_at,
 		'downloads', downloads, 'max_downloads', max_downloads) ORDER BY id) FROM platform.data_return_grants), '[]'::jsonb);
 END $function$;
 
@@ -328,12 +352,14 @@ REVOKE ALL ON FUNCTION platform.data_return_require_operator(BIGINT), platform.d
 	platform.data_return_archive(BIGINT, TEXT), platform.data_return_revoke(BIGINT, BIGINT, TEXT, BOOLEAN),
 	platform.data_return_purgeable(BIGINT), platform.data_return_purge_archive(BIGINT, TEXT),
 	platform.data_return_live_archives(BIGINT), platform.data_return_drop_evidence(BIGINT),
+	platform.data_return_archive_released(BIGINT, TEXT),
 	platform.data_return_list(BIGINT), platform.data_return_open_for(TEXT, BIGINT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION
 	platform.data_return_issue(BIGINT, TEXT, TEXT, BIGINT, TEXT, BIGINT, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT, TEXT, BYTEA, TIMESTAMPTZ, TIMESTAMPTZ, INTEGER),
 	platform.data_return_archive(BIGINT, TEXT), platform.data_return_revoke(BIGINT, BIGINT, TEXT, BOOLEAN),
 	platform.data_return_purgeable(BIGINT), platform.data_return_purge_archive(BIGINT, TEXT),
 	platform.data_return_live_archives(BIGINT), platform.data_return_drop_evidence(BIGINT),
+	platform.data_return_archive_released(BIGINT, TEXT),
 	platform.data_return_list(BIGINT), platform.data_return_open_for(TEXT, BIGINT) TO phoenix_data_return;
 GRANT EXECUTE ON FUNCTION platform.data_return_open_for(TEXT, BIGINT) TO phoenix_school_erasure;
 
@@ -352,6 +378,7 @@ DROP FUNCTION IF EXISTS platform.data_return_refuse_open_delete();
 DROP FUNCTION IF EXISTS platform.data_return_open_for(TEXT, BIGINT);
 DROP FUNCTION IF EXISTS platform.data_return_list(BIGINT);
 DROP FUNCTION IF EXISTS platform.data_return_drop_evidence(BIGINT);
+DROP FUNCTION IF EXISTS platform.data_return_archive_released(BIGINT, TEXT);
 DROP FUNCTION IF EXISTS platform.data_return_live_archives(BIGINT);
 DROP FUNCTION IF EXISTS platform.data_return_purge_archive(BIGINT, TEXT);
 DROP FUNCTION IF EXISTS platform.data_return_purgeable(BIGINT);

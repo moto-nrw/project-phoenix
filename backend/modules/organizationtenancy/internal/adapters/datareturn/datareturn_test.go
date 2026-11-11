@@ -520,3 +520,71 @@ func TestIssueTrustsNoCallerValuesForAGrant(t *testing.T) {
 	school := f.school(t)
 	require.ErrorContains(t, issueRelease(t.Context(), f.db, f.operator, school, strings.Repeat("3", 32), time.Now().AddDate(2, 0, 0)), "within a year")
 }
+
+// An erasure that has begun refuses a release like one that is done: a
+// school with an erasure order, a Träger whose order has started. A Träger
+// order still in its grace period does not block.
+func TestReleaseRefusesASubjectWhoseErasureHasBegun(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	school := f.school(t)
+	var organization int64
+	require.NoError(t, f.db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(t.Context(), &organization))
+	keep := time.Now().Add(30 * 24 * time.Hour)
+	hex64 := strings.Repeat("ab", 32)
+	releaseOrganization := func(archive string) error {
+		_, err := f.db.NewRaw(`SELECT platform.data_return_issue(?, 'release', 'organization', ?, ?, 10, ?, ?, 1, ?, 'customer', 'Träger', ?, '\x01'::bytea, ?, ?, 1)`,
+			f.operator, organization, archive, hex64, hex64, hex64, strings.Repeat("ef", 16)+archive, time.Now().Add(time.Hour), keep).Exec(t.Context())
+		return err
+	}
+	t.Cleanup(func() {
+		for _, statement := range []string{
+			`DELETE FROM platform.data_return_grants WHERE package = 'organization' AND subject_id = ?`,
+			`DELETE FROM platform.organization_erasure_orders WHERE organization_id = ?`,
+		} {
+			_, err := f.db.ExecContext(context.Background(), statement, organization)
+			require.NoError(t, err)
+		}
+		_, err := f.db.ExecContext(context.Background(), `DELETE FROM platform.school_erasures WHERE school_id = ?`, school)
+		require.NoError(t, err)
+	})
+
+	_, err := f.db.ExecContext(t.Context(), `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by)
+		VALUES (?, 'ORDER-6550', current_date, current_date + 30, ?)`, organization, f.operator)
+	require.NoError(t, err)
+	require.NoError(t, releaseOrganization(strings.Repeat("4", 32)), "a recorded order in its grace period does not block")
+	_, err = f.db.ExecContext(t.Context(), `UPDATE platform.organization_erasure_orders SET started_at = now(), records_notice_shown_at = now(),
+		records_choice = 'erasure_chosen' WHERE organization_id = ?`, organization)
+	require.NoError(t, err)
+	require.ErrorContains(t, releaseOrganization(strings.Repeat("5", 32)), "erasure of the school or Träger has begun")
+
+	_, err = f.db.ExecContext(t.Context(), `INSERT INTO platform.school_erasures (school_id, organization_id, operator_id, order_reference) VALUES (?, ?, ?, 'ORDER-6550')`,
+		school, organization, f.operator)
+	require.NoError(t, err)
+	require.ErrorContains(t, issueRelease(t.Context(), f.db, f.operator, school, strings.Repeat("6", 32), keep), "erasure of the school or Träger has begun")
+}
+
+// A revocation records who ended the token: here an operator.
+func TestRevocationRecordsItsOrigin(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	issued := f.releaseSchool(t, f.school(t), "x", 1)
+	released, err := f.release.store.released(t.Context(), f.operator, issued.ArchiveName)
+	require.NoError(t, err)
+	require.True(t, released)
+	released, err = f.release.store.released(t.Context(), f.operator, strings.Repeat("7", 32))
+	require.NoError(t, err)
+	require.False(t, released)
+	_, err = f.release.Revoke(t.Context(), organizationtenancy.DataReturnRevokeRequest{GrantID: issued.GrantID, OperatorID: f.operator})
+	require.NoError(t, err)
+	grants, err := f.release.Grants(t.Context(), f.operator)
+	require.NoError(t, err)
+	for _, grant := range grants {
+		if grant.GrantID == issued.GrantID {
+			require.NotNil(t, grant.RevokedBy)
+			require.Equal(t, "operator", *grant.RevokedBy)
+			return
+		}
+	}
+	t.Fatal("revoked grant not listed")
+}

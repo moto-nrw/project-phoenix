@@ -505,7 +505,9 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Downloadzählern; die Ablage `phoenix-<env>-data-return` ist nicht
    wiederhergestellt. Das Skript widerruft deshalb direkt nach dem
    Datenbankimport jedes Token mit Archiv und leert dessen Schlüssel
-   (`restore_data_return_revoked=<Anzahl>`, Schritt `data_return_revoke`);
+   (`restore_data_return_revoked=<Anzahl>`, Schritt `data_return_revoke`,
+   `revoked_by = 'restore'` an jeder Tokenzeile als Nachweis, weil es keinen
+   Operator gibt);
    ältere Sicherungen ohne die Tabelle bleiben unberührt. Danach mit dem
    Freigabezugang `tenant return purge --operator <ID>` ausführen
    ([Runbook](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act)).

@@ -543,7 +543,7 @@ Das Paket enthält vollständige Bankdaten und Gesundheitsangaben. Wer ein Token
 hat, kann es laden.
 
 1. **Freigabezugang.** Die Befehle `tenant return …` laufen als Gruppenrolle
-   `phoenix_data_return` (Migration 1.15.910). Sie hat keine Tabellenrechte,
+   `phoenix_data_return` (Migration 1.15.917). Sie hat keine Tabellenrechte,
    nur `EXECUTE` auf die Datenbankfunktionen der Freigabe; diese prüfen den
    aktiven Operator und schreiben Freigabe und Operator-Protokoll in einer
    Transaktion. Wie beim [Löschzugang](tenant-erasure.md#1-auftrag-und-wartungsfenster-freigeben-mensch)
@@ -645,9 +645,14 @@ hat, kann es laden.
    und eine gelöschte Schule nimmt keine Freigabe mehr an. **Offen:** Ein
    Paket des Trägers sperrt die Löschung einer seiner Schulen nicht; es
    bleibt abrufbar, bis es bereinigt oder der Träger gelöscht wird. Das ist
-   der heutige Stand, keine getroffene fachliche Entscheidung.
+   der heutige Stand, keine getroffene fachliche Entscheidung
+   ([#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)). Eine
+   Freigabe für eine Schule oder einen Träger, deren Löschung begonnen hat,
+   verweigert die CLI.
 
 Die Ablage `phoenix-<env>-data-return` ist nicht Teil der täglichen
-Sicherung. Der Restore widerruft alle Tokens mit Archiv selbst
-(`restore_data_return_revoked=<Anzahl>`); danach `purge` ausführen, laufende
-Wechsel neu exportieren und freigeben.
+Sicherung. Jeder Restore der Datenbank, aus der täglichen Sicherung wie beim
+Rollback eines Releases ([release-backup-rollback.md](release-backup-rollback.md)),
+widerruft alle Tokens mit Archiv selbst (`restore_data_return_revoked=<Anzahl>`,
+`revoked_by = 'restore'` an der Tokenzeile); danach `purge` ausführen,
+laufende Wechsel neu exportieren und freigeben.

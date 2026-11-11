@@ -89,7 +89,7 @@ type DataReturn interface {
 // DataReturnRelease is the operator side of the retrieval, run by the CLI
 // as the group role phoenix_data_return. Every command checks the active
 // operator and lands in the operator audit in the same transaction as its
-// write (migration 1.15.910).
+// write (migration 1.15.917).
 type DataReturnRelease interface {
 	Release(ctx context.Context, request DataReturnReleaseRequest) (DataReturnIssued, error)
 	Grant(ctx context.Context, request DataReturnGrantRequest) (DataReturnIssued, error)
@@ -170,9 +170,11 @@ type DataReturnGrantSummary struct {
 	ExpiresAt     time.Time  `json:"expires_at"`
 	KeepUntil     time.Time  `json:"keep_until"`
 	RevokedAt     *time.Time `json:"revoked_at,omitempty"`
-	PurgedAt      *time.Time `json:"purged_at,omitempty"`
-	Downloads     int        `json:"downloads"`
-	MaxDownloads  int        `json:"max_downloads"`
+	// RevokedBy is operator, or restore for a token a database restore ended.
+	RevokedBy    *string    `json:"revoked_by,omitempty"`
+	PurgedAt     *time.Time `json:"purged_at,omitempty"`
+	Downloads    int        `json:"downloads"`
+	MaxDownloads int        `json:"max_downloads"`
 	// ArchiveStored is set for a grant that is not purged: whether its
 	// archive lies in the store of this installation.
 	ArchiveStored *bool `json:"archive_stored,omitempty"`

@@ -17,7 +17,7 @@ import (
 )
 
 // Release is the operator side, run by the CLI: it releases, grants,
-// revokes, purges and lists through the functions of migration 1.15.910.
+// revokes, purges and lists through the functions of migration 1.15.917.
 type Release struct {
 	store  releaseStore
 	crypto organizationtenancy.DataReturnCrypto
@@ -114,18 +114,14 @@ func (r *Release) Release(ctx context.Context, request organizationtenancy.DataR
 }
 
 // discardUnreleased removes the archive of a failed release only when the
-// database confirms that no grant names it. A lost answer after a commit
-// leaves a live grant: its archive stays. If the database cannot answer,
-// the file stays too; the purge sweeps it once no grant names it.
+// database confirms, under the archive's lock, that no grant names it. An
+// issue that is still committing holds that lock, so a lost answer after a
+// commit keeps its archive. If the database cannot answer, the file stays;
+// the purge sweeps it once no grant names it.
 func (r *Release) discardUnreleased(ctx context.Context, operatorID int64, name string) {
-	live, err := r.store.names(context.WithoutCancel(ctx), "data_return_live_archives", operatorID)
-	if err != nil {
+	released, err := r.store.released(context.WithoutCancel(ctx), operatorID, name)
+	if err != nil || released {
 		return
-	}
-	for _, archive := range live {
-		if archive == name {
-			return
-		}
 	}
 	_ = os.Remove(r.archivePath(name))
 }

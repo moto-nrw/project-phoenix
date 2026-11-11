@@ -323,15 +323,17 @@ class Recovery:
         # ADR 0203: the store of released return packages is no part of the
         # backup and survives an in-place restore, while the database brings
         # back revoked tokens and spent downloads. Revoke every grant that
-        # still has an archive before any app can start; the operator issues
-        # new tokens. Older backups without the table need nothing.
+        # still has an archive before any app can start and record on the row
+        # that a restore did it (there is no operator to audit); the operator
+        # issues new tokens. Older backups without the table need nothing.
         global step
         step = 'data_return_revoke'
         if self.sql("SELECT to_regclass('platform.data_return_grants') IS NOT NULL;") != 't':
             return
         revoked = self.sql("""
             WITH revoked AS (
-                UPDATE platform.data_return_grants SET revoked_at = now(), wrapped_key = NULL
+                UPDATE platform.data_return_grants SET revoked_at = COALESCE(revoked_at, now()),
+                    revoked_by = COALESCE(revoked_by, 'restore'), wrapped_key = NULL
                 WHERE purged_at IS NULL AND (revoked_at IS NULL OR wrapped_key IS NOT NULL)
                 RETURNING 1)
             SELECT count(*) FROM revoked;

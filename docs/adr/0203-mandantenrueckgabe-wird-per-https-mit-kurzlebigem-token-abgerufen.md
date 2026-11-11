@@ -56,10 +56,16 @@ so sensibel wie das Paket selbst.
    Downloadbudget (höchstens 20). Widerruf (`tenant return revoke`) und Ablauf
    wirken für neue Anfragen sofort; ein laufender Download prüft alle 8 MiB, ob
    sein Token widerrufen oder bereinigt ist, und bricht dann ab. Nach einem
-   Restore der Datenbank widerruft das Restore-Skript selbst alle Tokens mit
-   Archiv, weil der Restore widerrufene Tokens und Downloadzähler zurückbringt
-   (`restore_data_return_revoked=<Anzahl>`); `tenant return revoke --all`
-   leistet dasselbe von Hand. Jedes Token öffnet genau das Archiv seiner Zeile; keine
+   Restore der Datenbank widerrufen beide Restore-Wege selbst alle Tokens mit
+   Archiv, weil der Restore widerrufene Tokens und Downloadzähler zurückbringt:
+   die tägliche Sicherung (`daily_backup.py`) und der Rollback eines Releases
+   (`release-backup.sh restore`, automatisch aus `deploy-remote.sh` und
+   manuell über `rollback-remote.sh`), jeweils direkt nach `pg_restore`.
+   Mangels Operator schreiben sie keinen Eintrag ins Operator-Protokoll,
+   sondern halten `revoked_by = 'restore'` an jeder Tokenzeile fest und geben
+   `restore_data_return_revoked=<Anzahl>` aus; ein Operator-Widerruf setzt
+   `revoked_by = 'operator'`. `tenant return revoke --all` leistet dasselbe
+   von Hand. Jedes Token öffnet genau das Archiv seiner Zeile; keine
    Anfrage wählt Schule, Träger oder Datei. Damit gibt es keinen Weg, mit dem
    Token einer Schule das Paket einer anderen zu holen.
 4. **HTTPS-Schnittstelle.** `GET /public/data-return/package` nennt Paketart,
@@ -74,7 +80,7 @@ so sensibel wie das Paket selbst.
 5. **Rolle und Nachweis.** Die CLI läuft als NOLOGIN-Gruppe
    `phoenix_data_return` wie der Löschzugang `phoenix_school_erasure`: ohne
    Tabellenrechte, nur mit `EXECUTE` auf `SECURITY DEFINER`-Funktionen der
-   Migration 1.15.910. Jede Funktion prüft den aktiven Operator, schreibt und
+   Migration 1.15.917. Jede Funktion prüft den aktiven Operator, schreibt und
    ergänzt das Operator-Protokoll in derselben Transaktion (Aktion
    `data_return_*`, je Token bzw. Archiv ein Eintrag, ohne Token, Schlüssel oder
    Personendaten) und sperrt das Archiv per Advisory-Lock, sodass Bereinigung
@@ -102,7 +108,10 @@ so sensibel wie das Paket selbst.
    `platform.organizations` wiederholt die Prüfung in der Transaktion des
    Löschens, nachdem er die Zeilensperre erhalten hat; die Freigabe sperrt
    dieselbe Zeile mit `FOR KEY SHARE` und verweigert eine Schule oder einen
-   Träger, den es nicht mehr gibt. Freigabe und Löschung desselben Subjekts
+   Träger, den es nicht mehr gibt oder dessen Löschung begonnen hat (ein
+   Löschauftrag der Schule in `platform.school_erasures`, ein gestarteter
+   Löschauftrag des Trägers). Ein erfasster Trägerauftrag in der Karenzzeit
+   sperrt nicht: Gerade dann braucht der Kunde die Rückgabe. Freigabe und Löschung desselben Subjekts
    laufen so nie aneinander vorbei.
 
 **Bewusst offen:** Die Löschung einer Schule wird **nicht** durch ein offenes
@@ -110,7 +119,8 @@ Paket ihres Trägers gesperrt. Das Trägerpaket enthält die Unterlagen des
 Trägers (Verträge, Abrechnung, SEPA) und die Stammzeilen seiner Schulen; es
 bleibt nach der Löschung einer seiner Schulen abrufbar, bis der Träger
 gelöscht oder das Paket bereinigt wird. Ob das so bleiben soll, ist eine
-offene fachliche Entscheidung.
+offene fachliche Entscheidung:
+[#6644](https://github.com/moto-nrw/project-phoenix/issues/6644).
 
 Verfügbarkeit: Die Schnittstelle besteht dauerhaft; ein Paket ist ab seiner
 Freigabe nach der Wechselanfrage bis zum Ende des Abrufzeitraums abrufbar,

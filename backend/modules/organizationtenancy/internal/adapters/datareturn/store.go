@@ -99,7 +99,7 @@ func (s retrievalStore) finishDownload(ctx context.Context, id int64, now time.T
 
 // releaseStore is the CLI side. Every call runs in its own session as the
 // NOLOGIN group phoenix_data_return, which may only execute the functions of
-// migration 1.15.910; they check the operator and write the operator audit
+// migration 1.15.917; they check the operator and write the operator audit
 // in the same transaction. The session is discarded afterwards, so the role
 // never returns to the pool.
 type releaseStore struct{ db *bun.DB }
@@ -205,6 +205,14 @@ func (s releaseStore) names(ctx context.Context, function string, operatorID int
 		return conn.NewRaw(`SELECT * FROM platform.`+function+`(?)`, operatorID).Scan(ctx, &names)
 	})
 	return names, err
+}
+
+func (s releaseStore) released(ctx context.Context, operatorID int64, name string) (bool, error) {
+	var released bool
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT platform.data_return_archive_released(?, ?)`, operatorID, name).Scan(ctx, &released)
+	})
+	return released, err
 }
 
 func (s releaseStore) purgeArchive(ctx context.Context, operatorID int64, name string) (bool, error) {
