@@ -15,10 +15,8 @@ import {
 } from "~/components/traeger/care-contract-format";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/data-field";
-import {
-  ResponsiveActionList,
-  ResponsiveActionRow,
-} from "~/components/ui/responsive-action-list";
+import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   StatusBadge,

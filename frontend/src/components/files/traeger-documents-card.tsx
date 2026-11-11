@@ -14,10 +14,8 @@ import {
 import { Button } from "~/components/ui/button";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import {
-  ResponsiveActionList,
-  ResponsiveActionRow,
-} from "~/components/ui/responsive-action-list";
+import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { documentsConcept } from "~/lib/concepts/documents";

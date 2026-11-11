@@ -20,5 +20,3 @@ export function ResponsiveActionList({
     </ul>
   );
 }
-
-export { ResponsiveActionRow } from "./responsive-action-row";

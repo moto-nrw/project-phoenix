@@ -25,10 +25,8 @@ import { TriangleAlert } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
-import {
-  ResponsiveActionList,
-  ResponsiveActionRow,
-} from "~/components/ui/responsive-action-list";
+import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";

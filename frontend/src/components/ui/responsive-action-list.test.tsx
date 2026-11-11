@@ -1,10 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import {
-  ResponsiveActionList,
-  ResponsiveActionRow,
-} from "./responsive-action-list";
+import { ResponsiveActionRow } from "./responsive-action-row";
+import { ResponsiveActionList } from "./responsive-action-list";
 
 describe("ResponsiveActionRow", () => {
   it("renders each row as an item of the list", () => {

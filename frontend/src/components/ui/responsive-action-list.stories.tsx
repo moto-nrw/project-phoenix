@@ -2,10 +2,8 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { ReactNode } from "react";
 
 import { Button } from "./button";
-import {
-  ResponsiveActionList,
-  ResponsiveActionRow,
-} from "./responsive-action-list";
+import { ResponsiveActionRow } from "./responsive-action-row";
+import { ResponsiveActionList } from "./responsive-action-list";
 import { SectionCard } from "./section-card";
 
 const meta = {

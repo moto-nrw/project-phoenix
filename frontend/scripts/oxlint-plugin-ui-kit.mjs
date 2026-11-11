@@ -4133,7 +4133,7 @@ const noHandRolledActionRow = {
     },
     messages: {
       handRolled:
-        "Keine eigene Zeile mit Aktionsspalte: ResponsiveActionRow (~/components/ui/responsive-action-list) in ResponsiveActionList (#6571).",
+        "Keine eigene Zeile mit Aktionsspalte: ResponsiveActionRow (~/components/ui/responsive-action-row) in ResponsiveActionList (#6571).",
     },
     schema: [],
   },

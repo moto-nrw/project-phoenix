@@ -12,10 +12,8 @@ import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ProgressBar } from "~/components/ui/progress-bar";
-import {
-  ResponsiveActionList,
-  ResponsiveActionRow,
-} from "~/components/ui/responsive-action-list";
+import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatChatDateTime } from "~/lib/date-helpers";

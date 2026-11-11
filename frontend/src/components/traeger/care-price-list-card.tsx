@@ -7,10 +7,8 @@
 // weitere Kind, wenn das Büro einen eingetragen hat. Ein gebuchter Tag ohne
 // Preis ist markiert, denn das Kind kommt sonst nicht in den Monatslauf.
 
-import {
-  ResponsiveActionList,
-  ResponsiveActionRow,
-} from "~/components/ui/responsive-action-list";
+import { ResponsiveActionRow } from "~/components/ui/responsive-action-row";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
