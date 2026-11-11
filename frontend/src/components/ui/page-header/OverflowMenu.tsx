@@ -16,6 +16,7 @@ import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
+import { SHEET_SCOPE_SELECTOR } from "../overlay-stack";
 import type {
   OverflowMenuCheckboxItem,
   OverflowMenuEntry,
@@ -221,7 +222,7 @@ export function OverflowMenu({
       const scope = portalOwnerId
         ? null
         : trigger.closest(
-            '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+            `[data-overflow-menu-scope="true"], ${SHEET_SCOPE_SELECTOR}`,
           );
       const nextPortalContainer =
         scope instanceof HTMLElement ? scope : document.body;

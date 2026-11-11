@@ -38,10 +38,8 @@ import type {
 } from "~/components/ui/page-header/types";
 import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
-import {
-  countedDayStatus,
-  isNotCheckedInLocation,
-} from "~/lib/location-helper";
+import { isNotCheckedInLocation } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import {
   countCheckedInStudents,
   formatGroupLabelWithAttendance,
@@ -127,10 +125,7 @@ import {
   getTimeStatusSortRank,
   type StudentDayTimes,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
 import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
@@ -1013,22 +1008,15 @@ function OGSGroupPageContent() {
           (student) => `/students/${student.id}?from=/ogs-groups`,
           photosEnabled,
         ),
-        statusColumn("Aufenthalt", (student) => {
-          const badgePlanning = getStudentPresenceBadgePlanning(student);
-          return (
-            <StudentPresenceBadge
-              student={{
-                ...student,
-                not_arrival_today: badgePlanning.notArrivalToday,
-                not_arrival_reason: badgePlanning.notArrivalReason,
-              }}
-              displayMode="roomName"
-              isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
-              variant="modern"
-              size="md"
-            />
-          );
-        }),
+        statusColumn("Aufenthalt", (student) => (
+          <StudentPresenceBadge
+            student={student}
+            displayMode="roomName"
+            isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
+            variant="modern"
+            size="md"
+          />
+        )),
         classColumn({ defaultVisible: false, label: holidayGuestLabel }),
         arrivalColumn(ogsStudentDay),
         pickupColumn(ogsStudentDay),
@@ -1212,15 +1200,7 @@ function OGSGroupPageContent() {
                   }}
                   locationBadge={
                     <StudentPresenceBadge
-                      student={(() => {
-                        const badgePlanning =
-                          getStudentPresenceBadgePlanning(student);
-                        return {
-                          ...student,
-                          not_arrival_today: badgePlanning.notArrivalToday,
-                          not_arrival_reason: badgePlanning.notArrivalReason,
-                        };
-                      })()}
+                      student={student}
                       displayMode="roomName"
                       isGroupRoom={inGroupRoom}
                       variant="modern"

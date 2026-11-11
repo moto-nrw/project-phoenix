@@ -144,6 +144,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "./slide-over";
+import { Modal } from "./modal";
 import {
   useFormModalPending,
   type FormModalOperation,
@@ -183,7 +184,9 @@ describe("SlideOver", () => {
               <div data-date-picker-panel>Calendar</div>
             )}
             {overlay === "modal" && (
-              <div data-modal-focus-scope="true">Confirmation</div>
+              <Modal isOpen onClose={() => {}} title="Confirmation">
+                Confirmation
+              </Modal>
             )}
           </SlideOverContent>
         </SlideOver>,

@@ -13,8 +13,8 @@ describe("one pill per child", () => {
       <LocationBadge
         student={{
           current_location: "Unterwegs",
-          not_arrival_today: true,
-          not_arrival_reason: "Laut Plan kommt das Kind heute nicht",
+          arrival_is_exception: true,
+          arrival_notes: "Laut Plan kommt das Kind heute nicht",
         }}
         displayMode="roomName"
       />,

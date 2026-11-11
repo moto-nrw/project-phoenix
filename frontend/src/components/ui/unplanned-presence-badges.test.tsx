@@ -6,8 +6,8 @@ import { PresenceBadge } from "./presence-badge";
 
 const student = {
   current_location: "Anwesend - Gruppenraum",
-  not_arrival_today: true,
-  not_arrival_reason: "Kommt heute nicht",
+  arrival_is_exception: true,
+  arrival_notes: "Kommt heute nicht",
 };
 
 describe.each([

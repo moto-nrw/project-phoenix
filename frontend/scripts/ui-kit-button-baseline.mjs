@@ -40,7 +40,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [457],
+    lines: [461],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -52,7 +52,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [395, 434],
+    lines: [394, 433],
     reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {

@@ -28,6 +28,11 @@ import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { cn } from "~/lib/utils";
 import {
+  MODAL_SCOPE_SELECTOR,
+  SCROLL_AREA_PROPS,
+  SHEET_SCOPE_SELECTOR,
+} from "./overlay-stack";
+import {
   DAY_PICKER_CLASSNAMES,
   DayPickerSkeleton,
   LazyDayPicker,
@@ -439,10 +444,9 @@ export function DatePicker({
   const portalContainer =
     typeof document === "undefined"
       ? null
-      : (containerRef.current?.closest("[data-modal-focus-scope]") ??
-        document.body);
+      : (containerRef.current?.closest(MODAL_SCOPE_SELECTOR) ?? document.body);
   const needsPortalledFocusScope =
-    containerRef.current?.closest("[data-date-picker-focus-trap]") !== null;
+    containerRef.current?.closest(SHEET_SCOPE_SELECTOR) !== null;
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
@@ -656,7 +660,7 @@ function DatePickerCalendar({
   return (
     <div
       data-date-picker-panel
-      data-modal-content="true"
+      {...SCROLL_AREA_PROPS}
       className={getCalendarContainerClass(calendarLayout, compact)}
     >
       <CalendarNavHeader
@@ -703,7 +707,7 @@ function MultipleDatePickerCalendar({
   return (
     <div
       data-date-picker-panel
-      data-modal-content="true"
+      {...SCROLL_AREA_PROPS}
       className={getCalendarContainerClass(calendarLayout, compact)}
     >
       <CalendarNavHeader month={month} onMonthChange={setMonth} />

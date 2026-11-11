@@ -17,8 +17,7 @@ import NavigationLink, {
 } from "~/components/ui/navigation-link";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
-const ITEM =
-  "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full py-2.5 transition-colors duration-200";
+const ITEM = `relative ${Z_LAYER.raised} flex min-h-[44px] items-center justify-center gap-2.5 rounded-full py-2.5 transition-colors duration-200`;
 const ITEM_ACTIVE = "bg-gray-100 text-gray-900";
 const ITEM_IDLE = "text-gray-500 hover:text-gray-700";
 const ITEM_IDLE_QUIET = "text-gray-400 hover:text-gray-600";

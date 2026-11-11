@@ -74,7 +74,7 @@ describe("LocationBadge without decorative dot", () => {
       ["class_trip", "data-class-trip-indicator", LOCATION_STATUSES.CLASS_TRIP],
       ["excused", "data-excused-indicator", LOCATION_STATUSES.EXCUSED],
       [
-        "not_arrival_today",
+        "arrival_is_exception",
         "data-not-arrival-indicator",
         LOCATION_STATUSES.UNPLANNED_PRESENT,
       ],
@@ -129,7 +129,7 @@ describe("PresenceBadge without decorative dot", () => {
       ["class_trip", "data-class-trip-indicator", LOCATION_STATUSES.CLASS_TRIP],
       ["excused", "data-excused-indicator", LOCATION_STATUSES.EXCUSED],
       [
-        "not_arrival_today",
+        "arrival_is_exception",
         "data-not-arrival-indicator",
         LOCATION_STATUSES.UNPLANNED_PRESENT,
       ],
