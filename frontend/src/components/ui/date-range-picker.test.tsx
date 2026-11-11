@@ -581,6 +581,16 @@ describe("DateRangePicker in a dialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
+
+  it("lets its calendar scroll while the dialog locks the page", async () => {
+    renderInModal();
+    await screen.findByRole("button", { name: "Letzte 7 Tage" });
+    const panel = document.querySelector("[data-range-panel]")!;
+
+    const notPrevented = fireEvent.wheel(panel);
+
+    expect(notPrevented).toBe(true);
+  });
 });
 
 it.each(schoolDateCases("2026-06-01"))(

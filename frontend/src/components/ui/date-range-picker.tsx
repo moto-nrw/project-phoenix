@@ -1,7 +1,11 @@
 "use client";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { Z_LAYER, zLayerValue } from "./overlay-styles";
-import { MODAL_SCOPE_SELECTOR, OVERLAY_SCOPE_SELECTOR } from "./overlay-stack";
+import {
+  MODAL_SCOPE_SELECTOR,
+  OVERLAY_SCOPE_SELECTOR,
+  SCROLL_AREA_PROPS,
+} from "./overlay-stack";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
@@ -183,6 +187,9 @@ export function DateRangePicker({
       // Safari dispatches Escape from body after clicking a button without
       // focusing it. Look for active overlays independently of that target,
       // so a hidden calendar cannot intercept Escape meant for the overlay.
+      // A tour coach mark lies below calendars (`Z_LAYER`), so the calendar
+      // closes first. An `AnchoredPopover` and a calendar close each other on
+      // an outside press, and Escape inside the popover stays there (below).
       if (
         target === document.body &&
         isBehindActiveOverlay(containerRef.current)
@@ -404,6 +411,8 @@ function RangeCalendar({
     <div
       ref={panelRef}
       data-range-panel
+      // A dialog locks the page scroll; the panel scrolls like `DatePicker`'s.
+      {...SCROLL_AREA_PROPS}
       className={`fixed ${Z_LAYER.popover} moto-popover-surface max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry
