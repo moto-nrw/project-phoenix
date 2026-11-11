@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -19,7 +20,10 @@ type proposal struct {
 	request    SubmitRequest
 	selections [][]selection.Selection
 	phase      *enrollmentNative.Phase
-	offerings  map[int64]*offeringContract.CareOfferingRecord
+	// locked is the phase as the phase bounds reader read it; phase is its
+	// row. Only locked reaches the bookings.
+	locked    enrollmentNative.LockedPhase
+	offerings map[int64]*offeringContract.CareOfferingRecord
 }
 
 // proposalOptions tune prepareProposed to its two callers. Creation locks the
@@ -32,8 +36,10 @@ type proposalOptions struct {
 
 // prepareProposed validates a proposal the way a submission is validated —
 // capabilities, offerings, classes, eligibility, guardians, consents and form
-// fields — and returns it normalized. Creation and approval both run it.
-func (s *ChangeRequests) prepareProposed(ctx context.Context, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild, incoming SubmitRequest, capabilities enrollmentNative.FormCapabilities, allowStoredHiddenOfferings, lockTakenOverChildren bool) (*proposal, error) {
+// fields — and returns it normalized. Creation and approval both run it, on
+// the phase the phase bounds reader read under the recurrence gate before
+// the request and child locks (lockedProposalPhase).
+func (s *ChangeRequests) prepareProposed(ctx context.Context, phase enrollmentNative.LockedPhase, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild, incoming SubmitRequest, capabilities enrollmentNative.FormCapabilities, allowStoredHiddenOfferings, lockTakenOverChildren bool) (*proposal, error) {
 	opts := proposalOptions{allowStoredHiddenOfferings: allowStoredHiddenOfferings, lockTakenOverChildren: lockTakenOverChildren}
 	editReq, err := s.bindProposal(ctx, req, children, incoming, opts)
 	if err != nil {
@@ -45,14 +51,10 @@ func (s *ChangeRequests) prepareProposed(ctx context.Context, req *enrollmentNat
 		// locked rows below, not validated as fresh parent input.
 		clearHiddenProposalOfferings(&editReq)
 	}
-	phase, err := s.intake.intakePhase(ctx, req.PhaseID)
-	if err != nil && !s.deps.Runtime.NotFound(err) {
-		return nil, err
+	if phase.Phase() == nil || phase.Phase().ID != req.PhaseID {
+		return nil, fmt.Errorf("change request: proposal phase does not match request %d", req.ID)
 	}
-	if err != nil || phase == nil || !phase.IsActive {
-		return nil, enrollmentNative.ErrEnrollmentDisabled
-	}
-	prepared := &proposal{phase: phase}
+	prepared := &proposal{phase: phase.Phase(), locked: phase}
 	capabilities, err = s.materializeProposal(ctx, &editReq, children, capabilities, opts, prepared)
 	if err != nil {
 		return nil, err
@@ -62,6 +64,21 @@ func (s *ChangeRequests) prepareProposed(ctx context.Context, req *enrollmentNat
 	}
 	prepared.request = editReq
 	return prepared, nil
+}
+
+// lockedProposalPhase reads the request's phase with the phase bounds
+// reader (#6657). Callers run it before their request and child locks; the
+// approval already holds the gates there. A missing or inactive phase
+// refuses the change like before.
+func (s *ChangeRequests) lockedProposalPhase(ctx context.Context, phaseID int64) (enrollmentNative.LockedPhase, error) {
+	phase, err := s.intake.phaseBounds().LockedPhase(ctx, phaseID)
+	if err != nil && (errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) || !s.deps.Runtime.NotFound(err)) {
+		return enrollmentNative.LockedPhase{}, err
+	}
+	if err != nil || !phase.Phase().IsActive {
+		return enrollmentNative.LockedPhase{}, enrollmentNative.ErrEnrollmentDisabled
+	}
+	return phase, nil
 }
 
 // bindProposal binds the incoming payload to the stored request, pins the

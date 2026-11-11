@@ -106,10 +106,11 @@ func studentOutcomeOf(t *testing.T, db *bun.DB, result *importModels.ImportResul
 	}
 	for table, query := range studentOwnerTables {
 		var rows []string
-		// Drop identities, keys and the tenant; a timestamp or actor only says
-		// whether it is set. The owner label keeps the row attributable.
+		// Drop identities, keys and the tenant; a timestamp, an actor or the
+		// sealed health field (its ciphertext differs per seal; tests compare
+		// the opened text) only says whether it is set. The owner label keeps the row attributable.
 		require.NoError(t, db.NewRaw(`SELECT owner || ' ' || (
-				SELECT jsonb_object_agg(key, CASE WHEN key LIKE '%\_at' OR key LIKE '%\_since' OR key LIKE '%\_by' THEN to_jsonb(value <> 'null'::jsonb) ELSE value END)
+				SELECT jsonb_object_agg(key, CASE WHEN key LIKE '%\_at' OR key LIKE '%\_since' OR key LIKE '%\_by' OR key = 'health_data' THEN to_jsonb(value <> 'null'::jsonb) ELSE value END)
 				FROM jsonb_each(to_jsonb(x))
 				WHERE key <> 'id' AND key NOT LIKE '%\_id' AND key NOT IN ('created_at', 'updated_at')
 			)::text FROM (`+query+` WHERE x.tenant_id = ?) AS t(x, owner) ORDER BY 1`, testpkg.Tenant(t)).Scan(context.Background(), &rows), table)

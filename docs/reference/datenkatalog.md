@@ -49,6 +49,14 @@ gehören keiner Schule und werden nicht zurückgegeben.
 Ferienfenster bewusst Betreuung, mit dem bestätigenden Konto) ist `tenant`,
 wird zurückgegeben und mit der Schule gelöscht.
 
+Migration 1.15.917 ergänzt den Abruf des Rückgabepakets ([ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md)):
+`platform.data_return_grants` (Token als HMAC, eingewickelter
+Paketschlüssel, Empfängerorganisation, Ablauf, Downloads) ist `platform` und
+`excludeSecret`; `platform.data_return_downloads` (je Abruf Zeitpunkt,
+Ergebnis, Bytes) ist `platform` und `excludeInternal`. Beide tragen keine
+Schul- oder Träger-Fremdschlüssel, sind Nachweis der Rückgabe und gehen mit
+`tenant return purge` drei Jahre nach dem Abrufzeitraum. Freigabe, Widerruf und Bereinigung laufen als Gruppe `phoenix_data_return` nur über Funktionen der Migration; `tenant erase` verweigert, solange ein Paket der Schule oder des Trägers nicht bereinigt ist.
+
 Migration 1.15.758 ergänzt `platform.email_delivery_events` und
 `platform.email_suppressions` (#5932): Zustellereignisse einer Mail und die
 Adressen einer Schule mit endgültigem Fehler oder Beschwerde. Beide sind

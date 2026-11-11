@@ -45,3 +45,23 @@ type StudentLiveStatus struct {
 	Excused      bool
 	ExcusedSince *time.Time
 }
+
+// StudentCareProfileSave is one care profile of a new membership a batch
+// saves, with its departure plan as SaveStudentCareProfile takes them.
+type StudentCareProfileSave struct {
+	Profile StudentCareProfile
+	Plan    *StudentDeparturePlan
+}
+
+// StudentCareProfileBatches saves the care profiles of many new memberships
+// at once (#5552, ADR 0067 addendum of 2026-11-08, point 3:
+// SaveStudentCareProfiles, called by People Directory's enrollment batch). It
+// is a leaf command outside StudentProfileCommands; the root binding asserts
+// it.
+type StudentCareProfileBatches interface {
+	// SaveStudentCareProfiles inserts every care profile with the columns
+	// and values SaveStudentCareProfile writes for a membership without one,
+	// in the caller's transaction, all or none. A membership that has a
+	// care profile already fails the call.
+	SaveStudentCareProfiles(context.Context, []StudentCareProfileSave) error
+}

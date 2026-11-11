@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
@@ -188,6 +190,12 @@ type StudentImportDeps struct {
 	// GuardianBatches is the People Directory's new-guardian batch slice;
 	// without it every chunk takes the row path.
 	GuardianBatches NewGuardianBatches
+	// EnrollmentBatches is the People Directory's enrollment batch slice
+	// (#5552 step 7); without it each child is created in place.
+	EnrollmentBatches EnrollmentBatches
+	// Today is the calendar day a new child's status is taken against;
+	// nil is calendar.TodayDate. Tests set a clock that crosses midnight.
+	Today func() calendar.Date
 	// FindRFIDCard resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
 	FindRFIDCard   func(context.Context, string) (string, bool, error)

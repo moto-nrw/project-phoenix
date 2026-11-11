@@ -38,10 +38,10 @@ writeFileSync(composePath, JSON.stringify({ services: {
   grafana: { image: 'grafana/grafana:11.5.2', ports: ['127.0.0.1::3000'], environment: {
     GF_SECURITY_ADMIN_USER: 'fixture', GF_SECURITY_ADMIN_PASSWORD: password,
     GF_ANALYTICS_REPORTING_ENABLED: 'false', GF_ANALYTICS_CHECK_FOR_UPDATES: 'false',
-  }, volumes: ['./provisioning:/etc/grafana/provisioning:ro'] },
+  }, volumes: ['./provisioning:/etc/grafana/provisioning:ro'], tmpfs: ['/var/lib/grafana'] },
   loki: { image: 'grafana/loki:3.4.3', ports: ['127.0.0.1::3100'], command: ['-config.file=/etc/loki/fixture.yml'], volumes: ['./loki.yml:/etc/loki/fixture.yml:ro'] },
   prometheus: { image: 'prom/prometheus:v3.7.3', volumes: ['./prometheus.yml:/etc/prometheus/prometheus.yml:ro'] },
-  sink: { image: 'node:24-alpine', command: ['node', '/fixture.mjs'], ports: ['127.0.0.1::8080'], volumes: ['./sink.mjs:/fixture.mjs:ro'] },
+  sink: { image: 'node:26-alpine', command: ['node', '/fixture.mjs'], ports: ['127.0.0.1::8080'], volumes: ['./sink.mjs:/fixture.mjs:ro'] },
 } }), { mode: 0o600 });
 const compose = (...args) => execFileSync('docker', ['compose', '--project-name', project, '--env-file', '/dev/null', '-f', composePath, ...args], { encoding: 'utf8', timeout: 300000 });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));

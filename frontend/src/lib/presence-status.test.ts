@@ -71,6 +71,15 @@ describe("resolvePresence mixes the day planning in itself (#6572)", () => {
 });
 
 describe("resolvePresence takes rank, text and time from the table", () => {
+  it("keeps the legacy room-red label on the binary schoolyard", () => {
+    expect(
+      resolvePresence(
+        { current_location: "Schulhof", current_room_color: "#FF3130" },
+        BINARY,
+      ).pill.color,
+    ).toBe("#c62826");
+  });
+
   it("lets the stronger day status win at home and carries only its title", () => {
     const presence = resolvePresence(
       {

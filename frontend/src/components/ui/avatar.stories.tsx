@@ -43,3 +43,12 @@ export const Sizes: Story = {
     </div>
   ),
 };
+
+export const Tones: Story = {
+  render: () => (
+    <div className="flex items-center gap-3">
+      <Avatar name="Anna Musterfrau" tone="green" />
+      <Avatar name="Bernd Beispiel" tone="neutral" />
+    </div>
+  ),
+};

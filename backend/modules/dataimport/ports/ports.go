@@ -42,6 +42,7 @@ type (
 	GuardianLink             = peopledirectory.GuardianLink
 	LinkGuardian             = peopledirectory.LinkGuardian
 	NewStudentGuardianLink   = peopledirectory.NewStudentGuardianLink
+	EnrollmentCare           = peopledirectory.EnrollmentCare
 	NewStudentGuardian       = peopledirectory.NewStudentGuardian
 	NewGuardianPhone         = peopledirectory.NewGuardianPhone
 	GuardianLinkUpdate       = peopledirectory.GuardianLinkUpdate
@@ -191,6 +192,14 @@ type PersonBatches interface {
 // student chunk executor (#5552, step 5c).
 type NewGuardianBatches interface {
 	CreateNewStudentGuardians(context.Context, []NewStudentGuardianLink) error
+}
+
+// EnrollmentBatches is the People Directory enrollment batch slice of the
+// student chunk executor (#5552, step 7).
+type EnrollmentBatches interface {
+	CreateEnrollmentProfiles(context.Context, []EnrollmentStudent) ([]CreatedEnrollmentStudent, error)
+	EnrollCreatedStudent(context.Context, CreatedEnrollmentStudent, EnrollmentStudent) (int64, error)
+	SaveEnrollmentCares(context.Context, []EnrollmentCare) error
 }
 
 // AuditBatchCommand appends many events at once, all or nothing.

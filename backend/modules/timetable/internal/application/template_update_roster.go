@@ -11,6 +11,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// Take the complete submitted roster before any row writes, in the same
+// ascending staff order as deviation saves, including weekday-only people.
+func (s *TemplateService) lockTemplateUpdateStaff(ctx context.Context, in TemplateUpdateInput) error {
+	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+	if err != nil {
+		return &ports.ScheduleError{Op: "update template: resolve roster", Err: err}
+	}
+	staffIDs := make([]int64, 0, len(roster.Staff))
+	for _, row := range roster.Staff {
+		staffIDs = append(staffIDs, row.PersonID)
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, staffIDs); err != nil {
+		return &ports.ScheduleError{Op: "update template: lock staff", Err: err}
+	}
+	return nil
+}
+
 // replaceTemplateRoster rewrites the template's planned roster and returns
 // the students whose enrollment rows the rewrite retired (deleted or closed)
 // — the caller reconciles their already-materialized occurrences when the

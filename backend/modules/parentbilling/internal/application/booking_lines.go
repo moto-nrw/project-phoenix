@@ -2,6 +2,7 @@ package application
 
 import (
 	"math/big"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
@@ -27,6 +28,14 @@ type bookingLine struct {
 	amountCents int64
 }
 
+// booksFallback matches a frozen fallback position to an emitted booking.
+// A position without a revenue account uses the standard resolved at export.
+func (line bookingLine) booksFallback(part parentbilling.ExportBookingPart) bool {
+	return line.amountCents != 0 && line.accounts.CostCenter == part.Accounts.CostCenter &&
+		line.accounts.CostCenter2 == part.Accounts.CostCenter2 &&
+		(part.Accounts.RevenueAccount == "" || line.accounts.RevenueAccount == part.Accounts.RevenueAccount)
+}
+
 // lineKey groups the parts of a document by where they book.
 type lineKey struct {
 	revenue, costCenter, costCenter2 string
@@ -41,7 +50,7 @@ func (r bookingResolver) documentLines(invoice parentbilling.ExportInvoice) ([]b
 		return nil, 0
 	}
 	parts := bookingPartsAfterFunding(invoice)
-	keys, weights, resolved := r.groupParts(parts)
+	keys, weights, resolved := r.groupParts(invoice.TotalCents, parts)
 	if len(keys) == 0 {
 		// No position with an amount: the first position names where the
 		// document books, the standard without one.
@@ -65,13 +74,16 @@ func (r bookingResolver) documentLines(invoice parentbilling.ExportInvoice) ([]b
 }
 
 // groupParts groups the parts by where they book, in the order they come.
-// The weight of a group is the sum of its charges; a document of only
-// credits (a holiday Storno) weighs by the credits.
-func (r bookingResolver) groupParts(parts []parentbilling.ExportBookingPart) ([]lineKey, []int64, int) {
-	charges := false
+// The weight of a group is the sum of its charges; a negative document with
+// credits (a holiday Storno or credit) weighs by its credits, so a Storno
+// relieves where the invoice's charges booked and not where its negated
+// discounts did (#6624). A monthly Storno carries its invoice's charges.
+func (r bookingResolver) groupParts(total int64, parts []parentbilling.ExportBookingPart) ([]lineKey, []int64, int) {
+	credits := false
 	for _, part := range parts {
-		charges = charges || part.AmountCents > 0
+		credits = credits || part.AmountCents < 0
 	}
+	charges := total >= 0 || !credits
 	var keys []lineKey
 	var weights []int64
 	index := map[lineKey]int{}
@@ -120,6 +132,44 @@ func (r bookingResolver) partAccounts(part parentbilling.ExportBookingPart) (par
 		return r.meal(part.SchoolID, part.Day), true
 	}
 	return r.holiday(part.Day), true
+}
+
+// costCenterFallbacks names the weeks of the document whose net positions
+// contribute to an exported line on the KOST1 of the holiday care (#6624),
+// once per week, for the protocol of the file. A line without a week books like the first
+// week of its child and adds no entry, unless the document has no week on
+// the fallback at all.
+func costCenterFallbacks(invoice parentbilling.ExportInvoice, lines []bookingLine) []parentbilling.CostCenterFallback {
+	var fallbacks, weekless []parentbilling.CostCenterFallback
+	seen := map[[3]string]bool{}
+	for _, part := range bookingPartsAfterFunding(invoice) {
+		if part.CostCenterFallback == "" || part.AmountCents == 0 {
+			continue
+		}
+		if !slices.ContainsFunc(lines, func(line bookingLine) bool {
+			return line.booksFallback(part)
+		}) {
+			continue
+		}
+		entry := parentbilling.CostCenterFallback{Number: invoice.Number, Reason: part.CostCenterFallback, CostCenter: part.Accounts.CostCenter}
+		if part.WeekStartsOn == nil {
+			if len(weekless) == 0 {
+				weekless = append(weekless, entry)
+			}
+			continue
+		}
+		key := [3]string{part.WeekStartsOn.String(), entry.Reason, entry.CostCenter}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		entry.WeekStartsOn, entry.WeekEndsOn = part.WeekStartsOn, part.WeekEndsOn
+		fallbacks = append(fallbacks, entry)
+	}
+	if len(fallbacks) == 0 {
+		return weekless
+	}
+	return fallbacks
 }
 
 func boolCount(value bool) int {

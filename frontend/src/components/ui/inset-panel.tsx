@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
+import { TINT_CLASSES } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 
 type InsetPanelTone = "muted" | "white" | "danger" | "warning";
@@ -47,9 +48,19 @@ function toneClasses(
     // Dieselbe `-soft`-Fläche und derselbe Rand wie `Alert` derselben
     // Bedeutung (#6564).
     case "danger":
-      return cn(border, dash, "border-moto-red/20 bg-moto-red-soft");
+      return cn(
+        border,
+        dash,
+        TINT_CLASSES.red.border,
+        TINT_CLASSES.red.surface,
+      );
     case "warning":
-      return cn(border, dash, "border-moto-orange/20 bg-moto-orange-soft");
+      return cn(
+        border,
+        dash,
+        TINT_CLASSES.orange.border,
+        TINT_CLASSES.orange.surface,
+      );
   }
 }
 

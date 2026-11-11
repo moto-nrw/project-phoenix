@@ -427,7 +427,10 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	case errors.Is(err, capability.ErrHolidayProofExpired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
 	case errors.As(err, &dayLimit):
-		common.RenderError(w, r, holidayChildDayLimitError(err, dayLimit))
+		// Public input does not prove family access. The typed refusal's
+		// diagnostic and both totals can reveal existing bookings.
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(capability.ErrHolidayChildDayLimit,
+			common.CodeEnrollmentHolidayChildDayLimitPublic, map[string]any{"limit": dayLimit.Limit, "child": dayLimit.Child + 1}))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayRegistrationNotFound):
@@ -462,9 +465,10 @@ func publicHolidayLegalBlocks(blocks []capability.FormLegalBlock) []capability.F
 }
 
 // holidayChildDayLimitError answers bookings of a child over the care days
-// of its period (#4701) with the bound, the days asked for and the child by
-// its position in the form, from 1.
+// of its period (#4701) with the bound, the days asked for in all, those of
+// them in other registrations of the same child (#6446) and the child by its
+// position in the form, from 1.
 func holidayChildDayLimitError(err error, refusal *capability.HolidayChildDayLimitRefusal) render.Renderer {
 	return common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentHolidayChildDayLimit,
-		map[string]any{"limit": refusal.Limit, "days": refusal.Days, "child": refusal.Child + 1})
+		map[string]any{"limit": refusal.Limit, "days": refusal.Days, "elsewhere": refusal.Elsewhere, "child": refusal.Child + 1})
 }

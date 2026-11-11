@@ -50,6 +50,8 @@ func (s *bookingStore) RestoreCareOfferingBookings(_ context.Context, restores [
 	return int64(len(restores)), nil
 }
 
+const restoreDay = enrollment.Date("2026-10-01")
+
 func tenantOf(id int64) func(context.Context) int64 { return func(context.Context) int64 { return id } }
 
 func TestBookingSnapshotsSelectTheRunningBookingsOfTheSchool(t *testing.T) {
@@ -70,7 +72,7 @@ func TestBookingSnapshotsSelectTheRunningBookingsOfTheSchool(t *testing.T) {
 		},
 		choices: []enrollment.SubmittedOfferingChoice{{RequestChildID: 21, CareOfferingID: 31, Notes: &note}},
 	}
-	bookings := careexit.NewBookings(applications, store, tenantOf(50))
+	bookings := careexit.NewBookings(applications, store, enrollment.NewPhaseBoundsReader(nil, nil), tenantOf(50))
 
 	snapshots, err := bookings.CareExitOfferingSnapshots(context.Background(), []int64{student}, enrollment.Date(until), nil)
 	require.NoError(t, err)
@@ -97,7 +99,7 @@ func TestBookingSnapshotsSelectTheRunningBookingsOfTheSchool(t *testing.T) {
 func TestBookingRestoreReplaysTheSnapshots(t *testing.T) {
 	t.Parallel()
 	store := &bookingStore{}
-	bookings := careexit.NewBookings(bookingApplications{}, store, tenantOf(50))
+	bookings := careexit.NewBookings(bookingApplications{}, store, enrollment.NewPhaseBoundsReader(nil, nil), tenantOf(50))
 	legacy, err := json.Marshal(enrollment.RequestChildOffering{ID: 201, TenantID: 50, RequestChildID: 21, CareOfferingID: 31, SelectedDays: []string{"tue"}})
 	require.NoError(t, err)
 	split, err := json.Marshal(enrollment.RequestChildOffering{ID: 202, TenantID: 50, RequestChildID: 21, CareOfferingID: 32,
@@ -106,7 +108,7 @@ func TestBookingRestoreReplaysTheSnapshots(t *testing.T) {
 
 	restored, err := bookings.RestoreCareExitOfferingLinks(context.Background(), []enrollment.CareExitOfferingSnapshotRestore{
 		{SourceRowID: 201, WasDeleted: true, Snapshot: legacy}, {SourceRowID: 202, Snapshot: split},
-	})
+	}, restoreDay)
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, restored)
 	assert.True(t, store.restores[0].WasDeleted)
@@ -114,9 +116,9 @@ func TestBookingRestoreReplaysTheSnapshots(t *testing.T) {
 	assert.Empty(t, store.restores[1].Booking.ManualSelectedDays)
 	assert.Equal(t, []string{"thu"}, store.restores[1].Booking.AutomaticSelectedDays)
 
-	_, err = bookings.RestoreCareExitOfferingLinks(context.Background(), []enrollment.CareExitOfferingSnapshotRestore{{SourceRowID: 999, Snapshot: legacy}})
+	_, err = bookings.RestoreCareExitOfferingLinks(context.Background(), []enrollment.CareExitOfferingSnapshotRestore{{SourceRowID: 999, Snapshot: legacy}}, restoreDay)
 	require.EqualError(t, err, "care-exit snapshot booking identity mismatch")
-	_, err = bookings.RestoreCareExitOfferingLinks(context.Background(), []enrollment.CareExitOfferingSnapshotRestore{{SourceRowID: 201, Snapshot: json.RawMessage(`{`)}})
+	_, err = bookings.RestoreCareExitOfferingLinks(context.Background(), []enrollment.CareExitOfferingSnapshotRestore{{SourceRowID: 201, Snapshot: json.RawMessage(`{`)}}, restoreDay)
 	require.ErrorContains(t, err, "decode care-exit offering snapshot")
 }
 

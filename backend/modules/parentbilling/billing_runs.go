@@ -25,6 +25,10 @@ import (
 const (
 	RunCalculated = "calculated"
 	RunReleased   = "released"
+	// RunDiscarded is a holiday, monthly or notice run the Abrechnung
+	// discarded while it was open and had nothing to issue (#6626, #6628).
+	// It issued nothing and never changes.
+	RunDiscarded = "discarded"
 )
 
 // LineCorrection is the kind of a position a correction of the run adds.
@@ -51,6 +55,11 @@ var (
 	ErrBillingRunChanged = errors.New("the billing run changed since it was checked")
 	// ErrBillingRunEmpty reports a release without any invoice.
 	ErrBillingRunEmpty = errors.New("the billing run has no invoice to issue")
+	// ErrBillingRunDiscarded reports a change of a discarded run (#6626).
+	ErrBillingRunDiscarded = errors.New("the billing run is discarded and does not change")
+	// ErrBillingRunNotEmpty reports the discard of an open run whose preview
+	// has something to issue or to settle (#6626).
+	ErrBillingRunNotEmpty = errors.New("the billing run is not empty and cannot be discarded")
 	// ErrBillingFamilyNotFound reports a correction of a child the preview
 	// of the run does not bill.
 	ErrBillingFamilyNotFound = errors.New("the child is not billed in this run")
@@ -77,6 +86,8 @@ type BillingRun struct {
 	IssuedOn        *calendar.Date `json:"issued_on"`
 	DocumentCount   *int           `json:"document_count"`
 	TotalCents      *int64         `json:"total_cents"`
+	// DiscardedAt is set once the Abrechnung discarded the empty run (#6628).
+	DiscardedAt *time.Time `json:"discarded_at"`
 }
 
 // BillingCorrection is one entry of the history of a child's amount.
@@ -109,6 +120,14 @@ type BillingPosition struct {
 	Note                string         `json:"note"`
 	CostBearerID        *int64         `json:"cost_bearer_id"`
 	CostBearerName      string         `json:"cost_bearer_name"`
+	// WeekID names the week a base line prices (HolidayContributionLine),
+	// zero for another line or one matched by its days.
+	WeekID int64 `json:"-"`
+	// Accounts is where the position books, copied by the release; a Storno
+	// copies the invoice's position (#4821, #6624). CostCenterFallback is
+	// why its KOST1 is the holiday care's, empty for its host school's.
+	Accounts           PositionAccounts `json:"-"`
+	CostCenterFallback string           `json:"-"`
 }
 
 // BillingChild is a child of an invoice with its positions and the history
@@ -151,22 +170,19 @@ type BillingDocument struct {
 	Kind  string `json:"kind"`
 	// DocumentKind is the kind of document the release froze (#4688); a
 	// draft carries the kind its release would freeze now.
-	DocumentKind        string `json:"document_kind,omitempty"`
-	ReferenceDocumentID *int64 `json:"reference_document_id"`
-	// Accounts is where every position of the document books, copied by
-	// the release; a Storno or credit copies the invoice's (#4821).
-	Accounts           PositionAccounts      `json:"-"`
-	ReferenceNumber    string                `json:"reference_number"`
-	Reason             string                `json:"reason"`
-	History            []BillingDocumentLink `json:"history"`
-	ReplacedCredits    []BillingDocumentLink `json:"replaced_credits"`
-	Number             string                `json:"number"`
-	IssuedOn           *calendar.Date        `json:"issued_on"`
-	RegistrationID     int64                 `json:"registration_id"`
-	RecipientFirstName string                `json:"recipient_first_name"`
-	RecipientLastName  string                `json:"recipient_last_name"`
-	RecipientEmail     string                `json:"recipient_email"`
-	RecipientAddress   *PostalAddress        `json:"recipient_address"`
+	DocumentKind        string                `json:"document_kind,omitempty"`
+	ReferenceDocumentID *int64                `json:"reference_document_id"`
+	ReferenceNumber     string                `json:"reference_number"`
+	Reason              string                `json:"reason"`
+	History             []BillingDocumentLink `json:"history"`
+	ReplacedCredits     []BillingDocumentLink `json:"replaced_credits"`
+	Number              string                `json:"number"`
+	IssuedOn            *calendar.Date        `json:"issued_on"`
+	RegistrationID      int64                 `json:"registration_id"`
+	RecipientFirstName  string                `json:"recipient_first_name"`
+	RecipientLastName   string                `json:"recipient_last_name"`
+	RecipientEmail      string                `json:"recipient_email"`
+	RecipientAddress    *PostalAddress        `json:"recipient_address"`
 	// RecipientKind and RecipientSecondName say who gets the invoice
 	// (#4689): the person of the registration, both parents or another
 	// payer. Payment is how and by when it is paid; an invoice issued
@@ -290,6 +306,18 @@ type HolidayBillingRegistrations interface {
 	// a proof of benefits, whatever their status now: an invoice outlives a
 	// cancellation of its registration, and so does the proof (#5627).
 	HolidayProofRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64) (map[int64]bool, error)
+	// HolidayWeekHosts names the school that hosts each week of the
+	// period, for the KOST1 its positions book on (#6624); a period of
+	// another Träger has none.
+	HolidayWeekHosts(ctx context.Context, reviewer HolidayReviewer, periodID int64) ([]HolidayWeekHost, error)
+}
+
+// HolidayWeekHost is a week of a holiday period with its host school.
+type HolidayWeekHost struct {
+	WeekID       int64
+	StartsOn     calendar.Date
+	EndsOn       calendar.Date
+	HostSchoolID int64
 }
 
 // BillingRuns lets the Abrechnung of a Träger start, check, correct and
@@ -297,6 +325,17 @@ type HolidayBillingRegistrations interface {
 // names the person of the session and runs in the Träger transaction of its
 // Träger, which the caller opens. Every read of personal data and every
 // change of a run is recorded in the run's trail.
+// HolidayRunDiscard discards an open holiday run that has nothing to issue
+// (#6628): no invoice, no cancelled invoice to issue again and no confirmed
+// registration waiting for its contribution. It holds the run and the
+// invoices of its period like the release, refuses a run with content as
+// ErrBillingRunNotEmpty and records the discard in the run's trail; nothing
+// is deleted, and the period is free for a new run. It is a capability of
+// its own because BillingRuns stands at the facade width of 12.
+type HolidayRunDiscard interface {
+	DiscardBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
+}
+
 type BillingRuns interface {
 	ListBillingRuns(ctx context.Context, organizationID int64) ([]BillingRun, error)
 	// ListBillablePeriods lists the published holiday periods of the Träger
