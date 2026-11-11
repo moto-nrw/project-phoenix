@@ -12,9 +12,10 @@
  */
 
 import type { FormErrorInput } from "./form-error";
-import { FormErrorAlert } from "./form-error-alert";
+import { DialogErrorSlot } from "./dialog-parts";
 import { Button } from "./button";
 import { Modal } from "./modal";
+import { ModalCancelButton } from "./modal-frame";
 
 interface ChoiceModalOption {
   value: string;
@@ -38,6 +39,11 @@ interface ChoiceModalProps {
   readonly onSelect: (value: string) => void;
   /** Disables all options (and Abbrechen) while the caller is working. */
   readonly isBusy?: boolean;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). `isBusy` locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** Why the last choice failed, from `useApiFormError` (#2516): shown at the
    *  top of the dialog with retry and request ID, like `FormModal`. */
   readonly error?: FormErrorInput;
@@ -51,6 +57,7 @@ export function ChoiceModal({
   options,
   onSelect,
   isBusy = false,
+  isDismissDisabled = false,
   error,
 }: ChoiceModalProps) {
   // While the caller is working, every dismiss path (backdrop, Escape,
@@ -59,15 +66,7 @@ export function ChoiceModal({
   // a check in onClose alone ran Modal's exit animation and left the dialog
   // open but invisible (#6567).
   const footer = (
-    <Button
-      type="button"
-      variant="outline"
-      size="md"
-      onClick={onClose}
-      disabled={isBusy}
-    >
-      Abbrechen
-    </Button>
+    <ModalCancelButton onClick={onClose}>Abbrechen</ModalCancelButton>
   );
 
   return (
@@ -76,9 +75,9 @@ export function ChoiceModal({
       onClose={onClose}
       title={title}
       footer={footer}
-      isDismissDisabled={isBusy}
+      isDismissDisabled={isDismissDisabled || isBusy}
     >
-      <FormErrorAlert message={error} className="mb-4" />
+      <DialogErrorSlot error={error} />
       {description && (
         <p className="mb-4 text-sm text-gray-600">{description}</p>
       )}
