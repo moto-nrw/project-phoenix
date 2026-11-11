@@ -402,6 +402,9 @@ function RangeCalendar({
   // content, so its calendar stays at the body with its own FocusScope.
   // Inside a modal the panel shares the modal's stacking context, exactly like
   // `DatePicker`: a tour coach mark over an open dialog lies above both alike.
+  // Known limits, shared with `DatePicker` (#6732): a dialog opened without a
+  // click over an open calendar lies below it; inside an `AnchoredPopover` a
+  // press in the calendar counts as outside the popover.
   const modalScope = triggerRef.current?.closest("[data-modal-focus-scope]");
   const needsPortalledFocusScope =
     !modalScope &&
