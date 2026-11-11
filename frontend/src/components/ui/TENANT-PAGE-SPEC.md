@@ -155,7 +155,9 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
    - `SectionCard` — Inhaltsfläche mit Kopf; OHNE `title` die reine Fläche
      (das frühere `<section className="moto-content-surface …">`).
    - `TileCard` — anklickbare Kachel (Kind, Raum, Mitarbeiter, Nachricht).
-     Mit `containsControls`, wenn die Kachel eigene Bedienelemente trägt.
+     Mit `nativeAnchor` für einen Dokumentwechsel, `newTab` für einen neuen
+     Tab. Rahmen, Polster, Hover und Fokusring teilt sie mit `StatCard` und
+     `SectionCard` über `card-surface.ts`.
    - `StatCard` — jede Kennzahl, mit `icon`, `href` und `loading`.
    - `CollectionGrid` — DAS Kachelgitter jeder Sammlung: Spalten aus
      `auto-fit` mit Mindest-Kachelbreite, Abstand 16 px (mobil 12 px).

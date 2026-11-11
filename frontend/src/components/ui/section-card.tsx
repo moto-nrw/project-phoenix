@@ -7,10 +7,8 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  SECTION_CARD_PADDING,
-  SectionCardSurface,
-} from "~/components/ui/section-card-surface";
+import { CARD_SURFACE_PADDING } from "~/components/ui/card-surface";
+import { SectionCardSurface } from "~/components/ui/section-card-surface";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
@@ -379,7 +377,7 @@ export function SectionCard({
   // Zonen tragen das Polster, wenn ein Teil bis an den Rand laufen soll.
   const zoned = !bare && padding === "default" && (flush || footer != null);
   let surfacePadding = "";
-  if (padding === "default" && !zoned) surfacePadding = SECTION_CARD_PADDING;
+  if (padding === "default" && !zoned) surfacePadding = CARD_SURFACE_PADDING;
   const bodySpacing =
     hasHeader && !bare ? (bodyClassName ?? "compact:mt-3 mt-4") : bodyClassName;
   const bodyClasses = zoned

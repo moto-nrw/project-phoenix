@@ -38,12 +38,14 @@
 
 import { cn } from "~/lib/utils";
 import { listRowClasses } from "./list-row-styles";
+import {
+  CARD_FOCUS_RING,
+  CARD_FRAME,
+  cardSurfaceClasses,
+} from "./card-surface";
 import type { ReactNode } from "react";
 import Link from "~/components/ui/navigation-link";
-import {
-  MOTO_COLOR_PALETTE,
-  getAccessibleTextColor,
-} from "~/lib/kit-palette";
+import { MOTO_COLOR_PALETTE, getAccessibleTextColor } from "~/lib/kit-palette";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -135,7 +137,7 @@ function StatInline({ label, value, detail, icon }: StatInlineProps) {
   return (
     // Mittig ausgerichtet, damit eine Kachel ohne Zusatzwert neben einer
     // umbrochenen Nachbarkachel nicht oben klebt.
-    <div className="moto-content-surface flex items-center rounded-2xl border px-4 py-3">
+    <div className={cn(CARD_FRAME, "flex items-center px-4 py-3")}>
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {icon == null ? null : <IconTile size="sm" shape="round" icon={icon} />}
         <span className="min-w-0">
@@ -200,12 +202,7 @@ export function StatCard(
 
   const card =
     props.variant === "row" ? (
-      <div
-        className={cn(
-          listRowClasses(),
-          "transition-colors group-hover:bg-gray-100/50",
-        )}
-      >
+      <div className={listRowClasses({ hoverFromGroup: true })}>
         {icon}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
           {label}
@@ -226,9 +223,10 @@ export function StatCard(
         title={title}
         // Verlinkt reagiert die Kachel beim Überfahren wie `TileCard`, und
         // jede Kachel hat deren Innenabstand: eine Karte, ein Verhalten (#6565).
-        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 max-sm:p-4 ${
-          href ? "moto-hover-elevated" : ""
-        }`}
+        className={cn(
+          cardSurfaceClasses({ padded: true, hover: Boolean(href) }),
+          "relative flex h-full flex-col",
+        )}
       >
         {/* Absolute so a tile carrying an action keeps the same label→value
           rhythm as its neighbours in the row. */}
@@ -301,8 +299,8 @@ export function StatCard(
         className={
           props.variant === "row"
             ? "focus-visible:ring-moto-blue group block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-            : // Derselbe Fokusring wie `TileCard`, in moto-blue für 3:1 Kontrast (#6565).
-              "group focus-visible:outline-moto-blue block h-full cursor-pointer rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2"
+            : // Der Link um die Fläche trägt den Fokusring der Karte.
+              cn("group block h-full cursor-pointer", CARD_FOCUS_RING)
         }
       >
         {card}
