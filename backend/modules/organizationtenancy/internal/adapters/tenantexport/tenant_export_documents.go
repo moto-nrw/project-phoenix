@@ -92,7 +92,7 @@ func (r *exportRun) writeDocumentFiles(ctx context.Context) error {
 			return err
 		}
 	}
-	if index.Sync() != nil || index.Close() != nil {
+	if syncFile(index) != nil || index.Close() != nil {
 		return errors.New("tenant export: cannot persist the document index")
 	}
 	if err := r.recordArtifact(documentIndex); err != nil {

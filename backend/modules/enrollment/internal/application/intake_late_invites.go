@@ -126,6 +126,12 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 		"send_notification":          input.SendNotification,
 		"actor_account_id":           input.ActorID,
 	}
+	// The approval takes the class-writes gate before the recurrence gate.
+	// The submission takes the recurrence gate first thing in its write, so
+	// both gates are taken here, in that order, before any lock of its own.
+	if err := s.deps.ManualDecider.LockApprovalGates(ctx); err != nil {
+		return nil, err
+	}
 	submitted, err := s.submit(ctx, req)
 	if err != nil {
 		return nil, err
@@ -149,8 +155,8 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 }
 
 // enforceRateLimit runs count in the tenant's transaction of its own, so the
-// count survives a refused submission or upload, and passes on its refusal.
-// Without a limiter the check is skipped.
+// count survives a refused upload, and passes on its refusal. Without a
+// limiter the check is skipped.
 func (s *Intake) enforceRateLimit(ctx context.Context, tenantID int64, count func(context.Context) error) error {
 	if s.deps.RateLimits == nil || tenantID <= 0 {
 		return nil

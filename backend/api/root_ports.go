@@ -65,6 +65,7 @@ func requiredLink(name, raw string, production bool) (string, error) {
 // candidates of a group with their names.
 type GroupRoster interface {
 	GroupMembers(ctx context.Context, groupID int64) ([]grouplive.RosterStudent, error)
+	GroupMemberIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
 }
 
 // WorkforceMail is the tenant mail the absence requests go out through.

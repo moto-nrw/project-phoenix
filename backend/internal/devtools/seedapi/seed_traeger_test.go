@@ -314,6 +314,7 @@ func TestSeedHolidayPeriodCoversTheSeededHerbstferien(t *testing.T) {
 	assert.Equal(t, "Ferienbetreuung Herbstferien 2026", period["name"])
 	assert.Equal(t, "2026-09-23", period["registration_opens_on"])
 	assert.Equal(t, "2026-10-05", period["registration_closes_on"], "a week before the Ferien")
+	assert.Contains(t, period["acceptance_mail_text"], "Wechselkleidung", "the confirmation mails the Träger's text (#6672)")
 	weeks := period["weeks"].([]map[string]any)
 	require.Len(t, weeks, 2)
 	ferienStart, ferienEnd := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
@@ -463,6 +464,10 @@ func TestSeedTraegerHolidayPeriodStepReadsTheHostedParticipantList(t *testing.T)
 					// The holiday guests join the new group (#4666).
 					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
 					_, _ = w.Write([]byte(`{"status":"success","data":{"week_id":51,"group_id":5,"guests":1}}`))
+				case "/api/holiday-guests/groups":
+					// The group management names the Feriengruppe before its week.
+					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+					_, _ = w.Write([]byte(`{"status":"success","data":[{"group_id":5,"week_id":51,"guests":1}]}`))
 				case "/traeger/billing-runs/5", "/traeger/billing-runs/5/corrections":
 					// The billing run of the same step (#4668) checks one invoice.
 					_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"documents":[{"registration_id":9,"children":[{"child_id":91}]}]}}`))
@@ -489,6 +494,7 @@ func TestSeedTraegerHolidayPeriodStepReadsTheHostedParticipantList(t *testing.T)
 				"GET /api/holiday-weeks/ Bearer school-token",
 				"GET /api/holiday-weeks/51/participants Bearer school-token",
 				"PUT /api/holiday-weeks/51/guest-group Bearer school-token",
+				"GET /api/holiday-guests/groups Bearer school-token",
 			}, reads, "the hosting school reads its list and takes its holiday guests with its own school session")
 		})
 	}

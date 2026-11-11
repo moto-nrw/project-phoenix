@@ -53,18 +53,10 @@ func TestDemoErasureIncludesAConcurrentMonthlyRelease(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	release, invoiceID := pendingCareRelease(t, order)
-	type outcome struct {
-		erased int
-		err    error
-	}
-	done := make(chan outcome, 1)
-	go func() {
-		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
-		done <- outcome{erased: erased, err: err}
-	}()
-	require.Eventually(t, func() bool {
+	order.waitForLocks(t)
+	done := order.waitingRun(t, "the erasure waits for the monthly billing", func() bool {
 		return lockWaits(t, order.db, "retire_expired_demo_schools")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the monthly billing")
+	})
 	require.NoError(t, release.Commit())
 	select {
 	case result := <-done:
@@ -85,7 +77,7 @@ func TestDemoErasureDefersAMonthlyReleaseThatKeepsItsLock(t *testing.T) {
 	before := order.snapshot(t)
 	release, invoiceID := pendingCareRelease(t, order)
 
-	_, erased := retireNow(t, order.queue, nil)
+	_, erased := retireNow(t, order.db, order.queue, nil)
 	assert.Zero(t, erased)
 	assert.Equal(t, before, order.snapshot(t), "the deferred order is unchanged")
 	require.NoError(t, release.Commit(), "erasure does not abort the release")

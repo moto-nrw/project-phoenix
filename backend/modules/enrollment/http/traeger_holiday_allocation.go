@@ -139,7 +139,7 @@ func (rs *HolidayPeriodResource) decideAllocation(w http.ResponseWriter, r *http
 	for i, choice := range req.Decisions {
 		choices[i] = capability.HolidayAllocationChoice(choice)
 	}
-	board, err := rs.allocation.DecideHolidayAllocation(r.Context(), reviewer, periodID, choices)
+	board, err := rs.decide.DecideHolidayAllocation(r.Context(), reviewer, periodID, choices)
 	if err != nil {
 		renderHolidayAllocationError(w, r, err)
 		return

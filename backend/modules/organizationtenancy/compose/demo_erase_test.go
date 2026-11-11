@@ -549,8 +549,7 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	// The expiry deletes the accesses and hides the school of the other order.
 	_, err = db.NewRaw(`DELETE FROM auth.demo_accesses WHERE school_slug IN (?, ?)`, failed, retired).Exec(ctx)
 	require.NoError(t, err)
-	hidden, erased, err = queue.RetireDemoSchools(ctx, []string{retired})
-	require.NoError(t, err)
+	hidden, erased = retireAtLeast(t, db, queue, []string{retired}, 1, 2)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 2, erased, "the school hidden right now and the failed order")
 	assert.Equal(t, []string{waiting}, demoOrderNames(t, db))
@@ -607,8 +606,7 @@ func TestDemoSchoolQueueErasesVisitorOutboxWithoutDelivery(t *testing.T) {
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	var remaining int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_outbox WHERE id = ?`, orphanedOutboxID).Scan(t.Context(), &remaining))
@@ -661,8 +659,7 @@ func TestDemoSchoolQueueErasesEveryMailOfTheRetiredSchool(t *testing.T) {
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	var remaining []int64
 	require.NoError(t, db.NewRaw(`SELECT id FROM platform.email_outbox WHERE id IN (?) ORDER BY id`,
@@ -691,8 +688,7 @@ func retireVisitorOrder(t *testing.T, db *bun.DB, schoolID int64, accounts visit
 		VisitorAccountID: accounts.caregiver, VisitorParentAccountID: accounts.parent,
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 }
 
@@ -811,8 +807,7 @@ func TestDemoSchoolQueueRecoversVisitorAccountsAfterTheirStateWriteFails(t *test
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	assert.Equal(t, everyTrace(0), visitorTraces(t, db, schoolID))
 }
@@ -855,8 +850,7 @@ func TestDemoSchoolQueueAnonymizesExclusiveVisitorAccounts(t *testing.T) {
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	var remaining int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.account_tenants WHERE account_id IN (?, ?)`, accounts.caregiver, accounts.parent).Scan(ctx, &remaining))
@@ -916,8 +910,7 @@ func TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools(t *testin
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.tokens"} {
 		var hidden, outside int
@@ -1125,8 +1118,7 @@ func TestDemoSchoolQueueErasesTheFamilyBillingOfTheRetiredSchool(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing", families), "no deviation stays")
 	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing_events", events), "no trail stays")
@@ -1183,8 +1175,7 @@ func TestDemoSchoolQueueErasesTheSEPAMandatesOfTheRetiredSchool(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 	assert.Zero(t, remainingRows(t, db, "parent_billing.sepa_mandates", mandates), "no mandate stays")
 	assert.Zero(t, remainingRows(t, db, "parent_billing.sepa_mandate_events", events), "no trail stays")

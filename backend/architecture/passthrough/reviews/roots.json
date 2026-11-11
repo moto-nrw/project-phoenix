@@ -636,6 +636,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0120",
+      "id": "api/groupLiveDirectory.SupervisedGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "api/groupLiveDirectory.SupervisedGroups",
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
@@ -679,6 +684,11 @@
       "decision": "0090",
       "id": "api/holidayProofUnits.UploadHolidayProof",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0110",
+      "id": "api/holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "reason": "ADR 0110 (#6691): Consumer-port adapter of Enrollment's holiday retention port; it reads the Träger's holiday_registration.retention_days through the Settings Platform's Träger level in the caller's Träger transaction and translates the keyed number into the port's answer."
     },
     {
       "decision": "0114",
@@ -862,11 +872,6 @@
     },
     {
       "decision": "0115",
-      "id": "api/parentBillingHolidayRegistrations.RebookHolidayChild",
-      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it rebooks through Enrollment's review in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up from the waiting list again in the same unit, and translates the registration and Enrollment's refusals into the Elternabrechnung's vocabulary."
-    },
-    {
-      "decision": "0115",
       "id": "api/parentBillingHolidayRegistrations.RecordHolidaySiblings",
       "reason": "ADR 0115 addendum (#5628): Consumer-port adapter of the Elternabrechnung's holiday registrations; it records a sibling merge or split through Enrollment's review, which locks the registration and appends the audit entry, in the caller's Träger transaction and translates Enrollment's refusals."
     },
@@ -879,11 +884,6 @@
       "decision": "0121",
       "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
       "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it changes the debtor number through Enrollment's review, which locks the registration and records the change, in the caller's Träger transaction and translates the registration and Enrollment's refusals."
-    },
-    {
-      "decision": "0115",
-      "id": "api/parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
-      "reason": "ADR 0115 addendum (#4699): Consumer-port adapter of the Elternabrechnung's holiday registrations; it sets the capacity of a week through Enrollment's places in the caller's Träger transaction, so the Elternabrechnung freezes the contribution of every registration that moved up again in the same unit, and translates the moved-up registrations and Enrollment's refusals into the Elternabrechnung's vocabulary."
     },
     {
       "decision": "0126",
@@ -899,6 +899,16 @@
       "decision": "0123",
       "id": "api/parentBillingLetterPost.SenderText",
       "reason": "ADR 0123 (#4670): Consumer-port adapter of the post of the confirmation letters; it reads the letterhead text of the session's Träger through the Settings Platform in the caller's Träger transaction for the sender name of the mail."
+    },
+    {
+      "decision": "0206",
+      "id": "api/parentBillingPlaceChanges.RebookHolidayChild",
+      "reason": "ADR 0206 (#6555): root binding of Parent Billing's HTTP write port to the holiday-allocation workflow; it translates the booking choices onto Enrollment's input, the workflow result onto the public place change and Enrollment's refusals into Parent Billing's vocabulary. No lock, read or decision."
+    },
+    {
+      "decision": "0206",
+      "id": "api/parentBillingPlaceChanges.SetHolidayWeekCapacity",
+      "reason": "ADR 0206 (#6555): root binding of Parent Billing's HTTP write port to the holiday-allocation workflow; it maps the workflow's capacity change onto the public place change with the sorted moved-up registrations and translates refusals. No lock, read or decision."
     },
     {
       "decision": "0121",
@@ -3592,11 +3602,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/communicationAnnouncementAudience.HoldAnswerPermission",
-      "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/communicationAnnouncementAudience.HoldDeclarationSigner",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -3871,6 +3876,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+    },
+    {
+      "decision": "0177",
+      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4079,6 +4094,11 @@
       "decision": "0090",
       "id": "roots/owners/enrollmentStudentGuardians.UpdateGuardianLinkRole",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0210",
+      "id": "roots/owners/enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "reason": "Root binding converts Enrollment identity values to People Directory values and preserves all index-aligned matches; no business decision or SQL."
     },
     {
       "decision": "0090",

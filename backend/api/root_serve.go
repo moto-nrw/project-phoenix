@@ -403,7 +403,7 @@ func composeServeRoot(
 			return
 		},
 		func() error {
-			flows = owners.BuildEnrollmentFlows(db, env, enrollment, notices, decisions, phases, offerings, consent, identity, people, structure,
+			flows = owners.BuildEnrollmentFlows(db, env, enrollment, notices, decisions, phases, offerings, timetableRows, consent, identity, people, structure,
 				carePlan, carePlanRows, schedules, membership, organizations, audit, settings.Service, delivery.Enqueuer())
 			reviewPolicy = owners.NewParentRequestReviewPolicy(caller.Caller().ParentRequestReviews)
 			return nil
@@ -505,7 +505,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, owners.BuildParentDocumentNotices(db, env, portalReads, organizations, identity, people, notifications, delivery.Runtime.Module))
+				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, owners.BuildParentDocumentNotices(db, env, portalReads, organizations, identity, people, notifications, delivery.Runtime.Module), identity)
 			return
 		},
 	)

@@ -44,7 +44,6 @@ import {
   SectionCollapseHead,
   SectionCollapseToggle,
 } from "~/components/ui/section-card";
-import { Tooltip } from "~/components/ui/tooltip";
 import { GroupIcon, SchoolClassIcon } from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -417,27 +416,20 @@ function RosterRowActions({
           wächst; auf dem Handy rechts außen. Der Name im Label unterscheidet
           die Links der Liste. */}
       {profileHref ? (
-        <Tooltip
-          content="Profil ansehen"
-          asChild
-          iconOnly
-          className="ml-auto sm:ml-0"
-          bubbleClassName="right-0 left-auto"
+        <ButtonLink
+          href={profileHref}
+          variant="outline"
+          size="icon"
+          aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
+          tooltip="Profil ansehen"
+          className="ml-auto shrink-0 sm:ml-0"
         >
-          <ButtonLink
-            href={profileHref}
-            variant="outline"
-            size="icon"
-            aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
-            className="shrink-0"
-          >
-            <ArrowUpRightIcon
-              className="size-4"
-              weight="bold"
-              aria-hidden="true"
-            />
-          </ButtonLink>
-        </Tooltip>
+          <ArrowUpRightIcon
+            className="size-4"
+            weight="bold"
+            aria-hidden="true"
+          />
+        </ButtonLink>
       ) : null}
     </div>
   );

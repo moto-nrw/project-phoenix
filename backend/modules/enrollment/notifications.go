@@ -189,6 +189,9 @@ type MailRenderers struct {
 	// HolidayClosureNotice renders the mail that a booked holiday week has a
 	// day without care (#6434), a mail of the Träger.
 	HolidayClosureNotice MailRenderer
+	// HolidayRegistrationAccepted renders the acceptance mail of a confirmed
+	// holiday registration (#6672), a mail of the Träger.
+	HolidayRegistrationAccepted MailRenderer
 }
 
 // CaptchaVerifier verifies a parent-submitted captcha token against the

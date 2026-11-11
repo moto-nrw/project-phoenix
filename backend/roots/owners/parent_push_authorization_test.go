@@ -80,7 +80,7 @@ func newBillingPushFixture(t *testing.T) (*billingPushFixture, testpkg.ParentCha
 	}})
 	require.NoError(t, err)
 	f.worker, err = buildDeliveryWorker(testpkg.NewDatabase(t, db), RootEnvironment{Logger: slog.Default()}, nil,
-		mail.Email{}, nil, DeliveryRuntime{Runtime: f.runtime}, nil, nil, nil, cancelledModules{}, nil, f.transport)
+		mail.Email{}, nil, DeliveryRuntime{Runtime: f.runtime}, nil, nil, nil, cancelledModules{}, nil, f.transport, nil)
 	require.NoError(t, err)
 	return f, chain
 }

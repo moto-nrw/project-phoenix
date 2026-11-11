@@ -392,3 +392,88 @@ Feriengast und Ende der Betreuung bleiben, wie oben beschrieben. Zeigt sich,
 dass vorgemerkte Kinder die Armband-Auswahl am Kiosk unübersichtlich machen,
 bekommen sie dort einen Hinweis auf ihren Beginn statt einer Ausblendung;
 das ändert den Kiosk-Vertrag mit PyrePortal und braucht ein eigenes Issue.
+
+## Nachtrag 2026-11-11: Die Buchung plant die Tage, nicht das Konto der Gruppenwahl
+
+Ersetzt in Punkt 2 „Urheber die Person des Kontos, das die Gruppe gewählt
+hat“ und „Hat dieses Konto keinen Personaleintrag (mehr), kommt der Gast
+trotzdem in die Gruppe, und nur seine Tage bleiben offen“.
+
+Auf Staging wählte ein Konto die Gruppe, das nur Mitglied einer anderen
+Schule desselben Trägers ist und in der ausrichtenden Schule keinen
+Personaleintrag hat. Die drei Gäste kamen in die Gruppe, die Wahl meldete
+Erfolg, aber keiner ihrer Tage stand in der Tagesplanung. Richtet das
+Trägerbüro die Woche für die Schule ein, ist das der Normalfall.
+
+1. **Die Buchung ist Urheber.** Enrollment trägt die gebuchten Tage mit der
+   eigenen Quelle `holiday_booking` und ohne Personal-Urheber ein
+   (`created_by` bleibt leer, `created_by_guardian` auch); Grund und Zeiten
+   bleiben wie in Punkt 2. Migration 1.15.923 erweitert `chk_exception_source`
+   und `chk_exception_author` der Tabellen
+   `schedule.student_arrival_exceptions` und
+   `schedule.student_pickup_exceptions` um diese Quelle. Wer die Gruppe
+   gewählt hat, steht weiter im Zugriffsprotokoll der Übertragung.
+2. **Die Schule entscheidet den Tag.** Wie eine Zeile des Personals
+   überschreibt keine Änderung von Eltern einen solchen Tag, und eine
+   genehmigte Abholänderung meldet dort einen Konflikt
+   (`careplan.SchoolOwnedException`); das Elternportal zeigt ihn als Tag der
+   Schule. Ändert das Team den Tag im Betreuungsplan, bleibt die Quelle
+   `holiday_booking`.
+3. **Der stündliche Abgleich plant nach.** Hat ein Gast mit gewählter Gruppe
+   und gültiger Buchung keine einzige An- oder Abholausnahme, plant der
+   Abgleich (`holiday-guest-reconciliation`) seine Tage, ohne dass jemand die
+   Gruppe neu wählt. Die Gäste, die vor diesem Nachtrag ohne Tage kopiert
+   wurden, bekommen sie so beim nächsten Lauf. Löscht das Team alle Tage
+   eines Gasts, plant der nächste Lauf sie ebenso neu; einen Tag ohne Gast
+   trägt das Team als Abwesenheit ein. Ein Gast mit mindestens einem
+   geplanten Tag behält seinen Plan; neu geplant wird er weiter nur bei einer
+   Gruppenwahl oder geänderter Buchung, und die Woche ohne Gruppe behält
+   ihren Plan bis zur nächsten Wahl. Ein beendeter Gast verliert seine Tage
+   wie bisher (`ClearHolidayGuestDays`).
+
+## Nachtrag 2026-11-11: Feriengruppe vor ihrer Woche
+
+Rückmeldung aus dem Test auf Staging: Eine Schule legte im November die
+Gruppe „Ferienbetreuung Januar 2027“ für eine Woche vom 04.01. bis
+08.01.2027 an und wählte sie als Feriengruppe. Weil die Feriengäste nach dem
+Nachtrag vom 03.11.2026 erst ab dem ersten Tag der Woche in der Gruppe
+stehen, zeigte die Gruppenübersicht acht Wochen lang eine leere Gruppe ohne
+Erklärung. Der Nachtrag vom 03.11.2026 bleibt unverändert; dazu gilt:
+
+- **Tageslisten.** Die Gruppenlisten von Group Live, also die
+  Gruppenauswahl der Seite „OGS-Gruppen“ mit ihrer Navigation
+  (`GET /api/students/ogs-group-navigation`) und die Reiter der
+  Live-Ansicht (`GET /api/students/ogs-group-live`), lassen eine Gruppe weg,
+  solange sie die Feriengruppe einer ausgerichteten Woche ist, die nach dem
+  Kalendertag des Lesers beginnt, sie die Feriengruppe keiner heute
+  laufenden Woche ist und kein Kind der Gruppe heute an der Betreuung
+  teilnimmt (Teilnahme von Care Plan, dieselbe Regel wie der Gruppenkader).
+  Ab dem ersten Tag der Woche oder sobald ein Kind der Gruppe heute betreut
+  wird, steht sie wieder da. Eine eigene Gruppe mit Kindern, die auch
+  Feriengruppe ist, bleibt deshalb immer sichtbar. Ein Link mit der Gruppe
+  (`group_id`) öffnet sie weiter.
+- **Nach der Woche.** Die Regel kennt nur Wochen, deren letzter Tag heute
+  oder später liegt. Nach der letzten Woche ist die Gruppe wieder eine
+  gewöhnliche Gruppe und erscheint, auch leer. Die Leitung löscht sie oder
+  nutzt sie für die nächste Woche; eine gelöschte Gruppe verliert ihre
+  Wahl über den Fremdschlüssel. Das hält die Regel einfach und blendet nie
+  eine Gruppe dauerhaft aus.
+- **Verwaltung bleibt vollständig.** Gruppenverwaltung, Auswahl der
+  Feriengruppe, Dienst- und Betreuungsplan und Personalzuordnung lesen die
+  Gruppen weiter über School Structure und zeigen sie immer, damit die
+  Leitung Team und Raum vor der Woche zuordnet. `GET /api/holiday-guests/groups`
+  (Recht `groups:read`, das Recht der Gruppenlisten) nennt jede Feriengruppe
+  mit Woche und Zahl der Feriengäste; die Gruppenverwaltung zeigt daraus den
+  Hinweis „Feriengruppe 04.01.–08.01.2027 · 3 Feriengäste ab 04.01.“.
+- **Grenzen.** Enrollment besitzt die Wahl und liest sie in der
+  Tenant-Transaktion der Schule über die öffentliche Capability
+  `HolidayGuestGroupList` (eine Abfrage für die ganze Schule). Group Live
+  entscheidet die Regel über eigene Ports (`HolidayGroups`,
+  `Roster.GroupMemberIDs`); die Wurzel bindet sie (ADR 0067). Die Kinder
+  der wartenden Gruppen liest es nur, wenn eine Gruppe wartet, gesammelt in
+  einer Abfrage. Für Leser mit Überblick über alle Gruppen liest Group Live
+  die eigenen Gruppen nur noch als IDs aus der Identitätskette; so bleiben
+  die Abfrage-Budgets der Gruppenlisten gleich.
+- **Kiosk und Aufsicht.** Der Kiosk (`/api/iot/…`) listet keine
+  Betreuungsgruppen, die Aufsicht nur die eigenen Gruppen der Person für die
+  Raumzuordnung; beide bleiben unverändert.

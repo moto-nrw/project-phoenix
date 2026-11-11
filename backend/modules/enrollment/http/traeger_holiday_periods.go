@@ -24,9 +24,11 @@ import (
 type HolidayPeriodResource struct {
 	periods       capability.HolidayPeriods
 	review        capability.HolidayRegistrationReview
+	records       capability.HolidayRegistrationRecords
 	wishes        capability.HolidayWishReview
 	places        HolidayPlaceReads
-	allocation    capability.HolidayAllocation
+	allocation    HolidayAllocationReads
+	decide        HolidayAllocationDecision
 	schoolNames   capability.HolidaySchoolNames
 	requireManage common.Middleware
 	requireHealth common.Middleware
@@ -40,12 +42,31 @@ type HolidayPeriodResource struct {
 // session with the Träger right "Gesundheitsangaben sehen" to the health
 // information of a registration (#4722).
 // places lists the places of the weeks (#4699), allocation names the
-// criteria and decides on the places by them (#4700).
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation capability.HolidayAllocation, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
-	if periods == nil || review == nil || wishes == nil || places == nil || allocation == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
-		panic("enrollment http: the holiday periods, the registration review, the wish review, the places, the allocation, the school names and the right checks are required")
+// criteria and the proposal, decide decides on the places by them (#4700).
+// records reads the registrations for their files (#6691).
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, records capability.HolidayRegistrationRecords, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation HolidayAllocationReads, decide HolidayAllocationDecision, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
+	if periods == nil || review == nil || records == nil || wishes == nil || places == nil || allocation == nil || decide == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
+		panic("enrollment http: the holiday periods, the registration review, the registration records, the wish review, the places, the allocation, the decision, the school names and the right checks are required")
 	}
-	return &HolidayPeriodResource{periods: periods, review: review, wishes: wishes, places: places, allocation: allocation, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+	return &HolidayPeriodResource{periods: periods, review: review, records: records, wishes: wishes, places: places, allocation: allocation, decide: decide, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+}
+
+// HolidayAllocationReads names the Träger's criteria, shows the proposal of
+// a period and records the Büro's check of answers (#4700).
+type HolidayAllocationReads interface {
+	HolidayCriteria(ctx context.Context, reviewer capability.HolidayReviewer) (capability.HolidayCriteriaCatalog, error)
+	SaveHolidayCriteria(ctx context.Context, reviewer capability.HolidayReviewer, criteria []capability.HolidayCriterionInput) (capability.HolidayCriteriaCatalog, error)
+	HolidayAllocationBoard(ctx context.Context, reviewer capability.HolidayReviewer, periodID int64) (capability.HolidayAllocationBoard, error)
+	CheckHolidayCriteria(ctx context.Context, reviewer capability.HolidayReviewer, periodID, registrationID int64, checks []capability.HolidayCriterionCheck) (capability.HolidayRegistrationDetail, error)
+}
+
+// HolidayAllocationDecision decides on the pending bookings of a period
+// (#4700). The root binds the holiday allocation workflow (ADR 0206), which
+// holds the period's invoices and the period, lets Enrollment decide and
+// computes the contributions of everyone who gained a place, in the
+// request's Träger transaction.
+type HolidayAllocationDecision interface {
+	DecideHolidayAllocation(ctx context.Context, reviewer capability.HolidayReviewer, periodID int64, choices []capability.HolidayAllocationChoice) (capability.HolidayAllocationBoard, error)
 }
 
 // HolidayPlaceReads lists the places of the weeks of a period (#4699).
@@ -106,7 +127,9 @@ type HolidayPeriodRequest struct {
 	RegistrationClosesOn calendar.Date `json:"registration_closes_on"`
 	Binding              bool          `json:"binding"`
 	Notes                string        `json:"notes"`
-	HolidayWishRule      bool          `json:"holiday_wish_rule"`
+	// AcceptanceMailText is the text of the acceptance mail (#6672).
+	AcceptanceMailText string `json:"acceptance_mail_text"`
+	HolidayWishRule    bool   `json:"holiday_wish_rule"`
 	// MaxDaysPerChild bounds the care days per child, null for no bound
 	// (#4701).
 	MaxDaysPerChild *int `json:"max_days_per_child"`
@@ -132,7 +155,7 @@ func (req *HolidayPeriodRequest) input() capability.HolidayPeriodInput {
 	}
 	return capability.HolidayPeriodInput{
 		Name: req.Name, RegistrationOpensOn: req.RegistrationOpensOn, RegistrationClosesOn: req.RegistrationClosesOn,
-		Binding: req.Binding, Notes: req.Notes, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
+		Binding: req.Binding, Notes: req.Notes, AcceptanceMailText: req.AcceptanceMailText, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
 		AllocationMode: req.AllocationMode,
 	}
 }

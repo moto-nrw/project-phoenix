@@ -25,7 +25,7 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	// #5504), the Nachweisarten (1.15.724, #4808), the school vacations
 	// (1.15.721, #5345) and the Elternsprechtag (1.15.720, #4801) extend this
 	// erasure; they go first.
-	// 1.15.920 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
+	// 1.15.935 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
 	require.NoError(t, holidayClosureEventsDown(ctx, db))
 	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesDown(ctx, db))

@@ -10,6 +10,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/observability"
 
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
@@ -18,13 +19,14 @@ import (
 func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake {
 	return enrollmentCompose.NewIntake(enrollmentCompose.IntakeDependencies{
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
-		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
-		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: src.StudentRepo,
-		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: src.OutboxEnqueuer,
+		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, RateLimitRefusals: observability.RecordRateLimitRejection, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
+		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: enrollmentMatches(src.StudentRepo),
+		GuardianAuthorizer: src.GuardianAuthorizer, GuardianHold: src.GuardianHold, Outbox: src.OutboxEnqueuer,
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
 		ParentChanges: src.ParentChanges, Uploads: src.Uploads, Signatures: EnrollmentSignatures{Ledger: SignatureLedger()},
 		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger, FamilyChildrenPurpose: src.FamilyChildrenPurpose,
+		LockTemplateRecurrence: src.LockTemplateRecurrence,
 	})
 }
 
@@ -56,12 +58,13 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 	deps := enrollmentCompose.ChangeRequestDependencies{
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
 		Catalog: src.Catalog, Offerings: src.CareOfferingRepo, Bookings: src.Bookings, Capacity: src.Capacity,
-		Notifications: src.Notifications, Students: src.StudentRepo, GuardianAuthorizer: src.GuardianAuthorizer,
+		Notifications: src.Notifications, Students: enrollmentMatches(src.StudentRepo), GuardianAuthorizer: src.GuardianAuthorizer,
 		Decisions: src.Decisions, BookingGates: src.BookingGates, Companions: src.CompanionGraphLocker,
 		CompanionLockBusy: peopledirectory.TranslateStudentWriteError(peopledirectory.ErrCompanionLockBusy), People: people,
 		GuardianInvitations: src.GuardianInvitations,
 		Settings:            intakeSettings(src.Settings), Outbox: src.OutboxEnqueuer,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
+		LockTemplateRecurrence: src.LockTemplateRecurrence,
 	}
 	if src.PersonRepo != nil {
 		deps.Reviewers = enrollmentReviewerNames{persons: src.PersonRepo}
@@ -141,11 +144,14 @@ type EnrollmentIntakeSources struct {
 	Catalog            enrollmentCompose.IntakeCatalog
 	SchoolRepo         enrollmentOwner.SchoolDirectory
 	Notifications      enrollmentOwner.Notifications
-	StudentRepo        enrollmentCompose.StudentMatches
+	StudentRepo        EnrollmentStudentMatches
 	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
-	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
-	OutboxEnqueuer     enrollmentCompose.MailOutbox
-	Settings           EnrollmentIntakeSettings
+	// GuardianHold holds a parent's renewal permission in the submission's
+	// transaction (#6638); nil refuses parent renewals of existing children.
+	GuardianHold   EnrollmentGuardianHold
+	RateLimitRepo  enrollmentCompose.SubmissionRateLimiter
+	OutboxEnqueuer enrollmentCompose.MailOutbox
+	Settings       EnrollmentIntakeSettings
 	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
 	// mail (#3780); nil keeps the configured address list only.
 	AdminSubscribers enrollmentCompose.AdminMailSubscribers
@@ -162,6 +168,9 @@ type EnrollmentIntakeSources struct {
 	// FamilyChildrenPurpose asks for the children of the family where the
 	// school's Träger counts them (#6335); nil asks nowhere.
 	FamilyChildrenPurpose enrollmentOwner.FamilyChildrenPurpose
+	// LockTemplateRecurrence is the recurrence gate the phase bounds reader
+	// takes before a write reads the phase (#6657); the root always binds it.
+	LockTemplateRecurrence func(context.Context) error
 }
 
 // EnrollmentChangeRequestSources are the owners and retained repositories the
@@ -180,7 +189,7 @@ type EnrollmentChangeRequestSources struct {
 	GuardianPhoneRepo   enrollmentGuardianPhoneRows
 	GuardianInvitations enrollmentCompose.GuardianInvitationAvailability
 	PersonRepo          EnrollmentReviewerPersons
-	StudentRepo         enrollmentCompose.StudentMatches
+	StudentRepo         EnrollmentStudentMatches
 	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
 	// Decisions applies an approved change to a child the decision flow
 	// already approved; BookingGates wrap those writes. A nil Decisions
@@ -193,6 +202,9 @@ type EnrollmentChangeRequestSources struct {
 	FrontendURL          string
 	ParentsURL           string
 	Logger               *slog.Logger
+	// LockTemplateRecurrence is the recurrence gate the phase bounds reader
+	// takes before a change request reads the phase (#6657).
+	LockTemplateRecurrence func(context.Context) error
 }
 
 // EnrollmentReviewerPersons resolves the persons behind reviewer accounts.

@@ -35,6 +35,10 @@ type PhaseDependencies struct {
 	// with a service-window edit (#6597). Optional like Students; the root
 	// always binds it.
 	Bookings enrollment.PhaseBookings
+	// CareStudents reads the care end of the phase's confirmed children, so
+	// an edit that shortens the phase can name those whose care now runs
+	// past it (#6598). Optional like Students; the root always binds it.
+	CareStudents enrollment.PhaseCareStudents
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).
@@ -225,39 +229,55 @@ func (s *Phases) create(ctx context.Context, phase *enrollment.Phase) (*enrollme
 
 // UpdatePhase validates and writes a phase and resyncs the templates sourcing its
 // offerings when the service window changed.
-func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
-		return s.update(txCtx, phase)
+//
+// It reports the confirmed children whose care runs past a shortened end
+// (#6598) and changes none of them.
+func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
+	var report enrollment.PhaseUpdateReport
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		report, err = s.update(txCtx, phase)
+		return err
 	})
+	if err != nil {
+		return enrollment.PhaseUpdateReport{}, err
+	}
+	return report, nil
 }
 
-func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
+func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
+	var report enrollment.PhaseUpdateReport
 	if phase == nil || phase.ID <= 0 {
-		return fmt.Errorf("%w: phase with valid id is required", enrollment.ErrInvalidPhase)
+		return report, fmt.Errorf("%w: phase with valid id is required", enrollment.ErrInvalidPhase)
 	}
 	if err := s.validatePhaseWrite(ctx, phase); err != nil {
-		return err
+		return report, err
 	}
 	existing, serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
 	if err != nil {
-		return err
+		return report, err
 	}
 	if err := s.deps.Records.UpdatePhase(ctx, phase); err != nil {
-		return s.translatePhaseWriteError(err)
+		return report, s.translatePhaseWriteError(err)
 	}
 	if serviceWindowChanged {
 		if err := s.followBookingBounds(ctx, existing, phase); err != nil {
-			return err
+			return report, err
 		}
 		if err := s.followPendingActivations(ctx, existing, phase); err != nil {
-			return err
+			return report, err
 		}
 		if err := s.resyncPhaseSourcedTemplates(ctx, phase.ID); err != nil {
-			return err
+			return report, err
+		}
+		if report.CareBeyondEnd, err = s.careBeyondShortenedEnd(ctx, existing, phase); err != nil {
+			return report, err
 		}
 	}
-	s.logger.Info("phase updated", slog.Int64("phase_id", phase.ID))
-	return nil
+	s.logger.Info("phase updated",
+		slog.Int64("phase_id", phase.ID),
+		slog.Int("care_beyond_end", len(report.CareBeyondEnd)))
+	return report, nil
 }
 
 // validateCareOfferingPhaseUpdate guards a service-window change against the
@@ -267,10 +287,11 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 // read and stays held for the whole update transaction. It returns the
 // stored phase, so the update can tell where its window was.
 func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollment.Phase) (*enrollment.Phase, bool, error) {
-	if err := s.deps.LockTemplateRecurrence(ctx); err != nil {
+	locked, err := enrollment.NewPhaseBoundsReader(s.deps.Records, s.deps.LockTemplateRecurrence).LockedPhase(ctx, phase.ID)
+	if errors.Is(err, enrollment.ErrPhaseBoundsLock) {
 		return nil, false, fmt.Errorf("lock template recurrence for phase update: %w", err)
 	}
-	existing, err := s.deps.Records.Phase(ctx, phase.ID)
+	existing := locked.Phase()
 	if err != nil {
 		if s.notFound(err) {
 			return nil, false, fmt.Errorf("%w: phase %d", enrollment.ErrPhaseNotFound, phase.ID)

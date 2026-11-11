@@ -34,6 +34,8 @@ const {
   mockEdit,
   mockConfirmationSettings,
   sessionPermissions,
+  mockDownloadPdf,
+  mockDownloadBlob,
   contributionOverride,
 } = vi.hoisted(() => ({
   mockRegistration: vi.fn(),
@@ -41,6 +43,8 @@ const {
   mockEdit: vi.fn(),
   mockConfirmationSettings: vi.fn(),
   sessionPermissions: { current: [] as string[] },
+  mockDownloadPdf: vi.fn(),
+  mockDownloadBlob: vi.fn(),
   contributionOverride: { current: null as unknown },
 }));
 vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
@@ -51,6 +55,12 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   fetchHolidayRegistrationHealth: () => mockHealth(),
   editHolidayRegistration: (...args: unknown[]) => mockEdit(...args),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
+  downloadHolidayRegistrationPdf: (...args: unknown[]) =>
+    mockDownloadPdf(...args),
+}));
+vi.mock("~/lib/file-download", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/file-download")>()),
+  downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
 }));
 const { mockContribution } = vi.hoisted(() => ({ mockContribution: vi.fn() }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
@@ -413,6 +423,76 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("says when moto deletes the registration and downloads it as a PDF (#6691)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      deletesOn: "2028-01-09",
+      healthDeletesOn: "2027-04-11",
+    });
+    const blob = new Blob(["%PDF-"]);
+    mockDownloadPdf.mockResolvedValue({
+      blob,
+      filename: "ferienanmeldung-7-muster.pdf",
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "moto löscht diese Anmeldung am 09.01.2028. Laden Sie sie vorher herunter, wenn Sie sie länger brauchen. Gesundheitsangaben löscht moto schon am 11.04.2027.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldung herunterladen" }),
+    );
+    // Without the right to see health information there is no such file.
+    expect(
+      screen.queryByRole("menuitem", { name: "PDF mit Gesundheitsangaben" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));
+    await waitFor(() =>
+      expect(mockDownloadBlob).toHaveBeenCalledWith(
+        blob,
+        "ferienanmeldung-7-muster.pdf",
+      ),
+    );
+    expect(mockDownloadPdf).toHaveBeenCalledWith("5", "7", false);
+  });
+
+  it("downloads the PDF with health information only with the right to see it (#6691)", async () => {
+    sessionPermissions.current = ["traeger_health:read"];
+    mockHealth.mockResolvedValue({ customData: {}, children: [] });
+    mockDownloadPdf.mockResolvedValue({
+      blob: new Blob(["%PDF-"]),
+      filename: null,
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anmeldung herunterladen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "PDF mit Gesundheitsangaben",
+      }),
+    );
+    await waitFor(() =>
+      expect(mockDownloadPdf).toHaveBeenCalledWith("5", "7", true),
+    );
+    expect(mockDownloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "ferienanmeldung-7.pdf",
+    );
+  });
+
   it("shows the declaration with name, custody, version and its texts (#5626)", async () => {
     render(
       <ToastProvider>
@@ -430,7 +510,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       "Ja, am 03.09.2026",
     );
     expect(field("Name als Erklärung")).toHaveTextContent("Eva Muster");
-    expect(field("Fassung der Texte")).toHaveTextContent("Fassung 3");
+    expect(field("Fassung der Texte")).toHaveTextContent("Fassung 4");
 
     const wording = screen.getByRole("heading", {
       name: "Wortlaut der Erklärung",

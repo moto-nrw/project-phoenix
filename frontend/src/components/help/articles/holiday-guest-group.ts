@@ -32,6 +32,7 @@ export function holidayGuestGroupTopic(): HelpTopic {
     notes: [
       "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
       "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
+      "Eine Gruppe nur für die Ferien steht vor der Woche nicht unter `Gruppen`. In der `Datenverwaltung` unter `Gruppendaten` steht bei ihr `Feriengruppe` mit der Woche. Dort legen Sie Raum und Gruppenleitung schon vorher fest.",
       "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
       "Jede Übernahme steht im Zugriffsprotokoll Ihrer OGS.",
     ],
@@ -40,6 +41,7 @@ export function holidayGuestGroupTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Nach dem letzten Tag der Woche stehen die Feriengäste nicht mehr in der Gruppe und nicht mehr im Check-in.",
+      "Fehlt die Feriengruppe unter `Gruppen`? Hat sie keine eigenen Kinder, steht sie dort erst ab dem ersten Tag der Woche.",
     ],
     related: [HELP_TOPICS.leadHolidayWeeks, HELP_TOPICS.holidayGuests],
   };

@@ -41,6 +41,64 @@ describe("rate-limit fetch guard", () => {
     window.removeEventListener("phoenix:rate-limited", notice);
   });
 
+  it("locks on the request limiter's own refusal", async () => {
+    const backendFetch = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { status: 429, code: "general.unavailable" },
+          { status: 429, headers: { "Retry-After": "1" } },
+        ),
+      );
+    await loadGuard(backendFetch);
+
+    await fetch("/api/holiday-registrations/token", { method: "POST" });
+    const blocked = await fetch("/api/holiday-registrations/token", {
+      method: "POST",
+    });
+
+    expect(blocked.status).toBe(429);
+    expect(backendFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["enrollment.upload_rate_limited", "3600"],
+    ["enrollment.submission_rate_limited", "3600"],
+    ["enrollment.submission_email_rate_limited", "86400"],
+  ])(
+    "does not lock the tab's writes on the refusal %s of one action",
+    async (code, retryAfter) => {
+      const backendFetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+          Response.json(
+            { status: 429, code },
+            { status: 429, headers: { "Retry-After": retryAfter } },
+          ),
+        )
+        .mockResolvedValue(new Response(null, { status: 201 }));
+      const notice = vi.fn();
+      window.addEventListener("phoenix:rate-limited", notice);
+      const rateLimit = await loadGuard(backendFetch);
+
+      const refused = await fetch("/api/holiday-registrations/token/uploads", {
+        method: "POST",
+      });
+      const submit = await fetch("/api/holiday-registrations/token", {
+        method: "POST",
+      });
+
+      expect(refused.status).toBe(429);
+      expect(((await refused.json()) as { code: string }).code).toBe(code);
+      expect(submit.status).toBe(201);
+      expect(backendFetch).toHaveBeenCalledTimes(2);
+      expect(rateLimit.remainingRateLimitMs("POST")).toBe(0);
+      expect(notice).not.toHaveBeenCalled();
+
+      window.removeEventListener("phoenix:rate-limited", notice);
+    },
+  );
+
   it("keeps reads available when a write bucket is rate limited", async () => {
     const backendFetch = vi
       .fn()

@@ -56,7 +56,7 @@ describe("mobile page help", () => {
     expect(link.closest("header")).toContainElement(
       screen.getByRole("heading"),
     );
-    expect(link.parentElement).toHaveClass("lg:hidden");
+    expect(link).toHaveClass("lg:hidden");
     const url = new URL(link.getAttribute("href")!, "https://moto.invalid");
     expect(url.pathname).toBe("/help/kindersuche");
     expect(url.searchParams.get("return_to")).toBe(
@@ -86,7 +86,7 @@ describe("mobile page help", () => {
       const url = new URL(link.getAttribute("href")!, "https://moto.invalid");
       expect(url.pathname).toBe("/help/mein-kind-und-den-heutigen-tag-ansehen");
       expect(url.searchParams.get("role")).toBe("parent");
-      expect(link.parentElement).toHaveClass("lg:hidden");
+      expect(link).toHaveClass("lg:hidden");
     },
   );
 

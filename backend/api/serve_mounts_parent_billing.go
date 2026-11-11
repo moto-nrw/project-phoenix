@@ -59,12 +59,14 @@ import (
 // debit file of the issued runs at /traeger/sepa-debits (#4697), and the
 // check of the DATEV settings at /traeger/datev-export (#4694), and the
 // finance exports with their protocol at /traeger/finance-exports (#4693).
-func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) {
+func mountParentBillingRoutes(root, publicLink chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, holidayCalendar, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
-	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
+	// The quote belongs to the public holiday registration and shares its
+	// request limit (#6726).
+	publicLink.Mount(holidayQuoteMount, holiday.QuoteRouter())
 	runs, documentKinds := NewBillingRunHTTP(settings, delivery, outcomes, healthData)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
@@ -233,7 +235,7 @@ func (c parentBillingCareContracts) Recipients(ctx context.Context, organization
 // kind of document per service (#4688) to the document templates of the
 // Träger.
 func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher) (*parentBillingHTTP.BillingRunResource, *parentBillingHTTP.DocumentKindResource) {
-	review, _, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil, nil, nil)
+	review, _, _, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil, nil, nil)
 	registrations := parentBillingBillingRegistrations{periods: enrollmentCompose.NewHolidayPeriods(nil, nil), review: review,
 		hosts: enrollmentCompose.NewHolidayWeekHosts()}
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
@@ -345,9 +347,10 @@ func parentBillingMailStatus(status deliveryContract.Status) string {
 }
 
 // TraegerBrandingSettings is the Träger level of the settings system as the
-// letters read the branding of a Träger (ADR 0112) and the Elternabrechnung
-// its switches (#5621).
+// letters read the branding of a Träger (ADR 0112), the Elternabrechnung
+// its switches (#5621) and the holiday registration its retention (#6691).
 type TraegerBrandingSettings interface {
+	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
 	TraegerTexts(ctx context.Context, organizationID int64, keys []string) (map[string]string, error)
 	TraegerBools(ctx context.Context, organizationID int64, keys []string) (map[string]bool, error)
 }
@@ -550,15 +553,16 @@ func (b parentBillingLetterheads) DocumentTemplate(ctx context.Context, organiza
 // holidayCalendar names the host schools' days without care, which no
 // rebooking may book (#4702).
 func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
-	review, places, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations), holidayCalendar)
+	review, places, allocation, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations), holidayCalendar)
 	registrations := parentBillingHolidayRegistrations{
 		links:  newHolidayRegistrations(organizations, delivery, healthData, nil, settings, logger.With("service", "parent-billing-holiday-registrations")),
-		review: review, places: places,
+		review: review,
 	}
 	rules := parentBillingHTTP.NewRuleResource(parentBillingCompose.NewContributionRules(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
-	contributions, _ := parentBillingCompose.NewHolidayContributions(registrations, parentBillingSettings{settings: settings})
-	holiday := parentBillingHTTP.NewHolidayResource(contributions,
+	contributions, allocationBilling := parentBillingCompose.NewHolidayContributions(registrations, parentBillingSettings{settings: settings})
+	placeChanges := parentBillingPlaceChanges{workflow: newHolidayAllocation(allocationBilling, review, places, allocation)}
+	holiday := parentBillingHTTP.NewHolidayResource(contributions, placeChanges,
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
 	return rules, holiday
 }
@@ -570,7 +574,6 @@ func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBr
 type parentBillingHolidayRegistrations struct {
 	links  enrollmentOwner.HolidayRegistrations
 	review enrollmentOwner.HolidayRegistrationReview
-	places enrollmentOwner.HolidayPlaces
 }
 
 func (b parentBillingHolidayRegistrations) ResolveHolidayLink(ctx context.Context, token string) (parentbilling.HolidayLink, error) {
@@ -774,7 +777,8 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 }
 
 // parentBillingHolidayError names Enrollment's refusals in the
-// Elternabrechnung's vocabulary; anything else stays as it is.
+// Elternabrechnung's vocabulary; anything else, and a refusal already named
+// so, stays as it is.
 func parentBillingHolidayError(err error) error {
 	for _, known := range []struct{ from, to error }{
 		{enrollmentOwner.ErrHolidayRegistrationNotFound, parentbilling.ErrHolidayLinkNotFound},
@@ -785,6 +789,9 @@ func parentBillingHolidayError(err error) error {
 		{enrollmentOwner.ErrHolidayAllocationPending, parentbilling.ErrHolidayAllocationPending},
 	} {
 		if errors.Is(err, known.from) {
+			if errors.Is(err, known.to) {
+				return err
+			}
 			return fmt.Errorf("%w: %w", known.to, err)
 		}
 	}

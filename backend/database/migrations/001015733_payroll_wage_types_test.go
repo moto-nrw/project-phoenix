@@ -47,7 +47,7 @@ func TestPayrollWageTypesMigrationRoundTrip(t *testing.T) {
 
 	// The delivery events (1.15.758, #5932) extend the erasure functions of
 	// 1.15.733; they go first.
-	// 1.15.920 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
+	// 1.15.935 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
 	require.NoError(t, holidayClosureEventsDown(ctx, db))
 	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesUp(ctx, db), "the migration is idempotent")

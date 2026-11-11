@@ -80,8 +80,7 @@ func TestVisitorTraceCountsCountEveryRowHoldingTheVisitor(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 	require.Empty(t, rowsHoldingTheVisitor(t, db), "rows still holding the visitor's name after the erasure")
 }

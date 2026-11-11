@@ -76,4 +76,9 @@ export const Z_INDEX = {
   popover: 10001,
   /** Menus opened from inside a popover (month/year select in the calendar). */
   popoverMenu: 10002,
+  /**
+   * Action hints of buttons (`ActionHint`): they also belong to buttons inside
+   * dialogs, popovers and menus, and never take a click.
+   */
+  tooltip: 10003,
 } as const;

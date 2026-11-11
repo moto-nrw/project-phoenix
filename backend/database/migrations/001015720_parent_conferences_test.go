@@ -47,7 +47,7 @@ func TestParentConferencesMigrationRoundTrip(t *testing.T) {
 	// The wage types (1.15.733, #4807), the realtime notifications (1.15.727,
 	// #5504), the Nachweisarten (1.15.724, #4808) and the school vacations
 	// (1.15.721, #5345) extend this erasure; they go first.
-	// 1.15.920 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
+	// 1.15.935 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
 	require.NoError(t, holidayClosureEventsDown(ctx, db))
 	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesDown(ctx, db))

@@ -206,6 +206,10 @@
       "kind": "workflow"
     },
     {
+      "id": "holiday-allocation",
+      "kind": "workflow"
+    },
+    {
       "id": "parent-portal",
       "kind": "workflow"
     },

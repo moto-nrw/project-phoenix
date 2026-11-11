@@ -213,10 +213,38 @@ export async function createPhase(input: PhaseInput): Promise<Phase> {
   return readEnrollmentJSON<Phase>(response);
 }
 
+/**
+ * A child confirmed for the phase whose care still runs past the phase's
+ * shortened end (#6598). The phase edit changed nothing about the child; the
+ * school ends its care through „Betreuung beenden“.
+ */
+export interface CareBeyondPhaseEnd {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  schoolClass: string;
+  /** The child's last care day as it stands (YYYY-MM-DD). */
+  careEnd: string;
+  /** The phase's new last day (YYYY-MM-DD). */
+  phaseEnd: string;
+}
+
+interface CareBeyondPhaseEndWire {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  care_end: string;
+  phase_end: string;
+}
+
+/** The saved phase; `careBeyondEnd` lists the children a shortened end left in care. */
+export type UpdatedPhase = Phase & { careBeyondEnd?: CareBeyondPhaseEnd[] };
+
 export async function updatePhase(
   id: string,
   input: PhaseInput,
-): Promise<Phase> {
+): Promise<UpdatedPhase> {
   const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(id)}`,
     {
@@ -228,7 +256,20 @@ export async function updatePhase(
   if (!response.ok) {
     throw await readError(response, "Phase konnte nicht gespeichert werden");
   }
-  return readEnrollmentJSON<Phase>(response);
+  const { care_beyond_end: careBeyondEnd, ...phase } = await readEnrollmentJSON<
+    Phase & { care_beyond_end?: CareBeyondPhaseEndWire[] | null }
+  >(response);
+  return {
+    ...phase,
+    careBeyondEnd: (careBeyondEnd ?? []).map((child) => ({
+      studentId: child.student_id,
+      firstName: child.first_name,
+      lastName: child.last_name,
+      schoolClass: child.school_class,
+      careEnd: child.care_end,
+      phaseEnd: child.phase_end,
+    })),
+  };
 }
 
 /**

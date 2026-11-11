@@ -320,7 +320,7 @@ func (r *exportRun) filterPersonTable(ctx context.Context, table string) (int64,
 	if err != nil {
 		return 0, err
 	}
-	if f.Sync() != nil || f.Close() != nil || os.Rename(path+".person", path) != nil {
+	if syncFile(f) != nil || f.Close() != nil || os.Rename(path+".person", path) != nil {
 		return 0, errors.New("tenant export: cannot persist person artifact")
 	}
 	if err := r.recordArtifact(name); err != nil {

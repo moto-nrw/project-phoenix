@@ -259,7 +259,7 @@ func mountSchoolRoutes(
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
 	// The hosting school's holiday participant lists (#4665) and holiday
 	// guests (#4666).
-	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayCare, users, holidayAccessLog, healthData)
+	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayCare, holidayAccessLog, healthData)
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the root composes it and the IoT service hands it back here
 	// (#2676).

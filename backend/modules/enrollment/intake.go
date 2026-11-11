@@ -439,3 +439,10 @@ const (
 	MailKindChangeRequestApproved    = "enrollment_change_request_approved"
 	MailKindChangeRequestRejected    = "enrollment_change_request_rejected"
 )
+
+// StudentIdentity is the exact enrolled-child identity submitted for renewal.
+type StudentIdentity struct {
+	FirstName string
+	LastName  string
+	Birthday  calendar.Date
+}

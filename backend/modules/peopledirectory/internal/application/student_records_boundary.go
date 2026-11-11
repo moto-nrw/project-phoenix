@@ -313,3 +313,21 @@ func studentRecordsByID(records []domain.StudentRecord) map[int64]*peopleModule.
 	}
 	return result
 }
+
+// FindEnrolledStudentIDsByIdentities keeps zero, one and ambiguous matches
+// distinct without querying once per submitted child.
+func (r *StudentRecords) FindEnrolledStudentIDsByIdentities(ctx context.Context, tenantID int64, identities []peopleModule.StudentIdentity) ([][]int64, error) {
+	if len(identities) == 0 {
+		return [][]int64{}, nil
+	}
+	for _, identity := range identities {
+		if err := peopleModule.ValidateStudentMatch(tenantID, identity.FirstName, identity.LastName, identity.Birthday.String()); err != nil {
+			return nil, RetainedStudentReadError("find enrolled students by identities", err)
+		}
+	}
+	ids, err := r.directory.ListEnrolledIDsByIdentities(ctx, tenantID, identities)
+	if err != nil {
+		return nil, RetainedStudentReadError("find enrolled students by identities", MapError(err))
+	}
+	return ids, nil
+}
