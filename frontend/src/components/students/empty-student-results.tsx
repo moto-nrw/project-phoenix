@@ -1,4 +1,4 @@
-// components/ui/empty-student-results.tsx
+// components/students/empty-student-results.tsx
 // Shared empty state component for student search/filter results
 
 import { Search } from "lucide-react";

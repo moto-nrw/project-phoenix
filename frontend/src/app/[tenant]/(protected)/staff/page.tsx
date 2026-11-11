@@ -2,6 +2,7 @@
 
 import { ListRowLink } from "~/components/ui/list-row-link";
 import { FramedList } from "~/components/ui/framed-list";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
@@ -957,7 +958,7 @@ function StaffPageContent() {
           <div className="flex shrink-0 items-center gap-2">
             <NotificationBadge
               count={pendingAbsences.length}
-              tone="staff"
+              tone={COUNTER_TONE.staff}
               ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
             />
             <CaretRightIcon

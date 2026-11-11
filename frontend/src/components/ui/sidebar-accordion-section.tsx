@@ -62,7 +62,7 @@ export function SidebarAccordionSection({
   children,
   hasChildren,
   badgeCount = 0,
-  badgeTone = "parents",
+  badgeTone = "blue",
   badgeNoun = "ungelesene Nachrichten",
   collapsed = false,
   labelsMounted = true,

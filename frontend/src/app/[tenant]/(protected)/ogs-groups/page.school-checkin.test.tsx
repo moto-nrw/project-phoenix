@@ -234,7 +234,7 @@ vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
-vi.mock("~/components/ui/empty-student-results", () => ({
+vi.mock("~/components/students/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results" />,
 }));
 
@@ -253,11 +253,11 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
   };
 });
 
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <span />,
 }));
 
-vi.mock("@/components/ui/student-presence-badge", () => ({
+vi.mock("@/components/students/presence/student-presence-badge", () => ({
   StudentPresenceBadge: () => <span />,
 }));
 

@@ -140,7 +140,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Who sees a field | `VisibilityBadge audience` | `~/components/ui/visibility-badge` |
 | File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
 | Key or link to copy | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
-| Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
+| Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/students/presence/…` |
 | Status pill | `StatusBadge` (#5584) | `~/components/ui/status-badge` |
 | Pill in a data colour (amber: `WARNING`) | `StatusColorBadge` | `~/components/ui/status-color-badge` |
 | Colour dot, only in legends and plans | `StatusDot` — hex `color` or `bg-…` in `className`, `size`; `label` (no text beside it) or `decorative` | `~/components/ui/status-dot` |
@@ -331,7 +331,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
 
-`ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
+`ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. `~/lib`: `KIT_PURE_LIB_MODULES`, types. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
 
 `ui-kit/no-hand-rolled-menu` / `-popover` (#5601, hard-zero): `role="menu|menuitem*|listbox|option"`, `<datalist>` / `moto-popover-surface` only in `ui/`.
 

@@ -37,7 +37,7 @@ export const ClosedWithCount: Story = {
   args: {
     badge: {
       count: 5,
-      tone: "parents",
+      tone: "blue",
       ariaLabel: "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
     },
   },
@@ -48,7 +48,7 @@ export const OpenWithCount: Story = {
     isOpen: true,
     badge: {
       count: 5,
-      tone: "parents",
+      tone: "blue",
       ariaLabel: "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
     },
   },
@@ -65,7 +65,7 @@ export const RailWithCount: Story = {
   args: {
     badge: {
       count: 5,
-      tone: "parents",
+      tone: "blue",
       ariaLabel: "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
     },
     collapsed: true,

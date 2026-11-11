@@ -14,7 +14,6 @@ import {
   PortalBottomNavLink,
   PortalNavSheetLink,
 } from "~/components/ui/portal-bottom-nav";
-import { moreConcept } from "~/lib/concepts/more";
 import type { MotoConcept } from "~/lib/moto-concepts";
 
 const PADDING = "px-4";
@@ -52,12 +51,15 @@ export interface PortalOverflowNavItem {
 export function PortalOverflowBottomNav({
   items,
   navItemAttribute,
+  moreConcept,
   moreLabel = "Mehr",
   moreDescription = "Weitere Bereiche",
 }: {
   readonly items: readonly PortalOverflowNavItem[];
   /** Das Attribut, das jeden Eintrag für Touren und Tests benennt. */
   readonly navItemAttribute: `data-${string}`;
+  /** Das Symbol des „Mehr"-Felds; die Konzepte gehören dem Aufrufer. */
+  readonly moreConcept: MotoConcept;
   readonly moreLabel?: string;
   readonly moreDescription?: string;
 }) {

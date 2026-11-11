@@ -82,7 +82,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
-    lines: [158],
+    lines: [157],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",
   },
   {

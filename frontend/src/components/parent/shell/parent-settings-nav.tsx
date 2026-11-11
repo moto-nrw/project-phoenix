@@ -10,6 +10,7 @@ import {
   useSettingsReturnHref,
 } from "~/components/ui/settings-return-path";
 import { backConcept } from "~/lib/concepts/back";
+import { moreConcept } from "~/lib/concepts/more";
 import { parentPath } from "~/lib/parent-url";
 import { isParentSettingsPath } from "./parent-nav-active";
 import {
@@ -83,6 +84,7 @@ function ParentSettingsBottomNavContent() {
     <PortalOverflowBottomNav
       items={[back, ...items]}
       navItemAttribute={NAV_ITEM_ATTRIBUTE}
+      moreConcept={moreConcept}
       moreLabel={moreLabel}
     />
   );

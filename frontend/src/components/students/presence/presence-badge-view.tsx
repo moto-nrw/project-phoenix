@@ -1,6 +1,6 @@
 import type { ResolvedPresence } from "~/lib/presence-status";
 import { PresenceHint } from "./presence-hint";
-import { StatusColorBadge } from "./status-color-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 export type PresenceBadgeSize = "sm" | "md" | "lg";
 export type PresenceBadgeVariant = "simple" | "modern";

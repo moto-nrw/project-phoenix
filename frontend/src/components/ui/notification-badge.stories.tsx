@@ -9,8 +9,7 @@ const meta = {
 export default meta;
 type Story = StoryObj;
 
-// "parents" is the same blue as "blue", so the story shows it once.
-const TONES = ["staff", "feedback", "danger", "blue"] as const;
+const TONES = ["orange", "coral", "red", "blue"] as const;
 
 export const AllTones: Story = {
   render: () => (

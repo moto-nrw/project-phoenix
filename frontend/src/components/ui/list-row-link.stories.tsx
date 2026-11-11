@@ -91,7 +91,7 @@ export const Unread: Story = {
           badge={
             <NotificationBadge
               count={2}
-              tone="parents"
+              tone="blue"
               ariaLabel="2 ungelesene Nachrichten"
             />
           }
@@ -108,7 +108,7 @@ export const Unread: Story = {
           badge={
             <NotificationBadge
               count={1}
-              tone="parents"
+              tone="blue"
               ariaLabel="1 ungelesene Nachricht"
             />
           }

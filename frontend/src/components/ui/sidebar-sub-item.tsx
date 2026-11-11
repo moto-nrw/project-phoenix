@@ -30,7 +30,7 @@ export function SidebarSubItem({
   isActive,
   count,
   badgeCount = 0,
-  badgeTone = "parents",
+  badgeTone = "blue",
   badgeNoun = "ungelesene Nachrichten",
   tourId,
   locked = false,

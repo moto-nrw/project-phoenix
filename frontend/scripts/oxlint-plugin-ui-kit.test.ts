@@ -4093,6 +4093,52 @@ describe.concurrent("ui-kit/no-kit-domain-import", () => {
     expect(outside.output).not.toContain("no-kit-domain-import");
   });
 
+  // #6582: ~/lib holds pure helpers next to domain modules. The kit may load
+  // only the pure ones; a domain module's types may still shape its props.
+  it("reports a value import from a domain module in ~/lib", async () => {
+    const result = await lintSource(
+      `import { usePresenceMode } from "~/lib/tenant-context";
+      import { formatBytes } from "../../../lib/files-api";
+      export { moreConcept } from "@/lib/concepts/more";
+      void usePresenceMode; void formatBytes;
+      void import("~/lib/activity-occupancy");`,
+      "src/components/ui/page-header/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(/ui-kit\(no-kit-domain-import\)/g)).toHaveLength(
+      4,
+    );
+    expect(result.output).toContain("~/lib/tenant-context");
+  });
+
+  it("reports a domain value next to a type in one import", async () => {
+    const result = await lintSource(
+      `import { resolvePresence, type PresenceStudent } from "~/lib/presence-status";
+      export const probe = (s: PresenceStudent) => resolvePresence;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.output.match(/ui-kit\(no-kit-domain-import\)/g)).toHaveLength(
+      1,
+    );
+  });
+
+  it("accepts pure ~/lib modules and type-only imports of domain modules", async () => {
+    const result = await lintSource(
+      `import { cn } from "~/lib/utils";
+      import { TINT_CLASSES } from "@/lib/kit-palette";
+      import { useLatest } from "../../../lib/hooks/use-latest";
+      import type { MotoConcept } from "~/lib/moto-concepts";
+      import { type ModuleKey } from "~/lib/modules";
+      export type { SignatureValue } from "~/lib/signature";
+      export const probe = (c: MotoConcept, m: ModuleKey) => [cn, TINT_CLASSES, useLatest, c, m];`,
+      "src/components/ui/page-header/probe.tsx",
+    );
+
+    expect(result.output).not.toContain("no-kit-domain-import");
+  });
+
   it("leaves kit tests alone", async () => {
     const result = await lintSource(
       `import { Thing } from "~/components/home/thing";

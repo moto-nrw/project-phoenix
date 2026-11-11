@@ -4,6 +4,7 @@ import { expect, screen, userEvent, within } from "storybook/test";
 import { backConcept } from "~/lib/concepts/back";
 import { helpConcept } from "~/lib/concepts/help";
 import { languageConcept } from "~/lib/concepts/language";
+import { moreConcept } from "~/lib/concepts/more";
 import { notificationsConcept } from "~/lib/concepts/notifications";
 import { passkeysConcept } from "~/lib/concepts/passkeys";
 import { privacyConcept } from "~/lib/concepts/privacy";
@@ -75,7 +76,11 @@ const meta = {
   title: "components/ui/PortalOverflowBottomNav",
   component: PortalOverflowBottomNav,
   parameters: { layout: "fullscreen" },
-  args: { items: ITEMS, navItemAttribute: "data-story-nav-item" },
+  args: {
+    items: ITEMS,
+    navItemAttribute: "data-story-nav-item",
+    moreConcept,
+  },
   decorators: [
     (StoryFn) => (
       <div className="min-h-[200px] bg-gray-50">

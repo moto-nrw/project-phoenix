@@ -9,7 +9,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useSWRAuth } from "~/lib/swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
-import { LocationBadge } from "@/components/ui/location-badge";
+import { LocationBadge } from "@/components/students/presence/location-badge";
 import type { Student } from "~/lib/student-helpers";
 import { isNotCheckedInLocation } from "~/lib/location-helper";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -56,7 +56,10 @@ import {
   VisibilityBadge,
   ParentVisibilityLegend,
 } from "~/components/ui/visibility-badge";
-import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
+import {
+  PARENT_VISIBLE_DEFAULT_HINT,
+  PARENT_VISIBLE_HINTS,
+} from "~/lib/parent-visible-fields";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
 import { displayEmail } from "~/lib/demo-build";
@@ -915,7 +918,10 @@ export function PersonalInfoReadOnly({
         )
       }
     >
-      <ParentVisibilityLegend className="mb-4" />
+      <ParentVisibilityLegend
+        hint={PARENT_VISIBLE_DEFAULT_HINT}
+        className="mb-4"
+      />
       {/* Feldgitter aus dem Kit (`DataGrid`/`DataField`), kein eigenes
           Feldraster: dieselbe Anatomie wie in jeder anderen Objektansicht. */}
       <DataGrid>

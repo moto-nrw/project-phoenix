@@ -12,7 +12,7 @@ import {
   StudentAbsenceRow,
   ArrivalTimeRow,
 } from "./student-card";
-import { LocationBadge } from "~/components/ui/location-badge";
+import { LocationBadge } from "~/components/students/presence/location-badge";
 
 const meta = {
   title: "students/StudentCard",

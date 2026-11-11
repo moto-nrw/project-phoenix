@@ -61,7 +61,7 @@ export const CollapsedWithCount: Story = {
   args: {
     label: "Anmeldungen",
     badgeCount: 3,
-    badgeTone: "staff",
+    badgeTone: "orange",
     badgeNoun: "ungelesene Anmeldungen",
   },
 };
@@ -84,7 +84,7 @@ export const RailWithCount: Story = {
   args: {
     label: "Anmeldungen",
     badgeCount: 3,
-    badgeTone: "staff",
+    badgeTone: "orange",
     badgeNoun: "ungelesene Anmeldungen",
     collapsed: true,
     labelsMounted: false,
