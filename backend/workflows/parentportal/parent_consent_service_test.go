@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,12 +54,19 @@ func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(ctx context.Context, sto
 
 func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.PeopleRepositorySuiteFactory, *consentRecordingUnlinker) {
 	t.Helper()
+	return buildConsentServiceWith(t, nil)
+}
+
+// buildConsentServiceWith lets a test adjust the portal's dependencies
+// before they are composed.
+func buildConsentServiceWith(t *testing.T, adjust func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.PeopleRepositorySuiteFactory, *consentRecordingUnlinker) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
-	return parentportalcompose.New(parentportalcompose.Dependencies{
+	deps := parentportalcompose.Dependencies{
 		Memberships:         parentMemberships(t, db),
 		GuardianProfileRepo: guardProfiles(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
@@ -81,7 +90,11 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.Peo
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
 		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-	}), db, reposPeople, unlinker
+	}
+	if adjust != nil {
+		adjust(&deps)
+	}
+	return parentportalcompose.New(deps), db, reposPeople, unlinker
 }
 
 func TestGetChildConsentsShowsRecordedStatesAndWithdrawalCapability(t *testing.T) {
@@ -299,6 +312,63 @@ func TestPhotoConsentGrantAfterCareEndStaysRefused(t *testing.T) {
 	rows, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentConsentChange.ListByStudentID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "only the withdrawal before the end of care")
+}
+
+// The check before the write unit read the child while its care still ran;
+// the care ends before the grant locks the child. The grant re-checks the
+// care under the child lock and is refused.
+func TestPhotoConsentGrantRechecksTheCareEndUnderTheChildLock(t *testing.T) {
+	t.Parallel()
+
+	var armed atomic.Bool
+	reached, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	t.Cleanup(func() { close(release) })
+	svc, db, repos, _ := buildConsentServiceWith(t, func(deps *parentportalcompose.Dependencies) {
+		deps.ChildRepo = owners.ParentChildReadsAfterCheck(deps.ChildRepo, func() {
+			if armed.Load() {
+				once.Do(func() {
+					close(reached)
+					<-release
+				})
+			}
+		})
+	})
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	now := time.Date(2026, time.August, 31, 9, 30, 0, 0, time.UTC)
+	student, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
+	require.NoError(t, err)
+	student.PhotoConsentGivenAt = &now
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), db, repos.Student.Update, student))
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	_, err = svc.WithdrawPhotoConsent(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+
+	armed.Store(true)
+	granted := make(chan error, 1)
+	go func() {
+		_, grantErr := svc.GrantPhotoConsent(ctx, chain.AccountID, chain.StudentID)
+		granted <- grantErr
+	}()
+	select {
+	case <-reached:
+	case err := <-granted:
+		t.Fatalf("the grant answered before its child check: %v", err)
+	case <-time.After(20 * time.Second):
+		t.Fatal("the grant never reached its child check")
+	}
+	endCareFor(t, db, chain.StudentID)
+	release <- struct{}{}
+
+	select {
+	case err := <-granted:
+		require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+	case <-time.After(20 * time.Second):
+		t.Fatal("the grant did not finish")
+	}
+	updated, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, repos.Student.FindByID, any(chain.StudentID))
+	require.NoError(t, err)
+	assert.Nil(t, updated.PhotoConsentGivenAt)
 }
 
 // The withdrawal after the end of care still needs the relationship's

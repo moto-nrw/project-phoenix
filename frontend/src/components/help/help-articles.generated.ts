@@ -5607,7 +5607,8 @@ export const parentCareChangeTopic =
 /**
  * Bereich `Angaben zum Kind` (i18n `parentMasterData`). Drei Arten von
  * Feldern: direkt aenderbar, nur auf Anfrage, und Gesundheitshinweise, die
- * sofort gespeichert werden.
+ * sofort gespeichert werden. Dazu der Widerruf der Foto-Einwilligung
+ * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494).
  */
 export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
   return {
@@ -5644,12 +5645,22 @@ export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
           "Die Eingabe wird automatisch gespeichert.",
         ],
       },
+      {
+        title: "Foto-Einwilligung widerrufen",
+        steps: [
+          "Gehen Sie zum Abschnitt `Einwilligungen und Bestätigungen`.",
+          "Tippen Sie bei `Foto-Einwilligung` auf `Widerrufen`.",
+          "Tippen Sie auf `Jetzt widerrufen`.",
+        ],
+      },
     ],
     result:
       "Unter dem Feld steht dann `Beantragte Änderung` mit dem neuen Wert und `In Prüfung`. Bis zur Bestätigung gilt der Wert darüber.",
     notes: [
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
       "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
+      "Nach dem Widerruf löscht moto ein gespeichertes Foto Ihres Kindes.",
+      "Ist die Betreuung beendet, können Sie die Foto-Einwilligung weiter widerrufen. Neu geben können Sie sie dann nicht mehr.",
     ],
     differences: [
       "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",
