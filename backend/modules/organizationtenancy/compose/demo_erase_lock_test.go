@@ -66,10 +66,11 @@ func runDemo(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs []s
 // how many it erased, erased by the first run included. The erasure starts
 // no order after its budget (250 ms), and how many orders that covers
 // depends on the machine (#6338, #6452); the rest stays open for the next
-// run. Each run starts at least one order, so want orders take at most want
-// runs.
+// run. Each run starts at least one order, so the first run erased one and
+// want orders take at most want runs.
 func eraseTheRest(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs []string, erased, want int) int {
 	t.Helper()
+	assert.Positive(t, erased, "the first run erases at least one order")
 	for run := 1; run < want && erased < want; run++ {
 		_, more, err := queue.RetireDemoSchools(t.Context(), slugs)
 		require.NoError(t, err)
@@ -114,10 +115,11 @@ func countedRun(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSchoolQ
 	return hidden, erased, deferrals
 }
 
-// orderDeferrals is the deferral counter of every order still open. It is
-// not counted while another transaction holds the state table exclusively
-// (tableLock): then the run cannot read an order or count a deferral either,
-// and the read gives up like the run, instead of waiting for the holder.
+// orderDeferrals is the deferral counter of every order still open. While
+// another transaction holds the state table exclusively (tableLock), the
+// read gives up after lock_timeout instead of waiting for the holder, and
+// the run is not counted: a deferral is written to that table, so such a run
+// can count none. Its only bound is then runDemo's guard.
 func orderDeferrals(t *testing.T, db *bun.DB) (deferrals map[string]int, counted bool) {
 	t.Helper()
 	var rows []struct {
@@ -647,8 +649,10 @@ func (o demoOrder) requireFullyErased(t *testing.T) {
 // seed nothing erase it completely (#5540).
 func TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone(t *testing.T) {
 	t.Parallel()
-	// One clone for all orders: each subtest leaves its order fully erased,
-	// so the next one starts without open orders (#6452).
+	// The parent opens the clone, so all subtests share it instead of each
+	// cloning its own (#6452). They run one after another, and each leaves
+	// its order fully erased, so the next one starts without open orders.
+	// After a failed subtest that no longer holds for the ones behind it.
 	testpkg.SetupIsolatedTestDB(t)
 	for state, setup := range openOrderStates {
 		for lock, hold := range runLocks {
