@@ -27,8 +27,9 @@ type checkedPackage struct {
 	kind           string
 	subjectID      int64
 	manifestSHA256 string
+	completeSHA256 string
 	formatVersion  int
-	files          []string
+	artifacts      []organizationtenancy.ExportArtifact
 }
 
 // The fixed files of a package beside the listed artifacts.
@@ -55,6 +56,7 @@ func checkPackage(dir string, schoolID, organizationID int64, fingerprint func()
 		return checked, errors.New("data return: the package has no COMPLETE marker; never release a failed export")
 	}
 	checked.manifestSHA256 = sum(fingerprint, manifestData)
+	checked.completeSHA256 = sum(fingerprint, complete)
 	if strings.TrimSpace(string(complete)) != checked.manifestSHA256 {
 		return checked, errors.New("data return: COMPLETE does not match manifest.json")
 	}
@@ -72,9 +74,7 @@ func checkPackage(dir string, schoolID, organizationID int64, fingerprint func()
 	if err := checkArtifacts(dir, manifest.Artifacts, fingerprint); err != nil {
 		return checked, err
 	}
-	for _, artifact := range manifest.Artifacts {
-		checked.files = append(checked.files, artifact.Path)
-	}
+	checked.artifacts = manifest.Artifacts
 	checked.kind, checked.subjectID, err = packageSubject(dir, manifest)
 	if err != nil {
 		return checked, err
@@ -178,23 +178,48 @@ func packageSubject(dir string, manifest organizationtenancy.ExportManifest) (st
 }
 
 // writeZip writes the checked package as one ZIP: manifest.json and
-// COMPLETE first, then every listed file in manifest order.
-func writeZip(w io.Writer, checked checkedPackage) error {
+// COMPLETE first, then every listed file in manifest order. It hashes each
+// file as it copies it and refuses one that differs from what checkPackage
+// verified, so a file swapped or linked after the check never leaves.
+func writeZip(w io.Writer, checked checkedPackage, fingerprint func() (io.Writer, func() string)) error {
 	archive := zip.NewWriter(w)
-	for _, name := range append([]string{manifestFile, completeFile}, checked.files...) {
-		entry, err := archive.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Deflate})
+	expected := []organizationtenancy.ExportArtifact{{Path: manifestFile, SHA256: checked.manifestSHA256, Bytes: -1},
+		{Path: completeFile, SHA256: checked.completeSHA256, Bytes: -1}}
+	for _, artifact := range append(expected, checked.artifacts...) {
+		entry, err := archive.CreateHeader(&zip.FileHeader{Name: artifact.Path, Method: zip.Deflate})
 		if err != nil {
 			return err
 		}
-		file, err := os.Open(filepath.Join(checked.dir, filepath.FromSlash(name)))
-		if err != nil {
-			return err
-		}
-		_, err = io.Copy(entry, file)
-		_ = file.Close()
-		if err != nil {
+		if err := copyVerified(entry, checked.dir, artifact, fingerprint); err != nil {
 			return err
 		}
 	}
 	return archive.Close()
+}
+
+// copyVerified copies one regular file, never through a link, and compares
+// its SHA-256 (and size, when known) with the checked value.
+func copyVerified(w io.Writer, dir string, artifact organizationtenancy.ExportArtifact, fingerprint func() (io.Writer, func() string)) error {
+	full := filepath.Join(dir, filepath.FromSlash(artifact.Path))
+	before, err := os.Lstat(full)
+	if err != nil || !before.Mode().IsRegular() {
+		return errors.New("data return: a package file changed after the check")
+	}
+	file, err := os.Open(full)
+	if err != nil {
+		return errors.New("data return: a package file changed after the check")
+	}
+	defer func() { _ = file.Close() }()
+	if opened, err := file.Stat(); err != nil || !os.SameFile(before, opened) {
+		return errors.New("data return: a package file changed after the check")
+	}
+	hash, digest := fingerprint()
+	n, err := io.Copy(io.MultiWriter(w, hash), file)
+	if err != nil {
+		return err
+	}
+	if digest() != artifact.SHA256 || artifact.Bytes >= 0 && n != artifact.Bytes {
+		return errors.New("data return: a package file changed after the check")
+	}
+	return nil
 }

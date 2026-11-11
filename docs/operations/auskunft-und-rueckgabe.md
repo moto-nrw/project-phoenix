@@ -542,45 +542,70 @@ Grundlage: [ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebi
 Das Paket enthält vollständige Bankdaten und Gesundheitsangaben. Wer ein Token
 hat, kann es laden.
 
-1. Paket nach Abschnitt 3 erstellen und prüfen. Freigegeben wird nur ein Paket
+1. **Freigabezugang.** Die Befehle `tenant return …` laufen als Gruppenrolle
+   `phoenix_data_return` (Migration 1.15.910). Sie hat keine Tabellenrechte,
+   nur `EXECUTE` auf die Datenbankfunktionen der Freigabe; diese prüfen den
+   aktiven Operator und schreiben Freigabe und Operator-Protokoll in einer
+   Transaktion. Wie beim [Löschzugang](tenant-erasure.md#1-auftrag-und-wartungsfenster-freigeben-mensch)
+   einen dedizierten Login mit `NOINHERIT` und ausschließlicher Mitgliedschaft
+   in `phoenix_data_return` (mit SET-Option) einrichten, **ohne**
+   Tabellenrechte, Superuser, `BYPASSRLS` oder weitere Mitgliedschaften. Der
+   bestehende `DB_DSN` muss für diesen Lauf diesen Zugang verwenden;
+   Zugangsdaten nur über den freigegebenen Secret-Prozess, nie in Argumente,
+   Shell-History, Ausgabe oder dieses Runbook. Kein neues Env-Schema. Nach
+   einem Restore ist der Login NOLOGIN (`restore_data_return_disabled`); ihn
+   bewusst neu freischalten wie den Löschzugang und nach dem Lauf wieder auf
+   NOLOGIN setzen. Der Webzugang `phoenix_auth` kann nicht freigeben.
+2. **Geheimnisse nie auf die Ausgabe.** Die Container-Ausgabe von `server`
+   landet in journald und Loki. Token und Paketschlüssel schreibt die CLI
+   deshalb nur in eine **neue** Datei mit Modus 0600 (`--secrets-out`); sie
+   verweigert die Standardausgabe, eine vorhandene Datei und ein Verzeichnis,
+   das andere lesen können. Auf dem Host ein privates Verzeichnis anlegen,
+   das UID 1001 gehört und Modus 0700 hat, und als Bind-Mount einhängen. Die
+   Ausgabe nennt nur `grant_id`, `archive`, Prüfsumme, Größe, Ablauf und den
+   Pfad der Datei.
+3. Paket nach Abschnitt 3 erstellen und prüfen. Freigegeben wird nur ein Paket
    mit passendem `COMPLETE`, unveränderten Dateien laut Manifest, ohne
    zusätzliche Datei oder Link, ohne Personen-Prüfpaket und mit genau der
-   angegebenen Schule bzw. dem angegebenen Träger. Die CLI prüft das und bricht
-   sonst ab.
-2. Das geprüfte Paketverzeichnis auf den Server der Installation bringen
-   (verschlüsselter Kanal, geschützte temporäre Ablage) und mit derselben
-   Binary wie `server` freigeben. Der Einmal-Container nutzt die Volumes von
-   `server`, also auch `phoenix-<env>-data-return`. Das Paketverzeichnis muss für UID 1001 lesbar sein:
+   angegebenen Schule bzw. dem angegebenen Träger. Die CLI prüft das, hasht
+   jede Datei beim Packen erneut und bricht bei jeder Abweichung ab.
+4. Das geprüfte Paketverzeichnis auf den Server der Installation bringen
+   (verschlüsselter Kanal, geschützte temporäre Ablage, für UID 1001 lesbar)
+   und mit derselben Binary wie `server` freigeben. Der Einmal-Container nutzt
+   die Volumes von `server`, also auch `phoenix-<env>-data-return`:
 
    ```sh
-   docker compose run --rm --no-deps -v "$PACKAGE_DIR":/package:ro server \
+   docker compose run --rm --no-deps \
+     -v "$PACKAGE_DIR":/package:ro -v "$SECRETS_DIR":/secrets server \
      /app/main tenant return release --package /package \
      --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
      --keep-until "$LETZTER_ABRUFTAG" \
      --recipient customer --recipient-name "$KUNDE" \
-     --valid-for 168h --max-downloads 5
+     --valid-for 168h --max-downloads 5 --secrets-out /secrets/release.json
    ```
 
    Für einen Träger `--organization` statt `--school`. Lokal gilt
    `scripts/dev-native.sh backend go run . tenant return …`.
-   `--keep-until` ist der letzte Tag des Abrufzeitraums (YYYY-MM-DD). Die
-   Ausgabe nennt `grant_id`, `archive`, `archive_sha256`, `token` und
-   `archive_key`. **Beides erscheint nur einmal.** Das Token über einen
-   bestätigten zweiten Kanal an die Empfängerorganisation geben, nie in das
-   Ticket oder eine unverschlüsselte Mail. Den `archive_key` im geschützten
-   Auftrag (Passwortmanager) bis zum Ende des Abrufzeitraums aufbewahren.
-   Danach die Paketkopie auf dem Server entfernen.
-3. Token für den benannten neuen Anbieter oder ein neues Token nach Ablauf:
+   `--keep-until` ist der letzte Tag des Abrufzeitraums (YYYY-MM-DD).
+   `release.json` enthält `token` und `archive_key`, nur einmal erzeugt. Das
+   Token über einen bestätigten zweiten Kanal an die Empfängerorganisation
+   geben, nie in das Ticket oder eine unverschlüsselte Mail. Den `archive_key`
+   im geschützten Auftrag (Passwortmanager) bis zum Ende des Abrufzeitraums
+   aufbewahren. Danach die Datei und die Paketkopie auf dem Server löschen.
+5. Token für den benannten neuen Anbieter oder ein neues Token nach Ablauf:
 
    ```sh
-   printf '%s\n' "$ARCHIVE_KEY" | docker compose run --rm --no-deps -T server \
+   docker compose run --rm --no-deps -v "$SECRETS_DIR":/secrets server \
      /app/main tenant return grant --archive "$ARCHIVE" --operator "$OPERATOR_ID" \
-     --recipient target_provider --recipient-name "$ZIELANBIETER"
+     --archive-key-file /secrets/release.json \
+     --recipient target_provider --recipient-name "$ZIELANBIETER" \
+     --secrets-out /secrets/grant-zielanbieter.json
    ```
 
-   Den Schlüssel nur über stdin geben, nie als Argument. Ein Token gilt
+   Ohne `--archive-key-file` liest der Befehl den Schlüssel von stdin
+   (`docker compose run -T …`), nie aus einem Argument. Ein Token gilt
    höchstens 30 Tage und nie über `--keep-until` hinaus.
-4. Abruf durch den Empfänger, beschrieben in `/public/data-return/openapi.json`:
+6. Abruf durch den Empfänger, beschrieben in `/public/data-return/openapi.json`:
 
    ```sh
    curl -fsS -H "Authorization: Bearer $TOKEN" \
@@ -593,17 +618,27 @@ hat, kann es laden.
    localhost. Nach dem Download die SHA-256 der ZIP mit `archiveSHA256`
    vergleichen, dann `COMPLETE` und `manifest.json`. Jeder Download zählt; ein
    abgebrochener Download liefert weniger Bytes als `Content-Length`.
-5. Überblick ohne Tokens: `tenant return list --operator "$OPERATOR_ID"`.
-   Abrufe stehen in `platform.data_return_downloads`, Freigaben, Tokens,
-   Widerrufe und Bereinigungen im Operator-Protokoll (Aktion `data_return_*`).
-6. Ein Token sofort beenden: `tenant return revoke --grant "$GRANT_ID"`; alle
-   Tokens eines Pakets: `--archive "$ARCHIVE"`, jeweils mit `--operator`.
-7. Nach dem Abrufzeitraum, vor jeder Löschung nach
+7. Überblick ohne Tokens: `tenant return list --operator "$OPERATOR_ID"`;
+   `archive_stored` zeigt, ob das Archiv eines offenen Tokens in der Ablage
+   liegt. Abrufe stehen in `platform.data_return_downloads`, Freigaben,
+   Tokens, Widerrufe und Bereinigungen im Operator-Protokoll (Aktion
+   `data_return_*`, je Archiv bzw. Token ein Eintrag).
+8. Tokens beenden, jeweils mit `--operator`: ein Token
+   `tenant return revoke --grant "$GRANT_ID"`, alle Tokens eines Pakets
+   `--archive "$ARCHIVE"`, alle Tokens der Installation `--all` (nach jedem
+   Restore der Datenbank, siehe [Sicherung](daily-backup.md)). Ein Widerruf
+   wirkt für neue Anfragen sofort; ein laufender Download bricht nach
+   höchstens 8 MiB ab, weil der Abruf den Token währenddessen erneut prüft.
+9. Nach dem Abrufzeitraum, **vor jeder Löschung** nach
    [tenant-erasure.md](tenant-erasure.md) und regelmäßig:
    `tenant return purge --operator "$OPERATOR_ID"`. Das löscht Archive nach
-   `--keep-until` oder mit nur widerrufenen Tokens und leert deren Schlüssel;
-   die Nachweiszeilen gehen drei Jahre nach dem Abrufzeitraum.
+   `--keep-until` oder mit nur widerrufenen Tokens und leert deren Schlüssel,
+   entfernt Dateien der Ablage, die kein offenes Token mehr nennt
+   (abgebrochene Freigaben), und Nachweiszeilen drei Jahre nach dem
+   Abrufzeitraum. `tenant erase` verweigert eine Schule oder einen Träger,
+   solange ein Paket davon nicht bereinigt ist: vorher
+   `tenant return revoke --archive` und `tenant return purge`.
 
 Die Ablage `phoenix-<env>-data-return` ist nicht Teil der täglichen
-Sicherung. Fehlt ein Archiv nach einem Restore, antwortet der Abruf mit 503;
-dann neu exportieren und freigeben.
+Sicherung. Nach einem Restore der Datenbank zuerst `revoke --all` und `purge`
+ausführen, dann laufende Wechsel neu exportieren und freigeben.

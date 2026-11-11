@@ -1,7 +1,7 @@
 {
   "entries": [
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Download",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Retrieval.Download",
       "binding_digest": "f27df615b5f4d0cda2d45ddb4ba31862",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturn.Download",
       "source_owner": "organization-tenancy",
@@ -9,7 +9,7 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Download",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Retrieval.Download",
       "binding_digest": "951e8e41423bfd6d68656c3d229368db",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturn.Download",
       "source_owner": "organization-tenancy",
@@ -17,31 +17,7 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/cmd.dataReturnAudit.BeginDataReturn",
-      "binding_digest": "e03cbe88349af3796731524feec6ab91",
-      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnAudit.BeginDataReturn",
-      "source_owner": "organization-tenancy",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.OperatorDirectory.FindOperator",
-      "target_owner": "identity-access"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/cmd.dataReturnAudit.RecordDataReturn",
-      "binding_digest": "a5bfca347184079bb4c758e6e8997bc2",
-      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnAudit.RecordDataReturn",
-      "source_owner": "organization-tenancy",
-      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.OperatorAuditLogRepository.Create",
-      "target_owner": "audit-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/cmd.dataReturnAudit.RecordDataReturn",
-      "binding_digest": "1d852a91b6c5ea2559d386823798c6a6",
-      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnAudit.RecordDataReturn",
-      "source_owner": "organization-tenancy",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Grant",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Grant",
       "binding_digest": "447998eb5d144238b8d6808f6ffd3b7e",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Grant",
       "source_owner": "organization-tenancy",
@@ -49,7 +25,7 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Grant",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Grant",
       "binding_digest": "4cfdd843a3275b5cb581d5e127cd1582",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Grant",
       "source_owner": "organization-tenancy",
@@ -57,7 +33,7 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
       "binding_digest": "052053e34cda9864e91939983617ceda",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
       "source_owner": "organization-tenancy",
@@ -65,7 +41,7 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
       "binding_digest": "d2929d3e784cebc940a6bb57285be6cd",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
       "source_owner": "organization-tenancy",
@@ -73,7 +49,7 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
       "binding_digest": "447998eb5d144238b8d6808f6ffd3b7e",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
       "source_owner": "organization-tenancy",
@@ -81,7 +57,7 @@
       "target_owner": "security-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Service.Release",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/datareturn.Release.Release",
       "binding_digest": "4cfdd843a3275b5cb581d5e127cd1582",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DataReturnRelease.Release",
       "source_owner": "organization-tenancy",

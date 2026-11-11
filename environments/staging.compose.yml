@@ -49,7 +49,7 @@ services:
       - "127.0.0.1:8081:8080"
     volumes:
       - staging-avatar-uploads:/app/public/uploads
-      # Encrypted return packages released for retrieval (ADR 0200).
+      # Encrypted return packages released for retrieval (ADR 0203).
       - staging-data-return:/app/data-return
     environment:
       # Endpoint only. The application password is added by GetServeDSN.

@@ -27,7 +27,8 @@ LOGIN_PASSWORDS = {'postgres': 'POSTGRES_PASSWORD', 'phoenix_auth': 'PHOENIX_AUT
                    'phoenix_demo': 'PHOENIX_DEMO_PASSWORD'}
 QUARANTINE_GROUPS = {'phoenix_diagnostics': 'diagnostics',
                      'phoenix_school_erasure': 'school_erasure',
-                     'phoenix_billing_retention': 'billing_retention'}
+                     'phoenix_billing_retention': 'billing_retention',
+                     'phoenix_data_return': 'data_return'}
 BUNDLE_NAME = r'daily-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{16}\.tar\.age'
 step = 'configuration'
 

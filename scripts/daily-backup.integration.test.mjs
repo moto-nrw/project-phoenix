@@ -118,6 +118,9 @@ GRANT phoenix_school_erasure TO "erase synthetic";
 CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT;
 CREATE ROLE "billing synthetic" LOGIN NOINHERIT;
 GRANT phoenix_billing_retention TO "billing synthetic";
+CREATE ROLE phoenix_data_return NOLOGIN NOINHERIT;
+CREATE ROLE "return synthetic" LOGIN NOINHERIT;
+GRANT phoenix_data_return TO "return synthetic";
 CREATE ROLE tenant_scope;
 CREATE SCHEMA platform;
 CREATE TABLE platform.schools(id bigserial PRIMARY KEY);
@@ -216,9 +219,10 @@ exec '${realDocker}' "$@"
   assert.match(result.stdout, /restore_diagnostics_disabled=1/);
   assert.match(result.stdout, /restore_school_erasure_disabled=1/);
   assert.match(result.stdout, /restore_billing_retention_disabled=1/);
+  assert.match(result.stdout, /restore_data_return_disabled=1/);
   assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname = 'diagnose synthetic';`), 'f');
   assert.equal(sql(`SELECT pg_has_role('diagnose synthetic', 'phoenix_diagnostics', 'SET');`), 't');
-  for (const [login, group] of [['erase synthetic', 'phoenix_school_erasure'], ['billing synthetic', 'phoenix_billing_retention']]) {
+  for (const [login, group] of [['erase synthetic', 'phoenix_school_erasure'], ['billing synthetic', 'phoenix_billing_retention'], ['return synthetic', 'phoenix_data_return']]) {
     assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname = '${login}';`), 'f');
     assert.equal(sql(`SELECT pg_has_role('${login}', '${group}', 'SET');`), 't');
   }
@@ -321,6 +325,7 @@ exec '${realDocker}' "$@"
     { group: 'phoenix_diagnostics', login: 'diagnose synthetic', label: 'diagnostics' },
     { group: 'phoenix_school_erasure', login: 'erase synthetic', label: 'school_erasure' },
     { group: 'phoenix_billing_retention', login: 'billing synthetic', label: 'billing_retention' },
+    { group: 'phoenix_data_return', login: 'return synthetic', label: 'data_return' },
   ];
   for (const profile of profiles) {
     const otherGroup = profile.group === 'phoenix_school_erasure' ? 'phoenix_billing_retention' : 'phoenix_school_erasure';

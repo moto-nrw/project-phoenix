@@ -463,7 +463,7 @@ backend/docs/openapi.yaml
 
 # Runtime upload artifacts created from package-local Go test working dirs
 backend/**/public/uploads/
-# Encrypted return packages of a local data return run (ADR 0200).
+# Encrypted return packages of a local data return run (ADR 0203).
 backend/data-return/
 
 # OpenSpec local specification files

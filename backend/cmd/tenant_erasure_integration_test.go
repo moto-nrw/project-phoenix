@@ -16,6 +16,7 @@ import (
 	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -441,4 +442,44 @@ func TestErasureCLIExternalLedgerFailureNeverReportsCompletion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, data, after)
 	require.Equal(t, beforeB, erasureTableCounts(t, db, b))
+}
+
+// A school with a released return package that is not purged is not
+// erased: the erasure does not reach the store of the retrieval, so the
+// package would stay retrievable (ADR 0203). Revoke and purge open it.
+func TestErasureCLIRefusesWhileAReturnPackageIsReleased(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	school := testpkg.Tenant(t)
+	seedCLIErasure(t, db, school)
+	operator := testpkg.CreateTestOperator(t, db)
+	store := t.TempDir()
+	release, err := tenancyCompose.NewDataReturnRelease(db, owners.NewDataReturnCrypto(), store)
+	require.NoError(t, err)
+	issued, err := release.Release(t.Context(), organizationtenancy.DataReturnReleaseRequest{Package: returnPackage(t, school), SchoolID: school,
+		OperatorID: operator.ID, KeepUntil: time.Now().AddDate(0, 0, 40), DataReturnRecipient: organizationtenancy.DataReturnRecipient{
+			Recipient: organizationtenancy.DataReturnCustomer, Name: "Schule", ValidFor: 24 * time.Hour, MaxDownloads: 1}})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM platform.data_return_grants WHERE archive_name = ?`, issued.ArchiveName)
+		require.NoError(t, err)
+	})
+	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
+	require.NoError(t, err)
+	request := organizationtenancy.ErasureRequest{SchoolID: school, OperatorID: operator.ID, OrderReference: "ORDER-6550",
+		Confirmation: fmt.Sprintf("school:%d", school), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute}
+	before := erasureTableCounts(t, db, school)
+	_, err = service.Run(t.Context(), request)
+	require.ErrorContains(t, err, "released return package")
+	require.Equal(t, before, erasureTableCounts(t, db, school), "nothing erased")
+	var orders int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.school_erasures WHERE school_id = ?`, school).Scan(t.Context(), &orders))
+	require.Zero(t, orders)
+
+	_, err = release.Revoke(t.Context(), organizationtenancy.DataReturnRevokeRequest{ArchiveName: issued.ArchiveName, OperatorID: operator.ID})
+	require.NoError(t, err)
+	_, err = release.Purge(t.Context(), operator.ID)
+	require.NoError(t, err)
+	_, err = service.Run(t.Context(), request)
+	require.NoError(t, err, "after revoke and purge the erasure runs")
 }

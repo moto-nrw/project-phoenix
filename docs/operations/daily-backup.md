@@ -10,8 +10,10 @@ Schema, Daten und ACLs, Rollen ohne Passwörter, gesamtes Upload-Volume samt
 versteckten Dateien, SHA-256-Manifest, age-Verschlüsselung, S3-Transport mit
 vollständigem Download-/Hashvergleich und altersbasierte Bereinigung.
 Nicht gesichert wird das Volume `phoenix-<env>-data-return` mit den
-verschlüsselten, zum Abruf freigegebenen Rückgabepaketen (ADR 0203); nach
-einem Restore werden sie neu freigegeben.
+verschlüsselten, zum Abruf freigegebenen Rückgabepaketen (ADR 0203). Ein
+Restore der Datenbank belebt widerrufene Tokens wieder und setzt
+Downloadzähler zurück; deshalb nach jedem Restore als erstes alle Tokens
+widerrufen und neu ausstellen (Schritt „Datenrückgabe nach Restore“ in der Wiederherstellung).
 Ein täglicher systemd-Timer arbeitet unabhängig von Deployments. Jeder
 Teilfehler liefert einen Fehlerstatus; erst nach Prüfung und Bereinigung
 erscheint `backup_result=ok step=complete`. Eigene Grafana/Loki-Regeln erkennen
@@ -442,9 +444,11 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    `phoenix_tenant` und `phoenix_admin` sind NOLOGIN und benötigen kein Passwort.
    Auch außerhalb der Demo existiert `phoenix_demo`; sein Wert ist erforderlich.
    Eng begrenzte Ausnahme für [persönliche Diagnosezugänge](diagnose-lesezugang-3840.md)
-   und interne [Lösch-/Aufbewahrungszugänge](tenant-erasure.md): Ausschließliche
-   Mitgliedschaft in **genau einer** der Gruppen `phoenix_diagnostics`,
-   `phoenix_school_erasure` oder `phoenix_billing_retention` ohne ADMIN-/INHERIT-
+   und interne [Lösch-/Aufbewahrungszugänge](tenant-erasure.md) sowie den
+   [Freigabezugang der Datenrückgabe](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act):
+   Ausschließliche Mitgliedschaft in **genau einer** der Gruppen `phoenix_diagnostics`,
+   `phoenix_school_erasure`, `phoenix_billing_retention` oder
+   `phoenix_data_return` ohne ADMIN-/INHERIT-
    Option, mit SET-Option und ohne erhöhte Attribute, individuelle Einstellungen,
    direkte Rechte oder Objektbesitz wird akzeptiert. Zusätzliche Mitgliedschaften,
    auch in einer zweiten erlaubten Gruppe, bleiben verboten. Die Gruppen selbst
@@ -456,8 +460,9 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Bei Abweichung scheitert er weiterhin bei `step=role_passwords`, die
    Freigabesperre bleibt bestehen. Nur die Anzahlen werden als
    `restore_diagnostics_disabled=<Anzahl>`,
-   `restore_school_erasure_disabled=<Anzahl>` bzw.
-   `restore_billing_retention_disabled=<Anzahl>` gemeldet, keine Login-Namen.
+   `restore_school_erasure_disabled=<Anzahl>`,
+   `restore_billing_retention_disabled=<Anzahl>` bzw.
+   `restore_data_return_disabled=<Anzahl>` gemeldet, keine Login-Namen.
    Alle anderen unbekannten LOGIN-Rollen werden weiterhin abgewiesen.
    Vor Wiederholung deren Zweck/Mapping klären und das Verfahren gezielt erweitern.
    Persönliche Diagnosezugänge nach Restore **bewusst einzeln neu freischalten**:
@@ -493,6 +498,17 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    Die Markerdatei bleibt in beiden Fällen erhalten. Das ist ein vollständig
    importierter, aber **nicht freigegebener** Restore, kein Anlass, ihn auf
    derselben DB erneut zu starten oder den Marker als Fehlerbehebung zu löschen.
+
+   **Datenrückgabe nach Restore (ADR 0203):** Die Datenbank kennt wieder
+   Tokens, die vor dem Restore widerrufen waren, mit zurückgesetzten
+   Downloadzählern; die Ablage `phoenix-<env>-data-return` ist nicht
+   wiederhergestellt. Deshalb zuerst mit dem Freigabezugang
+   `tenant return revoke --all --operator <ID>` und danach
+   `tenant return purge --operator <ID>` ausführen
+   ([Runbook](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act)).
+   Laufende Wechsel danach neu exportieren, freigeben und neue Tokens
+   ausstellen. Ohne diesen Schritt verweigert `tenant erase` auch die
+   Wiederholung einer Löschung, solange ein Paket der Schule als offen gilt.
 
    Jede wieder vorhandene Schule mit `tenant erase` gemäß
    [Löschverfahren](tenant-erasure.md#2-probelauf-und-ausführung) erneut

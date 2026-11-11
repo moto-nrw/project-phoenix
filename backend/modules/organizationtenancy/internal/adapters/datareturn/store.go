@@ -3,6 +3,8 @@ package datareturn
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,7 +13,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// grantRow is one row of platform.data_return_grants.
+// grantRow is one row of platform.data_return_grants as the retrieval reads it.
 type grantRow struct {
 	bun.BaseModel  `bun:"table:platform.data_return_grants"`
 	ID             int64      `bun:"id,pk,autoincrement"`
@@ -24,11 +26,7 @@ type grantRow struct {
 	FormatVersion  int        `bun:"format_version"`
 	KeyCheck       string     `bun:"key_check"`
 	Recipient      string     `bun:"recipient"`
-	RecipientName  string     `bun:"recipient_name"`
-	TokenLookup    string     `bun:"token_lookup"`
 	WrappedKey     []byte     `bun:"wrapped_key"`
-	IssuedBy       int64      `bun:"issued_by"`
-	IssuedAt       time.Time  `bun:"issued_at"`
 	ExpiresAt      time.Time  `bun:"expires_at"`
 	KeepUntil      time.Time  `bun:"keep_until"`
 	RevokedAt      *time.Time `bun:"revoked_at"`
@@ -47,18 +45,11 @@ func (g grantRow) toPackage() organizationtenancy.DataReturnPackage {
 		DownloadsLeft: g.MaxDownloads - g.Downloads}
 }
 
-func (g grantRow) summary() organizationtenancy.DataReturnGrantSummary {
-	return organizationtenancy.DataReturnGrantSummary{GrantID: g.ID, Package: g.Package, SubjectID: g.SubjectID, ArchiveName: g.ArchiveName,
-		Recipient: g.Recipient, RecipientName: g.RecipientName, IssuedAt: g.IssuedAt, ExpiresAt: g.ExpiresAt, KeepUntil: g.KeepUntil,
-		RevokedAt: g.RevokedAt, PurgedAt: g.PurgedAt, Downloads: g.Downloads, MaxDownloads: g.MaxDownloads}
-}
+// retrievalStore is the HTTP side. It runs as the application role, which
+// may only read grants, count a download and write download rows.
+type retrievalStore struct{ db bun.IDB }
 
-// store is the persistence of the grants. The HTTP side runs as the
-// application role, which may only read grants, count a download and write
-// download rows; the CLI uses the maintenance connection.
-type store struct{ db bun.IDB }
-
-func (s store) byLookup(ctx context.Context, lookup string) (grantRow, error) {
+func (s retrievalStore) byLookup(ctx context.Context, lookup string) (grantRow, error) {
 	var row grantRow
 	err := s.db.NewSelect().Model(&row).Where("token_lookup = ?", lookup).Limit(1).Scan(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -67,28 +58,20 @@ func (s store) byLookup(ctx context.Context, lookup string) (grantRow, error) {
 	return row, err
 }
 
-func (s store) byArchive(ctx context.Context, archive string) (grantRow, error) {
-	var row grantRow
-	err := s.db.NewSelect().Model(&row).Where("archive_name = ?", archive).Where("purged_at IS NULL").OrderExpr("id").Limit(1).Scan(ctx)
+// stillOpen reports whether a grant is neither revoked nor purged; an
+// in-flight download asks it between chunks.
+func (s retrievalStore) stillOpen(ctx context.Context, id int64) (bool, error) {
+	var open bool
+	err := s.db.NewRaw(`SELECT revoked_at IS NULL AND purged_at IS NULL FROM platform.data_return_grants WHERE id = ?`, id).Scan(ctx, &open)
 	if errors.Is(err, sql.ErrNoRows) {
-		return row, errors.New("data return: no released archive with this name")
+		return false, nil
 	}
-	return row, err
-}
-
-func (s store) insert(ctx context.Context, row *grantRow) error {
-	_, err := s.db.NewInsert().Model(row).ExcludeColumn("issued_at", "revoked_at", "purged_at", "downloads").Returning("id, issued_at").Exec(ctx)
-	return err
-}
-
-func (s store) remove(ctx context.Context, id int64) error {
-	_, err := s.db.NewDelete().Model((*grantRow)(nil)).Where("id = ?", id).Exec(ctx)
-	return err
+	return open, err
 }
 
 // countDownload spends one download of a usable grant in one statement and
 // answers the download row; no row means the grant is no longer usable.
-func (s store) countDownload(ctx context.Context, id int64, now time.Time) (int64, int, error) {
+func (s retrievalStore) countDownload(ctx context.Context, id int64, now time.Time) (int64, int, error) {
 	var downloads int
 	err := s.db.NewRaw(`UPDATE platform.data_return_grants SET downloads = downloads + 1
 		WHERE id = ? AND downloads < max_downloads AND revoked_at IS NULL AND purged_at IS NULL
@@ -104,7 +87,7 @@ func (s store) countDownload(ctx context.Context, id int64, now time.Time) (int6
 	return download, downloads, err
 }
 
-func (s store) finishDownload(ctx context.Context, id int64, now time.Time, completed bool, bytes int64) error {
+func (s retrievalStore) finishDownload(ctx context.Context, id int64, now time.Time, completed bool, bytes int64) error {
 	outcome := "failed"
 	if completed {
 		outcome = "completed"
@@ -114,51 +97,128 @@ func (s store) finishDownload(ctx context.Context, id int64, now time.Time, comp
 	return err
 }
 
-// revoke ends one grant or every grant of an archive and drops their keys.
-func (s store) revoke(ctx context.Context, grantID int64, archive string, now time.Time) ([]grantRow, error) {
-	var rows []grantRow
-	query := s.db.NewUpdate().Model(&rows).Set("revoked_at = ?", now).Set("wrapped_key = NULL").
-		Where("revoked_at IS NULL").Where("purged_at IS NULL")
-	if grantID > 0 {
-		query = query.Where("id = ?", grantID)
-	} else {
-		query = query.Where("archive_name = ?", archive)
+// releaseStore is the CLI side. Every call runs in its own session as the
+// NOLOGIN group phoenix_data_return, which may only execute the functions of
+// migration 1.15.910; they check the operator and write the operator audit
+// in the same transaction. The session is discarded afterwards, so the role
+// never returns to the pool.
+type releaseStore struct{ db *bun.DB }
+
+func (s releaseStore) call(ctx context.Context, fn func(bun.Conn) error) error {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return errors.New("data return: database session unavailable")
 	}
-	_, err := query.Returning("id, package, subject_id, archive_name").Exec(ctx)
-	return rows, err
+	defer func() {
+		_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+		_ = conn.Close()
+	}()
+	if _, err := conn.ExecContext(ctx, `SET ROLE phoenix_data_return`); err != nil {
+		return errors.New("data return: role phoenix_data_return unavailable to this login")
+	}
+	if err := fn(conn); err != nil {
+		// SQL errors may carry values; the CLI shows the class only.
+		return fmt.Errorf("data return: database step refused: %w", errDatabaseStep)
+	}
+	return nil
 }
 
-// purgeable answers the archives whose retrieval period ended or whose
-// grants are all revoked.
-func (s store) purgeable(ctx context.Context, now time.Time) ([]string, error) {
+var errDatabaseStep = errors.New("operator inactive, archive not live or a constraint failed")
+
+// issueRow is what data_return_issue stores.
+type issueRow struct {
+	Action, Package, ArchiveName, ArchiveSHA256, ManifestSHA256, KeyCheck, Recipient, RecipientName, TokenLookup string
+	SubjectID, ArchiveBytes, OperatorID                                                                          int64
+	FormatVersion, MaxDownloads                                                                                  int
+	WrappedKey                                                                                                   []byte
+	ExpiresAt, KeepUntil                                                                                         time.Time
+}
+
+func (s releaseStore) issue(ctx context.Context, r issueRow) (int64, error) {
+	var id int64
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT platform.data_return_issue(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.OperatorID, r.Action, r.Package, r.SubjectID, r.ArchiveName, r.ArchiveBytes, r.ArchiveSHA256, r.ManifestSHA256,
+			r.FormatVersion, r.KeyCheck, r.Recipient, r.RecipientName, r.TokenLookup, r.WrappedKey, r.ExpiresAt, r.KeepUntil,
+			r.MaxDownloads).Scan(ctx, &id)
+	})
+	return id, err
+}
+
+// archiveHead is what a further grant needs of a live archive.
+type archiveHead struct {
+	Package        string    `json:"package"`
+	SubjectID      int64     `json:"subject_id"`
+	ArchiveName    string    `json:"archive_name"`
+	ArchiveBytes   int64     `json:"archive_bytes"`
+	ArchiveSHA256  string    `json:"archive_sha256"`
+	ManifestSHA256 string    `json:"manifest_sha256"`
+	FormatVersion  int       `json:"format_version"`
+	KeyCheck       string    `json:"key_check"`
+	KeepUntil      time.Time `json:"keep_until"`
+}
+
+func (s releaseStore) archive(ctx context.Context, operatorID int64, name string) (archiveHead, bool, error) {
+	var raw sql.NullString
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT platform.data_return_archive(?, ?)::text`, operatorID, name).Scan(ctx, &raw)
+	})
+	var head archiveHead
+	if err != nil || !raw.Valid {
+		return head, false, err
+	}
+	return head, true, json.Unmarshal([]byte(raw.String), &head)
+}
+
+func (s releaseStore) requireOperator(ctx context.Context, operatorID int64) error {
+	return s.call(ctx, func(conn bun.Conn) error {
+		_, err := conn.NewRaw(`SELECT platform.data_return_list(?)`, operatorID).Exec(ctx)
+		return err
+	})
+}
+
+// revoke takes the selectors as the function does: exactly one of grant,
+// archive and all is set, the others are NULL.
+func (s releaseStore) revoke(ctx context.Context, operatorID int64, grant *int64, archive *string, all bool) (int, error) {
+	var count int
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT platform.data_return_revoke(?, ?, ?, ?)`, operatorID, grant, archive, all).Scan(ctx, &count)
+	})
+	return count, err
+}
+
+func (s releaseStore) names(ctx context.Context, function string, operatorID int64) ([]string, error) {
 	var names []string
-	err := s.db.NewRaw(`SELECT archive_name FROM platform.data_return_grants WHERE purged_at IS NULL
-		GROUP BY archive_name HAVING max(keep_until) <= ? OR bool_and(revoked_at IS NOT NULL) ORDER BY archive_name`, now).Scan(ctx, &names)
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT * FROM platform.`+function+`(?)`, operatorID).Scan(ctx, &names)
+	})
 	return names, err
 }
 
-func (s store) markPurged(ctx context.Context, archive string, now time.Time) error {
-	_, err := s.db.NewRaw(`UPDATE platform.data_return_grants SET purged_at = ?, wrapped_key = NULL
-		WHERE archive_name = ? AND purged_at IS NULL`, now, archive).Exec(ctx)
-	return err
+func (s releaseStore) purgeArchive(ctx context.Context, operatorID int64, name string) (bool, error) {
+	var purged bool
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT platform.data_return_purge_archive(?, ?)`, operatorID, name).Scan(ctx, &purged)
+	})
+	return purged, err
 }
 
-// dropEvidence deletes grants (and their downloads) whose archive is gone
-// and whose retrieval period ended the given years ago.
-func (s store) dropEvidence(ctx context.Context, before time.Time) (int, error) {
-	result, err := s.db.NewRaw(`DELETE FROM platform.data_return_grants WHERE purged_at IS NOT NULL AND keep_until < ?`, before).Exec(ctx)
-	if err != nil {
-		return 0, err
-	}
-	n, err := result.RowsAffected()
-	return int(n), err
+func (s releaseStore) dropEvidence(ctx context.Context, operatorID int64) (int, error) {
+	var count int
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT platform.data_return_drop_evidence(?)`, operatorID).Scan(ctx, &count)
+	})
+	return count, err
 }
 
-func (s store) list(ctx context.Context) ([]grantRow, error) {
-	var rows []grantRow
-	err := s.db.NewSelect().Model(&rows).OrderExpr("id").Scan(ctx)
+func (s releaseStore) list(ctx context.Context, operatorID int64) ([]organizationtenancy.DataReturnGrantSummary, error) {
+	var raw string
+	err := s.call(ctx, func(conn bun.Conn) error {
+		return conn.NewRaw(`SELECT platform.data_return_list(?)::text`, operatorID).Scan(ctx, &raw)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("data return: list grants: %w", err)
+		return nil, err
 	}
-	return rows, nil
+	var grants []organizationtenancy.DataReturnGrantSummary
+	return grants, json.Unmarshal([]byte(raw), &grants)
 }

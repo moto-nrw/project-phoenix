@@ -34,7 +34,9 @@ so sensibel wie das Paket selbst.
    Personen-Prüfpaket (`reviewRequired`) enthält und dessen eigene Zeile in
    `platform.schools` bzw. `platform.organizations` genau die Schule oder den
    Träger nennt, die der Operator angibt. Ein Paket für die falsche Schule
-   lässt sich so nicht freigeben.
+   lässt sich so nicht freigeben. Beim Packen hasht die CLI jede Datei erneut
+   und bricht ab, wenn sie sich seit der Prüfung geändert hat oder ein Link
+   geworden ist.
 2. **Ablage verschlüsselt.** Die CLI packt das Paket als ZIP und verschlüsselt
    es dabei (AES-256-GCM in Blöcken zu 64 KiB, Blockzähler und Endmarke im
    Nonce, Security Runtime) mit einem eigenen Zufallsschlüssel je Paket in
@@ -42,14 +44,20 @@ so sensibel wie das Paket selbst.
    Klartext berührt die Platte nicht. Die Datenbank speichert den Schlüssel nur
    eingewickelt unter dem jeweiligen Token und einen HMAC-Prüfwert; das Token
    selbst nur als HMAC. Ablage und Datenbank zusammen öffnen ohne gültiges
-   Token kein Paket. Den Paketschlüssel bekommt der Operator einmal angezeigt;
-   damit stellt er weitere Tokens aus, ohne erneut hochzuladen.
+   Token kein Paket. Token und Paketschlüssel schreibt die CLI nur in eine neue
+   Datei mit Modus 0600 in einem privaten Verzeichnis (`--secrets-out`), nie auf
+   die Standardausgabe: die Ausgabe des Containers landet in journald und Loki.
+   Mit dem Paketschlüssel stellt der Operator weitere Tokens aus, ohne erneut
+   hochzuladen.
 3. **Kurzlebige Berechtigung, eine Zeile je Empfänger.**
    `platform.data_return_grants` hält je Token Empfängerart (`customer`,
    `target_provider`) und Name der Empfängerorganisation, Ablauf (höchstens
    30 Tage, nie nach dem Ende des Abrufzeitraums `keep_until`) und
    Downloadbudget (höchstens 20). Widerruf (`tenant return revoke`) und Ablauf
-   wirken sofort. Jedes Token öffnet genau das Archiv seiner Zeile; keine
+   wirken für neue Anfragen sofort; ein laufender Download prüft alle 8 MiB, ob
+   sein Token widerrufen oder bereinigt ist, und bricht dann ab. Nach einem
+   Restore der Datenbank widerruft `tenant return revoke --all` alle Tokens,
+   weil der Restore widerrufene Tokens und Downloadzähler zurückbringt. Jedes Token öffnet genau das Archiv seiner Zeile; keine
    Anfrage wählt Schule, Träger oder Datei. Damit gibt es keinen Weg, mit dem
    Token einer Schule das Paket einer anderen zu holen.
 4. **HTTPS-Schnittstelle.** `GET /public/data-return/package` nennt Paketart,
@@ -61,16 +69,25 @@ so sensibel wie das Paket selbst.
    Adresse (30 Anfragen pro Minute). `GET /public/data-return/openapi.json`
    beschreibt die Schnittstelle (OpenAPI 3.1). Unentgeltlich, gleich für Kunde
    und Zielanbieter.
-5. **Nachweis.** Freigabe, weiteres Token, Widerruf, Auflistung und Bereinigung
-   prüfen den aktiven Operator und stehen im Operator-Protokoll (Aktion
-   `data_return_*`, ohne Token, Schlüssel oder Personendaten). Jeder Abruf steht
+5. **Rolle und Nachweis.** Die CLI läuft als NOLOGIN-Gruppe
+   `phoenix_data_return` wie der Löschzugang `phoenix_school_erasure`: ohne
+   Tabellenrechte, nur mit `EXECUTE` auf `SECURITY DEFINER`-Funktionen der
+   Migration 1.15.910. Jede Funktion prüft den aktiven Operator, schreibt und
+   ergänzt das Operator-Protokoll in derselben Transaktion (Aktion
+   `data_return_*`, je Token bzw. Archiv ein Eintrag, ohne Token, Schlüssel oder
+   Personendaten) und sperrt das Archiv per Advisory-Lock, sodass Bereinigung
+   und neues Token desselben Archivs nicht ineinanderlaufen. Der Webzugang
+   `phoenix_auth` liest nur Tokens, zählt Downloads und schreibt Abrufzeilen. Jeder Abruf steht
    mit Zeitpunkt, Ergebnis und Bytes in `platform.data_return_downloads`.
 6. **Ende.** `tenant return purge` löscht ein Archiv nach dem Abrufzeitraum
    oder sobald alle seine Tokens widerrufen sind, und leert die eingewickelten
-   Schlüssel. Die Zeilen bleiben als Nachweis der Rückgabe ohne
+   Schlüssel; erst danach entfernt sie die Datei. Dateien der Ablage, die kein
+   offenes Token nennt (abgebrochene Freigaben), räumt sie ab einer Stunde
+   Alter mit ab. Die Zeilen bleiben als Nachweis der Rückgabe ohne
    Schul-Fremdschlüssel (wie `platform.school_erasures`) und gehen drei Jahre
-   nach dem Abrufzeitraum. Vor einer Löschung von Schule oder Träger wird
-   bereinigt.
+   nach dem Abrufzeitraum. `tenant erase` verweigert eine Schule oder einen
+   Träger, solange ein Paket davon nicht bereinigt ist: Die Löschung erreicht
+   die Ablage nicht, das Paket bliebe sonst abrufbar.
 
 Verfügbarkeit: Die Schnittstelle besteht dauerhaft; ein Paket ist ab seiner
 Freigabe nach der Wechselanfrage bis zum Ende des Abrufzeitraums abrufbar,
@@ -82,8 +99,11 @@ Tokens werden in dieser Zeit bei Bedarf neu ausgestellt.
   und einen Einmal-Container mit dem Volume `phoenix-<env>-data-return`.
 - Wer ein Token hat, hat das Paket. Tokens gehen nur über einen bestätigten
   zweiten Kanal an die benannte Organisation; die Laufzeit bleibt kurz.
-- Die Ablage ist nicht Teil der täglichen Sicherung. Nach einem Restore fehlt
-  ein Archiv; der Abruf antwortet 503, der Operator gibt neu frei.
+- Die Ablage ist nicht Teil der täglichen Sicherung. Nach einem Restore der
+  Datenbank widerruft der Operator alle Tokens, bereinigt und gibt laufende
+  Wechsel neu frei; ein fehlendes Archiv beantwortet der Abruf mit 503.
+- Der Freigabezugang braucht einen eigenen Login in `phoenix_data_return`,
+  den der Restore wie die Löschzugänge sperrt.
 - Ob dieser Abrufweg Art. 30 Abs. 2 genügt, bestätigt die anwaltliche Prüfung.
 
 ## Verworfen
@@ -93,6 +113,14 @@ Tokens werden in dieser Zeit bei Bedarf neu ausgestellt.
 - **Archiv-Schlüssel aus einem neuen Server-Schlüsselring:** bräuchte neue
   Geheimnisse in allen Umgebungen und läge neben der Ablage; der Schlüssel
   unter dem Token schützt besser und braucht keine neue Konfiguration.
+- **Geheimnisse auf der Standardausgabe oder ein eigener Compose-Dienst ohne
+  Logging:** die Ausgabe von `server` geht nach journald; ein zweiter Dienst
+  schützt nur, solange niemand versehentlich `server` nimmt. Die Datei mit
+  0600 hängt nicht an der Compose-Konfiguration.
+- **Löschung räumt die Ablage mit ab:** die Löschung bearbeitet die
+  Upload-Wurzel; eine zweite Ablage dort mitzulöschen bräuchte einen
+  weiteren Mount im Löschlauf. Die Sperre ist einfacher und hält den Widerruf
+  im Operator-Protokoll.
 - **Token in der URL (Link zum Klicken):** landet in Logs, Verläufen und
   Mail-Scannern.
 - **Ablage im Upload-Volume:** das Volume läuft durch Sicherung, Export und

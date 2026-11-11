@@ -37,13 +37,13 @@ func NewDataReturn(db *bun.DB, crypto organizationtenancy.DataReturnCrypto, root
 	if db == nil || !crypto.Complete() || root == "" {
 		return nil, errors.New("data return requires a database and its cryptography")
 	}
-	return datareturn.New(db, crypto, nil, root, logger), nil
+	return datareturn.NewRetrieval(db, crypto, root, logger), nil
 }
 
-// NewDataReturnRelease binds the operator side of the retrieval, audited.
-func NewDataReturnRelease(db *bun.DB, crypto organizationtenancy.DataReturnCrypto, audit organizationtenancy.DataReturnAudit, root string) (organizationtenancy.DataReturnRelease, error) {
-	if db == nil || !crypto.Complete() || audit == nil || root == "" {
-		return nil, errors.New("data return release requires a database, its cryptography and the operator audit")
+// NewDataReturnRelease binds the operator side; it runs as phoenix_data_return.
+func NewDataReturnRelease(db *bun.DB, crypto organizationtenancy.DataReturnCrypto, root string) (organizationtenancy.DataReturnRelease, error) {
+	if db == nil || !crypto.Complete() || root == "" {
+		return nil, errors.New("data return release requires a database and its cryptography")
 	}
-	return datareturn.New(db, crypto, audit, root, nil), nil
+	return datareturn.NewRelease(db, crypto, root), nil
 }

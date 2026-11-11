@@ -86,31 +86,10 @@ type DataReturn interface {
 	Download(ctx context.Context, token string, start func(DataReturnPackage) io.Writer) error
 }
 
-// DataReturnAudit records each release, grant, revocation and purge in the
-// operator audit (#4720). Begin refuses an unknown or inactive operator
-// before anything is read or written.
-type DataReturnAudit interface {
-	BeginDataReturn(ctx context.Context, operatorID int64) error
-	RecordDataReturn(ctx context.Context, record DataReturnAuditRecord) error
-}
-
-// DataReturnAuditRecord names an operator action without personal data,
-// tokens or keys.
-type DataReturnAuditRecord struct {
-	OperatorID     int64      `json:"operator_id"`
-	Action         string     `json:"action"`
-	Package        string     `json:"package,omitempty"`
-	SubjectID      int64      `json:"subject_id,omitempty"`
-	GrantID        int64      `json:"grant_id,omitempty"`
-	ArchiveName    string     `json:"archive_name,omitempty"`
-	ManifestSHA256 string     `json:"manifest_sha256,omitempty"`
-	Recipient      string     `json:"recipient,omitempty"`
-	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
-	KeepUntil      *time.Time `json:"keep_until,omitempty"`
-	Count          int        `json:"count,omitempty"`
-}
-
-// DataReturnRelease is the operator side of the retrieval, run by the CLI.
+// DataReturnRelease is the operator side of the retrieval, run by the CLI
+// as the group role phoenix_data_return. Every command checks the active
+// operator and lands in the operator audit in the same transaction as its
+// write (migration 1.15.910).
 type DataReturnRelease interface {
 	Release(ctx context.Context, request DataReturnReleaseRequest) (DataReturnIssued, error)
 	Grant(ctx context.Context, request DataReturnGrantRequest) (DataReturnIssued, error)
@@ -148,10 +127,12 @@ type DataReturnGrantRequest struct {
 	DataReturnRecipient
 }
 
-// DataReturnRevokeRequest ends one grant or every grant of an archive.
+// DataReturnRevokeRequest ends one grant, every grant of an archive, or
+// with All every grant that still has an archive (after a database restore).
 type DataReturnRevokeRequest struct {
 	GrantID     int64
 	ArchiveName string
+	All         bool
 	OperatorID  int64
 }
 
@@ -169,9 +150,11 @@ type DataReturnIssued struct {
 	ArchiveKey    []byte
 }
 
-// DataReturnPurged counts what a purge removed.
+// DataReturnPurged counts what a purge removed: archives past their period
+// or fully revoked, files in the store no live grant names, evidence rows.
 type DataReturnPurged struct {
 	Archives       int `json:"archives"`
+	Orphans        int `json:"orphans"`
 	EvidenceGrants int `json:"evidence_grants"`
 }
 
@@ -190,4 +173,7 @@ type DataReturnGrantSummary struct {
 	PurgedAt      *time.Time `json:"purged_at,omitempty"`
 	Downloads     int        `json:"downloads"`
 	MaxDownloads  int        `json:"max_downloads"`
+	// ArchiveStored is set for a grant that is not purged: whether its
+	// archive lies in the store of this installation.
+	ArchiveStored *bool `json:"archive_stored,omitempty"`
 }

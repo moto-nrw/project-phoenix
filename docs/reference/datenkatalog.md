@@ -55,7 +55,7 @@ Paketschlüssel, Empfängerorganisation, Ablauf, Downloads) ist `platform` und
 `excludeSecret`; `platform.data_return_downloads` (je Abruf Zeitpunkt,
 Ergebnis, Bytes) ist `platform` und `excludeInternal`. Beide tragen keine
 Schul- oder Träger-Fremdschlüssel, sind Nachweis der Rückgabe und gehen mit
-`tenant return purge` drei Jahre nach dem Abrufzeitraum.
+`tenant return purge` drei Jahre nach dem Abrufzeitraum. Freigabe, Widerruf und Bereinigung laufen als Gruppe `phoenix_data_return` nur über Funktionen der Migration; `tenant erase` verweigert, solange ein Paket der Schule oder des Trägers nicht bereinigt ist.
 
 Migration 1.15.758 ergänzt `platform.email_delivery_events` und
 `platform.email_suppressions` (#5932): Zustellereignisse einer Mail und die
