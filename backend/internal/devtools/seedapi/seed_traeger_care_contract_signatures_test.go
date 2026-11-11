@@ -58,7 +58,12 @@ func TestSeedPaperContractSignsADraftOfTheSeededSchool(t *testing.T) {
 				case "GET /traeger/contracts/":
 					queries = append(queries, r.URL.RawQuery)
 					if r.URL.Query().Get("status") == "aktiv" {
-						_, _ = fmt.Fprintf(w, `{"data":{"contracts":[],"counts":{"aktiv":%d}}}`, active)
+						// The counts are the whole Träger's: another school holds an active contract.
+						contracts := "[]"
+						if active > 0 {
+							contracts = `[{"id":3}]`
+						}
+						_, _ = fmt.Fprintf(w, `{"data":{"contracts":%s,"counts":{"aktiv":2}}}`, contracts)
 						return
 					}
 					_, _ = fmt.Fprint(w, `{"data":{"contracts":[{"id":7,"party_name":"Erika Muster"},{"id":8,"party_name":"Max Muster"}]}}`)

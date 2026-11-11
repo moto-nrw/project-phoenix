@@ -56,15 +56,16 @@ func seedPaperContract(client *Client, auth AuthRef, school int64) (int, error) 
 	if err != nil {
 		return 0, fmt.Errorf("read the active contracts: %w", err)
 	}
+	// The counts of the list are the Träger's; the contracts are the school's.
 	var active struct {
 		Data struct {
-			Counts map[string]int `json:"counts"`
+			Contracts []json.RawMessage `json:"contracts"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &active); err != nil {
 		return 0, fmt.Errorf("read the active contracts: %w", err)
 	}
-	if active.Data.Counts["aktiv"] > 0 {
+	if len(active.Data.Contracts) > 0 {
 		return 0, nil
 	}
 	raw, err = client.GetWithAuth(auth, fmt.Sprintf("/traeger/contracts/?status=entwurf&school_id=%d", school))
