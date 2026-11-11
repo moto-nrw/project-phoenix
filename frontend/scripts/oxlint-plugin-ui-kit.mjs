@@ -132,8 +132,9 @@ import {
 //
 //   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
 //                                     text-muted-foreground …); bg-white/gray-*
-//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
-//                                     levels come from Z_LAYER
+//   ui-kit/no-raw-z-index           — no `z-[n]` or `z-n` inside
+//                                     src/components/ui/; levels come from
+//                                     Z_LAYER (#6574)
 //
 // One more keeps icon tiles on the kit (#5582):
 //
@@ -207,7 +208,7 @@ const SHADCN_TOKEN_RE =
   /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
 // Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
 // `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
-const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const RAW_Z_INDEX_RE = /(?<![\w-])z-(?:\[[^\]\s]+\]|\d+)(?![\w-])/g;
 const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -1081,7 +1082,7 @@ const noRawZIndex = makeClassStringRule({
   skipUiKit: false,
   onlyUiKit: true,
   skipFiles: [Z_LAYER_FILE],
-  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  docs: "Disallow z-index classes in the UI kit; every level comes from Z_LAYER.",
   messageId: "rawZIndex",
   message:
     "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
@@ -2257,7 +2258,7 @@ const confirmationDismissLock = {
     },
     messages: {
       reason:
-        "`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading=\"Lädt nur die Vorschau; nichts wird gespeichert.\"`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).",
+        '`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).',
     },
     schema: [],
   },

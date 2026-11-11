@@ -40,13 +40,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/NavigationTabs.tsx",
-    lines: [197],
+    lines: [201],
     reason: "Reiter: Auslöser des mobilen Reiter-Menüs",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [457],
+    lines: [461],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -58,7 +58,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [393, 432],
+    lines: [392, 431],
     reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {

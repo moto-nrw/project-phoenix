@@ -114,7 +114,9 @@ export function NavigationTabs({
       >
         {/* Left fade indicator */}
         {canScrollLeft && (
-          <div className="pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-6 bg-gradient-to-r from-white to-transparent md:hidden" />
+          <div
+            className={`pointer-events-none absolute top-0 bottom-0 left-0 ${Z_LAYER.raised} w-6 bg-gradient-to-r from-white to-transparent md:hidden`}
+          />
         )}
 
         {/* Scrollable tabs container */}
@@ -156,7 +158,9 @@ export function NavigationTabs({
 
         {/* Right fade indicator */}
         {canScrollRight && (
-          <div className="pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-6 bg-gradient-to-l from-white to-transparent md:hidden" />
+          <div
+            className={`pointer-events-none absolute top-0 right-0 bottom-0 ${Z_LAYER.raised} w-6 bg-gradient-to-l from-white to-transparent md:hidden`}
+          />
         )}
       </div>
     </div>

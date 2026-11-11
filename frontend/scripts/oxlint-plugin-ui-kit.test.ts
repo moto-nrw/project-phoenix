@@ -1137,6 +1137,19 @@ describe.concurrent("ui-kit/no-raw-z-index", () => {
     expect(result.output).toContain("ui-kit(no-raw-z-index)");
   });
 
+  it("reports a plain Tailwind level inside the kit (#6574)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="sticky top-0 md:z-20" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-raw-z-index)");
+  });
+
   it("accepts Z_LAYER itself and leaves files outside the kit alone", async () => {
     const [layers, outside] = await Promise.all([
       lintSource(

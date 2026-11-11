@@ -64,6 +64,7 @@ import {
   OVERLAY_BACKDROP_TINT_CLASS,
   Z_LAYER,
 } from "./overlay-styles";
+import { isInsideModal, SHEET_SCOPE_PROPS, useOverlay } from "./overlay-stack";
 
 /**
  * Unter sm fährt das Panel von unten ein, darüber von rechts. Vor dem ersten
@@ -241,14 +242,6 @@ function isSlideOverWidth(
   return typeof size === "string" && Object.hasOwn(SLIDE_OVER_WIDTH, size);
 }
 
-/** Whether the target lies in a kit `Modal` opened above the panel. */
-function isInsideKitModal(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element &&
-    target.closest('[data-modal-focus-scope="true"]') !== null
-  );
-}
-
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,
   SlideOverContentProps
@@ -267,6 +260,8 @@ const SlideOverContent = React.forwardRef<
   ) => {
     const direction = React.useContext(SlideOverDirectionContext);
     const busy = React.useContext(SlideOverBusyContext);
+    const open = React.useContext(SlideOverOpenContext);
+    const { isTopmost } = useOverlay(open, "sheet");
     const isSheet = direction === "bottom";
     const sheetRef = React.useRef<HTMLDivElement | null>(null);
     useSheetAboveKeyboard(sheetRef, isSheet);
@@ -281,7 +276,7 @@ const SlideOverContent = React.forwardRef<
             if (typeof ref === "function") ref(node);
             else if (ref) ref.current = node;
           }}
-          data-date-picker-focus-trap="true"
+          {...SHEET_SCOPE_PROPS}
           // Focus target while a busy panel has disabled its own controls;
           // Radix sets the same on its focus scope.
           tabIndex={-1}
@@ -313,16 +308,18 @@ const SlideOverContent = React.forwardRef<
             >[0],
           ) => {
             onInteractOutside?.(event);
-            if (isBackdropDismissDisabled || isInsideKitModal(event.target)) {
+            if (isBackdropDismissDisabled || isInsideModal(event.target)) {
               event.preventDefault();
             }
           }}
           onEscapeKeyDown={(event) => {
             onEscapeKeyDown?.(event);
+            // An overlay above the panel (dialog, tour) takes the Escape.
             // Radix handles Escape in capture, before nested controls close.
             if (
+              !isTopmost() ||
               document.querySelector(
-                '[role="combobox"][aria-expanded="true"], [role="listbox"], [data-date-picker-panel], [data-modal-focus-scope="true"]:not([aria-hidden="true"])',
+                '[role="combobox"][aria-expanded="true"], [role="listbox"], [data-date-picker-panel]',
               )
             ) {
               event.preventDefault();
