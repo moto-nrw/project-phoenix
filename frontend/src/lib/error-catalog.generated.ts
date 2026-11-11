@@ -546,6 +546,8 @@ export const ERROR_CATALOG = {
       "enrollment.message_required": "Bitte schreiben Sie eine Nachricht.",
       "enrollment.offering_adjustment_invalid":
         "Diese Änderung der Angebote ist so nicht möglich. Bitte prüfen Sie Angebote und Datum.",
+      "enrollment.phase_booking_bounds_conflict":
+        "Der neue Zeitraum passt nicht zur geänderten Buchung von {child}. Bitte passen Sie zuerst die Angebote des Kindes an.",
       "enrollment.phase_care_offering_conflict":
         "Die Änderung passt nicht zu einem Betreuungsangebot der Phase. Bitte prüfen Sie die Angebote.",
       "enrollment.phase_eligibility_setting_required":

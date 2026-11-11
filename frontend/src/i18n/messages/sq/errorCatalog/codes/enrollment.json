@@ -100,6 +100,7 @@
   "upload_not_found": "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
   "message_required": "Ju lutemi shkruani një mesazh.",
   "offering_adjustment_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "phase_booking_bounds_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_care_offering_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_has_effective_bookings": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_eligibility_setting_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

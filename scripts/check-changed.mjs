@@ -4,13 +4,18 @@
 //   static  scripts/pre-push.sh --worktree: secrets, agent context, backend
 //           lint, frontend lint/types/knip/guard inventory, as selected by
 //           the changed paths
+//   arch    scripts/backend-architecture.sh check without the base
+//           comparison, when a path of CI's architecture ratchet changed:
+//           import policy for production and test packages (imports.forbidden),
+//           legacy baseline and pass-through evidence of the working tree.
+//           About 30 s warm; CI adds the comparison with the base (about 60 s).
 //   tests   scripts/test-changed.sh --fast: affected Go packages and their
 //           direct importers, affected source ratchets and selected frontend tests
-// CI still runs the full affected closure.
+// CI still runs the full affected closure and the full architecture ratchet.
 //
 //   scripts/run-go-toolchain.sh scripts/check-changed.mjs [--fast] [base]   (default origin/development)
 //
-// The steps run side by side when the machine has room (8 CPUs, 16 GB and a
+// Two steps run side by side when the machine has room (8 CPUs, 16 GB and a
 // load average below half the CPUs), otherwise one after the other, static
 // checks first because they fail faster. Each prints its output when it finishes; a
 // step running past PHX_CHECK_TIMEOUT_MINUTES (default 30) is stopped with its
@@ -25,6 +30,29 @@ import { availableParallelism, loadavg, totalmem, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { checkLocalMigrationVersions } from './check-migration-versions.mjs';
+import { changedPaths } from './backend-source-ratchets.mjs';
+
+// The paths that start CI's "Backend architecture ratchet" (main.yml, filter
+// backend-architecture). Keep both lists in step.
+const architectureInputs = /^(backend\/(.*\.go|go\.(mod|sum)|(internal\/)?architecture\/.*)|scripts\/backend-architecture(\.sh|\/.*))$/;
+
+export function architectureInputChanged(paths) {
+  return paths.some(path => architectureInputs.test(path) && !/^backend\/.*\.md$/.test(path));
+}
+
+// Static checks first because they fail fastest, tests last because they run
+// longest. The architecture step passes --baseline itself, so the wrapper adds
+// no --base-ref: it reads the working tree once instead of type-checking the
+// base as well.
+export function stepsFor(root, base, paths) {
+  return [
+    { name: 'static', command: ['bash', 'scripts/pre-push.sh', '--worktree', base] },
+    ...(architectureInputChanged(paths)
+      ? [{ name: 'arch', command: ['bash', 'scripts/backend-architecture.sh', 'check', '--baseline', join(root, 'backend/architecture/legacy.jsonl')] }]
+      : []),
+    { name: 'tests', command: ['bash', 'scripts/test-changed.sh', '--fast', base] },
+  ];
+}
 
 // Side by side only while the machine has room. Under load from other agents
 // (load 18 to 30 on 16 CPUs), parallel steps starved the oxlint guard tests
@@ -208,10 +236,7 @@ async function main(argv) {
   const minutes = Number(process.env.PHX_CHECK_TIMEOUT_MINUTES || 30);
   const concurrency = concurrencyFor();
   console.log(`check-changed: ${mergeBase.slice(0, 10)}..working tree, ${concurrency === 2 ? 'steps side by side' : 'one step at a time'}, timeout ${minutes} min per step`);
-  const results = await runSteps([
-    { name: 'static', command: ['bash', 'scripts/pre-push.sh', '--worktree', base] },
-    { name: 'tests', command: ['bash', 'scripts/test-changed.sh', '--fast', base] },
-  ], { concurrency, timeoutMs: minutes * 60_000, cwd: root });
+  const results = await runSteps(stepsFor(root, base, changedPaths(root, base)), { concurrency, timeoutMs: minutes * 60_000, cwd: root });
   const summary = summarize(results);
   if (results.interrupted) {
     console.log(`\n===== interrupted (${results.interrupted}) =====\n${summary}`);

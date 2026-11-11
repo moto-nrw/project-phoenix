@@ -100,6 +100,7 @@
   "upload_not_found": "Цього файлу більше немає. Завантажте його ще раз.",
   "message_required": "Напишіть повідомлення.",
   "offering_adjustment_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "phase_booking_bounds_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_care_offering_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_has_effective_bookings": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "phase_eligibility_setting_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",

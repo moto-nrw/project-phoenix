@@ -71,6 +71,32 @@ import "example.test/project/modules/documentrendering/internal/application/list
 const Value = listrenderer.Value
 EOF
 printf 'package exportconsumer\n' >"$fixture/backend/modules/documentrendering/exportconsumer/consumer_test.go"
+# Embedded registers belong to their package; other JSON inputs are read by
+# path from tests that no import edge reveals.
+mkdir -p "$fixture/backend"/{modules/organizationtenancy/compose,database/migrations,auth/authorize/permissions,modules/identityaccess/internal/domain,architecture,cmd}
+printf 'package organizationtenancy\n\nconst Value = 1\n' >"$fixture/backend/modules/organizationtenancy/register.go"
+cat >"$fixture/backend/modules/organizationtenancy/compose/compose.go" <<'EOF'
+package compose
+
+import "example.test/project/modules/organizationtenancy"
+
+const Value = organizationtenancy.Value
+EOF
+printf 'package compose\n' >"$fixture/backend/modules/organizationtenancy/compose/compose_test.go"
+printf 'package migrations\n' >"$fixture/backend/database/migrations/coverage_test.go"
+printf 'package permissions\n\nconst Value = 1\n' >"$fixture/backend/auth/authorize/permissions/constants.go"
+cat >"$fixture/backend/modules/identityaccess/internal/domain/domain.go" <<'EOF'
+package domain
+
+import "example.test/project/auth/authorize/permissions"
+
+const Value = permissions.Value
+EOF
+printf 'package domain\n' >"$fixture/backend/modules/identityaccess/internal/domain/domain_test.go"
+mkdir -p "$fixture/backend"/{testdata,sharedfixtureuser}
+printf 'package sharedfixtureuser\n\nconst path = "../testdata/shared-cases.json"\n' >"$fixture/backend/sharedfixtureuser/cases_test.go"
+printf 'package main\n\nfunc main() {}\n' >"$fixture/backend/cmd/main.go"
+printf 'package main\n' >"$fixture/backend/cmd/main_test.go"
 # Depth-2 import chain for the --direct (depth 1) mode, deliberately separate
 # from the core chain so the existing closure assertions stay untouched.
 mkdir -p "$fixture/backend"/{chainbase,chainmid,chainleaf}
@@ -247,6 +273,38 @@ printf 'asset\n' >"$fixture/backend/modules/documentrendering/internal/applicati
 assert_output $'example.test/project/modules/documentrendering/exportconsumer\nexample.test/project/modules/documentrendering/internal/application/listrenderer\nexample.test/project/test'
 rm "$fixture/backend/modules/documentrendering/internal/application/listrenderer/assets/probe.txt"
 
+# Embedded production registers select their package and its importers. The
+# lifecycle catalog is also read by path from the migration coverage test.
+printf '{}\n' >"$fixture/backend/modules/organizationtenancy/return_register.json"
+assert_output $'example.test/project/modules/organizationtenancy\nexample.test/project/modules/organizationtenancy/compose\nexample.test/project/test'
+assert_lint_output pull_request false $'./modules/organizationtenancy\n./modules/organizationtenancy/compose\n./test'
+rm "$fixture/backend/modules/organizationtenancy/return_register.json"
+printf '{}\n' >"$fixture/backend/modules/organizationtenancy/data_lifecycle_catalog.json"
+assert_output $'example.test/project/database/migrations\nexample.test/project/modules/organizationtenancy\nexample.test/project/modules/organizationtenancy/compose\nexample.test/project/test'
+rm "$fixture/backend/modules/organizationtenancy/data_lifecycle_catalog.json"
+
+# Read by path from tests only: no production closure, although the permission
+# catalog sits beside a widely imported package.
+printf '[]\n' >"$fixture/backend/auth/authorize/permissions/catalog.json"
+assert_output $'example.test/project/modules/identityaccess/internal/domain\nexample.test/project/test'
+rm "$fixture/backend/auth/authorize/permissions/catalog.json"
+printf '{}\n' >"$fixture/backend/architecture/composition.json"
+assert_output $'example.test/project/cmd\nexample.test/project/test'
+rm "$fixture/backend/architecture/composition.json"
+
+# Fixtures shared across packages select the tests that name them.
+printf '[]\n' >"$fixture/backend/testdata/shared-cases.json"
+assert_output $'example.test/project/sharedfixtureuser\nexample.test/project/test'
+rm "$fixture/backend/testdata/shared-cases.json"
+printf 'note\n' >"$fixture/backend/testdata/README.md"
+assert_output ''
+rm "$fixture/backend/testdata/README.md"
+
+# Notes beside these inputs stay outside the selection.
+printf 'note\n' >"$fixture/backend/modules/organizationtenancy/README.md"
+assert_output ''
+rm "$fixture/backend/modules/organizationtenancy/README.md"
+
 # Shrink-only registers feed the ratchets in ./test, which no import edge can
 # reveal. A register-only change must still run them.
 for register in transaction_boundaries durable_side_effect_notices module_contract_inventory; do
@@ -371,6 +429,47 @@ for pattern in \
 done
 assert_workflow_filter backend-tests 'backend/test/*.json' present
 assert_workflow_filter backend-production 'backend/test/*.json' absent
+for pattern in \
+  'backend/modules/organizationtenancy/return_register.json' \
+  'backend/modules/organizationtenancy/data_lifecycle_catalog.json'; do
+  for filter in backend-tests backend-lint backend-production; do
+    assert_workflow_filter "$filter" "$pattern" present
+  done
+done
+for pattern in \
+  'backend/auth/authorize/permissions/catalog.json' \
+  'backend/architecture/composition.json'; do
+  assert_workflow_filter backend-tests "$pattern" present
+  assert_workflow_filter backend-production "$pattern" absent
+done
+# Inventory: a JSON file under backend/ is either listed in the backend-tests
+# filter or a new input nobody classified. Add it to the filter and to the
+# selector in backend-affected-packages.sh.
+backend_test_patterns=$(awk '
+  $0 == "            backend-tests:" { active = 1; next }
+  active && /^            [a-z-]+:$/ { exit }
+  active && match($0, /\047[^\047]+\047/) { print substr($0, RSTART + 1, RLENGTH - 2) }
+' "$repo_root/.github/workflows/main.yml")
+while IFS= read -r path; do
+  case "$path" in
+    # Read only by the architecture ratchet job (backend-architecture filter);
+    # its tests build their own repositories.
+    backend/architecture/query-budget-non-http.json | \
+      backend/architecture/query-budget-retirements.json) continue ;;
+  esac
+  covered=false
+  while IFS= read -r pattern; do
+    # As in the filter: * stays inside one path segment, ** crosses them,
+    # and **/ also matches no directory at all.
+    regex=$(printf '%s' "$pattern" | sed -e 's/[.%]/\\&/g' -e 's|\*\*/|(.@/)?|g' \
+      -e 's|\*\*|.@|g' -e 's|\*|[^/]*|g' -e 's|@|*|g')
+    if [[ "$path" =~ ^${regex}$ ]]; then
+      covered=true
+      break
+    fi
+  done <<< "$backend_test_patterns"
+  [ "$covered" = true ] || { echo "backend JSON input missing from the backend-tests filter: $path" >&2; exit 1; }
+done < <(git -C "$repo_root" ls-files 'backend/*.json')
 # Every literal path the selector maps must still exist in the repository.
 for path in \
   backend/architecture/policy.json \
@@ -379,7 +478,14 @@ for path in \
   backend/modules/documentrendering/internal/application/listrenderer/assets \
   backend/test/transaction_boundaries.json \
   backend/test/durable_side_effect_notices.json \
-  backend/test/module_contract_inventory.json; do
+  backend/test/module_contract_inventory.json \
+  backend/modules/organizationtenancy/return_register.json \
+  backend/modules/organizationtenancy/data_lifecycle_catalog.json \
+  backend/database/migrations/data_lifecycle_coverage_test.go \
+  backend/auth/authorize/permissions/catalog.json \
+  backend/modules/identityaccess/internal/domain/mfa_privilege_test.go \
+  backend/architecture/composition.json \
+  backend/cmd/composition_smoke_test.go; do
   [ -e "$repo_root/$path" ] || { echo "selector path no longer exists: $path" >&2; exit 1; }
 done
 
