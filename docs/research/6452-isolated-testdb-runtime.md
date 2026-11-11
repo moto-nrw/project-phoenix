@@ -367,6 +367,28 @@ von 250 ms läuft ab Funktionsbeginn, bei stockender Datenbank also schon vor
 dem ersten Auftrag. Ohne die fsync-Last trat das in keinem Lauf auf; nicht
 geändert.
 
+### Endstand im Gate
+
+`scripts/run-go-toolchain.sh scripts/check-changed.mjs` auf dem Endstand,
+Load-1 21 bis 38:
+
+| Testserver | Paket | Ergebnis |
+| --- | ---: | --- |
+| geteilt, Port 5433 | 61,0 s | grün |
+| geteilt, Port 5433, nach Rebase | 188,2 s | rot: `TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools`, ein Durchgang löschte keinen Auftrag |
+| eigener, aktuelle Konfiguration | 12,3 s | grün |
+| eigener, aktuelle Konfiguration | 13,6 s | grün |
+
+Der geteilte Server auf Port 5433 ist auf diesem Rechner ein Alt-Container
+vom 10.11.2026: Daten auf einem Volume statt im tmpfs, Speicherlimit 1,5 GiB
+statt 3584 MB. Die langsamen Create/Drop-Zeiten und die Streuung oben stammen
+von ihm. Der rote Lauf ist der bei „fsync im Gate“ beschriebene Fall: Das
+250-ms-Budget läuft ab, bevor die Löschung den ersten Auftrag beginnt, wenn
+die Datenbank stockt. Auf dem Server in aktueller Konfiguration trat er nicht
+auf. Offen bleibt die Umstellung des Alt-Containers nach
+`docs/agents/operations.md` („Test database“); sie betrifft andere Sessions
+und ist hier nicht geschehen.
+
 Der Preis: 32 Clones mehr je Paketlauf und etwa doppelt so viel aufsummierte
 Datenbankarbeit, weil die Lifecycles einander bremsen. Bis zu acht statt
 einem Clone dieses Pakets bestehen gleichzeitig. Eine Messung ohne fremde Last
