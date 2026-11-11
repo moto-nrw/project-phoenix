@@ -4327,23 +4327,18 @@
     },
     {
       "decision": "0075",
-      "id": "roots/owners/holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions and staff/person account links onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
-    },
-    {
-      "decision": "0075",
       "id": "roots/owners/holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
-      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions and staff/person account links onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
     },
     {
       "decision": "0075",
       "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildArrivals",
-      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions and staff/person account links onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
     },
     {
       "decision": "0075",
       "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildPickups",
-      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions and staff/person account links onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+      "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
     },
     {
       "decision": "0116",

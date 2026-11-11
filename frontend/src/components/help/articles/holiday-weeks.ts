@@ -46,7 +46,7 @@ export function holidayWeeksTopic(): HelpTopic {
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
-      "Kinder Ihrer OGS bleiben in ihrer Gruppe. Haben Sie die Feriengruppe gewählt, trägt moto für die gebuchten Tage Ankunft und Abholung ein. Der Check-in erwartet das Kind dann an diesen Tagen.",
+      "Kinder Ihrer OGS bleiben in ihrer Gruppe. moto trägt für die gebuchten Tage Ankunft und Abholung ein. Der Check-in erwartet das Kind dann an diesen Tagen. Neu bestätigte Kinder plant moto innerhalb einer Stunde ein.",
       "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
       "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
@@ -57,7 +57,6 @@ export function holidayWeeksTopic(): HelpTopic {
       "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort. Die eingeplanten Tage eines Kindes Ihrer OGS entfernt moto innerhalb einer Stunde.",
     ],
     troubleshootingDetails: [
-      "Konnten die Kinder wegen eines fehlenden Personaleintrags nicht eingeplant werden? Lassen Sie Ihr Konto unter `Personal` ergänzen. Wählen Sie danach die Feriengruppe erneut.",
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
       "Steht ein Kind unter `Noch nicht zugeordnet`? Dann passen Vorname, Nachname oder Geburtsdatum der Anmeldung zu keinem Kind in moto oder zu mehreren. Ändern Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern. Vorher plant moto für dieses Kind nichts ein.",
       "Steht bei einem Kind unter `Gesundheit` nichts? Dann haben die Eltern nichts angegeben oder nicht zugestimmt. Ältere Anmeldungen geben keine Gesundheitsangaben weiter.",

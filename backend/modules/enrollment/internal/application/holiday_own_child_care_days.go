@@ -13,15 +13,14 @@ import (
 // HolidayOwnChildCareDays reconciles Enrollment's booked days. A team's or
 // parent's exception wins; a team edit survives while the booked times stay.
 type HolidayOwnChildCareDays struct {
-	plans   enrollment.HolidayOwnChildPlans
-	authors enrollment.HolidayOwnChildAuthors
+	plans enrollment.HolidayOwnChildPlans
 }
 
-func NewHolidayOwnChildCareDays(plans enrollment.HolidayOwnChildPlans, authors enrollment.HolidayOwnChildAuthors) *HolidayOwnChildCareDays {
-	if plans == nil || authors == nil {
-		panic("holiday own-child care days: plans and authors are required")
+func NewHolidayOwnChildCareDays(plans enrollment.HolidayOwnChildPlans) *HolidayOwnChildCareDays {
+	if plans == nil {
+		panic("holiday own-child care days: plans are required")
 	}
-	return &HolidayOwnChildCareDays{plans: plans, authors: authors}
+	return &HolidayOwnChildCareDays{plans: plans}
 }
 
 type holidayOwnChildDayKey struct {
@@ -58,7 +57,7 @@ func (c *HolidayOwnChildCareDays) SyncHolidayOwnChildDays(ctx context.Context, f
 	arrivalDone, deleteArrivals := settleOwnChildExceptions(arrivals, byKey)
 	pickupDone, deletePickups := settleOwnChildExceptions(pickups, byKey)
 	changes := enrollment.HolidayOwnChildPlanChanges{DeleteArrivals: deleteArrivals, DeletePickups: deletePickups}
-	if err := c.planMissing(ctx, today, wanted, byKey, arrivalDone, pickupDone, &changes); err != nil {
+	if err := planMissingOwnChildDays(today, wanted, byKey, arrivalDone, pickupDone, &changes); err != nil {
 		return err
 	}
 	return c.plans.ApplyHolidayOwnChildPlans(ctx, changes)
@@ -81,36 +80,24 @@ func settleOwnChildExceptions(existing []enrollment.HolidayOwnChildException, wa
 	return done, removed
 }
 
-// planMissing prepares all writes before applying any. A missing staff author
-// fails the caller's unit instead of counting care days that were never planned.
-func (c *HolidayOwnChildCareDays) planMissing(ctx context.Context, today calendar.Date, wanted []enrollment.HolidayOwnChildDay, byKey map[holidayOwnChildDayKey]enrollment.HolidayOwnChildDay, arrivalDone, pickupDone map[holidayOwnChildDayKey]bool, changes *enrollment.HolidayOwnChildPlanChanges) error {
-	var authors map[int64]int64
+// planMissingOwnChildDays prepares the booked days from today on that carry
+// no plan yet. The booking is their author, so no account has to be named.
+func planMissingOwnChildDays(today calendar.Date, wanted []enrollment.HolidayOwnChildDay, byKey map[holidayOwnChildDayKey]enrollment.HolidayOwnChildDay, arrivalDone, pickupDone map[holidayOwnChildDayKey]bool, changes *enrollment.HolidayOwnChildPlanChanges) error {
 	for _, candidate := range wanted {
 		key := holidayOwnChildDayKey{candidate.StudentID, candidate.Day}
 		day, ok := byKey[key]
-		if !ok || day.Day.Before(today) || day.ActorAccountID <= 0 || arrivalDone[key] && pickupDone[key] {
+		if !ok || day.Day.Before(today) || arrivalDone[key] && pickupDone[key] {
 			continue
 		}
 		delete(byKey, key)
-		if authors == nil {
-			var err error
-			authors, err = c.authors.HolidayOwnChildAuthors(ctx)
-			if err != nil {
-				return fmt.Errorf("resolve holiday plan authors: %w", err)
-			}
-		}
-		staffID := authors[day.ActorAccountID]
-		if staffID <= 0 {
-			return fmt.Errorf("%w: account %d", enrollment.ErrHolidayOwnChildPlanAuthorMissing, day.ActorAccountID)
-		}
-		if err := appendOwnChildPlans(changes, day, staffID, !arrivalDone[key], !pickupDone[key]); err != nil {
+		if err := appendOwnChildPlans(changes, day, !arrivalDone[key], !pickupDone[key]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func appendOwnChildPlans(changes *enrollment.HolidayOwnChildPlanChanges, day enrollment.HolidayOwnChildDay, staffID int64, arrival, pickup bool) error {
+func appendOwnChildPlans(changes *enrollment.HolidayOwnChildPlanChanges, day enrollment.HolidayOwnChildDay, arrival, pickup bool) error {
 	arrivalAt, err := ownChildClock(day.Arrival)
 	if err != nil {
 		return err
@@ -121,10 +108,10 @@ func appendOwnChildPlans(changes *enrollment.HolidayOwnChildPlanChanges, day enr
 	}
 	reason := holidayOwnChildReason(day)
 	if arrival {
-		changes.Arrivals = append(changes.Arrivals, enrollment.HolidayOwnChildPlan{StudentID: day.StudentID, StaffID: staffID, Day: day.Day, Time: arrivalAt, Reason: reason})
+		changes.Arrivals = append(changes.Arrivals, enrollment.HolidayOwnChildPlan{StudentID: day.StudentID, Day: day.Day, Time: arrivalAt, Reason: reason})
 	}
 	if pickup {
-		changes.Pickups = append(changes.Pickups, enrollment.HolidayOwnChildPlan{StudentID: day.StudentID, StaffID: staffID, Day: day.Day, Time: pickupAt, Reason: reason})
+		changes.Pickups = append(changes.Pickups, enrollment.HolidayOwnChildPlan{StudentID: day.StudentID, Day: day.Day, Time: pickupAt, Reason: reason})
 	}
 	return nil
 }

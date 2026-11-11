@@ -2,14 +2,9 @@ package enrollment
 
 import (
 	"context"
-	"errors"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// ErrHolidayOwnChildPlanAuthorMissing reports a group choice whose account
-// cannot author the care days of the hosting school's own children.
-var ErrHolidayOwnChildPlanAuthorMissing = errors.New("own holiday child plan author has no staff record")
 
 // Children of the hosting school itself in a holiday week it hosts (#6678,
 // ADR 0120 addendum). Such a child is no holiday guest: it is a student of
@@ -57,12 +52,10 @@ type HolidayOwnChildSource struct {
 }
 
 // HolidayOwnChildWeek is a hosted week that has not ended, with the period
-// it belongs to and the account that picked its holiday group; zero before
-// the school picked one.
+// it belongs to.
 type HolidayOwnChildWeek struct {
 	HolidayGuestWeek
-	PeriodName          string
-	AssignedByAccountID int64
+	PeriodName string
 }
 
 // HolidayOwnChildBooking is the confirmed booking of a child of the hosting
@@ -74,15 +67,13 @@ type HolidayOwnChildBooking struct {
 
 // HolidayOwnChildDay is one day Enrollment wants planned for a child of the
 // hosting school: it arrives at Arrival and is collected at Pickup (clock
-// times "15:04"). ActorAccountID is the account the plan is written for,
-// zero when the week has no holiday group yet: such a day is kept if it is
-// planned, and not planned anew.
+// times "15:04"). The booking is the author of the plan (#6730), so the day
+// needs neither a holiday group nor a staff member.
 type HolidayOwnChildDay struct {
-	StudentID      int64
-	Day            calendar.Date
-	Arrival        string
-	Pickup         string
-	ActorAccountID int64
+	StudentID int64
+	Day       calendar.Date
+	Arrival   string
+	Pickup    string
 }
 
 // HolidayOwnChildCareDays plans the booked days of the school's own children
@@ -114,20 +105,6 @@ type HolidayStudentRegistration struct {
 	TimeModelEnds   string                `json:"time_model_ends_at"`
 	Emergency       []HolidayGuestContact `json:"emergency_contacts"`
 	Pickup          []HolidayGuestContact `json:"pickup_contacts"`
-	// Planned is true once the school picked the holiday group of the week:
-	// from then on the check-in expects the child on its booked days.
-	Planned bool `json:"planned"`
-}
-
-// HolidayGuestGroupHint tells a group that the school picked it as the
-// holiday group of a week that has not begun (#6680): the group is empty on
-// purpose, Guests children join it on StartsOn.
-type HolidayGuestGroupHint struct {
-	GroupID  int64         `json:"group_id"`
-	WeekID   int64         `json:"week_id"`
-	StartsOn calendar.Date `json:"starts_on"`
-	EndsOn   calendar.Date `json:"ends_on"`
-	Guests   int           `json:"guests"`
 }
 
 // HolidayOwnChildAssignment says, for one confirmed child of a hosted week
@@ -154,8 +131,4 @@ type HolidayOwnChildren interface {
 	// registration that fits no student or several instead of losing it
 	// silently. It names children only by the ID of the participant list.
 	HolidayOwnChildAssignments(ctx context.Context, host HolidayHost, weekID int64) ([]HolidayOwnChildAssignment, error)
-	// HolidayGuestGroupHints lists the holiday groups of weeks that have not
-	// begun, with the number of guests waiting for them. It reads no personal
-	// data.
-	HolidayGuestGroupHints(ctx context.Context, schoolID int64) ([]HolidayGuestGroupHint, error)
 }

@@ -33,7 +33,7 @@ export function holidayGuestGroupTopic(): HelpTopic {
       "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe, im Check-in und unter `Alle Kinder`. Bei jedem steht seine Schule, zum Beispiel `Gast aus Grundschule am See`. Ihr Team sieht Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
     notes: [
       "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
-      "Für Kinder Ihrer OGS trägt moto mit der Wahl Ankunft und Abholung für die gebuchten Tage ein. Ob das geklappt hat, steht unter `Kinder Ihrer OGS`.",
+      "Kinder Ihrer OGS plant moto von selbst ein, auch ohne Feriengruppe. Der Stand steht unter `Kinder Ihrer OGS`.",
       "Öffnen Sie die leere Feriengruppe über einen Link, steht dort, wie viele Kinder dazukommen und ab wann.",
       "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
       "Eine Gruppe nur für die Ferien steht vor der Woche nicht unter `Gruppen`. In der `Datenverwaltung` unter `Gruppendaten` steht bei ihr `Feriengruppe` mit der Woche. Dort legen Sie Raum und Gruppenleitung schon vorher fest.",

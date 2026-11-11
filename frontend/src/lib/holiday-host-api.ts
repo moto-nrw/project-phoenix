@@ -645,8 +645,6 @@ export interface HolidayStudentRegistration {
   readonly timeModelEndsAt: string;
   readonly emergencyContacts: HolidayGuestContact[];
   readonly pickupContacts: HolidayGuestContact[];
-  /** Ab der Wahl der Feriengruppe erwartet der Check-in das Kind. */
-  readonly planned: boolean;
 }
 
 /**
@@ -668,7 +666,6 @@ export async function fetchHolidayStudentRegistrations(
         time_model_ends_at: string;
         emergency_contacts?: HolidayGuestContact[] | null;
         pickup_contacts?: HolidayGuestContact[] | null;
-        planned?: boolean;
       }[]
     | null
   >(
@@ -686,7 +683,6 @@ export async function fetchHolidayStudentRegistrations(
     timeModelEndsAt: entry.time_model_ends_at,
     emergencyContacts: entry.emergency_contacts ?? [],
     pickupContacts: entry.pickup_contacts ?? [],
-    planned: entry.planned ?? false,
   }));
 }
 

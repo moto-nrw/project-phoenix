@@ -3248,7 +3248,7 @@ export const holidayGuestGroupTopic =
         "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe, im Check-in und unter `Alle Kinder`. Bei jedem steht seine Schule, zum Beispiel `Gast aus Grundschule am See`. Ihr Team sieht Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
       notes: [
         "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
-        "Für Kinder Ihrer OGS trägt moto mit der Wahl Ankunft und Abholung für die gebuchten Tage ein. Ob das geklappt hat, steht unter `Kinder Ihrer OGS`.",
+        "Kinder Ihrer OGS plant moto von selbst ein, auch ohne Feriengruppe. Der Stand steht unter `Kinder Ihrer OGS`.",
         "Öffnen Sie die leere Feriengruppe über einen Link, steht dort, wie viele Kinder dazukommen und ab wann.",
         "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
         "Eine Gruppe nur für die Ferien steht vor der Woche nicht unter `Gruppen`. In der `Datenverwaltung` unter `Gruppendaten` steht bei ihr `Feriengruppe` mit der Woche. Dort legen Sie Raum und Gruppenleitung schon vorher fest.",
@@ -3373,7 +3373,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
       "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
       "Gesundheitsangaben sehen Sie nur, wenn die Eltern zugestimmt haben. Sie stehen nur in der Liste, nicht in der Excel- oder CSV-Datei.",
-      "Kinder Ihrer OGS bleiben in ihrer Gruppe. Haben Sie die Feriengruppe gewählt, trägt moto für die gebuchten Tage Ankunft und Abholung ein. Der Check-in erwartet das Kind dann an diesen Tagen.",
+      "Kinder Ihrer OGS bleiben in ihrer Gruppe. moto trägt für die gebuchten Tage Ankunft und Abholung ein. Der Check-in erwartet das Kind dann an diesen Tagen. Neu bestätigte Kinder plant moto innerhalb einer Stunde ein.",
       "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
       "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
@@ -3384,7 +3384,6 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort. Die eingeplanten Tage eines Kindes Ihrer OGS entfernt moto innerhalb einer Stunde.",
     ],
     troubleshootingDetails: [
-      "Konnten die Kinder wegen eines fehlenden Personaleintrags nicht eingeplant werden? Lassen Sie Ihr Konto unter `Personal` ergänzen. Wählen Sie danach die Feriengruppe erneut.",
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
       "Steht ein Kind unter `Noch nicht zugeordnet`? Dann passen Vorname, Nachname oder Geburtsdatum der Anmeldung zu keinem Kind in moto oder zu mehreren. Ändern Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern. Vorher plant moto für dieses Kind nichts ein.",
       "Steht bei einem Kind unter `Gesundheit` nichts? Dann haben die Eltern nichts angegeben oder nicht zugestimmt. Ältere Anmeldungen geben keine Gesundheitsangaben weiter.",

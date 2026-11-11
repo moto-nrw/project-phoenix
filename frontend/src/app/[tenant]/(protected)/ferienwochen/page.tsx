@@ -382,10 +382,8 @@ export default function FerienwochenPage() {
             }}
           />
           <HolidayOwnChildrenCard
-            week={selectedWeek}
             participants={list.participants}
             assignments={assignments}
-            canAssign={canAssignGuests}
           />
           <ParticipantList list={list} assignments={assignments} />
         </div>

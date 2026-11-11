@@ -80,9 +80,7 @@ function CareFields({
             : "ganze Woche"}
         </DataField>
         <DataField label="Im Check-in" fullWidth>
-          {registration.planned
-            ? "Eingeplant. Der Check-in erwartet das Kind an den gebuchten Tagen."
-            : "Noch nicht eingeplant. Dazu wählt die Leitung unter Ferienwochen die Feriengruppe."}
+          Der Check-in erwartet das Kind an den gebuchten Tagen.
         </DataField>
       </DataGrid>
     </InfoSection>

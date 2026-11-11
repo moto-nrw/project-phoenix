@@ -25,10 +25,7 @@ func TestOwnChildPlanBindingBatchesWrites(t *testing.T) {
 	people := owners.MustNewPeopleDirectory(database)
 	care, err := owners.NewUnobservedCarePlan(database, owners.MustNewUnobservedTimetable(database), people)
 	require.NoError(t, err)
-	staff, err := NewRFIDTestPeople(database)
-	require.NoError(t, err)
-	plans, authors := owners.NewHolidayOwnChildPlans(care, staff)
-	writer, account := testpkg.CreateTestStaffWithAccount(t, db, "Ferien", "Planung")
+	plans := owners.NewHolidayOwnChildPlans(care)
 	today := calendar.NewDate(2099, 7, 6)
 	clock := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 	counter := testpkg.CaptureQueriesForContext(t, db)
@@ -37,24 +34,13 @@ func TestOwnChildPlanBindingBatchesWrites(t *testing.T) {
 		require.NoError(t, tenant.NewTransactionRunner().RunInTx(ctx, fn))
 	}
 	var booked []enrollment.HolidayOwnChildPlan
-	var readCount int
 	for _, count := range []int{3, 8} {
 		for child := len(booked) / 5; child < count; child++ {
 			student := testpkg.CreateTestStudent(t, db, fmt.Sprintf("Kind %d", child), "Ferien", "2b")
 			for offset := range 5 {
-				booked = append(booked, enrollment.HolidayOwnChildPlan{StudentID: student.ID, Day: today.AddDays(offset), StaffID: writer.ID, Time: clock, Reason: enrollment.HolidayOwnChildCareReason})
+				booked = append(booked, enrollment.HolidayOwnChildPlan{StudentID: student.ID, Day: today.AddDays(offset), Time: clock, Reason: enrollment.HolidayOwnChildCareReason})
 			}
 		}
-		counter.Reset()
-		inTenant(func(ctx context.Context) error {
-			resolved, err := authors.HolidayOwnChildAuthors(ctx)
-			assert.Equal(t, writer.ID, resolved[account.ID])
-			return err
-		})
-		if readCount == 0 {
-			readCount = len(counter.Operation("SELECT"))
-		}
-		assert.Equal(t, readCount, len(counter.Operation("SELECT")), "staff resolution stays flat")
 		counter.Reset()
 		inTenant(func(ctx context.Context) error {
 			return plans.ApplyHolidayOwnChildPlans(ctx, enrollment.HolidayOwnChildPlanChanges{Arrivals: booked, Pickups: booked})
@@ -86,33 +72,26 @@ func TestOwnChildPlanBindingBatchesWrites(t *testing.T) {
 	}
 }
 
-func TestOwnChildrenOnlyWeekRejectsAGroupChoiceWithoutAStaffAuthor(t *testing.T) {
+// The booking is the author of an own child's planned day (#6730): an
+// account without a staff record at the hosting school, such as the
+// Träger-Büro, picks the group and the days are planned all the same.
+func TestOwnChildDaysArePlannedWhenAnAccountWithoutStaffRecordPicksTheGroup(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Ohne Verfasser")
 	lia := f.liaOfNord(t, "Lia")
 	f.confirm(t, f.siblings, "confirm")
-	// Both siblings belong to the host: there is no guest whose planning
-	// could hide the missing author of the school's own children.
-	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_registration_children SET home_school_id = ?, guest_school_name = '' WHERE holiday_registration_id = ?`, f.nord, f.siblings)
-	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, f.db, "ferien-leitung-ohne-personal")
 	token := testpkg.MintTestJWT(t, sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, TenantID: f.nord, Roles: []string{"admin"},
 		Permissions: []string{permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead},
 	})
-	for range 2 {
-		rec := f.assign(t, token, f.offer.Weeks[0].ID, f.group)
-		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-		assert.Contains(t, rec.Body.String(), `"code":"enrollment.holiday_plan_author_missing"`)
-	}
-	assert.Empty(t, f.ownChildDays(t, lia))
-	registrations := f.registration(t, token, lia)
-	require.Len(t, registrations, 1)
-	assert.False(t, registrations[0].Planned, "a failed group choice must not make the UI claim the child is planned")
-	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
-	rec := f.assign(t, lead, f.offer.Weeks[0].ID, f.group)
+	rec := f.assign(t, token, f.offer.Weeks[0].ID, f.group)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	transfer := decodeSchoolPortalData[enrollment.HolidayGuestTransfer](t, rec.Body.Bytes())
 	assert.Equal(t, 1, transfer.OwnChildren)
 	assert.Len(t, f.ownChildDays(t, lia), 5)
+	var sources []string
+	require.NoError(t, f.db.NewRaw(`SELECT DISTINCT source || ':' || COALESCE(created_by::text, '') FROM schedule.student_pickup_exceptions WHERE student_id = ?`, lia).
+		Scan(t.Context(), &sources))
+	assert.Equal(t, []string{"holiday_booking:"}, sources, "the booking is the author, no staff member")
 }

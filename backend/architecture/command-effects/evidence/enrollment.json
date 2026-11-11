@@ -1617,56 +1617,8 @@
       "target_owner": "organization-tenancy"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "binding_digest": "67b81f193b801d5a417ae2b21ec0a3a3",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "source_owner": "enrollment",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "binding_digest": "580309cecf3b0d8d0a5b5344297481e5",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "binding_digest": "08446047096c8a98cd228edaea92a766",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "binding_digest": "2c82d1412aa2fad56f1491745ba0c9ef",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
-      "target_owner": "school-membership"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "binding_digest": "ec0c757ea9780c80062e5bd5bdeba0ae",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
-      "target_owner": "school-membership"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "binding_digest": "60feba6c04317689d55562ae35b0a2a6",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
-      "target_owner": "school-membership"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
-      "binding_digest": "6b6dc49afea01c5163292ca068fefb88",
+      "binding_digest": "40182a607e3ea981352ae01b32677f1f",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.ApplyHolidayOwnChildPlans",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ExceptionBatchCommands.ApplyExceptionBatch",

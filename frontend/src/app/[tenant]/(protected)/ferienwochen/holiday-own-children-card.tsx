@@ -8,7 +8,6 @@ import { formatDate } from "~/lib/date-helpers";
 import type {
   HolidayOwnChildAssignment,
   HolidayParticipant,
-  HostedHolidayWeek,
 } from "~/lib/holiday-host-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -19,27 +18,14 @@ function openReason(assignment: HolidayOwnChildAssignment): string {
     : "Kein Kind in moto hat diesen Namen und dieses Geburtsdatum.";
 }
 
-/** Was moto für die zugeordneten Kinder tut oder worauf es noch wartet. */
-function plannedStatus(
-  week: HostedHolidayWeek,
-  matched: number,
-  canAssign: boolean,
-): string {
+/** Was moto für die zugeordneten Kinder tut. */
+function plannedStatus(matched: number): string {
   if (matched === 0) {
     return "Noch ist keine Anmeldung einem Kind zugeordnet.";
   }
-  const one = matched === 1;
-  if (week.guestGroupId) {
-    return one
-      ? "1 Kind ist eingeplant. Der Check-in erwartet es an den gebuchten Tagen."
-      : `${matched} Kinder sind eingeplant. Der Check-in erwartet sie an den gebuchten Tagen.`;
-  }
-  const waiting = one
-    ? "1 Kind ist noch nicht eingeplant."
-    : `${matched} Kinder sind noch nicht eingeplant.`;
-  return canAssign
-    ? `${waiting} Wählen Sie oben die Feriengruppe. Dann trägt moto Ankunft und Abholung ein.`
-    : `${waiting} Dazu wählt die Leitung die Feriengruppe.`;
+  return matched === 1
+    ? "1 Kind ist eingeplant. Der Check-in erwartet es an den gebuchten Tagen."
+    : `${matched} Kinder sind eingeplant. Der Check-in erwartet sie an den gebuchten Tagen.`;
 }
 
 /**
@@ -51,15 +37,11 @@ function plannedStatus(
  * Schritt. Ohne eigene Kinder in der Woche zeigt die Seite die Karte nicht.
  */
 export function HolidayOwnChildrenCard({
-  week,
   participants,
   assignments,
-  canAssign,
 }: Readonly<{
-  week: HostedHolidayWeek;
   participants: readonly HolidayParticipant[];
   assignments: readonly HolidayOwnChildAssignment[];
-  canAssign: boolean;
 }>) {
   const tenantPath = useTenantAwarePath();
   if (assignments.length === 0) return null;
@@ -82,7 +64,7 @@ export function HolidayOwnChildrenCard({
       description="Diese Kinder bleiben in ihrer Gruppe. Notfall, Abholung und Zeiten aus der Anmeldung stehen in der Kinderakte."
       action={
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {week.guestGroupId && matched > 0 ? (
+          {matched > 0 ? (
             <StatusBadge tone="green" label={`${matched} eingeplant`} />
           ) : null}
           {open.length > 0 ? (
@@ -92,9 +74,7 @@ export function HolidayOwnChildrenCard({
       }
     >
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-gray-700">
-          {plannedStatus(week, matched, canAssign)}
-        </p>
+        <p className="text-sm text-gray-700">{plannedStatus(matched)}</p>
         {open.length > 0 && (
           <SectionCard
             title="Noch nicht zugeordnet"

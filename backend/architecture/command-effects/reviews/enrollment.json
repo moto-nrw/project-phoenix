@@ -2189,66 +2189,6 @@
       "target_owner": "organization-tenancy"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target *github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID.",
-      "source_owner": "enrollment",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
-      "target_owner": "school-membership"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
-      "target_owner": "school-membership"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
-      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
-      "target_owner": "school-membership"
-    },
-    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
       "classification": "leaf",

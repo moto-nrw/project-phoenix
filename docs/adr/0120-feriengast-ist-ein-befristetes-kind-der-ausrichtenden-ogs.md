@@ -416,11 +416,11 @@ je Kind, und die Seite „Ferienwochen“ zeigt ihn der Leitung als offen.
 **Tagesplanung über Care Plan, ohne eigenen Zustand.** Für jedes eindeutig
 zugeordnete Kind schreibt Enrollment je gebuchtem Tag eine Ankunfts- und
 eine Abholausnahme mit den Zeiten des Zeitmodells, über Care Plans eigene
-Befehle in der Tenant-Transaktion der Schule. Verfasser ist die Person, die
-die Feriengruppe gewählt hat: Care Plan verlangt einen Verfasser, und die
-Wahl der Feriengruppe ist der Schritt, mit dem die Leitung die Woche in den
-Betrieb übernimmt. Ohne gewählte Gruppe wird nichts neu eingeplant; die
-Kinderakte und die Seite „Ferienwochen“ sagen das. Enrollment speichert
+Sammelbefehl in der Tenant-Transaktion der Schule. Verfasser ist die Buchung
+selbst (Quelle `holiday_booking`, kein Personal), wie bei den Tagen eines
+Feriengasts (Nachtrag „Die Buchung plant die Tage“). Die Einplanung braucht
+deshalb weder eine gewählte Feriengruppe noch einen Personaleintrag: Der
+stündliche Abgleich plant jedes eindeutig zugeordnete Kind ein. Enrollment speichert
 keine Liste seiner Einträge. Es erkennt sie am Grund
 `Ferienbetreuung laut Anmeldung (HH:MM bis HH:MM Uhr)`:
 

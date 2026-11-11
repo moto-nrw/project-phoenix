@@ -18,10 +18,10 @@ type HolidayOwnChildException struct {
 
 // HolidayOwnChildPlan is one arrival or pickup to write for a booked day.
 type HolidayOwnChildPlan struct {
-	StudentID, StaffID int64
-	Day                calendar.Date
-	Time               time.Time
-	Reason             string
+	StudentID int64
+	Day       calendar.Date
+	Time      time.Time
+	Reason    string
 }
 
 // HolidayOwnChildPlanChanges contains only the exceptions Enrollment owns.
@@ -36,9 +36,4 @@ type HolidayOwnChildPlans interface {
 	HolidayOwnChildArrivals(context.Context, calendar.Date) ([]HolidayOwnChildException, error)
 	HolidayOwnChildPickups(context.Context, calendar.Date) ([]HolidayOwnChildException, error)
 	ApplyHolidayOwnChildPlans(context.Context, HolidayOwnChildPlanChanges) error
-}
-
-// HolidayOwnChildAuthors maps the school's staff accounts with set-based reads.
-type HolidayOwnChildAuthors interface {
-	HolidayOwnChildAuthors(context.Context) (map[int64]int64, error)
 }

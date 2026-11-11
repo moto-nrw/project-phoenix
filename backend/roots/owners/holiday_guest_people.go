@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,10 +37,9 @@ type HolidayGuestDirectory interface {
 // health information (#4722). The school's own children of a hosted week
 // (#6678) are found among students and planned in Care Plan. A nil today
 // uses the Berlin calendar day.
-func NewHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
-	ownPlans, ownAuthors := NewHolidayOwnChildPlans(care, staff)
+func NewHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
 	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayHostSchoolNames(schools), NewHolidayGuestCareDays(care),
-		StatisticsHolidayStudents{Students: students}, ownPlans, ownAuthors, health, NewHolidayGuestAccessLog(accessLog), today)
+		StatisticsHolidayStudents{Students: students}, NewHolidayOwnChildPlans(care), health, NewHolidayGuestAccessLog(accessLog), today)
 }
 
 // HolidayOwnChildStudents reads the children of the school by date of birth
@@ -91,8 +89,8 @@ func (n holidayHostSchoolNames) HolidayHostSchoolNames(ctx context.Context, scho
 
 // schedulerHolidayGuests binds the Worker's hourly reconciliation to the
 // holiday guests of the school whose tenant transaction the Worker opened.
-func schedulerHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher) schedulerPorts.HolidayGuestReconciliation {
-	guests := NewHolidayGuests(people, students, schools, care, staff, accessLog, health, nil)
+func schedulerHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher) schedulerPorts.HolidayGuestReconciliation {
+	guests := NewHolidayGuests(people, students, schools, care, accessLog, health, nil)
 	return func(ctx context.Context) error {
 		return guests.ReconcileHolidayGuests(ctx, tenant.FromContext(ctx))
 	}
@@ -214,13 +212,6 @@ type HolidayGuestCarePlan interface {
 	DeletePickupExceptionsByStudent(context.Context, int64) error
 	ListArrivalExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error)
 	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
-}
-
-// HolidayGuestStaff resolves the staff member of the account a plan is
-// written for: Care Plan records its author.
-type HolidayGuestStaff interface {
-	StaffRows() peoplePorts.StaffRepository
-	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 
 // NewHolidayGuestCareDays binds the booked days of a holiday guest (#4666,

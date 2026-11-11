@@ -165,6 +165,5 @@
   "holiday_allocation_mode_locked": "Kayıtlar zaten var, dağıtım şekli değişmez.",
   "holiday_allocation_pending": "Önce „Vergabe“ sekmesinde yerleri dağıtın.",
   "holiday_allocation_full": "Bu haftada boş yer kalmadı. Lütfen listeyi yeniden yükleyin.",
-  "holiday_allocation_changed": "Liste değişti. Lütfen kararınızı yeniden kontrol edin.",
-  "holiday_plan_author_missing": "Çocukların planlaması yapılamadı. Lütfen hesabınızın “Personel” bölümüne eklenmesini sağlayın. Ardından tatil grubunu yeniden seçin."
+  "holiday_allocation_changed": "Liste değişti. Lütfen kararınızı yeniden kontrol edin."
 }

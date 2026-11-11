@@ -82,11 +82,11 @@ var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
 // the registrations and seals the guest copies (#4722); children finds and
 // ownCare plans the school's own children of a hosted week (#6678). A nil
 // today uses the Berlin calendar day.
-func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, children enrollment.HolidayStudentsByBirthDate, ownPlans enrollment.HolidayOwnChildPlans, ownAuthors enrollment.HolidayOwnChildAuthors, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
+func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, children enrollment.HolidayStudentsByBirthDate, ownPlans enrollment.HolidayOwnChildPlans, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
 	if store == nil || people == nil || schools == nil || care == nil || log == nil {
 		panic("enrollment: the holiday guest store, People Directory, the school names, Care Plan and the access log are required")
 	}
-	if children == nil || ownPlans == nil || ownAuthors == nil {
+	if children == nil || ownPlans == nil {
 		panic("enrollment: the school's children and the care days of its own holiday children are required")
 	}
 	if health == nil {
@@ -95,7 +95,7 @@ func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeo
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayGuests{store: store, people: people, schools: schools, care: care, children: children, ownCare: NewHolidayOwnChildCareDays(ownPlans, ownAuthors), health: health, log: log, today: today,
+	return &HolidayGuests{store: store, people: people, schools: schools, care: care, children: children, ownCare: NewHolidayOwnChildCareDays(ownPlans), health: health, log: log, today: today,
 		logger: slog.Default().With("service", "holiday-guests"), HolidayGuestBadgeList: NewHolidayGuestBadgeList(store, today)}
 }
 

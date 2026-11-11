@@ -22,8 +22,8 @@ type HolidayHostSchools = owners.HolidayHostSchools
 // choice for the week's holiday guests behind users:create, and the sheet of
 // a holiday guest (#4666, ADR 0120) at /api/holiday-guests behind users:read
 // with the hints „Gast aus …“ of its lists behind students:read (#5630).
-func mountHolidayHostRoutes(tenant chi.Router, schools HolidayHostSchools, people owners.HolidayGuestDirectory, students owners.HolidayOwnChildStudents, care owners.HolidayGuestCarePlan, staff owners.HolidayGuestStaff, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher) {
-	guests := owners.NewHolidayGuests(people, students, schools, care, staff, accessLog, healthData, nil)
+func mountHolidayHostRoutes(tenant chi.Router, schools HolidayHostSchools, people owners.HolidayGuestDirectory, students owners.HolidayOwnChildStudents, care owners.HolidayGuestCarePlan, accessLog owners.DataAccessAppender, healthData enrollmentOwner.HolidayHealthCipher) {
+	guests := owners.NewHolidayGuests(people, students, schools, care, accessLog, healthData, nil)
 	tenant.Mount("/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(schools, people, accessLog, healthData, nil), guests).Router(ProtectedTenantRoutes))
 	tenant.Mount("/holiday-guests", NewHolidayGuestHTTP(guests).Router(ProtectedTenantRoutes))
 }

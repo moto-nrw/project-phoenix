@@ -22,15 +22,11 @@ import (
 const holidayOwnChildCleanupDays = 14
 
 // HolidayOwnChildStore reads the school's own children of its hosted weeks
-// and the holiday groups that wait for their week, in the tenant transaction
-// of the hosting school.
+// in the tenant transaction of the hosting school.
 type HolidayOwnChildStore interface {
 	// ListOwnChildren reads the confirmed children of the school itself in
 	// every hosted week of a published period that ends on today or later.
 	ListOwnChildren(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayOwnChildBooking, error)
-	// ListGuestGroupHints lists the holiday groups of hosted weeks that end
-	// on today or later, with the guests whose access has not ended.
-	ListGuestGroupHints(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuestGroupHint, error)
 }
 
 // ownChildMatcher finds the student of the school a registration names, by
@@ -157,8 +153,8 @@ func (h *HolidayGuests) assignedOwnChildren(ctx context.Context, schoolID int64,
 
 // reconcileOwnChildren brings the planned days of the school's own children
 // in line with their confirmed bookings and returns how many children each
-// week plans. A week without a holiday group has no account to plan for:
-// its planned days stay, new ones wait for the group choice.
+// week plans. The booking is the author of a planned day, so the plan needs
+// neither a holiday group nor a staff member.
 func (h *HolidayGuests) reconcileOwnChildren(ctx context.Context, schoolID int64, today calendar.Date) (map[int64]int, error) {
 	matches, err := h.matchedOwnChildren(ctx, schoolID, today)
 	if err != nil {
@@ -167,13 +163,10 @@ func (h *HolidayGuests) reconcileOwnChildren(ctx context.Context, schoolID int64
 	planned := map[int64]int{}
 	var wanted []enrollment.HolidayOwnChildDay
 	for _, match := range matches {
-		if match.Week.AssignedByAccountID > 0 {
-			planned[match.Week.ID]++
-		}
+		planned[match.Week.ID]++
 		for _, day := range match.days {
 			wanted = append(wanted, enrollment.HolidayOwnChildDay{
 				StudentID: match.studentID, Day: day, Arrival: match.TimeModelStarts, Pickup: match.TimeModelEnds,
-				ActorAccountID: match.Week.AssignedByAccountID,
 			})
 		}
 	}
@@ -228,7 +221,7 @@ func ownChildRegistration(match ownChildMatch) enrollment.HolidayStudentRegistra
 	entry := enrollment.HolidayStudentRegistration{
 		WeekID: match.Week.ID, PeriodName: match.Week.PeriodName, StartsOn: match.Week.StartsOn, EndsOn: match.Week.EndsOn,
 		Days: match.Days, TimeModelName: match.TimeModelName, TimeModelStarts: match.TimeModelStarts, TimeModelEnds: match.TimeModelEnds,
-		Emergency: match.Emergency, Pickup: match.Pickup, Planned: match.Week.AssignedByAccountID > 0,
+		Emergency: match.Emergency, Pickup: match.Pickup,
 	}
 	if entry.Days == nil {
 		entry.Days = []calendar.Date{}
@@ -240,30 +233,6 @@ func ownChildRegistration(match ownChildMatch) enrollment.HolidayStudentRegistra
 		entry.Pickup = []enrollment.HolidayGuestContact{}
 	}
 	return entry
-}
-
-// HolidayGuestGroupHints lists the holiday groups of weeks that have not
-// begun (#6680): before its week a guest waits outside the group, so the
-// group says how many children join it and when. The store reads the groups
-// of every week that has not ended; the calendar day of this service's clock
-// decides which of them still wait: from the first day of its week on, a
-// group holds its guests and needs no hint.
-func (h *HolidayGuests) HolidayGuestGroupHints(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestGroupHint, error) {
-	if schoolID <= 0 {
-		return nil, errors.New("enrollment: the hosting school is required")
-	}
-	today := h.today()
-	groups, err := h.store.ListGuestGroupHints(ctx, schoolID, today)
-	if err != nil {
-		return nil, err
-	}
-	hints := make([]enrollment.HolidayGuestGroupHint, 0, len(groups))
-	for _, group := range groups {
-		if group.StartsOn.After(today) {
-			hints = append(hints, group)
-		}
-	}
-	return hints, nil
 }
 
 // HolidayOwnChildAssignments lists how each child of the school itself in

@@ -54,13 +54,12 @@ func TestHostingSchoolPlansTheBookedDaysOfItsOwnChildAndShowsItsRegistration(t *
 	lia := f.liaOfNord(t, " lia ")
 	f.confirm(t, f.siblings, "confirm")
 
-	// Before the school picks the holiday group nobody is named as the author
-	// of a plan: the registration is readable, the days wait.
+	// The booking is the author of the plan: the hourly run plans the days
+	// before anybody picks a holiday group.
 	f.reconcile(t)
-	assert.Empty(t, f.ownChildDays(t, lia), "without a holiday group no day is planned yet")
+	require.Len(t, f.ownChildDays(t, lia), 5, "the booked days are planned without a holiday group")
 	entries := f.registration(t, lead, lia)
 	require.Len(t, entries, 1)
-	assert.False(t, entries[0].Planned)
 
 	rec := f.assign(t, lead, week, f.group)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -92,7 +91,6 @@ func TestHostingSchoolPlansTheBookedDaysOfItsOwnChildAndShowsItsRegistration(t *
 	assert.Equal(t, "bis 16 Uhr", entry.TimeModelName)
 	assert.Equal(t, "08:00", entry.TimeModelStarts)
 	assert.Equal(t, "16:00", entry.TimeModelEnds)
-	assert.True(t, entry.Planned)
 	require.Len(t, entry.Emergency, 2)
 	assert.Equal(t, enrollment.HolidayGuestContact{Name: "Eva Muster", Phone: "0151 2345678", Relationship: "Eltern"}, entry.Emergency[0])
 	assert.Equal(t, "Oma Muster", entry.Emergency[1].Name)
@@ -258,34 +256,4 @@ func TestHolidayOwnChildReadsStayWithinTheirQueryBudget(t *testing.T) {
 	}
 	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.student_registration", read(fmt.Sprintf("/api/holiday-weeks/students/%d/registration", lia)))
 	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.own_children", read(fmt.Sprintf("/api/holiday-weeks/%d/own-children", week)))
-	querybudgets.AssertQueryBudget(t, "api.holiday_guests.group_hints", read("/api/holiday-guests/groups"))
-}
-
-func TestHolidayGroupSaysBeforeItsWeekHowManyGuestsJoinIt(t *testing.T) {
-	t.Parallel()
-	f := newHolidayGuestFixture(t, "Träger Gruppenhinweis")
-	week := f.offer.Weeks[0].ID
-	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead, permissions.StudentsRead, permissions.GroupsRead)
-	hints := func(token string) []enrollment.HolidayGuestGroupHint {
-		rec := f.do(t, token, http.MethodGet, "/api/holiday-guests/groups", nil)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return decodeSchoolPortalData[[]enrollment.HolidayGuestGroupHint](t, rec.Body.Bytes())
-	}
-
-	assert.Empty(t, hints(lead), "a group nobody picked for a week carries no hint")
-	f.confirm(t, f.siblings, "confirm")
-	require.Equal(t, http.StatusOK, f.assign(t, lead, week, f.group).Code)
-	assert.Equal(t, []enrollment.HolidayGuestGroupHint{{
-		GroupID: f.group, WeekID: week, StartsOn: calendar.NewDate(2099, 7, 6), EndsOn: calendar.NewDate(2099, 7, 10), Guests: 1,
-	}}, hints(lead), "before the week the group says how many guests join it and when")
-
-	sued := f.staffOf(t, f.office.schools[1], permissions.StudentsRead, permissions.GroupsRead)
-	assert.Empty(t, hints(sued), "another school sees no hint of this one")
-	rec := f.do(t, f.staffOf(t, f.nord, permissions.ConfigRead), http.MethodGet, "/api/holiday-guests/groups", nil)
-	assert.Equal(t, http.StatusForbidden, rec.Code)
-
-	f.today.Store(calendar.NewDate(2099, 7, 6))
-	assert.Len(t, hints(lead), 1, "the shared group list remains available during the week; the client only shows future-week hints")
-	f.today.Store(calendar.NewDate(2099, 7, 11))
-	assert.Empty(t, hints(lead), "after the week the group is no longer a holiday group")
 }

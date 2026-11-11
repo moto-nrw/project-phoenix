@@ -98,7 +98,6 @@ describe("HolidayStudentRegistrationSection", () => {
     pickupContacts: [
       { name: "Opa Muster", phone: "", relationship: "Großvater" },
     ],
-    planned: true,
   };
 
   it("shows care, emergency contacts and pickup persons of the registration (#6678)", async () => {
@@ -114,7 +113,7 @@ describe("HolidayStudentRegistrationSection", () => {
     expect(screen.getByText("ganze Woche")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Eingeplant. Der Check-in erwartet das Kind an den gebuchten Tagen.",
+        "Der Check-in erwartet das Kind an den gebuchten Tagen.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Eva Muster (Eltern)")).toBeInTheDocument();
@@ -129,17 +128,6 @@ describe("HolidayStudentRegistrationSection", () => {
     // Without health information the school's own entry is not repeated.
     expect(screen.queryByText("In moto eingetragen")).not.toBeInTheDocument();
     expect(registrationMock).toHaveBeenCalledWith("7");
-  });
-
-  it("says who acts next while the booked days are not planned yet (#6678)", async () => {
-    registrationMock.mockResolvedValue([{ ...registration, planned: false }]);
-    renderSection();
-
-    expect(
-      await screen.findByText(
-        "Noch nicht eingeplant. Dazu wählt die Leitung unter Ferienwochen die Feriengruppe.",
-      ),
-    ).toBeInTheDocument();
   });
 
   it("shows nothing for a child without a holiday registration", async () => {

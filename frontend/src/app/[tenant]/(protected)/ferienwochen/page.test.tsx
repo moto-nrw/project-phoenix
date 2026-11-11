@@ -604,7 +604,7 @@ describe("FerienwochenPage", () => {
   });
 
   it("links the file of an own child and says that its days are planned (#6678)", async () => {
-    weeksMock.mockResolvedValue([{ ...firstWeek, guestGroupId: "7" }]);
+    weeksMock.mockResolvedValue([firstWeek]);
     participantsMock.mockResolvedValue(listOf(firstWeek));
     ownChildrenMock.mockResolvedValue([
       { childId: "2", assignment: "matched", studentId: "90" },
@@ -653,23 +653,6 @@ describe("FerienwochenPage", () => {
     ).toHaveAttribute("href", "/test-tenant/students/search?search=Muster");
     expect(
       within(tableWith("Kinderakte")).getByText("Nicht zugeordnet"),
-    ).toBeInTheDocument();
-  });
-
-  it("says that planning waits for the holiday group (#6678)", async () => {
-    sessionPermissions.current = ["config:read", "users:create"];
-    weeksMock.mockResolvedValue([firstWeek]);
-    participantsMock.mockResolvedValue(listOf(firstWeek));
-    ownChildrenMock.mockResolvedValue([
-      { childId: "2", assignment: "matched", studentId: "90" },
-    ]);
-
-    renderPage();
-
-    expect(
-      await screen.findByText(
-        "1 Kind ist noch nicht eingeplant. Wählen Sie oben die Feriengruppe. Dann trägt moto Ankunft und Abholung ein.",
-      ),
     ).toBeInTheDocument();
   });
 

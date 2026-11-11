@@ -1,7 +1,0 @@
-{
-  "scenario": "api.holiday_guests.group_hints",
-  "max": 2,
-  "exact": true,
-  "description": "modules/enrollment — GET /api/holiday-guests/groups (#6680): the tenant binding and one statement over current and upcoming holiday groups with their guest counts. The group page derives upcoming-week hints from this shared list. No personal data; flat in the number of weeks and guests.",
-  "route": "GET /api/holiday-guests/groups"
-}

@@ -185,8 +185,6 @@ func (rs *HolidayGuestResource) getSheet(w http.ResponseWriter, r *http.Request)
 // transaction rolls back with it.
 func renderHolidayGuestError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, capability.ErrHolidayOwnChildPlanAuthorMissing):
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayPlanAuthorMissing))
 	case errors.Is(err, capability.ErrHolidayGuestNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayGuestNotFound))
 	case errors.Is(err, capability.ErrHolidayGuestGroupInvalid):
