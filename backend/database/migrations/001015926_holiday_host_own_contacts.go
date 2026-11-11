@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayHostOwnContactsVersion = "1.15.923"
+const holidayHostOwnContactsVersion = "1.15.926"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
