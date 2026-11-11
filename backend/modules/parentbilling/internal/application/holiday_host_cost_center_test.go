@@ -221,10 +221,10 @@ func TestSollstellungBooksHolidayWeeksOnTheirHostSchools(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Nr;Betrag;KOST1\r\nFE-2026-0001;45,00;ISP\r\nFE-2026-0001;27,00;FER\r\n"+
 		"FS-2026-0001;-45,00;ISP\r\nFS-2026-0001;-27,00;FER\r\n", string(data))
-	assert.Len(t, sollCostCenterFallbacks(mapping, invoices), 2)
+	assert.Len(t, sollCostCenterFallbacks(mapping, rows), 2)
 
 	mapping.Columns = mapping.Columns[:2]
-	assert.Empty(t, sollCostCenterFallbacks(mapping, invoices), "a file without KOST1 books on none")
+	assert.Empty(t, sollCostCenterFallbacks(mapping, rows), "a file without KOST1 books on none")
 }
 
 // The protocol names each week of a document once; lines without a week
@@ -238,7 +238,7 @@ func TestCostCenterFallbacksNameEachWeekOnce(t *testing.T) {
 		return parentbilling.ExportBookingPart{AmountCents: cents, CostCenterFallback: reason,
 			Accounts: parentbilling.PositionAccounts{CostCenter: "FER", Frozen: true}}
 	}
-	invoice := parentbilling.ExportInvoice{Number: "FE-1", Parts: []parentbilling.ExportBookingPart{
+	invoice := parentbilling.ExportInvoice{Number: "FE-1", TotalCents: 11100, Parts: []parentbilling.ExportBookingPart{
 		holidayPart("FER", reason, 5000, october(12)),
 		holidayPart("FER", reason, 4000, october(12)), // a sibling in the same week
 		weekless(-900),
@@ -246,9 +246,12 @@ func TestCostCenterFallbacksNameEachWeekOnce(t *testing.T) {
 		holidayPart("FER", reason, 0, october(19)), // no amount
 	}}
 	starts, ends := holidayWeekOf(october(12))
+	resolver := newBookingResolver(parentbilling.BookingAssignments{}, "4400")
+	lines, _ := resolver.documentLines(invoice)
 	assert.Equal(t, []parentbilling.CostCenterFallback{{Number: "FE-1", WeekStartsOn: starts, WeekEndsOn: ends, Reason: reason,
-		CostCenter: "FER"}}, costCenterFallbacks(invoice))
+		CostCenter: "FER"}}, costCenterFallbacks(invoice, lines))
 
-	only := parentbilling.ExportInvoice{Number: "FE-2", Parts: []parentbilling.ExportBookingPart{weekless(700), weekless(300)}}
-	assert.Equal(t, []parentbilling.CostCenterFallback{{Number: "FE-2", Reason: reason, CostCenter: "FER"}}, costCenterFallbacks(only))
+	only := parentbilling.ExportInvoice{Number: "FE-2", TotalCents: 1000, Parts: []parentbilling.ExportBookingPart{weekless(700), weekless(300)}}
+	lines, _ = resolver.documentLines(only)
+	assert.Equal(t, []parentbilling.CostCenterFallback{{Number: "FE-2", Reason: reason, CostCenter: "FER"}}, costCenterFallbacks(only, lines))
 }

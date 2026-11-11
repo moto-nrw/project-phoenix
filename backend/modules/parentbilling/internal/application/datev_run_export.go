@@ -168,7 +168,7 @@ func datevRunBatch(invoices []parentbilling.ExportInvoice, settings parentbillin
 func (b *datevBatch) add(invoice parentbilling.ExportInvoice, resolver bookingResolver) {
 	lines, resolved := resolver.documentLines(invoice)
 	b.resolved += resolved
-	b.fallbacks = append(b.fallbacks, costCenterFallbacks(invoice)...)
+	b.fallbacks = append(b.fallbacks, costCenterFallbacks(invoice, lines)...)
 	for _, line := range lines {
 		booking := DatevBooking{AmountCents: line.amountCents, Side: DatevDebit, Account: invoice.DebtorNumber,
 			CounterAccount: line.accounts.RevenueAccount, CostCenter1: line.accounts.CostCenter, CostCenter2: line.accounts.CostCenter2,

@@ -2,6 +2,7 @@ package application
 
 import (
 	"math/big"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
@@ -25,6 +26,14 @@ import (
 type bookingLine struct {
 	accounts    parentbilling.PositionAccounts
 	amountCents int64
+}
+
+// booksFallback matches a frozen fallback position to an emitted booking.
+// A position without a revenue account uses the standard resolved at export.
+func (line bookingLine) booksFallback(part parentbilling.ExportBookingPart) bool {
+	return line.amountCents != 0 && line.accounts.CostCenter == part.Accounts.CostCenter &&
+		line.accounts.CostCenter2 == part.Accounts.CostCenter2 &&
+		(part.Accounts.RevenueAccount == "" || line.accounts.RevenueAccount == part.Accounts.RevenueAccount)
 }
 
 // lineKey groups the parts of a document by where they book.
@@ -125,16 +134,21 @@ func (r bookingResolver) partAccounts(part parentbilling.ExportBookingPart) (par
 	return r.holiday(part.Day), true
 }
 
-// costCenterFallbacks names the weeks of the document whose positions with
-// an amount book on the KOST1 of the holiday care (#6624), once per week,
-// for the protocol of the file. A line without a week books like the first
+// costCenterFallbacks names the weeks of the document whose net positions
+// contribute to an exported line on the KOST1 of the holiday care (#6624),
+// once per week, for the protocol of the file. A line without a week books like the first
 // week of its child and adds no entry, unless the document has no week on
 // the fallback at all.
-func costCenterFallbacks(invoice parentbilling.ExportInvoice) []parentbilling.CostCenterFallback {
+func costCenterFallbacks(invoice parentbilling.ExportInvoice, lines []bookingLine) []parentbilling.CostCenterFallback {
 	var fallbacks, weekless []parentbilling.CostCenterFallback
 	seen := map[[3]string]bool{}
-	for _, part := range invoice.Parts {
+	for _, part := range bookingPartsAfterFunding(invoice) {
 		if part.CostCenterFallback == "" || part.AmountCents == 0 {
+			continue
+		}
+		if !slices.ContainsFunc(lines, func(line bookingLine) bool {
+			return line.booksFallback(part)
+		}) {
 			continue
 		}
 		entry := parentbilling.CostCenterFallback{Number: invoice.Number, Reason: part.CostCenterFallback, CostCenter: part.Accounts.CostCenter}

@@ -384,7 +384,7 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 		}
 	}
 	file.documentCount = len(content.Invoices)
-	file.costCenterFallbacks = sollCostCenterFallbacks(soll.Mapping, content.Invoices)
+	file.costCenterFallbacks = sollCostCenterFallbacks(soll.Mapping, rows)
 	entry, data, err := recordExportFile(ctx, f.store, reviewer, file)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
@@ -395,15 +395,22 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 
 // sollCostCenterFallbacks names the holiday positions on the KOST1 of the
 // holiday care when the file writes the KOST1 (#6624).
-func sollCostCenterFallbacks(mapping parentbilling.SollstellungMapping, invoices []parentbilling.ExportInvoice) []parentbilling.CostCenterFallback {
+func sollCostCenterFallbacks(mapping parentbilling.SollstellungMapping, rows []sollRow) []parentbilling.CostCenterFallback {
 	if !slices.ContainsFunc(mapping.Columns, func(column parentbilling.SollstellungColumn) bool {
 		return column.Field == parentbilling.SollFieldCostCenter
 	}) {
 		return nil
 	}
 	var fallbacks []parentbilling.CostCenterFallback
-	for _, invoice := range invoices {
-		fallbacks = append(fallbacks, costCenterFallbacks(invoice)...)
+	for i := 0; i < len(rows); {
+		invoice := rows[i].invoice
+		var lines []bookingLine
+		for ; i < len(rows) && rows[i].invoice.Number == invoice.Number; i++ {
+			if rows[i].line != nil {
+				lines = append(lines, *rows[i].line)
+			}
+		}
+		fallbacks = append(fallbacks, costCenterFallbacks(invoice, lines)...)
 	}
 	return fallbacks
 }

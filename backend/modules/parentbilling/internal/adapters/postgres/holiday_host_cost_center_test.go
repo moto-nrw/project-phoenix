@@ -45,7 +45,7 @@ func TestHolidayPositionsKeepTheirKost1AndFallback(t *testing.T) {
 			HolidayPeriodID: 1}, 2029, sequence, parentbilling.BillingDocument{
 			Number: number, IssuedOn: &issuedOn, RegistrationID: sequence, RecipientFirstName: "Eva", RecipientLastName: "Beispiel",
 			ServiceFrom: first, ServiceUntil: secondEnd, TotalCents: 8000,
-			Children: []parentbilling.BillingChild{{ChildID: 1, FirstName: "Mia", LastName: "Beispiel", Positions: []parentbilling.BillingPosition{
+			Children: []parentbilling.BillingChild{{ChildID: sequence, FirstName: "Mia", LastName: "Beispiel", Positions: []parentbilling.BillingPosition{
 				{Kind: parentbilling.LineBase, AmountCents: 5000, WeekStartsOn: &first, WeekEndsOn: &firstEnd, Accounts: isp},
 				{Kind: parentbilling.LineBase, AmountCents: 3000, WeekStartsOn: &second, WeekEndsOn: &secondEnd, Accounts: fer,
 					CostCenterFallback: parentbilling.CostCenterFallbackNoSchoolCostCenter}}}},
@@ -79,6 +79,8 @@ func TestHolidayPositionsKeepTheirKost1AndFallback(t *testing.T) {
 			}
 		}
 		require.Len(t, parts, 2)
+		assert.Equal(t, sequence, parts[0].ChildID)
+		assert.Equal(t, parts[0].ChildID, parts[1].ChildID)
 		assert.Equal(t, "ISP", parts[0].Accounts.CostCenter)
 		assert.Equal(t, "FER", parts[1].Accounts.CostCenter)
 		assert.Equal(t, parentbilling.CostCenterFallbackNoSchoolCostCenter, parts[1].CostCenterFallback)

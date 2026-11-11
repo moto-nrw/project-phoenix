@@ -411,6 +411,7 @@ const (
 // Angebot and day let the export resolve them.
 type ExportBookingPart struct {
 	Kind           string
+	ChildID        int64 // The holiday child whose reductions apply to this part.
 	SchoolID       int64
 	CareOfferingID int64
 	Day            calendar.Date
