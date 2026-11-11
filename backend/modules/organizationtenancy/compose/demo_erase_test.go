@@ -548,7 +548,7 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	hidden, erased, err = queue.RetireDemoSchools(ctx, []string{retired})
 	require.NoError(t, err)
 	assert.Equal(t, 1, hidden)
-	assert.Equal(t, 2, erased, "the school hidden right now and the failed order")
+	assert.Equal(t, 2, eraseTheRest(t, queue, []string{retired}, erased, 2), "the school hidden right now and the failed order")
 	assert.Equal(t, []string{waiting}, demoOrderNames(t, db))
 
 	assert.Equal(t, everyTrace(0), visitorTraces(t, db, retiredID), "the retired school")

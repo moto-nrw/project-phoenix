@@ -220,3 +220,89 @@ Paketlauf allein ausführen. Dann nur für die langsamen Testkörper Pool-Stats,
 Server-Statementzeiten und CPU-/I/O-Profil vergleichen. Die direkten Läufe
 reproduzieren weder 500–535 s noch einen 10-min-Pakettimeout. Timeout-Erhöhung,
 mehr Clone-Slots oder weniger Testisolation wären damit nicht begründet.
+
+## Runde 5: Messung unter Last und Behebung (11.11.2026)
+
+Messstand: `origin/development` @ `919799847b`, Linux/amd64, 32 logische CPUs,
+62 GiB RAM, Go aus Devbox, `GOFLAGS=-p=4 -trimpath`, `GOMAXPROCS=4`. Geteilter
+Testserver auf Port 5433 (tmpfs, `fsync=off`), 129 Datenbanken und 45
+Verbindungen fremder Sessions bei der Stichprobe. Fremde Last nicht
+kontrolliert: Load-1 zwischen 33 und 420, je Lauf vor und nach dem Lauf
+notiert. Aufruf wie `scripts/test-changed.sh`:
+
+```sh
+scripts/run-go-toolchain.sh go test -C backend -p 4 -parallel 8 \
+  -tags=testhooks -count=1 -json ./modules/organizationtenancy/compose
+```
+
+Phasen wie in Runde 4, über ein temporäres Go-Overlay von
+`backend/test/database_scope.go`; der Checkout bleibt unverändert.
+
+### Vorher: unverändertes development
+
+| Lauf | Load-1 vor/nach | Paket | Clones | Create Σ | Bootstrap Σ | Testkörper Σ | Drop Σ | Σ Lifecycles |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| ohne Overlay | 63 / 41 | 401,2 s | – | – | – | – | – | – |
+| mit Overlay | 33 / 305 | 340,3 s | 152 | 146,6 s | 9,4 s | 108,2 s | 73,3 s | 337,5 s |
+
+Beide Läufe grün, 199 Ergebnisse. Die Paketzeit ist die Summe der
+Clone-Lifecycles: Explizite Clones teilen sich einen Slot je Paket
+(`maxConcurrentIsolatedTestDatabases = 1`), also laufen 152 Lifecycles
+nacheinander, während sieben weitere Tests auf den Slot warten (Slot-Warten
+Σ 1936 s, überlappend). Die Testkörper sind unter Last nicht langsamer als in
+Runde 4 (108 s gegenüber 116 bis 118 s). Create und Drop wachsen von zusammen
+etwa 0,1 s auf 1,45 s je Clone und stellen 220 der 340 s.
+`TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone` erzeugt je Subtest einen
+eigenen Clone (40 Stück) und stellt sich dafür jedes Mal hinten an: 233 bis
+385 s Laufzeit bei 17 s Testkörper.
+
+Nicht bestätigt:
+
+- `STRATEGY FILE_COPY` gegenüber `WAL_LOG`, je sechs Clones des 43-MB-Templates
+  im Wechsel bei Load 420: 65 bis 721 ms gegenüber 226 bis 810 ms. Kein
+  belastbarer Unterschied, keine Änderung.
+- fsync des Exports: `TestTenantExport*` mit `TMPDIR` auf tmpfs gegenüber btrfs,
+  je zwei Läufe im Wechsel: 34,3/54,6 s gegenüber 48,6/52,8 s. Auf diesem
+  Rechner kein Unterschied. `F_FULLFSYNC` unter macOS ist damit nicht geprüft.
+
+### Zeitabhängige Erwartungen
+
+Mit acht gleichzeitigen Clones bei Load 300 scheiterten sieben Tests an
+`retireNow`: Der Lauf brauchte 1,1 bis 2,1 s statt unter 1 s. Die Grenze maß
+die Wanduhr des ganzen Laufs, also auch seine Arbeit und jede Verzögerung der
+Datenbank. Ein weiterer Test erwartete zwei gelöschte Aufträge in einem Lauf;
+die Löschung beginnt nach 250 ms Budget keinen Auftrag mehr.
+
+### Änderung
+
+1. `retireNow` zählt die Lock-Wartefälle des Laufs wie `retireCounted` seit
+   #6338, statt die Wanduhr zu messen. Die 5-s-Wache gegen ein Warten auf den
+   Halter bleibt; `lock_timeout` bleibt in
+   `TestDemoVisitorErasureNeverWaitsForALock` festgelegt.
+2. Zwei Tests wiederholen den Lauf, bis beide Aufträge gelöscht sind, höchstens
+   einen Lauf je Auftrag (`eraseTheRest`).
+3. Das Paket läuft mit `testpkg.PerTestDatabases()`: 113 seiner 146 Tests
+   brauchen ohnehin einen Clone, im Modus ohne Slot laufen acht davon
+   gleichzeitig.
+4. `TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone` nutzt einen Clone für
+   seine 40 Subtests.
+
+### Nachher
+
+Slot-Modus und Per-Test-Datenbanken im Wechsel, beide mit den Änderungen 1, 2
+und 4, alle Läufe grün mit 199 Ergebnissen:
+
+| Lauf | Load-1 vor/nach | Paket | Clones | Create Σ | Testkörper Σ | Drop Σ | Σ Lifecycles |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Slot 1 | 106 / 296 | 434,4 s | 113 | 238,4 s | 116,7 s | 68,8 s | 431,4 s |
+| Per-Test 1 | 296 / 318 | 108,0 s | 145 | 385,4 s | 223,5 s | 201,9 s | 823,3 s |
+| Slot 2 | 318 / 300 | 227,4 s | 113 | 108,2 s | 66,0 s | 42,9 s | 223,3 s |
+| Per-Test 2 | 300 / 305 | 70,0 s | 145 | 242,8 s | 167,8 s | 130,8 s | 548,3 s |
+
+Endstand ohne Overlay, `-count=3` in einem Binary bei Load 56 / 39: 295,6 s
+für drei Durchläufe (98,5 s je Durchlauf), 597 Ergebnisse grün.
+
+Der Preis: 32 Clones mehr je Paketlauf und etwa doppelt so viel aufsummierte
+Datenbankarbeit, weil die Lifecycles einander bremsen. Bis zu acht statt
+einem Clone dieses Pakets bestehen gleichzeitig. Eine Messung ohne fremde Last
+und unter macOS fehlt; die CI-Paketzeit dient als Gegenprobe.

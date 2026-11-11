@@ -103,7 +103,7 @@ func TestDemoErasureDefersABillingReleaseThatKeepsItsLock(t *testing.T) {
 	before := order.snapshot(t)
 	release, documentID := pendingBillingRelease(t, order)
 
-	_, erased := retireNow(t, order.queue, nil)
+	_, erased := retireNow(t, order.db, order.queue, nil)
 	assert.Zero(t, erased)
 	assert.Equal(t, before, order.snapshot(t), "the deferred order is unchanged")
 	assert.Equal(t, 1, visitorTraces(t, order.db, order.schoolID)["enrollment.holiday_registrations"], "the registration stays for the next run")
