@@ -134,8 +134,7 @@ export interface ExportProtocolEntry {
 }
 
 /** Why a holiday position booked on the cost center of the holiday care. */
-export type CostCenterFallbackReason =
-  "no_host_school" | "no_school_cost_center";
+type CostCenterFallbackReason = "no_host_school" | "no_school_cost_center";
 
 export interface CostCenterFallback {
   readonly number: string;
