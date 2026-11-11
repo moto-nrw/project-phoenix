@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "16f232246e8cd189e0b1f3da614162368ddd275f9050cd266e48bb9d8aee9c44",
+  "catalogSHA256": "472693eb9acf6a61dc796550b2c3d8cfe364570ccb92beb76f37a84c1d86e339",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -13809,6 +13809,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "health_records",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -14486,6 +14492,12 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "retention_days",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
         },
         {
           "name": "health",

@@ -51,8 +51,9 @@ Hilfe-PDFs sind nicht Teil davon (Nicht-Ziel in #2223).
 | 19 | Bankverbindungen | Eltern, Bankverbindungen | **Angeglichen.** Gemeinsamer Export-Dialog statt eigener Formatwahl. |
 | 20 | Einverständnisse | Elternbrief, Rückmeldestand | **Angeglichen.** Die Einstiege nutzen `OverflowMenu`. |
 | 21 | Übersicht je Abrechnungslauf für die Kämmerei | Träger-Portal, Abrechnungslauf | **Angeglichen.** Kompakte Tabelle über `lists.Renderer` (PDF, Excel, CSV), Einstieg im `OverflowMenu` der Karte unter „Exportieren“ wie im Schul-Portal (#4672, #5240, ADR 0122). |
+| 22 | Ferienanmeldungen als PDF (einzeln, und je Zeitraum als ZIP mit einem PDF je Anmeldung) | Träger-Portal, Ferienanmeldungen und Einzelansicht | **Angeglichen.** Block pro Datensatz über `lists.RecordRenderer`; Einstieg im Menü „Herunterladen“ neben Excel und CSV, die Liste nimmt wie dort die Filter der Seite. Gesundheitsangaben sind ein eigener Eintrag, nur mit dem Recht „Gesundheitsangaben sehen“. Das ZIP ist kein Format des gemeinsamen Dialogs: Es dient der Ablage vor der Löschung, nicht dem Druck (#6691, ADR 0118 Nachtrag). |
 
-Die Nummern 1 bis 16 entsprechen der Bestandsaufnahme in #2223. 17 bis 21 sind
+Die Nummern 1 bis 16 entsprechen der Bestandsaufnahme in #2223. 17 bis 22 sind
 seitdem dazugekommen.
 
 ## Klassenliste: warum zwei

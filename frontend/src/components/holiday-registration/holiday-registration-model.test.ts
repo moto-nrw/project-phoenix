@@ -224,7 +224,9 @@ describe("payloadFromDraft", () => {
     const payload = payloadFromDraft(complete(), offer, "captcha");
     expect(payload.custody_confirmed).toBe(true);
     expect(payload.declaration_name).toBe("Eva Muster");
-    expect(payload.consent_version).toBe(3);
+    expect(payload.consent_version).toBe(4);
+    // The retention the privacy text named (#6691).
+    expect(payload.retention_days).toBe(365);
   });
 
   it("sends the school of a child of the Träger without a guest school name", () => {

@@ -161,9 +161,14 @@ func siblingsRegistration(offer holidayOfferBody, email string) map[string]any {
 		"pickup_persons":     []map[string]any{{"name": "Opa Muster"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"custody_confirmed": true, "declaration_name": "Eva Muster", "consent_version": enrollment.HolidayConsentVersionCurrent,
-		"captcha_token": "valid-token",
+		"retention_days": holidayDefaultRetentionDays, "captcha_token": "valid-token",
 	}
 }
+
+// holidayDefaultRetentionDays is the registry default of the Träger's
+// holiday_registration.retention_days (#6691): a year. A registration names
+// the days of the privacy text it agrees to.
+const holidayDefaultRetentionDays = 365
 
 func registrationRefusalOf(t *testing.T, rec *httptest.ResponseRecorder) (string, []string) {
 	t.Helper()
