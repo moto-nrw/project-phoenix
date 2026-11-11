@@ -144,6 +144,15 @@ function OverrunFigure({
   );
 }
 
+/** Eine Anzahl (Kinder, Tage): dunkel, das Rot gehört der zusätzlichen Zeit. */
+function CountFigure({ value }: Readonly<{ value: number }>) {
+  return (
+    <span className="text-sm font-semibold whitespace-nowrap text-gray-900 tabular-nums">
+      {value}
+    </span>
+  );
+}
+
 function DaysCell({
   overrunDays,
   unbookedDays,
@@ -151,7 +160,7 @@ function DaysCell({
   const total = overrunDays + unbookedDays;
   return (
     <span className="inline-flex flex-col items-end">
-      <OverrunFigure value={total} />
+      <CountFigure value={total} />
       {unbookedDays > 0 ? (
         <span className="text-sm whitespace-nowrap text-gray-500">
           davon {unbookedDays} ohne Buchung
@@ -212,7 +221,7 @@ function schoolColumns(
       align: "right",
       render: (school) =>
         schoolHasFigures(school, to) ? (
-          <OverrunFigure value={school.figures.children} />
+          <CountFigure value={school.figures.children} />
         ) : (
           <NoData />
         ),
@@ -365,7 +374,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Kinder"
         value={noData ? "–" : total.children}
-        tone={!noData && total.children > 0 ? "red" : "neutral"}
+        tone="neutral"
         hint={
           noData
             ? noDataTitle(evaluation)
@@ -378,7 +387,7 @@ function Figures({ evaluation }: Readonly<{ evaluation: OverrunEvaluation }>) {
       <StatCard
         label="Tage"
         value={noData ? "–" : days}
-        tone={!noData && days > 0 ? "red" : "neutral"}
+        tone="neutral"
         hint={
           noData
             ? "Ohne verglichene Check-ins zählt moto keine Tage."
