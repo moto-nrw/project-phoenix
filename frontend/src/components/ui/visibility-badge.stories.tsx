@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import { VisibilityBadge } from "./visibility-badge";
+import { ParentVisibilityLegend, VisibilityBadge } from "./visibility-badge";
 
 const meta = {
   title: "components/ui/VisibilityBadge",
@@ -25,4 +25,8 @@ export const Compact: Story = {
       <VisibilityBadge audience="ogs" compact />
     </div>
   ),
+};
+
+export const Legend: Story = {
+  render: () => <ParentVisibilityLegend className="max-w-sm" />,
 };
