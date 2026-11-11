@@ -6,12 +6,12 @@ es das Symbol tut. Der Uhrzeiger dreht eine Runde, die Tür schwingt auf, Haken
 werden gesetzt. Das gilt für alle vier Portale (Tenant, Schule, Träger, Eltern).
 Die Regel dazu für Agenten: `.claude/rules/sidebar-icon-scenes.md`.
 
-| Datei                        | Inhalt                                                                                                                              |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `nav-scene-icon.tsx`         | `NavSceneIcon` (Phosphor-Glyph), `NavSceneFallback` (alte Pfad-Icons hüpfen als Ganzes). Für ein Konzept: `MotoNavIcon` mit `scene` |
-| `nav-scenes.tsx`             | `NAV_SCENES`: je Glyph (`displayName`, z. B. `ClockIcon`) die nachgezeichneten Teile                                                |
-| `src/styles/nav-scenes.css`  | die Bewegung je Teil, gleiche `ns-*`-Klassen                                                                                        |
-| `nav-scene-coverage.test.ts` | Wächter: jedes Glyph einer Seitenleiste hat eine Szene, jede Szene bewegt Teile                                                     |
+| Datei                        | Inhalt                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `nav-scene-icon.tsx`         | `NavSceneIcon` (Phosphor-Glyph; ohne Szene hüpft er als Ganzes). Für ein Konzept: `MotoNavIcon` mit `scene` |
+| `nav-scenes.tsx`             | `NAV_SCENES`: je Glyph (`displayName`, z. B. `ClockIcon`) die nachgezeichneten Teile                        |
+| `src/styles/nav-scenes.css`  | die Bewegung je Teil, gleiche `ns-*`-Klassen                                                                |
+| `nav-scene-coverage.test.ts` | Wächter: jedes Glyph einer Seitenleiste hat eine Szene, jede Szene bewegt Teile                             |
 
 ## Neues Icon in einer Seitenleiste
 

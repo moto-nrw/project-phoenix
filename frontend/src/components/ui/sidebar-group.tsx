@@ -1,18 +1,20 @@
 "use client";
 
-import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import type { ReactNode } from "react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
-import { NotificationBadge } from "~/components/ui/notification-badge";
-import type { SidebarRowBadge } from "~/components/ui/sidebar-row";
+import {
+  SidebarRowContent,
+  type SidebarRowBadge,
+} from "~/components/ui/sidebar-row";
 import { Button } from "~/components/ui/button";
 import { NavSceneIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
+import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import {
   SIDEBAR_GROUP_HEADING_CLASSES,
-  SIDEBAR_ICON_CLASSES,
-  SIDEBAR_NAV_GAP,
-  sidebarLabelClasses,
+  SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES,
+  sidebarGroupBodyClasses,
+  sidebarGroupIconClasses,
 } from "~/components/ui/sidebar-geometry";
 
 interface SidebarGroupProps {
@@ -61,10 +63,6 @@ export function SidebarGroup({
   tourId,
   children,
 }: SidebarGroupProps) {
-  // Das Icon trägt die Farbe der Beschriftung (gray-600 der Kopfzeile),
-  // wie bei den Zeilen darunter; nur eine zugeklappte Gruppe mit der
-  // aktuellen Seite darin hebt es an.
-  const iconColor = containsActive && !isOpen ? "text-gray-900" : "";
   const shownBadge = badge != null && badge.count > 0 && !isOpen ? badge : null;
   const collapsedLabel = shownBadge
     ? `${label}, ${shownBadge.ariaLabel}`
@@ -80,64 +78,24 @@ export function SidebarGroup({
         data-setup-tour={tourId}
         className={`${SIDEBAR_GROUP_HEADING_CLASSES} cursor-pointer`}
         aria-expanded={isOpen}
-        {...(collapsed
-          ? { title: label, "aria-label": collapsedLabel }
-          : {})}
+        {...(collapsed ? { title: label, "aria-label": collapsedLabel } : {})}
       >
-        <NavSceneIcon
-          icon={Icon}
-          className={`${SIDEBAR_ICON_CLASSES} ${iconColor}`}
-        />
-        {labelsMounted && (
-          <>
-            <span
-              className={`${sidebarLabelClasses(labelsVisible)} ${SECTION_LABEL_CLASS}`}
-            >
-              {label}
-            </span>
-            {shownBadge && (
-              <span
-                aria-hidden={!labelsVisible}
-                className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-              >
-                <NotificationBadge
-                  count={shownBadge.count}
-                  tone={shownBadge.tone}
-                  ariaLabel={shownBadge.ariaLabel}
-                />
-              </span>
-            )}
-            <svg
-              className={`ml-2 h-4 w-4 shrink-0 text-gray-400 motion-safe:transition-[transform,opacity] motion-safe:duration-200 ${isOpen ? "rotate-180" : ""} ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </>
-        )}
-        {/* Punkt wie an der Zeile (`size="sm"`). `top-0` statt `top-1`: die
-            Kopfzeile ist 8 px niedriger, so liegt der Punkt gleich zum Icon. */}
-        {collapsed && shownBadge && (
-          <span
-            aria-hidden={labelsVisible}
-            className={`absolute top-0 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
-          >
-            <NotificationBadge
-              count={shownBadge.count}
-              tone={shownBadge.tone}
-              size="sm"
-              ariaLabel={shownBadge.ariaLabel}
+        <SidebarRowContent
+          icon={
+            <NavSceneIcon
+              icon={Icon}
+              className={sidebarGroupIconClasses(containsActive && !isOpen)}
             />
-          </span>
-        )}
+          }
+          label={label}
+          labelClassName={SECTION_LABEL_CLASS}
+          badge={shownBadge}
+          chevronOpen={isOpen}
+          railBadgeClassName={SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES}
+          collapsed={collapsed}
+          labelsMounted={labelsMounted}
+          labelsVisible={labelsVisible}
+        />
       </Button>
 
       {/* Inhalt der Gruppe — Höhenwechsel über CSS-Grid, wie beim Akkordeon. */}
@@ -149,20 +107,9 @@ export function SidebarGroup({
         {/* inert: eine zugeklappte Gruppe bleibt im Baum, darf aber keinen
             Tastaturfokus fangen. */}
         <div className="overflow-hidden" inert={!isOpen}>
-          {/* Die Zeilen einer Gruppe stehen eingerückt hinter einer Linie,
-              die unter dem Gruppen-Icon beginnt: so liest sich die Gruppe
-              als Baum, nicht als flache Liste mit Zwischenüberschrift. Im
-              Streifen (64px) gibt es dafür keinen Platz; die Einrückung
-              gleitet dort mit derselben Bewegung auf null wie die Breite. */}
-          <div
-            className={`${SIDEBAR_NAV_GAP} pt-1 motion-safe:transition-[margin-left,border-color] motion-safe:duration-200 motion-safe:ease-in-out ${
-              collapsed
-                ? "ml-0 border-l border-transparent"
-                : "ml-[15px] border-l border-gray-200"
-            }`}
-          >
-            {children}
-          </div>
+          {/* Eingerückt hinter einer Linie, damit sich die Gruppe als Baum
+              liest, nicht als flache Liste mit Zwischenüberschrift. */}
+          <div className={sidebarGroupBodyClasses(collapsed)}>{children}</div>
         </div>
       </div>
     </div>

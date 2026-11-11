@@ -7,6 +7,7 @@ import { documentsConcept } from "~/lib/concepts/documents";
 import { helpConcept } from "~/lib/concepts/help";
 import { homeConcept } from "~/lib/concepts/home";
 import { messagesConcept } from "~/lib/concepts/messages";
+import { moreConcept } from "~/lib/concepts/more";
 import { settingsConcept } from "~/lib/concepts/settings";
 import {
   PortalOverflowBottomNav,
@@ -83,6 +84,7 @@ const meta = {
   args: {
     items: ITEMS,
     navItemAttribute: "data-story-nav-item",
+    moreConcept,
   },
 } satisfies Meta<typeof PortalOverflowBottomNav>;
 

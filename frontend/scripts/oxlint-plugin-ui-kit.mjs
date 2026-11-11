@@ -2256,7 +2256,7 @@ const confirmationDismissLock = {
     },
     messages: {
       reason:
-        "`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading=\"Lädt nur die Vorschau; nichts wird gespeichert.\"`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).",
+        '`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).',
     },
     schema: [],
   },
@@ -4355,7 +4355,14 @@ const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "sidebarRowClasses",
   "sidebarLabelClasses",
   "SIDEBAR_GROUP_HEADING_CLASSES",
-  "SIDEBAR_SUB_ITEM_CLASSES",
+  "sidebarSubItemClasses",
+  "sidebarGroupBodyClasses",
+  "sidebarGroupIconClasses",
+  "sidebarChevronClasses",
+  "sidebarFadeClasses",
+  "SIDEBAR_RAIL_BADGE_CLASSES",
+  "SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES",
+  "SidebarRowContent",
 ]);
 
 function hasPortalNavShellSignature(text) {
