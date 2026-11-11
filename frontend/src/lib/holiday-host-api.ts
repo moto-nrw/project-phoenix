@@ -493,8 +493,7 @@ export async function fetchHolidayStudentHealth(
  * Ob die Anmeldung eines eigenen Kindes einem Kind der Schule zugeordnet
  * ist: genau eines passt, keines passt oder mehrere passen.
  */
-export type HolidayOwnChildAssignmentState =
-  "matched" | "not_found" | "ambiguous";
+type HolidayOwnChildAssignmentState = "matched" | "not_found" | "ambiguous";
 
 export interface HolidayOwnChildAssignment {
   /** Das Kind der Teilnehmerliste. */

@@ -246,15 +246,18 @@ describe("holiday host api", () => {
     expect(week?.guests).toBe(2);
   });
 
-  it("takes the holiday guests into a group and returns their number", async () => {
+  it("takes the holiday guests into a group and returns their number and the planned own children (#6678)", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, {
         status: "success",
-        data: { week_id: 51, group_id: 7, guests: 2 },
+        data: { week_id: 51, group_id: 7, guests: 2, own_children: 3 },
       }),
     );
 
-    await expect(assignHolidayGuestGroup("51", "7")).resolves.toBe(2);
+    await expect(assignHolidayGuestGroup("51", "7")).resolves.toEqual({
+      guests: 2,
+      ownChildren: 3,
+    });
 
     const [url, init] = fetchMock.mock.calls[0] ?? [];
     expect(url).toBe("/api/holiday-weeks/51/guest-group");
