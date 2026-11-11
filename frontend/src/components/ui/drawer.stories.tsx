@@ -68,3 +68,19 @@ export const RightSidePanel: Story = {
     </Drawer>
   ),
 };
+
+export const LeftSidePanel: Story = {
+  render: () => (
+    <Drawer direction="left">
+      <DrawerPrimitive.Trigger asChild>
+        <Button type="button">Seitenleiste öffnen</Button>
+      </DrawerPrimitive.Trigger>
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Inhalt</DrawerTitle>
+          <DrawerDescription>Seitliches Panel von links.</DrawerDescription>
+        </DrawerHeader>
+      </DrawerContent>
+    </Drawer>
+  ),
+};

@@ -48,6 +48,31 @@ export const WideContent: Story = {
   },
 };
 
+// Die Breiten, die Aufrufer bisher über `widthClass` setzen (#6571).
+export const SizeMd: Story = {
+  args: {
+    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-lg",
+  },
+};
+
+export const SizeMdWide: Story = {
+  args: {
+    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-xl",
+  },
+};
+
+export const SizeLg: Story = {
+  args: {
+    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-2xl",
+  },
+};
+
+export const SizeLgWide: Story = {
+  args: {
+    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-3xl",
+  },
+};
+
 export const ConfirmationDefault: StoryObj<typeof ConfirmationModal> = {
   render: (args) => <ConfirmationModal {...args} />,
   args: {
