@@ -38,6 +38,10 @@ import {
   toISODate,
   berlinTodayISO,
 } from "~/lib/date-helpers";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
@@ -145,15 +149,19 @@ export function TraegerErasureOrderSection({
     () => operatorProvisioningService.getTraegerErasureOrder(organizationId),
     { keepPreviousData: false },
   );
+  // A failed reload keeps the confirmed order and stands above it; only
+  // without data does the error replace the section (#6636).
   const loadError = useSwrLoadError(
     error,
     "den Löschauftrag",
     () => void mutate(),
+    order === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
-  if (loadError) {
+  if (loadError && order === undefined) {
     return <LoadErrorAlert error={loadError} />;
   }
+  const staleError = loadError ? <LoadErrorAlert error={loadError} /> : null;
   if (isLoading || order === undefined) {
     return (
       <SectionCard title="Löschauftrag">
@@ -166,31 +174,40 @@ export function TraegerErasureOrderSection({
   }
   if (order) {
     return (
-      <OpenErasureOrder
-        order={order}
-        organizationId={organizationId}
-        onChanged={() => mutate()}
-      />
+      <>
+        {staleError}
+        <OpenErasureOrder
+          order={order}
+          organizationId={organizationId}
+          onChanged={() => mutate()}
+        />
+      </>
     );
   }
   if (organizationActive) {
     return (
-      <SectionCard
-        title="Löschauftrag"
-        description="Einen Löschauftrag erfassen Sie erst, wenn der Träger deaktiviert ist. Deaktivieren Sie ihn oben über den Status."
-      >
-        <Alert
-          type="warning"
-          message="Vor dem Deaktivieren: Weisen Sie den Träger auf die Sicherung seiner aufbewahrungspflichtigen Unterlagen hin (AVV Ziff. 8.4). Nach dem Deaktivieren kann das Träger-Büro nichts mehr herunterladen, etwa die SEPA-Dateien."
-        />
-      </SectionCard>
+      <>
+        {staleError}
+        <SectionCard
+          title="Löschauftrag"
+          description="Einen Löschauftrag erfassen Sie erst, wenn der Träger deaktiviert ist. Deaktivieren Sie ihn oben über den Status."
+        >
+          <Alert
+            type="warning"
+            message="Vor dem Deaktivieren: Weisen Sie den Träger auf die Sicherung seiner aufbewahrungspflichtigen Unterlagen hin (AVV Ziff. 8.4). Nach dem Deaktivieren kann das Träger-Büro nichts mehr herunterladen, etwa die SEPA-Dateien."
+          />
+        </SectionCard>
+      </>
     );
   }
   return (
-    <RecordErasureOrderForm
-      organizationId={organizationId}
-      onRecorded={() => mutate()}
-    />
+    <>
+      {staleError}
+      <RecordErasureOrderForm
+        organizationId={organizationId}
+        onRecorded={() => mutate()}
+      />
+    </>
   );
 }
 
@@ -207,6 +224,10 @@ function OpenErasureOrder({
   const [withdrawing, setWithdrawing] = useState(false);
   const { show: showError } = useApiErrorDisplay();
   const { success: toastSuccess } = useToast();
+  // Only a failed withdrawal is an error of the withdrawal; a failed reload
+  // afterwards is a load error with a retry that only reloads (#6636).
+  const withdrawRefresh = useRefreshAfterWrite("der Löschauftrag", onChanged);
+  const { refresh: refreshAfterWithdraw } = withdrawRefresh;
 
   const handleWithdraw = useCallback(async () => {
     setWithdrawing(true);
@@ -214,9 +235,6 @@ function OpenErasureOrder({
       await operatorProvisioningService.withdrawTraegerErasureOrder(
         organizationId,
       );
-      setConfirmOpen(false);
-      toastSuccess("Der Löschauftrag ist zurückgenommen.");
-      await onChanged();
     } catch (withdrawError) {
       logger.warn("traeger_erasure_order_withdraw_failed", {
         error:
@@ -227,10 +245,14 @@ function OpenErasureOrder({
       void showError(withdrawError, {
         object: "die Rücknahme des Löschauftrags",
       });
-    } finally {
       setWithdrawing(false);
+      return;
     }
-  }, [onChanged, organizationId, showError, toastSuccess]);
+    setConfirmOpen(false);
+    setWithdrawing(false);
+    toastSuccess("Der Löschauftrag ist zurückgenommen.");
+    await refreshAfterWithdraw();
+  }, [organizationId, refreshAfterWithdraw, showError, toastSuccess]);
 
   return (
     <>
@@ -254,6 +276,7 @@ function OpenErasureOrder({
           )
         }
       >
+        <LoadErrorAlert error={withdrawRefresh.error} className="mb-4" />
         {order.recordsChoice ? null : (
           <div className="mb-4">
             <Alert

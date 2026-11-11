@@ -16,6 +16,7 @@ import {
 import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 import type { RosterDeviation } from "~/lib/roster-deviation";
@@ -2958,6 +2959,54 @@ describe("BetreuungsplanView", () => {
         screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  // #6636: das Archivieren ist gelungen, nur das Nachladen scheitert. Das
+  // ist ein Ladefehler über dem Plan, kein Fehler des Archivierens, und sein
+  // Wiederholen lädt nur nach.
+  it("meldet ein gescheitertes Nachladen nach dem Archivieren als Ladefehler", async () => {
+    setUrl("view=serien");
+    mockArchiveTemplate.mockResolvedValueOnce({});
+    let failTemplates = true;
+    mockTenantMutate.mockImplementation((key: string) =>
+      key === "timetable-templates-5" && failTemplates
+        ? Promise.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          )
+        : Promise.resolve(undefined),
+    );
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("archive-template"));
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
+
+    const message = `${catalogText("general.unavailable", "die Liste der Regeltermine")} ${SAVED_BUT_STALE_SUFFIX}`;
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Regeltermin „Yoga“ ist archiviert.",
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "das Archivieren des Regeltermins"),
+      ),
+    ).not.toBeInTheDocument();
+
+    failTemplates = false;
+    const reloads = mockTenantMutate.mock.calls.length;
+    const alert = screen.getByText(message).closest('[role="alert"]');
+    expect(alert).not.toBeNull();
+    fireEvent.click(
+      within(alert as HTMLElement).getByRole("button", { name: "Wiederholen" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(message)).not.toBeInTheDocument(),
+    );
+    expect(mockTenantMutate.mock.calls.length).toBeGreaterThan(reloads);
+    // Wiederholen lädt nur nach; archiviert wird nicht noch einmal.
+    expect(mockArchiveTemplate).toHaveBeenCalledTimes(1);
   });
 
   it("reports a failed Regeltermin apply as a toast with retry", async () => {

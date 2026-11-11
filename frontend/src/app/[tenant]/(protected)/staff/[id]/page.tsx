@@ -83,6 +83,7 @@ import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-moda
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { formatDate, isValidISODate, berlinTodayISO } from "~/lib/date-helpers";
@@ -313,13 +314,17 @@ export default function StaffDetailContent() {
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
   const hasAccess = hasSessionAccess(session);
 
-  const refreshRecord = useCallback(async () => {
+  const reloadRecord = useCallback(async () => {
     await Promise.all([
       tenantMutate(staffKeys.recordKey(staffId)),
       tenantMutate(staffKeys.profileKey(staffId)),
       refreshStaffFamily(),
     ]);
   }, [staffId, tenantMutate, refreshStaffFamily]);
+  // Nachladen nach einem gelungenen Schreiben: ein Fehler dabei ist ein
+  // Ladefehler über dem Reiter, kein Fehler der Aktion (#6636).
+  const recordRefresh = useRefreshAfterWrite("die Personalakte", reloadRecord);
+  const { refresh: refreshRecord } = recordRefresh;
 
   // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
   // Regel 4). Der Datensatz geht zuerst; scheitert danach der Rollenwechsel,
@@ -426,18 +431,19 @@ export default function StaffDetailContent() {
     clearWithdrawExitError();
     try {
       await staffPlannedExitService.withdraw(staffId);
-      setShowWithdrawExitModal(false);
-      toastSuccess("Der Austritt ist zurückgenommen.");
-      await refreshRecord();
     } catch (err) {
       logger.error("planned_exit_withdraw_failed", {
         staff_id: staffId,
         error: err instanceof Error ? err.message : String(err),
       });
       await showWithdrawExitError(err, { object: "den Austritt" });
-    } finally {
       setWithdrawingExit(false);
+      return;
     }
+    setShowWithdrawExitModal(false);
+    setWithdrawingExit(false);
+    toastSuccess("Der Austritt ist zurückgenommen.");
+    await refreshRecord();
   }, [
     clearWithdrawExitError,
     refreshRecord,
@@ -795,6 +801,7 @@ export default function StaffDetailContent() {
                   title="Austritt zurücknehmen?"
                   confirmText="Zurücknehmen"
                   isConfirmLoading={withdrawingExit}
+                  loadingText="Wird zurückgenommen…"
                 >
                   <div className="space-y-3">
                     <FormErrorAlert message={withdrawExitErrors.error} />
@@ -814,7 +821,9 @@ export default function StaffDetailContent() {
                   scope="tenant"
                   accountId={accountId}
                   accountLabel={recordLabel}
-                  onUpdated={refreshRecord}
+                  onUpdated={async () => {
+                    await refreshRecord();
+                  }}
                 />
                 {hasAccess ? (
                   <MFAAdminOverrideModal
@@ -832,6 +841,7 @@ export default function StaffDetailContent() {
     >
       {staff ? (
         <>
+          <LoadErrorAlert error={recordRefresh.error} />
           {activeTab === "uebersicht" && showTimeTracking && (
             <UebersichtTab staffId={staffId} />
           )}

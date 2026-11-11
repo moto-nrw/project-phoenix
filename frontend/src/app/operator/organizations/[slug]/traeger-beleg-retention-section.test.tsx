@@ -11,10 +11,14 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
+  belegRetentionService,
   mapBelegRetentionOverview,
   type BelegRetentionOverview,
 } from "~/lib/operator/beleg-retention-api";
+import { catalogText } from "~/test/error-catalog-text";
 
 const { mockGetOverview, mockRecordReview, mockRecordInstruction } = vi.hoisted(
   () => ({
@@ -497,6 +501,138 @@ describe("TraegerBelegRetentionSection", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("1 Jahr ab Ausstellung")).toBeInTheDocument();
+  });
+});
+
+// #6636: a failed reload keeps the confirmed tables; the error replaces the
+// section only while no data has loaded.
+describe("TraegerBelegRetentionSection reload errors", () => {
+  const unavailable = () =>
+    new ApiError("down", 503, { code: "general.unavailable" });
+  const withSuspension: BelegRetentionOverview = {
+    ...overview,
+    suspensions: [
+      {
+        id: "9",
+        belegType: "holiday_document",
+        belegId: null,
+        reason: "Betriebsprüfung",
+        scope: "Alle Ferienbelege",
+        responsible: "Kämmerei",
+        reviewOn: "2026-12-01",
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps the tables when the reload after lifting a suspension fails", async () => {
+    mockGetOverview
+      .mockResolvedValueOnce(withSuspension)
+      .mockRejectedValue(unavailable());
+    vi.mocked(belegRetentionService.liftSuspension).mockResolvedValue(
+      undefined,
+    );
+    const user = userEvent.setup();
+
+    renderSection();
+    await user.click(
+      await screen.findByRole("button", {
+        name: /Aktionen für die Aussetzung/,
+      }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: /Aussetzung aufheben/ }),
+    );
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Aufheben",
+      }),
+    );
+
+    const loadText = catalogText(
+      "general.unavailable",
+      "die Belegaufbewahrung",
+    );
+    expect(
+      await screen.findByText((text) => text.startsWith(loadText)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Die Aussetzung ist aufgehoben."),
+    ).toBeInTheDocument();
+    // Anker: die bestätigten Tabellen bleiben stehen.
+    expect(screen.getByText("Betriebsprüfung")).toBeInTheDocument();
+    expect(
+      screen.getByText("Buchungsbeleg (AO, HGB, UStG): § 147 AO"),
+    ).toBeInTheDocument();
+    const message = `${loadText} ${STALE_DATA_SUFFIX}`;
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Aufhebung der Aussetzung"),
+      ),
+    ).not.toBeInTheDocument();
+
+    mockGetOverview.mockResolvedValue(overview);
+    const alert = screen.getByText(message).closest('[role="alert"]');
+    expect(alert).not.toBeNull();
+    await user.click(
+      within(alert as HTMLElement).getByRole("button", {
+        name: "Wiederholen",
+      }),
+    );
+    expect(await screen.findByText("Keine Aussetzung")).toBeInTheDocument();
+    expect(screen.queryByText(message)).not.toBeInTheDocument();
+    // Wiederholen lädt nur nach; aufgehoben wird nicht noch einmal.
+    expect(belegRetentionService.liftSuspension).toHaveBeenCalledTimes(1);
+    expect(belegRetentionService.liftSuspension).toHaveBeenCalledWith("1", "9");
+  });
+
+  it("shows a lift failure as the error of the lift and keeps the suspension", async () => {
+    mockGetOverview.mockResolvedValue(withSuspension);
+    vi.mocked(belegRetentionService.liftSuspension).mockRejectedValue(
+      unavailable(),
+    );
+    const user = userEvent.setup();
+
+    renderSection();
+    await user.click(
+      await screen.findByRole("button", {
+        name: /Aktionen für die Aussetzung/,
+      }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", { name: /Aussetzung aufheben/ }),
+    );
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Aufheben",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Aufhebung der Aussetzung"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Betriebsprüfung")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Die Aussetzung ist aufgehoben."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("replaces the section with the error while no data has loaded", async () => {
+    mockGetOverview.mockRejectedValue(unavailable());
+
+    renderSection();
+
+    const message = catalogText("general.unavailable", "die Belegaufbewahrung");
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Klärungsliste" }),
+    ).not.toBeInTheDocument();
   });
 });
 
