@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.937 (ADR 0196): the installed school erasure delete of 1.15.811 with
+// 1.15.941 (ADR 0196): the installed school erasure delete of 1.15.811 with
 // the three tables of the holiday closure notices, one line per table for the
 // file size gate; TestHolidayClosureErasureIsTheErasureOf811 proves it equal
 // to the function of 1.15.811 with the tables, up to line breaks.

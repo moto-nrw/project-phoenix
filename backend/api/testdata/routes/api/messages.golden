@@ -1,4 +1,5 @@
 GET /api/messages/
+GET /api/messages/attachments/{attachmentId}/download
 GET /api/messages/count-scope
 GET /api/messages/group-threads
 GET /api/messages/group-threads/audience
@@ -8,6 +9,7 @@ GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
 GET /api/messages/threads/{threadId}
 GET /api/messages/unread-count
+POST /api/messages/attachments
 POST /api/messages/group-threads
 POST /api/messages/group-threads/{groupThreadId}/close
 POST /api/messages/group-threads/{groupThreadId}/messages

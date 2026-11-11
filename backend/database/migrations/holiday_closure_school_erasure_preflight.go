@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.937 (ADR 0196): the installed school erasure preflight of 1.15.811 with the
+// 1.15.941 (ADR 0196): the installed school erasure preflight of 1.15.811 with the
 // proposals, commands and revisions of the holiday closure notices;
 // TestHolidayClosureErasureIsTheErasureOf811 keeps it so.
 const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)

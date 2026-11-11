@@ -6325,6 +6325,7 @@ export const parentGroupMessageTopic =
         "Steht bei einem Kind `Kein Eltern-Zugang`? Dann bekommt diese Familie die Nachricht nicht.",
       ],
       notes: [
+        "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie an eine weitere Nachricht bis zu 5 Dateien an, je höchstens 10 MB. Alle Eltern der Gruppennachricht sehen die Datei.",
         "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
         "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
         "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
@@ -6358,6 +6359,7 @@ export const parentGroupMessagesTopic =
       result:
         "Ihre Antwort steht danach im Chat mit der OGS zu Ihrem Kind. Andere Eltern sehen sie nicht.",
       notes: [
+        "Fotos öffnen Sie mit einem Tipp groß. Andere Dateien laden Sie mit dem Pfeil herunter. An Ihre Antwort können Sie mit `Foto oder Datei anhängen` selbst Dateien hängen.",
         "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
         "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
         "Unter `Antwort an die OGS` steht, wer Ihre Antwort lesen kann.",
@@ -6824,6 +6826,7 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
       "Eltern können nur an die Leitung schreiben, wenn unter `Einstellungen` der Schalter `Nachrichten nur an die Leitung (Eltern)` an ist und jemand das Recht `Vertrauliche Elternnachrichten lesen` hat. Das Recht vergeben Sie unter `Rollen`.",
     ],
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß. Die Eltern sehen die Dateien in der Eltern-App.",
       "Über dem Schreibfeld steht, wer die Unterhaltung lesen kann: die eine Bezugsperson und alle Mitarbeitenden oder nur die Leitung. Andere Bezugspersonen des Kindes lesen nicht mit.",
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
@@ -6854,6 +6857,7 @@ export const parentMessagesTopic = function parentMessagesTopic(): HelpTopic {
     ],
     result: "Die OGS bekommt Ihre Nachricht sofort.",
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Jedes Kind hat eine eigene Unterhaltung. Oben steht, für welches Kind sie gilt.",
       "Über dem Schreibfeld steht, wer mitliest, zum Beispiel `Lesen können: Sie und alle Mitarbeitenden der OGS.` Auf einem großen Bildschirm steht es auch oben. Andere Bezugspersonen Ihres Kindes lesen Ihre Unterhaltung nicht.",
       "Unter Ihrer Nachricht steht `Gesendet` und später `Von der OGS gelesen`.",
@@ -9515,6 +9519,7 @@ export const teacherMessagesTopic = function teacherMessagesTopic(): HelpTopic {
     ],
     result: "Das OGS-Team bekommt Ihre Nachricht sofort.",
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Vor Ihrer eigenen Nachricht steht `Sie:`.",
       "Hier melden Sie, was die OGS wissen muss, zum Beispiel eine falsche Abholzeit.",
       "Die OGS kann Sie in einen Gruppenchat aufnehmen. Er steht dann mit seinem Namen in Ihrer Liste. Mit `Mitglieder` und `Gruppenchat verlassen` gehen Sie wieder heraus.",
@@ -9987,6 +9992,7 @@ export const teamChatTopic = function teamChatTopic(): HelpTopic {
       "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
     ],
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Unter Ihrer Nachricht in einem Gruppenchat steht, wie viele sie gelesen haben. Tippen Sie darauf, dann sehen Sie die Namen.",
       "Eltern können den Team-Chat nicht sehen. Für Eltern nutzen Sie `Nachrichten` im Bereich `Eltern`.",
       "Mit `Nur ungelesen` sehen Sie nur Unterhaltungen mit neuen Nachrichten.",

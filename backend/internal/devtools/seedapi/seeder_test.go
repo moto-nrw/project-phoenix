@@ -1725,6 +1725,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		// An upload for a message answers with the attachment (#6685).
+		if strings.HasSuffix(r.URL.Path, "/attachments") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter)}})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/parent/me/messages/children/") && r.Method == seedHTTPMethodPost {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{

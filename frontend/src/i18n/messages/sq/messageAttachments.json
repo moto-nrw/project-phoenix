@@ -1,0 +1,23 @@
+{
+  "attach": "Bashkëngjit foto ose skedar",
+  "attachHint": "Deri në {max} skedarë, secili më së shumti {mb} MB: foto, PDF, Word, Excel, PowerPoint",
+  "drop": "Lëshoni skedarët këtu",
+  "remove": "Hiq bashkëngjitjen: {filename}",
+  "uploading": "Po ngarkohet {filename}",
+  "tooMany": "Një mesazh mund të ketë më së shumti {max} skedarë.",
+  "tooLarge": "„{filename}“ është shumë i madh. Çdo skedar mund të jetë deri në {mb} MB.",
+  "wrongType": "„{filename}“ nuk mund të bashkëngjitet. Lejohen foto, PDF, Word, Excel dhe PowerPoint.",
+  "fileObject": "skedari",
+  "openImage": "Hap foton: {filename}",
+  "openFile": "Hap skedarin: {filename}",
+  "downloadFile": "Shkarko: {filename}",
+  "moreImages": "{count, plural, one {# foto tjetër} other {# foto të tjera}}",
+  "close": "Mbyll",
+  "previous": "Bashkëngjitja e mëparshme",
+  "next": "Bashkëngjitja tjetër",
+  "download": "Shkarko",
+  "openInNewTab": "Hape në skedë të re",
+  "notViewable": "Ky skedar nuk mund të shfaqet këtu. Shkarkojeni për ta hapur.",
+  "notViewableOnDevice": "Në këtë pajisje skedari nuk mund të shfaqet këtu. Hapeni në një skedë të re ose shkarkojeni.",
+  "position": "{current} nga {total}"
+}

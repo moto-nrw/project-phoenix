@@ -113,6 +113,8 @@ type ParentMessage struct {
 	// message answers (#4784).
 	GroupThreadID    *int64
 	GroupThreadTitle string
+	// Attachments is the stored snapshot of the message's files (#6685).
+	Attachments json.RawMessage
 }
 
 type ParentMessageInboxThread struct {
@@ -233,6 +235,8 @@ type StaffMessage struct {
 	ReadByAccountIDs         []int64
 	EligibleReaderAccountIDs []int64
 	ReaderCount              int
+	// Attachments is the stored snapshot of the message's files (#6685).
+	Attachments json.RawMessage
 }
 
 type StaffMessageInboxThread struct {

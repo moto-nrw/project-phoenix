@@ -70,6 +70,8 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/school", settings.ModuleUnterrichtVormittag},
 	{"/school/auth", settings.ModuleUnterrichtVormittag},
 	{"/school-sse", settings.ModuleUnterrichtVormittag},
+	// Fotos und Dateien des Team-Chats im Schulportal (#6685).
+	{"/school-staff-messages", settings.ModuleUnterrichtVormittag},
 	{"/traeger", moduleRouteBasis},
 	{"/api/iot", settings.ModuleNFCAnwesenheit},
 	{"/api/iot/staff-clock", settings.ModuleZeiterfassung},
