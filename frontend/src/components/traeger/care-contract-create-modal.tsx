@@ -230,10 +230,13 @@ export function CareContractCreateModal({
               candidate.templateIssue === "acceptance_changed",
           );
           const settingsLink = (
+            // Under the message on a phone: -ml-2.5 takes back the
+            // padding, so the label starts with the text.
             <ButtonLink
               href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
               variant="ghost_tone"
               size="compact"
+              className="max-sm:-ml-2.5"
             >
               Einstellung öffnen
             </ButtonLink>
@@ -274,6 +277,7 @@ export function CareContractCreateModal({
                 type="button"
                 variant="ghost_tone"
                 size="compact"
+                className="max-sm:-ml-2.5"
                 onClick={onOpenConditions}
               >
                 Bedingungen festlegen

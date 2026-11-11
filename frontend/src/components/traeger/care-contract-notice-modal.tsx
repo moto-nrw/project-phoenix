@@ -451,6 +451,8 @@ export function RecordNoticeModal({
               aria-label="Text der E-Mail ansehen, neuer Tab"
               variant="ghost_tone"
               size="compact"
+              // Under the message on a phone: the label starts with the text.
+              className="max-sm:-ml-2.5"
             >
               Text der E-Mail ansehen
             </ButtonLink>

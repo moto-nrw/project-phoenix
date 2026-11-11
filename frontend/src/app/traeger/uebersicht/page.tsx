@@ -577,6 +577,8 @@ export default function TraegerDashboardPage() {
               type="button"
               variant="ghost_tone"
               size="compact"
+              // Under the message on a phone: the label starts with the text.
+              className="max-sm:-ml-2.5"
               onClick={reload}
             >
               Erneut laden
