@@ -95,6 +95,7 @@ import {
   ENROLLMENT_QR_CODE,
   PublicLinkCopyButton,
 } from "~/components/enrollment/public-link-copy-button";
+import { ApiError } from "~/lib/api-error";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { fetchSchoolClasses } from "~/lib/student-api";
@@ -386,6 +387,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [tenantPath],
   );
 
+  const dataRequestRef = useRef(0);
   const loadData = useCallback(
     async (
       isCancelled?: () => boolean,
@@ -393,6 +395,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       // geht an den Aufrufer (#6652).
       options: { rethrow?: boolean } = {},
     ) => {
+      const request = ++dataRequestRef.current;
+      const superseded = () =>
+        isCancelled?.() || request !== dataRequestRef.current;
       if (!options.rethrow) {
         setLoading(true);
         clearPageError();
@@ -403,15 +408,31 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           listPhases(),
           listAdminRequests({ phaseId }),
         ]);
-        if (isCancelled?.()) return;
+        if (superseded()) return;
         setPhase(phasesData.find((item) => item.id === phaseId) ?? null);
         setRequests(requestsData);
+        setLoadFailed(false);
+        clearPageError();
       } catch (err) {
-        if (isCancelled?.()) return;
+        if (superseded()) return;
         logger.error("admin_enrollment_phase_detail_load_failed", {
           error: err instanceof Error ? err.message : "unknown",
           phase_id: phaseId,
         });
+        if (
+          err instanceof ApiError &&
+          (err.status === 401 || err.status === 403)
+        ) {
+          setLoadFailed(true);
+          setPhase(null);
+          setRequests([]);
+          setReport(null);
+          reportRequestRef.current++;
+          setReportLoading(false);
+          setDefaultOfferingIds([]);
+          setExplicitOfferingIds(null);
+          setApprovalWithoutOfferingRow(null);
+        }
         if (options.rethrow) throw err;
         setLoadFailed(true);
         await showPageError(err, {
@@ -419,7 +440,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           retry: () => void reloadPageRef.current(),
         });
       } finally {
-        if (!isCancelled?.() && !options.rethrow) setLoading(false);
+        if (!superseded()) setLoading(false);
       }
     },
     [phaseId, clearPageError, showPageError],
@@ -857,7 +878,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     setPickupTime(ALL_VALUE);
   }, []);
 
-  if (loading) {
+  if (
+    loading ||
+    (loadFailed && !pageError.error && !decisionAfterWrite.error)
+  ) {
     return (
       <TenantPage
         title="Anmeldephase"
@@ -877,7 +901,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         back
         backHref={overviewPath}
         backLabel="Zurück zur Anmeldungs-Übersicht"
-        error={pageError.error ?? undefined}
+        error={pageError.error ?? decisionAfterWrite.error ?? undefined}
       />
     );
   }

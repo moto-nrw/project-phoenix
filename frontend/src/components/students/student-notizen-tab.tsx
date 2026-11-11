@@ -22,6 +22,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import {
   STALE_DATA_SUFFIX,
@@ -473,7 +474,10 @@ export function StudentNotizenTab({
       // Each direct read rejects and keeps SWR's refusal boundary, even if
       // another concurrent read has already failed.
       discardRefused(error, {
-        codes: ["general.permission"],
+        codes:
+          error instanceof ApiError && error.status === 404 && error.code
+            ? [error.code]
+            : ["general.permission"],
         matches: (key) =>
           [
             studentKeys.notes(studentId),
@@ -531,7 +535,10 @@ export function StudentNotizenTab({
     ];
     if (
       discardRefused(error, {
-        codes: ["general.permission"],
+        codes:
+          error instanceof ApiError && error.status === 404 && error.code
+            ? [error.code]
+            : ["general.permission"],
         matches: (key) => noteKeys.includes(key),
       })
     ) {

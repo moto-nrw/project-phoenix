@@ -686,6 +686,24 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
   // #6652: the decision holds once the write is through; a failed reload
   // keeps the table and says the change is saved, and only reloads.
+  it("discards protected phase data and actions after a refused decision reload", async () => {
+    await renderPhase();
+    mocks.listAdminRequests.mockRejectedValueOnce(new ApiError("refused", 403));
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    expect(
+      await screen.findByText(
+        `${catalogText("general.permission", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    expect(screen.queryAllByText("eva@example.test")).toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: "Bestätigen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the table after a quick decision whose reload fails", async () => {
     await renderPhase();
     const loads = mocks.listAdminRequests.mock.calls.length;

@@ -64,6 +64,8 @@ describe("student note access", () => {
     ["journal", 503],
     ["permanent", 503],
     ["journal", 403],
+    ["journal", 404],
+    ["permanent", 404],
   ] as const)(
     "reports a failed %s read after saving (%s)",
     async (kind, status) => {
@@ -96,11 +98,15 @@ describe("student note access", () => {
       );
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
       const code =
-        status === 403 ? "general.permission" : "general.unavailable";
+        status === 403
+          ? "general.permission"
+          : status === 404
+            ? "general.input"
+            : "general.unavailable";
       // Anker: ein erfolgreicher Schreibaufruf mit gescheitertem GET nennt den gespeicherten Stand.
       const alertText = `${catalogText(code, "die Anzeige der Notizen")} ${SAVED_BUT_STALE_SUFFIX}`;
       expect(await screen.findByText(alertText)).toBeVisible();
-      if (status === 403) {
+      if (status === 403 || status === 404) {
         expect(screen.queryByText(note.body)).not.toBeInTheDocument();
         expect(
           screen.queryByRole("button", { name: "Neue Notiz" }),
@@ -122,7 +128,7 @@ describe("student note access", () => {
     },
   );
 
-  it.each([403, 503])(
+  it.each([403, 404, 503])(
     "handles a later %s without retaining refused notes",
     async (status) => {
       list.mockReset().mockResolvedValue([note]);
@@ -148,17 +154,26 @@ describe("student note access", () => {
       expect(
         await screen.findByRole("menuitem", { name: /Bearbeiten/ }),
       ).toBeVisible();
+      if (status === 404) {
+        fireEvent.click(screen.getByRole("menuitem", { name: /Bearbeiten/ }));
+        expect(
+          await screen.findByRole("textbox", { name: "Notiz" }),
+        ).toHaveValue(note.body);
+      }
       list.mockRejectedValue(new ApiError("failed", status));
       await act(async () => {
         await refresh((key) => key === studentKeys.notes("7"));
       });
       expect(await screen.findByRole("alert")).toBeVisible();
-      if (status === 403) {
+      if (status === 403 || status === 404) {
         await waitFor(() =>
           expect(screen.queryByText(note.body)).not.toBeInTheDocument(),
         );
         expect(
           screen.queryByRole("button", { name: "Neue Notiz" }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("textbox", { name: "Notiz" }),
         ).not.toBeInTheDocument();
         const cached = [...cache.entries()].find(([key]) =>
           key.endsWith(`:${studentKeys.notes("7")}`),

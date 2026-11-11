@@ -1,3 +1,9 @@
+import { SWRConfig } from "~/lib/swr/testing";
+import {
+  useSWRAuth as realUseSWRAuth,
+  useTenantMutate as realUseTenantMutate,
+} from "~/lib/swr/hooks";
+vi.unmock("swr");
 import {
   fireEvent,
   render,
@@ -11,6 +17,9 @@ import type { BookingLeftover } from "~/lib/booking-leftover";
 
 const mocks = vi.hoisted(() => ({
   leftovers: { current: [] as BookingLeftover[] },
+  read: vi.fn(),
+  useMutate: vi.fn(),
+  getLeftovers: vi.fn(),
   loadError: { current: undefined as unknown },
   keepCached: false,
   setKept: vi.fn(),
@@ -21,7 +30,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
-  timetableService: { setBookingLeftoverKept: mocks.setKept },
+  timetableService: {
+    setBookingLeftoverKept: mocks.setKept,
+    getBookingLeftovers: mocks.getLeftovers,
+  },
 }));
 
 vi.mock("~/lib/roster-impact", async (importOriginal) => ({
@@ -30,14 +42,8 @@ vi.mock("~/lib/roster-impact", async (importOriginal) => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string | null) => ({
-    data:
-      key === null || (mocks.loadError.current && !mocks.keepCached)
-        ? undefined
-        : mocks.leftovers.current,
-    error: key === null ? undefined : mocks.loadError.current,
-  }),
-  useTenantMutate: () => mocks.mutate,
+  useSWRAuth: (...args: unknown[]) => mocks.read(...args),
+  useTenantMutate: () => mocks.useMutate(),
 }));
 
 // Only the toasts are replaced; the form and load error paths stay real.
@@ -48,7 +54,10 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: null, status: "unauthenticated" }),
+  useSession: () => ({
+    data: { user: { id: "A", tenantId: 1 }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
 }));
 
 vi.mock("~/lib/logger", () => ({
@@ -59,6 +68,8 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => "2026-09-09",
 }));
 
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { ApiError } from "~/lib/api-error";
 import { BookingLeftoverHints } from "./booking-leftover-hints";
 
@@ -102,12 +113,67 @@ describe("BookingLeftoverHints", () => {
     mocks.leftovers.current = [hannah, kept];
     mocks.loadError.current = undefined;
     mocks.keepCached = false;
+    mocks.read.mockImplementation((key: string | null) => ({
+      data:
+        key === null || (mocks.loadError.current && !mocks.keepCached)
+          ? undefined
+          : mocks.leftovers.current,
+      error: key === null ? undefined : mocks.loadError.current,
+    }));
+    mocks.useMutate.mockReturnValue(mocks.mutate);
+    mocks.getLeftovers.mockReset().mockResolvedValue([hannah, kept]);
     mocks.setKept.mockReset().mockResolvedValue(undefined);
     mocks.remove.mockReset().mockResolvedValue(undefined);
     mocks.mutate.mockClear();
     mocks.toastSuccess.mockClear();
     mocks.showError.mockClear();
   });
+
+  it.each([403, 503])(
+    "detects a %s reload failure after keeping a booking with real SWR",
+    async (status) => {
+      mocks.read.mockImplementation(realUseSWRAuth);
+      mocks.useMutate.mockImplementation(realUseTenantMutate);
+      const cache = new Map();
+      render(
+        <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+          <BookingLeftoverHints
+            periodId="5"
+            canManage
+            templatesVersion={undefined}
+          />
+        </SWRConfig>,
+      );
+      const keep = await screen.findByRole("button", {
+        name: "Bleibt so: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      });
+      mocks.getLeftovers.mockRejectedValueOnce(new ApiError("failed", status));
+      fireEvent.click(keep);
+      expect(
+        await screen.findByText(
+          `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Kinder ohne passende Buchung")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(mocks.setKept).toHaveBeenCalledTimes(1);
+      if (status === 403) {
+        expect(screen.queryByText("Hannah Schmitz")).not.toBeInTheDocument();
+        expect(
+          [...cache.values()].some((entry) =>
+            entry.data?.some?.(
+              (item: BookingLeftover) => item.studentId === "42",
+            ),
+          ),
+        ).toBe(false);
+      } else {
+        expect(screen.getByText("Hannah Schmitz")).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        await waitFor(() =>
+          expect(mocks.getLeftovers).toHaveBeenCalledTimes(3),
+        );
+        expect(mocks.setKept).toHaveBeenCalledTimes(1);
+      }
+    },
+  );
 
   it("discards refused booking data and closes its removal dialog", async () => {
     mocks.keepCached = true;

@@ -1,3 +1,6 @@
+import { SWRConfig } from "~/lib/swr/testing";
+import { useSWRAuth as realUseSWRAuth } from "~/lib/swr/hooks";
+vi.unmock("swr");
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 /**
  * Tests for Operator Organization Detail (Träger Drill-in) Page.
@@ -52,6 +55,8 @@ const {
   mockListOrganizationAccounts,
   mockListOrganizationDevices,
   mockListOrganizationPersons,
+  mockListTraegerMembers,
+  mockListTraegerInvitations,
   mockCreateSchool,
   mockUpdateOrganization,
   mockSoftDeleteOrganization,
@@ -81,6 +86,8 @@ const {
   mockListOrganizationAccounts: vi.fn(),
   mockListOrganizationDevices: vi.fn(),
   mockListOrganizationPersons: vi.fn(),
+  mockListTraegerMembers: vi.fn(),
+  mockListTraegerInvitations: vi.fn(),
   mockCreateSchool: vi.fn(),
   mockUpdateOrganization: vi.fn(),
   mockSoftDeleteOrganization: vi.fn(),
@@ -149,6 +156,8 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
       listOrganizationAccounts: mockListOrganizationAccounts,
       listOrganizationDevices: mockListOrganizationDevices,
       listOrganizationPersons: mockListOrganizationPersons,
+      listTraegerMembers: mockListTraegerMembers,
+      listTraegerInvitations: mockListTraegerInvitations,
       createSchool: mockCreateSchool,
       updateOrganization: mockUpdateOrganization,
       softDeleteOrganization: mockSoftDeleteOrganization,
@@ -392,8 +401,26 @@ describe("OperatorOrganizationDetailPage", () => {
       data: { user: { id: "1", email: "operator@example.com" } },
       status: "authenticated",
     });
-    mockMutateOrgs.mockResolvedValue(undefined);
-    mockMutateSchoolSummaries.mockResolvedValue([mockSchool]);
+    mockListOrganizationSummaries.mockReset().mockResolvedValue([mockOrg]);
+    mockListOrganizationSchools.mockReset().mockResolvedValue([mockSchool]);
+    mockListOrganizationAccounts.mockReset().mockResolvedValue([]);
+    mockListOrganizationDevices.mockReset().mockResolvedValue([]);
+    mockListTraegerMembers.mockReset().mockResolvedValue([]);
+    mockListTraegerInvitations.mockReset().mockResolvedValue([]);
+    for (const [mutate, data] of [
+      [mockMutateOrgs, [mockOrg]],
+      [mockMutateSchoolSummaries, [mockSchool]],
+      [mockMutateOrgAccounts, []],
+      [mockMutateOrgDevices, []],
+      [mockMutateTraegerMembers, []],
+      [mockMutateTraegerInvitations, []],
+    ] as const) {
+      mutate
+        .mockReset()
+        .mockImplementation(async (next) =>
+          typeof next === "function" ? next(data) : (next ?? data),
+        );
+    }
     // Pre-resolve the params Promise so the first test doesn't get stuck on
     // the initial Suspense fallback. React 19's `use()` caches resolution per
     // Promise instance, so awaiting it once here primes the cache for all
@@ -1358,7 +1385,7 @@ describe("OperatorOrganizationDetailPage", () => {
     const renamedOrg = { ...mockOrg, slug: "renamed-org" };
     setupSWR();
     // Refresh returns an org list whose entry now has the new slug
-    mockMutateOrgs.mockResolvedValue([renamedOrg]);
+    mockListOrganizationSummaries.mockResolvedValue([renamedOrg]);
 
     await renderPage();
 
@@ -1543,7 +1570,9 @@ describe("OperatorOrganizationDetailPage", () => {
       ...mockOrg,
       slug: "renamed-org",
     });
-    mockMutateOrgs.mockResolvedValue([{ ...mockOrg, slug: "renamed-org" }]);
+    mockListOrganizationSummaries.mockResolvedValue([
+      { ...mockOrg, slug: "renamed-org" },
+    ]);
 
     await renderPage();
 
@@ -1692,10 +1721,65 @@ describe("OperatorOrganizationDetailPage", () => {
       expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
     });
 
+    it.each([403, 503])(
+      "detects a %s read failure through real SWR after editing",
+      async (status) => {
+        mockUseSWR.mockImplementation(realUseSWRAuth);
+        mockUseSession.mockReturnValue({
+          data: { user: { id: "1", scope: "platform" }, expires: "2099-01-01" },
+          status: "authenticated",
+        });
+        mockListOrganizationSummaries.mockReset().mockResolvedValue([mockOrg]);
+        mockListOrganizationSchools.mockReset().mockResolvedValue([mockSchool]);
+        mockUpdateOrganization.mockResolvedValue(mockOrg);
+        const cache = new Map();
+        await act(async () => {
+          render(
+            <SWRConfig
+              value={{ provider: () => cache, shouldRetryOnError: false }}
+            >
+              <Suspense fallback={null}>
+                <OperatorOrganizationDetailPage {...orgPageProps} />
+              </Suspense>
+            </SWRConfig>,
+          );
+        });
+        fireEvent.click(await screen.findByText("Bearbeiten"));
+        const modal = await screen.findByTestId("modal");
+        mockListOrganizationSummaries.mockRejectedValueOnce(
+          new ApiError("failed", status),
+        );
+        fireEvent.click(
+          within(modal).getByRole("button", { name: "Speichern" }),
+        );
+        expect(
+          await screen.findByText(
+            `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige des Trägers")} ${SAVED_BUT_STALE_SUFFIX}`,
+          ),
+        ).toBeVisible();
+        expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+        expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
+        if (status === 403) {
+          expect(screen.queryAllByText("Test Org")).toHaveLength(0);
+          const entry = [...cache.entries()].find(([key]) =>
+            key.endsWith(":operator-organization-summaries"),
+          )?.[1];
+          expect(entry?.data).toBeUndefined();
+        } else {
+          expect(screen.getAllByText("Test Org").length).toBeGreaterThan(0);
+          fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+          await waitFor(() =>
+            expect(mockListOrganizationSummaries).toHaveBeenCalledTimes(3),
+          );
+          expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
+        }
+      },
+    );
+
     it("keeps an edited Träger saved when its reload fails", async () => {
       setupSWR();
       mockUpdateOrganization.mockResolvedValue(mockOrg);
-      mockMutateOrgs.mockRejectedValueOnce(down());
+      mockListOrganizationSummaries.mockRejectedValueOnce(down());
 
       await renderPage();
       fireEvent.click(await screen.findByText("Bearbeiten"));
@@ -1714,7 +1798,7 @@ describe("OperatorOrganizationDetailPage", () => {
     it("keeps created sample children successful when the reload fails", async () => {
       setupSWR({ orgs: [{ ...mockOrg, testSystem: true }] });
       mockCreateSampleChildren.mockResolvedValue({ createdCount: 3 });
-      mockMutateOrgs.mockRejectedValueOnce(down());
+      mockListOrganizationSummaries.mockRejectedValueOnce(down());
 
       await renderPage();
       fireEvent.click(
@@ -1793,7 +1877,7 @@ describe("OperatorOrganizationDetailPage", () => {
       beforeEach(() => {
         currentSearchParams = new URLSearchParams("tab=traeger-buero");
         mockMutateTraegerInvitations.mockResolvedValue([]);
-        mockMutateTraegerMembers.mockRejectedValueOnce(down());
+        mockListTraegerMembers.mockRejectedValueOnce(down());
       });
 
       it("keeps a resent invitation sent when the reload fails", async () => {

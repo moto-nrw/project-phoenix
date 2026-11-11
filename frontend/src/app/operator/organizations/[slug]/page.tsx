@@ -1,5 +1,7 @@
 "use client";
 
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
@@ -257,10 +259,51 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     [organizationSchoolSummaries],
   );
 
+  const discardRefused = useDiscardRefusedEntity();
+  const rejectRead = useCallback(
+    (key: string, error: unknown): never => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        discardRefused(error, {
+          codes: error.code ? [error.code] : [],
+          matches: (candidate) => candidate === key,
+          refusedKey: key,
+        });
+      }
+      throw error;
+    },
+    [discardRefused],
+  );
+  const readOrganizations = useCallback(
+    () =>
+      mutateOrganizations(
+        () => operatorProvisioningService.listOrganizationSummaries(),
+        { revalidate: false },
+      ).catch((error: unknown) =>
+        rejectRead(operatorProvisioningKeys.organizationSummaries(), error),
+      ),
+    [mutateOrganizations, rejectRead],
+  );
+
   const refreshOrganizationDrillIn = useCallback(async () => {
     await Promise.all([
-      mutateOrganizations(),
-      mutateSchoolSummaries(),
+      readOrganizations(),
+      mutateSchoolSummaries(
+        async () =>
+          (
+            await operatorProvisioningService.listOrganizationSchools(
+              organizationId ?? "",
+            )
+          ).filter((item) => item.organizationId === organizationId),
+        { revalidate: false },
+      ).catch((error: unknown) =>
+        rejectRead(
+          operatorProvisioningKeys.organizationSchoolSummaries(organizationId),
+          error,
+        ),
+      ),
       invalidate(
         (key) =>
           operatorProvisioningKeys.summaryChanges(key) &&
@@ -271,7 +314,13 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             ),
       ),
     ]);
-  }, [mutateOrganizations, mutateSchoolSummaries, invalidate, organizationId]);
+  }, [
+    readOrganizations,
+    mutateSchoolSummaries,
+    invalidate,
+    organizationId,
+    rejectRead,
+  ]);
 
   const accountsActive =
     activeTab === "konten" && isAuthenticated && organization != null;
@@ -419,8 +468,39 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     traegerInvitationsError,
   );
   const reloadTraegerBuero = useCallback(
-    () => Promise.all([mutateTraegerMembers(), mutateTraegerInvitations()]),
-    [mutateTraegerMembers, mutateTraegerInvitations],
+    () =>
+      Promise.all([
+        mutateTraegerMembers(
+          () =>
+            operatorProvisioningService.listTraegerMembers(
+              organizationId ?? "",
+            ),
+          { revalidate: false },
+        ).catch((error: unknown) =>
+          rejectRead(
+            operatorProvisioningKeys.orgTraegerMembers(organizationId),
+            error,
+          ),
+        ),
+        mutateTraegerInvitations(
+          () =>
+            operatorProvisioningService.listTraegerInvitations(
+              organizationId ?? "",
+            ),
+          { revalidate: false },
+        ).catch((error: unknown) =>
+          rejectRead(
+            operatorProvisioningKeys.orgTraegerInvitations(organizationId),
+            error,
+          ),
+        ),
+      ]),
+    [
+      mutateTraegerMembers,
+      mutateTraegerInvitations,
+      organizationId,
+      rejectRead,
+    ],
   );
   const traegerBueroError = traegerMembersError ?? traegerInvitationsError;
   const traegerBueroLoading =
@@ -461,7 +541,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const traegerMembersLoadError = useSwrLoadError(
     traegerBueroError,
     "die Liste des Träger-Büros",
-    () => void reloadTraegerBuero(),
+    () =>
+      void Promise.all([mutateTraegerMembers(), mutateTraegerInvitations()]),
     traegerMembers?.length || traegerInvitations?.length
       ? STALE_DATA_SUFFIX
       : undefined,
@@ -476,7 +557,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const editAfterWrite = useRefreshAfterWrite(
     "die Anzeige des Trägers",
     async () => {
-      const refreshed = await mutateOrganizations();
+      const refreshed = await readOrganizations();
       const updated = refreshed?.find((item) => item.id === organizationId);
       if (updated && updated.slug !== slug) {
         router.replace(
@@ -501,10 +582,30 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
   const accountsAfterWrite = useRefreshAfterWrite(
     "die Anzeige der Konten",
-    () => mutateOrgAccounts(),
+    () =>
+      mutateOrgAccounts(
+        () =>
+          operatorProvisioningService.listOrganizationAccounts(
+            organizationId ?? "",
+          ),
+        { revalidate: false },
+      ).catch((error: unknown) =>
+        rejectRead(operatorProvisioningKeys.orgAccounts(organizationId), error),
+      ),
   );
   const devicesAfterWrite = useRefreshAfterWrite("die Anzeige der Geräte", () =>
-    Promise.all([mutateOrgDevices(), refreshOrganizationDrillIn()]),
+    Promise.all([
+      mutateOrgDevices(
+        () =>
+          operatorProvisioningService.listOrganizationDevices(
+            organizationId ?? "",
+          ),
+        { revalidate: false },
+      ).catch((error: unknown) =>
+        rejectRead(operatorProvisioningKeys.orgDevices(organizationId), error),
+      ),
+      refreshOrganizationDrillIn(),
+    ]),
   );
   const bueroAfterWrite = useRefreshAfterWrite(
     "die Anzeige des Träger-Büros",
@@ -793,10 +894,17 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     setSchoolRestoreTarget,
   ]);
 
-  if (
-    !organization &&
-    (isLoading || (organizationsError && !organizationsLoadError))
-  ) {
+  const headLoadError =
+    editAfterWrite.error ??
+    statusAfterWrite.error ??
+    organizationAfterWrite.error ??
+    schoolCreatedAfterWrite.error ??
+    devicesAfterWrite.error ??
+    orgDelete.reloadError ??
+    schoolDelete.reloadError ??
+    organizationsLoadError;
+
+  if (!organization && (isLoading || (organizationsError && !headLoadError))) {
     return (
       <TenantPage
         title="Träger"
@@ -809,14 +917,14 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     );
   }
 
-  if (!organization && organizationsLoadError) {
+  if (!organization && headLoadError) {
     return (
       <TenantPage
         title="Träger"
         back
         backHref={ORGANIZATIONS_BACK.href}
         backLabel={ORGANIZATIONS_BACK.label}
-        error={organizationsLoadError}
+        error={headLoadError}
       />
     );
   }
@@ -973,10 +1081,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             onClose={() => setCreateDeviceOpen(false)}
             schools={organizationSchoolsForDeviceModal}
             onCreated={() => {
-              void Promise.all([
-                mutateOrgDevices(),
-                refreshOrganizationDrillIn(),
-              ]);
+              void devicesAfterWrite.refresh();
             }}
           />
 
@@ -985,7 +1090,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             onClose={() => setSetKeyDevice(null)}
             device={setKeyDevice}
             onKeySet={() => {
-              void mutateOrgDevices();
+              void devicesAfterWrite.refresh();
             }}
           />
 
