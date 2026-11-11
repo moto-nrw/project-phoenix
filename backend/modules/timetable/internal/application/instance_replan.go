@@ -166,10 +166,14 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 	}
 	// The caller deletes these occurrences and then plans their people
 	// again (materialization, reapplied substitutes). Offboarding holds a
-	// staff row while it locks that person's blocks, so the people of the
-	// operational occurrences are locked now, before the delete holds their
-	// rows (#6583, tenant.LockStaffRows).
-	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, operationalStaffOf(staffRows, eligible, calendar.TodayDate())); err != nil {
+	// staff row while it locks that person's blocks, history included, so
+	// the live people of the occurrences are locked now, before the delete
+	// holds their rows (#6583, tenant.LockStaffRows).
+	staff, err := s.liveStaffOf(ctx, staffRows, eligible)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, staff); err != nil {
 		return nil, nil, err
 	}
 	staffByInstance := IndexInstanceStaffRows(staffRows)
@@ -183,21 +187,38 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 	return snapshots, occurrences, nil
 }
 
-// operationalStaffOf lists the people staffed on the occurrences from today
-// on. Offboarding removed a retired person's rows there, so each is live;
-// history keeps retired people and is left alone.
-func operationalStaffOf(rows []*scheduleModel.InstanceStaff, instances []*scheduleModel.ActivityInstance, today calendar.Date) []int64 {
-	operational := make(map[int64]bool, len(instances))
+// liveStaffOf lists the live people staffed on the occurrences. Offboarding
+// removed a retired person's rows from today on, so those people are live;
+// a past occurrence may still name a retired person, who is left out (only a
+// live person can be offboarded, and only then close a cycle).
+func (s *InstanceLifecycleService) liveStaffOf(ctx context.Context, rows []*scheduleModel.InstanceStaff, instances []*scheduleModel.ActivityInstance) ([]int64, error) {
+	today := calendar.TodayDate()
+	past := make(map[int64]bool, len(instances))
 	for _, inst := range instances {
-		operational[inst.ID] = !calendar.Date(inst.Date).Before(today)
+		past[inst.ID] = calendar.Date(inst.Date).Before(today)
 	}
 	staff := make([]int64, 0, len(rows))
+	var history []int64
 	for _, row := range rows {
-		if operational[row.InstanceID] {
+		if past[row.InstanceID] {
+			history = append(history, row.StaffID)
+		} else {
 			staff = append(staff, row.StaffID)
 		}
 	}
-	return staff
+	if len(history) == 0 {
+		return staff, nil
+	}
+	live, err := s.deps.StaffRepo.FindByIDs(ctx, history)
+	if err != nil {
+		return nil, &ports.ScheduleError{Op: "re-plan: load staff of past occurrences", Err: err}
+	}
+	for _, staffID := range history {
+		if live[staffID] != nil {
+			staff = append(staff, staffID)
+		}
+	}
+	return staff, nil
 }
 
 func replannableOccurrence(inst *scheduleModel.ActivityInstance, activityGroupID *int64, weekendFollowsFriday bool) bool {

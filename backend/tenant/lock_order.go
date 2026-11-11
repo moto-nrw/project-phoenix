@@ -51,9 +51,6 @@ const (
 	LockStaffRows
 )
 
-// unorderedKeys are the classes whose keys may come in any order.
-var unorderedKeys = map[LockClass]bool{LockStaffRows: true}
-
 func (c LockClass) String() string {
 	switch c {
 	case LockStaffShifts:
@@ -133,7 +130,7 @@ func OrderLock(ctx context.Context, class LockClass, key string) error {
 	if _, held := ledger.held[request]; held {
 		return nil
 	}
-	if ledger.started && (class < ledger.last.class || (class == ledger.last.class && key < ledger.last.key && !unorderedKeys[class])) {
+	if ledger.started && (class < ledger.last.class || (class == ledger.last.class && class != LockStaffRows && key < ledger.last.key)) {
 		return fmt.Errorf("%w: %s %q after %s %q", ErrLockOrder, class, key, ledger.last.class, ledger.last.key)
 	}
 	ledger.held[request] = struct{}{}

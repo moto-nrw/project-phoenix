@@ -63,9 +63,8 @@ func startRaceTx(t *testing.T, db *bun.DB, write func(ctx context.Context, tx bu
 
 // awaitBlockedBy requires the transaction to wait for a lock the blocker
 // holds, observed in pg_blocking_pids, without sleeping for the interleaving.
-func awaitBlockedBy(t *testing.T, run raceTx, blocker int64, what string) {
+func awaitBlockedBy(t *testing.T, poller *bun.DB, run raceTx, blocker int64, what string) {
 	t.Helper()
-	poller := testpkg.SetupClosableTestDB(t)
 	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
 		select {
 		case err := <-run.done:
@@ -146,13 +145,13 @@ func TestOffboardingAndDayWriterAddingTheSameStaffDoNotDeadlock(t *testing.T) {
 	change := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		return api.AlignSeriesStaffForTest(ctx, module, template.ID, []int64{colleague.ID, subject.ID}, dayWriterRaceDate)
 	})
-	awaitBlockedBy(t, change, barrier.pid, "the series roster change")
+	awaitBlockedBy(t, db, change, barrier.pid, "the series roster change")
 	offboarding := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "test-admin"})
 		_, err := workflow.Offboard(actorCtx, subject.ID)
 		return err
 	})
-	awaitBlockedBy(t, offboarding, change.pid, "offboarding")
+	awaitBlockedBy(t, db, offboarding, change.pid, "offboarding")
 	close(release)
 	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
 	requireFinishedWithoutDeadlock(t, change, "the series roster change")
@@ -212,13 +211,13 @@ func TestOffboardingAndDeviationSaveOfTheSameStaffDoNotDeadlock(t *testing.T) {
 	save := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		return api.MarkStaffAbsentForTest(ctx, module, block.ID, absent.ID, subject.ID)
 	})
-	awaitBlockedBy(t, save, barrier.pid, "the deviation save")
+	awaitBlockedBy(t, db, save, barrier.pid, "the deviation save")
 	offboarding := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "test-admin"})
 		_, err := workflow.Offboard(actorCtx, subject.ID)
 		return err
 	})
-	awaitBlockedBy(t, offboarding, save.pid, "offboarding")
+	awaitBlockedBy(t, db, offboarding, save.pid, "offboarding")
 	close(release)
 	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
 	requireFinishedWithoutDeadlock(t, save, "the deviation save")
@@ -275,13 +274,13 @@ func TestOffboardingAndBulkSubstitutionOfTheSameStaffDoNotDeadlock(t *testing.T)
 	save := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		return api.SubstituteStaffForTest(ctx, module, absent.ID, subject.ID, dayWriterRaceDate)
 	})
-	awaitBlockedBy(t, save, barrier.pid, "the bulk substitution")
+	awaitBlockedBy(t, db, save, barrier.pid, "the bulk substitution")
 	offboarding := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "test-admin"})
 		_, err := workflow.Offboard(actorCtx, subject.ID)
 		return err
 	})
-	awaitBlockedBy(t, offboarding, save.pid, "offboarding")
+	awaitBlockedBy(t, db, offboarding, save.pid, "offboarding")
 	close(release)
 	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
 	requireFinishedWithoutDeadlock(t, save, "the bulk substitution")
@@ -328,7 +327,7 @@ func TestOffboardingAndReplanOfTheSameStaffDoNotDeadlock(t *testing.T) {
 	}{
 		{`UPDATE schedule.timeframes SET start_time = '14:00', end_time = '15:00' WHERE id = ? AND tenant_id = ?`, []any{frame.ID, tenantID}},
 		{`UPDATE activities.groups SET is_template = TRUE, planned_room_id = ?, calendar_period_id = ? WHERE id = ? AND tenant_id = ?`, []any{room.ID, period.ID, template.ID, tenantID}},
-		{`INSERT INTO activities.schedules (tenant_id, weekday, timeframe_id, activity_group_id, week_pattern) VALUES (?, ?, ?, ?, 0)`, []any{tenantID, isoWeekday(replanRaceDate), frame.ID, template.ID}},
+		{`INSERT INTO activities.schedules (tenant_id, weekday, timeframe_id, activity_group_id, week_pattern) VALUES (?, ?, ?, ?, 0)`, []any{tenantID, calendar.ISOWeekday(replanRaceDate), frame.ID, template.ID}},
 		{`INSERT INTO activities.supervisors (tenant_id, staff_id, group_id, is_primary, valid_from) VALUES (?, ?, ?, TRUE, ?)`, []any{tenantID, lead.ID, template.ID, replanRaceDate}},
 		{`INSERT INTO activities.supervisors (tenant_id, staff_id, group_id, is_primary, valid_from) VALUES (?, ?, ?, FALSE, ?)`, []any{tenantID, subject.ID, template.ID, replanRaceDate}},
 	} {
@@ -357,13 +356,13 @@ func TestOffboardingAndReplanOfTheSameStaffDoNotDeadlock(t *testing.T) {
 	replan := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		return api.ReplanTemplateDayForTest(ctx, module, template.ID, replanRaceDate)
 	})
-	awaitBlockedBy(t, replan, barrier.pid, "the re-plan")
+	awaitBlockedBy(t, db, replan, barrier.pid, "the re-plan")
 	offboarding := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "test-admin"})
 		_, err := workflow.Offboard(actorCtx, subject.ID)
 		return err
 	})
-	awaitBlockedBy(t, offboarding, replan.pid, "offboarding")
+	awaitBlockedBy(t, db, offboarding, replan.pid, "offboarding")
 	close(release)
 	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
 	requireFinishedWithoutDeadlock(t, replan, "the re-plan")
@@ -383,14 +382,6 @@ func occurrenceStaff(t *testing.T, db *bun.DB, templateID int64) []int64 {
 		WHERE s.tenant_id = ? AND i.activity_group_id = ? AND i.date = ? ORDER BY s.staff_id`,
 		testpkg.Tenant(t), templateID, replanRaceDate).Scan(testpkg.Ctx(t), &staff))
 	return staff
-}
-
-// isoWeekday is the date's ISO weekday (1 = Monday … 7 = Sunday).
-func isoWeekday(date calendar.Date) int {
-	if weekday := int(date.Weekday()); weekday != 0 {
-		return weekday
-	}
-	return 7
 }
 
 // O1, the admission: School Membership's staff row lock goes through the
