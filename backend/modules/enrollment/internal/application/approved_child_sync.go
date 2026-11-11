@@ -200,6 +200,9 @@ func rolloverOrigin(ctx context.Context, children interface {
 }, requests interface {
 	RequestByID(context.Context, int64, bool) (*enrollmentNative.Request, error)
 }, notFound func(error) bool, child *enrollmentNative.RequestChild) (*enrollmentNative.Request, error) {
+	if origin, ok := approvalRolloverOrigin(ctx, child.ID); ok {
+		return origin, nil
+	}
 	source := child
 	for depth := 0; source.RolloverSourceChildID != nil; depth++ {
 		if depth >= maxRolloverDepth {

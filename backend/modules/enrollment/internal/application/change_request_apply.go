@@ -41,6 +41,7 @@ type approval struct {
 	// parent guard until commit (#6638).
 	pins  map[int]*int64
 	holds renewalHolds
+	reads *approvalAuthorityReads
 }
 
 // applyApprovedChange applies an approved proposal to the request, its
@@ -62,6 +63,7 @@ func (s *ChangeRequests) applyApprovedProposal(ctx context.Context, row *ChangeR
 	if err != nil {
 		return nil, err
 	}
+	ctx = context.WithValue(ctx, approvalAuthorityReadsKey{}, run.reads)
 	if err := s.writeApprovedRequest(ctx, run); err != nil {
 		return nil, err
 	}
@@ -322,28 +324,6 @@ func changeCareBookings(ctx context.Context, commands CareBookingChanges, childI
 		pick.ValidFrom, pick.ValidUntil = &from, &end
 	}
 	return commands.ReplaceCareBookings(ctx, childID, bookings)
-}
-
-// holdApprovalAuthority resolves the pins the approval leaves and holds the
-// parent authority every later check of the approval asks, behind the parent
-// guard (#6638): the pins against the request's identity after the edit, as
-// the pin check always asked, and every approved student the decision flow
-// syncs against the identity that sync asks (syncAuthorityRequest). It runs
-// before the dedup and match locks, in the guard's order: account, school,
-// the approved graph with every held student, profile, relationships. The
-// graph is locked again afterwards, which costs no wait once the hold took
-// it and locks it when no identity is held.
-func (s *ChangeRequests) holdApprovalAuthority(ctx context.Context, run *approval) error {
-	authority := newApprovalAuthority(s, run)
-	for i, child := range run.children {
-		if err := authority.collect(ctx, i, child); err != nil {
-			return err
-		}
-	}
-	if err := authority.hold(ctx); err != nil {
-		return err
-	}
-	return s.lockApprovedStudents(ctx, run.children, authority.students())
 }
 
 // approvalAuthority groups the students of one approval by the identity

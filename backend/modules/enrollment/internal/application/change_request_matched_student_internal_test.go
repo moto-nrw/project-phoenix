@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -10,6 +12,123 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type approvalReadStub struct {
+	IntakeChildren
+	ChangeRequestRecords
+	ApprovalLateInvites
+	DecisionLateInvites
+	children                      map[int64]*enrollmentNative.RequestChild
+	requests                      []*enrollmentNative.Request
+	invites                       []*enrollmentNative.LateInvite
+	batches                       [][]int64
+	requestBatches, inviteBatches int
+	err                           error
+}
+
+func (s *approvalReadStub) ChildrenByID(_ context.Context, ids []int64) ([]*enrollmentNative.RequestChild, error) {
+	s.batches = append(s.batches, ids)
+	var rows []*enrollmentNative.RequestChild
+	for _, id := range ids {
+		if row := s.children[id]; row != nil {
+			rows = append(rows, row)
+		}
+	}
+	return rows, s.err
+}
+
+func (s *approvalReadStub) RequestsByID(_ context.Context, _ []int64) ([]*enrollmentNative.Request, error) {
+	s.requestBatches++
+	return s.requests, s.err
+}
+
+func (s *approvalReadStub) LateInvitesByUsedRequestIDs(_ context.Context, _ []int64) ([]*enrollmentNative.LateInvite, error) {
+	s.inviteBatches++
+	return s.invites, s.err
+}
+
+func TestApprovalAuthorityBatchesRolloverOriginsAndReusesIdentities(t *testing.T) {
+	t.Parallel()
+	for _, count := range []int{1, 8} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			t.Parallel()
+			store := &approvalReadStub{children: map[int64]*enrollmentNative.RequestChild{}}
+			request := &enrollmentNative.Request{ID: 90, GuardianEmail: "edited@example.test"}
+			run := &approval{req: request, prepared: &proposal{phase: &enrollmentNative.Phase{}}}
+			for i := range count {
+				originID, middleID, childID, studentID := int64(100+i), int64(200+i), int64(300+i), int64(400+i)
+				requestID := int64(500 + i%2)
+				store.children[originID] = &enrollmentNative.RequestChild{ID: originID, RequestID: requestID}
+				store.children[middleID] = &enrollmentNative.RequestChild{ID: middleID, RolloverSourceChildID: &originID}
+				run.children = append(run.children, &enrollmentNative.RequestChild{ID: childID, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID, RolloverSourceChildID: &middleID})
+				if i < 2 {
+					store.requests = append(store.requests, &enrollmentNative.Request{ID: requestID, SubmissionSource: enrollmentNative.RequestSourceLateInvite, GuardianEmail: "changed-origin@example.test"})
+					store.invites = append(store.invites, &enrollmentNative.LateInvite{UsedRequestID: &requestID, GuardianEmail: "invited@example.test"})
+				}
+			}
+			hold := &stubReEnrollAuthorizer{granted: true}
+			svc := NewChangeRequests(ChangeRequestDependencies{Settings: intakeSettingsFake{}, Requests: store, Children: store, LateInvites: store, LateInviteIdentities: store, GuardianHold: hold, Decisions: &Decisions{}, ParentsURL: "http://localhost"})
+			require.NoError(t, svc.holdApprovalAuthority(context.Background(), run))
+			require.Len(t, store.batches, 2)
+			require.Len(t, store.batches[0], count)
+			require.Len(t, store.batches[1], count)
+			require.Equal(t, 1, store.requestBatches)
+			require.Equal(t, 1, store.inviteBatches)
+			ctx := context.WithValue(context.Background(), approvalAuthorityReadsKey{}, run.reads)
+			decisions := &Decisions{deps: DecisionDependencies{LateInvites: store, GuardianHold: hold}}
+			for _, child := range run.children {
+				sync := &approvedChildSync{request: request, child: child}
+				identity, err := decisions.syncAuthorityRequest(ctx, sync)
+				require.NoError(t, err)
+				require.Equal(t, enrollmentNative.RequestSourceLateInvite, identity.SubmissionSource)
+				lapsed, err := decisions.childEnrollmentOnly(ctx, sync)
+				require.NoError(t, err)
+				require.False(t, lapsed)
+				guardian, err := decisions.guardianIdentityRequest(ctx, identity)
+				require.NoError(t, err)
+				require.Equal(t, "invited@example.test", guardian.GuardianEmail)
+			}
+			require.Len(t, store.batches, 2)
+			require.Equal(t, 1, store.requestBatches)
+			require.Equal(t, 1, store.inviteBatches)
+			for _, email := range hold.gotEmails {
+				require.Equal(t, "invited@example.test", email)
+			}
+		})
+	}
+}
+
+func TestApprovalRolloverOriginsPreserveMissingAndInvalidChainHandling(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"missing child", "missing request", "cycle", "read error"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+			sourceID := int64(10)
+			start := &enrollmentNative.RequestChild{ID: 20, RolloverSourceChildID: &sourceID}
+			store := &approvalReadStub{children: map[int64]*enrollmentNative.RequestChild{}}
+			switch scenario {
+			case "missing request":
+				store.children[sourceID] = &enrollmentNative.RequestChild{ID: sourceID, RequestID: 30}
+			case "cycle":
+				store.children[sourceID] = &enrollmentNative.RequestChild{ID: sourceID, RolloverSourceChildID: &sourceID}
+			case "read error":
+				store.err = errors.New("storage unavailable")
+			}
+			origins, err := loadRolloverOrigins(context.Background(), store, store, []*enrollmentNative.RequestChild{start})
+			switch scenario {
+			case "cycle":
+				require.ErrorContains(t, err, "exceeds 50 phases")
+			case "read error":
+				require.ErrorIs(t, err, store.err)
+			default:
+				require.NoError(t, err)
+				require.Contains(t, origins, start.ID)
+				require.Nil(t, origins[start.ID])
+			}
+			require.Len(t, store.batches, 1)
+		})
+	}
+}
 
 // stubMatchedStudentChildRepo captures the pin writes reconcileMatchedStudent
 // performs. The embedded interface panics on any other call, flagging an

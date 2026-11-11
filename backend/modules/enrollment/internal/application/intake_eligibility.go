@@ -220,7 +220,7 @@ func reEnrollmentSubmitterForPersistedRequest(ctx context.Context, lateInvites D
 		if lateInvites == nil {
 			return reEnrollmentSubmitter{}, errors.New("late invite repository is not configured")
 		}
-		invite, err := lateInvites.LateInviteByUsedRequestID(ctx, req.ID)
+		invite, err := approvalLateInvite(ctx, lateInvites, req.ID)
 		if err != nil {
 			return reEnrollmentSubmitter{}, fmt.Errorf("load late invite for request %d: %w", req.ID, err)
 		}

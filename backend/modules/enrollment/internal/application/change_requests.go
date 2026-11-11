@@ -99,6 +99,15 @@ type ChangeRequestDependencies struct {
 	ParentsURL             string
 	Runtime                Runtime
 	Logger                 *slog.Logger
+
+	// LateInviteIdentities batch-loads the approval's invitation identities.
+	// The owner composition binds its private store in the same transaction.
+	LateInviteIdentities ApprovalLateInvites
+}
+
+// ApprovalLateInvites loads the invitation identities of a whole approval.
+type ApprovalLateInvites interface {
+	LateInvitesByUsedRequestIDs(context.Context, []int64) ([]*enrollmentNative.LateInvite, error)
 }
 
 // ChangeRequests implements the public ChangeRequests capability.
