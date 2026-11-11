@@ -6,8 +6,9 @@ import "context"
 // outbox. Queue joins the triggering transaction; Sweep holds each intent's
 // row lock through idempotent removal and completion, like folder cleanup.
 type UploadCleanup struct {
-	queue func(context.Context, string) error
-	sweep func(context.Context, func(context.Context, string) error) (int, error)
+	queue    func(context.Context, string) error
+	queueAll func(context.Context, []string) error
+	sweep    func(context.Context, func(context.Context, string) error) (int, error)
 }
 
 type UploadCleanupKind string
@@ -15,10 +16,14 @@ type UploadCleanupKind string
 const CleanupStudentPhotos UploadCleanupKind = "student-photos"
 const CleanupEnrollmentLegalDocuments UploadCleanupKind = "enrollment-legal-documents"
 
-func NewUploadCleanup(queue func(context.Context, string) error, sweep func(context.Context, func(context.Context, string) error) (int, error)) *UploadCleanup {
-	return &UploadCleanup{queue: queue, sweep: sweep}
+func NewUploadCleanup(queue func(context.Context, string) error, queueAll func(context.Context, []string) error, sweep func(context.Context, func(context.Context, string) error) (int, error)) *UploadCleanup {
+	return &UploadCleanup{queue: queue, queueAll: queueAll, sweep: sweep}
 }
 func (c *UploadCleanup) Queue(ctx context.Context, url string) error { return c.queue(ctx, url) }
 func (c *UploadCleanup) Sweep(ctx context.Context, remove func(context.Context, string) error) (int, error) {
 	return c.sweep(ctx, remove)
+}
+
+func (c *UploadCleanup) QueueAll(ctx context.Context, urls []string) error {
+	return c.queueAll(ctx, urls)
 }

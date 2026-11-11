@@ -193,7 +193,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		GuardianInvitations: staticGuardianInvitationAvailability{redeemable: invitationAvailable},
 		StudentRepo:         repos.Student,
-		GuardianAuthorizer:  repos.StudentGuardian,
+		GuardianHold:        owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(db), repos.StudentGuardian, repos.Student, repos.GuardianProfile, nil),
 		Settings:            settings,
 		OutboxEnqueuer:      discardingOutbox{},
 		FrontendURL:         "http://localhost:3000",

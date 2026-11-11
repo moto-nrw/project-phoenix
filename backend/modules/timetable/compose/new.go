@@ -24,20 +24,20 @@ type Dependencies struct {
 	// Sessions answers which planned rows Student Presence already executed
 	// or observed; Timetable never reads that owner's tables itself (#2762).
 	Sessions timetable.SessionFacts
-	// LockStaffAssignment locks and validates live Membership staff in the
+	// LockStaffAssignments locks and validates live Membership staff in the
 	// ambient transaction before creating or reassigning an operational link.
-	LockStaffAssignment func(context.Context, int64) error
-	Observe             func(Observation)
-	Provenance          postgres.EnrollmentProvenance
+	LockStaffAssignments func(context.Context, []int64) error
+	Observe              func(Observation)
+	Provenance           postgres.EnrollmentProvenance
 }
 
 func New(dependencies Dependencies) (timetable.Owner, error) {
-	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.Sessions == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil || dependencies.Provenance == nil {
+	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.Sessions == nil || dependencies.LockStaffAssignments == nil || dependencies.Observe == nil || dependencies.Provenance == nil {
 		return nil, errors.New("timetable compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
 	return application.New(store, transaction{}, application.NewStudentDirectory(dependencies.Students), application.NewRoomDirectory(dependencies.Rooms), dependencies.Sessions,
-		dependencies.LockStaffAssignment, application.NewToday(), dependencies.Observe, postgres.NewProvenanceStore(store, dependencies.Provenance)), nil
+		dependencies.LockStaffAssignments, application.NewToday(), dependencies.Observe, postgres.NewProvenanceStore(store, dependencies.Provenance)), nil
 }
 
 type transaction struct{}

@@ -2140,6 +2140,20 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
         ],
       },
       {
+        // #6650: Widerruf über die Schule für Eltern ohne Elternportal.
+        // Der Haken bleibt auch bei ausgeschalteten Kinderfotos sichtbar,
+        // solange eine Einwilligung hinterlegt ist (student-photo-section.tsx).
+        title: "Foto-Einwilligung für Eltern widerrufen",
+        description:
+          "Für Eltern ohne Elternportal. Prüfen Sie vorher, ob die Person für das Kind sprechen darf.",
+        steps: [
+          "Öffnen Sie das Kind und wählen Sie `Stammdaten`.",
+          "Wählen Sie `Bearbeiten`.",
+          "Entfernen Sie beim Foto den Haken bei `Einwilligung der Eltern liegt vor`.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
         // Live geprueft: jede Tageskarte hat oben rechts den Knopf
         // `Ausnahme`. Ankunft und Abholung haben je drei Auswahlfelder.
         title: "Nur einen Tag ändern",
@@ -2171,6 +2185,7 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
       "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt ab sofort für diesen Wochentag in jeder Woche, auch vor dem gewählten Tag. Braucht ein früherer Tag die eingetragene Zeit noch, nennt moto den Tag, ab dem das Übernehmen geht.",
     ],
     notes: [
+      "Nach einem Widerruf löscht moto das Foto des Kindes. Nach dem letzten Betreuungstag löscht moto Foto und Foto-Einwilligung in der Nacht danach von selbst.",
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
       // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
@@ -5655,7 +5670,8 @@ export const parentCareChangeTopic =
  * Bereich `Angaben zum Kind` (i18n `parentMasterData`). Drei Arten von
  * Feldern: direkt aenderbar, nur auf Anfrage, und Gesundheitshinweise, die
  * sofort gespeichert werden. Dazu der Widerruf der Foto-Einwilligung
- * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494).
+ * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494), und der
+ * Weg über die OGS ohne Widerrufsrecht im Portal (#6650).
  */
 export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
   return {
@@ -5707,12 +5723,13 @@ export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
       "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
       "Nach dem Widerruf löscht moto ein gespeichertes Foto Ihres Kindes.",
-      "Ist die Betreuung beendet, können Sie die Foto-Einwilligung weiter widerrufen. Neu geben können Sie sie dann nicht mehr.",
+      "Nach dem letzten Betreuungstag löscht moto das Foto und die Foto-Einwilligung in der Nacht danach von selbst. Bis dahin können Sie weiter widerrufen. Neu geben können Sie die Einwilligung dann nicht mehr.",
     ],
     differences: [
       "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",
     ],
     troubleshootingDetails: [
+      "Sie sehen bei `Foto-Einwilligung` kein `Widerrufen` oder haben kein Elternportal? Sagen Sie der OGS Bescheid. Die OGS trägt den Widerruf für Sie ein.",
       "moto sagt, das Bearbeiten sei deaktiviert? Dann nimmt Ihre OGS keine Änderungen über die App an. Schreiben Sie ihr eine Nachricht.",
     ],
     related: [

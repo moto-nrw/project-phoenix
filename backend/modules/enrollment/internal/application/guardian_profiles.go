@@ -145,7 +145,7 @@ func (d *Decisions) guardianIdentityRequest(
 	if d.deps.LateInvites == nil {
 		return nil, errors.New("decision: late invite repository is not configured")
 	}
-	invite, err := d.deps.LateInvites.LateInviteByUsedRequestID(ctx, request.ID)
+	invite, err := approvalLateInvite(ctx, d.deps.LateInvites, request.ID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load late invite guardian identity for request %d: %w", request.ID, err)
 	}

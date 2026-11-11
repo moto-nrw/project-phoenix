@@ -1202,6 +1202,66 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.ActivateByFilename",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.ActivateByFilename",
+      "reason": "Reads the current tenant transaction from context through tenant.CurrentTenantTransaction; this lookup performs no database statement, mutation, lock or scope switch. Upload cleanup statements remain owner-private and join that transaction (#6650, ADR 0213).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.ListQueued",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.ListQueued",
+      "reason": "Reads the current tenant transaction from context through tenant.CurrentTenantTransaction; this lookup performs no database statement, mutation, lock or scope switch. Upload cleanup statements remain owner-private and join that transaction (#6650, ADR 0213).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.MarkComplete",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.MarkComplete",
+      "reason": "Reads the current tenant transaction from context through tenant.CurrentTenantTransaction; this lookup performs no database statement, mutation, lock or scope switch. Upload cleanup statements remain owner-private and join that transaction (#6650, ADR 0213).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.MarkCompleteByFilename",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.MarkCompleteByFilename",
+      "reason": "Reads the current tenant transaction from context through tenant.CurrentTenantTransaction; this lookup performs no database statement, mutation, lock or scope switch. Upload cleanup statements remain owner-private and join that transaction (#6650, ADR 0213).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.Queue",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.Queue",
+      "reason": "Reads the current tenant transaction from context through tenant.CurrentTenantTransaction; this lookup performs no database statement, mutation, lock or scope switch. Upload cleanup statements remain owner-private and join that transaction (#6650, ADR 0213).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres.FileCleanupStore.QueueAll",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application.uploadCleanupStore.QueueAll",
+      "reason": "Reads the current tenant transaction from context through tenant.CurrentTenantTransaction; this lookup performs no database statement, mutation, lock or scope switch. Upload cleanup statements remain owner-private and join that transaction (#6650, ADR 0213).",
+      "source_owner": "file-storage",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.AnnouncementEditable",
       "classification": "query",
       "effect": "query",

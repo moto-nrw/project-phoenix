@@ -48,6 +48,9 @@ func (l *AccountLifecycle) EnsureSchoolIdentityChain(ctx context.Context, in dom
 	if !l.roles.RoleNeedsStaffRecord(in.Role) {
 		return nil, nil
 	}
+	if err := l.staff.LockStaffPersonMerge(ctx); err != nil {
+		return nil, err
+	}
 
 	person, err := l.resolveIdentityPerson(ctx, in)
 	if err != nil || person == nil {

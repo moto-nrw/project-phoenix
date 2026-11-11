@@ -125,6 +125,15 @@ func (s *caregiverCapabilityService) ensureCaregiverProfile(
 	input peopleValues.EnableCaregiverCapabilityInput,
 	details map[string]any,
 ) error {
+	// Role assignment completes the identity chain after this profile write.
+	// Acquire its shared merge gate before profile creation locks an existing staff row.
+	schoolID := tenant.FromContext(ctx)
+	if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
+		return err
+	}
+	if err := tenant.AcquireLock(ctx, peopleValues.StaffPersonMergeLockKey(schoolID), true); err != nil {
+		return err
+	}
 	person, err := s.ensurePerson(ctx, accountID, input, details)
 	if err != nil {
 		return err

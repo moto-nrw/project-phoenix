@@ -15,6 +15,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -50,13 +51,23 @@ func newChangeRequestServiceForTestWithAuthorizer(
 		GuardianProfileRepo: repoFactory.GuardianProfile,
 		GuardianPhoneRepo:   repoFactory.GuardianPhoneNumber,
 		StudentRepo:         repoFactory.Student,
-		GuardianAuthorizer:  authorizer,
+		GuardianHold:        guardianHoldFor(env, authorizer),
 		Settings:            env.settings,
 		OutboxEnqueuer:      env.outbox,
 		FrontendURL:         "http://localhost:3000",
 		ParentsURL:          "http://parents.localhost:3000",
 		Logger:              slog.Default(),
 	})
+}
+
+// guardianHoldFor holds through a recording authorizer that answers the
+// held variants as well, and through the suite's People Directory rows
+// otherwise.
+func guardianHoldFor(env *requestTestEnv, authorizer enrollmentCompose.GuardianStudentAuthorizer) owners.EnrollmentGuardianHold {
+	if hold, ok := authorizer.(owners.EnrollmentGuardianHold); ok {
+		return hold
+	}
+	return testGuardianHold(env.db, env.repos)
 }
 
 func TestChangeRequestService_ApproveLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
@@ -117,7 +128,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		GuardianProfileRepo: env.repos.GuardianProfile,
 		GuardianPhoneRepo:   env.repos.GuardianPhoneNumber,
 		StudentRepo:         env.repos.Student,
-		GuardianAuthorizer:  env.repos.StudentGuardian,
+		GuardianHold:        testGuardianHold(env.db, env.repos),
 		Decisions:           decisionOwner(t, env.decision),
 		BookingGates:        env.bookings,
 		Settings:            env.settings,
@@ -128,6 +139,11 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 	}
 	if len(companions) > 0 {
 		cfg.CompanionGraphLocker = companions[0]
+		// The guard locks the companion graph in its children slot, as
+		// the root binds it (#6638).
+		if locks, ok := companions[0].(careplan.CompanionLocks); ok {
+			cfg.GuardianHold = owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(env.db), env.repos.StudentGuardian, env.repos.Student, env.repos.GuardianProfile, locks)
+		}
 	}
 	return newTestChangeRequestService(cfg)
 }

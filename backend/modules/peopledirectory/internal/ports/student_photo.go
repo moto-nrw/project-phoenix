@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentPhotoStore is the persistence port over the photo columns of
@@ -22,6 +23,14 @@ type StudentPhotoStore interface {
 	// PurgePhotos clears every stored photo of the tenant and returns the
 	// URLs it detached.
 	PurgePhotos(ctx context.Context) ([]string, domain.OperationStats, error)
+	// ListPhotosPastPurpose names the children whose care is over on today
+	// and whose row still holds photo data, in ascending id order (#6650).
+	ListPhotosPastPurpose(ctx context.Context, today calendar.Date) ([]int64, domain.OperationStats, error)
+	// TryLockPhotoRecords locks available candidates without waiting and
+	// returns their fresh records and all IDs still present in the snapshot.
+	TryLockPhotoRecords(ctx context.Context, ids []int64) (map[int64]domain.StudentRecord, map[int64]bool, domain.OperationStats, error)
+	// ClearPhotos clears the photo and consent fields of the locked children.
+	ClearPhotos(ctx context.Context, ids []int64) (domain.OperationStats, error)
 }
 
 // StudentPhotoRuntime is the caller-supplied surface the photo lifecycle
@@ -38,6 +47,7 @@ type StudentPhotoRuntime interface {
 	ActingAccountID(ctx context.Context) int64
 	// UnlinkStoredPhoto deletes a detached file after the commit.
 	QueueUnlinkStoredPhoto(context.Context, string) error
+	QueueUnlinkStoredPhotos(context.Context, []string) error
 	UnlinkStoredPhoto(storedURL string)
 	// BroadcastPhotoChange wakes open tabs; source labels the reason.
 	BroadcastPhotoChange(tenantID, studentID int64, source string)

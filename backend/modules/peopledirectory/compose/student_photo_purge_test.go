@@ -156,3 +156,12 @@ func TestLockStudentPhotoFeatureIsVisibleToOtherTransactions(t *testing.T) {
 		lockClass, int32(testpkg.Tenant(t))).Scan(ctx, &acquired))
 	assert.True(t, acquired, "the gate is bound to the tenant, not the connection, and is free again")
 }
+
+func (r *enabledPhotoRuntime) QueueUnlinkStoredPhotos(ctx context.Context, urls []string) error {
+	for _, url := range urls {
+		if err := r.QueueUnlinkStoredPhoto(ctx, url); err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -3893,12 +3893,12 @@
     {
       "decision": "0177",
       "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentsPermission",
-      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638); the graph students reach Care Plan's companion lock in the children slot for the change-request approval."
     },
     {
       "decision": "0177",
       "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638); the graph students reach Care Plan's companion lock in the children slot for the change-request approval."
     },
     {
       "decision": "0090",

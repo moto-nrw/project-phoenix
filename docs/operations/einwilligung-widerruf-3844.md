@@ -85,8 +85,23 @@ Beide Änderungen funktionieren **unabhängig vom Kinderfotos-Schalter** und
 schreiben wirksame Übergänge mit Quelle `parent_portal` ins Einwilligungsprotokoll.
 Der Widerruf entfernt auch den Fotoverweis und beauftragt die Dateilöschung;
 eine Neuerteilung stellt kein Foto wieder her. Rechte sind kindbezogen, nicht
-allein durch ein Elternkonto gegeben. Nach Betreuungsende verweigert der
-Schreibweg die Änderung; dann den externen Kontaktweg zur Schule nutzen.
+allein durch ein Elternkonto gegeben. Nach Betreuungsende bleibt der
+Portal-Widerruf möglich (#6494), eine Neuerteilung nicht.
+
+**Ende der Betreuung (#6650, [ADR 0213](../adr/0213-kinderfoto-endet-mit-der-betreuung.md)):**
+Im ersten nächtlichen Lauf nach dem letzten Betreuungstag oder dem Abgang
+entfernt moto Foto, Foto-Einwilligung und wer sie erfasst hat, ohne weitere
+Frist. Das Löschprotokoll erhält je Kind `student_photo_retention` mit Grund
+`care_ended`; das Einwilligungsprotokoll erhält **keinen** Widerruf und
+behält seine Einträge als Nachweis. Eine Wiederaufnahme stellt nichts wieder
+her. Belegt die Schule eine Pflicht oder einen fortdauernden Zweck, hält das
+moto-Team den nächtlichen Lauf der Schule mit der Notbremse an.
+
+**Eltern ohne Elternportal oder ohne Recht `consent_manage`:** Sie widerrufen
+über den Kontaktweg der Schule. Die Schule prüft, ob die Person für das Kind
+erklären darf, und entfernt dann in der Personal-UI den Haken (Schritt 3
+unten). Das Elternportal nennt Eltern ohne eigenes Recht diesen Weg. Ein
+Konto wird dafür nicht verlangt.
 
 **Verbindlicher Quellenabgleich:** Vor **jedem** Setzen von „Einwilligung der
 Eltern liegt vor“, vor **jedem** Foto-Upload (auch mit
@@ -135,50 +150,23 @@ betroffene. Die Einwilligungsnachweise bleiben dabei bestehen. Das ist ein
 Ersatzweg bei nicht beherrschbarer Nutzung, kein kindbezogener Widerruf.
 Das moto-Team bestätigt den Abschluss offener Datei-Aufräumaufträge separat.
 
-**Widerruf bei bereits ausgeschalteten Kinderfotos:** Nur der Fotobereich der
-**Personal-UI** samt Häkchen ist dann nicht sichtbar. Der oben genannte
-Elternportal-Widerruf bleibt möglich und wirksam; auch Neuerteilung bleibt
-möglich. Das Ausschalten selbst entfernt alte Einwilligungen nicht.
+**Widerruf bei bereits ausgeschalteten Kinderfotos (seit #6650):** Ist eine
+Einwilligung hinterlegt, zeigt die Personal-UI unter **Bearbeiten → Foto**
+nur den Haken „Einwilligung der Eltern liegt vor“, ohne Foto und ohne
+Upload. Haken entfernen und **Speichern** widerruft wie bei eingeschalteten
+Fotos, mit Eintrag `tenant_portal` im Einwilligungsprotokoll. Ohne
+hinterlegte Einwilligung zeigt die Personal-UI bei ausgeschalteten Fotos
+keinen Fotobereich; ein erstmaliges Setzen bleibt dort ausgeschlossen. Der
+frühere Ersatzweg (kurzes Einschalten während einer Pause) entfällt.
 
-1. Schule führt externe Widerrufe im bestehenden Auftrag nach und berücksichtigt
-   bereits erfolgte Portaländerungen. Ist der wirksame Widerruf in moto schon
-   protokolliert, nicht nochmals als fehlend behandeln. Andernfalls extern
-   **Widerruf in moto noch nicht nachgetragen** vermerken. Eltern mit passender
-   Berechtigung können selbst im Portal widerrufen, ohne Fotos einzuschalten;
-   diesen Weg nicht für unberechtigte Personen oder andere Funktionen zusagen.
-2. **Vor jedem erneuten Einschalten** aktuellen Zustand und vollständigen
-   Verlauf aller betroffenen Kinder einschließlich Portaländerungen und
-   Anmelde-/Importübernahmen nach obiger Regel abgleichen. Während des
-   Abgleichs verbindliche Pause aller Foto-Uploads und aller Änderungen an
-   Fotoeinwilligungen organisieren, einschließlich Portal-Neuerteilungen,
-   Anmeldeübernahmen und Importen; laufende Vorgänge erst abschließen lassen.
-   Neue Widerrufe trotzdem sofort entgegennehmen und berücksichtigen. Ist
-   diese Koordination nicht zuverlässig, bleiben Fotos aus und der Auftrag offen.
-3. Nur noch fehlende Widerrufe durch berechtigte Eltern im Portal nachtragen
-   lassen oder während der vereinbarten Pause Fotos einschalten und in der
-   Personal-UI sofort das Häkchen der betroffenen Kinder entfernen, speichern
-   und erneut prüfen. **Kein Häkchen aufgrund älterer externer Nachweise setzen.**
-   Auch bereits im Portal widerrufene Kinder müssen widerrufen bleiben.
-4. Nach dem letzten Nachtrag den Verlauf und aktuellen Zustand nochmals prüfen.
-   Erst nach vollständigem Abgleich Uploads wieder zulassen. Bei neuer Erklärung,
-   Fehler oder Unterbrechung die Prüfung wiederholen; bei nicht beherrschbarer
-   Nutzung Fotos wieder ausschalten (löscht erneut alle Fotos). Danach gilt der
-   Quellenabgleich weiterhin vor jedem Häkchen und Upload, nicht nur einmalig.
-
-Dieser Ersatzweg vermeidet ein zusätzliches kurzes Einschalten allein für den
-Widerruf. Ausgeschaltet sind Uploads bereits gesperrt; kritisch ist das spätere
-Einschalten mit alten Einwilligungszeitstempeln. **Offen:** Nur die Personal-UI
-verbirgt den Foto-Widerruf bei ausgeschalteter Funktion, nicht das Elternportal.
-`ApplyPhotoConsent` hat kein Feature-Gate; `PUT /students/{id}` kann den
-Fotozustand auch dann ändern. Vorschlag: Der Personal-UI das Entfernen der
-Fotoeinwilligung auch bei ausgeschalteten Fotos anbieten, ohne Uploads
-freizugeben. Ein eigenes neues Einwilligungssystem ist dafür nicht nötig.
-Keine der vorhandenen Stellen prüft den externen Nachweis automatisch; auch
-Portal-Neuerteilung, Uploadbestätigung, Import und Anmeldeübernahme können einen
-Zustand neu setzen. Der vorgeschriebene Quellenabgleich und die Koordination
-gleichzeitiger Änderungen sind organisatorisch zu prüfen, kein technischer
-Schutz vor jedem Konflikt. Bis dahin ersetzt das Ausschalten diesen Abgleich nicht.
-Der beschriebene Ersatzweg ist durch Schule und Betrieb noch zu erproben.
+**Vor jedem erneuten Einschalten** bleibt der Quellenabgleich oben Pflicht:
+Das Ausschalten entfernt alte Einwilligungen nicht. Aktuellen Zustand und
+vollständigen Verlauf aller betroffenen Kinder einschließlich Portaländerungen
+und Anmelde-/Importübernahmen abgleichen, fehlende Widerrufe vorher über den
+Haken nachtragen und erst dann einschalten. **Kein Häkchen aufgrund älterer
+externer Nachweise setzen.** Keine der vorhandenen Stellen prüft den externen
+Nachweis automatisch; der Abgleich ist organisatorisch, kein technischer
+Schutz vor jedem Konflikt.
 
 ### 2.2 Raumhistorie und Anwesenheitsprotokoll
 
@@ -533,7 +521,11 @@ danach ein berechtigter Mensch gesondert bestätigen.
    Portal-Neuerteilung ohne geklärten externen Nachweis als Konfliktfälle
    durchspielen. Vor Häkchen, Upload, Import/Anmeldeübernahme und erneutem
    Einschalten den Verlauf aus 5.1 abgleichen, auch bei parallelen Änderungen.
-   Schulweite Ersatzmaßnahmen vorher als solche freigeben.
+   Schulweite Ersatzmaßnahmen vorher als solche freigeben. Widerruf über die
+   Personal-UI bei ausgeschalteten Fotos und das Ende nach dem letzten
+   Betreuungstag im Nachtlauf prüfen (#6650): Foto und Einwilligung weg,
+   Eintrag `student_photo_retention`, kein Widerruf im Einwilligungsprotokoll,
+   Kontrollkind mit laufender Betreuung unverändert.
 3. Historie ausschalten: ältere Abschlüsse weg, Tagesdaten/offene Besuche
    vorhanden, Nachtlauf nachvollziehbar. Feedback ausschalten: neue Erfassung
    gesperrt, alte Einträge nicht dadurch gelöscht. Gesundheitsfeld leeren und
