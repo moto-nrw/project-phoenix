@@ -21,6 +21,28 @@ import (
 // covers would come back empty: it stays as the care end left it, like any
 // other row the restore cannot put back.
 func (m *OfferingBookings) followPhaseOnRestore(ctx context.Context, restores []CareOfferingBookingRestore) ([]CareOfferingBookingRestore, error) {
+	moves, err := restoreMoves(restores)
+	if err != nil || len(moves) == 0 {
+		return restores, err
+	}
+	childIDs := make([]int64, 0, len(moves))
+	for childID := range moves {
+		childIDs = append(childIDs, childID)
+	}
+	slices.Sort(childIDs)
+	if err := m.engine.LockCareOfferingBookings(ctx, childIDs); err != nil {
+		return nil, fmt.Errorf("lock bookings to restore: %w", err)
+	}
+	live, err := m.engine.CareOfferingBookingHistory(ctx, childIDs)
+	if err != nil {
+		return nil, fmt.Errorf("read bookings to restore: %w", err)
+	}
+	return withFollowedBounds(restores, restoredBookingBounds(live, restores, moves)), nil
+}
+
+// restoreMoves keys the phase moves of the restores by application. A move
+// that leaves the bounds where they were moves nothing.
+func restoreMoves(restores []CareOfferingBookingRestore) (map[int64]PhaseBoundsMove, error) {
 	moves := map[int64]PhaseBoundsMove{}
 	for _, restore := range restores {
 		move := restore.PhaseBounds
@@ -36,79 +58,86 @@ func (m *OfferingBookings) followPhaseOnRestore(ctx context.Context, restores []
 		}
 		moves[childID] = *move
 	}
-	if len(moves) == 0 {
-		return restores, nil
-	}
-	childIDs := make([]int64, 0, len(moves))
-	for childID := range moves {
-		childIDs = append(childIDs, childID)
-	}
-	slices.Sort(childIDs)
-	if err := m.engine.LockCareOfferingBookings(ctx, childIDs); err != nil {
-		return nil, fmt.Errorf("lock bookings to restore: %w", err)
-	}
-	live, err := m.engine.CareOfferingBookingHistory(ctx, childIDs)
-	if err != nil {
-		return nil, fmt.Errorf("read bookings to restore: %w", err)
-	}
-	restoredBounds := restoredBookingBounds(live, restores, moves)
+	return moves, nil
+}
+
+// withFollowedBounds writes the followed bounds into the restores and drops
+// the restores they leave empty.
+func withFollowedBounds(restores []CareOfferingBookingRestore, bounds map[int64]followedBooking) []CareOfferingBookingRestore {
 	result := make([]CareOfferingBookingRestore, 0, len(restores))
 	for _, restore := range restores {
-		bounds, ok := restoredBounds[restore.Booking.ID]
-		if !ok {
-			result = append(result, restore)
+		followed, ok := bounds[restore.Booking.ID]
+		switch {
+		case !ok:
+		case followed.empty():
 			continue
+		case restore.WasDeleted:
+			restore.Booking.ValidFrom, restore.Booking.ValidUntil = storedDay(followed.from), storedDay(followed.until)
+		default:
+			restore.Booking.ValidUntil = storedDay(followed.until)
 		}
-		if bounds.empty() {
-			continue
-		}
-		if restore.WasDeleted {
-			restore.Booking.ValidFrom = storedDay(bounds.from)
-		}
-		restore.Booking.ValidUntil = storedDay(bounds.until)
 		result = append(result, restore)
 	}
-	return result, nil
+	return result
 }
 
 // restoredBookingBounds decides the followed bounds of the restored
 // bookings. Each application is decided over its bookings as the restore
-// would leave them: the live rows, a capped row with its restored end and a
-// deleted row with its snapshot. Only restored bookings change.
+// would leave them; only restored bookings change, and a capped one keeps
+// its live start.
 func restoredBookingBounds(live []CareOfferingBooking, restores []CareOfferingBookingRestore, moves map[int64]PhaseBoundsMove) map[int64]followedBooking {
+	perChild, deleted := bookingsAfterRestore(live, restores, moves)
+	bounds := map[int64]followedBooking{}
+	for childID, bookings := range perChild {
+		for _, followed := range followPhaseBounds(bookings, moves[childID]) {
+			wasDeleted, restoredRow := deleted[followed.booking.ID]
+			if !restoredRow {
+				continue
+			}
+			if !wasDeleted {
+				// A capped row restores only its end; its start is live and
+				// was moved by the edit already where it could.
+				followed.from = bookingDay(followed.booking.ValidFrom)
+			}
+			bounds[followed.booking.ID] = followed
+		}
+	}
+	return bounds
+}
+
+// bookingsAfterRestore are the bookings of the moved applications as the
+// restore would leave them, by application and in id order: the live rows,
+// a capped row with its restored end and a deleted row with its snapshot.
+// The second map names the restored rows and whether they were deleted. A
+// deleted row that is back already, or a capped row that is gone, is not
+// restored and does not take part.
+func bookingsAfterRestore(live []CareOfferingBooking, restores []CareOfferingBookingRestore, moves map[int64]PhaseBoundsMove) (map[int64][]CareOfferingBooking, map[int64]bool) {
 	byID := map[int64]CareOfferingBooking{}
 	for _, booking := range live {
 		byID[booking.ID] = booking
 	}
-	restored, deleted := map[int64]bool{}, map[int64]bool{}
+	restored := map[int64]bool{}
 	for _, restore := range restores {
-		if _, ok := moves[restore.Booking.RequestChildID]; !ok {
+		if _, moved := moves[restore.Booking.RequestChildID]; !moved {
 			continue
 		}
 		booking, exists := byID[restore.Booking.ID]
-		switch {
-		case restore.WasDeleted && !exists:
-			booking = restore.Booking
-		case !restore.WasDeleted && exists:
-			booking.ValidUntil = restore.Booking.ValidUntil
-		default:
-			// A deleted row that is back already, or a capped row that is
-			// gone, is not restored; it does not take part either.
+		if restore.WasDeleted == exists {
 			continue
 		}
+		if restore.WasDeleted {
+			booking = restore.Booking
+		} else {
+			booking.ValidUntil = restore.Booking.ValidUntil
+		}
 		byID[booking.ID] = booking
-		restored[booking.ID], deleted[booking.ID] = true, restore.WasDeleted
+		restored[booking.ID] = restore.WasDeleted
 	}
 	perChild := map[int64][]CareOfferingBooking{}
 	for _, booking := range byID {
 		perChild[booking.RequestChildID] = append(perChild[booking.RequestChildID], booking)
 	}
-	bounds := map[int64]followedBooking{}
-	for childID, bookings := range perChild {
-		move, ok := moves[childID]
-		if !ok {
-			continue
-		}
+	for _, bookings := range perChild {
 		slices.SortFunc(bookings, func(a, b CareOfferingBooking) int {
 			switch {
 			case a.ID < b.ID:
@@ -118,17 +147,6 @@ func restoredBookingBounds(live []CareOfferingBooking, restores []CareOfferingBo
 			}
 			return 0
 		})
-		for _, followed := range followPhaseBounds(bookings, move) {
-			if !restored[followed.booking.ID] {
-				continue
-			}
-			if !deleted[followed.booking.ID] {
-				// A capped row restores only its end; its start is live and
-				// was moved by the edit already where it could.
-				followed.from = bookingDay(followed.booking.ValidFrom)
-			}
-			bounds[followed.booking.ID] = followed
-		}
 	}
-	return bounds
+	return perChild, restored
 }

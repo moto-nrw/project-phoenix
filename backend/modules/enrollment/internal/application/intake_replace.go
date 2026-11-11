@@ -80,24 +80,10 @@ func (s *Intake) replaceEditable(ctx context.Context, token string, incoming Sub
 }
 
 func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID, phaseID int64, incoming SubmitRequest, outcome *submitOutcome) error {
-	// The phase bounds reader takes the recurrence gate before the request
-	// and child locks (#6657); a phase edit open now finishes first. The
-	// edit's own checks keep their order: editability, then the phase.
-	locked, err := s.phaseBounds().LockedPhase(ctx, phaseID)
-	if err != nil {
-		if errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) {
-			return err
-		}
-		return fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, phaseID)
-	}
-	plan, editReq, err := s.lockEditableRequest(ctx, token, tenantID, incoming)
+	plan, editReq, err := s.lockReplacement(ctx, token, tenantID, phaseID, incoming)
 	if err != nil {
 		return err
 	}
-	if plan.req.PhaseID != phaseID {
-		return fmt.Errorf("%w: request moved to another phase", enrollmentNative.ErrRequestNotFound)
-	}
-	plan.phase, plan.locked = locked.Phase(), locked
 	if err := s.planReplacementCatalog(ctx, &editReq, plan); err != nil {
 		return err
 	}
@@ -136,6 +122,29 @@ func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID, ph
 		return fmt.Errorf("edit replace: notify capacity decisions: %w", err)
 	}
 	return nil
+}
+
+// lockReplacement reads the phase with the phase bounds reader, which takes
+// the recurrence gate before the request and child locks (#6657), so a
+// phase edit open now finishes first. Then it locks the request. The edit's
+// own checks keep their order: editability, then the phase.
+func (s *Intake) lockReplacement(ctx context.Context, token string, tenantID, phaseID int64, incoming SubmitRequest) (*replacePlan, SubmitRequest, error) {
+	locked, err := s.phaseBounds().LockedPhase(ctx, phaseID)
+	if err != nil {
+		if errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) {
+			return nil, incoming, err
+		}
+		return nil, incoming, fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, phaseID)
+	}
+	plan, editReq, err := s.lockEditableRequest(ctx, token, tenantID, incoming)
+	if err != nil {
+		return nil, incoming, err
+	}
+	if plan.req.PhaseID != phaseID {
+		return nil, incoming, fmt.Errorf("%w: request moved to another phase", enrollmentNative.ErrRequestNotFound)
+	}
+	plan.phase, plan.locked = locked.Phase(), locked
+	return plan, editReq, nil
 }
 
 // lockEditableRequest locks the request and its children, checks the edit is

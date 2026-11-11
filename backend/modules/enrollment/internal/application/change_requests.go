@@ -240,23 +240,37 @@ func (s *ChangeRequests) create(ctx context.Context, token string, input enrollm
 	return s.loadAggregateForTenant(ctx, tenantID, created.ID, false, nil)
 }
 
-func (s *ChangeRequests) createInTenant(ctx context.Context, token string, phaseID int64, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
-	// The phase bounds reader takes the recurrence gate before the request
-	// and child locks (#6657). The checks of the phase keep their place:
-	// ensureCanCreate first, then the proposal's.
+// lockCreationRequest reads the phase with the phase bounds reader, which
+// takes the recurrence gate before the request and child locks (#6657),
+// and then locks the request behind the token. The phase's own checks keep
+// their place after ensureCanCreate; a phase that is gone leaves them to it.
+func (s *ChangeRequests) lockCreationRequest(ctx context.Context, token string, phaseID int64) (enrollmentNative.LockedPhase, *enrollmentNative.Request, error) {
 	phase, err := s.intake.phaseBounds().LockedPhase(ctx, phaseID)
 	if err != nil && (errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) || !s.deps.Runtime.NotFound(err)) {
-		return nil, err
+		return phase, nil, err
 	}
 	lockedReq, err := s.deps.Requests.RequestByToken(ctx, strings.TrimSpace(token), true)
 	if err != nil {
 		if !s.deps.Runtime.NotFound(err) {
-			return nil, err
+			return phase, nil, err
 		}
-		return nil, enrollmentNative.ErrRequestNotFound
+		return phase, nil, enrollmentNative.ErrRequestNotFound
 	}
 	if lockedReq.PhaseID != phaseID {
-		return nil, enrollmentNative.ErrRequestNotFound
+		return phase, nil, enrollmentNative.ErrRequestNotFound
+	}
+	return phase, lockedReq, nil
+}
+
+// phaseActive reports a phase the reader read that takes requests.
+func phaseActive(phase enrollmentNative.LockedPhase) bool {
+	return phase.Phase() != nil && phase.Phase().IsActive
+}
+
+func (s *ChangeRequests) createInTenant(ctx context.Context, token string, phaseID int64, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
+	phase, lockedReq, err := s.lockCreationRequest(ctx, token, phaseID)
+	if err != nil {
+		return nil, err
 	}
 	children, err := s.deps.Children.ChildrenForRequest(ctx, lockedReq.ID, true)
 	if err != nil {
@@ -278,7 +292,7 @@ func (s *ChangeRequests) createInTenant(ctx context.Context, token string, phase
 	if err != nil {
 		return nil, err
 	}
-	if phase.Phase() == nil || !phase.Phase().IsActive {
+	if !phaseActive(phase) {
 		return nil, enrollmentNative.ErrEnrollmentDisabled
 	}
 	prepared, err := s.prepareProposed(ctx, phase, lockedReq, children, submission, capabilities, false, true)
