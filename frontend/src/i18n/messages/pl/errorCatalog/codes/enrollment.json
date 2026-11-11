@@ -164,5 +164,6 @@
   "holiday_allocation_mode_locked": "Są już zgłoszenia, więc sposób przydziału pozostaje.",
   "holiday_allocation_pending": "Najpierw przydziel miejsca w zakładce „Vergabe”.",
   "holiday_allocation_full": "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
-  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję."
+  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję.",
+  "holiday_plan_author_missing": "Nie udało się zaplanować pobytu dzieci. Poproś o dodanie swojego konta w sekcji „Personel”. Następnie ponownie wybierz grupę wakacyjną."
 }

@@ -57,6 +57,7 @@ export function holidayWeeksTopic(): HelpTopic {
       "Storniert der Träger eine Anmeldung, verschwindet das Kind sofort. Die eingeplanten Tage eines Kindes Ihrer OGS entfernt moto innerhalb einer Stunde.",
     ],
     troubleshootingDetails: [
+      "Konnten die Kinder wegen eines fehlenden Personaleintrags nicht eingeplant werden? Lassen Sie Ihr Konto unter `Personal` ergänzen. Wählen Sie danach die Feriengruppe erneut.",
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
       "Steht ein Kind unter `Noch nicht zugeordnet`? Dann passen Vorname, Nachname oder Geburtsdatum der Anmeldung zu keinem Kind in moto oder zu mehreren. Ändern Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern. Vorher plant moto für dieses Kind nichts ein.",
       "Steht bei einem Kind unter `Gesundheit` nichts? Dann haben die Eltern nichts angegeben oder nicht zugestimmt. Ältere Anmeldungen geben keine Gesundheitsangaben weiter.",

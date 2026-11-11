@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,8 +39,9 @@ type HolidayGuestDirectory interface {
 // (#6678) are found among students and planned in Care Plan. A nil today
 // uses the Berlin calendar day.
 func NewHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
+	ownPlans, ownAuthors := NewHolidayOwnChildPlans(care, staff)
 	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayHostSchoolNames(schools), NewHolidayGuestCareDays(care, staff),
-		StatisticsHolidayStudents{Students: students}, NewHolidayOwnChildCareDays(care, staff), health, NewHolidayGuestAccessLog(accessLog), today)
+		StatisticsHolidayStudents{Students: students}, ownPlans, ownAuthors, health, NewHolidayGuestAccessLog(accessLog), today)
 }
 
 // HolidayOwnChildStudents reads the children of the school by date of birth
@@ -204,8 +206,7 @@ func optionalDate(value string) (calendar.Date, error) {
 
 // HolidayGuestCarePlan is the Care Plan surface the booked days of a holiday
 // guest are written through: the dated arrival and pickup exceptions. The
-// days of the school's own children (#6678) are read and removed one by one,
-// because such a child keeps the plans the team and its parents wrote.
+// days of the school's own children (#6678) use bulk commands separately.
 type HolidayGuestCarePlan interface {
 	CreateArrivalException(context.Context, careplan.ArrivalException) (careplan.ArrivalException, error)
 	CreatePickupException(context.Context, careplan.PickupException) (careplan.PickupException, error)
@@ -213,13 +214,12 @@ type HolidayGuestCarePlan interface {
 	DeletePickupExceptionsByStudent(context.Context, int64) error
 	ListArrivalExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error)
 	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
-	DeleteArrivalException(context.Context, int64) error
-	DeletePickupException(context.Context, int64) error
 }
 
 // HolidayGuestStaff resolves the staff member of the account a plan is
 // written for: Care Plan records its author.
 type HolidayGuestStaff interface {
+	StaffRows() peoplePorts.StaffRepository
 	ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 

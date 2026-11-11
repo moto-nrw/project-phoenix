@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The holiday guests of the hosting school (#4666, ADR 0120): the school
@@ -57,6 +58,9 @@ func (rs *HolidayHostResource) assignGuestGroup(w http.ResponseWriter, r *http.R
 	}
 	transfer, err := rs.guests.AssignHolidayGuestGroup(r.Context(), host, weekID, request.GroupID)
 	if err != nil {
+		// The group and guest rows may already have been written. A 409
+		// must roll them back just like a server error.
+		tenant.MarkRollback(r.Context())
 		renderHolidayGuestError(w, r, err)
 		return
 	}
@@ -178,6 +182,8 @@ func (rs *HolidayGuestResource) getSheet(w http.ResponseWriter, r *http.Request)
 // transaction rolls back with it.
 func renderHolidayGuestError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, capability.ErrHolidayGuestPlanAuthorMissing):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayPlanAuthorMissing))
 	case errors.Is(err, capability.ErrHolidayGuestNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayGuestNotFound))
 	case errors.Is(err, capability.ErrHolidayGuestGroupInvalid):

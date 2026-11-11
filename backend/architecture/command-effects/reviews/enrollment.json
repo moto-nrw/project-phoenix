@@ -2179,78 +2179,95 @@
       "target_owner": "organization-tenancy"
     },
     {
-      "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "classification": "leaf",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreateArrivalException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreateArrivalException",
-      "target_owner": "care-plan"
-    },
-    {
-      "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "classification": "leaf",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreatePickupException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreatePickupException",
-      "target_owner": "care-plan"
-    },
-    {
-      "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "classification": "leaf",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.DeleteArrivalException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeleteArrivalException",
-      "target_owner": "care-plan"
-    },
-    {
-      "adr": "0067",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "classification": "leaf",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.DeletePickupException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeletePickupException",
-      "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListArrivalExceptions. ADR 0120 addendum (#6678): the dated exceptions from the cleanup day on are read to tell the days Enrollment planned from the plans of the team and the parents.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target *github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListMembershipWithPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildAuthors.HolidayOwnChildAuthors",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "reason": "Guarded leaf bulk command in the hosting school's tenant transaction (ADR 0067, ADR 0120 addendum #6678). Enrollment selects its obsolete exceptions and missing booked days; the root only translates values. Care Plan validates the complete batch before deleting or creating exceptions, retaining tenant scoping and single-write validation. Each exception table uses at most one DELETE and one INSERT, without independent commit or a cross-owner lock protocol.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ExceptionBatchCommands.ApplyExceptionBatch",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.HolidayOwnChildArrivals",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.HolidayOwnChildArrivals",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.HolidayOwnChildPickups",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListPickupExceptions. ADR 0120 addendum (#6678): the dated exceptions from the cleanup day on are read to tell the days Enrollment planned from the plans of the team and the parents.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.HolidayOwnChildPickups",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
       "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID. ADR 0120 addendum (#6678): the planned days name the staff member of the account that picked the week's holiday group as their author, as Care Plan requires.",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID",
-      "target_owner": "people-directory"
     },
     {
       "adr": "0098",

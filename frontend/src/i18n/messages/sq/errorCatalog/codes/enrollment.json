@@ -164,5 +164,6 @@
   "holiday_allocation_mode_locked": "Ka tashmë regjistrime, ndaj ndarja e vendeve nuk ndryshon.",
   "holiday_allocation_pending": "Ndani fillimisht vendet te skeda „Vergabe“.",
   "holiday_allocation_full": "Në këtë javë nuk ka më vende të lira. Ju lutemi ngarkoni listën përsëri.",
-  "holiday_allocation_changed": "Lista ndryshoi. Kontrolloni vendimin përsëri."
+  "holiday_allocation_changed": "Lista ndryshoi. Kontrolloni vendimin përsëri.",
+  "holiday_plan_author_missing": "Fëmijët nuk mund të planifikoheshin. Ju lutemi kërkoni që llogaria juaj të shtohet te “Personeli”. Pastaj zgjidhni përsëri grupin e pushimeve."
 }

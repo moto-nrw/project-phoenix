@@ -81,8 +81,8 @@ type HolidayOwnChildDay struct {
 }
 
 // HolidayOwnChildCareDays plans the booked days of the school's own children
-// in Care Plan, in the tenant transaction of the hosting school. The root
-// binds Care Plan's dated exceptions.
+// in Care Plan, in the tenant transaction of the hosting school. Enrollment
+// owns the reconciliation policy; the root binds Care Plan's bulk commands.
 type HolidayOwnChildCareDays interface {
 	// SyncHolidayOwnChildDays brings the days planned from holiday
 	// registrations in line with wanted, from the day `from` on: a missing day

@@ -1030,6 +1030,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_allocation_changed"
+    },
+    {
+      "code": "enrollment.holiday_plan_author_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_plan_author_missing"
     }
   ]
 }

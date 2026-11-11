@@ -497,6 +497,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Felder.",
       "enrollment.holiday_period_not_found":
         "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
+      "enrollment.holiday_plan_author_missing":
+        "Die Kinder konnten nicht eingeplant werden. Bitte lassen Sie Ihr Konto unter „Personal“ ergänzen. Wählen Sie danach die Feriengruppe erneut.",
       "enrollment.holiday_proof_limit":
         "Diese Anmeldung hat schon {max_files} Nachweise. Mehr Dateien gehen nicht.",
       "enrollment.holiday_registration_closed":
@@ -2245,6 +2247,8 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_period_invalid": "Please check the marked fields.",
       "enrollment.holiday_period_not_found":
         "This holiday period does not exist. Please open it from the holiday list.",
+      "enrollment.holiday_plan_author_missing":
+        "The children could not be scheduled. Please have your account added under “Staff”. Then select the holiday group again.",
       "enrollment.holiday_registration_closed":
         "Registration for these holidays is not open. Please check the start and end of registration.",
       "enrollment.holiday_registration_entry_not_found":
@@ -2893,6 +2897,8 @@ export const ERROR_CATALOG = {
         "В эти каникулы ребёнок может прийти не больше {limit} дней. Всего будет дней: {days}. Из них в других заявках: {elsewhere}. Выберите меньше дней.",
       "enrollment.holiday_child_day_limit_public":
         "В эти каникулы ребёнка можно записать не более чем на {limit} дней. Лимит действует для всех заявок ребёнка вместе. Выберите меньше дней или обратитесь в офис организатора.",
+      "enrollment.holiday_plan_author_missing":
+        "Не удалось запланировать посещение детей. Попросите добавить вашу учётную запись в раздел «Персонал». Затем выберите группу на каникулы ещё раз.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
       "enrollment.holiday_registration_form_changed":
@@ -3465,6 +3471,8 @@ export const ERROR_CATALOG = {
         "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Gjithsej do të ishin {days} ditë. Ditë në regjistrime të tjera: {elsewhere}. Ju lutemi zgjidhni më pak ditë.",
       "enrollment.holiday_child_day_limit_public":
         "Një fëmijë mund të regjistrohet për më së shumti {limit} ditë gjatë këtyre pushimeve. Kufiri vlen për të gjitha regjistrimet e fëmijës së bashku. Ju lutemi zgjidhni më pak ditë ose kontaktoni zyrën e ofruesit.",
+      "enrollment.holiday_plan_author_missing":
+        "Fëmijët nuk mund të planifikoheshin. Ju lutemi kërkoni që llogaria juaj të shtohet te “Personeli”. Pastaj zgjidhni përsëri grupin e pushimeve.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
       "enrollment.holiday_registration_form_changed":
@@ -4031,6 +4039,8 @@ export const ERROR_CATALOG = {
         "W te ferie dziecko może przyjść najwyżej {limit} dni. Łącznie byłoby to {days} dni. Dni w innych zgłoszeniach: {elsewhere}. Wybierz mniej dni.",
       "enrollment.holiday_child_day_limit_public":
         "Dziecko może być zapisane na najwyżej {limit} dni w te ferie. Limit dotyczy łącznie wszystkich zgłoszeń dziecka. Proszę wybrać mniej dni lub skontaktować się z biurem organizatora.",
+      "enrollment.holiday_plan_author_missing":
+        "Nie udało się zaplanować pobytu dzieci. Poproś o dodanie swojego konta w sekcji „Personel”. Następnie ponownie wybierz grupę wakacyjną.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
       "enrollment.holiday_registration_form_changed":
@@ -4599,6 +4609,8 @@ export const ERROR_CATALOG = {
         "Bu tatilde bir çocuk en fazla {limit} gün gelebilir. Toplam {days} gün olurdu. Diğer kayıtlardaki gün sayısı: {elsewhere}. Lütfen daha az gün seçin.",
       "enrollment.holiday_child_day_limit_public":
         "Bir çocuk bu tatilde en fazla {limit} gün için kaydedilebilir. Bu sınır çocuğun tüm kayıtları için birlikte geçerlidir. Lütfen daha az gün seçin veya hizmet sağlayıcının ofisine başvurun.",
+      "enrollment.holiday_plan_author_missing":
+        "Çocukların planlaması yapılamadı. Lütfen hesabınızın “Personel” bölümüne eklenmesini sağlayın. Ardından tatil grubunu yeniden seçin.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
       "enrollment.holiday_registration_form_changed":
@@ -5160,6 +5172,8 @@ export const ERROR_CATALOG = {
         "У ці канікули дитина може прийти не більше {limit} днів. Загалом буде днів: {days}. З них в інших заявках: {elsewhere}. Оберіть менше днів.",
       "enrollment.holiday_child_day_limit_public":
         "На ці канікули дитину можна записати щонайбільше на {limit} днів. Обмеження діє для всіх заявок дитини разом. Виберіть менше днів або зверніться до офісу організатора.",
+      "enrollment.holiday_plan_author_missing":
+        "Не вдалося запланувати відвідування дітей. Попросіть додати ваш обліковий запис до розділу «Персонал». Потім виберіть групу на канікули ще раз.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
       "enrollment.holiday_registration_form_changed":

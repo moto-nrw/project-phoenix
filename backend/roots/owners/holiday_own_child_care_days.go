@@ -2,180 +2,76 @@ package owners
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewHolidayOwnChildCareDays binds the booked days of a child of the hosting
-// school itself (#6678, ADR 0120 addendum) to Care Plan: a dated arrival and
-// pickup exception for each booked day with the times of the booked time
-// model, so the check-in expects the child on those days.
-//
-// Such a child keeps every plan the team or its parents wrote: Enrollment
-// owns only the exceptions whose reason it wrote
-// (enrollment.HolidayOwnChildCareReason with the booked times). A day that
-// carries another exception is left alone, and so is one of its own days the
-// team edited: the reason still names the booked times, so the binding sees
-// that the booking did not change and keeps the team's time.
-func NewHolidayOwnChildCareDays(care HolidayGuestCarePlan, staff HolidayGuestStaff) enrollmentOwner.HolidayOwnChildCareDays {
+// NewHolidayOwnChildPlans binds the dated exceptions, bulk command and staff
+// accounts Enrollment's own-child reconciliation consumes.
+func NewHolidayOwnChildPlans(care HolidayGuestCarePlan, staff HolidayGuestStaff) (enrollment.HolidayOwnChildPlans, enrollment.HolidayOwnChildAuthors) {
 	if care == nil || staff == nil {
-		return nil
+		panic("holiday own-child plans: Care Plan and staff are required")
 	}
-	return holidayOwnChildCareDays{care: care, staff: staff, logger: slog.Default().With("service", "holiday-own-children")}
+	return holidayOwnChildPlans{care: care, batch: careplanCompose.NewExceptionBatch(func(careplanCompose.Observation) {})}, holidayOwnChildAuthors{staff: staff.StaffRows()}
 }
 
-type holidayOwnChildCareDays struct {
-	care   HolidayGuestCarePlan
-	staff  HolidayGuestStaff
-	logger *slog.Logger
+type holidayOwnChildPlans struct {
+	care  HolidayGuestCarePlan
+	batch careplan.ExceptionBatchCommands
 }
 
-type holidayOwnChildDayKey struct {
-	studentID int64
-	day       calendar.Date
-}
+type holidayOwnChildAuthors struct{ staff peoplePorts.StaffRepository }
 
-// holidayOwnChildReason is the reason of a planned day: the marker and the
-// booked times, which tell a changed booking from a time the team edited.
-func holidayOwnChildReason(day enrollmentOwner.HolidayOwnChildDay) string {
-	return fmt.Sprintf("%s (%s bis %s Uhr)", enrollmentOwner.HolidayOwnChildCareReason, day.Arrival, day.Pickup)
-}
-
-func isHolidayOwnChildReason(reason *string) bool {
-	return reason != nil && strings.HasPrefix(*reason, enrollmentOwner.HolidayOwnChildCareReason)
-}
-
-func (c holidayOwnChildCareDays) SyncHolidayOwnChildDays(ctx context.Context, from, today calendar.Date, wanted []enrollmentOwner.HolidayOwnChildDay) error {
-	byKey := make(map[holidayOwnChildDayKey]enrollmentOwner.HolidayOwnChildDay, len(wanted))
-	for _, day := range wanted {
-		key := holidayOwnChildDayKey{day.StudentID, day.Day}
-		if _, ok := byKey[key]; !ok && !day.Day.Before(from) {
-			byKey[key] = day
-		}
-	}
-	filter := careplan.StudentScheduleFilter{From: careplan.Date(from)}
-	arrivals, err := c.care.ListArrivalExceptions(ctx, filter)
+func (a holidayOwnChildAuthors) HolidayOwnChildAuthors(ctx context.Context) (map[int64]int64, error) {
+	members, err := a.staff.ListMembershipWithPerson(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	pickups, err := c.care.ListPickupExceptions(ctx, filter)
-	if err != nil {
-		return err
+	authors := make(map[int64]int64, len(members))
+	for _, member := range members {
+		if member.Person != nil && member.Person.AccountID != nil {
+			authors[*member.Person.AccountID] = member.ID
+		}
 	}
-	arrivalDone, err := c.settleArrivals(ctx, arrivals, byKey)
-	if err != nil {
-		return err
-	}
-	pickupDone, err := c.settlePickups(ctx, pickups, byKey)
-	if err != nil {
-		return err
-	}
-	return c.planMissing(ctx, today, wanted, byKey, arrivalDone, pickupDone)
+	return authors, nil
 }
 
-// settleArrivals removes the planned arrivals whose booking went or changed
-// and returns the days that need no arrival written: they carry a plan of
-// the team or the parents, or the planned one still fits.
-func (c holidayOwnChildCareDays) settleArrivals(ctx context.Context, existing []careplan.ArrivalException, wanted map[holidayOwnChildDayKey]enrollmentOwner.HolidayOwnChildDay) (map[holidayOwnChildDayKey]bool, error) {
-	done := map[holidayOwnChildDayKey]bool{}
-	for _, exception := range existing {
-		key := holidayOwnChildDayKey{exception.StudentID, calendar.Date(exception.ExceptionDate)}
-		day, booked := wanted[key]
-		if !isHolidayOwnChildReason(exception.Reason) || booked && *exception.Reason == holidayOwnChildReason(day) {
-			done[key] = true
-			continue
-		}
-		if err := c.care.DeleteArrivalException(ctx, exception.ID); err != nil {
-			return nil, err
-		}
-	}
-	return done, nil
-}
-
-// settlePickups does the same for the planned pickups. A planned pickup the
-// team added an excused time to stays: it is the team's entry now.
-func (c holidayOwnChildCareDays) settlePickups(ctx context.Context, existing []careplan.PickupException, wanted map[holidayOwnChildDayKey]enrollmentOwner.HolidayOwnChildDay) (map[holidayOwnChildDayKey]bool, error) {
-	done := map[holidayOwnChildDayKey]bool{}
-	for _, exception := range existing {
-		key := holidayOwnChildDayKey{exception.StudentID, calendar.Date(exception.ExceptionDate)}
-		day, booked := wanted[key]
-		if !isHolidayOwnChildReason(exception.Reason) || exception.ExcusedFrom != nil || booked && *exception.Reason == holidayOwnChildReason(day) {
-			done[key] = true
-			continue
-		}
-		if err := c.care.DeletePickupException(ctx, exception.ID); err != nil {
-			return nil, err
-		}
-	}
-	return done, nil
-}
-
-// planMissing writes the booked days from today on that carry no plan yet,
-// under the staff member of the account that picked the week's holiday
-// group. A week without a group, or an account without a staff record,
-// plans nothing new; the next group choice does.
-func (c holidayOwnChildCareDays) planMissing(ctx context.Context, today calendar.Date, wanted []enrollmentOwner.HolidayOwnChildDay, byKey map[holidayOwnChildDayKey]enrollmentOwner.HolidayOwnChildDay, arrivalDone, pickupDone map[holidayOwnChildDayKey]bool) error {
-	authors := map[int64]int64{}
-	for _, candidate := range wanted {
-		key := holidayOwnChildDayKey{candidate.StudentID, candidate.Day}
-		day, ok := byKey[key]
-		if !ok || day.Day.Before(today) || day.ActorAccountID <= 0 || arrivalDone[key] && pickupDone[key] {
-			continue
-		}
-		delete(byKey, key)
-		staffID, known := authors[day.ActorAccountID]
-		if !known {
-			resolved, err := c.staff.ResolveStaffIDByAccountID(ctx, day.ActorAccountID)
-			if err != nil {
-				c.logger.Warn("own holiday children left unplanned: the account that picked the group has no staff record",
-					"account_id", day.ActorAccountID,
-					"error", err,
-				)
-			}
-			staffID = resolved
-			authors[day.ActorAccountID] = staffID
-		}
-		if staffID <= 0 {
-			continue
-		}
-		if err := c.planDay(ctx, day, staffID, !arrivalDone[key], !pickupDone[key]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c holidayOwnChildCareDays) planDay(ctx context.Context, day enrollmentOwner.HolidayOwnChildDay, staffID int64, arrival, pickup bool) error {
-	arrivalAt, err := holidayGuestClock(day.Arrival)
+func (p holidayOwnChildPlans) HolidayOwnChildArrivals(ctx context.Context, from calendar.Date) ([]enrollment.HolidayOwnChildException, error) {
+	rows, err := p.care.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{From: careplan.Date(from)})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	pickupAt, err := holidayGuestClock(day.Pickup)
+	result := make([]enrollment.HolidayOwnChildException, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, enrollment.HolidayOwnChildException{ID: row.ID, StudentID: row.StudentID, Day: calendar.Date(row.ExceptionDate), Reason: row.Reason})
+	}
+	return result, nil
+}
+
+func (p holidayOwnChildPlans) HolidayOwnChildPickups(ctx context.Context, from calendar.Date) ([]enrollment.HolidayOwnChildException, error) {
+	rows, err := p.care.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{From: careplan.Date(from)})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if arrival {
-		reason := holidayOwnChildReason(day)
-		if _, err := c.care.CreateArrivalException(ctx, careplan.ArrivalException{
-			StudentID: day.StudentID, ExceptionDate: careplan.Date(day.Day), ExpectedArrival: &arrivalAt, Reason: &reason,
-			Source: careplan.ExceptionSourceStaff, CreatedBy: staffID,
-		}); err != nil {
-			return err
-		}
+	result := make([]enrollment.HolidayOwnChildException, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, enrollment.HolidayOwnChildException{ID: row.ID, StudentID: row.StudentID, Day: calendar.Date(row.ExceptionDate), Reason: row.Reason, Excused: row.ExcusedFrom != nil})
 	}
-	if pickup {
-		reason := holidayOwnChildReason(day)
-		if _, err := c.care.CreatePickupException(ctx, careplan.PickupException{
-			StudentID: day.StudentID, ExceptionDate: careplan.Date(day.Day), PickupTime: &pickupAt, Reason: &reason,
-			Source: careplan.ExceptionSourceStaff, CreatedBy: staffID,
-		}); err != nil {
-			return err
-		}
+	return result, nil
+}
+
+func (p holidayOwnChildPlans) ApplyHolidayOwnChildPlans(ctx context.Context, changes enrollment.HolidayOwnChildPlanChanges) error {
+	arrivals := make([]careplan.ArrivalException, 0, len(changes.Arrivals))
+	for _, plan := range changes.Arrivals {
+		arrivals = append(arrivals, careplan.ArrivalException{StudentID: plan.StudentID, ExceptionDate: careplan.Date(plan.Day), ExpectedArrival: &plan.Time, Reason: &plan.Reason, CreatedBy: plan.StaffID, Source: careplan.ExceptionSourceStaff})
 	}
-	return nil
+	pickups := make([]careplan.PickupException, 0, len(changes.Pickups))
+	for _, plan := range changes.Pickups {
+		pickups = append(pickups, careplan.PickupException{StudentID: plan.StudentID, ExceptionDate: careplan.Date(plan.Day), PickupTime: &plan.Time, Reason: &plan.Reason, CreatedBy: plan.StaffID, Source: careplan.ExceptionSourceStaff})
+	}
+	return p.batch.ApplyExceptionBatch(ctx, careplan.ExceptionBatch{Arrivals: arrivals, Pickups: pickups, DeleteArrivals: changes.DeleteArrivals, DeletePickups: changes.DeletePickups})
 }
