@@ -165,6 +165,7 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
 				TemplateIssue: issue,
+				Renewal:       application.Renewal,
 				ModulesText:   carecontract.JoinNames(ModuleNames(booked.services)),
 				AcceptanceIssue: acceptanceIssue(NewContract{AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
 					Version: carecontract.Version{Terms: terms}},

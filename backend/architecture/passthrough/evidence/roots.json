@@ -5630,27 +5630,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) CollectGradeLevel(ctx context.Context) (bool, error) {\n\treturn s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectGradeLevel)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.CollectGradeLevel",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) GradeLevelMax(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) StatusTokenTTLDays(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentStatusTokenTTLDays)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.StatusTokenTTLDays",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (b enrollmentRosterPersons) PersonsByID(ctx context.Context, personIDs []int64) (map[int64]*enrollmentCompose.RosterPerson, error) {\n\tpersons, err := b.repo.FindByIDs(ctx, personIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]*enrollmentCompose.RosterPerson, len(persons))\n\tfor id, person := range persons {\n\t\tif person != nil {\n\t\t\tout[id] = \u0026enrollmentCompose.RosterPerson{FirstName: person.FirstName, LastName: person.LastName}\n\t\t}\n\t}\n\treturn out, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentRosterPersons.PersonsByID",
