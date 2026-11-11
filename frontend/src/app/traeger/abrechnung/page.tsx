@@ -101,7 +101,12 @@ const columnsFor = (
   {
     key: "days",
     header: "Betreuung",
-    render: (run) => formatDateRange(run.serviceFrom, run.serviceUntil),
+    // A date range reads as one value: it never breaks after „bis“.
+    render: (run) => (
+      <span className="md:whitespace-nowrap">
+        {formatDateRange(run.serviceFrom, run.serviceUntil)}
+      </span>
+    ),
     // On a phone the title keeps one line; the run's number leads the
     // line below, so two runs of one period still differ.
     stackedRender: (run) =>
@@ -147,6 +152,7 @@ const columnsFor = (
   {
     key: "issued",
     header: "Ausgestellt am",
+    headerClassName: "whitespace-nowrap",
     render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
     stacked: "hidden",
   },
@@ -373,6 +379,9 @@ function BillingRunsPage() {
             columns={columnsFor(runOrdinals(data.runs))}
             rows={shownRuns}
             getRowKey={(run) => run.id}
+            // Five columns beside the period's name: narrower gaps leave the
+            // name its line on a tablet.
+            dense
             stackedOnMobile
             stackedLayout="row"
             stackedDetailKey="days"
