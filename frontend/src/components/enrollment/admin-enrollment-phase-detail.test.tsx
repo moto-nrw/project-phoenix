@@ -101,6 +101,7 @@ vi.mock("~/lib/student-api", () => ({
 import { AdminEnrollmentPhaseDetail } from "./admin-enrollment-phase-detail";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 const phase = {
   id: "1",
@@ -679,6 +680,31 @@ describe("AdminEnrollmentPhaseDetail", () => {
       });
     });
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+  });
+
+  // #6652: the decision holds once the write is through; a failed reload
+  // keeps the table and says the change is saved, and only reloads.
+  it("keeps the table after a quick decision whose reload fails", async () => {
+    await renderPhase();
+    const loads = mocks.listAdminRequests.mock.calls.length;
+    mocks.listAdminRequests.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    // Anker: die Tabelle bleibt stehen.
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mocks.listAdminRequests).toHaveBeenCalledTimes(loads + 2),
+    );
+    expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
   });
 
   it("reports a failed report export through the toast path", async () => {
