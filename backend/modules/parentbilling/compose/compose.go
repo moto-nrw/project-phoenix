@@ -47,10 +47,12 @@ func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilli
 	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
 }
 
-// MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686).
+// MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686)
+// and the discard of an empty open run (#6626).
 type MonthlyBilling interface {
 	parentbilling.CareBilling
 	parentbilling.CareMealBilling
+	parentbilling.CareRunDiscard
 }
 
 // NewCareBilling builds the monthly contribution of the care contract (#4684), its rule chain (#4685) and its Mensa (#4686) over the contracts, schools, settings and released Mensa months the root binds, and the document templates (#4688).

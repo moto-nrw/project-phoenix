@@ -8,6 +8,7 @@ GET /traeger/care-billing-runs/{id}/letters/print -> basis
 GET /traeger/care-billing-runs/{id}/review-export -> basis
 POST /traeger/care-billing-runs/ -> basis
 POST /traeger/care-billing-runs/{id}/amendments -> basis
+POST /traeger/care-billing-runs/{id}/discard -> basis
 POST /traeger/care-billing-runs/{id}/exclusions -> basis
 POST /traeger/care-billing-runs/{id}/inclusions -> basis
 POST /traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation -> basis

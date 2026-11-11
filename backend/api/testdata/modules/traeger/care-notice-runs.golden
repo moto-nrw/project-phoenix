@@ -5,6 +5,7 @@ GET /traeger/care-notice-runs/{id}/letters/print -> basis
 GET /traeger/care-notice-runs/{id}/notices/{contractID}/letter -> basis
 GET /traeger/care-notice-runs/{id}/notices/{contractID}/pdf -> basis
 POST /traeger/care-notice-runs/ -> basis
+POST /traeger/care-notice-runs/{id}/discard -> basis
 POST /traeger/care-notice-runs/{id}/letters -> basis
 POST /traeger/care-notice-runs/{id}/letters/mail -> basis
 POST /traeger/care-notice-runs/{id}/notices/{contractID}/mail -> basis

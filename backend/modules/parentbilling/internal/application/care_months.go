@@ -42,6 +42,9 @@ type CareStore interface {
 	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
 	IssueCareInvoices(ctx context.Context, organizationID int64, run parentbilling.CareRun, rule string, year int, first int64, invoices []parentbilling.CareInvoice) error
 	MarkCareRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64, rule string) (parentbilling.CareRun, error)
+	// MarkCareRunDiscarded discards a calculated run and closes its schools
+	// (#6626).
+	MarkCareRunDiscarded(ctx context.Context, organizationID, runID int64) (parentbilling.CareRun, error)
 	// InsertCareRunHolds stores the children a release held back, as they
 	// are at the release; CareRunHolds reads them (ADR 0158 E5).
 	InsertCareRunHolds(ctx context.Context, organizationID, runID int64, holds []parentbilling.CareRunHold) error
@@ -396,7 +399,7 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 		return parentbilling.CareRunDetail{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.CareRunDetail{}, closedRunError(run.Status)
 	}
 	rule, month, issuedOn, err := c.issueReviewed(ctx, reviewer.OrganizationID, run, release)
 	if err != nil {
@@ -534,6 +537,9 @@ func (c *CareBilling) careMonthInput(ctx context.Context, organizationID int64, 
 func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.CareRun) (parentbilling.CareRunDetail, error) {
 	detail := parentbilling.CareRunDetail{CareRun: run, Unpriced: []parentbilling.CareUnpriced{}, Duplicates: []parentbilling.CareDuplicate{},
 		MealGaps: []parentbilling.CareMealGap{}, MealUnbilled: []parentbilling.CareMealUnbilled{}, MealChanged: []parentbilling.CareMealChanged{}}
+	if run.Status == parentbilling.RunDiscarded {
+		return c.discardedDetail(ctx, reviewer.OrganizationID, detail)
+	}
 	if run.Status == parentbilling.RunReleased {
 		invoices, err := c.store.CareRunInvoices(ctx, reviewer.OrganizationID, run.ID)
 		if err != nil {

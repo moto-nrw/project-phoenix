@@ -79,6 +79,8 @@ type CareNoticeRun struct {
 	IssuedOn    *calendar.Date `json:"issued_on"`
 	NoticeCount *int           `json:"notice_count"`
 	TotalCents  *int64         `json:"total_cents"`
+	// DiscardedAt is set once the Abrechnung discarded the empty run (#6626).
+	DiscardedAt *time.Time `json:"discarded_at"`
 }
 
 // CareNoticeRunList is the list of the notice runs, the latest first, with
@@ -222,6 +224,11 @@ type CareFeeNotices interface {
 	StartCareNoticeRun(ctx context.Context, reviewer HolidayReviewer, start CareNoticeRunStart) (CareNoticeRun, error)
 	CareNoticeRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareNoticeRunDetail, error)
 	ReleaseCareNoticeRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release CareRelease) (CareNoticeRunDetail, error)
+	// DiscardCareNoticeRun discards an open run without a notice, a booking
+	// without a price and a child held back (#6626), under the lock of the
+	// release; a run with content is ErrBillingRunNotEmpty. The year is free
+	// for a new run, the trail records the discard.
+	DiscardCareNoticeRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareNoticeRunDetail, error)
 	CareNoticeLetter(ctx context.Context, reviewer HolidayReviewer, runID, noticeID int64) (CareNoticeLetter, error)
 	// EffectiveNoticeDues reads per contract the installment of the month
 	// the effective notice sets: of the latest change notice, never of a
