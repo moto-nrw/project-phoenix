@@ -6,6 +6,7 @@ import {
   PortalOverflowBottomNav,
   type PortalOverflowNavItem,
 } from "~/components/ui/portal-overflow-bottom-nav";
+import { moreConcept } from "~/lib/concepts/more";
 import { traegerPath } from "~/lib/traeger-url";
 import {
   isTraegerNavActive,
@@ -74,6 +75,7 @@ export function TraegerBottomNav() {
   return (
     <PortalOverflowBottomNav
       items={navItems}
+      moreConcept={moreConcept}
       navItemAttribute="data-traeger-nav-item"
     />
   );

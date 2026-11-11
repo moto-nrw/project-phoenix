@@ -241,6 +241,7 @@ export const nodeLogicTestFiles = [
   "src/lib/staff-metrics-helpers.test.ts",
   "src/lib/staff-month-close-api.test.ts",
   "src/lib/staff-navigation.test.ts",
+  "src/components/dashboard/staff-nav-items.test.ts",
   "src/lib/staff-notices-api.test.ts",
   "src/lib/staff-overview-api.test.ts",
   "src/lib/staff-payroll-number-api.test.ts",

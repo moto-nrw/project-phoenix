@@ -4486,7 +4486,14 @@ const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "sidebarRowClasses",
   "sidebarLabelClasses",
   "SIDEBAR_GROUP_HEADING_CLASSES",
-  "SIDEBAR_SUB_ITEM_CLASSES",
+  "sidebarSubItemClasses",
+  "sidebarGroupBodyClasses",
+  "sidebarGroupIconClasses",
+  "sidebarChevronClasses",
+  "sidebarFadeClasses",
+  "SIDEBAR_RAIL_BADGE_CLASSES",
+  "SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES",
+  "SidebarRowContent",
 ]);
 
 function hasPortalNavShellSignature(text) {

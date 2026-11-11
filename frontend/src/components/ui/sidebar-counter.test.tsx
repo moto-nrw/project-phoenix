@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 import { UsersIcon } from "@phosphor-icons/react";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 import { SidebarAccordionSection } from "./sidebar-accordion-section";
 import { SidebarGroup } from "./sidebar-group";
@@ -57,14 +58,13 @@ const SURFACES: ReadonlyArray<
     "Bereich",
     (state) => (
       <SidebarAccordionSection
+        concept={enrollmentsConcept}
         label="Anmeldungen"
         isExpanded={false}
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={3}
-        badgeTone="staff"
-        badgeNoun="ungelesene Anmeldungen"
+        badge={{ count: 3, tone: "staff", ariaLabel: LABEL }}
         {...railProps(state)}
       />
     ),
@@ -103,12 +103,17 @@ describe("Sidebar-Zähler (#6566)", () => {
   it("zeigt am Bereich bei 0 keinen Zählerplatz", () => {
     render(
       <SidebarAccordionSection
+        concept={enrollmentsConcept}
         label="Anmeldungen"
         isExpanded={false}
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={0}
+        badge={{
+          count: 0,
+          tone: "staff",
+          ariaLabel: "0 ungelesene Anmeldungen",
+        }}
       />,
     );
 
@@ -171,14 +176,13 @@ describe("Sidebar-Zähler (#6566)", () => {
   it("nennt im Streifen den Bereich und seinen Zähler", () => {
     render(
       <SidebarAccordionSection
+        concept={enrollmentsConcept}
         label="Anmeldungen"
         isExpanded={false}
         onToggle={() => undefined}
         isActive={false}
         hasChildren={false}
-        badgeCount={3}
-        badgeTone="staff"
-        badgeNoun="ungelesene Anmeldungen"
+        badge={{ count: 3, tone: "staff", ariaLabel: LABEL }}
         {...railProps("rail")}
       />,
     );
