@@ -33,12 +33,14 @@ vi.mock("~/lib/traeger-api", () => ({
 const {
   mockRegistration,
   mockHealth,
+  mockConfirm,
   mockEdit,
   mockConfirmationSettings,
   sessionPermissions,
   contributionOverride,
 } = vi.hoisted(() => ({
   mockRegistration: vi.fn(),
+  mockConfirm: vi.fn(),
   mockHealth: vi.fn(),
   mockEdit: vi.fn(),
   mockConfirmationSettings: vi.fn(),
@@ -56,6 +58,7 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
 }));
 const { mockContribution } = vi.hoisted(() => ({ mockContribution: vi.fn() }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
+  confirmHolidayRegistration: (...args: unknown[]) => mockConfirm(...args),
   // A test sets the contribution through the override (#5629) or the
   // mock (#5628).
   fetchHolidayContribution: () =>
@@ -74,7 +77,8 @@ import TraegerHolidayRegistrationPage from "./page";
 
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
-    mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockRegistration.mockReset().mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockConfirm.mockReset().mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockHealth.mockReset();
@@ -214,6 +218,53 @@ describe("TraegerHolidayRegistrationPage", () => {
     // #6652: after a confirmed split a failed reload is a load error above
     // the registration, not a failed split.
     describe("reload after a write (#6652)", () => {
+      it.each([
+        ["registration", "split"],
+        ["health", "split"],
+        ["registration", "confirmation"],
+        ["health", "confirmation"],
+      ])(
+        "hides registration data when the %s reload refuses access after %s",
+        async (refused, action) => {
+          sessionPermissions.current = [
+            "traeger_enrollment:manage",
+            "traeger_health:read",
+          ];
+          mockContribution.mockResolvedValue({
+            ...HOLIDAY_CONTRIBUTION,
+            siblings: SIBLINGS,
+          });
+          mockSplit.mockResolvedValue(undefined);
+          renderPage();
+          expect(await screen.findByText("Erdnüsse")).toBeVisible();
+          expect(screen.getByText("eva@example.org")).toBeVisible();
+          expect(screen.getByText("Oma Muster")).toBeVisible();
+          const read = refused === "health" ? mockHealth : mockRegistration;
+          read.mockRejectedValueOnce(
+            new ApiError("refused", 403, { code: "general.permission" }),
+          );
+          if (action === "split") await confirmSplit();
+          else
+            fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+          // Anker: der Nachladefehler bestätigt die gespeicherte Änderung.
+          expect(
+            await screen.findByText(
+              `${catalogText("general.permission", "die Anzeige der Anmeldung")} ${SAVED_BUT_STALE_SUFFIX}`,
+            ),
+          ).toBeVisible();
+          expect(screen.queryByText("Erdnüsse")).not.toBeInTheDocument();
+          expect(screen.queryByText("eva@example.org")).not.toBeInTheDocument();
+          expect(screen.queryByText("Oma Muster")).not.toBeInTheDocument();
+          expect(
+            screen.queryByRole("button", { name: "Angaben der Eltern ändern" }),
+          ).not.toBeInTheDocument();
+          expect(
+            action === "split" ? mockSplit : mockConfirm,
+          ).toHaveBeenCalledTimes(1);
+        },
+      );
+
       it("keeps a split registration split when the reload fails", async () => {
         mockContribution.mockResolvedValue({
           ...HOLIDAY_CONTRIBUTION,

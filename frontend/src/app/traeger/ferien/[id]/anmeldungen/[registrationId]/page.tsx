@@ -37,6 +37,7 @@ import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registr
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
+import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
@@ -171,6 +172,7 @@ export default function TraegerHolidayRegistrationPage() {
   // must freeze the amount the card shows.
   const [previewPending, setPreviewPending] = useState(false);
   const latestContribution = useRef(0);
+  const latestRegistration = useRef(0);
   // The card in its edit state: "guardians", "contacts", "answers" or
   // "child:<id>"; one at a time.
   const [editing, setEditing] = useState<string | null>(null);
@@ -185,27 +187,47 @@ export default function TraegerHolidayRegistrationPage() {
   // Reads the registration and rejects on failure: after a write the card
   // shows that as a load error; the first load shows it as the page error.
   const fetchRegistration = useCallback(async () => {
-    const [
-      loadedRegistration,
-      loadedContribution,
-      loadedHealth,
-      loadedConfirmation,
-    ] = await Promise.all([
-      fetchHolidayRegistration(periodId, registrationId),
-      fetchHolidayContribution(periodId, registrationId),
-      canSeeHealth
-        ? fetchHolidayRegistrationHealth(periodId, registrationId)
-        : Promise.resolve(null),
-      fetchHolidayConfirmationSettings(),
-    ]);
-    latestContribution.current++;
-    setConfirmation(loadedConfirmation);
-    setRegistration(loadedRegistration);
-    setHealth(loadedHealth);
-    setContribution(loadedContribution);
-    setExemption(loadedRegistration.benefitsDeclared);
-    setCostBearerId(null);
-    clearLoadError();
+    const request = ++latestRegistration.current;
+    const refusedRead = (error: unknown): never => {
+      if (request === latestRegistration.current && isRefusal(error)) {
+        latestContribution.current++;
+        setRegistration(null);
+        setHealth(null);
+        setContribution(null);
+        setConfirmation(null);
+        setEditing(null);
+      }
+      throw error;
+    };
+    try {
+      const [
+        loadedRegistration,
+        loadedContribution,
+        loadedHealth,
+        loadedConfirmation,
+      ] = await Promise.all([
+        fetchHolidayRegistration(periodId, registrationId).catch(refusedRead),
+        fetchHolidayContribution(periodId, registrationId).catch(refusedRead),
+        canSeeHealth
+          ? fetchHolidayRegistrationHealth(periodId, registrationId).catch(
+              refusedRead,
+            )
+          : Promise.resolve(null),
+        fetchHolidayConfirmationSettings().catch(refusedRead),
+      ]);
+      if (request !== latestRegistration.current) return;
+      latestContribution.current++;
+      setConfirmation(loadedConfirmation);
+      setRegistration(loadedRegistration);
+      setHealth(loadedHealth);
+      setContribution(loadedContribution);
+      setExemption(loadedRegistration.benefitsDeclared);
+      setCostBearerId(null);
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRegistration.current) return;
+      throw error;
+    }
   }, [periodId, registrationId, canSeeHealth, clearLoadError]);
 
   const load = useCallback(async () => {
@@ -280,9 +302,9 @@ export default function TraegerHolidayRegistrationPage() {
   const [splitting, setSplitting] = useState(false);
   const splitErrors = useApiErrorDisplay();
   const { success } = useToast();
-  // Reload after the split: a failure there is a load error above the
-  // registration, not a failed split (#6652).
-  const afterSplit = useRefreshAfterWrite(
+  // The page owns reload errors so they survive cards closing on refusal.
+  // A confirmed write remains successful even if its reload fails (#6652).
+  const afterWrite = useRefreshAfterWrite(
     "die Anzeige der Anmeldung",
     fetchRegistration,
   );
@@ -301,7 +323,7 @@ export default function TraegerHolidayRegistrationPage() {
     }
     success("Die Anmeldung ist von den Geschwistern getrennt.");
     setConfirmingSplit(false);
-    await afterSplit.refresh();
+    await afterWrite.refresh();
     setSplitting(false);
   };
 
@@ -321,10 +343,10 @@ export default function TraegerHolidayRegistrationPage() {
     [refreshContribution],
   );
 
-  // Confirmed data stays when a later load fails; the error stands above it
+  // Confirmed data stays after transient failures; refusals remove it
   // (#6652).
   const loadError =
-    (registration ? null : registrationLoad.error) ??
+    (registration ? null : (afterWrite.error ?? registrationLoad.error)) ??
     metadataLoadError(
       periodError ?? schoolsError,
       Boolean(registration && period && schools),
@@ -403,7 +425,7 @@ export default function TraegerHolidayRegistrationPage() {
       {registration && view && period && schools ? (
         <>
           <LoadErrorAlert error={registrationLoad.error} />
-          <LoadErrorAlert error={afterSplit.error} className="mb-4" />
+          <LoadErrorAlert error={afterWrite.error} className="mb-4" />
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}
@@ -416,8 +438,8 @@ export default function TraegerHolidayRegistrationPage() {
             costBearerId={costBearerId}
             onCostBearerChange={changeCostBearer}
             onChanged={changed}
-            onReload={fetchRegistration}
-            onDebtorNumberChanged={fetchRegistration}
+            onReload={afterWrite.refresh}
+            onDebtorNumberChanged={afterWrite.refresh}
             canManageBillingSettings={canManageBillingSettings}
           />
           <HolidayRegistrationCriteriaCard

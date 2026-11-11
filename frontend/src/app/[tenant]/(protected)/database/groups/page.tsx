@@ -1,5 +1,7 @@
 "use client";
 
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { groups as groupsKeys } from "~/lib/swr/groups";
 import {
   Suspense,
@@ -90,13 +92,28 @@ function GroupsPageContent() {
   const refreshGroups = useTenantMutateMatching([groupsKeys.family]);
 
   const {
-    data: groupsData,
+    data: cachedGroups,
     isLoading: swrLoading,
     error: groupsError,
     mutate: mutateGroups,
   } = useSWRAuth(groupsKeys.key({ page: 1, pageSize: 500 }), () =>
     groupsKeys.fetcher({ page: 1, pageSize: 500 }),
   );
+
+  const accessRefused =
+    groupsError instanceof ApiError &&
+    (groupsError.status === 401 || groupsError.status === 403);
+  const groupsData = accessRefused ? undefined : cachedGroups;
+  const discardRefused = useDiscardRefusedEntity();
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(groupsError, {
+      codes: [groupsError.code ?? "general.permission"],
+      matches: (key) => key.startsWith(groupsKeys.family),
+    });
+    setShowCreateModal(false);
+    handleDeleteCancel();
+  }, [accessRefused, groupsError, discardRefused, handleDeleteCancel]);
 
   const error = useSwrLoadError(
     groupsError,
@@ -115,7 +132,8 @@ function GroupsPageContent() {
 
   // Statuszeile des Seitenkopfs aus der bereits geladenen Gruppenliste.
   const statusLine = useMemo(() => {
-    const groups = groupsData ?? [];
+    if (groupsData === undefined) return undefined;
+    const groups = groupsData;
     return `${formatCount(groups.length)} ${groups.length === 1 ? "Gruppe" : "Gruppen"}`;
   }, [groupsData]);
 
@@ -304,7 +322,7 @@ function GroupsPageContent() {
       overlays={
         <>
           <DatabaseFormModal<Group>
-            isOpen={showCreateModal}
+            isOpen={showCreateModal && !accessRefused}
             onClose={() => setShowCreateModal(false)}
             mode="create"
             config={groupsConfig}
@@ -341,7 +359,7 @@ function GroupsPageContent() {
       intro={{
         title: "Gruppendaten",
         description: statusLine,
-        actions: (
+        actions: accessRefused ? undefined : (
           <DatabaseCreateAction
             label="Gruppe"
             ariaLabel="Gruppe erstellen"

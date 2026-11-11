@@ -398,6 +398,8 @@ describe("StudentNotizenTab", () => {
     await waitFor(() => {
       expect(swrState.tenantMutate).toHaveBeenCalledWith(
         "student-permanent-notes-7",
+        expect.any(Promise),
+        { revalidate: false },
       );
     });
   });

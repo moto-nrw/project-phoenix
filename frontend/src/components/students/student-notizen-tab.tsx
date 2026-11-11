@@ -466,11 +466,37 @@ export function StudentNotizenTab({
     [activityData, educationGroupId, educationGroupName],
   );
   const tenantMutate = useTenantMutate();
+  const discardRefused = useDiscardRefusedEntity();
 
   const revalidateNotes = async (permanentNotesChanged: boolean) => {
-    const revalidations: Promise<unknown>[] = [mutate()];
+    const failedRead = (error: unknown): never => {
+      // Each direct read rejects and keeps SWR's refusal boundary, even if
+      // another concurrent read has already failed.
+      discardRefused(error, {
+        codes: ["general.permission"],
+        matches: (key) =>
+          [
+            studentKeys.notes(studentId),
+            studentKeys.permanentNotes(studentId),
+            studentKeys.noteActivities(studentId),
+          ].includes(key),
+        refusedKey: studentKeys.notes(studentId),
+      });
+      throw error;
+    };
+    const revalidations: Promise<unknown>[] = [
+      mutate(studentNotesService.list(studentId), { revalidate: false }).catch(
+        failedRead,
+      ),
+    ];
     if (permanentNotesChanged) {
-      revalidations.push(tenantMutate(studentKeys.permanentNotes(studentId)));
+      revalidations.push(
+        tenantMutate(
+          studentKeys.permanentNotes(studentId),
+          studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
+          { revalidate: false },
+        ).catch(failedRead),
+      );
     }
     await Promise.all(revalidations);
   };
@@ -497,7 +523,6 @@ export function StudentNotizenTab({
 
   const showLoadError = load.show;
   const clearLoadError = load.clear;
-  const discardRefused = useDiscardRefusedEntity();
   useLayoutEffect(() => {
     const noteKeys = [
       studentKeys.notes(studentId),
@@ -720,7 +745,7 @@ export function StudentNotizenTab({
   );
 
   if (error && !isLoading && data === undefined) {
-    return <LoadErrorAlert error={load.error} />;
+    return <LoadErrorAlert error={notesAfterWrite.error ?? load.error} />;
   }
 
   return (

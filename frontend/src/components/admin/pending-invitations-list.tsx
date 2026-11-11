@@ -99,17 +99,18 @@ export function PendingInvitationsList({
   // saved change (#6652).
   const fetchInvitations = useCallback(async () => {
     const request = ++latestRequest.current;
-    let data: PendingInvitation[];
     try {
-      data = await listPendingInvitations();
+      const data = await listPendingInvitations();
+      if (request !== latestRequest.current) return;
+      setInvitations(data);
+      setLoadFailed(false);
+      clearLoadError();
     } catch (error) {
       if (request !== latestRequest.current) return;
       throw error;
+    } finally {
+      if (request === latestRequest.current) setIsLoading(false);
     }
-    if (request !== latestRequest.current) return;
-    setInvitations(data);
-    setLoadFailed(false);
-    clearLoadError();
   }, [clearLoadError]);
   // Never rejects: a failed load shows its error in the card.
   const loadInvitations = useCallback(async () => {
@@ -127,8 +128,6 @@ export function PendingInvitationsList({
         object: "die Liste der offenen Einladungen",
         retry: () => latestLoadRef.current(),
       });
-    } finally {
-      if (request === latestRequest.current) setIsLoading(false);
     }
   }, [showLoadError, fetchInvitations]);
   useLayoutEffect(() => {

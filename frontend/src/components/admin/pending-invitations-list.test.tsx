@@ -154,6 +154,56 @@ describe("PendingInvitationsList", () => {
       ).not.toBeInTheDocument();
     },
   );
+  it.each([
+    ["resend", false],
+    ["resend", true],
+    ["revoke", false],
+    ["revoke", true],
+  ] as const)(
+    "finishes an overlapping refreshKey load after %s (reload fails: %s)",
+    async (action, fails) => {
+      const write = deferred();
+      const older = deferred<PendingInvitation[]>();
+      const actionMock =
+        action === "resend" ? mockResendInvitation : mockRevokeInvitation;
+      actionMock.mockReturnValueOnce(write.promise);
+      mockListPendingInvitations
+        .mockResolvedValueOnce(mockInvitations)
+        .mockReturnValueOnce(older.promise);
+      if (fails)
+        mockListPendingInvitations.mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        );
+      else mockListPendingInvitations.mockResolvedValueOnce(mockInvitations);
+      const view = render(<PendingInvitationsList refreshKey={0} />);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Aktionen für test1@example.com",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("menuitem", {
+          name: action === "resend" ? "Erneut senden" : "Löschen",
+        }),
+      );
+      if (action === "revoke")
+        fireEvent.click(screen.getByTestId("confirm-button"));
+      await waitFor(() => expect(actionMock).toHaveBeenCalledTimes(1));
+      view.rerender(<PendingInvitationsList refreshKey={1} />);
+      await waitFor(() =>
+        expect(mockListPendingInvitations).toHaveBeenCalledTimes(2),
+      );
+      expect(screen.getByText("Wird geladen…")).toBeVisible();
+      await act(async () => write.resolve());
+      // Anker: der neueste Abruf gibt die Liste auch bei einem Fehler wieder frei.
+      expect(await screen.findByText("test1@example.com")).toBeVisible();
+      expect(screen.queryByText("Wird geladen…")).not.toBeInTheDocument();
+      await act(async () => older.resolve(mockInvitations));
+      expect(screen.getByText("test1@example.com")).toBeVisible();
+      expect(actionMock).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("shows loading state initially", () => {
     render(<PendingInvitationsList refreshKey={0} />);
 

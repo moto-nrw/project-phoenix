@@ -40,6 +40,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentSearch,
 }));
 
+const mockDiscardRefused = vi.hoisted(() => vi.fn());
+vi.mock("~/lib/swr/hooks", () => ({
+  useDiscardRefusedEntity: () => mockDiscardRefused,
+}));
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
@@ -386,6 +391,56 @@ describe("GroupsPage", () => {
       catalogText("general.unavailable", "die Liste der Gruppen"),
     );
   });
+
+  it.each([403, 503])(
+    "handles a %s with cached groups and an open detail",
+    async (status) => {
+      setSelectedGroup("1");
+      const view = render(<GroupsPage />);
+      expect(await screen.findByTestId("detail-group-name")).toHaveTextContent(
+        "Gruppe Rot",
+      );
+      fireEvent.click(screen.getByTestId("trigger-delete"));
+      expect(screen.getByTestId("confirmation-modal")).toBeVisible();
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: mockGroups,
+        isLoading: false,
+        error: new ApiError("failed", status),
+        isValidating: false,
+        mutate: vi.fn(),
+      } as ReturnType<typeof useSWRAuth>);
+      view.rerender(<GroupsPage />);
+      const code =
+        status === 403 ? "general.permission" : "general.unavailable";
+      // Anker: die Seite zeigt den konkreten Fehler nach dem Abruf.
+      expect(
+        await screen.findByText(catalogText(code, "die Liste der Gruppen"), {
+          exact: false,
+        }),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(mockDiscardRefused).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 403 }),
+          expect.objectContaining({ codes: ["general.permission"] }),
+        );
+        expect(
+          screen.queryByTestId("groups-master-detail"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("confirmation-modal"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Gruppe erstellen" }),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText("Raum 101")).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByTestId("detail-group-name")).toHaveTextContent(
+          "Gruppe Rot",
+        );
+        expect(screen.getByTestId("confirmation-modal")).toBeVisible();
+      }
+    },
+  );
 
   it("shows empty state when no groups exist", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
