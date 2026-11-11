@@ -120,6 +120,7 @@ func TestMapSubmitError_RefusalsCarryCodes(t *testing.T) {
 		{"other person", capability.ErrExistingStudentAlreadyRequested, http.StatusConflict, "enrollment.child_already_requested"},
 		{"offering closed", capability.ErrCareOfferingClosed, http.StatusBadRequest, "enrollment.care_offering_closed"},
 		{"rate limited", capability.ErrRateLimited, http.StatusTooManyRequests, "enrollment.submission_rate_limited"},
+		{"e-mail rate limited", capability.ErrEmailRateLimited, http.StatusTooManyRequests, "enrollment.submission_email_rate_limited"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

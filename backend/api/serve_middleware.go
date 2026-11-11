@@ -217,6 +217,8 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
 	generalRateLimiter.ExemptPathPrefix(emailWebhookPath + "/")
+	generalRateLimiter.ExemptPathPrefix(holidayRegistrationPath + "/")
+	generalRateLimiter.ExemptPathPrefix(holidayQuoteMount + "/")
 	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -302,6 +304,9 @@ func authRateLimitersFromEnv(enabled bool) authRateLimiters {
 	return buildAuthRateLimiters(securityLoggerFromEnv(), os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"), demoLoopbackExempt())
 }
 
+// enabled reports whether rate limiting is switched on.
+func (limiters authRateLimiters) enabled() bool { return limiters.auth != nil }
+
 // authMiddleware is the auth limiter's middleware, nil while rate limiting is
 // disabled. Tenant, operator, parent and school login share its budget.
 func (limiters authRateLimiters) authMiddleware() func(http.Handler) http.Handler {
@@ -325,6 +330,42 @@ const (
 	dataReturnRequestsPerMinute = 30
 	dataReturnBurst             = 10
 )
+
+// The public holiday registration is opened by many families from one
+// address at once: the school network, a parents' evening, a mobile carrier
+// (#6726). One family needs an offer, a quote, its proofs and the
+// registration; the limit of one person would refuse the families behind it.
+// The link has its own limit for that, per address and split into reads and
+// writes like the general one. Turnstile and the stored-registration limits
+// of Enrollment stay in front of every write.
+const (
+	holidayRegistrationRequestsPerMinute = 300
+	holidayRegistrationBurst             = 100
+)
+
+// holidayRegistrationRateLimit is nil when rate limiting is disabled.
+func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handler) http.Handler {
+	if !enabled {
+		return nil
+	}
+	limiter := customMiddleware.NewRateLimiter(holidayRegistrationRequestsPerMinute, holidayRegistrationBurst)
+	limiter.SetBucketFunc(func(r *http.Request) string {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			return "holiday-link-read"
+		default:
+			return "holiday-link-write"
+		}
+	})
+	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+	if exemptLoopback {
+		limiter.ExemptLoopback()
+	}
+	if securityLogger := securityLoggerFromEnv(); securityLogger != nil {
+		limiter.SetLogger(securityLogger)
+	}
+	return limiter.Middleware()
+}
 
 // dataReturnRateLimit is nil when rate limiting is disabled.
 func dataReturnRateLimit(enabled bool) func(http.Handler) http.Handler {
