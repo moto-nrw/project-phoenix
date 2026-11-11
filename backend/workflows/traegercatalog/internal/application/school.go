@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog"
 )
 
@@ -114,4 +116,20 @@ func sameJSON(left, right any) bool {
 	a, errA := json.Marshal(left)
 	b, errB := json.Marshal(right)
 	return errA == nil && errB == nil && bytes.Equal(a, b)
+}
+
+// lockSchool keeps ownership stable until this school transaction ends. A
+// Träger change takes an incompatible lock before detaching its copies.
+func (c *Catalog) lockSchool(ctx context.Context, organizationID, schoolID int64) error {
+	school, err := c.deps.Schools.FindSchoolForShare(ctx, schoolID)
+	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
+		return errStale
+	}
+	if err != nil {
+		return err
+	}
+	if school.OrganizationID != organizationID || school.IsDeleted() {
+		return errStale
+	}
+	return nil
 }

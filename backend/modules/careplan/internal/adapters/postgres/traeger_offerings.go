@@ -63,12 +63,13 @@ type traegerOfferingRow struct {
 }
 
 type traegerOfferingSchoolRow struct {
-	OfferingID     int64      `bun:"offering_id"`
-	SchoolID       int64      `bun:"school_id"`
-	AppliedVersion *int       `bun:"applied_version"`
-	Outcome        *string    `bun:"outcome"`
-	ErrorCode      *string    `bun:"error_code"`
-	RecordedAt     *time.Time `bun:"recorded_at"`
+	Applied        json.RawMessage `bun:"applied"`
+	OfferingID     int64           `bun:"offering_id"`
+	SchoolID       int64           `bun:"school_id"`
+	AppliedVersion *int            `bun:"applied_version"`
+	Outcome        *string         `bun:"outcome"`
+	ErrorCode      *string         `bun:"error_code"`
+	RecordedAt     *time.Time      `bun:"recorded_at"`
 }
 
 const traegerOfferingSelect = `SELECT offering.id, offering.organization_id, offering.traeger_phase_id, offering.draft,
@@ -128,14 +129,27 @@ func (s *TraegerOfferingStore) withSchools(ctx context.Context, db bun.IDB, orga
 		ids = append(ids, row.ID)
 	}
 	var schools []traegerOfferingSchoolRow
-	if err := db.NewRaw(`SELECT traeger_care_offering_id AS offering_id, school_id, applied_version, outcome, error_code, recorded_at
-		FROM enrollment.traeger_care_offering_schools WHERE organization_id = ? AND traeger_care_offering_id IN (?) ORDER BY school_id`,
+	if err := db.NewRaw(`SELECT school.traeger_care_offering_id AS offering_id, school.school_id, school.applied_version,
+		school.outcome, school.error_code, school.recorded_at, version.fields AS applied
+		FROM enrollment.traeger_care_offering_schools AS school
+		LEFT JOIN enrollment.traeger_care_offering_versions AS version
+			ON version.organization_id = school.organization_id AND version.traeger_care_offering_id = school.traeger_care_offering_id
+			AND version.version = school.applied_version
+		WHERE school.organization_id = ? AND school.traeger_care_offering_id IN (?) ORDER BY school.school_id`,
 		organizationID, bun.List(ids)).Scan(ctx, &schools); err != nil {
 		return nil, fmt.Errorf("care plan postgres: read träger care offering schools: %w", err)
 	}
 	byOffering := map[int64][]careplan.TraegerOfferingSchool{}
 	for _, school := range schools {
-		byOffering[school.OfferingID] = append(byOffering[school.OfferingID], school.value())
+		value := school.value()
+		if len(school.Applied) > 0 {
+			var applied careplan.TraegerOfferingDraft
+			if err := json.Unmarshal(school.Applied, &applied); err != nil {
+				return nil, fmt.Errorf("care plan postgres: decode school's applied träger offering: %w", err)
+			}
+			value.Applied = &applied
+		}
+		byOffering[school.OfferingID] = append(byOffering[school.OfferingID], value)
 	}
 	for _, row := range rows {
 		offering, err := row.value()
@@ -277,9 +291,9 @@ func (s *TraegerOfferingStore) InsertTraegerOfferingVersions(ctx context.Context
 	return nil
 }
 
-// RecordTraegerOfferingOutcomes writes the outcome of each school's copy in
-// one statement. A school outside the Träger is refused by the trigger.
-func (s *TraegerOfferingStore) RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []careplan.TraegerOfferingOutcome) error {
+// RecordTraegerOfferingOutcomes validates every offering and writes the batch
+// in two statements. A school outside the Träger is refused by the trigger.
+func (s *TraegerOfferingStore) RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
@@ -287,20 +301,39 @@ func (s *TraegerOfferingStore) RecordTraegerOfferingOutcomes(ctx context.Context
 	if len(outcomes) == 0 {
 		return nil
 	}
+	// Validate the complete offering set beneath RLS before writing any row.
+	ids := make([]int64, 0, len(outcomes))
+	for id := range outcomes {
+		ids = append(ids, id)
+	}
+	var count int
+	if err := db.NewRaw(`SELECT count(*) FROM enrollment.traeger_care_offerings
+		WHERE organization_id = ? AND id IN (?)`, organizationID, bun.List(ids)).Scan(ctx, &count); err != nil {
+		return fmt.Errorf("care plan postgres: validate träger care offering outcomes: %w", err)
+	}
+	if count != len(ids) {
+		return careplan.ErrTraegerOfferingNotFound
+	}
 	type outcomeRow struct {
+		OfferingID     int64   `json:"offering_id"`
 		SchoolID       int64   `json:"school_id"`
 		AppliedVersion *int    `json:"applied_version"`
 		Outcome        string  `json:"outcome"`
 		ErrorCode      *string `json:"error_code"`
 	}
-	rows := make([]outcomeRow, 0, len(outcomes))
-	for _, outcome := range outcomes {
-		row := outcomeRow{SchoolID: outcome.SchoolID, AppliedVersion: outcome.AppliedVersion, Outcome: outcome.Outcome}
-		if outcome.ErrorCode != "" {
-			code := outcome.ErrorCode
-			row.ErrorCode = &code
+	rows := []outcomeRow{}
+	for id, schools := range outcomes {
+		for _, outcome := range schools {
+			row := outcomeRow{OfferingID: id, SchoolID: outcome.SchoolID, AppliedVersion: outcome.AppliedVersion, Outcome: outcome.Outcome}
+			if outcome.ErrorCode != "" {
+				code := outcome.ErrorCode
+				row.ErrorCode = &code
+			}
+			rows = append(rows, row)
 		}
-		rows = append(rows, row)
+	}
+	if len(rows) == 0 {
+		return nil
 	}
 	encoded, err := json.Marshal(rows)
 	if err != nil {
@@ -308,12 +341,13 @@ func (s *TraegerOfferingStore) RecordTraegerOfferingOutcomes(ctx context.Context
 	}
 	if _, err := db.NewRaw(`INSERT INTO enrollment.traeger_care_offering_schools AS target
 			(organization_id, traeger_care_offering_id, school_id, applied_version, outcome, error_code, recorded_at)
-		SELECT ?, ?, outcome.school_id, outcome.applied_version, outcome.outcome, outcome.error_code, now()
-		FROM jsonb_to_recordset(?::jsonb) AS outcome(school_id bigint, applied_version int, outcome text, error_code text)
+		SELECT ?, outcome.offering_id, outcome.school_id, outcome.applied_version, outcome.outcome, outcome.error_code, now()
+		FROM jsonb_to_recordset(?::jsonb) AS outcome(offering_id bigint, school_id bigint, applied_version int, outcome text, error_code text)
+		ORDER BY outcome.offering_id, outcome.school_id
 		ON CONFLICT (organization_id, traeger_care_offering_id, school_id) DO UPDATE SET
 			applied_version = CASE WHEN EXCLUDED.outcome IN ('applied', 'withdrawn') THEN EXCLUDED.applied_version ELSE target.applied_version END,
 			outcome = EXCLUDED.outcome, error_code = EXCLUDED.error_code, recorded_at = EXCLUDED.recorded_at`,
-		organizationID, id, string(encoded)).Exec(ctx); err != nil {
+		organizationID, string(encoded)).Exec(ctx); err != nil {
 		return fmt.Errorf("care plan postgres: record träger care offering outcomes: %w", err)
 	}
 	return nil

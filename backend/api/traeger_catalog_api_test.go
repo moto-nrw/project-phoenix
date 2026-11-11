@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -60,7 +62,7 @@ func (catalogNoResync) DetachTemplatesSourcedFromOffering(context.Context, int64
 // traegerCatalogRouter mounts /traeger/catalog as the serving root does,
 // over the phase administration, the care-offering catalog, the
 // Elternabrechnung and the Betreuungsvertrag of the test database.
-func traegerCatalogRouter(t *testing.T, db *bun.DB) http.Handler {
+func traegerCatalogRouter(t *testing.T, db *bun.DB, tariffOverride ...parentbilling.CareModulePrices) http.Handler {
 	t.Helper()
 	unit := testpkg.TenantRuntime(t, db)
 	database := testpkg.NewDatabase(t, db)
@@ -80,6 +82,9 @@ func traegerCatalogRouter(t *testing.T, db *bun.DB) http.Handler {
 	require.NoError(t, err)
 	billing, intake := newTraegerCatalogBilling(organizations, settings, schoolSettings.Settings, presence, delivery.Module,
 		providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog, owners.CareContractTestHolidays{}, "http://parents.localhost:3000")
+	if len(tariffOverride) > 0 {
+		billing = tariffOverride[0]
+	}
 	catalog, err := NewCareOfferingCatalog(database, unit)
 	require.NoError(t, err)
 	noLock := func(context.Context) error { return nil }
@@ -261,4 +266,73 @@ func catalogRollout(t *testing.T, router http.Handler, token, phasePath, fingerp
 	rec := traegerJSON(t, router, token, http.MethodPost, phasePath+"/rollout", map[string]any{"fingerprint": fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	return decodeSchoolPortalData[catalogRolloutBody](t, rec.Body.Bytes())
+}
+
+type catalogFailedTariffs struct{ err error }
+
+func (f catalogFailedTariffs) SaveCareModulePrices(context.Context, parentbilling.HolidayReviewer, parentbilling.CareModulePriceList) error {
+	return f.err
+}
+
+func TestTraegerCatalogRecoversCopiesAfterBillingFailure(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []struct {
+		name     string
+		failure  error
+		status   int
+		deselect bool
+	}{
+		{name: "refusal then withdrawal", failure: parentbilling.ErrCareTariffMonthBilled, status: http.StatusOK},
+		{name: "interruption then deselection", failure: errors.New("billing unavailable"), status: http.StatusInternalServerError, deselect: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			db := testpkg.SetupTestDB(t)
+			portal := traegerPortalWithDays(t, db, testpkg.TenantRuntime(t, db), owners.HolidayTestSchoolCalendar{})
+			office := newTraegerOffice(t, db, portal, "Träger Katalog Wiederholung", identityaccess.TraegerRoleAdministration)
+			testpkg.OwnTraegerCatalog(t, db, office.organization)
+			testpkg.OwnTenantRows(t, db, office.schools...)
+			router := traegerCatalogRouter(t, db, catalogFailedTariffs{err: scenario.failure})
+			fields := map[string]any{
+				"name": "Schuljahr 2027/28", "kind": "school_year", "service_start_date": "2027-08-01", "service_end_date": "2028-07-31", "all_schools": true,
+			}
+			rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/catalog/phases", fields)
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			phase := decodeSchoolPortalData[catalogPhaseBody](t, rec.Body.Bytes())
+			path := fmt.Sprintf("/traeger/catalog/phases/%d", phase.ID)
+			rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/offerings", catalogOffering(20, 1600))
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			preview := catalogPreview(t, router, office.token, path)
+			rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/rollout", map[string]any{"fingerprint": preview.Fingerprint})
+			require.Equal(t, scenario.status, rec.Code, rec.Body.String())
+			if scenario.status == http.StatusOK {
+				result := decodeSchoolPortalData[catalogRolloutBody](t, rec.Body.Bytes())
+				for _, school := range result.Schools {
+					assert.Equal(t, "rejected", school.Outcome)
+				}
+				assert.Contains(t, rec.Body.String(), "parent_billing.care_tariff_month_billed")
+			}
+			var copies, applied int
+			require.NoError(t, db.NewRaw(`SELECT count(*) FROM enrollment.phases WHERE tenant_id IN (?) AND traeger_source_id = ?`, bun.List(office.schools), phase.ID).Scan(t.Context(), &copies))
+			assert.Positive(t, copies, "copies committed before billing failed")
+			require.NoError(t, db.NewRaw(`SELECT count(*) FROM enrollment.traeger_phase_schools WHERE organization_id = ? AND traeger_phase_id = ? AND applied_version IS NOT NULL`, office.organization, phase.ID).Scan(t.Context(), &applied))
+			assert.Zero(t, applied, "billing failure does not advance the applied version")
+			if scenario.deselect {
+				fields["all_schools"] = false
+				fields["school_ids"] = []int64{}
+				rec = traegerJSON(t, router, office.token, http.MethodPut, path, fields)
+			} else {
+				rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/withdraw", nil)
+			}
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			preview = catalogPreview(t, router, office.token, path)
+			require.Len(t, preview.Schools, len(office.schools), "every interrupted target remains recoverable")
+			result := catalogRollout(t, router, office.token, path, preview.Fingerprint)
+			for _, school := range result.Schools {
+				assert.Equal(t, "withdrawn", school.Outcome)
+			}
+			require.NoError(t, db.NewRaw(`SELECT count(*) FROM enrollment.phases WHERE tenant_id IN (?) AND traeger_source_id = ?`, bun.List(office.schools), phase.ID).Scan(t.Context(), &copies))
+			assert.Zero(t, copies, "withdrawal removes unfinished copies")
+		})
+	}
 }

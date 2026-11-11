@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog"
 	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog/ports"
@@ -33,6 +34,12 @@ type fakeOwners struct {
 	trail               []string
 	inTraeger, inSchool int64
 	released            bool
+	schoolOwners        map[int64]int64
+	billingError        error
+	templateError       error
+	recordError         error
+	recordCalls         int
+	releaseDraft        *careplan.TraegerOfferingDraft
 }
 
 func newFakeOwners() *fakeOwners {
@@ -58,12 +65,14 @@ func (f *fakeOwners) catalog(t *testing.T) *Catalog {
 		Tariffs: func(_ context.Context, _, _ int64, prices ports.ModulePrices) error {
 			f.trail = append(f.trail, fmt.Sprintf("tariff %d in träger %d", prices.SchoolID, f.inTraeger))
 			f.prices = append(f.prices, prices)
-			return nil
+			return f.billingError
 		},
-		ContractTemplates: func(context.Context, int64, int64, int64, int64, careplan.TraegerContractTemplate) error { return nil },
-		Runtime:           fakeRuntime{f},
-		Today:             func() calendar.Date { return calendar.NewDate(2026, 11, 11) },
-		Fingerprint:       func(content []byte) string { return fmt.Sprintf("%x", content) },
+		ContractTemplates: func(context.Context, int64, int64, int64, int64, careplan.TraegerContractTemplate) error {
+			return f.templateError
+		},
+		Runtime:     fakeRuntime{f},
+		Today:       func() calendar.Date { return calendar.NewDate(2026, 11, 11) },
+		Fingerprint: func(content []byte) string { return fmt.Sprintf("%x", content) },
 	})
 	require.NoError(t, err)
 	return catalog
@@ -103,6 +112,14 @@ func (s fakeSchools) ListTraegerSchoolIDs(context.Context, int64) ([]int64, erro
 	return s.f.schools, nil
 }
 
+func (s fakeSchools) FindSchoolForShare(_ context.Context, id int64) (organizationtenancy.School, error) {
+	org := office.OrganizationID
+	if owner, ok := s.f.schoolOwners[id]; ok {
+		org = owner
+	}
+	return organizationtenancy.School{ID: id, OrganizationID: org}, nil
+}
+
 type fakePhases struct{ f *fakeOwners }
 
 func (p fakePhases) TraegerPhase(context.Context, int64, int64) (enrollment.TraegerPhase, error) {
@@ -122,6 +139,10 @@ func (p fakePhases) ReleaseTraegerPhase(context.Context, int64, int64, int64) (i
 
 func (p fakePhases) RecordTraegerPhaseOutcomes(_ context.Context, _, _ int64, outcomes []enrollment.TraegerCopyOutcome) error {
 	p.f.trail = append(p.f.trail, fmt.Sprintf("record in träger %d", p.f.inTraeger))
+	p.f.recordCalls++
+	if p.f.recordCalls > 1 && p.f.recordError != nil {
+		return p.f.recordError
+	}
 	p.f.recorded = outcomes
 	return nil
 }
@@ -136,14 +157,18 @@ func (o fakeOfferings) ReleaseTraegerOfferings(context.Context, int64, int64, in
 	released := make([]careplan.TraegerOffering, 0, len(o.f.offerings))
 	for _, offering := range o.f.offerings {
 		version, draft := 1, offering.Draft
+		if o.f.releaseDraft != nil {
+			draft = *o.f.releaseDraft
+			offering.Draft = draft
+		}
 		offering.ReleasedVersion, offering.Released = &version, &draft
 		released = append(released, offering)
 	}
 	return released, nil
 }
 
-func (o fakeOfferings) RecordTraegerOfferingOutcomes(_ context.Context, _, id int64, outcomes []careplan.TraegerOfferingOutcome) error {
-	o.f.offered[id] = outcomes
+func (o fakeOfferings) RecordTraegerOfferingOutcomes(_ context.Context, _ int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error {
+	o.f.offered = outcomes
 	return nil
 }
 
@@ -204,7 +229,7 @@ func TestRolloutFollowsThePreview(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []traegercatalog.SchoolResult{{SchoolID: 10, Outcome: "applied"}, {SchoolID: 20, Outcome: "applied"}}, rollout.Schools)
 	assert.Equal(t, []string{
-		"lock phase in träger 1", "release in träger 1",
+		"lock phase in träger 1", "release in träger 1", "record in träger 1",
 		"lock copy in school 10", "tariff 10 in träger 1",
 		"lock copy in school 20", "tariff 20 in träger 1",
 		"record in träger 1",
@@ -297,7 +322,7 @@ func TestBillingFollowsTheRecordedVersion(t *testing.T) {
 	one := 1
 	before := careplan.TraegerOfferingDraft{Prices: []careplan.TraegerCarePrice{{Weekday: "mon", MonthlyCents: 1600}}}
 	offering := careplan.TraegerOffering{ReleasedVersion: &one, Released: &before, Schools: []careplan.TraegerOfferingSchool{
-		{SchoolID: 10, AppliedVersion: &one, Outcome: "applied"},
+		{SchoolID: 10, AppliedVersion: &one, Applied: &before, Outcome: "applied"},
 	}}
 	today := calendar.NewDate(2026, 11, 11)
 	phase := enrollment.TraegerPhaseFields{ServiceStartDate: "2026-08-01"}
@@ -312,4 +337,105 @@ func TestBillingFollowsTheRecordedVersion(t *testing.T) {
 	fresh := billingFor(offering, offeringRelease{version: 2, draft: dearer}, 20, phase, today)
 	require.NotNil(t, fresh.pricesFrom)
 	assert.Equal(t, calendar.NewDate(2026, 11, 1), *fresh.pricesFrom, "a new copy is priced from the current month at the earliest")
+}
+
+func TestRolloutRevalidatesSchoolOwnership(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	f.schoolOwners = map[int64]int64{10: 2}
+	result, err := catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	require.NoError(t, err)
+	assert.Equal(t, enrollment.TraegerOutcomeStale, result.Schools[0].Outcome)
+	assert.NotContains(t, f.applied, int64(10), "the previous Träger writes no copy after a school moves")
+}
+
+func TestRolloutRejectsUnconfirmedRelease(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	changed := f.offerings[0].Draft
+	changed.Fields.Name = "Changed after confirmation"
+	f.releaseDraft = &changed
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	assert.ErrorIs(t, err, traegercatalog.ErrPreviewStale)
+	assert.Empty(t, f.applied)
+}
+
+func TestRolloutBillingRefusalRejectsSchool(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"tariff", "template"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newFakeOwners()
+			f.offerings[0].Draft.ContractTemplate = &careplan.TraegerContractTemplate{TermKind: "school_year"}
+			catalog := f.catalog(t)
+			preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+			require.NoError(t, err)
+			code := "parent_billing.care_tariff_month_billed"
+			if kind == "tariff" {
+				f.billingError = &ports.Refusal{Code: code, Err: errors.New("month billed")}
+			} else {
+				code = "care_contract.template_invalid"
+				f.templateError = &ports.Refusal{Code: code, Err: errors.New("invalid template")}
+			}
+			result, err := catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+			require.NoError(t, err)
+			for _, school := range result.Schools {
+				assert.Equal(t, enrollment.TraegerOutcomeRejected, school.Outcome)
+				assert.Equal(t, code, school.ErrorCode)
+			}
+			for _, outcome := range f.recorded {
+				assert.Nil(t, outcome.AppliedVersion)
+			}
+			for _, outcome := range f.offered[70] {
+				assert.Nil(t, outcome.AppliedVersion)
+				assert.Equal(t, code, outcome.ErrorCode)
+			}
+		})
+	}
+}
+
+func TestRolloutRetainsRecoveryTargetsWhenRecordingFails(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(t.Context(), office, f.phase.ID)
+	require.NoError(t, err)
+	f.recordError = errors.New("outcomes unavailable")
+	_, err = catalog.Rollout(t.Context(), office, f.phase.ID, preview.Fingerprint)
+	require.ErrorIs(t, err, f.recordError)
+	require.Len(t, f.applied, 2, "the copies committed before final recording failed")
+	require.Len(t, f.recorded, 2, "the earlier recovery targets survive")
+	for _, outcome := range f.recorded {
+		assert.Equal(t, enrollment.TraegerOutcomeStale, outcome.Outcome)
+		assert.Nil(t, outcome.AppliedVersion)
+	}
+}
+
+func TestTargetsRecoverUnfinishedCopies(t *testing.T) {
+	t.Parallel()
+	snap := snapshot{schools: []int64{10}, phase: enrollment.TraegerPhase{Schools: []enrollment.TraegerCatalogSchool{
+		{SchoolID: 10, Selected: false, Outcome: enrollment.TraegerOutcomeStale},
+	}}}
+	assert.Equal(t, []target{{schoolID: 10, action: traegercatalog.ActionWithdraw}}, snap.targets(), "pending work remains a withdrawal target without an applied version")
+}
+
+func TestBillingPreservesTermsAcrossMissedReleases(t *testing.T) {
+	t.Parallel()
+	one, three := 1, 3
+	terms := careplan.TraegerOfferingDraft{
+		Prices:           []careplan.TraegerCarePrice{{Weekday: "mon", MonthlyCents: 1600}},
+		ContractTemplate: &careplan.TraegerContractTemplate{TermKind: "open_ended"},
+	}
+	offering := careplan.TraegerOffering{ReleasedVersion: &three, Released: &terms, Schools: []careplan.TraegerOfferingSchool{
+		{SchoolID: 10, AppliedVersion: &one, Applied: &terms, Outcome: enrollment.TraegerOutcomeApplied},
+	}}
+	plan := billingFor(offering, offeringRelease{version: 4, draft: terms}, 10,
+		enrollment.TraegerPhaseFields{ServiceStartDate: "2026-08-01"}, calendar.NewDate(2026, 11, 11))
+	assert.Nil(t, plan.pricesFrom, "a capacity-only catch-up preserves the school's tariff")
+	assert.False(t, plan.template, "a capacity-only catch-up preserves the school's contract template")
 }

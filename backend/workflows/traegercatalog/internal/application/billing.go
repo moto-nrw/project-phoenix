@@ -17,11 +17,12 @@ type billing struct {
 // billingFor decides the tariff and the contract template of one offering at
 // one school (ADR 0195 section 6). A school without a copy gets both from
 // the month of the service start, at the earliest the current month. A
-// school one version behind gets a new tariff from the next month only when
-// the prices changed, and the template only when it changed. A school that
-// already holds the version gets nothing; one further behind gets both.
+// school with a copy compares its actual immutable applied version with
+// the target, including after missed releases. Changed terms start next
+// month; a school that already holds the version gets nothing.
 func billingFor(offering careplan.TraegerOffering, next offeringRelease, schoolID int64, phase enrollment.TraegerPhaseFields, today calendar.Date) billing {
 	recorded := recordedVersion(offering, schoolID)
+	previous := appliedDraft(offering, schoolID)
 	result := billing{}
 	switch {
 	case recorded == nil:
@@ -29,11 +30,11 @@ func billingFor(offering careplan.TraegerOffering, next offeringRelease, schoolI
 		result.template = true
 	case *recorded == next.version:
 		return result
-	case offering.ReleasedVersion != nil && *recorded == *offering.ReleasedVersion && offering.Released != nil:
-		if !sameJSON(offering.Released.Prices, next.draft.Prices) {
+	case previous != nil:
+		if !sameJSON(previous.Prices, next.draft.Prices) {
 			result.pricesFrom = monthFrom(phase.ServiceStartDate, nextMonthStart(today))
 		}
-		result.template = !sameJSON(offering.Released.ContractTemplate, next.draft.ContractTemplate)
+		result.template = !sameJSON(previous.ContractTemplate, next.draft.ContractTemplate)
 	default:
 		result.pricesFrom = monthFrom(phase.ServiceStartDate, nextMonthStart(today))
 		result.template = true
@@ -72,4 +73,13 @@ func nextMonthStart(day calendar.Date) calendar.Date {
 		return calendar.NewDate(day.Year()+1, time.January, 1)
 	}
 	return calendar.NewDate(day.Year(), day.Month()+1, 1)
+}
+
+func appliedDraft(offering careplan.TraegerOffering, schoolID int64) *careplan.TraegerOfferingDraft {
+	for _, school := range offering.Schools {
+		if school.SchoolID == schoolID && school.Outcome != enrollment.TraegerOutcomeWithdrawn {
+			return school.Applied
+		}
+	}
+	return nil
 }

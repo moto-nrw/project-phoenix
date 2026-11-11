@@ -78,6 +78,9 @@ func (c *Catalog) previewSchool(ctx context.Context, snap snapshot, next release
 	var state string
 	err := c.deps.Runtime.WithinSchool(ctx, t.schoolID, func(ctx context.Context) error {
 		var err error
+		if err = c.lockSchool(ctx, snap.phase.OrganizationID, t.schoolID); err != nil {
+			return err
+		}
 		if state, err = c.schoolState(ctx, snap, false); err != nil {
 			return err
 		}
@@ -90,6 +93,8 @@ func (c *Catalog) previewSchool(ctx context.Context, snap snapshot, next release
 	switch code, refused := rejectionCode(err); {
 	case errors.Is(err, errPreviewDiscard):
 		plan.Outcome = traegercatalog.PreviewReady
+	case errors.Is(err, errStale):
+		return plan, "", traegercatalog.ErrPreviewStale
 	case refused:
 		plan.Action, plan.Outcome, plan.ErrorCode = t.action, traegercatalog.PreviewRejected, code
 	default:

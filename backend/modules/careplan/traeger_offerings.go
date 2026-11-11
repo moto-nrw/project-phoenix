@@ -84,11 +84,14 @@ type TraegerOfferingDraft struct {
 
 // TraegerOfferingSchool is one school with the last outcome of the copy.
 type TraegerOfferingSchool struct {
-	SchoolID       int64      `json:"school_id"`
-	AppliedVersion *int       `json:"applied_version,omitempty"`
-	Outcome        string     `json:"outcome,omitempty"`
-	ErrorCode      string     `json:"error_code,omitempty"`
-	RecordedAt     *time.Time `json:"recorded_at,omitempty"`
+	// Applied is the immutable draft of AppliedVersion, used to compare billing
+	// terms even when this school missed several releases.
+	Applied        *TraegerOfferingDraft `json:"-"`
+	SchoolID       int64                 `json:"school_id"`
+	AppliedVersion *int                  `json:"applied_version,omitempty"`
+	Outcome        string                `json:"outcome,omitempty"`
+	ErrorCode      string                `json:"error_code,omitempty"`
+	RecordedAt     *time.Time            `json:"recorded_at,omitempty"`
 }
 
 // TraegerOffering is a Träger care offering with its draft, its released
@@ -128,7 +131,7 @@ type TraegerOfferings interface {
 	// phase whose draft differs from its last one. The caller holds the lock
 	// of the Träger phase.
 	ReleaseTraegerOfferings(ctx context.Context, organizationID, traegerPhaseID, accountID int64) ([]TraegerOffering, error)
-	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []TraegerOfferingOutcome) error
+	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]TraegerOfferingOutcome) error
 }
 
 // TraegerOfferingCopy is the released version of a Träger offering for one

@@ -8,12 +8,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Schools lists the undeleted schools of a Träger (Organisation & Tenancy).
 type Schools interface {
 	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+	FindSchoolForShare(ctx context.Context, schoolID int64) (organizationtenancy.School, error)
 }
 
 // PhaseTemplates are Enrollment's Träger phases, in the Träger transaction.
@@ -29,7 +31,7 @@ type PhaseTemplates interface {
 type OfferingTemplates interface {
 	ListTraegerOfferings(ctx context.Context, organizationID, traegerPhaseID int64) ([]careplan.TraegerOffering, error)
 	ReleaseTraegerOfferings(ctx context.Context, organizationID, traegerPhaseID, accountID int64) ([]careplan.TraegerOffering, error)
-	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []careplan.TraegerOfferingOutcome) error
+	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error
 }
 
 // SchoolPhases copy a Träger phase in one school's tenant transaction.

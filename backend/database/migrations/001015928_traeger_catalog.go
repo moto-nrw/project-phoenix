@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerCatalogVersion = "1.15.924"
+const traegerCatalogVersion = "1.15.928"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerCatalogVersion,
 		Description: "Trägerphase und Trägerangebot mit Versionen, Schulauswahl und Kopie je Schule (#4704, ADR 0195)",
 		DependsOn: []string{
-			dataReturnErasureOrderLockVersion, // the newest migration on development
+			dataReturnErasureOrderLockVersion, // data-return erasure serialization
 			traegerHolidayPeriodsVersion,      // the Träger table pattern this one follows
 			careOfferingTemplateGapAckVersion, // the last change of enrollment.care_offerings
 		},

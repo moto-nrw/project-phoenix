@@ -25,7 +25,7 @@ type TraegerOfferingStore interface {
 	UpdateTraegerOfferingDraft(ctx context.Context, organizationID, id int64, draft careplan.TraegerOfferingDraft) (bool, error)
 	WithdrawTraegerOffering(ctx context.Context, organizationID, id int64) (bool, error)
 	InsertTraegerOfferingVersions(ctx context.Context, organizationID int64, versions map[int64]careplan.TraegerOffering, accountID int64) error
-	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []careplan.TraegerOfferingOutcome) error
+	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error
 }
 
 // TraegerOfferings keeps the Träger care offerings (ADR 0195). It opens no
@@ -116,20 +116,22 @@ func (s *TraegerOfferings) ReleaseTraegerOfferings(ctx context.Context, organiza
 }
 
 // RecordTraegerOfferingOutcomes writes the outcome of each school's copy.
-func (s *TraegerOfferings) RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []careplan.TraegerOfferingOutcome) error {
-	for _, outcome := range outcomes {
-		switch outcome.Outcome {
-		case "applied", "rejected", "stale", "withdrawn":
-		default:
-			return careOfferingInvalidf("outcome %q for school %d", outcome.Outcome, outcome.SchoolID)
+func (s *TraegerOfferings) RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error {
+	for _, schools := range outcomes {
+		seen := make(map[int64]bool, len(schools))
+		for _, outcome := range schools {
+			if outcome.SchoolID <= 0 || seen[outcome.SchoolID] {
+				return careOfferingInvalidf("outcome school %d is invalid or repeated", outcome.SchoolID)
+			}
+			seen[outcome.SchoolID] = true
+			switch outcome.Outcome {
+			case "applied", "rejected", "stale", "withdrawn":
+			default:
+				return careOfferingInvalidf("outcome %q for school %d", outcome.Outcome, outcome.SchoolID)
+			}
 		}
 	}
-	// The offering must exist for the Träger; a missing one is reported as
-	// such, not as a foreign-key failure of the outcome rows.
-	if _, err := s.store.TraegerOffering(ctx, organizationID, id); err != nil {
-		return err
-	}
-	return s.store.RecordTraegerOfferingOutcomes(ctx, organizationID, id, outcomes)
+	return s.store.RecordTraegerOfferingOutcomes(ctx, organizationID, outcomes)
 }
 
 // normalizeTraegerOfferingDraft runs the catalog's own column rules on the

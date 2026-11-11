@@ -105,7 +105,7 @@ func (s snapshot) targets() []target {
 		}
 	}
 	for _, school := range s.phase.Schools {
-		copied := school.AppliedVersion != nil && school.Outcome != enrollment.TraegerOutcomeWithdrawn
+		copied := (school.AppliedVersion != nil || school.Outcome != "") && school.Outcome != enrollment.TraegerOutcomeWithdrawn
 		if copied && own[school.SchoolID] && !selected[school.SchoolID] {
 			targets = append(targets, target{schoolID: school.SchoolID, action: traegercatalog.ActionWithdraw})
 		}
