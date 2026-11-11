@@ -14,7 +14,10 @@ import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Modal } from "~/components/ui/modal";
@@ -23,6 +26,10 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import {
@@ -76,6 +83,12 @@ export function StundenkontoPanel({
   const [deleting, setDeleting] = useState(false);
   const deleteErrors = useApiFormError();
   const toast = useToast();
+  // Nachladen nach einer Buchung: ein Fehler dabei steht als Ladefehler über
+  // der Liste, auch wenn der Dialog schon zu ist (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige des Stundenkontos",
+    onChanged,
+  );
   // Reset und Eröffnungssaldo brauchen beide einen abgeschlossenen Kontotag:
   // der Stichtag muss vor heute liegen.
   const canResetClosedPeriod = accountStartKey < todayKey;
@@ -98,9 +111,6 @@ export function StundenkontoPanel({
     deleteErrors.clear();
     try {
       await staffBalanceAdjustmentService.delete(staffId, deleteTarget.id);
-      toast.success("Die Buchung ist gelöscht.");
-      setDeleteTarget(null);
-      await onChanged();
     } catch (err) {
       logger.error("balance_adjustment_delete_failed", {
         error: errorText(err),
@@ -109,9 +119,13 @@ export function StundenkontoPanel({
         object: "die Buchung",
         retry: () => void handleDelete(),
       });
-    } finally {
       setDeleting(false);
+      return;
     }
+    setDeleting(false);
+    toast.success("Die Buchung ist gelöscht.");
+    setDeleteTarget(null);
+    await afterWrite.refresh();
   };
 
   return (
@@ -167,6 +181,7 @@ export function StundenkontoPanel({
         </>
       }
     >
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       {adjustments.length === 0 ? (
         <EmptyState
           variant="dashed"
@@ -225,9 +240,9 @@ export function StundenkontoPanel({
           todayKey={todayKey}
           type={activeModal}
           onClose={() => setActiveModal(null)}
-          onSaved={async () => {
+          onSaved={() => {
             setActiveModal(null);
-            await onChanged();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -238,9 +253,9 @@ export function StundenkontoPanel({
           todayKey={todayKey}
           balanceMinutes={balanceMinutes}
           onClose={() => setActiveModal(null)}
-          onSaved={async () => {
+          onSaved={() => {
             setActiveModal(null);
-            await onChanged();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -251,9 +266,9 @@ export function StundenkontoPanel({
           todayKey={todayKey}
           balanceMinutes={balanceMinutes}
           onClose={() => setActiveModal(null)}
-          onSaved={async () => {
+          onSaved={() => {
             setActiveModal(null);
-            await onChanged();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -322,7 +337,8 @@ function AdjustmentModal({
   readonly todayKey: string;
   readonly type: "payout" | "comp_time";
   readonly onClose: () => void;
-  readonly onSaved: () => void | Promise<void>;
+  /** Closes the dialog and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const copy = modalCopy[type];
   const [hours, setHours] = useState("");
@@ -358,7 +374,6 @@ function AdjustmentModal({
         note: note.trim(),
       });
       toast.success(copy.success);
-      await onSaved();
     } catch (err) {
       logger.error("balance_adjustment_create_failed", {
         type,
@@ -368,9 +383,11 @@ function AdjustmentModal({
         object: copy.object,
         retry: () => void latestSubmit.current(),
       });
-    } finally {
       setSubmitting(false);
+      return;
     }
+    setSubmitting(false);
+    await onSaved();
   };
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
   const latestSubmit = useRef(handleSubmit);
@@ -446,7 +463,8 @@ function ResetModal({
   readonly todayKey: string;
   readonly balanceMinutes: number | null;
   readonly onClose: () => void;
-  readonly onSaved: () => void | Promise<void>;
+  /** Closes the dialog and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const lastClosedDateKey = previousDateISO(todayKey);
   const [effectiveDate, setEffectiveDate] = useState(
@@ -482,16 +500,17 @@ function ResetModal({
         note: note.trim(),
       });
       toast.success("Das Stundenkonto ist zurückgesetzt.");
-      await onSaved();
     } catch (err) {
       logger.error("balance_reset_failed", { error: errorText(err) });
       await formErrors.show(err, {
         object: "das Zurücksetzen des Stundenkontos",
         retry: () => void latestSubmit.current(),
       });
-    } finally {
       setSubmitting(false);
+      return;
     }
+    setSubmitting(false);
+    await onSaved();
   };
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
   const latestSubmit = useRef(handleSubmit);
@@ -593,7 +612,8 @@ function OpeningModal({
   readonly todayKey: string;
   readonly balanceMinutes: number | null;
   readonly onClose: () => void;
-  readonly onSaved: () => void | Promise<void>;
+  /** Closes the dialog and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const lastClosedDateKey = previousDateISO(todayKey);
   const [effectiveDate, setEffectiveDate] = useState(
@@ -629,16 +649,17 @@ function OpeningModal({
         note: note.trim(),
       });
       toast.success("Der Eröffnungssaldo ist gebucht.");
-      await onSaved();
     } catch (err) {
       logger.error("opening_balance_create_failed", { error: errorText(err) });
       await formErrors.show(err, {
         object: "die Buchung des Eröffnungssaldos",
         retry: () => void latestSubmit.current(),
       });
-    } finally {
       setSubmitting(false);
+      return;
     }
+    setSubmitting(false);
+    await onSaved();
   };
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
   const latestSubmit = useRef(handleSubmit);
