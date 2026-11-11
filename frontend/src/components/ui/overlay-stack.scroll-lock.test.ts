@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useScrollLock } from "../overlay-stack";
+import { useScrollLock } from "./overlay-stack";
 
 describe("useScrollLock", () => {
   beforeEach(() => {
