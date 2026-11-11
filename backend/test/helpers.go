@@ -118,6 +118,9 @@ func SetupTestDB(t testing.TB) *bun.DB {
 
 // SetupIsolatedTestDB returns a disposable clone for one test. Use it only
 // when the behavior is database-global (schema, sweeps, hooks, or locks).
+// Subtests share the clone of their top-level test (or OwnTenant ancestor); it
+// is dropped when its last user finishes, so parallel siblings may each call
+// this.
 func SetupIsolatedTestDB(t testing.TB) *bun.DB {
 	t.Helper()
 	setupPackageTestDB(t)
