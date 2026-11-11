@@ -13,7 +13,7 @@ import { FieldLabel } from "./field-label";
 import type { FormErrorInput } from "./form-error";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
-import { Modal } from "./modal";
+import { Modal, ModalCancelButton } from "./modal";
 import { Radio } from "./radio";
 
 // Shared destructive-confirmation shell for every destructive action in the
@@ -189,18 +189,12 @@ export function ConfirmDeleteModal({
 
   const footer = (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
+      <ModalCancelButton
         onClick={close}
-        disabled={loading}
-        className={`disabled:cursor-not-allowed ${
-          mobileSheet ? "hidden sm:inline-flex" : ""
-        }`}
+        className="disabled:cursor-not-allowed"
       >
         {cancelLabel}
-      </Button>
+      </ModalCancelButton>
       {inFirstStep ? (
         <Button
           type="button"

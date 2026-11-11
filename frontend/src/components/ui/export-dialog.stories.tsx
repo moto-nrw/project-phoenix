@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { ExportDialog, type ExportDialogRun } from "./export-dialog";
-import type { ExportFileFormat } from "./export-dialog";
+import type { ExportFileFormat } from "./export-formats";
 
 const noop = () => undefined;
 

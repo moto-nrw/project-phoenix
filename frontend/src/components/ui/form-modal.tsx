@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Modal, type ModalSize } from "./modal";
-import { FormErrorAlert } from "./form-error-alert";
+import { DialogActions, DialogErrorSlot } from "./dialog-parts";
 import type { FormErrorInput } from "./form-error";
 import type { FormModalPending } from "./use-form-modal-pending";
 
@@ -45,8 +45,8 @@ interface FormModalProps {
  * FormModal — a form inside the kit `Modal`. The dialog shell (portal, focus
  * trap, scroll lock, backdrop, panel, close X, exit animation, dismissal lock)
  * is `Modal`'s; this adds only the form defaults: a wider dialog, a bottom
- * sheet on phones, the footer row, the `FormErrorAlert` slot and the
- * pending lock of `useFormModalPending`.
+ * sheet on phones, the footer row (`DialogActions`), the error slot
+ * (`DialogErrorSlot`) and the pending lock of `useFormModalPending`.
  */
 export function FormModal({
   isOpen,
@@ -79,33 +79,22 @@ export function FormModal({
       title={title}
       size={size}
       mobileSheet={mobilePosition === "bottom"}
+      sheetFooter="row"
       isDismissDisabled={busy}
       busy={busy}
       isBackdropDismissDisabled={isBackdropDismissDisabled}
       suspended={suspended}
       footer={
         footer ? (
-          // Form actions stay one right-aligned row on every width; the
-          // Modal footer around it adds the phone safe-area inset. The
-          // disabled fieldset locks every footer action (Abbrechen too)
-          // while a save runs, without each caller wiring it again. A link
-          // (`ButtonLink`) ignores the fieldset, so a busy footer also
-          // swallows its clicks: leaving would look like a cancel too.
-          <fieldset
-            disabled={busy}
-            onClickCapture={(event) => {
-              if (!busy) return;
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            className="m-0 flex min-w-0 flex-1 flex-wrap justify-end gap-3 border-0 p-0"
-          >
+          // Form actions stay one right-aligned row on every width
+          // (`sheetFooter="row"`); the row locks while a save runs.
+          <DialogActions locked={busy} className="m-0 flex-1 border-0 p-0">
             {footer}
-          </fieldset>
+          </DialogActions>
         ) : undefined
       }
     >
-      <FormErrorAlert message={error} className="mb-4" />
+      <DialogErrorSlot error={error} />
       {children}
     </Modal>
   );

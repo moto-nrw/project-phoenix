@@ -5,11 +5,18 @@ import type { ReactNode, RefObject } from "react";
 import { Download, Printer } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  EXPORT_BUSY_LABELS,
+  EXPORT_FORMAT_LABELS,
+  type ExportFileFormat,
+  type ExportRunKind,
+} from "~/components/ui/export-formats";
 import type { FormErrorInput } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   SlideOver,
+  SlideOverBody,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
@@ -18,23 +25,6 @@ import {
   SlideOverTitle,
 } from "~/components/ui/slide-over";
 import { StatusBadge } from "~/components/ui/status-badge";
-
-/** Every file format a moto export can produce. */
-export type ExportFileFormat = "pdf" | "docx" | "xlsx" | "csv";
-
-/**
- * Format names in the interface (docs/reference/exporte.md, Regel 3): the
- * names people know from their office programs, not the file endings.
- */
-export const EXPORT_FORMAT_LABELS: Readonly<Record<ExportFileFormat, string>> =
-  {
-    pdf: "PDF",
-    docx: "Word",
-    xlsx: "Excel",
-    csv: "CSV",
-  };
-
-export type ExportRunKind = "download" | "print";
 
 /**
  * State of a running export. `useExportRun` (`~/hooks/use-export-run`)
@@ -117,28 +107,23 @@ export function ExportDialog<F extends ExportFileFormat>({
     <SlideOver
       open={isOpen}
       onOpenChange={(open) => {
-        // Solange ein Export läuft, bleibt der Dialog stehen.
-        if (!open && busy === null) onClose();
+        if (!open) onClose();
       }}
+      // Solange ein Export läuft, bleibt der Dialog stehen.
+      isDismissDisabled={busy !== null}
     >
       <SlideOverContent size="md">
         <SlideOverHeader
-          close={
-            <SlideOverCloseButton
-              aria-label="Export schließen"
-              disabled={busy !== null}
-            />
-          }
+          close={<SlideOverCloseButton aria-label="Export schließen" />}
         >
           <SlideOverTitle>{title}</SlideOverTitle>
           {description ? (
             <SlideOverDescription>{description}</SlideOverDescription>
           ) : null}
         </SlideOverHeader>
-        <div
-          ref={run.bodyRef}
-          className="flex-1 space-y-5 overflow-y-auto px-5 py-4"
-        >
+        <SlideOverBody ref={run.bodyRef} className="space-y-5">
+          {/* Not the body's `error` slot: that keeps 16 px to the content,
+              this dialog 20 px, the gap of its sections. */}
           <FormErrorAlert message={run.error} />
           {filters.length > 0 ? (
             <section>
@@ -179,7 +164,7 @@ export function ExportDialog<F extends ExportFileFormat>({
               </div>
             </section>
           ) : null}
-        </div>
+        </SlideOverBody>
         <SlideOverFooter>
           <Button
             type="button"
@@ -199,7 +184,7 @@ export function ExportDialog<F extends ExportFileFormat>({
               disabled={busy !== null || blocked}
             >
               <Printer className="h-4 w-4" aria-hidden />
-              {busy === "print" ? "Wird geöffnet…" : "Drucken"}
+              {busy === "print" ? EXPORT_BUSY_LABELS.print : "Drucken"}
             </Button>
           ) : null}
           <Button
@@ -212,7 +197,9 @@ export function ExportDialog<F extends ExportFileFormat>({
             disabled={busy !== null || blocked || !format}
           >
             <Download className="h-4 w-4" aria-hidden />
-            {busy === "download" ? "Wird erstellt…" : "Herunterladen"}
+            {busy === "download"
+              ? EXPORT_BUSY_LABELS.download
+              : "Herunterladen"}
           </Button>
         </SlideOverFooter>
       </SlideOverContent>

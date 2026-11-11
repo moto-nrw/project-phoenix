@@ -5,7 +5,6 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -147,9 +146,9 @@ export const Pending: Story = {
 /** Closing locked without a running save (X disabled). */
 export const DismissDisabled: Story = {
   render: () => (
-    <SlideOver defaultOpen dismissible={false}>
+    <SlideOver defaultOpen isDismissDisabled>
       <SlideOverContent>
-        <SlideOverHeader close={<SlideOverCloseButton disabled />}>
+        <SlideOverHeader>
           <SlideOverTitle>Personalpool</SlideOverTitle>
         </SlideOverHeader>
         <SlideOverBody className="text-sm text-slate-600">

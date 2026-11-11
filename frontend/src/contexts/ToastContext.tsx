@@ -11,6 +11,7 @@ import React, {
   type RefObject,
 } from "react";
 import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
+import { TOAST_FADE_MS } from "~/components/ui/motion";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
@@ -284,7 +285,7 @@ function ToastRow({
     if (item.duration > 0) {
       localTimeout = setTimeout(() => {
         setExiting(true);
-        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
+        setTimeout(() => onClose(item.id), reducedMotion ? 0 : TOAST_FADE_MS);
       }, item.duration);
       timersRef.current.timeoutId = localTimeout;
     }
@@ -310,7 +311,7 @@ function ToastRow({
       timersRef.current.start = Date.now();
       timersRef.current.timeoutId = setTimeout(() => {
         setExiting(true);
-        setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
+        setTimeout(() => onClose(item.id), reducedMotion ? 0 : TOAST_FADE_MS);
       }, timersRef.current.remaining);
     }
   };
@@ -321,7 +322,7 @@ function ToastRow({
       timersRef.current.timeoutId = undefined;
     }
     setExiting(true);
-    setTimeout(() => onClose(item.id), reducedMotion ? 0 : 300);
+    setTimeout(() => onClose(item.id), reducedMotion ? 0 : TOAST_FADE_MS);
   };
 
   const handleAction = () => {

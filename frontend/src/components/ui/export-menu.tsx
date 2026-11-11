@@ -3,9 +3,10 @@
 import { ChevronDown, FileSpreadsheet, FileText, Printer } from "lucide-react";
 
 import {
+  EXPORT_BUSY_LABELS,
   EXPORT_FORMAT_LABELS,
   type ExportFileFormat,
-} from "~/components/ui/export-dialog";
+} from "~/components/ui/export-formats";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -63,9 +64,7 @@ export function exportMenuItems({
   const entries: OverflowMenuEntry[] = options.map((option) => ({
     label:
       busyKey === option.key
-        ? option.format
-          ? "Wird erstellt…"
-          : "Wird geöffnet…"
+        ? EXPORT_BUSY_LABELS[option.format ? "download" : "print"]
         : (option.label ??
           (option.format ? EXPORT_FORMAT_LABELS[option.format] : "Drucken")),
     icon: optionIcon(option),

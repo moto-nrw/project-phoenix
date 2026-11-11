@@ -389,13 +389,17 @@
   }
 }
 
-/* Utility classes for Tailwind animations */
+/* Utility classes for Tailwind animations. The modal durations come from
+   `MODAL_MOTION_STYLE` (components/ui/motion.ts), which Modal sets on its
+   root, so its close timer and the animation share one value (#6575). */
 .animate-modalEnter {
-  animation: modalEnter 250ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  animation: modalEnter var(--moto-modal-enter) cubic-bezier(0.32, 0.72, 0, 1)
+    forwards;
 }
 
 .animate-modalExit {
-  animation: modalExit 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: modalExit var(--moto-modal-exit) cubic-bezier(0.4, 0, 0.2, 1)
+    forwards;
 }
 
 .animate-bounceIn {

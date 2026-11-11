@@ -12,9 +12,9 @@
  */
 
 import type { FormErrorInput } from "./form-error";
-import { FormErrorAlert } from "./form-error-alert";
+import { DialogErrorSlot } from "./dialog-parts";
 import { Button } from "./button";
-import { Modal } from "./modal";
+import { Modal, ModalCancelButton } from "./modal";
 
 interface ChoiceModalOption {
   value: string;
@@ -59,15 +59,7 @@ export function ChoiceModal({
   // a check in onClose alone ran Modal's exit animation and left the dialog
   // open but invisible (#6567).
   const footer = (
-    <Button
-      type="button"
-      variant="outline"
-      size="md"
-      onClick={onClose}
-      disabled={isBusy}
-    >
-      Abbrechen
-    </Button>
+    <ModalCancelButton onClick={onClose}>Abbrechen</ModalCancelButton>
   );
 
   return (
@@ -78,7 +70,7 @@ export function ChoiceModal({
       footer={footer}
       isDismissDisabled={isBusy}
     >
-      <FormErrorAlert message={error} className="mb-4" />
+      <DialogErrorSlot error={error} />
       {description && (
         <p className="mb-4 text-sm text-gray-600">{description}</p>
       )}
