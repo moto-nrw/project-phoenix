@@ -2,6 +2,23 @@ import { describe, expect, it } from "vitest";
 import { forwardBackendResponse } from "./backend-proxy-response.server";
 
 describe("forwardBackendResponse", () => {
+  // undici cancels the body of a fetch Response that is garbage collected
+  // while its stream is still unlocked; a forwarded 401 then answered an
+  // empty 500 once the session renewal after it ran long enough for a GC.
+  it("takes the backend body at once, so its collection cannot cancel it", async () => {
+    const backend = new Response('{"code":"identity.mfa_session_required"}', {
+      status: 401,
+      headers: { "Content-Type": "application/problem+json" },
+    });
+
+    const response = forwardBackendResponse(backend);
+
+    expect(backend.body?.locked).toBe(true);
+    expect(await response.text()).toBe(
+      '{"code":"identity.mfa_session_required"}',
+    );
+  });
+
   it("preserves a structured backend conflict byte-for-byte", async () => {
     const body =
       '{"code":"item_conflict","details":{"id":"42"},"errors":[{"field":"name"}],"instance":"/api/items/42"}';
