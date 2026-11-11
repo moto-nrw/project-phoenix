@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -33,10 +34,13 @@ type SickReportAbsences interface {
 //     the requested range, the stored range of the edited or deleted
 //     absence, the ranges of the subject's sick reports overlapping either
 //     (a merge folds them in) and the days of their stamped block rows. Past
-//     days are included, because the materializer stamps past blocks.
+//     days are included, because the materializer stamps past blocks;
+//  5. the staff rows of the subject and the cover owners, ascending (#6702):
+//     the write pins its Abwesenheitsart row, a leaf, before Workforce writes
+//     the absence and the cascade rewrites the covers, and both re-take
+//     these staff rows. An offboarded person has no live row to lock.
 //
-// Workforce locks the staff row only after this, and the cascade the write
-// returns needs no gate and no day beyond these. A plan writer that reads
+// The cascade the write returns needs no gate, day or staff row beyond these. A plan writer that reads
 // sick reports holds the recurrence gate, the days it writes or the
 // subject's staff-shift gate, so it either waits for this write or this
 // write waits for it, and no lock cycle with the key share its rows take on
@@ -51,16 +55,44 @@ func (s *sickCascade) LockSickReportWrite(ctx context.Context, staffID, absenceI
 	if err != nil || subject <= 0 {
 		return err
 	}
-	days, err := s.lockSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
-	if err != nil || len(days) == 0 {
+	days, staffIDs, err := s.lockSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
+	if err != nil {
 		return err
 	}
+	if len(days) > 0 {
+		if err := s.lockSickReportDays(ctx, days); err != nil {
+			return err
+		}
+	}
+	return s.lockStaffRows(ctx, append(staffIDs, subject))
+}
+
+// lockSickReportDays takes the recurrence gate and then the days, ascending.
+func (s *sickCascade) lockSickReportDays(ctx context.Context, days map[calendar.Date]bool) error {
 	if err := s.timetableData.LockRecurrenceWrites(ctx); err != nil {
 		return fmt.Errorf("sick report lock: recurrence gate: %w", err)
 	}
 	for _, day := range sortedDateSet(days) {
 		if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 			return fmt.Errorf("sick report lock: day lock %s: %w", day.String(), err)
+		}
+	}
+	return nil
+}
+
+// lockStaffRows takes the staff rows of the staff members once each,
+// ascending, after every gate and day of the write.
+func (s *sickCascade) lockStaffRows(ctx context.Context, staffIDs []int64) error {
+	if s.lockStaff == nil {
+		return errors.New("sick report lock: staff row lock is not configured")
+	}
+	ids := slices.Compact(slices.Sorted(slices.Values(staffIDs)))
+	for _, staffID := range ids {
+		if staffID <= 0 {
+			continue
+		}
+		if err := s.lockStaff(ctx, staffID); err != nil {
+			return fmt.Errorf("sick report lock: staff row: %w", err)
 		}
 	}
 	return nil
@@ -74,46 +106,48 @@ var errSickReportStaffScopeChanged = errors.New("sick report lock: cover owners 
 // the new owner may sort before a gate already acquired. The absence gate stays
 // held outside the savepoint; no recurrence/day lock or absence write happens
 // until the staff set is stable. Allow three restarts, like transaction retries.
-func (s *sickCascade) lockSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, error) {
+func (s *sickCascade) lockSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
 	for attempt := 0; attempt < 4; attempt++ {
 		var days map[calendar.Date]bool
+		var staffIDs []int64
 		err := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
 			var err error
-			days, err = s.lockAndRevalidateSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
+			days, staffIDs, err = s.lockAndRevalidateSickReportScope(ctx, subject, absenceID, dateStart, dateEnd)
 			return err
 		})
 		if err == nil {
-			return days, nil
+			return days, staffIDs, nil
 		}
 		if !errors.Is(err, errSickReportStaffScopeChanged) || tenant.IsSavepointControlFailure(err) {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return nil, errSickReportStaffScopeChanged
+	return nil, nil, errSickReportStaffScopeChanged
 }
 
-func (s *sickCascade) lockAndRevalidateSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, error) {
+func (s *sickCascade) lockAndRevalidateSickReportScope(ctx context.Context, subject, absenceID int64, dateStart, dateEnd string) (map[calendar.Date]bool, []int64, error) {
 	days, staffIDs, err := s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
 	if err != nil || len(staffIDs) == 0 {
-		return days, err
+		return days, staffIDs, err
 	}
 	if err := s.lockStaffSet(ctx, staffIDs); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	held := make(map[int64]bool, len(staffIDs))
 	for _, id := range staffIDs {
 		held[id] = true
 	}
+	locked := staffIDs
 	days, staffIDs, err = s.sickReportWriteScope(ctx, subject, absenceID, dateStart, dateEnd)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for _, id := range staffIDs {
 		if !held[id] {
-			return nil, errSickReportStaffScopeChanged
+			return nil, nil, errSickReportStaffScopeChanged
 		}
 	}
-	return days, nil
+	return days, locked, nil
 }
 
 // sickReportWriteScope reads, under the subject's absence gate, the days

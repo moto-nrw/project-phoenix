@@ -60,6 +60,12 @@ type ActiveSupervisorCreator interface {
 	CreateGroupSupervisor(context.Context, *studentpresence.GroupSupervision) error
 }
 
+// StaffBalanceGate takes Workforce's staff balance gate of one staff member
+// in the caller's unit of work. A new supervisor's gate comes before the
+// session and the staff row (#6702): offboarding holds the gate while it
+// locks the staff row, and the supervisor write takes the gate itself.
+type StaffBalanceGate func(ctx context.Context, staffID int64) error
+
 // SupervisionRelease ends a staff member's own supervision of a running
 // session while another supervisor stays, and returns the ended
 // supervision (#4763).
@@ -87,6 +93,8 @@ type SubstitutionDependencies struct {
 	ActiveGroups            studentpresence.SessionRecords
 	ActiveSupervisors       studentpresence.SupervisionRecords
 	ActiveSupervisorCreator ActiveSupervisorCreator
+	// StaffBalance takes the new supervisor's balance gate first.
+	StaffBalance StaffBalanceGate
 	// SupervisionRelease serves the hand-over and the release of a running
 	// supervision; nil refuses both.
 	SupervisionRelease SupervisionRelease

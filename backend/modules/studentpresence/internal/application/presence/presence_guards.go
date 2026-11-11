@@ -99,18 +99,25 @@ func (s *service) validateStaffExists(ctx context.Context, staffID int64) error 
 // lockStaffForSupervision serializes operational supervision writes with
 // Membership retirement. A foreign key alone cannot reject a staff tombstone.
 func (s *service) lockStaffForSupervision(ctx context.Context, staffID int64) error {
-	// Supervision may auto-open a work session later in this transaction.
-	// Take its balance lock before the staff row, matching offboarding.
+	if err := lockSupervisionBalance(ctx, staffID); err != nil {
+		return err
+	}
+	return s.validateStaffExists(ctx, staffID)
+}
+
+// lockSupervisionBalance takes Workforce's staff balance gate of a
+// supervisor. Supervision may auto-open a work session later in this
+// transaction, so the gate comes before the staff row, matching offboarding;
+// a writer with several supervisors takes every gate before the first staff
+// row (tenant.LockStaffWorkTime before tenant.LockStaffRows, #6702).
+func lockSupervisionBalance(ctx context.Context, staffID int64) error {
 	if tenant.FromContext(ctx) <= 0 || staffID <= 0 {
 		return ErrStaffNotFound
 	}
 	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, false)); err != nil {
 		return err
 	}
-	if err := tenant.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenant.FromContext(ctx), staffID), false); err != nil {
-		return err
-	}
-	return s.validateStaffExists(ctx, staffID)
+	return tenant.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenant.FromContext(ctx), staffID), false)
 }
 
 // extractContextIDs extracts device and staff IDs from context

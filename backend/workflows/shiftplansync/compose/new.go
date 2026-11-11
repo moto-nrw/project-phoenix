@@ -41,6 +41,9 @@ type SickCascadeDependencies struct {
 	Planning        workforce.StaffShiftPlanning
 	Workforce       workforce.Capability
 	LockStaffShifts func(ctx context.Context, staffID int64) error
+	// LockStaff takes School Membership's staff row of a staff member; an
+	// offboarded member is no error (#6702).
+	LockStaff func(ctx context.Context, staffID int64) error
 
 	// Deviations are the Timetable owner's sick-report writes
 	// (timetable.StaffDeviations satisfies them).
@@ -64,6 +67,7 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		"Planning":        deps.Planning != nil,
 		"Workforce":       deps.Workforce != nil,
 		"LockStaffShifts": deps.LockStaffShifts != nil,
+		"LockStaff":       deps.LockStaff != nil,
 		"Deviations":      deps.Deviations != nil,
 		"TimetableData":   deps.TimetableData != nil,
 		"InstanceStaff":   deps.InstanceStaff != nil,
@@ -79,6 +83,7 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 		Broadcaster:   deps.Broadcaster,
 		Logger:        deps.Logger,
 		Today:         deps.Today,
+		LockStaff:     deps.LockStaff,
 	}), nil
 }
 

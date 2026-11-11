@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -377,7 +378,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Persons: owners.NewEducationPersonQuery(persons), Teachers: owners.NewEducationCaregivers(repos.Teacher),
 		Staff: owners.NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
-		ActiveSupervisorCreator: activeService, SupervisionRelease: activeService,
+		ActiveSupervisorCreator: activeService, SupervisionRelease: activeService, StaffBalance: workforceCompose.StaffBalanceGate(db.Pool()),
 		Audit:   NewEducationSubstitutionAudit(studentAudits.SubstitutionChange),
 		Runtime: schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
 		Logger: logger.With("service", "substitution"),

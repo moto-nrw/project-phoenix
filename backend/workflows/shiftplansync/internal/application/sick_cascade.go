@@ -80,6 +80,9 @@ type SickCascadeDependencies struct {
 	// Today is the calendar day the past-day guards compare against; nil
 	// means timezone.TodayDate.
 	Today func() calendar.Date
+	// LockStaff takes a staff member's row (School Membership's staff row
+	// lock) in the caller's unit of work; an offboarded member is no error.
+	LockStaff func(ctx context.Context, staffID int64) error
 }
 
 type sickCascade struct {
@@ -91,6 +94,7 @@ type sickCascade struct {
 	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
 	today         func() calendar.Date
+	lockStaff     func(context.Context, int64) error
 }
 
 // SickCascade is the cascade's method set; shiftplansync.SickCascade documents
@@ -115,6 +119,7 @@ func NewSickCascade(deps SickCascadeDependencies) SickCascade {
 		broadcaster:   deps.Broadcaster,
 		logger:        deps.Logger,
 		today:         deps.Today,
+		lockStaff:     deps.LockStaff,
 	}
 }
 

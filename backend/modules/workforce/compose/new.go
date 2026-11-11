@@ -83,6 +83,14 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 	return service, nil
 }
 
+// StaffBalanceGate binds Workforce's staff balance gate to db for an owner
+// that takes it before its own rows (#6702): School Structure's additional
+// supervision takes the new supervisor's gate before the session row.
+func StaffBalanceGate(db *bun.DB) func(context.Context, int64) error {
+	store := postgres.New(postgres.DatabaseRuntime(db))
+	return transaction{lock: store.AcquireXactLock}.LockStaffBalance
+}
+
 // transaction runs units of work on the tenant runtime. lock is the Postgres
 // adapter's advisory-lock statement, used when no runtime is bound.
 type transaction struct {
