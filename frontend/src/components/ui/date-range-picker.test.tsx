@@ -194,6 +194,31 @@ describe("DateRangePicker", () => {
     expect(document.querySelector("[data-range-panel]")).toBe(panels[0]!);
     expect(triggers[1]).toHaveFocus();
   });
+
+  it("leaves Escape in a higher modal to that modal", async () => {
+    const onClose = vi.fn();
+    render(
+      <>
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <Modal isOpen onClose={onClose} title="Bestätigung">
+          <button type="button">Abbrechen</button>
+        </Modal>
+      </>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Bestätigung" }), {
+      key: "Escape",
+    });
+
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+  });
 });
 
 describe("DateRangePicker in a dialog", () => {

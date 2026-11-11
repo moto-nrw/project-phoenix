@@ -141,6 +141,17 @@ export function DateRangePicker({
           : null;
       if (owner && owner !== containerRef.current && owner !== panelRef.current)
         return;
+      // A calendar can remain open behind a modal or slide-over. Escape from
+      // that higher overlay belongs there, not to the hidden calendar.
+      const activeOverlay =
+        target instanceof Element
+          ? target.closest(
+              '[data-modal-focus-scope="true"]:not([aria-hidden="true"]), [data-date-picker-focus-trap="true"]',
+            )
+          : null;
+      if (activeOverlay && !activeOverlay.contains(containerRef.current)) {
+        return;
+      }
       if (!owner && !isLastOpenedRangePicker(containerRef.current)) return;
       if (
         target instanceof Element &&
