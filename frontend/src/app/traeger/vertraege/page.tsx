@@ -40,6 +40,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
+import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -257,7 +258,19 @@ export default function TraegerVertraegePage() {
             schools,
             modes,
           })),
-      ]);
+      ]).catch((error: unknown) => {
+        if (
+          currentRequest === request.current &&
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403)
+        ) {
+          setData(null);
+          context.current = null;
+          setSelected(new Set());
+          setCreating(false);
+        }
+        throw error;
+      });
       if (currentRequest !== request.current) return;
       context.current = metadata;
       setData((previous) => ({

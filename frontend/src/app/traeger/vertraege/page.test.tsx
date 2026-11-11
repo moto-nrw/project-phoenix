@@ -457,6 +457,56 @@ describe("TraegerVertraegePage", () => {
   // #6652: after a confirmed send a failed reload is a load error above the
   // list, not a failed send or a page error that replaces the contracts.
   describe("reload after a write (#6652)", () => {
+    it.each([401, 403])(
+      "discards contracts, candidates and overlays after reload refuses access (%s)",
+      async (status) => {
+        renderPage();
+        await screen.findAllByText("Lina Muster");
+        fireEvent.click(
+          screen.getAllByLabelText("Vertrag von Lina Muster auswählen")[0]!,
+        );
+        fireEvent.click(
+          screen.getByRole("button", { name: /Verträge erstellen/ }),
+        );
+        expect(await screen.findByRole("dialog")).toBeVisible();
+        api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
+        api.fetchCareContracts.mockRejectedValueOnce(
+          new ApiError("refused", status),
+        );
+        fireEvent.click(
+          screen.getByRole("button", { name: "1 Entwurf senden" }),
+        );
+        // A 401 leaves through the login path and has no inline error.
+        await waitFor(() =>
+          expect(
+            screen.getByRole("button", { name: "Verträge erstellen" }),
+          ).toBeDisabled(),
+        );
+        if (status === 403) {
+          expect(
+            await screen.findByText(
+              `${catalogText("general.permission", "die Anzeige der Verträge")} ${SAVED_BUT_STALE_SUFFIX}`,
+            ),
+          ).toBeVisible();
+        }
+        expect(screen.queryByText("Lina Muster")).not.toBeInTheDocument();
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "Verträge erstellen" }),
+        ).toBeDisabled();
+
+        fireEvent.change(
+          screen.getAllByPlaceholderText(
+            "Kind, Eltern oder Angebot suchen",
+          )[0]!,
+          { target: { value: "Lina" } },
+        );
+        await screen.findAllByText("Lina Muster");
+        expect(api.fetchContractCandidates).toHaveBeenCalledTimes(2);
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      },
+    );
+
     it("shows a reload failure after sending while a new filter has no data yet", async () => {
       const send = deferred<{ sent: string[]; skipped: [] }>();
       const filtered = deferred<{

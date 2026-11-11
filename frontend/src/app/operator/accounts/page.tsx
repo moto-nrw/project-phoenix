@@ -2,7 +2,7 @@
 
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -25,6 +25,7 @@ import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
+import { ApiError } from "~/lib/api-error";
 import { StatusBadge } from "~/components/ui/status-badge";
 
 function OperatorAccountsPageContent() {
@@ -114,19 +115,34 @@ function OperatorAccountsPageContent() {
     },
   );
 
+  const activeError = urlSchoolId
+    ? schoolAccountsError
+    : filterOrgId
+      ? orgAccountsError
+      : allAccountsError;
+  const accessRefused =
+    activeError instanceof ApiError &&
+    (activeError.status === 401 || activeError.status === 403);
+
+  useEffect(() => {
+    if (!accessRefused) return;
+    setCaregiverAccount(null);
+    setCaregiverSchoolContext(null);
+    setMfaAccount(null);
+    setMfaSchoolContext(null);
+    setTenantAccessAccount(null);
+  }, [accessRefused]);
+
   const refreshAccounts = useCallback(() => refreshFamily(), [refreshFamily]);
 
   // Only one of the three lists is active at a time.
   const accountsLoadError = useSwrLoadError(
-    urlSchoolId
-      ? schoolAccountsError
-      : filterOrgId
-        ? orgAccountsError
-        : allAccountsError,
+    activeError,
     "die Liste der Konten",
     () => void refreshAccounts(),
-    (urlSchoolId ? schoolAccounts : filterOrgId ? orgAccounts : allAccounts)
-      ?.length
+    !accessRefused &&
+      (urlSchoolId ? schoolAccounts : filterOrgId ? orgAccounts : allAccounts)
+        ?.length
       ? STALE_DATA_SUFFIX
       : undefined,
   );
@@ -164,11 +180,13 @@ function OperatorAccountsPageContent() {
     [],
   );
 
-  const count = selectedSchool
-    ? schoolAccounts?.length
-    : filterOrgId
-      ? orgAccounts?.length
-      : allAccounts?.length;
+  const count = accessRefused
+    ? undefined
+    : selectedSchool
+      ? schoolAccounts?.length
+      : filterOrgId
+        ? orgAccounts?.length
+        : allAccounts?.length;
 
   return (
     <TenantPage
@@ -193,7 +211,7 @@ function OperatorAccountsPageContent() {
       }
       overlays={
         <>
-          {mfaAccount && mfaSchoolContext ? (
+          {!accessRefused && mfaAccount && mfaSchoolContext ? (
             <MFAAdminOverrideModal
               isOpen={true}
               onClose={() => {
@@ -207,7 +225,7 @@ function OperatorAccountsPageContent() {
             />
           ) : null}
 
-          {tenantAccessAccount ? (
+          {!accessRefused && tenantAccessAccount ? (
             <AccountTenantAccessModal
               isOpen={true}
               onClose={() => setTenantAccessAccount(null)}
@@ -221,7 +239,7 @@ function OperatorAccountsPageContent() {
             />
           ) : null}
 
-          {caregiverAccount && caregiverSchoolContext ? (
+          {!accessRefused && caregiverAccount && caregiverSchoolContext ? (
             <CaregiverCapabilityModal
               isOpen={true}
               onClose={() => {
@@ -244,7 +262,7 @@ function OperatorAccountsPageContent() {
       <LoadErrorAlert error={accountsLoadError} />
       <LoadErrorAlert error={accountsAfterWrite.error} />
 
-      {!urlSchoolId && filterOrgId && (
+      {!accessRefused && !urlSchoolId && filterOrgId && (
         <>
           {!orgAccountsError &&
           !orgAccountsLoading &&
@@ -267,7 +285,7 @@ function OperatorAccountsPageContent() {
         </>
       )}
 
-      {!urlSchoolId && !filterOrgId && (
+      {!accessRefused && !urlSchoolId && !filterOrgId && (
         <>
           {!allAccountsError &&
           !allAccountsLoading &&
@@ -290,7 +308,7 @@ function OperatorAccountsPageContent() {
         </>
       )}
 
-      {selectedSchool && (
+      {!accessRefused && selectedSchool && (
         <>
           <div className="mb-3 flex items-center gap-2">
             <h3 className="text-sm font-semibold text-gray-900">

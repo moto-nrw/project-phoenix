@@ -516,6 +516,8 @@ describe("PendingInvitationsList mail state (#5934)", () => {
     const reloadText = `${catalogText("general.unavailable", "die Anzeige der offenen Einladungen")} ${SAVED_BUT_STALE_SUFFIX}`;
 
     beforeEach(() => {
+      mockResendInvitation.mockClear();
+      mockRevokeInvitation.mockClear();
       mockListPendingInvitations
         .mockReset()
         .mockResolvedValueOnce(mockInvitations)
@@ -540,6 +542,26 @@ describe("PendingInvitationsList mail state (#5934)", () => {
       );
       expect(write).toHaveBeenCalledTimes(1);
     }
+
+    it("locks resend until its reload finishes", async () => {
+      const reload = deferred<PendingInvitation[]>();
+      mockListPendingInvitations
+        .mockReset()
+        .mockResolvedValueOnce(mockInvitations)
+        .mockReturnValueOnce(reload.promise);
+      render(<PendingInvitationsList refreshKey={0} />);
+      await openRowMenu(1);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Erneut senden" }));
+      await waitFor(() =>
+        expect(mockListPendingInvitations).toHaveBeenCalledTimes(2),
+      );
+      await openRowMenu(1);
+      expect(
+        screen.getByRole("menuitem", { name: "Erneut senden" }),
+      ).toBeDisabled();
+      await act(async () => reload.resolve(mockInvitations));
+      expect(mockResendInvitation).toHaveBeenCalledTimes(1);
+    });
 
     it("keeps a resent invitation sent when the reload fails", async () => {
       render(<PendingInvitationsList refreshKey={0} />);

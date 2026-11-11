@@ -128,6 +128,8 @@ export function RolePermissionsTab({
   const [searchTerm, setSearchTerm] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const latestPermissionRequest = useRef(0);
+  const draftDirty = useRef(false);
+  const clearReloadError = useRef<() => void>(() => undefined);
 
   const fetchPermissions = useCallback(
     async (includeCatalogue: boolean, options: { rethrow?: boolean } = {}) => {
@@ -148,7 +150,8 @@ export function RolePermissionsTab({
         for (const permission of assigned) map[permission.id] = true;
         setAllPermissions(all ?? assigned);
         setAssignedMap(map);
-        setDraftMap(map);
+        if (!draftDirty.current) setDraftMap(map);
+        clearReloadError.current();
       } catch (error) {
         if (request !== latestPermissionRequest.current) return;
         logger.error("role_permissions_load_failed", {
@@ -185,6 +188,10 @@ export function RolePermissionsTab({
     },
   );
 
+  useLayoutEffect(() => {
+    clearReloadError.current = afterSave.clear;
+  });
+
   const wasEditing = useRef(false);
 
   // Der Entwurf beginnt beim Umschalten in den Bearbeiten-Zustand immer beim
@@ -196,7 +203,9 @@ export function RolePermissionsTab({
   useEffect(() => {
     const entersEditing = editing && !wasEditing.current;
     wasEditing.current = editing;
+    if (!editing) draftDirty.current = false;
     if (!entersEditing) return;
+    draftDirty.current = false;
     setDraftMap(assignedMap);
     setSearchTerm("");
     clearSaveError();
@@ -258,19 +267,23 @@ export function RolePermissionsTab({
     filteredPermissions.length > 0 &&
     filteredPermissions.every((p) => draftMap[p.id] === true);
 
-  const toggleOne = (permissionId: string) =>
+  const toggleOne = (permissionId: string) => {
+    draftDirty.current = true;
     setDraftMap((current) => ({
       ...current,
       [permissionId]: !current[permissionId],
     }));
+  };
 
-  const toggleMany = (permissions: readonly Permission[]) =>
+  const toggleMany = (permissions: readonly Permission[]) => {
+    draftDirty.current = true;
     setDraftMap((current) => {
       const allChecked = permissions.every((p) => current[p.id] === true);
       const next = { ...current };
       for (const p of permissions) next[p.id] = !allChecked;
       return next;
     });
+  };
 
   const handleSave = async () => {
     const permissionIds = allPermissions
@@ -294,6 +307,7 @@ export function RolePermissionsTab({
       return;
     }
     // The write confirms this selection even if the following reads fail.
+    draftDirty.current = false;
     setAssignedMap({ ...draftMap });
     try {
       await afterSave.refresh();

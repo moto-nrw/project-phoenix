@@ -83,7 +83,17 @@ export function PendingInvitationsList({
   const clearLoadError = loadError.clear;
   const latestLoadRef = useRef<() => void>(() => undefined);
   const latestRequest = useRef(0);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionLoading, setActionLoading] = useState<ReadonlySet<number>>(
+    new Set(),
+  );
+  const setInvitationLoading = (id: number, loading: boolean) => {
+    setActionLoading((current) => {
+      const next = new Set(current);
+      if (loading) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
   const [revokeTarget, setRevokeTarget] = useState<PendingInvitation | null>(
     null,
   );
@@ -143,8 +153,9 @@ export function PendingInvitationsList({
   );
 
   const handleResend = async (id: number) => {
+    if (actionLoading.has(id)) return;
     try {
-      setActionLoading(id);
+      setInvitationLoading(id, true);
       await resendInvitation(id);
     } catch (err) {
       logger.error("invitation_resend_failed", {
@@ -154,19 +165,19 @@ export function PendingInvitationsList({
         object: "das erneute Senden der Einladung",
         retry: () => void handleResend(id),
       });
-      setActionLoading(null);
+      setInvitationLoading(id, false);
       return;
     }
-    setActionLoading(null);
     toastSuccess("Die Einladung ist erneut gesendet.");
     await afterWrite.refresh();
+    setInvitationLoading(id, false);
   };
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
     clearRevokeError();
     try {
-      setActionLoading(revokeTarget.id);
+      setInvitationLoading(revokeTarget.id, true);
       await revokeInvitation(revokeTarget.id);
     } catch (err) {
       logger.error("invitation_revoke_failed", {
@@ -176,10 +187,10 @@ export function PendingInvitationsList({
         object: "das Widerrufen der Einladung",
         retry: () => latestRevokeRef.current(),
       });
-      setActionLoading(null);
+      setInvitationLoading(revokeTarget.id, false);
       return;
     }
-    setActionLoading(null);
+    setInvitationLoading(revokeTarget.id, false);
     toastSuccess("Die Einladung ist widerrufen.");
     setRevokeTarget(null);
     onRevoked?.();
@@ -302,7 +313,7 @@ export function PendingInvitationsList({
                     {
                       label: "Erneut senden",
                       icon: <Send className="h-4 w-4" aria-hidden />,
-                      disabled: actionLoading === invitation.id,
+                      disabled: actionLoading.has(invitation.id),
                       onClick: () => handleResend(invitation.id),
                     },
                   ]),
@@ -310,7 +321,7 @@ export function PendingInvitationsList({
                 label: "Löschen",
                 icon: <Trash2 className="h-4 w-4" aria-hidden />,
                 destructive: true,
-                disabled: actionLoading === invitation.id,
+                disabled: actionLoading.has(invitation.id),
                 onClick: () => setRevokeTarget(invitation),
               },
             ]}

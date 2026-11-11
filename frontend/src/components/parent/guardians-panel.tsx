@@ -145,6 +145,7 @@ export default function GuardiansPanel({
   >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [accessRefused, setAccessRefused] = useState(false);
+  const latestRequest = useRef(0);
   const [editingContact, setEditingContact] = useState<ChildGuardian | null>(
     null,
   );
@@ -204,6 +205,7 @@ export default function GuardiansPanel({
   }, []);
 
   const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     setIsLoading(true);
     clearGuardiansLoadError();
     clearAccountsLoadError();
@@ -215,6 +217,7 @@ export default function GuardiansPanel({
         listRelatedAccounts(studentId),
         listPickupPermissionRequests(studentId),
       ]);
+    if (request !== latestRequest.current) return;
     const refused = discardRefusedAccess(
       [guardianResult, accountResult].flatMap((result) =>
         result.status === "rejected" ? [result.reason as unknown] : [],
@@ -282,20 +285,27 @@ export default function GuardiansPanel({
     loadRef.current = load;
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   // The reload after a confirmed write (#6652) only reads and sets: the shown
   // contacts and accounts stay while it runs, and a failure rejects, so the
   // hook reports it as a load error that says the change is saved.
   const readGuardians = useCallback(async () => {
+    const request = ++latestRequest.current;
     const [nextGuardians, nextAccounts, nextRequests] =
       await Promise.allSettled([
         listChildGuardians(studentId),
         listRelatedAccounts(studentId),
         listPickupPermissionRequests(studentId),
       ]);
+    if (request !== latestRequest.current) return;
+    setIsLoading(false);
     const failures = [nextGuardians, nextAccounts].flatMap((result) =>
       result.status === "rejected" ? [result.reason as unknown] : [],
     );
