@@ -36,7 +36,7 @@ declare global {
  * What a click does (#6643). Either `tooltip` or `noTooltip`, never both;
  * `ui-kit/button-needs-tooltip` requires one of them in its paths.
  */
-export type ButtonExplanation =
+type ButtonExplanation =
   | {
       /**
        * One sentence on what a click does, shown on mouse hover and keyboard
