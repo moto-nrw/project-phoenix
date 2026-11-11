@@ -420,8 +420,9 @@ func (a *approvalAuthority) add(ctx context.Context, identity *enrollmentNative.
 }
 
 // hold holds every identity's authority over all students of the approval,
-// so the first hold locks the whole graph in its children slot; the grants
-// of the pins' identity decide the pins (reconciledPin).
+// with the graph in every hold's children slot: a missing profile or inactive
+// membership can return without taking child locks. The grants of the pins'
+// identity decide the pins (reconciledPin).
 func (a *approvalAuthority) hold(ctx context.Context) error {
 	a.run.holds = renewalHolds{}
 	graph := a.graph
@@ -436,7 +437,6 @@ func (a *approvalAuthority) hold(ctx context.Context) error {
 			return fmt.Errorf("change request approve: %w", companionLockConflict(err, a.s.deps.CompanionLockBusy))
 		}
 		a.run.reads.holds[approvalAuthorityKey{tenantID: a.run.req.TenantID, submitter: key}] = holds
-		graph = nil
 		if group.pins {
 			for _, id := range group.ids {
 				a.run.holds[id] = holds[id]
