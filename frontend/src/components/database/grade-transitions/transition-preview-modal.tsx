@@ -295,6 +295,7 @@ export function TransitionPreviewModal({
         confirmText="Ja, anwenden"
         cancelText="Abbrechen"
         isConfirmLoading={applying}
+        loadingText="Wird angewendet …"
         isDismissDisabled={applying}
       >
         <p>

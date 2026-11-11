@@ -14,7 +14,10 @@ import { Copy, ClipboardPaste, Plus, Trash2, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -41,6 +44,7 @@ import {
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   useMealPlanEnabled,
   useMealRegistrationEnabled,
@@ -214,6 +218,7 @@ export default function MealPlanPage() {
   } | null>(null);
   // Holds the week the user wants to switch to while unsaved changes block it.
   const [pendingOffset, setPendingOffset] = useState<number | null>(null);
+  const [confirmReload, setConfirmReload] = useState(false);
   const [confirmCopyPrev, setConfirmCopyPrev] = useState(false);
 
   // Berlin-anchored: meal-plan rows are stored as school calendar DATEs the
@@ -243,19 +248,32 @@ export default function MealPlanPage() {
   // button and after save, not only from the week-switch effect.
   const loadTokenRef = useRef(0);
 
-  const load = useCallback(async () => {
-    const token = ++loadTokenRef.current;
-    setLoading(true);
-    clearLoadError();
-    try {
-      const entries = await getMealPlanWeek(mondayISO);
-      if (loadTokenRef.current !== token) return;
+  // Reads the week for the load with `token`; a newer load wins, its answer
+  // and its failure count, an older one is dropped. Rejects on failure, so
+  // after a save the caller keeps the week on screen (#6652).
+  const readWeek = useCallback(
+    async (token: number) => {
+      const entries = await getMealPlanWeek(mondayISO).catch((err: unknown) => {
+        if (loadTokenRef.current === token) throw err;
+        return null;
+      });
+      if (entries === null || loadTokenRef.current !== token) return;
       const built = draftsFromEntries(entries, weekDates);
       setDrafts(built);
       // Originals store only the persisted (non-empty) rows for dirty checks.
       const orig: Record<string, DishDraft[]> = {};
       for (const date of weekDates) orig[date] = normalizeDay(built[date]!);
       setOriginals(orig);
+    },
+    [mondayISO, weekDates],
+  );
+
+  const load = useCallback(async () => {
+    const token = ++loadTokenRef.current;
+    setLoading(true);
+    clearLoadError();
+    try {
+      await readWeek(token);
     } catch (err) {
       if (loadTokenRef.current !== token) return;
       logger.error("meal_plan_load_failed", {
@@ -276,10 +294,22 @@ export default function MealPlanPage() {
         setHasLoaded(true);
       }
     }
-  }, [mondayISO, weekDates, showLoadError, clearLoadError]);
+  }, [readWeek, showLoadError, clearLoadError]);
   useLayoutEffect(() => {
     reloadRef.current = () => void load();
   });
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige des Speiseplans",
+    async () => {
+      const token = ++loadTokenRef.current;
+      setLoading(true);
+      try {
+        await readWeek(token);
+      } finally {
+        if (loadTokenRef.current === token) setLoading(false);
+      }
+    },
+  );
 
   useEffect(() => {
     if (status !== "authenticated" || !canReadPlan || !mealPlanEnabled) return;
@@ -396,7 +426,7 @@ export default function MealPlanPage() {
     // clicked; switching mid-save would let that stale reload win the
     // latest-wins token race and write the old week's data over the new week,
     // leaving an unloaded/blank grid that the next edit could overwrite.
-    if (saving || copyingPrev) return;
+    if (saving || copyingPrev || loading) return;
     if (isDirty) {
       setPendingOffset(next);
     } else {
@@ -407,6 +437,12 @@ export default function MealPlanPage() {
   const confirmWeekChange = () => {
     if (pendingOffset !== null) setWeekOffset(pendingOffset);
     setPendingOffset(null);
+  };
+
+  const retryAfterSave = () => {
+    if (editingLocked) return;
+    if (isDirty) setConfirmReload(true);
+    else void afterSave.refresh();
   };
 
   // --- Copy the previous week's plan into the current week ---------------
@@ -504,8 +540,6 @@ export default function MealPlanPage() {
         );
         persisted[date] = draft;
       }
-      toast.success("Der Speiseplan ist gespeichert.");
-      await load();
     } catch (err) {
       logger.error("meal_plan_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -520,9 +554,16 @@ export default function MealPlanPage() {
         object: "die Woche im Speiseplan",
         retry: () => retrySaveRef.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    // The saved days are stored even when the reload below fails.
+    setOriginals((prev) => ({ ...prev, ...persisted }));
+    toast.success("Der Speiseplan ist gespeichert.");
+    // Saving stays on during the reload: no edit or week switch can slip in
+    // before the stored week replaces the drafts.
+    await afterSave.refresh();
+    setSaving(false);
   };
   useLayoutEffect(() => {
     retrySaveRef.current = () => void handleSave();
@@ -610,17 +651,28 @@ export default function MealPlanPage() {
           />
 
           <ConfirmationModal
-            isOpen={pendingOffset !== null}
-            onClose={() => setPendingOffset(null)}
-            onConfirm={confirmWeekChange}
+            isOpen={pendingOffset !== null || confirmReload}
+            onClose={() => {
+              setPendingOffset(null);
+              setConfirmReload(false);
+            }}
+            onConfirm={() => {
+              if (confirmReload) {
+                setConfirmReload(false);
+                void afterSave.refresh();
+              } else confirmWeekChange();
+            }}
             title="Ungespeicherte Änderungen"
-            confirmText="Verwerfen & wechseln"
+            confirmText={
+              confirmReload ? "Verwerfen & neu laden" : "Verwerfen & wechseln"
+            }
             cancelText="Hierbleiben"
             confirmVariant="danger"
           >
             <p className="text-sm text-gray-600">
-              Sie haben Änderungen in dieser Woche, die noch nicht gespeichert
-              sind. Beim Wochenwechsel gehen sie verloren.
+              {confirmReload
+                ? "Sie haben Änderungen, die noch nicht gespeichert sind. Beim Neuladen gehen sie verloren."
+                : "Sie haben Änderungen in dieser Woche, die noch nicht gespeichert sind. Beim Wochenwechsel gehen sie verloren."}
             </p>
           </ConfirmationModal>
 
@@ -659,6 +711,18 @@ export default function MealPlanPage() {
       }
     >
       <FormErrorAlert message={saveErrors.error} />
+      <LoadErrorAlert
+        error={
+          afterSave.error && {
+            ...afterSave.error,
+            retry: afterSave.error.retry && {
+              ...afterSave.error.retry,
+              onClick: retryAfterSave,
+            },
+          }
+        }
+        className="mb-4"
+      />
 
       {/* Eine Karte für den Wochenplan: Titel, Erklärung und „Vorwoche
           übernehmen“ im Kopf, die fünf Tage randlos unter einer Trennlinie.

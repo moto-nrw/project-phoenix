@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { PaperSignatureModal } from "~/components/traeger/care-contract-paper-modal";
 import type { CareContractDetail } from "~/lib/traeger-care-contracts-api";
 
@@ -747,5 +749,137 @@ describe("TraegerVertragPage", () => {
         "01.02.2027 bis 28.02.2027 · Änderung der Betreuung · 1 Tag geändert",
       ),
     ).toBeInTheDocument();
+  });
+  it.each([403, 503])(
+    "handles a %s contract reload after sending",
+    async (status) => {
+      api.fetchCareContract
+        .mockResolvedValueOnce(DRAFT)
+        .mockRejectedValueOnce(new ApiError("failed", status));
+      api.sendCareContracts.mockResolvedValue({ sent: 1, skipped: [] });
+      renderPage();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Vertrag senden" }),
+      );
+      const code =
+        status === 403 ? "general.permission" : "general.unavailable";
+      // Anker: der Nachladefehler bestätigt den bereits erfolgten Versand.
+      expect(
+        await screen.findByText(
+          `${catalogText(code, "die Anzeige des Vertrags")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(screen.queryByText("Vertragsangaben")).not.toBeInTheDocument();
+        expect(screen.queryAllByText("erika@example.org")).toHaveLength(0);
+        expect(screen.queryByTestId("pdf-preview")).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "PDF herunterladen" }),
+        ).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByText("Vertragsangaben")).toBeVisible();
+        expect(screen.getByTestId("pdf-preview")).toBeVisible();
+      }
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  // #6652: after a confirmed send a failed reload is a load error above the
+  // contract, not a failed send or a page error that replaces the contract.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText(
+      "general.unavailable",
+      "die Anzeige des Vertrags",
+    )} ${SAVED_BUT_STALE_SUFFIX}`;
+    const down = () =>
+      new ApiError("down", 503, { code: "general.unavailable" });
+    const FAILED_MAIL: CareContractDetail = {
+      ...DRAFT,
+      status: "versendet",
+      documentFrozen: true,
+      mailings: [
+        {
+          recipient: "alt@example.org",
+          sentAt: "2026-09-02T08:00:00Z",
+          state: "failed",
+        },
+      ],
+    };
+
+    it("keeps a sent contract sent when the reload fails", async () => {
+      api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
+      renderPage();
+      const sendButton = await screen.findByRole("button", {
+        name: /Vertrag senden/,
+      });
+      api.fetchCareContract.mockClear();
+      api.fetchCareContract
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue({ ...DRAFT, status: "versendet" });
+
+      fireEvent.click(sendButton);
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+      // Anker: the contract stays shown.
+      expect(screen.getByText("Vertragsangaben")).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "der Vertrag")),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByRole("button", { name: "Erneut senden" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+      expect(api.fetchCareContract).toHaveBeenCalledTimes(2);
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a contract resent to a new address when the reload fails", async () => {
+      api.fetchCareContract.mockResolvedValue(FAILED_MAIL);
+      api.resendCareContract.mockResolvedValue({ sent: ["7"], skipped: [] });
+      renderPage();
+      fireEvent.change(await screen.findByLabelText("Neue Versandadresse"), {
+        target: { value: "neu@example.org" },
+      });
+      api.fetchCareContract.mockClear();
+      api.fetchCareContract.mockRejectedValueOnce(down()).mockResolvedValue({
+        ...FAILED_MAIL,
+        mailings: [
+          {
+            recipient: "neu@example.org",
+            sentAt: "2026-09-09T10:00:00Z",
+            state: "queued",
+          },
+          ...FAILED_MAIL.mailings,
+        ],
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "An diese Adresse senden" }),
+      );
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(api.resendCareContract).toHaveBeenCalledTimes(1);
+      // Anker: the contract stays shown.
+      expect(screen.getByText("Vertragsangaben")).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Versandadresse"),
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "der Vertrag")),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByText(/Die Mail wartet auf den Versand/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+      expect(api.fetchCareContract).toHaveBeenCalledTimes(2);
+      expect(api.resendCareContract).toHaveBeenCalledTimes(1);
+    });
   });
 });

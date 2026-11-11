@@ -114,6 +114,7 @@ export function PublishAnnouncementDialog({
       confirmText="Jetzt veröffentlichen"
       cancelText="Abbrechen"
       isConfirmLoading={pending}
+      loadingText="Wird veröffentlicht …"
     >
       <div className="space-y-2 text-sm text-gray-700">
         <FormErrorAlert message={error} />
@@ -163,6 +164,7 @@ export function UnpublishAnnouncementDialog({
       confirmText="Zurückziehen"
       cancelText="Abbrechen"
       isConfirmLoading={pending}
+      loadingText="Wird zurückgezogen …"
     >
       <div className="space-y-2 text-sm text-gray-700">
         <FormErrorAlert message={error} />

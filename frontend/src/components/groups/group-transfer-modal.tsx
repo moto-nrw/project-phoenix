@@ -185,6 +185,7 @@ export function GroupTransferModal({
         confirmText="Übergabe zurücknehmen"
         cancelText="Abbrechen"
         isConfirmLoading={deletingId !== null}
+        loadingText="Wird zurückgenommen …"
         isDismissDisabled={deletingId !== null}
         onConfirm={async () => {
           await handleCancel(cancelTarget.substitutionId);

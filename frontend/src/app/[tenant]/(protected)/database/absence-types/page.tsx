@@ -5,7 +5,7 @@
 // Auswahlfelds „Art der Abwesenheit", das aus zwei Dialogen der Zeiterfassung
 // aufging. Das Feld ist jetzt reine Auswahl und verlinkt hierher.
 
-import { Suspense, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useLayoutEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -19,6 +19,9 @@ import { CARRYOVER_OPTIONS, carryoverRuleLabel } from "~/lib/absence-helpers";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
@@ -131,6 +134,7 @@ const config: CatalogConfig<AbsenceType> = {
     menuLabel: "Nicht mehr anbieten",
     confirmTitle: "Abwesenheitsart nicht mehr anbieten?",
     confirmLabel: "Nicht mehr anbieten",
+    loadingLabel: "Wird aus der Auswahl genommen …",
     describe: (type) =>
       `„${type.name}“ steht bei neuen Abwesenheiten nicht mehr zur Auswahl. Bereits eingetragene Abwesenheiten behalten den Namen.`,
     run: (type) =>
@@ -151,20 +155,34 @@ function AbsenceTypesPageContent() {
   const searchParams = useSearchParams();
   const tenantMutate = useTenantMutate();
 
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<AbsenceType[]>(CACHE_KEY, () =>
     absenceTypeService.getAbsenceTypes(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
   // (#2517).
   const loadError = useSwrLoadError(
     swrError,
     "die Liste der Abwesenheitsarten",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);

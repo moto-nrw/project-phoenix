@@ -19,6 +19,7 @@ import {
   type AbsenceType,
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CustomAllowanceEditor" });
@@ -51,7 +52,8 @@ export function CustomAllowanceEditForm({
   readonly type: AbsenceType;
   readonly summary: AbsenceTypeAllowanceSummary;
   readonly onCancel: () => void;
-  readonly onSaved: () => void | Promise<void>;
+  /** Closes the form and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [days, setDays] = useState(formatInput(summary.entitledDays));
   const [reason, setReason] = useState("");
@@ -96,7 +98,6 @@ export function CustomAllowanceEditForm({
         reason: reason.trim(),
       });
       toast.success(`Der Anspruch ${type.name} ist gespeichert.`);
-      await onSaved();
     } catch (cause) {
       logger.error("custom_allowance_save_failed", {
         staff_id: staffId,
@@ -107,9 +108,11 @@ export function CustomAllowanceEditForm({
         object: "die Änderung am Anspruch",
         retry: () => void latestSaveRef.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    await onSaved();
   };
 
   useLayoutEffect(() => {

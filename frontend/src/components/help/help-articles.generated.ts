@@ -4646,6 +4646,7 @@ export const mealPlanTopic = function mealPlanTopic(): HelpTopic {
     differences: [
       "Ihre Änderungen zählen erst mit `Speichern`. Vorher steht `Verwerfen` daneben.",
       "Beim Wechseln der Woche mit offenen Änderungen fragt moto nach.",
+      "Auch beim Neuladen mit `Wiederholen` fragt moto bei offenen Änderungen nach.",
     ],
     troubleshootingDetails: [
       "Fehlt `Speiseplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet, oder Ihrer Rolle fehlt das Recht `Mittagessen: Lesen`.",

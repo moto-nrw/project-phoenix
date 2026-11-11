@@ -26,6 +26,7 @@ import {
 } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import type { Permission, Role } from "~/lib/auth-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   formatPermissionDisplay,
@@ -112,7 +113,9 @@ export function RolePermissionsTab({
     show: showLoadError,
     clear: clearLoadError,
   } = useApiLoadError();
-  const [saving, setSaving] = useState(false);
+  const [completingSave, setSaving] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  const saving = completingSave || reloading;
   const formRef = useRef<HTMLFormElement>(null);
   const {
     error: saveError,
@@ -125,14 +128,19 @@ export function RolePermissionsTab({
   const [searchTerm, setSearchTerm] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const latestPermissionRequest = useRef(0);
+  const draftDirty = useRef(false);
+  const clearReloadError = useRef<() => void>(() => undefined);
 
   const fetchPermissions = useCallback(
-    async (includeCatalogue: boolean) => {
+    async (includeCatalogue: boolean, options: { rethrow?: boolean } = {}) => {
       const request = ++latestPermissionRequest.current;
       try {
-        setLoading(true);
-        setLoadFailed(false);
-        clearLoadError();
+        // Nach dem Speichern bleibt die bestätigte Liste stehen (#6652).
+        if (!options.rethrow) {
+          setLoading(true);
+          setLoadFailed(false);
+          clearLoadError();
+        }
         const assignedRequest = authService.getRolePermissions(role.id);
         const [assigned, all] = includeCatalogue
           ? await Promise.all([assignedRequest, authService.getPermissions()])
@@ -142,13 +150,15 @@ export function RolePermissionsTab({
         for (const permission of assigned) map[permission.id] = true;
         setAllPermissions(all ?? assigned);
         setAssignedMap(map);
-        setDraftMap(map);
+        if (!draftDirty.current) setDraftMap(map);
+        clearReloadError.current();
       } catch (error) {
         if (request !== latestPermissionRequest.current) return;
         logger.error("role_permissions_load_failed", {
           role_id: role.id,
           error: error instanceof Error ? error.message : String(error),
         });
+        if (options.rethrow) throw error;
         setLoadFailed(true);
         void showLoadError(error, {
           object: "die Liste der Berechtigungen",
@@ -164,6 +174,23 @@ export function RolePermissionsTab({
   useEffect(() => {
     void fetchPermissions(editing);
   }, [editing, fetchPermissions]);
+  // Nachladen nach dem Speichern: ein Fehler dabei ist ein Ladefehler, kein
+  // Fehler des Speicherns (#6652).
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige der Berechtigungen",
+    async () => {
+      setReloading(true);
+      try {
+        await fetchPermissions(true, { rethrow: true });
+      } finally {
+        setReloading(false);
+      }
+    },
+  );
+
+  useLayoutEffect(() => {
+    clearReloadError.current = afterSave.clear;
+  });
 
   const wasEditing = useRef(false);
 
@@ -176,7 +203,9 @@ export function RolePermissionsTab({
   useEffect(() => {
     const entersEditing = editing && !wasEditing.current;
     wasEditing.current = editing;
+    if (!editing) draftDirty.current = false;
     if (!entersEditing) return;
+    draftDirty.current = false;
     setDraftMap(assignedMap);
     setSearchTerm("");
     clearSaveError();
@@ -238,19 +267,23 @@ export function RolePermissionsTab({
     filteredPermissions.length > 0 &&
     filteredPermissions.every((p) => draftMap[p.id] === true);
 
-  const toggleOne = (permissionId: string) =>
+  const toggleOne = (permissionId: string) => {
+    draftDirty.current = true;
     setDraftMap((current) => ({
       ...current,
       [permissionId]: !current[permissionId],
     }));
+  };
 
-  const toggleMany = (permissions: readonly Permission[]) =>
+  const toggleMany = (permissions: readonly Permission[]) => {
+    draftDirty.current = true;
     setDraftMap((current) => {
       const allChecked = permissions.every((p) => current[p.id] === true);
       const next = { ...current };
       for (const p of permissions) next[p.id] = !allChecked;
       return next;
     });
+  };
 
   const handleSave = async () => {
     const permissionIds = allPermissions
@@ -261,8 +294,6 @@ export function RolePermissionsTab({
     try {
       await authService.replaceRolePermissions(role.id, permissionIds);
       toastSuccess("Die Berechtigungen der Rolle sind gespeichert.");
-      await fetchPermissions(true);
-      await onSaved();
     } catch (error) {
       logger.error("role_permissions_save_failed", {
         role_id: role.id,
@@ -272,6 +303,15 @@ export function RolePermissionsTab({
         object: "das Speichern der Berechtigungen",
         retry: () => latestSaveRef.current(),
       });
+      setSaving(false);
+      return;
+    }
+    // The write confirms this selection even if the following reads fail.
+    draftDirty.current = false;
+    setAssignedMap({ ...draftMap });
+    try {
+      await afterSave.refresh();
+      await onSaved();
     } finally {
       setSaving(false);
     }
@@ -298,6 +338,7 @@ export function RolePermissionsTab({
   if (!editing) {
     return (
       <div className="space-y-4">
+        <LoadErrorAlert error={afterSave.error} />
         <p className="text-sm text-gray-600">
           {editing
             ? `${assignedCount} von ${allPermissions.length} Berechtigungen zugewiesen.`
@@ -344,6 +385,7 @@ export function RolePermissionsTab({
         void handleSave();
       }}
     >
+      <LoadErrorAlert error={afterSave.error} />
       <FormErrorAlert message={saveError} />
 
       <p className="text-sm text-gray-600">

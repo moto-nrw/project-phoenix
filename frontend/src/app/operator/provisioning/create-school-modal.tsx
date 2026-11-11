@@ -5,12 +5,10 @@ import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import {
-  operatorProvisioningService,
-  revalidateTenantCache,
-} from "~/lib/operator/provisioning-api";
+import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization } from "~/lib/operator/provisioning-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormField, VisibilityToggle } from "./provisioning-shared";
@@ -26,7 +24,9 @@ export function CreateSchoolModal({
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly organizations: Organization[] | undefined;
-  readonly onCreated: () => Promise<void>;
+  /** Reloads the schools and the new school's portal cache; never rejects
+   *  (#6652). */
+  readonly onCreated: RefreshAfterWrite<[subdomain: string]>;
 }) {
   const [schoolOrgId, setSchoolOrgId] = useState("");
   const [schoolName, setSchoolName] = useState("");
@@ -125,17 +125,17 @@ export function CreateSchoolModal({
           email: schoolEmail.trim(),
           ...(schoolHidden && { hidden: true }),
         });
-        onClose();
-        await onCreated();
-        await revalidateTenantCache([schoolSubdomain.trim()]);
       } catch (error) {
         logger.error("school_create_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         void showError(error, { object: "das Anlegen der Schule" });
-      } finally {
         setSchoolSaving(false);
+        return;
       }
+      setSchoolSaving(false);
+      onClose();
+      await onCreated(schoolSubdomain.trim());
     },
     [
       schoolOrgId,

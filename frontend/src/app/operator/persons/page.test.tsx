@@ -249,6 +249,38 @@ describe("OperatorPersonsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps refused person data hidden until a successful fetch", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "schoolId" ? "10" : null,
+    );
+    withDefaultSWR({ schoolPersons: [mockPerson] });
+    const { rerender } = render(<OperatorPersonsPage />);
+    expect(screen.getByText("max@test.de")).toBeVisible();
+    for (const status of [403, 500]) {
+      withDefaultSWR({
+        schoolPersons: [mockPerson],
+        personsError: new ApiError("failed", status),
+        staleData: true,
+      });
+      rerender(<OperatorPersonsPage />);
+      expect(
+        await screen.findByText(
+          catalogText(
+            status === 403 ? "general.permission" : "general.server",
+            "die Liste der Personen",
+          ),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("max@test.de")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Aktionen für Max Mustermann" }),
+      ).not.toBeInTheDocument();
+    }
+    withDefaultSWR({ schoolPersons: [mockPerson] });
+    rerender(<OperatorPersonsPage />);
+    expect(await screen.findByText("max@test.de")).toBeVisible();
+  });
+
   // #2519: cached empty data is not an empty state when revalidation failed.
   it("shows a failed persons load without claiming the list is empty", async () => {
     mockSearchParamsGet.mockImplementation((key: string) =>

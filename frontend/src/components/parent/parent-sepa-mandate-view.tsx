@@ -38,6 +38,7 @@ import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { billingConcept } from "~/lib/concepts/billing";
 import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   fetchSepaMandate,
@@ -80,10 +81,28 @@ export function ParentSepaMandateView({
   const loadError = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = loadError;
 
-  const load = useCallback(async () => {
+  // Rejects on failure: after the revocation the card shows it as a reload
+  // of a saved change; only an access refusal discards the mandate (#6652).
+  const fetchView = useCallback(async () => {
     try {
       setView(await fetchSepaMandate(organizationId, contractId));
       clearLoadError();
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 ||
+          error.status === 403 ||
+          (error.status === 404 &&
+            error.code === "parent_billing.parent_document_not_found"))
+      ) {
+        setView(null);
+      }
+      throw error;
+    }
+  }, [organizationId, contractId, clearLoadError]);
+  const load = useCallback(async () => {
+    try {
+      await fetchView();
     } catch (err) {
       logger.error("parent_sepa_mandate_load_failed", {
         error: errorMessage(err),
@@ -93,16 +112,20 @@ export function ParentSepaMandateView({
         retry: () => void load(),
       });
     }
-  }, [organizationId, contractId, clearLoadError, showLoadError, t]);
+  }, [fetchView, showLoadError, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
+  const afterRevoke = useRefreshAfterWrite(t("reloadObject"), fetchView, {
+    savedSuffix: t("savedButStale"),
+  });
 
-  if (loadError.error) {
+  // Bei vorübergehenden Ladefehlern bleibt das bestätigte Mandat stehen (#6652).
+  if ((loadError.error ?? afterRevoke.error) && !view) {
     return (
       <SectionCard concept={billingConcept} title={t("title")}>
-        <LoadErrorAlert error={loadError.error} />
+        <LoadErrorAlert error={loadError.error ?? afterRevoke.error} />
       </SectionCard>
     );
   }
@@ -116,6 +139,8 @@ export function ParentSepaMandateView({
         title={t("offTitle")}
         description={t("intro")}
       >
+        <LoadErrorAlert error={loadError.error} />
+        <LoadErrorAlert error={afterRevoke.error} />
         <Alert type="info" message={t("off")} />
       </SectionCard>
     );
@@ -124,11 +149,16 @@ export function ParentSepaMandateView({
   if (view.mandate && !view.mandate.revokedOn) {
     return (
       <div className="space-y-6">
+        <LoadErrorAlert error={loadError.error} />
+        <LoadErrorAlert error={afterRevoke.error} />
         <MandateCard
           contract={key}
           view={view}
           mandate={view.mandate}
-          onChanged={load}
+          onRevoked={async (confirmed) => {
+            setView(confirmed);
+            await afterRevoke.refresh();
+          }}
         />
         {view.mandate.proof ? <MandateTextCard mandate={view.mandate} /> : null}
       </div>
@@ -141,6 +171,8 @@ export function ParentSepaMandateView({
         title={t("title")}
         description={t("intro")}
       >
+        <LoadErrorAlert error={loadError.error} />
+        <LoadErrorAlert error={afterRevoke.error} />
         {view.creditorMissing ? (
           <Alert type="warning" message={t("creditorMissing")} />
         ) : (
@@ -149,7 +181,13 @@ export function ParentSepaMandateView({
       </SectionCard>
     );
   }
-  return <GrantFlow contract={key} view={view} onGranted={setView} />;
+  return (
+    <>
+      <LoadErrorAlert error={loadError.error} />
+      <LoadErrorAlert error={afterRevoke.error} />
+      <GrantFlow contract={key} view={view} onGranted={setView} />
+    </>
+  );
 }
 
 /** The mandate in force: the account as a mask, who collects, and the revocation. */
@@ -157,12 +195,13 @@ function MandateCard({
   contract,
   view,
   mandate,
-  onChanged,
+  onRevoked,
 }: Readonly<{
   contract: ContractKey;
   view: SepaMandateView;
   mandate: SepaMandate;
-  onChanged: () => Promise<void>;
+  /** Applies the confirmed revocation before reloading (#6652). */
+  onRevoked: (confirmed: SepaMandateView) => Promise<void>;
 }>) {
   const t = useTranslations("parentSepaMandate");
   const locale = useLocale();
@@ -183,20 +222,25 @@ function MandateCard({
   const revoke = async () => {
     revokeError.clear();
     setRevoking(true);
+    let confirmed: SepaMandateView;
     try {
-      await revokeSepaMandate(contract.organizationId, contract.contractId);
-      setConfirming(false);
-      success(t("revoked"));
-      await onChanged();
+      confirmed = await revokeSepaMandate(
+        contract.organizationId,
+        contract.contractId,
+      );
     } catch (err) {
       logger.error("parent_sepa_mandate_revoke_failed", {
         error: errorMessage(err),
       });
       setConfirming(false);
       void revokeError.show(err, { object: t("errorObject") });
-    } finally {
       setRevoking(false);
+      return;
     }
+    setRevoking(false);
+    setConfirming(false);
+    success(t("revoked"));
+    await onRevoked(confirmed);
   };
 
   return (

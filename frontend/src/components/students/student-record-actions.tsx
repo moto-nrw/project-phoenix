@@ -13,6 +13,7 @@ import {
   hasPlannedCareExit,
 } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
 import { CareExitModal } from "./care-exit-modal";
@@ -31,9 +32,9 @@ interface StudentRecordActionsProps {
   readonly student: RecordStudent;
   readonly displayName: string;
   /** Lädt die Akte neu, nachdem ein Ende eingetragen, storniert oder aufgehoben wurde. */
-  readonly onChanged: () => void | Promise<void>;
+  readonly onChanged: RefreshAfterWrite;
   /** Das Kind gibt es nicht mehr; die Seite verlässt die Akte. */
-  readonly onDeleted: () => void | Promise<void>;
+  readonly onDeleted: () => void;
 }
 
 /**
@@ -77,14 +78,6 @@ export function StudentRecordActions({
     clearCancelError();
     try {
       await cancelCareExit([studentId]);
-      // Sagt beides: das Ende ist weg UND der Plan ist zurück. Ohne den
-      // zweiten Halbsatz bliebe offen, ob die Termine neu eingetragen werden
-      // müssen (#2487).
-      toastSuccess(
-        `Das Betreuungsende von ${displayName} ist storniert. Termine und Angebote gelten wieder.`,
-      );
-      setCancelExitOpen(false);
-      await onChanged();
     } catch (cancelError) {
       logger.error("care_exit_cancel_failed", {
         student_id: studentId,
@@ -97,9 +90,18 @@ export function StudentRecordActions({
         object: "die Stornierung",
         retry: () => void latestCancelRef.current(),
       });
-    } finally {
       setCancellingExit(false);
+      return;
     }
+    setCancellingExit(false);
+    // Sagt beides: das Ende ist weg UND der Plan ist zurück. Ohne den
+    // zweiten Halbsatz bliebe offen, ob die Termine neu eingetragen werden
+    // müssen (#2487).
+    toastSuccess(
+      `Das Betreuungsende von ${displayName} ist storniert. Termine und Angebote gelten wieder.`,
+    );
+    setCancelExitOpen(false);
+    await onChanged();
   }, [
     clearCancelError,
     displayName,
@@ -171,6 +173,7 @@ export function StudentRecordActions({
         confirmText="Ende stornieren"
         cancelText="Abbrechen"
         isConfirmLoading={cancellingExit}
+        loadingText="Wird storniert …"
         isDismissDisabled={cancellingExit}
         onConfirm={() => void cancelPlannedExit()}
         onClose={() => {
@@ -194,9 +197,9 @@ export function StudentRecordActions({
           studentId={studentId}
           displayName={displayName}
           onClose={() => setResumeOpen(false)}
-          onResumed={async () => {
+          onResumed={() => {
             setResumeOpen(false);
-            await onChanged();
+            return onChanged();
           }}
         />
       ) : null}
@@ -208,10 +211,10 @@ export function StudentRecordActions({
           displayName={displayName}
           careEnded={student.care_ended === true}
           onClose={() => setDeleteOpen(false)}
-          onDeleted={async () => {
+          onDeleted={() => {
             setDeleteOpen(false);
             toastSuccess(`${displayName} ist gelöscht.`);
-            await onDeleted();
+            onDeleted();
           }}
         />
       ) : null}

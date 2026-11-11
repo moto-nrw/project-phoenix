@@ -332,6 +332,7 @@ export default function MealBillingReleasePage() {
           cancelText="Abbrechen"
           confirmVariant="success"
           isConfirmLoading={releasing}
+          loadingText="Wird freigegeben …"
           isConfirmDisabled={Boolean(month?.current) && reason.trim() === ""}
         >
           {month?.current ? (

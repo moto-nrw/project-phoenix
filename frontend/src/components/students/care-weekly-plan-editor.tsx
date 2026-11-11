@@ -972,6 +972,7 @@ export function CareWeeklyPlanEditForm({
         confirmText="Trotzdem speichern"
         cancelText="Zurück"
         isConfirmLoading={isSubmitting}
+        loadingText="Wird gespeichert …"
         confirmVariant="danger"
       >
         <div className="space-y-2 text-sm leading-6 text-gray-600">

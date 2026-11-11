@@ -44,6 +44,7 @@ import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { substitutionService } from "~/lib/substitution-api";
@@ -88,7 +89,8 @@ interface BulkSubstitutionModalProps {
    */
   readonly staffLoadErrorMessage?: FormErrorInput;
   /** Cache-Refresh nach einem committeten Save (Woche + Lücken). */
-  readonly onSaved: () => Promise<void> | void;
+  /** Reloads the plan; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }
 
 /** Tage (inklusive) zwischen zwei ISO-Daten; 0 bei gleichem Tag. */
@@ -294,44 +296,16 @@ export function BulkSubstitutionModal({
     if (!canSave) return;
     void save.run(async (op) => {
       formErrors.clear();
+      let result: Awaited<
+        ReturnType<typeof substitutionService.applyBulkSubstitution>
+      >;
       try {
-        const result = await substitutionService.applyBulkSubstitution({
+        result = await substitutionService.applyBulkSubstitution({
           absentStaffId,
           substituteStaffId: substituteStaffId || undefined,
           dates: selectedDates,
           reason: reason.trim() || undefined,
         });
-        toast.success(
-          bulkSuccessMessage(
-            Boolean(substituteStaffId),
-            result.totalAffected,
-            result.days.length,
-          ),
-        );
-        if (result.warningCount > 0) {
-          // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Save ist durch und das Panel schließt; der Hinweis auf Überschneidungen hat keine andere Fläche.
-          toast.warning(overlapWarningMessage(result.warningCount), {
-            // Bleibt stehen, bis die Person den Hinweis schließt.
-            duration: 0,
-          });
-        }
-        // Alle Vorschau-Caches leeren: sie tragen den Stand VOR dem Save, und
-        // mit keepPreviousData würde ein erneutes Öffnen desselben Zeitraums
-        // die veraltete Auswahl sofort wieder speicherbar anzeigen. Leeren
-        // statt revalidieren, damit der nächste Mount frisch lädt (isLoading)
-        // und der Save-Gate bis dahin greift. Ein Fehler hier darf den bereits
-        // committeten Save nicht als Fehler melden.
-        // Bewusst still: der Save ist gespeichert; ein misslungenes Leeren
-        // zeigt beim nächsten Öffnen höchstens kurz den alten Stand, bis SWR
-        // die Vorschau neu lädt.
-        await clearPreviewCache({ clear: true }).catch((err: unknown) => {
-          logger.warn("bulk_preview_cache_clear_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        });
-        await onSaved();
-        // Eine späte Antwort schließt kein inzwischen neu geöffnetes Panel.
-        if (op.isCurrent()) resetAndClose();
       } catch (err) {
         // Der Save ist alles-oder-nichts: bei einem Fehler bleibt das Formular
         // mit allen Eingaben offen, die Meldung steht oben im Panel.
@@ -344,7 +318,39 @@ export function BulkSubstitutionModal({
           object: "die Sammel-Vertretung",
           retry: () => latestSaveRef.current(),
         });
+        return;
       }
+      toast.success(
+        bulkSuccessMessage(
+          Boolean(substituteStaffId),
+          result.totalAffected,
+          result.days.length,
+        ),
+      );
+      if (result.warningCount > 0) {
+        // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Save ist durch und das Panel schließt; der Hinweis auf Überschneidungen hat keine andere Fläche.
+        toast.warning(overlapWarningMessage(result.warningCount), {
+          // Bleibt stehen, bis die Person den Hinweis schließt.
+          duration: 0,
+        });
+      }
+      // Alle Vorschau-Caches leeren: sie tragen den Stand VOR dem Save, und
+      // mit keepPreviousData würde ein erneutes Öffnen desselben Zeitraums
+      // die veraltete Auswahl sofort wieder speicherbar anzeigen. Leeren
+      // statt revalidieren, damit der nächste Mount frisch lädt (isLoading)
+      // und der Save-Gate bis dahin greift. Ein Fehler hier darf den bereits
+      // committeten Save nicht als Fehler melden.
+      // Bewusst still: der Save ist gespeichert; ein misslungenes Leeren
+      // zeigt beim nächsten Öffnen höchstens kurz den alten Stand, bis SWR
+      // die Vorschau neu lädt.
+      await clearPreviewCache({ clear: true }).catch((err: unknown) => {
+        logger.warn("bulk_preview_cache_clear_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+      await onSaved();
+      // Eine späte Antwort schließt kein inzwischen neu geöffnetes Panel.
+      if (op.isCurrent()) resetAndClose();
     });
   };
 

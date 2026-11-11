@@ -252,6 +252,7 @@ export function OwnSupervisionView() {
       }
     >
       <LoadErrorAlert error={loadError} />
+      <LoadErrorAlert error={actions.reloadError} />
       {reopen.reopenable ? (
         <Alert
           type="success"

@@ -6,6 +6,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CreateOrganizationModal" });
@@ -17,7 +18,8 @@ export function CreateOrganizationModal({
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly onCreated: () => Promise<void>;
+  /** Reloads the list; never rejects (#6652). */
+  readonly onCreated: RefreshAfterWrite;
 }) {
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
@@ -66,16 +68,17 @@ export function CreateOrganizationModal({
           name: orgName.trim(),
           slug: orgSlug.trim(),
         });
-        handleClose();
-        await onCreated();
       } catch (error) {
         logger.error("organization_create_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         void showError(error, { object: "das Anlegen des Trägers" });
-      } finally {
         setOrgSaving(false);
+        return;
       }
+      setOrgSaving(false);
+      handleClose();
+      await onCreated();
     },
     [orgName, orgSlug, onCreated, handleClose, invalid, clearError, showError],
   );

@@ -9,6 +9,7 @@ import {
 import { TrustedDevicesSection } from "./trusted-devices-section";
 import { clearSessionCache } from "~/lib/session-cache";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
@@ -227,5 +228,65 @@ describe("TrustedDevicesSection", () => {
         "Sie haben aktuell keine vertrauten Geräte gespeichert.",
       ),
     ).toBeNull();
+  });
+
+  // #6652: a write holds once it is through; a failed reload keeps the list
+  // and says the change is saved, and its retry only reloads.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der vertrauten Geräte")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    it("keeps a revoked device revoked when the reload fails", async () => {
+      const responses = [
+        () => jsonResponse([sampleDevice]),
+        () => noContentResponse(),
+        () =>
+          jsonResponse({ code: "general.unavailable", detail: "down" }, 503),
+        () => jsonResponse([]),
+      ];
+      let call = 0;
+      const fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) =>
+        responses[Math.min(call++, responses.length - 1)]!()(input, init),
+      );
+      global.fetch = fetchMock as unknown as typeof global.fetch;
+      const deleteCalls = () =>
+        fetchMock.mock.calls.filter(([, init]) => init?.method === "DELETE");
+
+      render(<TrustedDevicesSection />);
+      expect(await screen.findByText("Chrome auf macOS")).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Aktionen für Chrome auf macOS" }),
+      );
+      fireEvent.click(screen.getByRole("menuitem", { name: "Entfernen" }));
+      fireEvent.click(screen.getByRole("button", { name: "Ja, entfernen" }));
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Endgültig entfernen" }),
+        );
+      });
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      // Anker: die bisher gezeigte Liste steht noch da.
+      expect(screen.getByText("Chrome auf macOS")).toBeInTheDocument();
+      expect(toastSuccess).toHaveBeenCalledWith("Das Gerät ist entfernt.");
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "das Entfernen des Geräts"),
+        ),
+      ).toBeNull();
+      expect(
+        screen.queryByRole("heading", { name: "Gerät entfernen?" }),
+      ).toBeNull();
+      expect(deleteCalls()).toHaveLength(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByText(
+          "Sie haben aktuell keine vertrauten Geräte gespeichert.",
+        ),
+      ).toBeInTheDocument();
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(deleteCalls()).toHaveLength(1);
+    });
   });
 });

@@ -192,6 +192,7 @@ import { CareOfferingsEditor } from "./care-offerings-editor";
 import type { CareOffering } from "~/lib/care-offering-api";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import type { Phase } from "~/lib/enrollment-phase-api";
 import {
   phase,
@@ -2052,5 +2053,88 @@ describe("CareOfferingsEditor", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("in use")).not.toBeInTheDocument();
     expect(mocks.toast.error).not.toHaveBeenCalled();
+  });
+
+  it.each(["phases", "offerings"])(
+    "discards the catalog when the post-write %s read is refused",
+    async (source) => {
+      mocks.listPhases.mockResolvedValue([phase()]);
+      mocks.listCareOfferings.mockReset().mockResolvedValue([offering()]);
+      mocks.deleteCareOffering.mockResolvedValue(undefined);
+      render(<CareOfferingsEditor />);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Aktionen für Regelbetreuung",
+        }),
+      );
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ja, löschen" }),
+      );
+      (source === "phases"
+        ? mocks.listPhases
+        : mocks.listCareOfferings
+      ).mockRejectedValueOnce(new ApiError("refused", 403));
+      fireEvent.click(
+        await within(dialog).findByRole("button", {
+          name: "Endgültig löschen",
+        }),
+      );
+      expect(
+        await screen.findByText(
+          `${catalogText("general.permission", "die Anzeige der Betreuungsangebote")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Regelbetreuung")).not.toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Neues Angebot" }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(mocks.deleteCareOffering).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  // #6652: the deletion holds once the write is through; a failed reload keeps
+  // the confirmed catalog and says the change is saved.
+  it("keeps the catalog after a deletion whose reload fails", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings
+      .mockReset()
+      .mockResolvedValueOnce([offering()])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([]);
+    mocks.deleteCareOffering.mockResolvedValue(undefined);
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Betreuungsangebote")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    // Anker: der bestätigte Katalog bleibt stehen.
+    expect(screen.getByText("Regelbetreuung")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mocks.listCareOfferings).toHaveBeenCalledTimes(3),
+    );
+    expect(mocks.deleteCareOffering).toHaveBeenCalledTimes(1);
   });
 });
