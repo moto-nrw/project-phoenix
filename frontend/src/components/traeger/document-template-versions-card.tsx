@@ -1,5 +1,8 @@
 import { Button } from "~/components/ui/button";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
@@ -33,10 +36,7 @@ export function DocumentTemplateVersionsCard({
       ) : (
         <ResponsiveActionList>
           {versions.map((version, index) => (
-            <li
-              key={version.version}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-            >
+            <ResponsiveActionRow key={version.version}>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold text-gray-900">
                   Version {version.version}
@@ -64,7 +64,7 @@ export function DocumentTemplateVersionsCard({
                   </Button>
                 </div>
               ) : null}
-            </li>
+            </ResponsiveActionRow>
           ))}
         </ResponsiveActionList>
       )}

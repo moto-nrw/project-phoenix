@@ -14,7 +14,6 @@ export const AllTones: Story = {
     <div className="flex w-64 flex-col gap-3">
       <ProgressBar value={60} max={100} label="Grün" tone="green" />
       <ProgressBar value={60} max={100} label="Orange" tone="orange" />
-      <ProgressBar value={60} max={100} label="Grau" tone="gray" />
       <ProgressBar value={60} max={100} label="Dunkel" tone="dark" />
       <ProgressBar value={60} max={100} label="Datenfarbe" color="#78716C" />
     </div>

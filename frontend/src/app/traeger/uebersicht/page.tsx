@@ -22,7 +22,10 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -633,10 +636,7 @@ export default function TraegerDashboardPage() {
           {visible.length > 0 ? (
             <ResponsiveActionList id={listId}>
               {visible.map((school) => (
-                <li
-                  key={school.id}
-                  className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-                >
+                <ResponsiveActionRow key={school.id}>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900">
                       {school.name}
@@ -680,7 +680,7 @@ export default function TraegerDashboardPage() {
                       Zur Schule
                     </ButtonLink>
                   </div>
-                </li>
+                </ResponsiveActionRow>
               ))}
             </ResponsiveActionList>
           ) : null}

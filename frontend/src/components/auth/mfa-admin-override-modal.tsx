@@ -388,7 +388,6 @@ export function MFAAdminOverrideModal({
       isOpen
       onClose={onClose}
       title="Zwei-Faktor-Authentifizierung verwalten"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
       isDismissDisabled={isWorking || overrideWorking || globalWorking}
       isBackdropDismissDisabled
       closeLabel="Schließen"

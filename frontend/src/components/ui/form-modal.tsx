@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Modal, type ModalSize } from "./modal";
 import { FormErrorAlert } from "./form-error-alert";
@@ -61,16 +60,7 @@ export function FormModal({
   suspended = false,
   error,
 }: FormModalProps) {
-  const visible = isOpen && !suspended;
   const busy = pending?.pending ?? false;
-
-  // Window events kept from the former standalone shell (pinned by
-  // form-modal.test.tsx); nothing in the app listens to them today.
-  useEffect(() => {
-    globalThis.dispatchEvent(
-      new CustomEvent(visible ? "mobile-modal-open" : "mobile-modal-close"),
-    );
-  }, [visible]);
 
   return (
     <Modal
