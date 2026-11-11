@@ -4494,6 +4494,48 @@ describe.concurrent("ui-kit Eingabe-Bausteine (#5596)", () => {
   });
 });
 
+describe.concurrent("ui-kit action rows (#6571)", () => {
+  const rule = "ui-kit(no-hand-rolled-action-row)";
+
+  async function outputOf(jsx: string, path = "src/components/probe.tsx") {
+    const result = await lintSource(
+      `function Probe() { return ${jsx}; }\nvoid Probe;`,
+      path,
+    );
+    return result.output;
+  }
+
+  it("reports a hand-built subgrid row, also split over several strings", async () => {
+    const [plain, split] = await Promise.all([
+      outputOf(
+        `<li className="flex flex-col gap-2 py-3 sm:col-span-2 sm:grid sm:grid-cols-subgrid" />`,
+      ),
+      outputOf(`<li className={cn("py-3", "sm:grid sm:grid-cols-subgrid")} />`),
+    ]);
+    expect(plain).toContain(rule);
+    expect(split).toContain(rule);
+  });
+
+  it("reports the class chain kept in a constant", async () => {
+    const output = await outputOf(
+      `<li className={ROW} />; const ROW = "sm:col-span-2 sm:grid sm:grid-cols-subgrid"`,
+    );
+    expect(output).toContain(rule);
+  });
+
+  it("allows ResponsiveActionRow and the kit itself", async () => {
+    const [row, kit] = await Promise.all([
+      outputOf(`<ResponsiveActionRow align="start" className="gap-3" />`),
+      outputOf(
+        `<li className="sm:col-span-2 sm:grid sm:grid-cols-subgrid" />`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
+    expect(row).not.toContain(rule);
+    expect(kit).not.toContain(rule);
+  });
+});
+
 describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
   async function outputOf(jsx: string, path = "src/probe.tsx") {
     const result = await lintSource(

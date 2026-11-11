@@ -45,7 +45,32 @@ export const WithoutTitle: Story = {
 
 export const WideContent: Story = {
   args: {
-    widthClass: "mx-4 w-[calc(100%-2rem)] max-w-4xl",
+    size: "xl",
+  },
+};
+
+// Eine Story je Größe, die Aufrufer setzen.
+export const SizeMd: Story = {
+  args: {
+    size: "md",
+  },
+};
+
+export const SizeMdWide: Story = {
+  args: {
+    size: "md-wide",
+  },
+};
+
+export const SizeLg: Story = {
+  args: {
+    size: "lg",
+  },
+};
+
+export const SizeLgWide: Story = {
+  args: {
+    size: "lg-wide",
   },
 };
 

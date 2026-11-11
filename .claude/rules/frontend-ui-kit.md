@@ -110,7 +110,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Row as its own surface (start page, roster, persons in a panel); own button beside a link: no `href`, link in `children` | `ListRow` — `href`, `onClick`, `tone`, `density`, `trailing`; loading: `SkeletonRows`, `ListRowSkeleton` | `~/components/ui/list-row`, `ui/skeleton` |
 | Framed list with dividers, inside a card or panel | `FramedList` — `maxHeight`, `header` | `~/components/ui/framed-list` |
 | Row leading elsewhere: icon, title, subtitle, badge, arrow | `ListRowLink`: `selected`, `accent`, `overline`/`meta`/`unread`; alone `framed` | `~/components/ui/list-row-link` |
-| Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
+| Rows with their own actions in a desktop column | `ResponsiveActionList`, rows `ResponsiveActionRow`. Lint `no-hand-rolled-action-row` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
 | Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`; loading locks closing, opt-out `dismissibleWhileLoading="<Grund>"`) | `~/components/ui/modal` |
 | Form in a modal | `FormModal`; save: `useFormModalPending` | `~/components/ui/form-modal` |
@@ -208,7 +208,7 @@ Use when one screen shows two or more notices of the same kind, each about its o
 Build it from existing kit parts, as Tristan Heitger and Florian (`fl0r14n28`) set them up; add no wrapper component:
 
 1. **One neutral section.** A `SectionCard` holds all entries as rows in `ResponsiveActionList` (`divide-y divide-gray-100`). Colour stays on the icon (`leading`) and on a count that names a fact („3 offen“); the rows are white, never one coloured `Alert` per entry.
-2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place (rows take `sm:col-span-2 sm:grid sm:grid-cols-subgrid`); below `sm` they sit under the text, side by side from 480 px and one per line below. Actions of equal rank look the same: `Button` or, for navigation, `ButtonLink`, both `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
+2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place; below `sm` they sit under the text, side by side from 480 px and one per line below. Actions of equal rank look the same: `Button` or, for navigation, `ButtonLink`, both `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
 3. **Shared text once.** A hint that applies to several rows stands once above the list, also when only one row needs it, never repeated per row.
 4. **Only concrete labels.** Show what OGS staff can act on (name, children, days). Skip markers or badges that carry no concrete information.
 5. **Long lists fold.** More than 5 open rows: show the first 5 and a `ghost` button „N weitere anzeigen“ / „Weniger anzeigen“ with `aria-expanded`. Decided or done entries go into a second `SectionCard` with `collapsible defaultCollapsed`.
