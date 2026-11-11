@@ -53,6 +53,15 @@ var seedTraegerAdminRoles = []string{"administration", "documents", "leadership"
 // invitations.
 type seedTraegerBueroStep struct{}
 
+// seedHolidayConsentVersion and seedHolidayRetentionDays are what a seeded
+// holiday registration agrees to (#6691): the current consent texts with the
+// registry default of holiday_registration.retention_days, which the seed
+// never changes.
+const (
+	seedHolidayConsentVersion = 4
+	seedHolidayRetentionDays  = 365
+)
+
 func (seedTraegerBueroStep) Name() string { return "Seeding the Träger-Büro" }
 
 func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
@@ -654,8 +663,8 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"custody_confirmed": true, "declaration_name": "Sabine Ferienkind",
-		"consent_version": 3,
-		"captcha_token":   seedTurnstileTestToken,
+		"consent_version": seedHolidayConsentVersion, "retention_days": seedHolidayRetentionDays,
+		"captcha_token": seedTurnstileTestToken,
 	}, nil
 }
 

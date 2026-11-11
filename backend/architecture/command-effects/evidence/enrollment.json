@@ -1681,6 +1681,14 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "binding_digest": "1a3cb8f1feaa9be2e7cc71ff656368ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
       "binding_digest": "e487e536b2463fa165d7d74b3f6a480a",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",

@@ -203,6 +203,9 @@ type HolidayRegistrationRequest struct {
 	CustomData        capability.HolidayAnswers `json:"custom_data"`
 	LegalAcceptances  map[string]bool           `json:"legal_acceptances"`
 	ConsentVersion    int                       `json:"consent_version"`
+	// RetentionDays are the days the privacy text the parent agreed to
+	// names, as the offer's consent_texts.retention_days gave them (#6691).
+	RetentionDays int `json:"retention_days"`
 	// Criteria are the answers to the family criteria by criterion ID
 	// (#4700).
 	Criteria map[int64]bool `json:"criteria"`
@@ -247,7 +250,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		CustodyConfirmed: req.CustodyConfirmed, DeclarationName: req.DeclarationName,
 		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, BenefitsProofTokens: req.BenefitsProofs,
 		FormVersion: req.FormVersion, CustomData: req.CustomData, ConsentVersion: req.ConsentVersion,
-		Criteria: req.Criteria,
+		RetentionDays: req.RetentionDays, Criteria: req.Criteria,
 	}
 }
 

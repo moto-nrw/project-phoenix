@@ -233,7 +233,7 @@ func (c parentBillingCareContracts) Recipients(ctx context.Context, organization
 // kind of document per service (#4688) to the document templates of the
 // Träger.
 func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher) (*parentBillingHTTP.BillingRunResource, *parentBillingHTTP.DocumentKindResource) {
-	review, _, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil, nil, nil)
+	review, _, _, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, nil, nil, nil)
 	registrations := parentBillingBillingRegistrations{periods: enrollmentCompose.NewHolidayPeriods(nil, nil), review: review,
 		hosts: enrollmentCompose.NewHolidayWeekHosts()}
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
@@ -345,9 +345,10 @@ func parentBillingMailStatus(status deliveryContract.Status) string {
 }
 
 // TraegerBrandingSettings is the Träger level of the settings system as the
-// letters read the branding of a Träger (ADR 0112) and the Elternabrechnung
-// its switches (#5621).
+// letters read the branding of a Träger (ADR 0112), the Elternabrechnung
+// its switches (#5621) and the holiday registration its retention (#6691).
 type TraegerBrandingSettings interface {
+	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
 	TraegerTexts(ctx context.Context, organizationID int64, keys []string) (map[string]string, error)
 	TraegerBools(ctx context.Context, organizationID int64, keys []string) (map[string]bool, error)
 }
@@ -550,7 +551,7 @@ func (b parentBillingLetterheads) DocumentTemplate(ctx context.Context, organiza
 // holidayCalendar names the host schools' days without care, which no
 // rebooking may book (#4702).
 func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
-	review, places, allocation := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations), holidayCalendar)
+	review, places, allocation, _ := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations), holidayCalendar)
 	registrations := parentBillingHolidayRegistrations{
 		links:  newHolidayRegistrations(organizations, delivery, healthData, nil, settings, logger.With("service", "parent-billing-holiday-registrations")),
 		review: review,

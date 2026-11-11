@@ -77,6 +77,8 @@ type HolidayRegistrationDependencies struct {
 	Calendar enrollment.HolidaySchoolCalendar
 	// WishModes reads the Träger's holiday wish mode (#4703).
 	WishModes enrollment.HolidayWishModes
+	// Retention reads the days the Träger keeps a registration (#6691).
+	Retention enrollment.HolidayRetentionSettings
 	// Today is the calendar day the registration window is checked against;
 	// Now the instant a statement of the holiday care wish is checked
 	// against (#4703).
@@ -107,6 +109,9 @@ func NewHolidayRegistrations(deps HolidayRegistrationDependencies) *HolidayRegis
 	}
 	if deps.WishModes == nil {
 		panic(errHolidayWishModesRequired)
+	}
+	if deps.Retention == nil {
+		panic(errHolidayRetentionRequired)
 	}
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
@@ -165,7 +170,11 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 		return enrollment.HolidayRegistrationOffer{}, err
 	}
 	today := h.deps.Today()
-	texts, _ := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent)
+	retention, err := h.retentionDays(ctx, link.OrganizationID)
+	if err != nil {
+		return enrollment.HolidayRegistrationOffer{}, err
+	}
+	texts, _ := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent, retention)
 	wishMode, err := h.offerHolidayWishMode(ctx, link.OrganizationID, period)
 	if err != nil {
 		return enrollment.HolidayRegistrationOffer{}, err
@@ -277,6 +286,9 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	}
 	input.FormVersion = form.Version
 	if err := validateHolidayLegalAcceptances(form, input.LegalAcceptances); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	if err := h.checkAgreedRetention(ctx, link.OrganizationID, input); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	input = normalizeHolidayRegistration(input)
@@ -665,11 +677,12 @@ func limitHolidayText(errs validation.Errors, field, value string, maxLength int
 // HolidayRegistrationRetentionStore deletes ended registrations across every
 // Träger in the administrative transaction.
 type HolidayRegistrationRetentionStore interface {
-	// DeleteHolidayRegistrationsEndedBefore deletes the registrations of the
-	// periods whose last week ended before cutoff, with their children,
-	// bookings and contacts, and the abuse counters whose window started
-	// before counterRetention.
-	DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date, counterRetention time.Duration) (int, error)
+	// DeleteExpiredHolidayRegistrations deletes the registrations whose
+	// period ended more days before today than they keep, with their
+	// children, bookings and contacts, the health information of the
+	// periods that ended more than healthDays before today, and the abuse
+	// counters whose window started before counterRetention.
+	DeleteExpiredHolidayRegistrations(ctx context.Context, today calendar.Date, healthDays int, counterRetention time.Duration) (int, error)
 	// DeleteExpiredHolidayRegistrationDeletions deletes the rows of the
 	// deletion log older than years.
 	DeleteExpiredHolidayRegistrationDeletions(ctx context.Context, years int) (int, error)
@@ -697,14 +710,15 @@ func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, to
 	return &HolidayRegistrationRetention{store: store, today: today, now: time.Now}
 }
 
-// DeleteExpiredHolidayRegistrations deletes the registrations of every
-// period whose last week ended more than the retention window ago, with an
-// entry in the deletion log of its Träger, the expired entries of that log
-// and the proofs no registration claimed within a day (#5238). The claimed
-// proofs go with their registration.
+// DeleteExpiredHolidayRegistrations deletes every registration whose period
+// ended more days ago than the registration keeps (#6691) and the health
+// information of the periods that ended more than
+// HolidayHealthRetentionDays ago, with an entry in the deletion log of its
+// Träger, the expired entries of that log and the proofs no registration
+// claimed within a day (#5238). The claimed proofs go with their
+// registration.
 func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error) {
-	cutoff := r.today().AddDays(-enrollment.HolidayRegistrationRetentionDays)
-	deleted, err := r.store.DeleteHolidayRegistrationsEndedBefore(ctx, cutoff, rateLimitRetention)
+	deleted, err := r.store.DeleteExpiredHolidayRegistrations(ctx, r.today(), enrollment.HolidayHealthRetentionDays, rateLimitRetention)
 	if err != nil {
 		return 0, fmt.Errorf("enrollment: delete ended holiday registrations: %w", err)
 	}

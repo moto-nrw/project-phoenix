@@ -954,6 +954,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s holidayRetentionSettings) HolidayRegistrationRetentionDays(ctx context.Context, organizationID int64) (int, error) {\n\tif s.settings == nil {\n\t\treturn 0, errors.New(\"holiday registration: the Träger settings are not configured\")\n\t}\n\tdays, err := s.settings.TraegerInts(ctx, organizationID, []string{configModels.KeyHolidayRegistrationRetentionDays})\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn days[configModels.KeyHolidayRegistrationRetentionDays], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (n holidaySchoolNames) HolidaySchoolNames(ctx context.Context, organizationID int64) (map[int64]string, error) {\n\tschools, err := n.overview.Schools(ctx, organizationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnames := make(map[int64]string, len(schools))\n\tfor _, school := range schools {\n\t\tnames[school.ID] = school.Name\n\t}\n\treturn names, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/holidaySchoolNames.HolidaySchoolNames",

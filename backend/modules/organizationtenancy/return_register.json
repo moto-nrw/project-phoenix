@@ -13803,6 +13803,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "health_records",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -14480,6 +14486,12 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "retention_days",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
         },
         {
           "name": "health",
