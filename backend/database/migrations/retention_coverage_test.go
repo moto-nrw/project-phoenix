@@ -438,6 +438,8 @@ var tableRetentions = map[string]tableRetention{
 	"users.guardian_phone_numbers":                          parent("users.guardian_profiles"),
 	"users.guardian_profiles":                               own("nightly retention step guardian_retention (api/worker_retention.go), People Directory DeleteExpiredChildlessGuardians (school window gdpr.guardian_retention_days after childless_since, #4043)"),
 	"users.external_caregivers":                             staffRetention("School Membership EraseNextRetiredStaff"),
+	"users.message_attachment_cleanup":                      own("nightly retention step parent_message_retention, DeleteMessagesBefore -> deleteStaleAttachments (30 days after cleaned_at); the file store cleanup tick completes the intents"),
+	"users.message_attachments":                             own("a sent file goes with its message (ON DELETE CASCADE from users.parent_messages, users.parent_group_messages, users.staff_messages and their retention steps); an unsent upload after 24 hours in the nightly retention step parent_message_retention (deleteStaleAttachments)"),
 	"users.notification_preferences":                        parent("auth.accounts"),
 	"users.parent_announcement_declaration_submissions":     parent("users.student_profiles"),
 	"users.parent_announcement_declaration_versions":        parent("users.parent_announcements"),

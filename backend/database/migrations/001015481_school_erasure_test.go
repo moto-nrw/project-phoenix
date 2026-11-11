@@ -150,6 +150,9 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",
+		// #6685: queues the object of a deleted message attachment; the
+		// plan orders the cleanup intents after the attachments.
+		"users.message_attachments:users.queue_message_attachment_cleanup",
 	}, triggers, "review new DELETE side effects and add their sinks to the plan's dependency edges")
 	var foreignKeys int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM pg_constraint WHERE contype='f' AND conrelid='platform.school_erasures'::regclass`).Scan(t.Context(), &foreignKeys))
@@ -500,6 +503,9 @@ func TestEveryTenantTableHasASchoolErasureWriteFence(t *testing.T) {
 func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// The message attachments (1.15.920, #6685) extend the erasure functions
+	// this test restores; they go first.
+	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	// Roll back the holiday guests first (#4666): their tables and foreign
 	// keys extend the erasure functions the older migrations restore.
 	rollBackHolidayGuests(t, db)

@@ -3,11 +3,13 @@ package parentpostgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/attachmentpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -30,29 +32,30 @@ type parentMessageRow struct {
 	ClientMessageID  string `bun:"client_message_id,nullzero"`
 	SendReplayed     bool   `bun:"send_replayed,scanonly"`
 	bun.BaseModel    `bun:"table:users.parent_messages,alias:parent_message"`
-	ID               int64          `bun:"id,pk,autoincrement"`
-	TenantID         int64          `bun:"tenant_id,notnull"`
-	CreatedAt        time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt        time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	ThreadID         int64          `bun:"thread_id,notnull"`
-	StudentID        int64          `bun:"student_id,notnull"`
-	SenderAccountID  int64          `bun:"sender_account_id,notnull"`
-	SenderKind       string         `bun:"sender_kind,notnull"`
-	SenderName       string         `bun:"sender_name,notnull"`
-	StaffNameVisible bool           `bun:"staff_name_visible,notnull,default:false"`
-	Body             string         `bun:"body,notnull"`
-	Kind             string         `bun:"kind,notnull,default:'message'"`
-	EventType        string         `bun:"event_type,nullzero"`
-	EventActorKind   string         `bun:"event_actor_kind,nullzero"`
-	RequestType      string         `bun:"request_type,nullzero"`
-	RequestStatus    string         `bun:"request_status,nullzero"`
-	Payload          map[string]any `bun:"payload,type:jsonb"`
-	RefTable         string         `bun:"ref_table,nullzero"`
-	RefID            *int64         `bun:"ref_id"`
-	AppliedAt        *time.Time     `bun:"applied_at"`
-	AppliedBy        *int64         `bun:"applied_by"`
-	DecisionReason   string         `bun:"decision_reason,nullzero"`
-	GroupThreadID    *int64         `bun:"group_thread_id"`
+	ID               int64           `bun:"id,pk,autoincrement"`
+	TenantID         int64           `bun:"tenant_id,notnull"`
+	CreatedAt        time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt        time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	ThreadID         int64           `bun:"thread_id,notnull"`
+	StudentID        int64           `bun:"student_id,notnull"`
+	SenderAccountID  int64           `bun:"sender_account_id,notnull"`
+	SenderKind       string          `bun:"sender_kind,notnull"`
+	SenderName       string          `bun:"sender_name,notnull"`
+	StaffNameVisible bool            `bun:"staff_name_visible,notnull,default:false"`
+	Body             string          `bun:"body,notnull"`
+	Kind             string          `bun:"kind,notnull,default:'message'"`
+	EventType        string          `bun:"event_type,nullzero"`
+	EventActorKind   string          `bun:"event_actor_kind,nullzero"`
+	RequestType      string          `bun:"request_type,nullzero"`
+	RequestStatus    string          `bun:"request_status,nullzero"`
+	Payload          map[string]any  `bun:"payload,type:jsonb"`
+	RefTable         string          `bun:"ref_table,nullzero"`
+	RefID            *int64          `bun:"ref_id"`
+	AppliedAt        *time.Time      `bun:"applied_at"`
+	AppliedBy        *int64          `bun:"applied_by"`
+	DecisionReason   string          `bun:"decision_reason,nullzero"`
+	GroupThreadID    *int64          `bun:"group_thread_id"`
+	Attachments      json.RawMessage `bun:"attachments,type:jsonb,nullzero,default:'[]'"`
 }
 
 func (r *parentMessageRow) value() *domain.ParentMessage {
@@ -66,7 +69,8 @@ func (r *parentMessageRow) value() *domain.ParentMessage {
 		EventType: r.EventType, EventActorKind: r.EventActorKind,
 		RequestType: r.RequestType, RequestStatus: r.RequestStatus, Payload: r.Payload,
 		RefTable: r.RefTable, RefID: r.RefID, AppliedAt: r.AppliedAt, AppliedBy: r.AppliedBy,
-		DecisionReason: r.DecisionReason, GroupThreadID: r.GroupThreadID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		DecisionReason: r.DecisionReason, GroupThreadID: r.GroupThreadID, Attachments: communication.MessageAttachmentSnapshot(r.Attachments),
+		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -79,7 +83,7 @@ func messageRow(value *domain.ParentMessage) *parentMessageRow {
 		EventType: value.EventType, EventActorKind: value.EventActorKind,
 		RequestType: value.RequestType, RequestStatus: value.RequestStatus, Payload: value.Payload,
 		RefTable: value.RefTable, RefID: value.RefID, AppliedAt: value.AppliedAt, AppliedBy: value.AppliedBy,
-		DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID,
+		DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID, Attachments: value.Attachments,
 	}
 }
 
@@ -97,6 +101,11 @@ func (s *MessageStore) Create(ctx context.Context, message *domain.ParentMessage
 	if message.TenantID == 0 {
 		message.TenantID = scope.TenantID
 	}
+	attachmentIDs, snapshot, err := s.reserveAttachments(ctx, db, message)
+	if err != nil {
+		return err
+	}
+	message.Attachments = snapshot
 	row := messageRow(message)
 	result, err := db.NewInsert().
 		Model(row).
@@ -120,7 +129,20 @@ func (s *MessageStore) Create(ctx context.Context, message *domain.ParentMessage
 	message.ID = row.ID
 	message.CreatedAt = row.CreatedAt
 	message.UpdatedAt = row.UpdatedAt
-	return nil
+	message.Attachments = communication.MessageAttachmentSnapshot(row.Attachments)
+	if row.SendReplayed {
+		return nil
+	}
+	return attachmentpostgres.Bind(ctx, db, message.TenantID, attachmentpostgres.ColumnParentMessage, row.ID, attachmentIDs)
+}
+
+// reserveAttachments locks the uploads a plain message names. Events and
+// requests carry no files, whatever the context holds.
+func (s *MessageStore) reserveAttachments(ctx context.Context, db bun.IDB, message *domain.ParentMessage) ([]int64, json.RawMessage, error) {
+	if message.Kind != "" && message.Kind != "message" {
+		return nil, nil, nil
+	}
+	return attachmentpostgres.Reserve(ctx, db, message.TenantID, communication.MessageAttachmentScopeParent, message.SenderAccountID)
 }
 
 // Update rewrites one message row by primary key. Only the decision fields of a

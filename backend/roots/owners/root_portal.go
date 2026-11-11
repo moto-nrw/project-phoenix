@@ -88,8 +88,8 @@ func BuildParentPortal(
 		ParentRequestShares:       BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(db.Pool())),
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(db.Pool())), StudentAudit: NewParentStudentAudit(services.StudentAudit),
 		MessageThreadRepo: BindParentMessageThreadAccess(messaging.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(messaging.ParentMessageRead),
-		GroupThreads: BindParentGroupThreads(parentStore.NewGroupThreadPortal(db.Pool())),
-		Surveys:      BindParentSurveys(surveys),
+		GroupThreads: BindParentGroupThreads(parentStore.NewGroupThreadPortal(db.Pool())), MessageAttachments: BindParentMessageAttachments(communicationCompose.NewPortalMessageAttachments(db.Pool())),
+		Surveys: BindParentSurveys(surveys),
 		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: messaging.ParentMessageThread, MessageRepo: messages, ReadRepo: messaging.ParentMessageRead,
 			Broadcaster: hub, Logger: env.Logger.With("service", "parent"),

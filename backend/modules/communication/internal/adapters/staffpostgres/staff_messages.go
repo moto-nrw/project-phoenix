@@ -2,10 +2,12 @@ package staffpostgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/attachmentpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -27,21 +29,23 @@ type staffMessageRow struct {
 	ClientMessageID string `bun:"client_message_id,nullzero"`
 	SendReplayed    bool   `bun:"send_replayed,scanonly"`
 	bun.BaseModel   `bun:"table:users.staff_messages,alias:staff_message"`
-	ID              int64     `bun:"id,pk,autoincrement"`
-	CreatedAt       time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt       time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	TenantID        int64     `bun:"tenant_id,notnull"`
-	ThreadID        int64     `bun:"thread_id,notnull"`
-	SenderAccountID int64     `bun:"sender_account_id,notnull"`
-	SenderName      string    `bun:"sender_name,notnull"`
-	Body            string    `bun:"body,notnull"`
+	ID              int64           `bun:"id,pk,autoincrement"`
+	CreatedAt       time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt       time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	TenantID        int64           `bun:"tenant_id,notnull"`
+	ThreadID        int64           `bun:"thread_id,notnull"`
+	SenderAccountID int64           `bun:"sender_account_id,notnull"`
+	SenderName      string          `bun:"sender_name,notnull"`
+	Body            string          `bun:"body,notnull"`
+	Attachments     json.RawMessage `bun:"attachments,type:jsonb,nullzero,default:'[]'"`
 }
 
 func (r *staffMessageRow) value() *communication.StaffMessageRecord {
 	return &communication.StaffMessageRecord{
 		ID: r.ID, TenantID: r.TenantID, ThreadID: r.ThreadID,
 		SenderAccountID: r.SenderAccountID, SenderName: r.SenderName, ClientMessageID: r.ClientMessageID, SendReplayed: r.SendReplayed, Body: r.Body,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		Attachments: communication.MessageAttachmentSnapshot(r.Attachments),
+		CreatedAt:   r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -63,8 +67,13 @@ func (s *MessageStore) CreateStaffMessage(ctx context.Context, input *communicat
 	if message.TenantID == 0 {
 		message.TenantID = tenantID
 	}
+	attachmentIDs, snapshot, err := attachmentpostgres.Reserve(ctx, db, message.TenantID, communication.MessageAttachmentScopeStaff, message.SenderAccountID)
+	if err != nil {
+		return err
+	}
 	row := &staffMessageRow{
-		ID: message.ID, TenantID: message.TenantID, ThreadID: message.ThreadID,
+		Attachments: snapshot,
+		ID:          message.ID, TenantID: message.TenantID, ThreadID: message.ThreadID,
 		SenderAccountID: message.SenderAccountID, SenderName: message.SenderName, ClientMessageID: message.ClientMessageID, SendReplayed: message.SendReplayed, Body: message.Body,
 		CreatedAt: message.CreatedAt, UpdatedAt: message.UpdatedAt,
 	}
@@ -88,7 +97,10 @@ func (s *MessageStore) CreateStaffMessage(ctx context.Context, input *communicat
 		return communication.ErrMessageSendConflict
 	}
 	*input = *row.value()
-	return nil
+	if row.SendReplayed {
+		return nil
+	}
+	return attachmentpostgres.Bind(ctx, db, row.TenantID, attachmentpostgres.ColumnStaffMessage, row.ID, attachmentIDs)
 }
 
 // ListByThread returns the thread's messages oldest-first, which is the order
@@ -142,10 +154,10 @@ func (s *MessageStore) DeleteStaffMessagesBefore(ctx context.Context, cutoff tim
 		if _, err := db.ExecContext(ctx, `
 			WITH previews AS (
 				SELECT thread.id, latest.id AS last_message_id, latest.created_at AS last_message_at,
-					latest.body AS last_message_body, latest.sender_account_id AS last_sender_account_id
+					COALESCE(NULLIF(btrim(latest.body), ''), '📎 ' || (latest.attachments -> 0 ->> 'filename'), '') AS last_message_body, latest.sender_account_id AS last_sender_account_id
 				FROM users.staff_message_threads AS thread
 				LEFT JOIN LATERAL (
-					SELECT id, created_at, body, sender_account_id
+					SELECT id, created_at, body, attachments, sender_account_id
 					FROM users.staff_messages
 					WHERE thread_id = thread.id AND tenant_id = thread.tenant_id
 					ORDER BY created_at DESC, id DESC

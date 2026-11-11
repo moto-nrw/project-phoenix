@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -347,6 +348,7 @@ func newMealWriteRig(t *testing.T) mealWriteRig {
 		deps.Conversations = NewParentConversationCore(messages.ParentMessageThread, records.Message, messages.ParentMessageRead, broadcaster, slog.Default(),
 			owners.BindParentLeadershipChoice(settings.Settings, owners.BindParentMessageLeadership(people.Staff, identity)))
 		deps.GroupThreads = NewParentGroupThreadTestPort(database)
+		deps.MessageAttachments = owners.BindParentMessageAttachments(communicationCompose.NewPortalMessageAttachments(pool))
 	})
 	require.NoError(t, settings.Settings.SetValue(testpkg.Ctx(t), settingsModule.KeyParentMessageLeadershipEnabled, true, nil, nil))
 	return mealWriteRig{

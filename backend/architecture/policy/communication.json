@@ -153,6 +153,20 @@
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/http/messageattachments",
+      "owner": "communication",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/attachmentpostgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -266,6 +280,14 @@
     },
     {
       "name": "users.surveys",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.message_attachment_cleanup",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.message_attachments",
       "write_owner": "communication"
     }
   ],
@@ -555,6 +577,18 @@
       "source_role": "application",
       "target_owner": "organization-tenancy",
       "target_role": "public"
+    },
+    {
+      "id": "communication.postgres.message-attachment-claims",
+      "description": "The three message stores claim the uploads a send names inside their own insert, so a message and its files commit together (ADR 0208, #6685).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "postgres",
+      "target_package": "modules/communication/internal/adapters/attachmentpostgres"
     }
   ]
 }

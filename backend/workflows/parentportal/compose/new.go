@@ -87,12 +87,14 @@ type Dependencies struct {
 	GuardianInvitations care.GuardianInvitationReads
 	InvalidateInvites   func(context.Context, int64) error
 
-	MessageThreadRepo         messaging.MessageThreadAccess
-	MessageRepo               messaging.MessageReads
-	MessageReadRepo           messaging.MessageInboxReads
-	Conversations             messaging.ConversationCore
-	MessagingEnabled          messaging.MessagingGate
-	GroupThreads              messaging.GroupThreads
+	MessageThreadRepo messaging.MessageThreadAccess
+	MessageRepo       messaging.MessageReads
+	MessageReadRepo   messaging.MessageInboxReads
+	Conversations     messaging.ConversationCore
+	MessagingEnabled  messaging.MessagingGate
+	GroupThreads      messaging.GroupThreads
+	// MessageAttachments stores the photos and files of messages (#6685).
+	MessageAttachments        messaging.MessageAttachments
 	Surveys                   messaging.Surveys
 	AnnouncementRepo          messaging.AnnouncementAccess
 	CareRequestRepo           messaging.CareRequestReads
@@ -158,7 +160,7 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo, AnnouncementRepo: deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, Surveys: deps.Surveys, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, MessageAttachments: deps.MessageAttachments, Surveys: deps.Surveys, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,

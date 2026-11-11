@@ -32,6 +32,9 @@ func insertPayrollWageTypes(t *testing.T, db *bun.DB, school int64) int64 {
 func TestPayrollWageTypesMigrationRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// The message attachments (1.15.920, #6685) extend the erasure functions
+	// this test restores; they go first.
+	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	ctx := context.Background()
 	exists := func(relation string) bool {
 		var found bool
