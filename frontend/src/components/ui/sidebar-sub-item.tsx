@@ -1,12 +1,10 @@
 "use client";
 
 import { NavLink } from "~/components/ui/nav-link";
-import {
-  NotificationBadge,
-  type NotificationBadgeTone,
-} from "~/components/ui/notification-badge";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/ui/sidebar-geometry";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
+import type { SidebarRowBadge } from "~/components/ui/sidebar-row";
 
 interface SidebarSubItemProps {
   readonly href: string;
@@ -15,9 +13,7 @@ interface SidebarSubItemProps {
   readonly count?: number | string;
   // Domain-colored pill for unread messages or pending requests. Distinct from
   // `count`, which is the muted gray attendance count.
-  readonly badgeCount?: number;
-  readonly badgeTone?: NotificationBadgeTone;
-  readonly badgeNoun?: string;
+  readonly badge?: SidebarRowBadge | null;
   // Ziel der geführten Tour der ersten Schritte (#2832).
   readonly tourId?: string;
   // Modul nicht gebucht (#4894): Schloss statt Zähler.
@@ -29,9 +25,7 @@ export function SidebarSubItem({
   label,
   isActive,
   count,
-  badgeCount = 0,
-  badgeTone = "parents",
-  badgeNoun = "ungelesene Nachrichten",
+  badge,
   tourId,
   locked = false,
 }: SidebarSubItemProps) {
@@ -48,11 +42,11 @@ export function SidebarSubItem({
       <span className="truncate">{label}</span>
       {locked ? (
         <ModuleLockMark className="ml-2" />
-      ) : badgeCount > 0 ? (
+      ) : badge != null && badge.count > 0 ? (
         <NotificationBadge
-          count={badgeCount}
-          tone={badgeTone}
-          ariaLabel={`${badgeCount} ${badgeNoun}`}
+          count={badge.count}
+          tone={badge.tone}
+          ariaLabel={badge.ariaLabel}
           className="ml-2"
         />
       ) : (

@@ -1730,9 +1730,14 @@ function SidebarContent({
             isActive={activeEnrollmentSubPageHref === page.href}
             {...(page.href === ENROLLMENT_SECTION.href
               ? {
-                  badgeCount: enrollmentsUnreadCount,
-                  badgeTone: "staff" as const,
-                  badgeNoun: ENROLLMENTS_UNREAD_NOUN,
+                  badge: {
+                    count: enrollmentsUnreadCount,
+                    tone: "staff" as const,
+                    ariaLabel: counterAriaLabel(
+                      enrollmentsUnreadCount,
+                      ENROLLMENTS_COUNTER,
+                    ),
+                  },
                 }
               : {})}
           />

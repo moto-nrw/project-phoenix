@@ -3805,6 +3805,22 @@ describe("Sidebar", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("nennt am Unterpunkt eine Anmeldung in der Einzahl", () => {
+      mockUsePathname.mockReturnValue("/admin/enrollments");
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const overview = screen.getByRole("link", { name: /^Überblick/ });
+      expect(within(overview).getByText("1")).toHaveAccessibleName(
+        "1 ungelesene Anmeldung",
+      );
+    });
+
     it("zeigt den Zähler am zugeklappten Bereich", () => {
       render(<Sidebar />);
 
