@@ -51,6 +51,20 @@ function isBoundedLogValue(value: unknown, depth = 0): boolean {
   );
 }
 
+// Long enough for every real browser string, short enough to bound a header
+// the caller controls.
+const MAX_USER_AGENT_LENGTH = 512;
+
+/**
+ * The browser and device behind the batch, from the request header rather
+ * than the payload, so a client neither has to send it nor can replace it.
+ * A missing header leaves the field out, also when an entry carries one.
+ */
+function userAgentOf(request: NextRequest): string | undefined {
+  const userAgent = request.headers.get("user-agent")?.trim();
+  return userAgent ? userAgent.slice(0, MAX_USER_AGENT_LENGTH) : undefined;
+}
+
 function validEntry(entry: unknown): entry is Record<string, unknown> {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
   const item = entry as Record<string, unknown>;
@@ -107,11 +121,14 @@ export async function ingestClientLogs(
   ) {
     return problemResponse(400, "Invalid log payload", request);
   }
+  const userAgent = userAgentOf(request);
   for (const entry of entries) {
     console.log(
       JSON.stringify(
         redactSensitiveLogData({
           ...entry,
+          // undefined drops a client-sent value from the JSON line.
+          user_agent: userAgent,
           via_api: true,
           context: "client",
           provenance: "client_log",
