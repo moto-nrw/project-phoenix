@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.919 (ADR 0196): the installed school erasure preview of 1.15.811 with the
+// 1.15.920 (ADR 0196): the installed school erasure preview of 1.15.811 with the
 // proposals, commands and revisions of the holiday closure notices;
 // TestHolidayClosureErasureIsTheErasureOf811 keeps it so.
 const holidayClosureErasurePreviewSQL = `
