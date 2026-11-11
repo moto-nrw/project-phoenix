@@ -12,7 +12,7 @@
  *
  * Overlay-Stapelung: das Bestätigungs-Modal (Kit-Modal, z-9999) liegt über
  * dem SlideOver (z-50); solange es offen ist, wird der SlideOver
- * undismissible gestellt, damit Escape nicht beide Ebenen schließt
+ * gegen Schließen gesperrt (`isDismissDisabled`), damit Escape nicht beide Ebenen schließt
  * (gleiches Problemfeld wie PR #1962).
  */
 
@@ -40,7 +40,6 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   SlideOver,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverHeader,
@@ -167,19 +166,13 @@ export function StaffPoolSlideOver({
       <SlideOver
         open={open}
         pending={save}
-        dismissible={!canManage || pendingMove === null}
+        isDismissDisabled={canManage && pendingMove !== null}
         onOpenChange={(next) => {
           if (!next) onClose();
         }}
       >
         <SlideOverContent>
-          <SlideOverHeader
-            close={
-              <SlideOverCloseButton
-                disabled={canManage && pendingMove !== null}
-              />
-            }
-          >
+          <SlideOverHeader>
             <SlideOverTitle>Personalpool</SlideOverTitle>
             <SlideOverDescription>
               {instance
