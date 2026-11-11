@@ -74,7 +74,7 @@ export function LettersCreateCard<T = BillingLetters>({
           isOpen
           source={source as LetterSource<unknown> | undefined}
           onClose={() => setCreating(false)}
-          onCreated={(created: unknown) => {
+          onCreated={(created) => {
             setCreating(false);
             onCreated(created as T);
           }}

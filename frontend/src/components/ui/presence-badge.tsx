@@ -194,10 +194,6 @@ export function PresenceBadge({
   const showSinceTime =
     showLocationSince &&
     formattedTime !== null &&
-    // „Kommt heute nicht“ keeps the established time at home, but not after
-    // the child was checked out to class.
-    (label !== LOCATION_STATUSES.NOT_ARRIVAL ||
-      parsedLocation.status === LOCATION_STATUSES.HOME) &&
     showsLocationSince(locationStatusForSince, replaceTimeSource !== null);
 
   const dataStatus = parsedLocation.status;

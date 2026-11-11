@@ -34,7 +34,6 @@ import { createLogger } from "~/lib/logger";
 import {
   type CareRun,
   type CareRunList,
-  type CareRunStartInput,
   type CareSchool,
   type CareTariffs,
   fetchCareRuns,
@@ -212,7 +211,7 @@ export default function TraegerMonatsbeitraegePage() {
             months={startMonths(data.list.suggestedMonth)}
             initialMonth={data.list.suggestedMonth}
             onClose={() => setStarting(false)}
-            onStart={async (input: CareRunStartInput) => {
+            onStart={async (input) => {
               const run = await startCareRun(input);
               setStarting(false);
               openRun(run);

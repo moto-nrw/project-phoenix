@@ -248,10 +248,6 @@ export function LocationBadge({
   const showSinceTime =
     showLocationSince &&
     formattedTime !== null &&
-    // „Kommt heute nicht“ keeps the established time at home, but a child
-    // checked out to class is not in the status list that gets a since-time.
-    (notArrivalMode !== "replace" ||
-      parsed.status === LOCATION_STATUSES.HOME) &&
     showsLocationSince(
       parsed.status,
       sickMode === "replace" ||

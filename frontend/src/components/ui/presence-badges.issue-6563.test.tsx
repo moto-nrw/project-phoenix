@@ -110,7 +110,9 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
     }
   });
 
-  it("keeps „seit“ for not arriving at home but not after checkout to class", () => {
+  // „Kommt heute nicht“ keeps the since-time of the replaced location, as
+  // LocationBadge showed it before #6563 (deliberately unchanged).
+  it("keeps „seit“ under „Kommt heute nicht“ at home and in class", () => {
     const { rerender } = render(
       renderBadge(
         {
@@ -137,9 +139,8 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
       ),
     );
 
-    // Anker: Die Ersetzung bleibt sichtbar, nur ihre unpassende Zeit fehlt.
     expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
-    expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
+    expect(screen.getByText(/^seit /)).toHaveTextContent("seit 10:15 Uhr");
   });
 });
 
