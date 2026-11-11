@@ -33,7 +33,7 @@ func (seedTraegerCareContractSignaturesStep) Run(ctx context.Context, rt *Runtim
 	if err != nil {
 		return err
 	}
-	paper, err := seedPaperContract(rt.Client, auth)
+	paper, err := seedPaperContract(rt.Client, auth, rt.Bootstrap.SchoolID)
 	if err != nil {
 		return err
 	}
@@ -48,10 +48,11 @@ func (seedTraegerCareContractSignaturesStep) Run(ctx context.Context, rt *Runtim
 	return nil
 }
 
-// seedPaperContract records the first draft as signed on paper, unless a
-// paper contract exists already.
-func seedPaperContract(client *Client, auth AuthRef) (int, error) {
-	raw, err := client.GetWithAuth(auth, "/traeger/contracts/?status=aktiv")
+// seedPaperContract records the last draft of the school as signed on paper,
+// unless the school has an active contract already. Every demo school hangs
+// under one Träger, so both reads belong to the seeded school (#6621).
+func seedPaperContract(client *Client, auth AuthRef, school int64) (int, error) {
+	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/contracts/?status=aktiv&school_id=%d", school))
 	if err != nil {
 		return 0, fmt.Errorf("read the active contracts: %w", err)
 	}
@@ -66,7 +67,7 @@ func seedPaperContract(client *Client, auth AuthRef) (int, error) {
 	if active.Data.Counts["aktiv"] > 0 {
 		return 0, nil
 	}
-	raw, err = client.GetWithAuth(auth, "/traeger/contracts/?status=entwurf")
+	raw, err = client.GetWithAuth(auth, fmt.Sprintf("/traeger/contracts/?status=entwurf&school_id=%d", school))
 	if err != nil {
 		return 0, fmt.Errorf("read the drafts: %w", err)
 	}
@@ -147,13 +148,15 @@ func seedParentContractSignatures(ctx context.Context, rt *Runtime) (int, error)
 }
 
 // seedSendContractsToParents sends the drafts addressed to the demo parents,
-// so one of them finds a contract to sign in the parents portal.
+// so one of them finds a contract to sign in the parents portal. It reads the
+// drafts of the seeded school: a page of the whole Träger's drafts can miss
+// them (#6621).
 func seedSendContractsToParents(rt *Runtime, auth AuthRef) error {
 	emails := map[string]bool{}
 	for _, parent := range rt.Parents {
 		emails[strings.ToLower(parent.Email)] = true
 	}
-	raw, err := rt.Client.GetWithAuth(auth, "/traeger/contracts/?status=entwurf&limit=100")
+	raw, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/traeger/contracts/?status=entwurf&school_id=%d&limit=100", rt.Bootstrap.SchoolID))
 	if err != nil {
 		return fmt.Errorf("read the drafts: %w", err)
 	}
