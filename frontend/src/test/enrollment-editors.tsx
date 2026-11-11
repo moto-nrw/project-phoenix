@@ -114,14 +114,17 @@ export function rolloverFormMock() {
       onSuccess,
     }: {
       onCancel: () => void;
-      onSuccess: (result: {
-        phase: { name: string };
-        summary: {
-          rolled_count: number;
-          review_count: number;
-          enqueued_emails: number;
-        };
-      }) => void;
+      onSuccess: (
+        result: {
+          phase: { name: string };
+          summary: {
+            rolled_count: number;
+            review_count: number;
+            enqueued_emails: number;
+          };
+        },
+        op: { isCurrent: () => boolean },
+      ) => void;
     }) => (
       <div>
         <button type="button" onClick={onCancel}>
@@ -130,14 +133,18 @@ export function rolloverFormMock() {
         <button
           type="button"
           onClick={() =>
-            onSuccess({
-              phase: { name: "Schuljahr 2027/28" },
-              summary: {
-                rolled_count: 2,
-                review_count: 1,
-                enqueued_emails: 3,
+            onSuccess(
+              {
+                phase: { name: "Schuljahr 2027/28" },
+                summary: {
+                  rolled_count: 2,
+                  review_count: 1,
+                  enqueued_emails: 3,
+                },
               },
-            })
+              // The real form reports its panel session; this one is current.
+              { isCurrent: () => true },
+            )
           }
         >
           Rollover fertig

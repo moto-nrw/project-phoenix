@@ -68,11 +68,11 @@ import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -443,9 +443,16 @@ export function CareOfferingsEditor({
   const showDeleteError = deleteErrors.show;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
-  const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
+  const panelOpen = Boolean(draft ?? cloneSource);
+  // Saving and cloning lock the panel (#6593); a late answer must not close
+  // or fill the panel for another offering.
+  const panelSave = useFormModalPending(
+    panelOpen,
+    cloneSource ? `clone-${cloneSource.id}` : editingId,
+  );
+  const saving = panelSave.pending;
   const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
   // Booking stats are display-only (#2186): the availability-rule editor uses
   // them to say how many existing bookings a rule would contradict, the list
@@ -722,32 +729,33 @@ export function CareOfferingsEditor({
       formErrors.invalid(weekdayError);
       return;
     }
-    setSaving(true);
-    try {
-      if (editingId === "new") {
-        const savedOffering = await createCareOffering(draft);
-        toast.success(
-          `Das Betreuungsangebot „${savedOffering.name}“ ist angelegt.`,
-        );
-      } else if (editingId) {
-        const savedOffering = await updateCareOffering(editingId, draft);
-        toast.success(
-          `Das Betreuungsangebot „${savedOffering.name}“ ist gespeichert.`,
-        );
+    await panelSave.run(async (op) => {
+      try {
+        if (editingId === "new") {
+          const savedOffering = await createCareOffering(draft);
+          toast.success(
+            `Das Betreuungsangebot „${savedOffering.name}“ ist angelegt.`,
+          );
+        } else if (editingId) {
+          const savedOffering = await updateCareOffering(editingId, draft);
+          toast.success(
+            `Das Betreuungsangebot „${savedOffering.name}“ ist gespeichert.`,
+          );
+        }
+        if (op.isCurrent()) cancelFocusMode();
+        await loadAll();
+      } catch (err) {
+        logger.error("care_offering_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Betreuungsangebot",
+          retry: () => void latestSave.current(),
+        });
       }
-      cancelFocusMode();
-      await loadAll();
-    } catch (err) {
-      logger.error("care_offering_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Betreuungsangebot",
-        retry: () => void latestSave.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
   const latestSave = useRef(save);
@@ -783,26 +791,27 @@ export function CareOfferingsEditor({
 
   const clone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      const cloned = await cloneCareOffering(cloneSource.id, {
-        target_phase_id: Number(targetPhaseId),
-      });
-      toast.success(`Das Betreuungsangebot „${cloned.name}“ ist dupliziert.`);
-      setCloneSource(null);
-      await loadAll();
-    } catch (err) {
-      logger.error("care_offering_clone_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Betreuungsangebot",
-        retry: () => void latestClone.current(targetPhaseId),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await panelSave.run(async (op) => {
+      formErrors.clear();
+      try {
+        const cloned = await cloneCareOffering(cloneSource.id, {
+          target_phase_id: Number(targetPhaseId),
+        });
+        toast.success(`Das Betreuungsangebot „${cloned.name}“ ist dupliziert.`);
+        if (op.isCurrent()) setCloneSource(null);
+        await loadAll();
+      } catch (err) {
+        logger.error("care_offering_clone_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Betreuungsangebot",
+          retry: () => void latestClone.current(targetPhaseId),
+        });
+      }
+    });
   };
   const latestClone = useRef(clone);
   useLayoutEffect(() => {
@@ -916,8 +925,6 @@ export function CareOfferingsEditor({
     ],
   );
 
-  const panelOpen = Boolean(draft ?? cloneSource);
-
   return (
     // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
     // Platz an die Tabelle weiter, die dann bis zur Unterkante des
@@ -963,16 +970,14 @@ export function CareOfferingsEditor({
               Liste: das Formular ist zu breit für eine aufgeklappte
               Tabellenzeile, und der Katalog darf dabei nicht verschwinden. */}
           <SlideOver
-            isDismissDisabled={saving}
+            pending={panelSave}
             open={panelOpen}
             onOpenChange={(open) => {
               if (!open) cancelFocusMode();
             }}
           >
             <SlideOverContent size="lg">
-              <SlideOverHeader
-                close={<SlideOverCloseButton disabled={saving} />}
-              >
+              <SlideOverHeader>
                 <SlideOverTitle>
                   {cloneSource
                     ? "Betreuungsangebot duplizieren"

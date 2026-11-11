@@ -16,6 +16,7 @@ import {
 import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 
@@ -2689,6 +2690,118 @@ describe("BetreuungsplanView", () => {
     );
     expect(mockToastError).not.toHaveBeenCalled();
     expect(mockShowActionError).not.toHaveBeenCalled();
+  });
+
+  it.each(["detail-delete", "detail-delete-following"])(
+    "clears the deleted selection after the block disappears during refresh (%s)",
+    async (action) => {
+      setTestClock(new Date("2026-05-04T08:00:00"));
+      const gaps = deferred();
+      mockTenantMutate.mockImplementation((key: string) =>
+        key.startsWith("timetable-gaps") ? gaps.promise : Promise.resolve(),
+      );
+      setUrl("view=woche&block=42");
+      const view = render(<BetreuungsplanView />);
+      expect(screen.getByText("detail-close")).toBeVisible();
+      fireEvent.click(screen.getByText(action));
+      await waitFor(() =>
+        expect(mockTenantMutate).toHaveBeenCalledWith(
+          expect.stringMatching(/^timetable-gaps/),
+        ),
+      );
+
+      setupSWR({ instances: [] });
+      view.rerender(<BetreuungsplanView />);
+      // Anker: die Wochenansicht ist nach dem Entfernen des Blocks geladen.
+      expect(screen.getByText("week-grid")).toBeVisible();
+      expect(screen.queryByText("detail-close")).not.toBeInTheDocument();
+      await act(async () => gaps.resolve());
+
+      expect(urlParams().has("block")).toBe(false);
+      expect(urlParams().get("d")).toBe("2026-05-04");
+    },
+  );
+
+  it.each(["detail-delete", "detail-delete-following"])(
+    "preserves a different selection when deletion finishes (%s)",
+    async (action) => {
+      setTestClock(new Date("2026-05-04T08:00:00"));
+      const gaps = deferred();
+      setupSWR({ instances: [instance, { ...instance, id: "43" }] });
+      mockTenantMutate.mockImplementation((key: string) =>
+        key.startsWith("timetable-gaps") ? gaps.promise : Promise.resolve(),
+      );
+      setUrl("view=woche&block=42");
+      render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByText(action));
+      await waitFor(() =>
+        expect(mockTenantMutate).toHaveBeenCalledWith(
+          expect.stringMatching(/^timetable-gaps/),
+        ),
+      );
+      act(() => setUrl("view=woche&block=43"));
+      expect(screen.getByText("detail-close")).toBeVisible();
+
+      await act(async () => gaps.resolve());
+
+      expect(urlParams().get("block")).toBe("43");
+      expect(screen.getByText("detail-close")).toBeVisible();
+    },
+  );
+
+  // Eine neue URL-Auswahl darf auch bei derselben ID nicht durch die
+  // Bereinigung einer früheren Löschantwort geschlossen werden (#6593).
+  it("keeps a block opened again when an earlier delete answers late (#6593)", async () => {
+    const answer = deferred();
+    mockDeleteCancelled.mockReturnValueOnce(answer.promise);
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete"));
+    expect(mockDeleteCancelled).toHaveBeenCalledWith("42");
+    fireEvent.click(screen.getByText("detail-close"));
+    await waitFor(() => expect(urlParams().has("block")).toBe(false));
+    act(() => setUrl("view=woche&block=42"));
+    expect(await screen.findByText("detail-close")).toBeVisible();
+
+    await act(async () => answer.resolve());
+
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Termin ist gelöscht.");
+    expect(urlParams().get("block")).toBe("42");
+    expect(screen.getByText("detail-close")).toBeVisible();
+  });
+
+  it("keeps a block opened again when an earlier series end answers late (#6593)", async () => {
+    setTestClock(new Date("2026-05-04T08:00:00"));
+    const answer = deferred<{
+      templateId: string;
+      effectiveDate: string;
+      deletedInstances: number;
+    }>();
+    mockEndTemplate.mockReturnValueOnce(answer.promise);
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete-following"));
+    expect(mockEndTemplate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByText("detail-close"));
+    await waitFor(() => expect(urlParams().has("block")).toBe(false));
+    act(() => setUrl("view=woche&block=42"));
+    expect(await screen.findByText("detail-close")).toBeVisible();
+
+    await act(async () =>
+      answer.resolve({
+        templateId: "7",
+        effectiveDate: "2026-05-04",
+        deletedInstances: 3,
+      }),
+    );
+
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Regeltermin ist ab 04.05.2026 beendet.",
+    );
+    expect(urlParams().get("block")).toBe("42");
+    expect(screen.getByText("detail-close")).toBeVisible();
   });
 
   it("ends following instances from the slide-over", async () => {
