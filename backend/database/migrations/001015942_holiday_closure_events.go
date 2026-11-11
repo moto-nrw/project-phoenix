@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayClosureEventsVersion = "1.15.941"
+const holidayClosureEventsVersion = "1.15.942"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -469,7 +469,7 @@ pending AS (
 INSERT INTO calendar.holiday_closure_proposals
 	(tenant_id, organization_id, source_kind, source_id, operation_id, reason, current_start, current_end, span_from, span_to, revision)
 SELECT pending.tenant_id, pending.organization_id, 'school_closing_day', pending.id,
-	substr(encode(sha256(convert_to('holiday-closure-carry-over:1.15.941:' || pending.organization_id || ':'
+	substr(encode(sha256(convert_to('holiday-closure-carry-over:1.15.942:' || pending.organization_id || ':'
 		|| pending.tenant_id || ':' || pending.id, 'UTF8')), 'hex'), 1, 32)::uuid,
 	left(pending.reason, 255), pending.start_date, pending.end_date, pending.start_date, pending.end_date, 0
 FROM pending
