@@ -10,6 +10,7 @@
 // „Schreiben“ ([id]/schreiben). Jedes Öffnen steht im Protokoll des Laufs.
 
 import dynamic from "next/dynamic";
+import { ArchiveX, Inbox } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -20,11 +21,6 @@ import {
   invoiceCountLabel,
   isEmptyCareRun,
 } from "~/components/traeger/care-billing-format";
-import {
-  DiscardedRunCard,
-  EmptyRunCard,
-  type RunPeriod,
-} from "~/components/traeger/empty-run-discard";
 import {
   CareRunInvoices,
   CareDuplicatesCard,
@@ -48,6 +44,7 @@ import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -135,19 +132,6 @@ function feeNoticeHeldText(held: readonly CareFeeNoticeHold[]): string {
       ? `Der Jahresbescheid von ${list} setzt diesen Monat auf 0,00 €.`
       : `Die Jahresbescheide von ${list} setzen diesen Monat auf 0,00 €.`;
   return `${subject} Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.`;
-}
-
-/** The month of a run as the empty and the discarded run name it (#6626). */
-function runPeriod(run: CareRunDetail): RunPeriod {
-  return {
-    runLabel: "Monatslauf",
-    period: formatMonth(run.billingMonth),
-    range: formatMonth(run.billingMonth),
-    periodNoun: "der Monat",
-    nothing: "keine Rechnung",
-    schools: run.schools.map((school) => school.name).join(", ") || "–",
-    createdAt: run.createdAt,
-  };
 }
 
 function notBilledLabel(children: number, released = false): string {
@@ -456,18 +440,58 @@ export default function TraegerCareRunPage() {
           }
         />
       ) : null}
-      {run && discarded ? (
-        <DiscardedRunCard run={runPeriod(run)} discardedAt={run.discardedAt} />
-      ) : run && empty ? (
+      {run && (discarded || empty) ? (
         <>
-          <EmptyRunCard run={runPeriod(run)} />
+          <SectionCard title="Monatslauf">
+            <EmptyState
+              tone="neutral"
+              icon={
+                discarded ? (
+                  <ArchiveX className="h-7 w-7" aria-hidden="true" />
+                ) : (
+                  <Inbox className="h-7 w-7" aria-hidden="true" />
+                )
+              }
+              title={
+                discarded
+                  ? "Dieser Lauf ist verworfen"
+                  : "Dieser Lauf hat nichts abzurechnen"
+              }
+              description={
+                discarded
+                  ? `Er hatte nichts abzurechnen und hat nichts ausgestellt. Für ${formatMonth(run.billingMonth)} können Sie einen neuen Lauf starten.`
+                  : `Für ${formatMonth(run.billingMonth)} gibt es keine Rechnung. Es fehlt auch kein Preis. Sie können den Lauf verwerfen. Danach ist der Monat frei für einen neuen Lauf.`
+              }
+              className="py-6"
+            />
+            <div className="mt-2 border-t border-gray-100 pt-5">
+              <DataGrid columns={2}>
+                <DataField label="Zeitraum">
+                  {formatMonth(run.billingMonth)}
+                </DataField>
+                <DataField label="Schulen">
+                  {run.schools.map((school) => school.name).join(", ") || "–"}
+                </DataField>
+                <DataField label="Gestartet am">
+                  {formatDate(run.createdAt)}
+                </DataField>
+                {discarded ? (
+                  <DataField label="Verworfen am">
+                    {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+                  </DataField>
+                ) : null}
+              </DataGrid>
+            </div>
+          </SectionCard>
           {/* Mensa months a school has not released yet come with a later
               run; the empty run still names them. */}
-          <CareRunMealsCard
-            gaps={run.mealGaps}
-            unbilled={run.mealUnbilled}
-            changed={run.mealChanged}
-          />
+          {empty ? (
+            <CareRunMealsCard
+              gaps={run.mealGaps}
+              unbilled={run.mealUnbilled}
+              changed={run.mealChanged}
+            />
+          ) : null}
         </>
       ) : run ? (
         <>

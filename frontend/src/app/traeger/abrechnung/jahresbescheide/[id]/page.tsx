@@ -6,6 +6,7 @@
 // eine Vertragsänderung führt im nächsten Lauf zum Änderungsbescheid. Jedes
 // Öffnen steht im Protokoll des Laufs.
 
+import { ArchiveX, Inbox } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -21,17 +22,14 @@ import {
   rateCountLabel,
 } from "~/components/traeger/care-notice-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
-import {
-  DiscardedRunCard,
-  EmptyRunCard,
-  type RunPeriod,
-} from "~/components/traeger/empty-run-discard";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -120,20 +118,6 @@ const noticeColumns: DataTableColumn<CareNotice>[] = [
     stacked: "hidden",
   },
 ];
-
-/** The year of a run as the empty and the discarded run name it (#6626). */
-function runPeriod(run: CareNoticeRunDetail): RunPeriod {
-  const schools = run.schoolIds.length;
-  return {
-    runLabel: "Jahreslauf",
-    period: `das Jahr ${run.year}`,
-    range: noticePeriod(run.periodFrom, run.periodUntil),
-    periodNoun: "das Jahr",
-    nothing: "keinen Bescheid",
-    schools: schools === 1 ? "1 Schule" : `${schools} Schulen`,
-    createdAt: run.createdAt,
-  };
-}
 
 /** "1 Kind", "3 Kinder". */
 function childrenLabel(count: number): string {
@@ -385,10 +369,50 @@ export default function TraegerCareNoticeRunPage() {
         ) : null
       }
     >
-      {run && discarded ? (
-        <DiscardedRunCard run={runPeriod(run)} discardedAt={run.discardedAt} />
-      ) : run && empty ? (
-        <EmptyRunCard run={runPeriod(run)} />
+      {run && (discarded || empty) ? (
+        <SectionCard title="Jahreslauf">
+          <EmptyState
+            tone="neutral"
+            icon={
+              discarded ? (
+                <ArchiveX className="h-7 w-7" aria-hidden="true" />
+              ) : (
+                <Inbox className="h-7 w-7" aria-hidden="true" />
+              )
+            }
+            title={
+              discarded
+                ? "Dieser Lauf ist verworfen"
+                : "Dieser Lauf hat nichts abzurechnen"
+            }
+            description={
+              discarded
+                ? `Er hatte nichts abzurechnen und hat nichts ausgestellt. Für das Jahr ${run.year} können Sie einen neuen Lauf starten.`
+                : `Für das Jahr ${run.year} gibt es keinen Bescheid. Es fehlt auch kein Preis. Sie können den Lauf verwerfen. Danach ist das Jahr frei für einen neuen Lauf.`
+            }
+            className="py-6"
+          />
+          <div className="mt-2 border-t border-gray-100 pt-5">
+            <DataGrid columns={2}>
+              <DataField label="Zeitraum">
+                {noticePeriod(run.periodFrom, run.periodUntil)}
+              </DataField>
+              <DataField label="Schulen">
+                {run.schoolIds.length === 1
+                  ? "1 Schule"
+                  : `${run.schoolIds.length} Schulen`}
+              </DataField>
+              <DataField label="Gestartet am">
+                {formatDate(run.createdAt)}
+              </DataField>
+              {discarded ? (
+                <DataField label="Verworfen am">
+                  {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+                </DataField>
+              ) : null}
+            </DataGrid>
+          </div>
+        </SectionCard>
       ) : run ? (
         <>
           {preview && run.previewCount > 0 && run.legalRemedyMissing ? (
