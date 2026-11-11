@@ -574,15 +574,24 @@ function ClassDayOverviewContent({
     },
   );
 
-  useSchoolReportRefusal(schoolDayError, schoolDayKey);
+  const discardRefusedSchoolDay = useSchoolReportRefusal(
+    schoolDayError,
+    schoolDayKey,
+  );
   // Nach einer Meldung lädt die Tagesübersicht direkt nach: ein Fehler dabei
   // weist ab und steht als Ladefehler über der Übersicht (#6652).
   const schoolDayAfterWrite = useRefreshAfterWrite(
     "die Anzeige des Schultags",
-    () =>
-      fetchSchoolDay
-        ? reloadSchoolDay(fetchSchoolDay(dateISO), { revalidate: false })
-        : reloadSchoolDay(),
+    async () => {
+      try {
+        await (fetchSchoolDay
+          ? reloadSchoolDay(fetchSchoolDay(dateISO), { revalidate: false })
+          : reloadSchoolDay());
+      } catch (err) {
+        discardRefusedSchoolDay(err);
+        throw err;
+      }
+    },
   );
 
   // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der

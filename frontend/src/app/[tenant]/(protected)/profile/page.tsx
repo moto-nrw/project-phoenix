@@ -67,18 +67,23 @@ function ProfileContent() {
   });
   const { success: toastSuccess } = useToast();
   const { profile, updateProfileData, refreshProfile } = useProfile();
+  const [isSaving, setIsSaving] = useState(false);
   const profileAfterWrite = useRefreshAfterWrite(
     "die Anzeige des Profils",
     async (options: { sessionName?: string } = {}) => {
-      await refreshProfile(true);
-      if ("sessionName" in options) {
-        await updateSession({ name: options.sessionName });
+      setIsSaving(true);
+      try {
+        await refreshProfile(true);
+        if ("sessionName" in options) {
+          await updateSession({ name: options.sessionName });
+        }
+      } finally {
+        setIsSaving(false);
       }
     },
   );
 
   const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   // Speicherfehler stehen oben im Bearbeiten-Bereich der Karte, nicht als
   // Toast: Bauart 2 Regel 5. Katalogtext und Wiederholen (#2517).
   const formRef = useRef<HTMLDivElement>(null);
@@ -110,7 +115,7 @@ function ProfileContent() {
   }, [resetFormFromProfile]);
 
   const handleSaveProfile = async () => {
-    if (!hasSessionAccess(session) || !profile) return;
+    if (!hasSessionAccess(session) || !profile || isSaving) return;
 
     setIsSaving(true);
     formErrors.clear();
@@ -138,7 +143,6 @@ function ProfileContent() {
       lastName: formData.lastName,
     });
     setIsEditing(false);
-    setIsSaving(false);
     toastSuccess("Ihr Profil ist gespeichert.");
     // Profil und Sitzung laden nach dem Speichern; ein Fehler dabei ist ein
     // Ladefehler, kein Fehler des Speicherns (#6652).
@@ -149,7 +153,7 @@ function ProfileContent() {
   };
 
   const handleAvatarChange = async (file: File) => {
-    if (!hasSessionAccess(session)) return;
+    if (!hasSessionAccess(session) || isSaving) return;
 
     try {
       setIsSaving(true);
@@ -166,7 +170,6 @@ function ProfileContent() {
       setIsSaving(false);
       return;
     }
-    setIsSaving(false);
     toastSuccess("Ihr Profilbild ist gespeichert.");
     await profileAfterWrite.refresh();
   };
@@ -206,6 +209,7 @@ function ProfileContent() {
             type="file"
             accept="image/*"
             aria-label="Profilbild auswählen"
+            disabled={isSaving}
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -219,6 +223,7 @@ function ProfileContent() {
             size="md"
             className="gap-2"
             onClick={() => avatarInputRef.current?.click()}
+            disabled={isSaving}
           >
             <Camera className="h-4 w-4" aria-hidden="true" />
             Profilbild ändern
@@ -236,6 +241,7 @@ function ProfileContent() {
               variant="outline"
               size="md"
               onClick={() => setIsEditing(true)}
+              disabled={isSaving}
               className="gap-1.5"
             >
               <Pencil className="h-3.5 w-3.5" />

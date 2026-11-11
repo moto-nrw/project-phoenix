@@ -1031,6 +1031,43 @@ describe("GuardiansPanel", () => {
       is_self: false,
     };
 
+    it.each(["guardians", "accounts", "pickup"])(
+      "applies successful contact refreshes when %s fails",
+      async (failed) => {
+        render(
+          <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+        );
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Bearbeiten" }),
+        );
+        mocks.listChildGuardians.mockResolvedValue([
+          { ...editableGuardian, first_name: "Helene" },
+        ]);
+        mocks.listRelatedAccounts.mockResolvedValue([petra]);
+        const failing = {
+          guardians: mocks.listChildGuardians,
+          accounts: mocks.listRelatedAccounts,
+          pickup: mocks.listPickupPermissionRequests,
+        }[failed]!;
+        failing.mockRejectedValueOnce(down());
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+        expect(
+          await screen.findByText("Kontaktdaten gespeichert."),
+        ).toBeVisible();
+        if (failed !== "pickup") {
+          expect(await screen.findByText(reloadText)).toBeVisible();
+        }
+        if (failed !== "guardians") {
+          expect(await screen.findByText("Helene Schneider")).toBeVisible();
+        }
+        if (failed !== "accounts") {
+          expect(await screen.findByText("petra@example.test")).toBeVisible();
+        }
+        expect(mocks.updateGuardianContact).toHaveBeenCalledTimes(1);
+      },
+    );
+
     async function retryOnlyReloads(writeMock: { mock: { calls: unknown[] } }) {
       const loads = mocks.listChildGuardians.mock.calls.length;
       // Other cards on the page may offer their own retry.

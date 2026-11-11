@@ -256,16 +256,33 @@ export default function GuardiansPanel({
   // contacts and accounts stay while it runs, and a failure rejects, so the
   // hook reports it as a load error that says the change is saved.
   const readGuardians = useCallback(async () => {
-    const [nextGuardians, nextAccounts, nextRequests] = await Promise.all([
-      listChildGuardians(studentId),
-      listRelatedAccounts(studentId),
-      listPickupPermissionRequests(studentId),
-    ]);
-    clearGuardiansLoadError();
-    clearAccountsLoadError();
-    setGuardians(nextGuardians);
-    setAccounts(nextAccounts);
-    setPermissionRequests(nextRequests);
+    const [nextGuardians, nextAccounts, nextRequests] =
+      await Promise.allSettled([
+        listChildGuardians(studentId),
+        listRelatedAccounts(studentId),
+        listPickupPermissionRequests(studentId),
+      ]);
+    if (nextGuardians.status === "fulfilled") {
+      clearGuardiansLoadError();
+      setGuardians(nextGuardians.value);
+    }
+    if (nextAccounts.status === "fulfilled") {
+      clearAccountsLoadError();
+      setAccounts(nextAccounts.value);
+    }
+    if (nextRequests.status === "fulfilled") {
+      setPermissionRequests(nextRequests.value);
+    } else {
+      // Wie beim Erstabruf fehlt nur der optionale Hinweis auf offene Anfragen.
+      logger.warn("pickup_permission_requests_load_failed", {
+        error:
+          nextRequests.reason instanceof Error
+            ? nextRequests.reason.message
+            : String(nextRequests.reason),
+      });
+    }
+    if (nextGuardians.status === "rejected") throw nextGuardians.reason;
+    if (nextAccounts.status === "rejected") throw nextAccounts.reason;
   }, [clearAccountsLoadError, clearGuardiansLoadError, studentId]);
   const { error: reloadError, refresh: refreshAfterWrite } =
     useRefreshAfterWrite(t("guardians.reloadObject"), readGuardians, {

@@ -301,15 +301,23 @@ export function ClassDayClass({
     },
   );
 
-  useSchoolReportRefusal(error, classReportKey);
+  const discardRefusedReport = useSchoolReportRefusal(error, classReportKey);
 
   // Nachladen nach dem Schreiben holt den Bericht direkt: ein Fehler dabei
   // weist ab und steht als Ladefehler über der Klasse, die bestätigten
   // Zeilen bleiben stehen (#6652). Ein reines `mutate()` meldete ihn nicht.
-  const reportAfterWrite = useRefreshAfterWrite("die Anzeige der Klasse", () =>
-    refetchReport(fetchClassDay(schoolClass, dateISO), {
-      revalidate: false,
-    }),
+  const reportAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Klasse",
+    async () => {
+      try {
+        await refetchReport(fetchClassDay(schoolClass, dateISO), {
+          revalidate: false,
+        });
+      } catch (err) {
+        discardRefusedReport(err);
+        throw err;
+      }
+    },
   );
 
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
@@ -1206,7 +1214,7 @@ export function ClassDayClass({
             </div>
           )}
 
-          {!weekend && !isLoading && error ? (
+          {!weekend && !isLoading && error && !reportAfterWrite.error ? (
             <LoadErrorAlert error={loadError} className="mt-4" />
           ) : null}
           <LoadErrorAlert error={reportAfterWrite.error} className="mt-4" />

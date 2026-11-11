@@ -134,7 +134,9 @@ function TemplateEditorPage({
     const current = templateTextOf(detail.current);
     const preview = await previewDocumentTemplate(kind, current);
     setData({ detail, masterData, preview });
-    setDraft(current);
+    // Ein Wiederholen aktualisiert den gespeicherten Stand und die Vorschau,
+    // erhält aber auch Entwürfe, die erst während des Abrufs entstehen.
+    setDraft((before) => before ?? current);
     setPreviewed(current);
   }, [kind]);
 
