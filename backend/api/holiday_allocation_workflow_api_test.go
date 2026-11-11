@@ -44,11 +44,14 @@ func (f reviewFixture) traegerOutbox(t *testing.T) int {
 	return count
 }
 
-// ADR 0206, acceptance criterion 2, rebooking and capacity: a refused
-// contribution of the confirmed registration that moved up leaves the
-// bookings, the capacity, the waiting list, the contributions and the outbox
-// as they were. Once Parent Billing accepts again, the same request runs as
-// a new unit.
+// ADR 0206, acceptance criterion 2: a contribution Parent Billing refuses
+// rolls back each way completely. For the rebooking and the capacity the
+// confirmed registration that moves up keeps its waiting booking, the week
+// its capacity, Ben his place; for the decision a direct place that changes
+// the discount of a confirmed sibling stays pending. No contribution version
+// and no mail is written. Once Parent Billing accepts again, each request
+// runs as a new unit. Both families share one isolated database, because
+// the refusing trigger is global.
 func TestHolidayAllocationWorkflowRollsBackOnARefusedContribution(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
@@ -62,7 +65,8 @@ func TestHolidayAllocationWorkflowRollsBackOnARefusedContribution(t *testing.T) 
 	require.Len(t, frozen, 1)
 	ben := f.list(t, "").Registrations[0].Children[1]
 	rebook := map[string]any{"bookings": []map[string]any{{"week_id": second.ID, "time_model_id": second.TimeModels[0].ID}}}
-	outbox := f.traegerOutbox(t)
+	a, sibling, candidate := refusedDecisionFixture(t)
+	outbox, decisionOutbox := f.traegerOutbox(t), a.traegerOutbox(t)
 	allow := refuseHolidayContributions(t, f)
 
 	assertUnchanged := func(t *testing.T, what string) {
@@ -82,6 +86,13 @@ func TestHolidayAllocationWorkflowRollsBackOnARefusedContribution(t *testing.T) 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayCapacityPath(f.period.ID, first.ID), map[string]any{"capacity": 3})
 	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
 	assertUnchanged(t, "capacity")
+	rec = a.decide(t, decision(candidate, "placed", ""))
+	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
+	board := a.board(t)
+	require.Len(t, board.Weeks[0].Pending, 1, "the decision rolls back")
+	assert.Equal(t, 1, board.Weeks[0].Placed, "the place stays free")
+	assert.Equal(t, []int64{4500}, a.contributionVersions(t, sibling), "the sibling keeps its contribution")
+	assert.Equal(t, decisionOutbox, a.traegerOutbox(t), "no decision mail is queued")
 
 	allow()
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayRebookPath(f.period.ID, f.siblings, ben.ID), rebook)
@@ -90,15 +101,18 @@ func TestHolidayAllocationWorkflowRollsBackOnARefusedContribution(t *testing.T) 
 	assert.Equal(t, 1, f.mails(t, "holiday_place_granted", tom.ID))
 	assert.Len(t, f.contributionVersions(t, tom.ID), 2, "the retry freezes Tom's new contribution")
 	assert.Equal(t, first.TimeModels[0].PriceCents, f.contributionTotal(t, tom.ID))
+	rec = a.decide(t, decision(candidate, "placed", ""))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, []int64{4500, 2250}, a.contributionVersions(t, sibling), "the retry refreezes the confirmed sibling")
+	assert.Equal(t, 1, a.mails(t, "holiday_place_granted", candidate.RegistrationID))
 }
 
-// ADR 0206, acceptance criterion 2, decision: a direct place that changes the
-// discount of a confirmed sibling and is refused by Parent Billing leaves the
-// decision pending, the place free, the sibling's contribution and the
-// outbox as they were. The retry decides and refreezes the sibling.
-func TestHolidayAllocationWorkflowRollsBackARefusedDecision(t *testing.T) {
-	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
+// refusedDecisionFixture is a period by criteria with a confirmed child that
+// has a place and a pending sibling whose direct place halves the confirmed
+// child's contribution. It returns the sibling with the place and the
+// pending candidate.
+func refusedDecisionFixture(t *testing.T) (allocationFixture, int64, allocationCandidateBody) {
+	t.Helper()
 	a := newAllocationFixture(t, "Träger Workflow Entscheidung")
 	billing := traegerColleague(t, a.reviewFixture, identityaccess.TraegerRoleBilling)
 	createContributionRule(t, a.reviewFixture, billing, siblingHalf())
@@ -120,20 +134,5 @@ func TestHolidayAllocationWorkflowRollsBackARefusedDecision(t *testing.T) {
 	a.setCapacity(t, a.offer.Weeks[0].ID, 2)
 	candidate := a.board(t).Weeks[0].Pending[0]
 	require.Equal(t, second.ID, candidate.RegistrationID)
-	outbox := a.traegerOutbox(t)
-	allow := refuseHolidayContributions(t, a.reviewFixture)
-
-	rec = a.decide(t, decision(candidate, "placed", ""))
-	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
-	board := a.board(t)
-	require.Len(t, board.Weeks[0].Pending, 1, "the decision rolls back")
-	assert.Equal(t, 1, board.Weeks[0].Placed, "the place stays free")
-	assert.Equal(t, []int64{4500}, a.contributionVersions(t, first.ID), "the sibling keeps its contribution")
-	assert.Equal(t, outbox, a.traegerOutbox(t), "no decision mail is queued")
-
-	allow()
-	rec = a.decide(t, decision(candidate, "placed", ""))
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Equal(t, []int64{4500, 2250}, a.contributionVersions(t, first.ID), "the retry refreezes the confirmed sibling")
-	assert.Equal(t, 1, a.mails(t, "holiday_place_granted", second.ID))
+	return a, first.ID, candidate
 }

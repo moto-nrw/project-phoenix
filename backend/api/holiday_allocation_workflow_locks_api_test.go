@@ -26,8 +26,9 @@ import (
 )
 
 // allocationLockHolder is a second connection that holds a lock until it commits.
-// Its private pool (#5269) also runs the probes, so no lock actor takes a
-// connection of the shared pool the requests use.
+// It runs on a private actor pool of its test (#5269), which also runs the
+// probes, so no lock actor waits for a connection of the shared pool the
+// blocked requests hold.
 type allocationLockHolder struct {
 	db   *bun.DB
 	tx   bun.Tx
@@ -35,10 +36,9 @@ type allocationLockHolder struct {
 	done bool
 }
 
-func holdAllocationLock(t *testing.T, query string, args ...any) *allocationLockHolder {
+func holdAllocationLock(t *testing.T, db *bun.DB, query string, args ...any) *allocationLockHolder {
 	t.Helper()
 	ctx := context.Background()
-	db := testpkg.SetupClosableTestDB(t)
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	h := &allocationLockHolder{db: db, tx: tx}
@@ -179,11 +179,12 @@ func holidayWays() []holidayWay {
 // it already holds B.
 func TestHolidayAllocationWorkflowTakesTheBillingLockBeforeThePeriod(t *testing.T) {
 	t.Parallel()
+	actors := testpkg.SetupClosableTestDB(t)
 	for _, way := range holidayWays() {
 		t.Run(way.name+"/waits for B without P", func(t *testing.T) {
 			t.Parallel()
 			f, request := way.setup(t)
-			holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
+			holder := holdAllocationLock(t, actors, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
 			done := asyncRequest(request)
 			holder.waitBlocked(t, 1)
 			assert.True(t, periodRowFree(t, holder.db, f.period.ID), "a request waiting for B holds no period row")
@@ -194,7 +195,7 @@ func TestHolidayAllocationWorkflowTakesTheBillingLockBeforeThePeriod(t *testing.
 		t.Run(way.name+"/waits for P holding B", func(t *testing.T) {
 			t.Parallel()
 			f, request := way.setup(t)
-			holder := holdAllocationLock(t, `SELECT id FROM enrollment.holiday_periods WHERE id = ? FOR UPDATE`, f.period.ID)
+			holder := holdAllocationLock(t, actors, `SELECT id FROM enrollment.holiday_periods WHERE id = ? FOR UPDATE`, f.period.ID)
 			done := asyncRequest(request)
 			waiting := holder.waitBlocked(t, 1)
 			assert.True(t, holdsAdvisoryLock(t, holder.db, waiting[0], billingLockKey(f.office.organization, f.period.ID)),
@@ -271,13 +272,14 @@ func releaseWays() []releaseWay {
 // one shows the correction needed.
 func TestHolidayAllocationWorkflowMeetsARunRelease(t *testing.T) {
 	t.Parallel()
+	actors := testpkg.SetupClosableTestDB(t)
 	for _, way := range releaseWays() {
 		t.Run(way.name, func(t *testing.T) {
 			t.Parallel()
 			f, billing, affected, request := way.setup(t)
 			before := f.cancelledContribution(t, affected).TotalCents
 			run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
-			holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
+			holder := holdAllocationLock(t, actors, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
 			changed := asyncRequest(request)
 			released := asyncRequest(func() *httptest.ResponseRecorder {
 				return traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
@@ -316,6 +318,7 @@ func TestHolidayAllocationWorkflowMeetsARunRelease(t *testing.T) {
 // deadlock and the waiting child moves up once.
 func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 	t.Parallel()
+	actors := testpkg.SetupClosableTestDB(t)
 	t.Run("rebooking and capacity", func(t *testing.T) {
 		t.Parallel()
 		f := newReviewFixture(t, "Träger Wege Gleichzeitig")
@@ -323,7 +326,7 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 		f.setCapacity(t, first.ID, 2)
 		tom := f.submitPlaces(t, "tom.wege@example.org", map[string][]int{"Tom": {0}})
 		ben := f.list(t, "").Registrations[0].Children[1]
-		holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
+		holder := holdAllocationLock(t, actors, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
 		rebooked := asyncRequest(func() *httptest.ResponseRecorder {
 			return traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayRebookPath(f.period.ID, f.siblings, ben.ID),
 				map[string]any{"bookings": []map[string]any{{"week_id": second.ID, "time_model_id": second.TimeModels[0].ID}}})
@@ -346,7 +349,7 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 		a := newAllocationFixture(t, "Träger Entscheidung Gleichzeitig")
 		registration := a.submitCriteria(t, "tom.gleichzeitig@example.org", true, false)
 		candidate := a.board(t).Weeks[0].Pending[0]
-		holder := holdAllocationLock(t, holdAdvisoryLock, billingLockKey(a.office.organization, a.period.ID))
+		holder := holdAllocationLock(t, actors, holdAdvisoryLock, billingLockKey(a.office.organization, a.period.ID))
 		decided := asyncRequest(func() *httptest.ResponseRecorder { return a.decide(t, decision(candidate, "placed", "")) })
 		widened := asyncRequest(func() *httptest.ResponseRecorder {
 			return traegerJSON(t, a.traeger, a.office.token, http.MethodPut, holidayCapacityPath(a.period.ID, a.offer.Weeks[0].ID), map[string]any{"capacity": 2})
@@ -370,6 +373,7 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 // period, and succeeds.
 func TestHolidayAllocationWorkflowDecisionMeetsTheCatalogAndAnotherPeriod(t *testing.T) {
 	t.Parallel()
+	actors := testpkg.SetupClosableTestDB(t)
 	a := newAllocationFixture(t, "Träger Katalog Gleichzeitig")
 	working := a.submitCriteria(t, "berufstaetig.katalog@example.org", true, false)
 	a.submitCriteria(t, "geschwister.katalog@example.org", false, true)
@@ -382,7 +386,7 @@ func TestHolidayAllocationWorkflowDecisionMeetsTheCatalogAndAnotherPeriod(t *tes
 	other.submitCriteria(t, "anderer.zeitraum@example.org", false, false)
 	otherCandidate := other.board(t).Weeks[0].Pending[0]
 
-	holder := holdAllocationLock(t, holdAdvisoryLock, fmt.Sprintf("enrollment.holiday_allocation_criteria:%d", a.office.organization))
+	holder := holdAllocationLock(t, actors, holdAdvisoryLock, fmt.Sprintf("enrollment.holiday_allocation_criteria:%d", a.office.organization))
 	_, err := holder.tx.ExecContext(context.Background(), `UPDATE enrollment.holiday_allocation_criteria
 		SET position = CASE id WHEN ? THEN 2 ELSE 1 END WHERE id IN (?, ?)`, a.working, a.working, a.sibling)
 	require.NoError(t, err)
