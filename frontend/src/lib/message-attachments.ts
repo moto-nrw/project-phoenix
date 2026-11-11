@@ -123,6 +123,24 @@ export async function uploadMessageAttachment(
 }
 
 /**
+ * Lädt die Bytes eines Anhangs für die Ansicht in der Seite: ein PDF zeigt
+ * der Betrachter aus einer Object-URL, weil die App sich nicht rahmen lässt.
+ */
+export async function fetchMessageAttachmentFile(url: string): Promise<Blob> {
+  const response = await transportFetch(url, {
+    method: "GET",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      "Die Datei konnte nicht geladen werden",
+    );
+  }
+  return response.blob();
+}
+
+/**
  * Die IDs als letztes Argument eines Sende-Aufrufs: ohne Anhänge entfällt
  * es, damit eine Nachricht nur mit Text genau wie bisher gesendet wird.
  */

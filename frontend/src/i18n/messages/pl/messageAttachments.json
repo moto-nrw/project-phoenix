@@ -9,11 +9,15 @@
   "wrongType": "Nie można dołączyć „{filename}”. Dozwolone są zdjęcia, PDF, Word, Excel i PowerPoint.",
   "fileObject": "pliku",
   "openImage": "Otwórz zdjęcie: {filename}",
+  "openFile": "Otwórz plik: {filename}",
   "downloadFile": "Pobierz: {filename}",
   "moreImages": "{count, plural, one {# kolejne zdjęcie} few {# kolejne zdjęcia} many {# kolejnych zdjęć} other {# kolejnego zdjęcia}}",
   "close": "Zamknij",
-  "previous": "Poprzednie zdjęcie",
-  "next": "Następne zdjęcie",
+  "previous": "Poprzedni załącznik",
+  "next": "Następny załącznik",
   "download": "Pobierz",
+  "openInNewTab": "Otwórz w nowej karcie",
+  "notViewable": "Tego pliku nie można tu wyświetlić. Pobierz go, aby go otworzyć.",
+  "notViewableOnDevice": "Na tym urządzeniu nie można tu wyświetlić tego pliku. Otwórz go w nowej karcie lub pobierz.",
   "position": "{current} z {total}"
 }

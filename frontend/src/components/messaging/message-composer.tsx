@@ -5,6 +5,11 @@ import { PaperPlaneRightIcon } from "@phosphor-icons/react/ssr";
 import { Paperclip } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { AttachmentPreview } from "~/components/ui/attachment-preview";
+import {
+  AttachmentViewer,
+  type AttachmentViewerLabels,
+  type ViewerItem,
+} from "~/components/ui/attachment-viewer";
 import { useFileDrop } from "~/components/ui/dropzone";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { Textarea } from "~/components/ui/textarea";
@@ -45,6 +50,10 @@ export interface ComposerAttachmentLabels {
   readonly drop: string;
   readonly remove: (filename: string) => string;
   readonly uploading: (filename: string) => string;
+  /** Name der Kachel, die eine Vorschau öffnet; ohne nennt sie den Dateinamen. */
+  readonly open?: (filename: string) => string;
+  /** Texte der Vorschau, die eine Kachel öffnet. */
+  readonly viewer?: AttachmentViewerLabels;
   readonly tooMany: string;
   readonly tooLarge: (filename: string) => string;
   readonly wrongType: (filename: string) => string;
@@ -58,6 +67,7 @@ const GERMAN_ATTACHMENT_LABELS: ComposerAttachmentLabels = {
   drop: "Dateien hier ablegen",
   remove: (filename) => `Anhang entfernen: ${filename}`,
   uploading: (filename) => `${filename} wird hochgeladen`,
+  open: (filename) => `Anhang öffnen: ${filename}`,
   tooMany: `Eine Nachricht kann höchstens ${MAX_MESSAGE_ATTACHMENTS} Dateien haben.`,
   tooLarge: (filename) =>
     `„${filename}“ ist zu groß. Erlaubt sind bis zu ${MAX_MESSAGE_ATTACHMENT_MB} MB je Datei.`,
@@ -67,13 +77,16 @@ const GERMAN_ATTACHMENT_LABELS: ComposerAttachmentLabels = {
 };
 
 /** Eine gewählte Datei auf dem Weg in die Nachricht. */
-interface PendingAttachment {
-  readonly key: string;
+export interface ComposerAttachmentItem {
   readonly file: File;
   /** Vorschau eines Bildes aus dem Gerät, solange es nicht gesendet ist. */
   readonly previewUrl?: string;
   /** Gesetzt, sobald der Upload angekommen ist. */
   readonly attachment?: MessageAttachment;
+}
+
+interface PendingAttachment extends ComposerAttachmentItem {
+  readonly key: string;
 }
 
 function refusalText(
@@ -89,8 +102,8 @@ let pendingSequence = 0;
 
 /**
  * The shared chat composer for the parent-OGS messaging feature: an
- * auto-growing textarea and a send button in one frame, Enter-to-send (Shift+Enter
- * for a newline). Used identically by the parent chat (OgsConversation) and the
+ * auto-growing textarea in a rounded frame with the round send button beside
+ * it, Enter-to-send (Shift+Enter for a newline). Used identically by the parent chat (OgsConversation) and the
  * staff thread page so both stay visually in sync with the calm portal look —
  * neutral gray focus, kit Button, no brand-green accent.
  *
@@ -126,7 +139,7 @@ export function MessageComposer({
   readonly disabled?: boolean;
   /**
    * "parent" ist die kompakte Variante der Eltern-App. Das Feld bleibt mit
-   * 16 px Schrift mobil zoomfest, die Schaltflaeche steht daneben.
+   * 16 px Schrift mobil zoomfest.
    */
   readonly tone?: "staff" | "parent";
   readonly sendLabel?: string;
@@ -140,6 +153,8 @@ export function MessageComposer({
     readonly uploadUrl: string;
     readonly labels?: ComposerAttachmentLabels;
     readonly notice?: string;
+    /** Öffnet eine Vorschau der angetippten Kachel; ohne bleibt sie Anzeige. */
+    readonly onOpenAttachment?: (item: ComposerAttachmentItem) => void;
   };
 }) {
   const labels = attachments?.labels ?? GERMAN_ATTACHMENT_LABELS;
@@ -248,152 +263,216 @@ export function MessageComposer({
     disabled: !attachments || inputLocked,
   });
 
+  // Eine Kachel öffnet die Vorschau der gewählten Dateien, noch bevor sie
+  // gesendet sind. Was kein Bild ist, bekommt dafür eine Adresse aus dem
+  // Gerät; sie wird beim Schließen wieder freigegeben.
+  const [viewer, setViewer] = useState<{
+    readonly items: readonly ViewerItem[];
+    readonly index: number;
+    readonly made: readonly string[];
+  } | null>(null);
+  const closeViewer = useCallback(() => {
+    setViewer((open) => {
+      for (const url of open?.made ?? []) URL.revokeObjectURL(url);
+      return null;
+    });
+  }, []);
+  const externalOpen = attachments?.onOpenAttachment;
+  const openAttachment = (item: PendingAttachment) => {
+    if (externalOpen) {
+      externalOpen({
+        file: item.file,
+        previewUrl: item.previewUrl,
+        attachment: item.attachment,
+      });
+      return;
+    }
+    const made: string[] = [];
+    const items = pending.map((entry): ViewerItem => {
+      let src = entry.previewUrl;
+      if (!src) {
+        src = URL.createObjectURL(entry.file);
+        made.push(src);
+      }
+      return {
+        src,
+        name: entry.file.name,
+        contentType: entry.file.type,
+        sizeBytes: entry.file.size,
+      };
+    });
+    setViewer({ items, index: pending.indexOf(item), made });
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <FormErrorAlert message={attachError.error} />
-      {/* Ein Rahmen für alles, was zur Nachricht gehört: Anhänge, Text und
-          die beiden Knöpfe. Er zeigt den Fokus des Feldes und nimmt Dateien
-          an, die jemand hineinzieht. */}
-      <div
-        {...(attachments ? dropProps : {})}
-        className={cn(
-          "relative flex flex-col rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 transition-shadow duration-200 ring-inset focus-within:ring-2 focus-within:ring-gray-400",
-          inputLocked && "bg-gray-50",
-        )}
-      >
-        {pending.length > 0 ? (
-          <div className="flex flex-col gap-1.5 px-3 pt-3">
-            <ul className="-mx-3 flex gap-3 overflow-x-auto px-3 pt-1.5 pb-1">
-              {pending.map((item) => (
-                <li key={item.key} className="flex min-w-0 shrink-0">
-                  <AttachmentPreview
-                    name={item.file.name}
-                    detail={formatBytes(item.file.size)}
-                    contentType={item.file.type}
-                    previewUrl={item.previewUrl}
-                    busy={!item.attachment}
-                    busyLabel={labels.uploading(item.file.name)}
-                    onRemove={() => removePending(item.key)}
-                    removeLabel={labels.remove(item.file.name)}
-                  />
-                </li>
-              ))}
-            </ul>
-            {attachments?.notice ? (
-              <p className="text-xs text-gray-600">{attachments.notice}</p>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="flex items-end gap-1 p-1.5">
-          {attachments ? (
-            <>
-              <input
-                ref={fileInput}
-                type="file"
-                multiple
-                accept={MESSAGE_ATTACHMENT_ACCEPT}
-                className="sr-only"
-                tabIndex={-1}
-                aria-label={labels.attach}
-                onChange={(event) => {
-                  addFiles(Array.from(event.target.files ?? []));
-                  // Dieselbe Datei lässt sich danach erneut wählen.
-                  event.target.value = "";
-                }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => fileInput.current?.click()}
-                disabled={inputLocked || atLimit}
-                aria-label={labels.attach}
-                tooltip={atLimit ? labels.tooMany : labels.attachHint}
-                className="shrink-0"
-              >
-                <Paperclip className="h-5 w-5" aria-hidden="true" />
-              </Button>
-            </>
+      <div className="flex items-end gap-2">
+        {/* Ein Rahmen für alles, was zur Nachricht gehört: Anhänge, Text und
+            die Büroklammer. Er zeigt den Fokus des Feldes und nimmt Dateien
+            an, die jemand hineinzieht. Einzeilig ist er so hoch wie der
+            Senden-Knopf daneben (40 px, per Finger 48 px) und damit eine
+            Pille; Kacheln (16 px Radius, 8 px Abstand) und Büroklammer
+            (Kreis, 4 px Abstand) folgen seinem Rund von 24 px. */}
+        <div
+          {...(attachments ? dropProps : {})}
+          className={cn(
+            "relative flex min-w-0 flex-1 flex-col rounded-2xl bg-white shadow-sm ring-1 ring-gray-200 transition-shadow duration-200 ring-inset focus-within:ring-2 focus-within:ring-gray-400",
+            inputLocked && "bg-gray-50",
+          )}
+        >
+          {pending.length > 0 ? (
+            <div className="flex flex-col">
+              {/* Das Polster gehört der Liste selbst: Fokusring und die
+                  Trefferfläche der Kreuze bleiben im Scrollbereich. */}
+              <ul className="flex gap-2 overflow-x-auto px-2 pt-2 pb-1">
+                {pending.map((item) => (
+                  <li key={item.key} className="flex min-w-0 shrink-0">
+                    <AttachmentPreview
+                      name={item.file.name}
+                      detail={formatBytes(item.file.size)}
+                      contentType={item.file.type}
+                      previewUrl={item.previewUrl}
+                      busy={!item.attachment}
+                      busyLabel={labels.uploading(item.file.name)}
+                      onRemove={() => removePending(item.key)}
+                      removeLabel={labels.remove(item.file.name)}
+                      onOpen={() => openAttachment(item)}
+                      openLabel={labels.open?.(item.file.name)}
+                    />
+                  </li>
+                ))}
+              </ul>
+              {attachments?.notice ? (
+                <p className="px-3 pt-1 text-xs text-gray-600">
+                  {attachments.notice}
+                </p>
+              ) : null}
+            </div>
           ) : null}
-          <div className="min-w-0 flex-1">
-            <label htmlFor="message-composer" className="sr-only">
-              {fieldLabel}
-            </label>
-            <Textarea
-              id="message-composer"
-              name="message-composer"
-              autoGrow
-              rows={1}
-              value={value}
-              maxLength={MAX_MESSAGE_LEN}
-              onChange={(event) => onChange(event.target.value)}
-              onPaste={(event) => {
-                // Ein eingefügtes Bild (Bildschirmfoto) wird zum Anhang.
-                const files = Array.from(event.clipboardData.files);
-                if (attachments && files.length > 0) {
-                  event.preventDefault();
-                  addFiles(files);
-                }
-              }}
-              onKeyDown={(event) => {
-                // Ignore the Enter that confirms an IME composition candidate
-                // (accented letters, mobile autocomplete): nativeEvent.isComposing is
-                // true mid-composition, and sending there would fire off a
-                // half-composed message instead of accepting the candidate.
-                if (
-                  event.key === "Enter" &&
-                  !event.shiftKey &&
-                  !event.nativeEvent.isComposing
-                ) {
-                  event.preventDefault();
-                  if (!disabled) send();
-                }
-              }}
-              disabled={inputLocked}
-              placeholder={placeholder}
-              // Der Rahmen trägt Linie, Schatten und Fokus; das Feld selbst
-              // bleibt ohne. 16 px Schrift per Finger: iOS zoomt sonst hinein.
-              // Der Platzhalter bleibt einzeilig, sonst wächst das leere Feld
-              // am Handy auf zwei Zeilen.
-              className={cn(
-                "min-h-8 bg-transparent px-2 py-1.5 leading-5 shadow-none ring-0 placeholder:truncate focus-visible:ring-0 disabled:bg-transparent pointer-coarse:min-h-11 pointer-coarse:py-3 pointer-coarse:text-base",
-                parent && "text-base",
-              )}
-            />
-          </div>
-          <Button
-            type="button"
-            variant="primary"
-            size="icon"
-            onClick={send}
-            disabled={disabled}
-            aria-label={sending ? sendingLabel : sendLabel}
-            aria-busy={sending}
-            tooltip={sendLabel}
-            className="shrink-0"
-          >
-            {sending ? (
-              <SpinnerIcon className="h-5 w-5" />
-            ) : (
-              <PaperPlaneRightIcon
-                size={18}
-                weight="fill"
-                className="translate-x-px"
-                aria-hidden="true"
+          <div className="flex items-end gap-0.5 p-1 pointer-coarse:p-0.5">
+            {attachments ? (
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  multiple
+                  accept={MESSAGE_ATTACHMENT_ACCEPT}
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-label={labels.attach}
+                  onChange={(event) => {
+                    addFiles(Array.from(event.target.files ?? []));
+                    // Dieselbe Datei lässt sich danach erneut wählen.
+                    event.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost_round"
+                  size="icon"
+                  onClick={() => fileInput.current?.click()}
+                  disabled={inputLocked || atLimit}
+                  aria-label={labels.attach}
+                  tooltip={atLimit ? labels.tooMany : labels.attachHint}
+                  className="shrink-0"
+                >
+                  <Paperclip className="h-5 w-5" aria-hidden="true" />
+                </Button>
+              </>
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <label htmlFor="message-composer" className="sr-only">
+                {fieldLabel}
+              </label>
+              <Textarea
+                id="message-composer"
+                name="message-composer"
+                autoGrow
+                rows={1}
+                value={value}
+                maxLength={MAX_MESSAGE_LEN}
+                onChange={(event) => onChange(event.target.value)}
+                onPaste={(event) => {
+                  // Ein eingefügtes Bild (Bildschirmfoto) wird zum Anhang.
+                  const files = Array.from(event.clipboardData.files);
+                  if (attachments && files.length > 0) {
+                    event.preventDefault();
+                    addFiles(files);
+                  }
+                }}
+                onKeyDown={(event) => {
+                  // Ignore the Enter that confirms an IME composition candidate
+                  // (accented letters, mobile autocomplete): nativeEvent.isComposing is
+                  // true mid-composition, and sending there would fire off a
+                  // half-composed message instead of accepting the candidate.
+                  if (
+                    event.key === "Enter" &&
+                    !event.shiftKey &&
+                    !event.nativeEvent.isComposing
+                  ) {
+                    event.preventDefault();
+                    if (!disabled) send();
+                  }
+                }}
+                disabled={inputLocked}
+                placeholder={placeholder}
+                // Der Rahmen trägt Linie, Schatten und Fokus; das Feld selbst
+                // bleibt ohne. 16 px Schrift per Finger: iOS zoomt sonst hinein.
+                // Der Platzhalter bleibt einzeilig, sonst wächst das leere Feld
+                // am Handy auf zwei Zeilen.
+                className={cn(
+                  "min-h-8 bg-transparent py-1.5 leading-5 shadow-none ring-0 placeholder:truncate focus-visible:ring-0 disabled:bg-transparent pointer-coarse:min-h-11 pointer-coarse:py-3 pointer-coarse:text-base",
+                  attachments ? "px-2" : "px-3",
+                  parent && "text-base",
+                )}
               />
-            )}
-          </Button>
-        </div>
-        {dragging ? (
-          <div
-            aria-hidden="true"
-            className="border-moto-green bg-moto-green-soft text-moto-green-strong pointer-events-none absolute inset-0 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-sm font-medium"
-          >
-            <Paperclip className="h-4 w-4" aria-hidden="true" />
-            {labels.drop}
+            </div>
           </div>
-        ) : null}
+          {dragging ? (
+            <div
+              aria-hidden="true"
+              className="border-moto-green bg-moto-green-soft text-moto-green-strong pointer-events-none absolute inset-0 flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-sm font-medium"
+            >
+              <Paperclip className="h-4 w-4" aria-hidden="true" />
+              {labels.drop}
+            </div>
+          ) : null}
+        </div>
+        {/* Senden steht neben dem Feld, unten bündig mit der letzten Zeile,
+            als eigener runder Knopf ohne Rahmen und Schatten. */}
+        <Button
+          type="button"
+          variant="send"
+          size="icon"
+          onClick={send}
+          disabled={disabled}
+          aria-label={sending ? sendingLabel : sendLabel}
+          aria-busy={sending}
+          tooltip={sendLabel}
+          className="shrink-0"
+        >
+          {sending ? (
+            <SpinnerIcon className="h-5 w-5" />
+          ) : (
+            <PaperPlaneRightIcon
+              size={18}
+              weight="fill"
+              className="translate-x-px"
+              aria-hidden="true"
+            />
+          )}
+        </Button>
       </div>
+      <AttachmentViewer
+        items={viewer?.items ?? []}
+        index={viewer ? viewer.index : null}
+        onIndexChange={(index) =>
+          setViewer((open) => (open ? { ...open, index } : open))
+        }
+        onClose={closeViewer}
+        labels={labels.viewer}
+      />
       {value.length >= COUNTER_VISIBLE_FROM ? (
         <span
           className={`self-end ${parent ? "text-[15px]" : "text-xs"} ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}

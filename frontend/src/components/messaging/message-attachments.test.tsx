@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { uploadMessageAttachment } from "~/lib/message-attachments";
 import type { MessageAttachment } from "~/lib/message-attachments";
+import { AttachmentViewer } from "~/components/ui/attachment-viewer";
 import { ChatBubble } from "./chat-bubble";
 import { MessageComposer } from "./message-composer";
 
@@ -122,6 +123,73 @@ describe("Anhänge im Eingabefeld (#6685)", () => {
     expect(screen.getByRole("button", { name: "Senden" })).toBeDisabled();
   });
 
+  it("öffnet einen Anhang über seine Kachel, ohne ihn zu entfernen", async () => {
+    const user = userEvent.setup();
+    upload.mockResolvedValue(PHOTO);
+    const onOpenAttachment = vi.fn();
+    render(
+      <MessageComposer
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        sending={false}
+        attachments={{
+          uploadUrl: "/api/messages/attachments",
+          onOpenAttachment,
+        }}
+      />,
+    );
+    await user.upload(
+      screen.getByLabelText("Foto oder Datei anhängen", { selector: "input" }),
+      new File(["x"], "ausflug.png", { type: "image/png" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Senden" })).toBeEnabled(),
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Anhang öffnen: ausflug.png" }),
+    );
+    expect(onOpenAttachment).toHaveBeenCalledTimes(1);
+    expect(onOpenAttachment).toHaveBeenCalledWith({
+      file: expect.objectContaining({ name: "ausflug.png" }),
+      previewUrl: "blob:preview",
+      attachment: PHOTO,
+    });
+    // Das Kreuz bleibt ein eigener Knopf: Öffnen nimmt nichts heraus.
+    expect(
+      screen.getByRole("button", { name: "Anhang entfernen: ausflug.png" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "ausflug.png" }),
+    ).toBeInTheDocument();
+  });
+
+  it("zeigt einen gewählten Anhang in der Vorschau, bevor er gesendet ist", async () => {
+    const user = userEvent.setup();
+    upload.mockResolvedValue(LIST);
+    render(<Composer onSend={vi.fn()} />);
+    await user.upload(
+      screen.getByLabelText("Foto oder Datei anhängen", { selector: "input" }),
+      new File(["x"], "bastelliste.pdf", { type: "application/pdf" }),
+    );
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Anhang öffnen: bastelliste.pdf",
+      }),
+    );
+    const viewer = screen.getByRole("dialog", { name: "bastelliste.pdf" });
+    await user.click(
+      within(viewer).getAllByRole("button", { name: "Schließen" })[0]!,
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    // Die Adresse aus dem Gerät ist wieder freigegeben, der Anhang bleibt.
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview");
+    expect(screen.getByText("bastelliste.pdf")).toBeInTheDocument();
+  });
+
   it("sagt, warum eine Datei nicht angehängt wird", async () => {
     const user = userEvent.setup({ applyAccept: false });
     render(<Composer onSend={vi.fn()} />);
@@ -160,6 +228,123 @@ describe("Anhänge in der Sprechblase (#6685)", () => {
     });
     expect(download).toHaveAttribute("href", "/files/12");
     expect(screen.getByText("PDF · 300 KB")).toBeInTheDocument();
+    // Der Name öffnet die Ansicht, der Pfeil speichert sofort.
+    expect(
+      screen.getByRole("button", { name: "Datei öffnen: bastelliste.pdf" }),
+    ).toHaveTextContent("bastelliste.pdf");
+  });
+
+  it("zeigt ein PDF in der Ansicht und bietet es zum Speichern an", async () => {
+    const user = userEvent.setup();
+    URL.createObjectURL = vi.fn(() => "blob:pdf");
+    URL.revokeObjectURL = vi.fn();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(new Blob(["%PDF-1.7"]), {
+        status: 200,
+        headers: { "Content-Type": "application/pdf" },
+      }),
+    );
+    render(
+      <ChatBubble
+        body=""
+        own={false}
+        senderName="OGS"
+        createdAt="2026-08-16T06:50:00Z"
+        attachments={[PHOTO, LIST]}
+        attachmentUrl={url}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Datei öffnen: bastelliste.pdf" }),
+    );
+    const viewer = screen.getByRole("dialog", { name: "bastelliste.pdf" });
+    // Fotos und Dateien einer Nachricht blättern in einer Ansicht.
+    expect(within(viewer).getByText("2 von 2")).toBeInTheDocument();
+    expect(await within(viewer).findByTitle("bastelliste.pdf")).toHaveAttribute(
+      "src",
+      "blob:pdf#view=FitH&navpanes=0",
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/files/12?inline=1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(
+      within(viewer).getByRole("link", { name: "In neuem Tab öffnen" }),
+    ).toHaveAttribute("href", "blob:pdf");
+    expect(
+      within(viewer).getByRole("link", { name: "Herunterladen" }),
+    ).toHaveAttribute("href", "/files/12");
+    expect(
+      within(viewer).getByRole("link", {
+        name: "Herunterladen: bastelliste.pdf",
+      }),
+    ).toHaveAttribute("download", "bastelliste.pdf");
+    fetchSpy.mockRestore();
+  });
+
+  it("bietet eine Word-Datei in der Ansicht zum Herunterladen an", async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(
+      <ChatBubble
+        body=""
+        own={false}
+        senderName="OGS"
+        createdAt="2026-08-16T06:50:00Z"
+        attachments={[
+          {
+            id: "14",
+            filename: "elternbrief.docx",
+            size_bytes: 24 * 1024,
+            content_type:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          },
+        ]}
+        attachmentUrl={url}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Datei öffnen: elternbrief.docx" }),
+    );
+    const viewer = screen.getByRole("dialog", { name: "elternbrief.docx" });
+    expect(
+      within(viewer).getByText(
+        "Diese Datei lässt sich hier nicht anzeigen. Laden Sie sie herunter, um sie zu öffnen.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(viewer).getByText("Word · 24 KB")).toBeInTheDocument();
+    const save = within(viewer).getByRole("link", { name: "Herunterladen" });
+    expect(save).toHaveAttribute("href", "/files/14");
+    expect(save).toHaveAttribute("download", "elternbrief.docx");
+    expect(within(viewer).queryByTitle("elternbrief.docx")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("zeigt eine Datei vom Gerät und speichert sie ohne eigene Adresse", () => {
+    render(
+      <AttachmentViewer
+        items={[
+          {
+            src: "blob:entwurf",
+            name: "entwurf.pdf",
+            contentType: "application/pdf",
+            sizeBytes: 1024,
+          },
+        ]}
+        index={0}
+        onIndexChange={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const viewer = screen.getByRole("dialog", { name: "entwurf.pdf" });
+    expect(within(viewer).getByTitle("entwurf.pdf")).toHaveAttribute(
+      "src",
+      "blob:entwurf#view=FitH&navpanes=0",
+    );
+    expect(
+      within(viewer).getByRole("link", { name: "Herunterladen: entwurf.pdf" }),
+    ).toHaveAttribute("href", "blob:entwurf");
   });
 
   it("öffnet ein Foto groß und schließt es wieder", async () => {
@@ -179,8 +364,11 @@ describe("Anhänge in der Sprechblase (#6685)", () => {
     );
     const viewer = screen.getByRole("dialog", { name: "ausflug.png" });
     expect(within(viewer).getByText("1 von 2")).toBeInTheDocument();
+    expect(
+      within(viewer).getByRole("link", { name: "Herunterladen: ausflug.png" }),
+    ).toHaveAttribute("href", "/files/11");
     await user.click(
-      within(viewer).getByRole("button", { name: "Nächstes Bild" }),
+      within(viewer).getByRole("button", { name: "Nächster Anhang" }),
     );
     expect(
       screen.getByRole("dialog", { name: "drachen.png" }),

@@ -9,11 +9,15 @@
   "wrongType": "“{filename}” cannot be attached. Photos, PDF, Word, Excel and PowerPoint are allowed.",
   "fileObject": "the file",
   "openImage": "Open picture: {filename}",
+  "openFile": "Open file: {filename}",
   "downloadFile": "Download: {filename}",
   "moreImages": "{count, plural, one {# more picture} other {# more pictures}}",
   "close": "Close",
-  "previous": "Previous picture",
-  "next": "Next picture",
+  "previous": "Previous attachment",
+  "next": "Next attachment",
   "download": "Download",
+  "openInNewTab": "Open in new tab",
+  "notViewable": "This file cannot be shown here. Download it to open it.",
+  "notViewableOnDevice": "This file cannot be shown here on this device. Open it in a new tab or download it.",
   "position": "{current} of {total}"
 }

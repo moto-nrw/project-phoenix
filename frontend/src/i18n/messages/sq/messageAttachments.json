@@ -9,11 +9,15 @@
   "wrongType": "„{filename}“ nuk mund të bashkëngjitet. Lejohen foto, PDF, Word, Excel dhe PowerPoint.",
   "fileObject": "skedari",
   "openImage": "Hap foton: {filename}",
+  "openFile": "Hap skedarin: {filename}",
   "downloadFile": "Shkarko: {filename}",
   "moreImages": "{count, plural, one {# foto tjetër} other {# foto të tjera}}",
   "close": "Mbyll",
-  "previous": "Fotoja e mëparshme",
-  "next": "Fotoja tjetër",
+  "previous": "Bashkëngjitja e mëparshme",
+  "next": "Bashkëngjitja tjetër",
   "download": "Shkarko",
+  "openInNewTab": "Hape në skedë të re",
+  "notViewable": "Ky skedar nuk mund të shfaqet këtu. Shkarkojeni për ta hapur.",
+  "notViewableOnDevice": "Në këtë pajisje skedari nuk mund të shfaqet këtu. Hapeni në një skedë të re ose shkarkojeni.",
   "position": "{current} nga {total}"
 }

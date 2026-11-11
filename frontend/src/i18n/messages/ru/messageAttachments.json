@@ -9,11 +9,15 @@
   "wrongType": "«{filename}» нельзя прикрепить. Разрешены фото, PDF, Word, Excel и PowerPoint.",
   "fileObject": "файл",
   "openImage": "Открыть фото: {filename}",
+  "openFile": "Открыть файл: {filename}",
   "downloadFile": "Скачать: {filename}",
   "moreImages": "{count, plural, one {ещё # фото} few {ещё # фото} many {ещё # фото} other {ещё # фото}}",
   "close": "Закрыть",
-  "previous": "Предыдущее фото",
-  "next": "Следующее фото",
+  "previous": "Предыдущее вложение",
+  "next": "Следующее вложение",
   "download": "Скачать",
+  "openInNewTab": "Открыть в новой вкладке",
+  "notViewable": "Этот файл нельзя показать здесь. Скачайте его, чтобы открыть.",
+  "notViewableOnDevice": "На этом устройстве файл нельзя показать здесь. Откройте его в новой вкладке или скачайте.",
   "position": "{current} из {total}"
 }

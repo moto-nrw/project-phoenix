@@ -3,14 +3,18 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 
+import { fetchMessageAttachmentFile } from "~/lib/message-attachments";
 import { cn } from "~/lib/utils";
+import {
+  AttachmentViewer,
+  fileKindLabel,
+  formatAttachmentSize,
+  isViewerImage,
+  type AttachmentViewerLabels,
+  type ViewerItem,
+} from "./attachment-viewer";
 import { buttonClassName } from "./button";
 import { FileTypeIcon } from "./file-type-icon";
-import {
-  ImageLightbox,
-  type ImageLightboxLabels,
-  type LightboxImage,
-} from "./image-lightbox";
 
 /** One file of a message, in the shape every chat delivers. */
 interface MessageAttachmentItem {
@@ -25,42 +29,22 @@ interface MessageAttachmentItem {
 export interface MessageAttachmentLabels {
   /** "Bild öffnen: {name}" */
   readonly openImage: (filename: string) => string;
+  /** "Datei öffnen: {name}" */
+  readonly openFile: (filename: string) => string;
   /** "Herunterladen: {name}" */
   readonly downloadFile: (filename: string) => string;
   /** "+3 weitere Bilder" */
   readonly moreImages: (count: number) => string;
-  readonly lightbox?: ImageLightboxLabels;
+  readonly lightbox?: AttachmentViewerLabels;
 }
 
 const GERMAN_LABELS: MessageAttachmentLabels = {
   openImage: (filename) => `Bild öffnen: ${filename}`,
+  openFile: (filename) => `Datei öffnen: ${filename}`,
   downloadFile: (filename) => `Herunterladen: ${filename}`,
   moreImages: (count) =>
     count === 1 ? "1 weiteres Bild" : `${count} weitere Bilder`,
 };
-
-function isImage(contentType: string): boolean {
-  return contentType === "image/png" || contentType === "image/jpeg";
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
-}
-
-const KIND_LABELS: ReadonlyArray<readonly [string, string]> = [
-  ["application/pdf", "PDF"],
-  ["wordprocessingml", "Word"],
-  ["spreadsheetml", "Excel"],
-  ["presentationml", "PowerPoint"],
-];
-
-function kindLabel(contentType: string): string | null {
-  return (
-    KIND_LABELS.find(([needle]) => contentType.includes(needle))?.[1] ?? null
-  );
-}
 
 /** At most four tiles; the fourth names the pictures it stands for. */
 const MAX_TILES = 4;
@@ -73,7 +57,8 @@ function singleAspect(item: MessageAttachmentItem): number {
 
 /**
  * The photos and files of one chat message (#6685): pictures as a tight
- * grid that opens the viewer, every other file as a row that downloads it.
+ * grid, every other file as a row; a tap on either opens the viewer, the
+ * row's arrow saves the file at once.
  * Both portals and all three chats render a message's files through this,
  * so a photo looks the same to the person who sent it and the one who got it.
  */
@@ -93,11 +78,14 @@ export function MessageAttachments({
   const [viewing, setViewing] = useState<number | null>(null);
   if (attachments.length === 0) return null;
 
-  const images = attachments.filter((item) => isImage(item.content_type));
-  const files = attachments.filter((item) => !isImage(item.content_type));
-  const lightboxImages: LightboxImage[] = images.map((item) => ({
+  const images = attachments.filter((item) => isViewerImage(item.content_type));
+  const files = attachments.filter((item) => !isViewerImage(item.content_type));
+  // The viewer pages in the order the message shows them: pictures, files.
+  const viewerItems: ViewerItem[] = [...images, ...files].map((item) => ({
     src: `${downloadUrl(item.id)}?inline=1`,
     name: item.filename,
+    contentType: item.content_type,
+    sizeBytes: item.size_bytes,
     downloadHref: downloadUrl(item.id),
   }));
   const tiles = images.slice(0, MAX_TILES);
@@ -158,12 +146,12 @@ export function MessageAttachments({
           })}
         </div>
       ) : null}
-      {files.map((item) => {
-        const kind = kindLabel(item.content_type);
+      {files.map((item, position) => {
+        const kind = fileKindLabel(item.content_type);
         return (
           <div
             key={item.id}
-            className="flex w-full max-w-xs items-center gap-3 rounded-lg border border-gray-200 bg-white py-1.5 pr-1.5 pl-3 text-left text-gray-900"
+            className="relative flex w-full max-w-xs items-center gap-3 rounded-lg border border-gray-200 bg-white py-1.5 pr-1.5 pl-3 text-left text-gray-900 transition-colors hover:bg-gray-50"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-100">
               <FileTypeIcon
@@ -172,16 +160,19 @@ export function MessageAttachments({
               />
             </span>
             <span className="min-w-0 flex-1">
-              <a
-                href={downloadUrl(item.id)}
-                download={item.filename}
-                className="block truncate text-sm font-medium outline-none hover:underline focus-visible:underline"
+              {/* The name opens the viewer; its hit area covers the row, the
+                  arrow beside it stays its own target. */}
+              <button
+                type="button"
+                onClick={() => setViewing(images.length + position)}
+                aria-label={labels.openFile(item.filename)}
+                className="block w-full cursor-pointer truncate text-left text-sm font-medium outline-none after:absolute after:inset-0 after:rounded-lg after:content-[''] hover:underline focus-visible:underline focus-visible:after:ring-2 focus-visible:after:ring-gray-900"
               >
                 {item.filename}
-              </a>
+              </button>
               <span className="block text-xs text-gray-500">
                 {kind ? `${kind} · ` : ""}
-                {formatSize(item.size_bytes)}
+                {formatAttachmentSize(item.size_bytes)}
               </span>
             </span>
             <a
@@ -192,7 +183,7 @@ export function MessageAttachments({
               className={buttonClassName({
                 variant: "ghost",
                 size: "icon",
-                className: "shrink-0",
+                className: "relative shrink-0",
               })}
             >
               <Download className="h-4 w-4" aria-hidden="true" />
@@ -200,11 +191,12 @@ export function MessageAttachments({
           </div>
         );
       })}
-      <ImageLightbox
-        images={lightboxImages}
+      <AttachmentViewer
+        items={viewerItems}
         index={viewing}
         onIndexChange={setViewing}
         onClose={() => setViewing(null)}
+        loadFile={fetchMessageAttachmentFile}
         labels={labels.lightbox}
       />
     </div>
