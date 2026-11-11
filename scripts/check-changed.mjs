@@ -34,7 +34,7 @@ import { changedPaths } from './backend-source-ratchets.mjs';
 
 // The paths that start CI's "Backend architecture ratchet" (main.yml, filter
 // backend-architecture). Keep both lists in step.
-const architectureInputs = /^(backend\/(.*\.go|go\.(mod|sum)|architecture\/.*)|scripts\/backend-architecture(\.sh|\/.*))$/;
+const architectureInputs = /^(backend\/(.*\.go|go\.(mod|sum)|(internal\/)?architecture\/.*)|scripts\/backend-architecture(\.sh|\/.*))$/;
 
 export function architectureInputChanged(paths) {
   return paths.some(path => architectureInputs.test(path) && !/^backend\/.*\.md$/.test(path));

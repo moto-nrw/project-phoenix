@@ -253,7 +253,7 @@ test('source input discovery keeps old and new rename paths, deletions, staged a
 
 test('the architecture check follows the paths that start CI\'s architecture ratchet', () => {
   for (const path of ['backend/api/parent_meal_message_write_rig_test.go', 'backend/modules/example/internal/application/new.go',
-    'backend/go.mod', 'backend/go.sum', 'backend/architecture/policy/new-owner.json', 'backend/architecture/legacy.jsonl',
+    'backend/go.mod', 'backend/go.sum', 'backend/architecture/policy/new-owner.json', 'backend/architecture/legacy.jsonl', 'backend/internal/architecture/testdata/policy.json',
     'scripts/backend-architecture.sh', 'scripts/backend-architecture/main.go']) {
     assert.equal(architectureInputChanged([path]), true, path);
   }
