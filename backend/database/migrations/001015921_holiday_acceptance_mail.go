@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayAcceptanceMailVersion = "1.15.920"
+const holidayAcceptanceMailVersion = "1.15.921"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

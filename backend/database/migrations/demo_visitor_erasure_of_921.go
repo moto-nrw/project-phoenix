@@ -8,7 +8,7 @@ import (
 )
 
 // The statement of the erasure of 1.15.918 that deletes the mails naming a
-// registration; 1.15.920 adds the acceptance mail (#6672).
+// registration; 1.15.921 adds the acceptance mail (#6672).
 const (
 	holidayAcceptanceErasureBefore = `AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_closure_notice')`
 	holidayAcceptanceErasureAfter  = `AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_closure_notice', 'holiday_registration_accepted')`
