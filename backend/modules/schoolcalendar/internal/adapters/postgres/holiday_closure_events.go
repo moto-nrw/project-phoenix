@@ -382,12 +382,16 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Conte
 		}
 		return schoolcalendar.HolidayClosureNotice{}, fmt.Errorf("school calendar postgres: lock the holiday closure proposal: %w", err)
 	}
-	if actor.Channel == schoolcalendar.HolidayClosureChannelTraeger && row.OrganizationID != actor.OrganizationID {
+	if !holidayClosureActorMatchesOrganization(actor, row.OrganizationID) {
 		return schoolcalendar.HolidayClosureNotice{}, schoolcalendar.ErrHolidayClosureNoticeNotFound
 	}
 	row, err = renewHolidayClosureProposal(ctx, db, schoolID, revision, row)
 	if err != nil {
 		return schoolcalendar.HolidayClosureNotice{}, err
+	}
+	// The replacement is stamped with the school's current Träger.
+	if !holidayClosureActorMatchesOrganization(actor, row.OrganizationID) {
+		return schoolcalendar.HolidayClosureNotice{}, schoolcalendar.ErrHolidayClosureNoticeNotFound
 	}
 	proposalID = row.ProposalID
 	if err := confirmOrRetry(ctx, db, schoolID, proposalID, revision, actor, row); err != nil {
@@ -401,6 +405,11 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Conte
 		return schoolcalendar.HolidayClosureNotice{}, fmt.Errorf("school calendar postgres: read the confirmed proposal: %w", err)
 	}
 	return confirmed.notice(), nil
+}
+
+// holidayClosureActorMatchesOrganization applies the Büro's organization guard.
+func holidayClosureActorMatchesOrganization(actor schoolcalendar.HolidayClosureActor, organizationID int64) bool {
+	return actor.Channel != schoolcalendar.HolidayClosureChannelTraeger || actor.OrganizationID == organizationID
 }
 
 // renewHolidayClosureProposal replaces only a command that prepared no mail.

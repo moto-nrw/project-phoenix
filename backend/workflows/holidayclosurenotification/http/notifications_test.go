@@ -501,6 +501,20 @@ func TestConfirmedNoticeRequiresTheSameCalendarRevision(t *testing.T) {
 	}
 	require.Equal(t, "suggested", renewed.Status)
 	assert.True(t, renewed.Changed)
+	// Model a membership change between the Büro's check and the school unit.
+	other := testpkg.CreateTestOrganization(t, w.db, &testpkg.Organization{
+		Name: "Neuer Träger", Slug: fmt.Sprintf("neuer-traeger-%d", w.school), Active: true,
+	})
+	_, err = w.db.ExecContext(context.Background(), `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, other.ID, w.school)
+	require.NoError(t, err)
+	err = tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+		_, err := proposals.ConfirmHolidayClosureNotice(ctx, renewed.ID, renewed.Revision,
+			schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelTraeger, OrganizationID: w.organization, ImpactToken: renewed.Token})
+		return err
+	})
+	require.ErrorIs(t, err, schoolcalendar.ErrHolidayClosureNoticeNotFound, "the old Büro must not confirm a replacement stamped for the new Träger")
+	_, err = w.db.ExecContext(context.Background(), `UPDATE platform.schools SET organization_id = ? WHERE id = ?`, w.organization, w.school)
+	require.NoError(t, err)
 	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, renewed.ID, renewed.Revision, renewed.Token)
 	require.NoError(t, err)
 	require.Len(t, w.mails(t), 2, "renewed confirmation can prepare the current calendar")
