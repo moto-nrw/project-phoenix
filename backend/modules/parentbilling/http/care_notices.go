@@ -44,6 +44,7 @@ func (rs *CareNoticeResource) Router(protectedTraegerRoutes func(chi.Router, fun
 		billing.Post("/", rs.start)
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/release", rs.release)
+		billing.Post("/{id}/discard", rs.discard)
 		billing.Get("/{id}/notices/{contractID}/letter", rs.letter)
 		rs.mountLetters(billing)
 	})
@@ -129,6 +130,21 @@ func (rs *CareNoticeResource) release(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, detail, "Fee notice run released successfully")
+}
+
+// discard discards an open run that has nothing to issue (#6626).
+func (rs *CareNoticeResource) discard(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	detail, err := rs.notices.DiscardCareNoticeRun(r.Context(), reviewer, runID)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderNoticeError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Fee notice run discarded successfully")
 }
 
 func (rs *CareNoticeResource) letter(w http.ResponseWriter, r *http.Request) {

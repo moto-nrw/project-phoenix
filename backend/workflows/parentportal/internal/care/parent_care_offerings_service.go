@@ -263,7 +263,7 @@ func (s *Service) CreateOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, excusedrequests.ErrParentRequestReasonRequired
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionRequestSubmit), func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -326,7 +326,7 @@ func (s *Service) EditOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, excusedrequests.ErrParentRequestReasonRequired
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionRequestSubmit), func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err

@@ -137,6 +137,8 @@ const CodeEnrollmentPhaseSchoolClassesInvalid = "enrollment.phase_school_classes
 const CodeEnrollmentPhaseServicePeriodInvalid = "enrollment.phase_service_period_invalid"
 const CodeEnrollmentPhaseWindowInvalid = "enrollment.phase_window_invalid"
 const CodeEnrollmentPickupTimeNotAllowed = "enrollment.pickup_time_not_allowed"
+const CodeEnrollmentRenewalTermsChanged = "enrollment.renewal_terms_changed"
+const CodeEnrollmentRenewalTermsRequired = "enrollment.renewal_terms_required"
 const CodeEnrollmentRequestDuplicate = "enrollment.request_duplicate"
 const CodeEnrollmentRequestNotFound = "enrollment.request_not_found"
 const CodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
@@ -302,6 +304,8 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentPhaseServicePeriodInvalid, "input"},
 	{CodeEnrollmentPhaseWindowInvalid, "input"},
 	{CodeEnrollmentPickupTimeNotAllowed, "input"},
+	{CodeEnrollmentRenewalTermsChanged, "business_rejection"},
+	{CodeEnrollmentRenewalTermsRequired, "input"},
 	{CodeEnrollmentRequestDuplicate, "business_rejection"},
 	{CodeEnrollmentRequestNotFound, "business_rejection"},
 	{CodeEnrollmentRequiredCareOfferingMissing, "input"},

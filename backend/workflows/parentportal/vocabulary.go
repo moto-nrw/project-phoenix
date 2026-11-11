@@ -91,6 +91,8 @@ type (
 	HolidayWishClaim                = care.HolidayWishClaim
 	CreateGuardianContactInput      = care.CreateGuardianContactInput
 	GuardianAccess                  = care.GuardianAccess
+	SchoolMembershipLock            = care.SchoolMembershipLock
+	InvitationAccountLock           = care.InvitationAccountLock
 	GuardianAccessRevocation        = care.GuardianAccessRevocation
 	GuardianContactInput            = care.GuardianContactInput
 	GuardianInvitationRecord        = care.GuardianInvitationRecord

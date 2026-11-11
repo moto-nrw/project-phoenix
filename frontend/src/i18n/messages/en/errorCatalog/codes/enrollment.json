@@ -51,6 +51,8 @@
   "companion_note_required": "Please state who the child goes home with.",
   "complete_withdrawal_confirmation_required": "{object} cannot be withdrawn yet. Please confirm with {confirmation}.",
   "consent_required": "Please confirm all required consents.",
+  "renewal_terms_required": "Please agree to the terms for the new period.",
+  "renewal_terms_changed": "The terms have just changed. Please read them again and then agree.",
   "correction_reason_required": "{object} could not be saved. Please check your entries.",
   "correction_school_class_mismatch": "{object} could not be saved. Please check your entries.",
   "day_selection_not_allowed": "The days for this option are fixed. You cannot choose days.",

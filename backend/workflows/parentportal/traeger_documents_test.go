@@ -29,7 +29,9 @@ func sharedDocumentInbox(t *testing.T) (*parentService.Portal, *bun.DB) {
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
 		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{},
 		ChildRepo: repos.ParentChildReads(), PersonRepo: owners.NewParentPersonReads(people.Person),

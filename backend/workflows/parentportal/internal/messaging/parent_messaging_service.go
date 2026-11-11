@@ -236,7 +236,8 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	// Marking read writes: the child check and the school's part share one
-	// write unit (ADR 0161, #5862).
+	// write unit (ADR 0161, #5862). The only write is the reader's own read
+	// cursor, so it takes no child write guard (#6529).
 	var view *MessageThreadView
 	txErr := s.Children.WithPermittedChildForWrite(ctx, accountID, studentID, care.GuardianPermissionPortalAccess, func(child *Child) error {
 		view = childConversationView(child, studentID, normalized)
@@ -280,7 +281,7 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 			})
 		}
 		return nil
-	})
+	}, care.ReadReceiptOnly)
 	if txErr != nil {
 		return nil, childConversationError(view, txErr)
 	}
@@ -339,7 +340,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		Audience:     audience,
 		GuardianName: senderName,
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Children.WithChildWrite(ctx, accountID, studentID, child, care.ChildWriteAccess{Permissions: []string{care.GuardianPermissionNotesWrite}}, func(txCtx context.Context) error {
 		replayed, err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view)
 		if err != nil {
 			return err

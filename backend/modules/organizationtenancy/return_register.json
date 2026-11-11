@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "793809e71611f6f0262d5b19822c140fb7e9d20b4758750d4fb713c09ca25082",
+  "catalogSHA256": "4827d5cb3580a52208c4db8378b864259d83cb04819d53e100741828eb437c27",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -12180,6 +12180,229 @@
       ]
     },
     {
+      "name": "enrollment.holiday_allocation_criteria",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "question",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "scope",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "type": "smallint",
+          "udt": "int2",
+          "nullable": false
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "updated_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.holiday_allocation_decisions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "holiday_period_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "holiday_registration_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "holiday_registration_child_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "holiday_period_week_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "week_starts_on",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "week_ends_on",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "placement",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "proposal",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "rank",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "criteria_met",
+          "type": "ARRAY",
+          "udt": "_text",
+          "nullable": false
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "decided_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "decided_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "holiday_period_id",
+          "targetTable": "enrollment.holiday_registration_children",
+          "targetColumn": "holiday_period_id"
+        },
+        {
+          "column": "holiday_period_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "holiday_period_id"
+        },
+        {
+          "column": "holiday_registration_child_id",
+          "targetTable": "enrollment.holiday_registration_children",
+          "targetColumn": "id"
+        },
+        {
+          "column": "holiday_registration_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.holiday_registration_children",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "organization_id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
       "name": "enrollment.holiday_guest_contacts",
       "columns": [
         {
@@ -12794,6 +13017,12 @@
           "type": "boolean",
           "udt": "bool",
           "nullable": false
+        },
+        {
+          "name": "allocation_mode",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -12898,6 +13127,128 @@
           "column": "organization_id",
           "targetTable": "platform.organizations",
           "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "enrollment.holiday_registration_criteria",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "holiday_period_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "holiday_registration_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "holiday_registration_child_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "criterion_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "stated",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": true
+        },
+        {
+          "name": "checked",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": true
+        },
+        {
+          "name": "checked_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "checked_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "criterion_id",
+          "targetTable": "enrollment.holiday_allocation_criteria",
+          "targetColumn": "id"
+        },
+        {
+          "column": "holiday_period_id",
+          "targetTable": "enrollment.holiday_registration_children",
+          "targetColumn": "holiday_period_id"
+        },
+        {
+          "column": "holiday_period_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "holiday_period_id"
+        },
+        {
+          "column": "holiday_registration_child_id",
+          "targetTable": "enrollment.holiday_registration_children",
+          "targetColumn": "id"
+        },
+        {
+          "column": "holiday_registration_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.holiday_allocation_criteria",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.holiday_registration_children",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "organization_id"
         }
       ],
       "packages": [
@@ -15887,6 +16238,12 @@
           "type": "boolean",
           "udt": "bool",
           "nullable": false
+        },
+        {
+          "name": "resolved_positions",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -16123,6 +16480,138 @@
         {
           "column": "updated_by_account_id",
           "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "parent_billing.revenue_accounts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "scope",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "scope_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "account",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "updated_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "parent_billing.cost_centers",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "scope",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "scope_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "valid_from",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "code",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "created_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "created_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
           "targetColumn": "id"
         }
       ],
@@ -17856,6 +18345,30 @@
           "type": "text",
           "udt": "text",
           "nullable": false
+        },
+        {
+          "name": "revenue_account",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "cost_center",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "cost_center_2",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "accounts_frozen",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -18088,6 +18601,12 @@
           "type": "date",
           "udt": "date",
           "nullable": true
+        },
+        {
+          "name": "discarded_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -18311,6 +18830,12 @@
           "name": "total_cents",
           "type": "bigint",
           "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "discarded_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
           "nullable": true
         }
       ],
@@ -20316,6 +20841,30 @@
           "type": "integer",
           "udt": "int4",
           "nullable": false
+        },
+        {
+          "name": "revenue_account",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "cost_center",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "cost_center_2",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "accounts_frozen",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -20725,6 +21274,30 @@
         },
         {
           "name": "meal_extra",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
+          "name": "revenue_account",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "cost_center",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "cost_center_2",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": true
+        },
+        {
+          "name": "accounts_frozen",
           "type": "boolean",
           "udt": "bool",
           "nullable": false

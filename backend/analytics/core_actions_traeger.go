@@ -125,9 +125,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}: notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/"}:                    notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:        notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/discard"}:        notCaptured,
 	// The Jahresbescheide of the monthly care (#6219): Träger, no school.
 	{http.MethodPost, "/traeger/care-notice-runs/"}:             notCaptured,
 	{http.MethodPost, "/traeger/care-notice-runs/{id}/release"}: notCaptured,
+	{http.MethodPost, "/traeger/care-notice-runs/{id}/discard"}: notCaptured,
 	// The stored originals of the Jahresbescheide and their mail (#6347):
 	// Träger, no school.
 	{http.MethodPost, "/traeger/care-notice-runs/{id}/letters"}:                   notCaptured,

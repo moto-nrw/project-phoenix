@@ -51,6 +51,8 @@
   "companion_note_required": "Вкажіть, з ким дитина йде додому.",
   "complete_withdrawal_confirmation_required": "Поки не можна скасувати запис: {object}. Підтвердьте за допомогою {confirmation}.",
   "consent_required": "Підтвердіть усі обов'язкові згоди.",
+  "renewal_terms_required": "Будь ласка, погодьтеся з умовами на новий період.",
+  "renewal_terms_changed": "Умови щойно змінилися. Будь ласка, прочитайте їх ще раз і погодьтеся.",
   "correction_reason_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "correction_school_class_mismatch": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "day_selection_not_allowed": "Дні цієї програми визначені заздалегідь. Обрати дні не можна.",

@@ -372,6 +372,8 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingRunNotReleased, common.CodeParentBillingBillingRunNotReleased},
 		{capability.ErrBillingRunChanged, common.CodeParentBillingBillingRunChanged},
 		{capability.ErrBillingRunEmpty, common.CodeParentBillingBillingRunEmpty},
+		{capability.ErrBillingRunDiscarded, common.CodeParentBillingBillingRunDiscarded},
+		{capability.ErrBillingRunNotEmpty, common.CodeParentBillingBillingRunNotEmpty},
 		{capability.ErrNumberRangeMissing, common.CodeParentBillingNumberRangeMissing},
 		{capability.ErrLegalRemedyMissing, common.CodeParentBillingLegalRemedyMissing},
 		{capability.ErrInvoiceNumberTaken, common.CodeParentBillingInvoiceNumberTaken},

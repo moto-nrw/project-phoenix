@@ -26,6 +26,21 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0177",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.CreateEnrollmentProfiles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0177",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.EnrollCreatedStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0177",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.SaveEnrollmentCares",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "modules/dataimport/ports/observedGuardianDirectory.AddGuardianPhone",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

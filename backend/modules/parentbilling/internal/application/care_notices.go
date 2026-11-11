@@ -48,6 +48,8 @@ type CareNoticeStore interface {
 	// ErrInvoiceNumberTaken.
 	IssueCareNotices(ctx context.Context, organizationID int64, run parentbilling.CareNoticeRun, numberYear int, first int64, notices []parentbilling.CareNotice) error
 	MarkCareNoticeRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64) (parentbilling.CareNoticeRun, error)
+	// MarkCareNoticeRunDiscarded discards a calculated run (#6626).
+	MarkCareNoticeRunDiscarded(ctx context.Context, organizationID, runID int64) (parentbilling.CareNoticeRun, error)
 	// EffectiveNoticeDues reads the installment of the month of every
 	// effective notice of the Träger.
 	EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareNoticeDue, error)
@@ -247,7 +249,7 @@ func (n *CareFeeNotices) ReleaseCareNoticeRun(ctx context.Context, reviewer pare
 		return parentbilling.CareNoticeRunDetail{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.CareNoticeRunDetail{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.CareNoticeRunDetail{}, closedRunError(run.Status)
 	}
 	preview, err := n.preview(ctx, reviewer.OrganizationID, run)
 	if err != nil {
@@ -408,6 +410,10 @@ func logoMIME(logo []byte) string {
 func (n *CareFeeNotices) detail(ctx context.Context, organizationID int64, run parentbilling.CareNoticeRun) (parentbilling.CareNoticeRunDetail, error) {
 	detail := parentbilling.CareNoticeRunDetail{CareNoticeRun: run, Notices: []parentbilling.CareNotice{},
 		Unpriced: []parentbilling.CareUnpriced{}, Duplicates: []parentbilling.CareDuplicate{}}
+	if run.Status == parentbilling.RunDiscarded {
+		// A discarded run issued nothing and reads no contract again (#6626).
+		return detail, nil
+	}
 	if run.Status == parentbilling.RunReleased {
 		notices, err := n.store.CareNoticeRunNotices(ctx, organizationID, run.ID)
 		if err != nil {

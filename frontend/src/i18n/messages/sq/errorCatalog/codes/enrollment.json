@@ -51,6 +51,8 @@
   "companion_note_required": "Ju lutemi shkruani me kë shkon fëmija në shtëpi.",
   "complete_withdrawal_confirmation_required": "Ende nuk mund të çregjistrohet: {object}. Konfirmoni me {confirmation}.",
   "consent_required": "Ju lutemi konfirmoni të gjitha pëlqimet e detyrueshme.",
+  "renewal_terms_required": "Ju lutemi pranoni kushtet për periudhën e re.",
+  "renewal_terms_changed": "Kushtet sapo u ndryshuan. Ju lutemi lexojini përsëri dhe pastaj pranojini.",
   "correction_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "correction_school_class_mismatch": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "day_selection_not_allowed": "Ditët e kësaj oferte janë të caktuara. Nuk mund të zgjidhni ditë.",

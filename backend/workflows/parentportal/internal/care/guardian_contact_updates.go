@@ -32,7 +32,7 @@ func (s *Service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		return nil, errors.New("parent: guardian records are not configured")
 	}
 	var result *ChildGuardian
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, ChildWriteAccess{Permissions: []string{GuardianPermissionGuardianEdit}, Profiles: []int64{guardianProfileID}}, func(txCtx context.Context) error {
 		updated, err := s.updateGuardianContactInTx(txCtx, child, accountID, studentID, guardianProfileID, input)
 		result = updated
 		return err

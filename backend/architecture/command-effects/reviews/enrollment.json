@@ -7220,33 +7220,43 @@
       "target_owner": "timetable-activities"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CollectGradeLevel",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.CollectGradeLevel",
-      "reason": "Existing read-only CollectGradeLevel binding moved from CollectionSettings to the narrower RolloverSettings port; the target resolver and binding digest are unchanged. No mutation, lock or scope change (ADR 0067).",
+      "reason": "Read-only grade-collection switch through the intake's settings binding, which the rollover now shares (#6456): EnrollmentIntakeValues resolves enrollment.collect_grade_level in the current school transaction. No mutation, lock or scope change (ADR 0067).",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.CollectGradeLevel",
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.GradeLevelMax",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.GradeLevelMax",
-      "reason": "Existing read-only GradeLevelMax binding moved from CollectionSettings to the narrower RolloverSettings port; the target resolver and binding digest are unchanged. No mutation, lock or scope change (ADR 0067).",
+      "reason": "Read-only grade maximum through the intake's settings binding, which the rollover now shares (#6456): EnrollmentIntakeValues resolves enrollment.grade_level_max in the current school transaction. No mutation, lock or scope change (ADR 0067).",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.GradeLevelMax",
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.StatusTokenTTLDays",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.LegalSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.LegalSettings",
+      "reason": "Read-only tenant legal texts and toggles the renewal mail resolves to tell whether the new phase's form asks for required blocks (#6456); EnrollmentIntakeValues.Legal reads them in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.Legal",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.StatusTokenTTLDays",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.StatusTokenTTLDays",
-      "reason": "Read-only TTL lookup through the rollover settings port: ResolveInt reads enrollment.status_token_ttl_days in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "reason": "Read-only TTL lookup through the intake's settings binding, which the rollover now shares (#6456): EnrollmentIntakeValues resolves enrollment.status_token_ttl_days in the current school transaction. No mutation, lock or scope change (ADR 0067).",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.StatusTokenTTLDays",
       "target_owner": "settings-platform"
     },
     {

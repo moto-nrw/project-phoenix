@@ -84,7 +84,7 @@ func (s *Service) GetRequestSharing(
 	var state *RequestSharingState
 	err := s.withOwnedChild(ctx, accountID, studentID, nil, func(txCtx context.Context, _ *Child) error {
 		var readErr error
-		state, readErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, nil, false)
+		state, readErr = s.readRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID)
 		if readErr != nil {
 			return fmt.Errorf("parent: change request sharing: %w", readErr)
 		}
@@ -116,7 +116,7 @@ func (s *Service) SetRequestSharing(
 	var state *RequestSharingState
 	err := s.Children.WithPermittedChildForWrite(ctx, accountID, studentID, permission, nil, func(txCtx context.Context, _ *Child) error {
 		var changeErr error
-		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientGuardianProfileIDs, true)
+		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientGuardianProfileIDs)
 		if changeErr != nil {
 			return fmt.Errorf("parent: change request sharing: %w", changeErr)
 		}
@@ -150,33 +150,61 @@ func (s *Service) requestSharingConfigured() bool {
 		s.StudentGuardianRepo != nil && s.GuardianProfileRepo != nil
 }
 
-func (s *Service) changeRequestSharingInTx(
+// requestSharingFacts is what a request's sharing rests on: the family
+// protection and the recipients of the caller's own request.
+type requestSharingFacts struct {
+	protected   bool
+	protectedAt time.Time
+	recipients  []RequestSharingRecipient
+	accountIDs  []int64
+}
+
+func (s *Service) loadRequestSharingFacts(
 	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
 	profileIDs []int64, write bool,
-) (*RequestSharingState, error) {
+) (requestSharingFacts, error) {
+	var facts requestSharingFacts
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
-		return nil, err
+		return facts, err
 	}
 	if err := s.requireOwnedShareableRequest(ctx, accountID, studentID, requestType, requestID); err != nil {
-		return nil, err
+		return facts, err
 	}
-	protected, protectedAt, err := s.ledger().currentFamilyProtection(ctx, studentID)
+	var err error
+	facts.protected, facts.protectedAt, err = s.ledger().currentFamilyProtection(ctx, studentID)
+	if err != nil {
+		return facts, err
+	}
+	facts.recipients, facts.accountIDs, err = s.shareRecipients(ctx, accountID, studentID, profileIDs, write)
+	return facts, err
+}
+
+// readRequestSharingInTx reads who sees the caller's open request.
+func (s *Service) readRequestSharingInTx(
+	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
+) (*RequestSharingState, error) {
+	facts, err := s.loadRequestSharingFacts(ctx, accountID, studentID, requestType, requestID, nil, false)
 	if err != nil {
 		return nil, err
 	}
-	recipients, accountIDs, err := s.shareRecipients(ctx, accountID, studentID, profileIDs, write)
+	return s.requestSharingState(ctx, studentID, requestType, requestID, facts.protected, facts.protectedAt, facts.recipients)
+}
+
+// changeRequestSharingInTx records who sees the caller's open request.
+func (s *Service) changeRequestSharingInTx(
+	ctx context.Context, accountID, studentID int64, requestType string, requestID int64, profileIDs []int64,
+) (*RequestSharingState, error) {
+	facts, err := s.loadRequestSharingFacts(ctx, accountID, studentID, requestType, requestID, profileIDs, true)
 	if err != nil {
 		return nil, err
 	}
-	if write {
-		if protected && len(accountIDs) > 0 {
-			return nil, ErrRequestSharingForbidden
-		}
-		if err := s.createRequestShare(ctx, accountID, studentID, requestType, requestID, accountIDs); err != nil {
-			return nil, err
-		}
+	if facts.protected && len(facts.accountIDs) > 0 {
+		return nil, ErrRequestSharingForbidden
 	}
-	return s.requestSharingState(ctx, studentID, requestType, requestID, protected, protectedAt, recipients)
+	if err := s.createRequestShare(ctx, accountID, studentID, requestType, requestID, facts.accountIDs); err != nil {
+		return nil, err
+	}
+	return s.requestSharingState(ctx, studentID, requestType, requestID, facts.protected, facts.protectedAt, facts.recipients)
 }
 
 // ShareRequestInTx writes the guardian's recipient choice for a request that

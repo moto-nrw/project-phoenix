@@ -121,7 +121,7 @@ func (s *Service) EditExcusedRequest(
 		return nil, ErrExcusedRequestNotFound
 	}
 	var out *ExcusedAbsenceRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, sickNoteWriteAccess, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err

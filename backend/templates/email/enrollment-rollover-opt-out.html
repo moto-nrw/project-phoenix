@@ -7,13 +7,19 @@
 
     <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
 
-    <p>{{if .SchoolName}}die <strong>{{.SchoolName}}</strong> hat{{else}}wir haben{{end}} Ihre Anmeldung für <strong>{{.PhaseName}}</strong> automatisch übernommen. Sie müssen nichts weiter tun, damit Ihr Kind im neuen Zeitraum dabei ist.</p>
+    <p>{{if .SchoolName}}die <strong>{{.SchoolName}}</strong> hat{{else}}wir haben{{end}} Ihre Anmeldung für <strong>{{.PhaseName}}</strong> automatisch übernommen. Die Betreuung Ihres Kindes läuft im neuen Zeitraum weiter.{{if not .RenewalTermsRequired}} Sie müssen dafür nichts tun.{{end}}</p>
+
+    {{if .RenewalTermsRequired}}
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Bitte bestätigen Sie die Vertragsbedingungen.</strong></p>
+        <p style="margin: 0; font-size: 14px;">Für den Vertrag im neuen Zeitraum brauchen wir Ihre Zustimmung. Die Bedingungen sehen Sie über den Link unten. Die Betreuung läuft auch ohne Ihre Zustimmung weiter.</p>
+    </div>
+    {{end}}
 
     <div class="highlight-box">
-        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Sie haben drei Möglichkeiten:</strong></p>
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Über den Link können Sie außerdem:</strong></p>
         <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
-            <li>Nichts tun – die Betreuung läuft unverändert weiter</li>
-            <li>Betreuungsangebote oder Wochentage über den Link anpassen</li>
+            <li>Betreuungsangebote oder Wochentage anpassen</li>
             <li>Betreuung zum Ende des aktuellen Zeitraums beenden</li>
         </ul>
         <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre übrigen Daten bleiben unverändert und müssen nicht neu eingegeben werden.</p>
@@ -38,7 +44,7 @@
     {{end}}
 
     <div class="button-wrapper" style="text-align: center;">
-        <a class="button" href="{{.StatusURL}}">Status ansehen oder abmelden</a>
+        <a class="button" href="{{.StatusURL}}">{{if .RenewalTermsRequired}}Vertragsbedingungen bestätigen{{else}}Status ansehen oder abmelden{{end}}</a>
     </div>
 
     <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>

@@ -51,6 +51,8 @@
   "companion_note_required": "Укажите, с кем ребёнок идёт домой.",
   "complete_withdrawal_confirmation_required": "Пока нельзя отменить запись: {object}. Подтвердите с помощью {confirmation}.",
   "consent_required": "Подтвердите все обязательные согласия.",
+  "renewal_terms_required": "Пожалуйста, согласитесь с условиями на новый период.",
+  "renewal_terms_changed": "Условия только что изменились. Пожалуйста, прочитайте их ещё раз и согласитесь.",
   "correction_reason_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "correction_school_class_mismatch": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "day_selection_not_allowed": "Дни этой программы заданы заранее. Выбрать дни нельзя.",

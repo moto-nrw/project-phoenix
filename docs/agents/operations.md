@@ -457,6 +457,12 @@ Tests start a postgres-test server for the configured `TEST_DB_PORT`, prepare
 migration-hash templates, and clone a database per package. Package exit drops
 its clone; generation GC cleans interrupted runs. The wrapper also sweeps at
 exit. Worktrees using the same port share a server; different ports are isolated.
+The server keeps its data in a tmpfs inside the Docker VM, like the CI service.
+A stopped server starts empty, and the next test run rebuilds the template
+(about 10 s per migration hash). Clone churn on the VM disk made macOS Docker
+VMs stall every host connection into the VM for up to 2.5 s, so 5-second
+fixture deadlines failed with `i/o timeout`
+([measurement](../research/6491-testdb-host-vm-stalls.md)).
 Test servers belong to the harness, not to a worktree: `wt add` keeps the
 source checkout's `TEST_DB_PORT` and `TEST_DB_DSN`, and `wt remove` neither
 stops a test server nor deletes its volume. A per-port server that no checkout
@@ -492,10 +498,11 @@ A database reset alone cannot fix cluster-global role drift. Only the server
 owner may rebuild a broken disposable cluster, after coordinating with every
 session using that server and confirming they have finished:
 
-1. Stop and remove that server's `postgres-test` container. Remove only its
-   `postgres_test` volume, identified by the exact Compose project. Do not
-   remove application databases, other projects' volumes or an active shared
-   server. The test data and cached templates in that volume will be lost.
+1. Stop and remove that server's `postgres-test` container; its tmpfs data
+   and cached templates go with it. A server created before #6491 still has a
+   `postgres_test` volume: remove only that volume, identified by the exact
+   Compose project. Do not remove application databases, other projects'
+   volumes or an active shared server.
 2. In the owning checkout, use the authoritative root `.env` and remove any
    stale exported DSN override. Start the normal test command, or explicitly
    bootstrap from the repository root:
@@ -514,7 +521,8 @@ session using that server and confirming they have finished:
 
 ### Server cannot find its checkpoint record
 
-A test server whose start logs
+This affects only servers created before #6491 with a `postgres_test` volume;
+a tmpfs server starts from an empty data directory. A test server whose start logs
 `PANIC:  could not locate a valid checkpoint record` lost writes after
 PostgreSQL had already shut down cleanly. The test servers run with
 `fsync=off`, so data stays in the Docker VM's page cache until the guest writes
@@ -541,7 +549,8 @@ Free disk space first, or the fresh server will fail the same way.
 
 On macOS and Linux (including WSL), new managed test servers stop automatically
 after 15 minutes without a protected test process, checked every 30 seconds.
-The next test starts the server again. Containers and volumes are retained.
+The next test starts the server again. Containers are retained; their tmpfs
+data is not.
 Each DB test binary holds a kernel lease before connecting, including the
 `PHX_TEST_TEMPLATE` fast path. Exit, failure, Ctrl-C and SIGKILL release leases;
 paused or CPU-only test processes remain protected. Cleanup and startup share
@@ -557,6 +566,14 @@ receive process leases, so an existing watcher cannot stop a live test.
 Registration and lease errors remain failures rather than bypassing protection.
 CI, remote Docker engines and native Windows are unchanged. Use WSL for
 Windows-local cleanup.
+
+The tmpfs is part of the container's `mem_limit` and is freed when the server
+stops. A server that is still running keeps the configuration it was created
+with. Compose recreates it from the current file at the next start after an
+idle stop; the harness never recreates a running server. Compose keeps the old
+`<project>_postgres_test` volume attached underneath the tmpfs, where it stays
+unused. Its owner may remove container and volume once no session uses the
+server, as in [Rebuild a disposable test cluster](#rebuild-a-disposable-test-cluster).
 
 Inspect registered servers without stopping anything:
 
