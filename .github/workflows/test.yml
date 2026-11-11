@@ -902,8 +902,11 @@ jobs:
           billed=$(psql "${DB_DSN}" -At -c "
             SELECT count(*) FROM platform.demo_school_states d
             WHERE d.name LIKE 'ogs-smoke-%'
-              AND EXISTS (SELECT 1 FROM parent_billing.care_invoices i WHERE i.school_id = d.tenant_id)")
-          echo "demo schools with monthly invoices of their own: ${billed}"
+              AND EXISTS (SELECT 1 FROM parent_billing.care_invoices i WHERE i.school_id = d.tenant_id)
+              AND EXISTS (SELECT 1 FROM parent_billing.export_files f
+                JOIN parent_billing.care_run_schools r ON r.organization_id = f.organization_id AND r.run_id = f.run_id
+                WHERE f.run_kind = 'care' AND f.format = 'datev' AND r.school_id = d.tenant_id)")
+          echo "demo schools with monthly invoices and a DATEV file of their own: ${billed}"
           test "${billed}" = 3
 
       # Demo visitors are erased (#4048): hide the three schools as the

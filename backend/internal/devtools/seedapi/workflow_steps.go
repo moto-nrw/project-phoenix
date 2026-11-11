@@ -292,7 +292,8 @@ func traegerSetupSteps() []Step {
 }
 
 // traegerCareSteps conclude and bill the contracts of the school's accepted
-// applications, so they follow the applications and the booked care.
+// applications, then seed the Träger work that follows the billing in a
+// full seed. They follow the applications and the booked care.
 func traegerCareSteps(seeder *Seeder) []Step {
 	return traegerSerial(seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedMealBillingStep{seeder: seeder}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedParentSEPAMandateStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedBelegRetentionStep{}, seedHolidayClosuresStep{}, seedTestTraegerStep{})
 }

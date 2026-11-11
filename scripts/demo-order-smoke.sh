@@ -35,7 +35,7 @@ echo "demo order $slug: $status after ${SECONDS}s"
 
 # The open school seeds its applications, contracts and monthly invoices
 # afterwards (#6621). Wait for that seed; a failed one queues the school
-# again, so it is preparing until the deadline.
+# again (preparing), which ends the wait as a failure.
 seeded=f
 while [[ "$status" = ready ]] && (( SECONDS < deadline )); do
   seeded=$(sql "SELECT COALESCE(seed_state->>'deferred_seed_pending', 'false') = 'false' FROM platform.demo_school_states WHERE name = '$slug'")
