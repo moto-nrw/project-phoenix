@@ -84,3 +84,12 @@ Entscheidung vom 09.11.2026 zu
 3. **Kein Abgleich ohne Nachweis:** Ohne gültigen Nachweis bleibt der Wunsch
    unbekannt, und das Träger-Büro prüft ihn. ADR 0110 Punkt 4 gilt
    unverändert: Name und Geburtsdatum schalten nichts frei.
+
+## Nachtrag 11.11.2026: Nachweis des Kontos (#6673)
+
+Die Vorbefüllung gibt seit [ADR 0216](0216-ferienanmeldung-kennt-das-elternkonto-und-eltern-ohne-schule-bekommen-ein-konto-am-traeger.md) jedem angemeldeten Konto zusätzlich einen
+versiegelten Nachweis des Kontos mit (`account_proof`, Träger und Zeitraum
+des Links, 24 Stunden), auch einem Konto ohne Kind an den Schulen des
+Trägers. Die öffentliche Anmeldung trägt damit das Konto ein. Punkt 2 der
+Folgen ist insoweit ersetzt: Die Anmeldung kennt das Konto, aber weiterhin
+kein Schulkind.

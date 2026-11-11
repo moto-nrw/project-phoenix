@@ -38,19 +38,25 @@ Feriengasts (ADR 0120) haben nichts davon.
    und trägt das Konto ein. Das Konto kommt nie als Zahl aus der Anfrage.
    Ohne gültigen Nachweis bleibt die Anmeldung ohne Konto.
 3. **Sonst über die bestätigte Adresse.** Bei jeder Anmeldung am
-   Elternportal und beim Einrichten des Kontos übernimmt das Konto die
-   Anmeldungen ohne Konto, deren Elternadresse seiner Adresse gleicht (ohne
-   Groß- und Kleinschreibung). Die Adresse eines Kontos ist bestätigt: Ein
+   Elternportal übernimmt das Konto die Anmeldungen ohne Konto, deren
+   Elternadresse seiner Adresse gleicht (ohne Groß- und Kleinschreibung).
+   Nach dem Einrichten geschieht das bei der ersten Anmeldung: Das
+   Einrichten selbst übernimmt nichts, Identity & Access hängt nicht von
+   Enrollment ab. Die Adresse eines Kontos ist bestätigt: Ein
    Konto entsteht nur über einen Link, der an sie ging. Der Workflow
    Elternportal ruft dafür Enrollments Fähigkeit in einer
    Admin-Transaktion auf; die Abfrage nennt Konto und Adresse im Filter.
 4. **Die Frage am Ende.** Wer das Formular ohne Eltern-Sitzung abschickt,
    beantwortet „Möchten Sie ein Elternkonto anlegen?“. Bei „Ja“ legt
    Enrollment in der Transaktion der Anmeldung eine zweite Mail des Trägers
-   in die Outbox (Art `holiday_parent_account_offer`). Sie trägt den Link
-   zum Einrichten und den Weg für alle, die schon ein Konto haben
-   (anmelden). Antwort und Mail sind für jede Adresse gleich: Das Formular
-   verrät nicht, ob es ein Konto gibt.
+   in die Outbox (Art `holiday_parent_account_offer`). Sie nennt den
+   Träger und trägt keinen Link: Erst wenn Delivery sie sendet, prüft die
+   Wurzel die Adresse nach der Regel der Annahme-Mail (Punkt 11). Hat die
+   Adresse ein Elternkonto, zeigt die Mail nur die Anmeldung in der
+   Eltern-App; sonst „Elternkonto einrichten“ mit einem Link, der beim
+   Senden entsteht, und leise darunter die Anmeldung. Die Mail geht nur an
+   die Person, der die Adresse gehört. Das Formular verrät nichts: Seine
+   Antwort ist für jede Adresse gleich.
 5. **Link ohne Tabelle.** Identity & Access stellt den Schlüssel des Links
    aus und löst ihn ein. Er ist ein signiertes Token mit Adresse, Träger und
    Ablauf nach 30 Tagen, das keine Sitzung ist und nur an den Routen
@@ -99,8 +105,15 @@ Feriengasts (ADR 0120) haben nichts davon.
 10. **Löschfristen.** Die Verknüpfung steht in der Zeile der Anmeldung und
     geht mit ihr: nach der Frist, die die Anmeldung trägt (ADR 0118,
     Nachtrag #6691; Spalte `retention_days`). Das Konto folgt den Regeln
-    für Elternkonten. Der Zugang am Träger geht mit dem Konto oder dem
-    Träger.
+    für Elternkonten: Die stündliche Löschung unbenutzter Konten
+    (`auth.account_is_unused`) hält es, solange etwas es braucht, wie das
+    Elternprofil das Konto eines Schulelternteils hält. Ein Zugang am
+    Träger hält das Konto nur an einem aktiven, nicht gelöschten Träger,
+    und dort nur in den 30 Tagen des Einrichtungslinks oder solange eine
+    Ferienanmeldung dieses Trägers das Konto oder, noch nicht übernommen,
+    seine Adresse nennt. Geht die letzte solche Anmeldung mit ihrer Frist,
+    löscht die nächste Stunde das Konto, wenn nichts anderes es hält. Der
+    Zugang selbst geht mit dem Konto oder dem Träger.
 11. **Annahme-Mail.** Die Annahme-Mail (#6672) bietet allen ohne Konto
     denselben Link an, auch für Anmeldungen vor dieser Entscheidung.
     Umgesetzt wie der Link zur Eltern-App derselben Mail: Die Mail trägt

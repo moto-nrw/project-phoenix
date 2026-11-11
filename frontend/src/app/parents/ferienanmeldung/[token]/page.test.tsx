@@ -43,9 +43,13 @@ vi.mock("~/lib/hooks/use-analytics-school-policy", () => ({
   useAnalyticsSchoolPolicy: () => undefined,
 }));
 
+const familyLoad = vi.hoisted(() => ({
+  current: (): Promise<unknown> => Promise.resolve(null),
+}));
+
 vi.mock("~/lib/holiday-registration-api", () => ({
   fetchHolidayRegistrationOffer: () => Promise.resolve(offer),
-  fetchHolidayRegistrationFamily: () => Promise.resolve(null),
+  fetchHolidayRegistrationFamily: () => familyLoad.current(),
 }));
 
 // The form itself is covered by its own tests; here it only reports its step.
@@ -53,12 +57,15 @@ vi.mock("~/components/holiday-registration/holiday-registration-form", () => ({
   HolidayRegistrationForm: ({
     onStepChange,
     parentAccount,
+    family,
   }: {
     onStepChange?: (step: HolidayRegistrationStep) => void;
     parentAccount?: string;
+    family?: { accountProof: string } | null;
   }) => (
     <div>
       <p>{`Elternkonto: ${parentAccount ?? "keins"}`}</p>
+      <p>{`Nachweis: ${family?.accountProof ?? "keiner"}`}</p>
       {(["form", "summary", "done"] as const).map((step) => (
         <button key={step} type="button" onClick={() => onStepChange?.(step)}>
           {`Schritt ${step}`}
@@ -160,5 +167,23 @@ describe("HolidayRegistrationPage", () => {
     };
     await renderPage();
     expect(screen.getByText("Elternkonto: signed-in")).toBeInTheDocument();
+  });
+
+  // Fallback of #6673: a signed-in parent whose prefill fails gets no account
+  // proof and no account question; the next sign-in claims the registration
+  // by its address.
+  it("keeps the form without proof and without question when the prefill of a signed-in parent fails (#6673)", async () => {
+    session.current = {
+      data: { user: { scope: "parent" } },
+      status: "authenticated",
+    };
+    familyLoad.current = () => Promise.reject(new Error("prefill down"));
+    try {
+      await renderPage();
+      expect(screen.getByText("Elternkonto: signed-in")).toBeInTheDocument();
+      expect(screen.getByText("Nachweis: keiner")).toBeInTheDocument();
+    } finally {
+      familyLoad.current = () => Promise.resolve(null);
+    }
   });
 });

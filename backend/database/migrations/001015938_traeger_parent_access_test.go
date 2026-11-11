@@ -38,8 +38,9 @@ func TestTraegerParentSessionNamesTraegerWithoutSchool(t *testing.T) {
 
 // TestTraegerParentAccessKeepsTheAccount pins the retention of 1.15.938 (ADR
 // 0216 point 10): an account set up for a holiday registration has no school,
-// no profile and no child; its access at the Träger keeps it from the hourly
-// erasure, and the access goes with the account or the Träger.
+// no profile and no child; its access keeps it from the hourly erasure only
+// at an active, undeleted Träger and only for the 30 days of the setup link,
+// and the access goes with the account or the Träger.
 func TestTraegerParentAccessKeepsTheAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -58,7 +59,21 @@ func TestTraegerParentAccessKeepsTheAccount(t *testing.T) {
 
 	_, err := db.ExecContext(ctx, `INSERT INTO auth.traeger_parent_access (account_id, organization_id) VALUES (?, ?)`, account.ID, organization.ID)
 	require.NoError(t, err)
-	assert.False(t, unused(), "the access at the Träger keeps the account")
+	assert.False(t, unused(), "a fresh access at an active Träger keeps the account until its first sign-in")
+
+	exec := func(query string) {
+		t.Helper()
+		_, err := db.ExecContext(ctx, query, organization.ID)
+		require.NoError(t, err)
+	}
+	exec(`UPDATE platform.organizations SET active = FALSE WHERE id = ?`)
+	assert.True(t, unused(), "an access at an inactive Träger keeps nothing")
+	exec(`UPDATE platform.organizations SET active = TRUE, deleted_at = NOW() WHERE id = ?`)
+	assert.True(t, unused(), "an access at a deleted Träger keeps nothing")
+	exec(`UPDATE platform.organizations SET deleted_at = NULL WHERE id = ?`)
+	assert.False(t, unused())
+	exec(`UPDATE auth.traeger_parent_access SET created_at = NOW() - INTERVAL '31 days' WHERE organization_id = ?`)
+	assert.True(t, unused(), "past the 30 days of its setup link the access alone keeps nothing")
 
 	_, err = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, organization.ID)
 	require.NoError(t, err)

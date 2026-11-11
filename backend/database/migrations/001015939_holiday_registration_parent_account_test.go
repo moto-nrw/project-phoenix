@@ -82,3 +82,50 @@ func TestHolidayParentAccountKindsBuildOnTheAcceptanceMail(t *testing.T) {
 		assert.Contains(t, holidayParentAccountOfferTraegerKinds, kind)
 	}
 }
+
+// TestHolidayRegistrationKeepsTheAccountAtItsTraeger pins the lasting
+// retention of 1.15.939 (ADR 0216 point 10): past the 30 days of its setup
+// link an access at a live Träger keeps its account while a holiday
+// registration at that Träger names the account or, not yet claimed, its
+// address; a registration at another Träger or one that went keeps nothing.
+func TestHolidayRegistrationKeepsTheAccountAtItsTraeger(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	newTraeger := func(name string) (int64, int64) {
+		organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+			Name: name, Slug: fmt.Sprintf("traeger-konto-frist-%d", testpkg.UniqueTestTenantID(t)), Active: true,
+		}).ID
+		return organization, testpkg.CreateTestSchoolInOrganization(t, db, organization, name+" OGS")
+	}
+	own, ownSchool := newTraeger("Träger Konto Frist")
+	other, otherSchool := newTraeger("Träger Konto Fremd")
+	account := testpkg.CreateTestAccount(t, db, "holiday-account-retention")
+	testpkg.UnclaimTestAccount(t, db, account.ID)
+	testpkg.OwnTestAccount(t, db, account.ID)
+	unused := func() bool {
+		t.Helper()
+		var result bool
+		require.NoError(t, db.NewRaw(`SELECT auth.account_is_unused(?, ?)`, account.ID, account.Email).Scan(ctx, &result))
+		return result
+	}
+	_, err := db.ExecContext(ctx, `INSERT INTO auth.traeger_parent_access (account_id, organization_id, created_at)
+		VALUES (?, ?, NOW() - INTERVAL '90 days')`, account.ID, own)
+	require.NoError(t, err)
+	require.True(t, unused(), "a long unused access alone keeps nothing")
+
+	foreign := testpkg.CreateTestHolidayRegistration(t, db, other, otherSchool, "Herbstferien", account.Email, "Lia")
+	_, err = db.ExecContext(ctx, `UPDATE enrollment.holiday_registrations SET parent_account_id = ? WHERE id = ?`, account.ID, foreign.RegistrationID)
+	require.NoError(t, err)
+	assert.True(t, unused(), "a registration at another Träger keeps no access at this one")
+
+	unclaimed := testpkg.CreateTestHolidayRegistration(t, db, own, ownSchool, "Winterferien", strings.ToUpper(account.Email), "Ben")
+	assert.False(t, unused(), "a registration of the account's address at the Träger keeps it until the sign-in claims it")
+	_, err = db.ExecContext(ctx, `UPDATE enrollment.holiday_registrations SET parent_account_id = ? WHERE id = ?`, account.ID, unclaimed.RegistrationID)
+	require.NoError(t, err)
+	assert.False(t, unused(), "a registration linked to the account keeps it")
+
+	_, err = db.ExecContext(ctx, `DELETE FROM enrollment.holiday_registrations WHERE id = ?`, unclaimed.RegistrationID)
+	require.NoError(t, err)
+	assert.True(t, unused(), "once the registration went with its retention, the account follows")
+}

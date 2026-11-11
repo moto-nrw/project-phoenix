@@ -65,7 +65,7 @@ func TestPublicUploadsRefuseUnknownLinksBeforeReadingTheBody(t *testing.T) {
 	require.NoError(t, writer.Close())
 
 	enrollment := &Resource{SchoolService: unknownSchool{}, Uploads: unusedUploadService{}, UploadFiles: func(string) (UploadFileStore, error) { return nil, errors.New("unused") }}
-	holiday := NewHolidayRegistrationResource(unknownHolidayLink{}, unusedProofUploads{}, settingsFailureCaptcha{}, nil)
+	holiday := NewHolidayRegistrationResource(unknownHolidayLink{}, unusedProofUploads{}, settingsFailureCaptcha{}, nil, nil)
 	for _, tc := range []struct {
 		name, path, code string
 		router           http.Handler

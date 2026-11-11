@@ -557,3 +557,12 @@ Erklärung. Der Nachtrag vom 03.11.2026 bleibt unverändert; dazu gilt:
 - **Kiosk und Aufsicht.** Der Kiosk (`/api/iot/…`) listet keine
   Betreuungsgruppen, die Aufsicht nur die eigenen Gruppen der Person für die
   Raumzuordnung; beide bleiben unverändert.
+
+## Nachtrag 11.11.2026: Elternkonto am Träger (#6673)
+
+Eltern eines Feriengasts können seit [ADR 0216](0216-ferienanmeldung-kennt-das-elternkonto-und-eltern-ohne-schule-bekommen-ein-konto-am-traeger.md) ein Elternkonto am Träger halten:
+ohne Schule, ohne Elternprofil und ohne Beziehung zu einem Kind. Es zeigt
+ihre Ferienanmeldungen und das Dokumentenpostfach des Trägers. An der
+ausrichtenden OGS hat es keine Rechte: Nachrichten, Abholung und Check-in
+bleiben verschlossen, die Kopie des Feriengasts bleibt ein Kind der Schule
+ohne Elternkonto.

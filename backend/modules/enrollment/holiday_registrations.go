@@ -243,10 +243,10 @@ type HolidayRegistrationReceipt struct {
 	// waits for one (#4699). They name the child by its position in the
 	// form, not by its name.
 	Placements []HolidayReceiptPlacement
-	// ParentAccountSetupURL is the setup link of the offer of a parent
-	// account the registration enqueued (ADR 0216), empty without one. Only
-	// the local seeder ever receives it; every other answer omits it.
-	ParentAccountSetupURL string
+	// ParentAccountOffered says that the registration enqueued the offer of
+	// a parent account (ADR 0216 point 4). The offer carries no link; the
+	// mail issues it when it is sent. No answer of the public route tells.
+	ParentAccountOffered bool
 }
 
 // HolidayRegistrations serves the public holiday registration.

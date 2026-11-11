@@ -9,8 +9,9 @@ import (
 // Parent account at a Träger (ADR 0216 points 5 and 6). A holiday
 // registration without a parent session may mail the parents a link to set
 // up an account. The link's key is a signed token with the address, the
-// Träger and an expiry; it is stored nowhere, is no session and counts only
-// at /auth/holiday-parent-setups/{token}. Redeeming it creates the account
+// Träger and an expiry. It is issued when the mail is sent, never kept in
+// the outbox or anywhere else, is no session and counts only at
+// /auth/holiday-parent-setups/{token}. Redeeming it creates the account
 // with a password when the address has none, and in both cases records the
 // account's parents-portal access at the Träger. Redeeming it again changes
 // nothing: an existing account keeps its password.

@@ -162,3 +162,49 @@ func TestHolidayAcceptanceOffersAParentAccountToEveryoneWithoutOne(t *testing.T)
 	require.NoError(t, err)
 	assert.Empty(t, rendered.Content.(map[string]any)["SetupURL"], "a mail enqueued without its Träger offers no setup")
 }
+
+// TestHolidayParentAccountOfferIsDecidedAtSending pins ADR 0216 point 4: the
+// offer of a parent account is decided when Delivery sends it, by the rule of
+// the acceptance mail. An address with a parent account gets the sign-in
+// only; every other address the setup link issued at sending, never one from
+// the outbox, with the sign-in as a second way.
+func TestHolidayParentAccountOfferIsDecidedAtSending(t *testing.T) {
+	t.Parallel()
+	// IDs of fakes, no database rows.
+	guardianID, traegerParentID, organizationID := int64(61), int64(62), int64(73)
+	accounts := setupAccounts{
+		acceptanceAccounts: &acceptanceAccounts{
+			known:     map[string]int64{"eltern@example.org": guardianID, "traeger@example.org": traegerParentID},
+			guardians: map[int64]bool{guardianID: true},
+		},
+		traegerParents: map[int64]bool{traegerParentID: true},
+	}
+	render := func(recipient string) map[string]any {
+		t.Helper()
+		raw, err := json.Marshal(map[string]any{
+			"recipient_email": recipient, "guardian_name": "Jana Gastfamilie", "traeger_name": "Gemeinde Bissendorf",
+			"period_name": "Herbstferien", "organization_id": organizationID, "setup_url": "https://evil.example.org/ferienkonto/alt",
+		})
+		require.NoError(t, err)
+		renderer := enrollmentCompose.NewMailRenderers(newHolidayAcceptanceAccounts(accounts, "https://eltern.example.org/"), "https://eltern.example.org/").HolidayParentAccountOffer
+		rendered, err := renderer(context.Background(), enrollmentOwner.MailKindHolidayParentAccountOffer, raw)
+		require.NoError(t, err)
+		assert.Equal(t, "holiday-parent-account-offer.html", rendered.Template)
+		return rendered.Content.(map[string]any)
+	}
+
+	for _, recipient := range []string{"eltern@example.org", "traeger@example.org"} {
+		content := render(recipient)
+		assert.Empty(t, content["SetupURL"], "%s has a parent account: the sign-in only", recipient)
+		assert.Equal(t, "https://eltern.example.org/login", content["LoginURL"])
+	}
+	content := render("neu@example.org")
+	assert.Equal(t, "https://eltern.example.org/ferienkonto/setup-73-neu@example.org", content["SetupURL"],
+		"an address without an account gets the link issued at sending, never the one of the outbox")
+	assert.Equal(t, "https://eltern.example.org/login", content["LoginURL"])
+
+	raw, err := json.Marshal(map[string]any{"recipient_email": "neu@example.org", "organization_id": organizationID})
+	require.NoError(t, err)
+	_, err = enrollmentCompose.NewMailRenderers(nil, "").HolidayParentAccountOffer(context.Background(), enrollmentOwner.MailKindHolidayParentAccountOffer, raw)
+	require.Error(t, err, "without the account lookup and the parents portal the offer is not sent")
+}

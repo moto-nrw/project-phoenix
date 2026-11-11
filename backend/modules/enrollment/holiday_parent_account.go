@@ -55,14 +55,16 @@ type HolidayParentAccountLinks interface {
 }
 
 // HolidayParentAccountOfferMail is the payload of the offer mail. It names
-// the parent and the Träger and carries the two links; no child.
+// the parent, the Träger and the period; no child and no link. The setup
+// link is a credential for 30 days, so the outbox never holds it: the
+// renderer decides at sending whether the address has a parent account and
+// issues the setup link only for one without (ADR 0216 point 4).
 type HolidayParentAccountOfferMail struct {
-	Recipient    string `json:"recipient_email"`
-	GuardianName string `json:"guardian_name"`
-	TraegerName  string `json:"traeger_name"`
-	PeriodName   string `json:"period_name"`
-	SetupURL     string `json:"setup_url"`
-	LoginURL     string `json:"login_url"`
+	Recipient      string `json:"recipient_email"`
+	GuardianName   string `json:"guardian_name"`
+	TraegerName    string `json:"traeger_name"`
+	PeriodName     string `json:"period_name"`
+	OrganizationID int64  `json:"organization_id"`
 }
 
 // HolidayParentRegistrationWeek is a booked week of a child of the account's

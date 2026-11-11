@@ -47,7 +47,9 @@ func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL 
 		HolidayRegistrationAccepted: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
 			return renderHolidayRegistrationAccepted(ctx, kind, raw, accounts, parentsURL)
 		},
-		HolidayParentAccountOffer: renderHolidayParentAccountOffer,
+		HolidayParentAccountOffer: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+			return renderHolidayParentAccountOffer(ctx, kind, raw, accounts, parentsURL)
+		},
 	}
 }
 
@@ -248,9 +250,13 @@ func holidayAcceptanceLinks(ctx context.Context, accounts enrollment.HolidayAcce
 }
 
 // renderHolidayParentAccountOffer renders the offer of a parent account a
-// holiday registration mails (ADR 0216 point 4). The Träger is the sender;
-// the mail is the same whether or not the address already has an account.
-func renderHolidayParentAccountOffer(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+// holiday registration mails (ADR 0216 point 4). The Träger is the sender.
+// The mail is decided when it is sent, by the rule of the acceptance mail:
+// an address with a parent account gets the sign-in of the parents portal
+// only, every other address the setup link, issued now and never taken from
+// the outbox, with the sign-in as a quiet second way. The mail goes to the
+// owner of the address alone; the form never tells.
+func renderHolidayParentAccountOffer(ctx context.Context, kind string, raw json.RawMessage, accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) (*enrollment.RenderedMail, error) {
 	var payload enrollment.HolidayParentAccountOfferMail
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, fmt.Errorf("%s payload is not a holiday parent account offer: %w", kind, err)
@@ -258,8 +264,19 @@ func renderHolidayParentAccountOffer(_ context.Context, kind string, raw json.Ra
 	if strings.TrimSpace(payload.Recipient) == "" {
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
-	if strings.TrimSpace(payload.SetupURL) == "" || strings.TrimSpace(payload.LoginURL) == "" {
-		return nil, fmt.Errorf("%s payload missing setup_url or login_url", kind)
+	parentsURL = strings.TrimRight(strings.TrimSpace(parentsURL), "/")
+	if accounts == nil || parentsURL == "" {
+		return nil, fmt.Errorf("%s: the parents portal and the account lookup are required", kind)
+	}
+	parent, err := accounts.HasParentAccount(ctx, payload.Recipient)
+	if err != nil {
+		return nil, fmt.Errorf("%s: find the parent account: %w", kind, err)
+	}
+	setupURL := ""
+	if !parent && payload.OrganizationID > 0 {
+		if setupURL, err = accounts.HolidayParentSetupURL(payload.Recipient, payload.OrganizationID); err != nil {
+			return nil, fmt.Errorf("%s: issue the setup link of a parent account: %w", kind, err)
+		}
 	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
@@ -270,8 +287,8 @@ func renderHolidayParentAccountOffer(_ context.Context, kind string, raw json.Ra
 			"GuardianName": payload.GuardianName,
 			"SchoolName":   payload.TraegerName,
 			"PeriodName":   payload.PeriodName,
-			"SetupURL":     payload.SetupURL,
-			"LoginURL":     payload.LoginURL,
+			"SetupURL":     setupURL,
+			"LoginURL":     parentsURL + "/login",
 		},
 	}, nil
 }

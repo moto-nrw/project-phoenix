@@ -80,10 +80,6 @@ type HolidayRegistrationDependencies struct {
 	WishModes enrollment.HolidayWishModes
 	// Retention reads the days the Träger keeps a registration (#6691).
 	Retention enrollment.HolidayRetentionSettings
-	// ParentAccountLinks issues the setup link the offer of a parent account
-	// mails (ADR 0216); a registration that asks for the offer is refused
-	// without it.
-	ParentAccountLinks enrollment.HolidayParentAccountLinks
 	// Today is the calendar day the registration window is checked against;
 	// Now the instant a statement of the holiday care wish is checked
 	// against (#4703).
@@ -367,7 +363,7 @@ func (h *HolidayRegistrations) storeSubmitted(ctx context.Context, link enrollme
 	if err := h.enqueueReceipt(ctx, link, period, form, input, receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
-	if receipt.ParentAccountSetupURL, err = h.offerHolidayParentAccount(ctx, link, period, input, receipt.ID); err != nil {
+	if receipt.ParentAccountOffered, err = h.offerHolidayParentAccount(ctx, link, period, input, receipt.ID); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	return receipt, nil

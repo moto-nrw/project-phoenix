@@ -22,10 +22,6 @@ import (
 // holidayParentAccountProofVersion is the version of the sealed proof.
 const holidayParentAccountProofVersion = 1
 
-// errHolidayParentAccountLinksRequired reports a registration that asks for
-// an account offer without the setup links bound.
-var errHolidayParentAccountLinksRequired = errors.New("enrollment: the holiday registration needs the setup links of a parent account")
-
 // holidayParentAccountProof is the content of the sealed proof.
 type holidayParentAccountProof struct {
 	Version        int   `json:"v"`
@@ -124,27 +120,21 @@ func (h *HolidayRegistrations) resolveHolidayParentAccount(link enrollment.Holid
 
 // offerHolidayParentAccount enqueues the offer of a parent account in the
 // registration's Träger transaction when the parent asked for one and the
-// registration is not linked to an account yet (ADR 0216 point 4). The mail
-// is the same for every address: it names the setup link and the sign-in
-// for an address that already has an account. It returns the setup link.
+// registration is not linked to an account yet (ADR 0216 point 4). The
+// payload names the Träger and no link: the mail decides when it is sent
+// whether the address has a parent account and only then issues the setup
+// link. It reports whether it enqueued the offer.
 func (h *HolidayRegistrations) offerHolidayParentAccount(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,
-	input enrollment.HolidayRegistrationInput, registrationID int64) (string, error) {
+	input enrollment.HolidayRegistrationInput, registrationID int64) (bool, error) {
 	if !input.ParentAccountRequested || input.ParentAccountID > 0 {
-		return "", nil
-	}
-	if h.deps.ParentAccountLinks == nil {
-		return "", errHolidayParentAccountLinksRequired
-	}
-	links, err := h.deps.ParentAccountLinks.HolidayParentAccountLink(input.Guardian.Email, link.OrganizationID)
-	if err != nil {
-		return "", fmt.Errorf("enrollment: issue holiday parent account link: %w", err)
+		return false, nil
 	}
 	payload, err := json.Marshal(enrollment.HolidayParentAccountOfferMail{
 		Recipient: input.Guardian.Email, GuardianName: strings.TrimSpace(input.Guardian.FirstName + " " + input.Guardian.LastName),
-		TraegerName: link.Traeger.Name, PeriodName: period.Name, SetupURL: links.SetupURL, LoginURL: links.LoginURL,
+		TraegerName: link.Traeger.Name, PeriodName: period.Name, OrganizationID: link.OrganizationID,
 	})
 	if err != nil {
-		return "", fmt.Errorf("enrollment: encode holiday parent account offer: %w", err)
+		return false, fmt.Errorf("enrollment: encode holiday parent account offer: %w", err)
 	}
 	if err := h.deps.Mail.EnqueueTraegerMail(ctx, enrollment.TraegerMail{
 		OrganizationID: link.OrganizationID, Kind: enrollment.MailKindHolidayParentAccountOffer,
@@ -152,7 +142,7 @@ func (h *HolidayRegistrations) offerHolidayParentAccount(ctx context.Context, li
 		RelatedType: enrollment.MailRelatedHolidayRegistration, RelatedID: registrationID,
 		IdempotencyKey: fmt.Sprintf("holiday-parent-account-offer:%d", registrationID),
 	}); err != nil {
-		return "", fmt.Errorf("enrollment: enqueue holiday parent account offer: %w", err)
+		return false, fmt.Errorf("enrollment: enqueue holiday parent account offer: %w", err)
 	}
-	return links.SetupURL, nil
+	return true, nil
 }

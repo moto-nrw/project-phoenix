@@ -42,23 +42,11 @@ func (l *AccountLifecycle) HasTraegerParentAccess(ctx context.Context, accountID
 	if accountID <= 0 {
 		return false, nil
 	}
-	if l.auth.traeger == nil {
-		return false, nil
-	}
-	held := false
-	err := globalIdentityRead(bindRuntime(l.auth.attach, ctx), l.auth.runtime, func(txCtx context.Context) error {
-		organizationIDs, _, err := l.auth.store.ListTraegerParentAccess(txCtx, accountID)
-		if err != nil || len(organizationIDs) == 0 {
-			return err
-		}
-		live, err := l.auth.traeger.LiveTraegers(txCtx, organizationIDs, false)
-		held = len(live) > 0
-		return err
-	})
+	organizations, err := liveTraegerParentOrganizations(bindRuntime(l.auth.attach, ctx), l.auth, accountID)
 	if err != nil {
 		return false, failed(opHolidayParentSetup, err)
 	}
-	return held, nil
+	return len(organizations) > 0, nil
 }
 
 // signHolidayParentSetup signs the link for its fixed lifetime.

@@ -1285,8 +1285,12 @@ A holiday registration knows its parent account (ADR 0216):
 sealed proof (account, Träger, period, 24 h). The public submit takes it as
 `parent_account_proof` and links the registration; an invalid proof is
 ignored. Without a proof, `parent_account_requested: true` enqueues the Träger
-mail `holiday_parent_account_offer` (setup link `PARENTS_URL/ferienkonto/{token}`
-and `/login`) in the registration's transaction. The submit answer never
+mail `holiday_parent_account_offer` in the registration's transaction. Its
+payload names the Träger (`organization_id`) and no link: at sending, an
+address with a parent account gets only the sign-in `PARENTS_URL/login`,
+every other address the setup link `PARENTS_URL/ferienkonto/{token}` issued
+then, plus the sign-in. The local seeder alone (seed header) receives a
+setup link in the answer as `parent_account_setup_url`, issued for it. The submit answer never
 differs. Every successful parents login claims the registrations without an
 account whose `guardian_email` equals the address (case-insensitive); a failed
 claim never fails the login. `GET /parent/me/holiday-registration-entries`

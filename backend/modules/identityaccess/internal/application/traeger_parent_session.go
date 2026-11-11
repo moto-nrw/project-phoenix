@@ -80,6 +80,14 @@ func (s *AccountAuthentication) liveTraeger(ctx context.Context, organizationID 
 // parents-portal access at, oldest access first, read inside an
 // administrative transaction.
 func (s *AccountAuthentication) traegerParentOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error) {
+	return liveTraegerParentOrganizations(ctx, s, accountID)
+}
+
+// liveTraegerParentOrganizations reads the active Träger the account holds
+// parents-portal access at, oldest access first; without the Träger
+// directory there are none. The sign-in and the acceptance mail's check of a
+// parent account (HasTraegerParentAccess) share it.
+func liveTraegerParentOrganizations(ctx context.Context, s *AccountAuthentication, accountID int64) ([]identityaccess.TraegerOrganization, error) {
 	if s.traeger == nil {
 		return nil, nil
 	}

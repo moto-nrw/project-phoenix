@@ -119,8 +119,10 @@ func TestHolidayRegistrationAskingForAnAccountMailsTheOfferWithTheRegistration(t
 	assert.Contains(t, string(mails[0].Recipient), "Eva.Konto@example.org")
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(mails[0].Payload, &payload))
-	assert.Equal(t, "https://eltern.example.org/ferienkonto/setup-Eva.Konto@example.org", payload["setup_url"])
-	assert.Equal(t, "https://eltern.example.org/login", payload["login_url"])
+	assert.Equal(t, jsonInt(office.organization), jsonInt(int64(payload["organization_id"].(float64))), "the offer names its Träger")
+	assert.NotContains(t, payload, "setup_url", "the outbox holds no setup link: the mail issues it when it is sent")
+	assert.NotContains(t, payload, "login_url")
+	assert.NotContains(t, string(mails[0].Payload), "ferienkonto", "no credential in the outbox")
 	assert.Equal(t, "Träger Konto Angebot", payload["traeger_name"])
 	assert.Equal(t, "Eva Muster", payload["guardian_name"])
 	assert.NotContains(t, string(mails[0].Payload), "Lia", "the offer names no child")
@@ -240,7 +242,11 @@ func TestHolidayRegistrationHandsTheSetupLinkOnlyToTheLocalSeeder(t *testing.T) 
 	assert.NotContains(t, withoutOffer, "parent_account_setup_url", "no offer, no link")
 	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(remote)))
 	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(withoutOffer)))
-	assert.Len(t, holidayOfferMails(t, f, office.organization), 2, "both registrations that asked got their offer")
+	offers := holidayOfferMails(t, f, office.organization)
+	assert.Len(t, offers, 2, "both registrations that asked got their offer")
+	for _, offerMail := range offers {
+		assert.NotContains(t, string(offerMail.Payload), "ferienkonto", "the link the seeder receives is stored nowhere")
+	}
 }
 
 // In production the seed header exposes nothing, even on a local host.

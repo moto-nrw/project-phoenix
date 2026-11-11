@@ -77,8 +77,12 @@ DROP TABLE auth.traeger_parent_access;
 `
 
 // traegerParentAccessAccountUnusedSQL is the frozen definition of 1.15.646
-// with one more clause at its end: an account with access at a Träger that
-// still exists is in use.
+// with one more clause at its end: an access at a Träger keeps its account
+// only while the Träger is active and not deleted, and only for the 30 days
+// its setup link is valid (identityaccess.HolidayParentSetupTTL), the grace
+// an open invitation gives an account that has not signed in yet. 1.15.939
+// adds the lasting reason, a holiday registration of the account at that
+// Träger, once the registration can name the account.
 const traegerParentAccessAccountUnusedSQL = `
 		CREATE OR REPLACE FUNCTION auth.account_is_unused(target_id BIGINT, target_email TEXT)
 		RETURNS BOOLEAN
@@ -150,7 +154,10 @@ const traegerParentAccessAccountUnusedSQL = `
 			)
 			AND NOT EXISTS (
 				SELECT 1 FROM auth.traeger_parent_access AS parent_access
+				JOIN platform.organizations AS traeger ON traeger.id = parent_access.organization_id
 				WHERE parent_access.account_id = target_id
+					AND traeger.active AND traeger.deleted_at IS NULL
+					AND parent_access.created_at > statement_timestamp() - INTERVAL '30 days'
 			);
 		$$;
 		REVOKE ALL ON FUNCTION auth.account_is_unused(BIGINT, TEXT) FROM PUBLIC;
@@ -161,11 +168,17 @@ func traegerParentAccessUp(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, traegerParentAccessUpSQL); err != nil {
 			return fmt.Errorf("add the parents-portal access at a Träger: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, traegerParentAccessAccountUnusedSQL); err != nil {
-			return fmt.Errorf("keep accounts with parents-portal access at a Träger: %w", err)
-		}
-		return nil
+		return installTraegerParentAccessAccountUnused(ctx, tx)
 	})
+}
+
+// installTraegerParentAccessAccountUnused installs auth.account_is_unused of
+// traegerParentAccessVersion; the rollback of 1.15.939 writes it back.
+func installTraegerParentAccessAccountUnused(ctx context.Context, tx bun.IDB) error {
+	if _, err := tx.ExecContext(ctx, traegerParentAccessAccountUnusedSQL); err != nil {
+		return fmt.Errorf("keep accounts with parents-portal access at a Träger: %w", err)
+	}
+	return nil
 }
 
 func traegerParentAccessDown(ctx context.Context, db *bun.DB) error {

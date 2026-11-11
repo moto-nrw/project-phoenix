@@ -94,15 +94,17 @@ type HolidayOrganizations interface {
 // information (#4722) and the statements of the holiday care wish,
 // schoolCalendar names the host schools' days without care (#4702), settings
 // reads the Träger's holiday wish mode (#4703), accountLinks issues the
-// setup link of the offer of a parent account (ADR 0216). An empty
+// setup link the local seeder receives in the answer of a registration that
+// asks for a parent account (ADR 0216); the offer mail issues its own when
+// it is sent. An empty
 // verifyURL uses Turnstile's endpoint; tests point it at a local provider.
 func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, healthData enrollmentOwner.HolidayHealthCipher, schoolCalendar enrollmentOwner.HolidaySchoolCalendar, settings TraegerBrandingSettings, accountLinks enrollmentOwner.HolidayParentAccountLinks, appEnv string, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
-	registrations := newHolidayRegistrations(organizations, delivery, healthData, schoolCalendar, settings, accountLinks, logger.With("service", "holiday-registrations"))
+	registrations := newHolidayRegistrations(organizations, delivery, healthData, schoolCalendar, settings, logger.With("service", "holiday-registrations"))
 	captcha := enrollmentCompose.NewCaptcha(holidayCaptchaSettings(keys), verifyURL, logger.With("service", "holiday-registration-captcha"))
-	// The local seeder alone receives the setup link of a parent account
-	// offer (ADR 0216), like the invitation tokens it redeems.
+	// The local seeder alone receives a setup link for the offered parent
+	// account (ADR 0216), like the invitation tokens it redeems.
 	return enrollmentAPI.NewHolidayRegistrationResource(registrations, holidayProofUnits{registrations: registrations}, captcha,
-		func(r *http.Request) bool { return apiCommon.ShouldExposeSeedInvitationToken(r, appEnv) })
+		func(r *http.Request) bool { return apiCommon.ShouldExposeSeedInvitationToken(r, appEnv) }, accountLinks)
 }
 
 // holidayCaptchaSettings always require the captcha with the platform's
@@ -171,17 +173,16 @@ type parentHolidayRegistrationLinks struct {
 // newParentHolidayRegistrationLinks binds the parents portal to Enrollment's
 // link resolution over the same Träger directory as the public link.
 func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, settings TraegerBrandingSettings, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
-	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, healthData, nil, settings, nil, logger.With("service", "parent-holiday-registrations"))}
+	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, healthData, nil, settings, logger.With("service", "parent-holiday-registrations"))}
 }
 
 // newHolidayRegistrations binds Enrollment's holiday registrations to the
 // Träger directory, the Träger's mail and Security Runtime's entropy and
 // fingerprint for the tokens of uploaded proofs (#5238), and the health
-// information to the root's cipher (#4722). accountLinks (ADR 0216) is nil
-// where nothing is submitted.
-func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, schoolCalendar enrollmentOwner.HolidaySchoolCalendar, settings TraegerBrandingSettings, accountLinks enrollmentOwner.HolidayParentAccountLinks, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
+// information to the root's cipher (#4722).
+func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, schoolCalendar enrollmentOwner.HolidaySchoolCalendar, settings TraegerBrandingSettings, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
 	return enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-		holidayTraegerMail{delivery: delivery}, healthData, schoolCalendar, holidayWishModes{settings: settings}, holidayRetentionSettings{settings: settings}, accountLinks, securityruntime.FillRandom, securityruntime.Fingerprint, logger, observability.RecordRateLimitRejection)
+		holidayTraegerMail{delivery: delivery}, healthData, schoolCalendar, holidayWishModes{settings: settings}, holidayRetentionSettings{settings: settings}, securityruntime.FillRandom, securityruntime.Fingerprint, logger, observability.RecordRateLimitRejection)
 }
 
 // holidayWishModes binds Enrollment's holiday wish mode (#4703) to the
