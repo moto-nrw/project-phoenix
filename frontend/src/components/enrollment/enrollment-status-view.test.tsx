@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -21,6 +22,7 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { EnrollmentStatusView } from "./enrollment-status-view";
 
@@ -1125,6 +1127,46 @@ describe("EnrollmentStatusView", () => {
 
       await retryOnlyReloads(mockPatchStatus);
     });
+
+    it.each([false, true])(
+      "preserves reopened contact drafts while a reload completes (retry: %s)",
+      async (retry) => {
+        const pending = deferred<StatusResponse>();
+        mockFetchStatus.mockResolvedValueOnce(status());
+        if (retry) mockFetchStatus.mockRejectedValueOnce(down());
+        mockFetchStatus.mockReturnValueOnce(pending.promise);
+        mockPatchStatus.mockResolvedValueOnce();
+        render(<EnrollmentStatusView token="tok" />);
+
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Bearbeiten" }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+        if (retry) {
+          const alert = (
+            await screen.findByText(reloadText)
+          ).closest<HTMLElement>('[role="alert"]')!;
+          fireEvent.click(
+            within(alert).getByRole("button", { name: "Wiederholen" }),
+          );
+        }
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Bearbeiten" }),
+        );
+        fireEvent.change(screen.getByLabelText("Vorname"), {
+          target: { value: "Neuer Entwurf" },
+        });
+
+        await act(async () => {
+          pending.resolve(status({ guardian_first_name: "Gespeichert" }));
+        });
+        expect(screen.getByDisplayValue("Neuer Entwurf")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+        expect(
+          await screen.findByText("Gespeichert Muster"),
+        ).toBeInTheDocument();
+      },
+    );
 
     it("keeps a confirmed renewal confirmed when the reload fails", async () => {
       const renewal = status({

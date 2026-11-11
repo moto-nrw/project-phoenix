@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
@@ -385,6 +386,45 @@ describe("reload after a write (#6652)", () => {
     );
     await waitFor(() => expect(getMealPlanWeek).toHaveBeenCalledTimes(3));
     expect(await screen.findByDisplayValue("Nudeln")).toBeInTheDocument();
+    expect(setDay).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirms dirty drafts before retrying and locks edits during the retry", async () => {
+    renderPage();
+    fireEvent.change(await screen.findByDisplayValue("Fischstäbchen"), {
+      target: { value: "Nudeln" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const alert = (await screen.findByText(reloadText)).closest<HTMLElement>(
+      '[role="alert"]',
+    )!;
+    const pending = deferred<(typeof stored)[]>();
+    getMealPlanWeek.mockReturnValueOnce(pending.promise);
+    fireEvent.change(screen.getByDisplayValue("Nudeln"), {
+      target: { value: "Neuer Entwurf" },
+    });
+    fireEvent.click(within(alert).getByRole("button", { name: "Wiederholen" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(getMealPlanWeek).toHaveBeenCalledTimes(2);
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Hierbleiben" }),
+    );
+    expect(screen.getByDisplayValue("Neuer Entwurf")).toBeInTheDocument();
+    fireEvent.click(within(alert).getByRole("button", { name: "Wiederholen" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Verwerfen & neu laden",
+      }),
+    );
+    await waitFor(() => expect(getMealPlanWeek).toHaveBeenCalledTimes(3));
+    expect(screen.getByDisplayValue("Neuer Entwurf")).toHaveAttribute(
+      "readonly",
+    );
+    pending.resolve([{ ...stored, dish: "Gespeicherter Plan" }]);
+    expect(
+      await screen.findByDisplayValue("Gespeicherter Plan"),
+    ).not.toHaveAttribute("readonly");
     expect(setDay).toHaveBeenCalledTimes(1);
   });
 });

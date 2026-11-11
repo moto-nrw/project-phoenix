@@ -278,7 +278,10 @@ function GroupsPageContent() {
       sessionLoading={status === "loading"}
       error={groupsData === undefined ? error : null}
       empty={
-        filteredGroups.length === 0 && selectedGroup === null
+        filteredGroups.length === 0 &&
+        selectedGroup === null &&
+        !error &&
+        !afterWrite.error
           ? {
               title:
                 searchTerm || roomFilter !== "all"

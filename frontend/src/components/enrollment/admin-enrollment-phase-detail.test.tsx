@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -100,6 +101,7 @@ vi.mock("~/lib/student-api", () => ({
 
 import { AdminEnrollmentPhaseDetail } from "./admin-enrollment-phase-detail";
 import { ApiError } from "~/lib/api-error";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
@@ -706,6 +708,76 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
   });
+
+  it("retries a decision reload with the current report filters", async () => {
+    await renderPhase();
+    mocks.listAdminRequests.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    await screen.findByText(
+      `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
+    await waitFor(() =>
+      expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ care_offering_ids: ["1"] }),
+      ),
+    );
+    const calls = mocks.getCareUsageReport.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() =>
+      expect(mocks.getCareUsageReport).toHaveBeenCalledTimes(calls + 1),
+    );
+    expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ care_offering_ids: ["1"] }),
+    );
+    expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])(
+    "ignores a superseded decision report response (failure: %s)",
+    async (failure) => {
+      await renderPhase();
+      const pending = deferred<ReturnType<typeof report>>();
+      mocks.getCareUsageReport.mockReturnValueOnce(pending.promise);
+      const calls = mocks.getCareUsageReport.mock.calls.length;
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      await waitFor(() =>
+        expect(mocks.getCareUsageReport).toHaveBeenCalledTimes(calls + 1),
+      );
+      mocks.getCareUsageReport.mockResolvedValueOnce(
+        report({
+          rows: [{ ...report().rows[0]!, child_first_name: "Aktuell" }],
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
+      expect(await screen.findByText("Aktuell Muster")).toBeInTheDocument();
+
+      await act(async () => {
+        if (failure) {
+          pending.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          );
+        } else {
+          pending.resolve(report());
+        }
+      });
+
+      expect(screen.getByText("Aktuell Muster")).toBeInTheDocument();
+      expect(
+        screen.queryByText(SAVED_BUT_STALE_SUFFIX, { exact: false }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("reports a failed report export through the toast path", async () => {
     const failed = new ApiError("export failed", 500, {

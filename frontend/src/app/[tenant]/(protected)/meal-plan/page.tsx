@@ -218,6 +218,7 @@ export default function MealPlanPage() {
   } | null>(null);
   // Holds the week the user wants to switch to while unsaved changes block it.
   const [pendingOffset, setPendingOffset] = useState<number | null>(null);
+  const [confirmReload, setConfirmReload] = useState(false);
   const [confirmCopyPrev, setConfirmCopyPrev] = useState(false);
 
   // Berlin-anchored: meal-plan rows are stored as school calendar DATEs the
@@ -297,8 +298,17 @@ export default function MealPlanPage() {
   useLayoutEffect(() => {
     reloadRef.current = () => void load();
   });
-  const afterSave = useRefreshAfterWrite("die Anzeige des Speiseplans", () =>
-    readWeek(++loadTokenRef.current),
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige des Speiseplans",
+    async () => {
+      const token = ++loadTokenRef.current;
+      setLoading(true);
+      try {
+        await readWeek(token);
+      } finally {
+        if (loadTokenRef.current === token) setLoading(false);
+      }
+    },
   );
 
   useEffect(() => {
@@ -416,7 +426,7 @@ export default function MealPlanPage() {
     // clicked; switching mid-save would let that stale reload win the
     // latest-wins token race and write the old week's data over the new week,
     // leaving an unloaded/blank grid that the next edit could overwrite.
-    if (saving || copyingPrev) return;
+    if (saving || copyingPrev || loading) return;
     if (isDirty) {
       setPendingOffset(next);
     } else {
@@ -427,6 +437,12 @@ export default function MealPlanPage() {
   const confirmWeekChange = () => {
     if (pendingOffset !== null) setWeekOffset(pendingOffset);
     setPendingOffset(null);
+  };
+
+  const retryAfterSave = () => {
+    if (editingLocked) return;
+    if (isDirty) setConfirmReload(true);
+    else void afterSave.refresh();
   };
 
   // --- Copy the previous week's plan into the current week ---------------
@@ -635,17 +651,28 @@ export default function MealPlanPage() {
           />
 
           <ConfirmationModal
-            isOpen={pendingOffset !== null}
-            onClose={() => setPendingOffset(null)}
-            onConfirm={confirmWeekChange}
+            isOpen={pendingOffset !== null || confirmReload}
+            onClose={() => {
+              setPendingOffset(null);
+              setConfirmReload(false);
+            }}
+            onConfirm={() => {
+              if (confirmReload) {
+                setConfirmReload(false);
+                void afterSave.refresh();
+              } else confirmWeekChange();
+            }}
             title="Ungespeicherte Änderungen"
-            confirmText="Verwerfen & wechseln"
+            confirmText={
+              confirmReload ? "Verwerfen & neu laden" : "Verwerfen & wechseln"
+            }
             cancelText="Hierbleiben"
             confirmVariant="danger"
           >
             <p className="text-sm text-gray-600">
-              Sie haben Änderungen in dieser Woche, die noch nicht gespeichert
-              sind. Beim Wochenwechsel gehen sie verloren.
+              {confirmReload
+                ? "Sie haben Änderungen, die noch nicht gespeichert sind. Beim Neuladen gehen sie verloren."
+                : "Sie haben Änderungen in dieser Woche, die noch nicht gespeichert sind. Beim Wochenwechsel gehen sie verloren."}
             </p>
           </ConfirmationModal>
 
@@ -684,7 +711,18 @@ export default function MealPlanPage() {
       }
     >
       <FormErrorAlert message={saveErrors.error} />
-      <LoadErrorAlert error={afterSave.error} className="mb-4" />
+      <LoadErrorAlert
+        error={
+          afterSave.error && {
+            ...afterSave.error,
+            retry: afterSave.error.retry && {
+              ...afterSave.error.retry,
+              onClick: retryAfterSave,
+            },
+          }
+        }
+        className="mb-4"
+      />
 
       {/* Eine Karte für den Wochenplan: Titel, Erklärung und „Vorwoche
           übernehmen“ im Kopf, die fünf Tage randlos unter einer Trennlinie.

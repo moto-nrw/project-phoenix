@@ -170,6 +170,10 @@ function EnrollmentStatusViewContent({
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const editingRef = useRef(editing);
+  useLayoutEffect(() => {
+    editingRef.current = editing;
+  });
 
   // Puts a loaded status on the page; the first load and the reload after a
   // write share it.
@@ -177,9 +181,12 @@ function EnrollmentStatusViewContent({
     (result: StatusResponse, requestChanges: EnrollmentChangeRequest[]) => {
       setStatus(result);
       setChangeRequests(requestChanges);
-      setEditFirstName(result.guardian_first_name);
-      setEditLastName(result.guardian_last_name);
-      setEditPhone(result.guardian_phone ?? "");
+      // A parent may have reopened the editor while the reload was pending.
+      if (!editingRef.current) {
+        setEditFirstName(result.guardian_first_name);
+        setEditLastName(result.guardian_last_name);
+        setEditPhone(result.guardian_phone ?? "");
+      }
     },
     [],
   );

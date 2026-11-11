@@ -345,7 +345,7 @@ function RolesPageContent() {
       sessionLoading={status === "loading"}
       error={rolesLoad.error}
       empty={
-        filteredRoles.length === 0
+        filteredRoles.length === 0 && !rolesLoad.error && !rolesAfterWrite.error
           ? {
               title: searchTerm
                 ? "Keine Rollen gefunden"

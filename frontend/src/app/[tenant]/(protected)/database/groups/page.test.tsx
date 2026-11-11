@@ -304,7 +304,8 @@ vi.mock("@/components/groups/groups-master-detail", () => ({
   ),
 }));
 
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 const mockGroups = [
   {
@@ -326,6 +327,7 @@ const mockGroups = [
 describe("GroupsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useTenantMutateMatching).mockReturnValue(vi.fn());
     currentSearch = new URLSearchParams();
 
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -399,6 +401,56 @@ describe("GroupsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Keine Gruppen vorhanden")).toBeInTheDocument();
     });
+  });
+
+  it("shows the reload error and retry with an empty cached list", async () => {
+    const retry = vi.fn();
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: new ApiError("down", 503, { code: "general.unavailable" }),
+      isValidating: false,
+      mutate: retry,
+    } as ReturnType<typeof useSWRAuth>);
+
+    render(<GroupsPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.unavailable", "die Liste der Gruppen"),
+    );
+    expect(screen.queryByTestId("page-empty")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the reload error after creating the first group", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      isValidating: false,
+      mutate: vi.fn(),
+    } as ReturnType<typeof useSWRAuth>);
+    const reload = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(undefined);
+    vi.mocked(useTenantMutateMatching).mockReturnValue(reload);
+    mockCreate.mockResolvedValueOnce({ name: "Neue Gruppe" });
+    render(<GroupsPage />);
+    await screen.findByText("Keine Gruppen vorhanden");
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
+    fireEvent.click(await screen.findByTestId("submit-create"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      `${catalogText("general.unavailable", "die Anzeige der Gruppen")} ${SAVED_BUT_STALE_SUFFIX}`,
+    );
+    expect(screen.queryByTestId("page-empty")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
   it("filters groups by search term", async () => {

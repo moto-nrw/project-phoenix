@@ -263,6 +263,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     setExplicitOfferingIds(ids);
   }, []);
 
+  const reportFiltersRef = useRef(reportFilters);
+  useLayoutEffect(() => {
+    reportFiltersRef.current = reportFilters;
+  }, [reportFilters]);
+  const reportRequestRef = useRef(0);
+
   const loadReport = useCallback(
     async (
       filters: CareUsageFilters,
@@ -271,6 +277,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       // Fehler geht an den Aufrufer (#6652).
       options: { rethrow?: boolean } = {},
     ) => {
+      const request = ++reportRequestRef.current;
+      const superseded = () =>
+        isCancelled?.() ||
+        reportRequestRef.current !== request ||
+        reportFiltersRef.current !== filters;
       if (!options.rethrow) {
         setReportLoading(true);
         setReportFailed(false);
@@ -279,7 +290,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       }
       try {
         const data = await getCareUsageReport(filters);
-        if (isCancelled?.()) return;
+        if (superseded()) return;
         setReport(data);
         setDefaultOfferingIds(
           data.filter_options.offerings
@@ -287,7 +298,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             .map((offering) => offering.id),
         );
       } catch (err) {
-        if (isCancelled?.()) return;
+        if (superseded()) return;
         logger.error("phase_care_usage_report_load_failed", {
           error: err instanceof Error ? err.message : "unknown",
           phase_id: phaseId,
@@ -299,7 +310,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           retry: () => setReportAttempt((attempt) => attempt + 1),
         });
       } finally {
-        if (!isCancelled?.() && !options.rethrow) setReportLoading(false);
+        if (!superseded()) setReportLoading(false);
       }
     },
     [phaseId, clearReportError, showReportError],
@@ -417,9 +428,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   // Tabelle und entscheidet nichts erneut (#6652).
   const decisionAfterWrite = useRefreshAfterWrite(
     "die Anzeige der Anmeldephase",
-    async (filters: CareUsageFilters) => {
+    async () => {
       await loadData(undefined, { rethrow: true });
-      await loadReport(filters, undefined, { rethrow: true });
+      await loadReport(reportFiltersRef.current, undefined, { rethrow: true });
     },
   );
   useLayoutEffect(() => {
@@ -506,7 +517,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         toast.success(
           `Die Entscheidung wurde gespeichert: ${CHILD_STATUS_LABELS[status as ChildStatus]}.`,
         );
-        await decisionAfterWrite.refresh(reportFilters);
+        await decisionAfterWrite.refresh();
       } catch (err) {
         logger.error("admin_enrollment_phase_quick_decision_failed", {
           error: err instanceof Error ? err.message : "unknown",
@@ -521,7 +532,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         setBusyChildId(null);
       }
     },
-    [decisionAfterWrite, reportFilters, toast, showActionError],
+    [decisionAfterWrite, toast, showActionError],
   );
 
   const requestQuickDecision = useCallback(

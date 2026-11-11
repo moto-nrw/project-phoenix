@@ -812,6 +812,23 @@ describe("RolesPage", () => {
     const down = () =>
       new ApiError("down", 503, { code: "general.unavailable" });
 
+    it("shows the reload error after creating the first role", async () => {
+      mockGetList.mockResolvedValueOnce({ data: [] });
+      render(<RolesPage />);
+      await screen.findByText("Keine Rollen vorhanden");
+      mockCreate.mockResolvedValueOnce({ name: "Neue Rolle" });
+      mockGetList.mockRejectedValueOnce(down());
+
+      fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
+      fireEvent.click(await screen.findByTestId("submit-create"));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.queryByTestId("page-empty")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await screen.findByTestId("role-row-1");
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps the roles listed when the reload after saved permissions fails", async () => {
       setSelectedRole("1");
       render(<RolesPage />);
@@ -847,7 +864,9 @@ describe("RolesPage", () => {
       expect(await screen.findByText(reloadText)).toBeInTheDocument();
       expect(mockRemove).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("delete-error")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("confirmation-modal")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("confirmation-modal"),
+      ).not.toBeInTheDocument();
       expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
       expect(screen.getByTestId("role-row-2")).toBeInTheDocument();
     });
