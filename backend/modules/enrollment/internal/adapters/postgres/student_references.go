@@ -18,11 +18,14 @@ func (r *Store) CareExitApplicationLinks(ctx context.Context, studentIDs []int64
 		return nil, err
 	}
 	rows := []enrollment.CareExitApplicationLink{}
-	query := db.NewSelect().TableExpr("enrollment.request_children").Column("id", "tenant_id", "created_student_id", "matched_student_id", "status").Where("tenant_id = ?", tenantID)
+	query := db.NewSelect().TableExpr("enrollment.request_children AS child").
+		ColumnExpr("child.id, child.tenant_id, child.created_student_id, child.matched_student_id, child.status, request.phase_id").
+		Join("JOIN enrollment.requests AS request ON request.id = child.request_id AND request.tenant_id = child.tenant_id").
+		Where("child.tenant_id = ?", tenantID)
 	if len(studentIDs) > 0 {
-		query = query.Where("(created_student_id IN (?) OR matched_student_id IN (?))", bun.List(studentIDs), bun.List(studentIDs))
+		query = query.Where("(child.created_student_id IN (?) OR child.matched_student_id IN (?))", bun.List(studentIDs), bun.List(studentIDs))
 	}
-	if err := query.OrderExpr("id ASC").Scan(ctx, &rows); err != nil {
+	if err := query.OrderExpr("child.id ASC").Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list care-exit application links: %w", err)
 	}
 	return rows, nil

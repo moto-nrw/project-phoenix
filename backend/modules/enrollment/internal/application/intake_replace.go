@@ -32,6 +32,7 @@ type replacePlan struct {
 	req             *enrollmentNative.Request
 	children        []*enrollmentNative.RequestChild
 	phase           *enrollmentNative.Phase
+	locked          enrollmentNative.LockedPhase
 	duplicatePolicy string
 	capabilities    enrollmentNative.FormCapabilities
 	openByID        map[int64]*offeringContract.CareOfferingRecord
@@ -52,20 +53,20 @@ func (s *Intake) replaceEditable(ctx context.Context, token string, incoming Sub
 	if token == "" {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
-	var tenantID int64
+	var tenantID, phaseID int64
 	if err := s.deps.Runtime.AdminTx(ctx, func(adminCtx context.Context) error {
 		req, err := s.requestByStatusToken(adminCtx, token, false)
 		if err != nil {
 			return err
 		}
-		tenantID = req.TenantID
+		tenantID, phaseID = req.TenantID, req.PhaseID
 		return nil
 	}); err != nil {
 		return nil, err
 	}
 	outcome := &submitOutcome{}
 	if err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
-		return s.replaceInTenant(txCtx, token, tenantID, incoming, outcome)
+		return s.replaceInTenant(txCtx, token, tenantID, phaseID, incoming, outcome)
 	}); err != nil {
 		return nil, err
 	}
@@ -77,11 +78,21 @@ func (s *Intake) replaceEditable(ctx context.Context, token string, incoming Sub
 	return outcome, nil
 }
 
-func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID int64, incoming SubmitRequest, outcome *submitOutcome) error {
+func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID, phaseID int64, incoming SubmitRequest, outcome *submitOutcome) error {
+	// The phase bounds reader takes the recurrence gate before the request
+	// and child locks (#6657); a phase edit open now finishes first.
+	locked, err := s.lockedPhaseForEditableRequest(ctx, phaseID)
+	if err != nil {
+		return err
+	}
 	plan, editReq, err := s.lockEditableRequest(ctx, token, tenantID, incoming)
 	if err != nil {
 		return err
 	}
+	if plan.req.PhaseID != phaseID {
+		return fmt.Errorf("%w: request moved to another phase", enrollmentNative.ErrRequestNotFound)
+	}
+	plan.phase, plan.locked = locked.Phase(), locked
 	if err := s.planReplacementCatalog(ctx, &editReq, plan); err != nil {
 		return err
 	}
@@ -151,14 +162,11 @@ func (s *Intake) lockEditableRequest(ctx context.Context, token string, tenantID
 	return &replacePlan{req: req, children: children}, editReq, nil
 }
 
-// planReplacementCatalog loads the phase, the duplicate policy, the
-// capabilities and the open catalog and materializes the new picks.
+// planReplacementCatalog loads the duplicate policy, the capabilities and
+// the open catalog of the locked phase and materializes the new picks.
 func (s *Intake) planReplacementCatalog(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
-	phase, err := s.loadPhaseForEditableRequest(ctx, plan.req.PhaseID)
-	if err != nil {
-		return err
-	}
-	plan.phase = phase
+	phase := plan.phase
+	var err error
 	if plan.duplicatePolicy, err = s.deps.Settings.DuplicateHandling(ctx); err != nil {
 		return fmt.Errorf("edit replace: resolve duplicate handling: %w", err)
 	}
@@ -379,7 +387,7 @@ func (s *Intake) createReplacementChildren(ctx context.Context, editReq *SubmitR
 		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("edit replace: create request child %d: %w", i, err)
 		}
-		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.phase.ServiceStartDate, plan.phase.ServiceEndDate); err != nil {
+		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.locked); err != nil {
 			return nil, fmt.Errorf("edit replace: record child offerings: %w", err)
 		}
 		created = append(created, row)

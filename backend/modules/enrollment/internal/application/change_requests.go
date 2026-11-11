@@ -86,12 +86,15 @@ type ChangeRequestDependencies struct {
 	People              PeopleDirectory
 	GuardianInvitations GuardianInvitationAvailability
 	Reviewers           ReviewerNames
-	Settings            IntakeSettings
-	Outbox              MailOutbox
-	FrontendURL         string
-	ParentsURL          string
-	Runtime             Runtime
-	Logger              *slog.Logger
+	// LockTemplateRecurrence is the recurrence gate the phase bounds reader
+	// takes before it reads the phase (#6657). The root always binds it.
+	LockTemplateRecurrence func(context.Context) error
+	Settings               IntakeSettings
+	Outbox                 MailOutbox
+	FrontendURL            string
+	ParentsURL             string
+	Runtime                Runtime
+	Logger                 *slog.Logger
 }
 
 // ChangeRequests implements the public ChangeRequests capability.
@@ -116,7 +119,7 @@ func NewChangeRequests(deps ChangeRequestDependencies) *ChangeRequests {
 	intake := NewIntake(IntakeDependencies{
 		Requests: deps.Requests, Children: deps.Children, Catalog: deps.Catalog, Offerings: deps.Offerings,
 		Capacity: deps.Capacity, Students: deps.Students, GuardianAuthorizer: deps.GuardianAuthorizer,
-		Settings: deps.Settings, Runtime: deps.Runtime, Logger: deps.Logger,
+		Settings: deps.Settings, Runtime: deps.Runtime, Logger: deps.Logger, LockTemplateRecurrence: deps.LockTemplateRecurrence,
 	})
 	return &ChangeRequests{deps: deps, intake: intake}
 }
@@ -227,7 +230,7 @@ func (s *ChangeRequests) create(ctx context.Context, token string, input enrollm
 	}
 	var created *ChangeRequest
 	if err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
-		row, createErr := s.createInTenant(txCtx, token, submission, input)
+		row, createErr := s.createInTenant(txCtx, token, req.PhaseID, submission, input)
 		created = row
 		return createErr
 	}); err != nil {
@@ -237,12 +240,21 @@ func (s *ChangeRequests) create(ctx context.Context, token string, input enrollm
 	return s.loadAggregateForTenant(ctx, tenantID, created.ID, false, nil)
 }
 
-func (s *ChangeRequests) createInTenant(ctx context.Context, token string, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
+func (s *ChangeRequests) createInTenant(ctx context.Context, token string, phaseID int64, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
+	// The phase bounds reader takes the recurrence gate before the request
+	// and child locks (#6657).
+	phase, err := s.lockedProposalPhase(ctx, phaseID)
+	if err != nil {
+		return nil, err
+	}
 	lockedReq, err := s.deps.Requests.RequestByToken(ctx, strings.TrimSpace(token), true)
 	if err != nil {
 		if !s.deps.Runtime.NotFound(err) {
 			return nil, err
 		}
+		return nil, enrollmentNative.ErrRequestNotFound
+	}
+	if lockedReq.PhaseID != phaseID {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
 	children, err := s.deps.Children.ChildrenForRequest(ctx, lockedReq.ID, true)
@@ -265,7 +277,7 @@ func (s *ChangeRequests) createInTenant(ctx context.Context, token string, submi
 	if err != nil {
 		return nil, err
 	}
-	prepared, err := s.prepareProposed(ctx, lockedReq, children, submission, capabilities, false, true)
+	prepared, err := s.prepareProposed(ctx, phase, lockedReq, children, submission, capabilities, false, true)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,8 @@ package owners
 import (
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -27,11 +29,12 @@ type EnrollmentFlowTestRepositories struct {
 	GuardianProfile     peoplePorts.GuardianProfileRepository
 	GuardianPhoneNumber peoplePorts.GuardianPhoneNumberRepository
 	CareWithdrawal      CareWithdrawalTestRows
+	phaseBounds         enrollment.PhaseBoundsReader
 }
 
 // Enrollment is the Enrollment booking projection the flows read and write.
 func (r *EnrollmentFlowTestRepositories) Enrollment() EnrollmentBookingProjection {
-	return NewEnrollmentBookingProjection(ComposeEnrollmentBookings(enrollmentCompose.New()))
+	return NewEnrollmentBookingProjection(ComposeEnrollmentBookings(enrollmentCompose.New()), r.phaseBounds)
 }
 
 // NewEnrollmentFlowTestRepositoriesWithMembers composes the enrollment flow
@@ -52,6 +55,7 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database
 		GuardianProfile:            members.GuardianProfile,
 		GuardianPhoneNumber:        peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		CareWithdrawal:             NewCareWithdrawalCompletionRepository(care),
+		phaseBounds:                tt.phaseBounds,
 	}, nil
 }
 

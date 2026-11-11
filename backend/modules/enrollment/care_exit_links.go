@@ -8,6 +8,9 @@ type CareExitApplicationLink struct {
 	CreatedStudentID *int64 `json:"created_student_id"`
 	MatchedStudentID *int64 `json:"matched_student_id"`
 	Status           string `json:"status"`
+	// PhaseID is the phase of the child's request; the care exit records
+	// the phase's bounds with the bookings it takes (#6657).
+	PhaseID int64 `json:"phase_id"`
 }
 
 // IsApproved reports whether the application was approved.

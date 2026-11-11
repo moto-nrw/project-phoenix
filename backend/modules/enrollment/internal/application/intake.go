@@ -184,6 +184,9 @@ type LegalSettings struct {
 // enrollment and creates the guardian invitation it owes, both in the same
 // transaction as the submission.
 type ManualEnrollmentDecider interface {
+	// LockApprovalGates takes the class-writes and the recurrence gate in
+	// the project-wide order before the submission's own locks.
+	LockApprovalGates(ctx context.Context) error
 	DecideAndInvite(ctx context.Context, input enrollmentNative.DecideInput) (*enrollmentNative.DecideOutcome, error)
 }
 
@@ -211,6 +214,11 @@ type IntakeDependencies struct {
 	// switched it on (#3780). Nil keeps the configured list only.
 	AdminSubscribers AdminMailSubscribers
 	ManualDecider    ManualEnrollmentDecider
+	// LockTemplateRecurrence is the recurrence gate the phase edit holds
+	// while it moves the phase bounds. The phase bounds reader takes it
+	// before every phase read whose bounds a write copies (#6657). The root
+	// always binds it; focused tests may leave it nil.
+	LockTemplateRecurrence func(context.Context) error
 	// Uploads stores the files parents attach (#4783). Nil leaves file
 	// answers untouched and refuses uploads.
 	Uploads IntakeUploads
@@ -273,6 +281,16 @@ func (s *Intake) logger() *slog.Logger { return s.deps.Logger }
 
 func (s *Intake) intakePhase(ctx context.Context, id int64) (*enrollmentNative.Phase, error) {
 	return s.deps.Catalog.Phase(ctx, id)
+}
+
+// phaseBounds is the one reader of the phase bounds the intake's writes
+// copy (#6657): the recurrence gate first, then the phase.
+func (s *Intake) phaseBounds() enrollmentNative.PhaseBoundsReader {
+	var phases enrollmentNative.PhaseRows
+	if s.deps.Catalog != nil {
+		phases = s.deps.Catalog
+	}
+	return enrollmentNative.NewPhaseBoundsReader(phases, s.deps.LockTemplateRecurrence)
 }
 
 func (s *Intake) intakeSchema(ctx context.Context, id int64) (*enrollmentNative.FormSchema, error) {
