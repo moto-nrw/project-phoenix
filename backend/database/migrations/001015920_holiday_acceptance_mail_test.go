@@ -19,3 +19,11 @@ func TestHolidayAcceptanceErasureIsTheErasureOf918WithTheMail(t *testing.T) {
 		demoVisitorErasureHolidayAcceptanceSQL)
 	assert.Contains(t, demoVisitorErasureHolidayAcceptanceSQL, "'holiday_registration_accepted'")
 }
+
+// TestHolidayAcceptanceRollbackRestoresTheCheckOf887 keeps the CHECK a
+// rollback writes back the one of 1.15.887.
+func TestHolidayAcceptanceRollbackRestoresTheCheckOf887(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, holidayClosureEmailOutboxTraegerKindCheckSQL, holidayAcceptanceRestoredKindCheckSQL)
+	assert.Equal(t, validateHolidayClosureKindCheckSQL, validateHolidayAcceptanceKindCheckSQL)
+}

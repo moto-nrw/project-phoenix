@@ -52,6 +52,20 @@ COMMENT ON CONSTRAINT chk_email_outbox_traeger_kind ON platform.email_outbox IS
 	'The mail kinds of a Träger. A new kind needs its demo erasure in platform.erase_closed_demo_visitors (#6342).';
 `
 
+// holidayAcceptanceRestoredKindCheckSQL is the CHECK of 1.15.887, which a
+// rollback writes back.
+const holidayAcceptanceRestoredKindCheckSQL = `
+ALTER TABLE platform.email_outbox DROP CONSTRAINT IF EXISTS chk_email_outbox_traeger_kind;
+ALTER TABLE platform.email_outbox ADD CONSTRAINT chk_email_outbox_traeger_kind CHECK (
+	organization_id IS NULL OR kind IN (
+		'care_contract', 'care_contract_notice', 'holiday_closure_notice', 'holiday_place_granted', 'holiday_registration_received',
+		'parent_billing_letter')) NOT VALID;
+COMMENT ON CONSTRAINT chk_email_outbox_traeger_kind ON platform.email_outbox IS
+	'The mail kinds of a Träger. A new kind needs its demo erasure in platform.erase_closed_demo_visitors (#6342).';
+`
+
+const validateHolidayAcceptanceKindCheckSQL = `ALTER TABLE platform.email_outbox VALIDATE CONSTRAINT chk_email_outbox_traeger_kind`
+
 // A rollback deletes the mails the CHECK of 1.15.887 would refuse.
 const deleteHolidayAcceptanceMailsSQL = `DELETE FROM platform.email_outbox
 	WHERE organization_id IS NOT NULL AND kind = 'holiday_registration_accepted'`
@@ -65,7 +79,7 @@ func holidayAcceptanceMailUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, holidayAcceptanceEmailOutboxTraegerKindCheckSQL); err != nil {
 		return fmt.Errorf("declare the holiday acceptance mail of a Träger: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, validateHolidayClosureKindCheckSQL); err != nil {
+	if _, err := db.ExecContext(ctx, validateHolidayAcceptanceKindCheckSQL); err != nil {
 		return fmt.Errorf("validate the mail kinds of a Träger: %w", err)
 	}
 	return installHolidayAcceptanceErasure(ctx, db)
@@ -78,10 +92,10 @@ func holidayAcceptanceMailDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, deleteHolidayAcceptanceMailsSQL); err != nil {
 		return fmt.Errorf("delete the holiday acceptance mails: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, holidayClosureEmailOutboxTraegerKindCheckSQL); err != nil {
+	if _, err := db.ExecContext(ctx, holidayAcceptanceRestoredKindCheckSQL); err != nil {
 		return fmt.Errorf("restore the mail kinds of a Träger: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, validateHolidayClosureKindCheckSQL); err != nil {
+	if _, err := db.ExecContext(ctx, validateHolidayAcceptanceKindCheckSQL); err != nil {
 		return fmt.Errorf("validate the mail kinds of a Träger: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, holidayAcceptanceMailDownSQL); err != nil {
