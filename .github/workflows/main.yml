@@ -378,7 +378,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Select frontend test mode
         id: frontend-mode
@@ -490,7 +490,7 @@ jobs:
         if: matrix.suite == 'ratchets'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a
