@@ -100,7 +100,8 @@ import {
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
-//                                     components and fetch no data (#5586)
+//                                     components, only pure ~/lib modules
+//                                     and fetch no data (#5586, #6582)
 //   ui-kit/no-raw-table             — no <table> outside components/ui; use
 //                                     DataTable (#5600)
 //   ui-kit/no-em-dash-empty-value   — an empty value is "–", never "—" (#5600)
@@ -2349,7 +2350,7 @@ const confirmationLoadingText = {
     },
     messages: {
       switched:
-        "`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText=\"Wird …\"` und `confirmText` auf die Aktion.",
+        '`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText="Wird …"` und `confirmText` auf die Aktion.',
     },
     schema: [],
   },
@@ -2377,11 +2378,51 @@ const confirmationLoadingText = {
 // The kit works in every portal, so it knows no domain: a file under
 // components/ui/ imports nothing from other component folders and loads no
 // data. Context arrives through props and slots (#5586).
+//
+// src/lib holds pure helpers next to domain modules (tenant context, concepts,
+// API clients, domain calculations). The kit loads only the modules listed in
+// KIT_PURE_LIB_MODULES: no tenant or school knowledge, no API, no domain rule
+// (#6582). A type-only import stays allowed from every lib
+// module: it leaves no code in the bundle and only names the shape a prop
+// takes (MotoConcept, ModuleKey).
+
+const KIT_PURE_LIB_MODULES = new Set([
+  "src/lib/constants/input-limits",
+  "src/lib/date-helpers",
+  "src/lib/date-picker-labels",
+  "src/lib/file-format",
+  "src/lib/format-utils",
+  "src/lib/hooks/use-berlin-today",
+  "src/lib/hooks/use-latest",
+  "src/lib/hooks/use-media-query",
+  "src/lib/hooks/use-scroll-y",
+  "src/lib/hooks/use-viewport-at-least",
+  "src/lib/kit-palette",
+  // Infrastructure, not domain: frontend/CLAUDE.md requires createLogger for
+  // every log line. It reads the portal only to pick its ingest path.
+  "src/lib/logger",
+  "src/lib/search-fold",
+  "src/lib/use-clipboard-copy",
+  "src/lib/utils",
+]);
 
 const KIT_DATA_HOOK_RE = /^useSWR/;
 
-function kitImportLeavesKit(source, key) {
-  if (source === "swr" || source.startsWith("swr/")) return true;
+/** `import type …`, `export type …`, or only `type` specifiers. */
+function isTypeOnlyImport(node) {
+  if (node.type === "ImportExpression") return false;
+  if (node.importKind === "type" || node.exportKind === "type") return true;
+  const specifiers = node.specifiers ?? [];
+  return (
+    specifiers.length > 0 &&
+    specifiers.every(
+      (specifier) =>
+        specifier.importKind === "type" || specifier.exportKind === "type",
+    )
+  );
+}
+
+function kitImportTarget(source, key) {
   const alias = /^[~@]\/(.*)$/.exec(source);
   let target;
   if (alias) {
@@ -2394,10 +2435,20 @@ function kitImportLeavesKit(source, key) {
     }
     target = parts.join("/");
   } else {
-    return false;
+    return null;
   }
-  if (target.startsWith(UI_KIT_DIR)) return false;
-  return target.startsWith("src/components/") || target.startsWith("src/app/");
+  return target.replace(/\.(?:ts|tsx|js|mjs)$/, "");
+}
+
+function kitImportLeavesKit(node, source, key) {
+  if (source === "swr" || source.startsWith("swr/")) return true;
+  const target = kitImportTarget(source, key);
+  if (target === null || target.startsWith(UI_KIT_DIR)) return false;
+  if (target.startsWith("src/components/") || target.startsWith("src/app/")) {
+    return true;
+  }
+  if (!target.startsWith("src/lib/")) return false;
+  return !KIT_PURE_LIB_MODULES.has(target) && !isTypeOnlyImport(node);
 }
 
 const noKitDomainImport = {
@@ -2409,7 +2460,7 @@ const noKitDomainImport = {
     },
     messages: {
       domainImport:
-        "Das Kit importiert keine Fachlogik ('{{source}}'). Baustein nach components/ui ziehen oder Kontext über Props oder Slots hereinreichen (#5586, .claude/rules/frontend-ui-kit.md).",
+        "Das Kit importiert keine Fachlogik ('{{source}}'). Fachbaustein in seinen Fachordner ziehen oder Kontext über Props oder Slots hereinreichen; aus ~/lib nur reine Module (KIT_PURE_LIB_MODULES) und Typen (#5586, #6582, .claude/rules/frontend-ui-kit.md).",
       dataAccess:
         "Das Kit lädt keine Daten ('{{name}}'). Die Daten kommen über Props vom fachlichen Aufrufer (#5586, .claude/rules/frontend-ui-kit.md).",
     },
@@ -2420,7 +2471,7 @@ const noKitDomainImport = {
     if (!key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
 
     const checkSource = (node, source) => {
-      if (typeof source !== "string" || !kitImportLeavesKit(source, key))
+      if (typeof source !== "string" || !kitImportLeavesKit(node, source, key))
         return;
       context.report({ node, messageId: "domainImport", data: { source } });
     };

@@ -59,8 +59,8 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
-import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
-import { EmptyStudentResults } from "~/components/ui/empty-student-results";
+import { StudentPresenceBadge } from "@/components/students/presence/student-presence-badge";
+import { EmptyStudentResults } from "~/components/students/empty-student-results";
 import {
   StudentCard,
   PickupTimeRow,

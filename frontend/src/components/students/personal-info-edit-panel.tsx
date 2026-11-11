@@ -66,7 +66,10 @@ import {
   ParentVisibilityLegend,
 } from "~/components/ui/visibility-badge";
 import { Textarea } from "~/components/ui/textarea";
-import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
+import {
+  PARENT_VISIBLE_DEFAULT_HINT,
+  PARENT_VISIBLE_HINTS,
+} from "~/lib/parent-visible-fields";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoEditPanel" });
@@ -779,7 +782,7 @@ export function PersonalInfoEditPanel({
           }
         />
       ) : null}
-      <ParentVisibilityLegend />
+      <ParentVisibilityLegend hint={PARENT_VISIBLE_DEFAULT_HINT} />
       <TextInput
         id="modal-student-first-name"
         label="Vorname"

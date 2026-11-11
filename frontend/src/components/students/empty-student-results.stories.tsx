@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { EmptyStudentResults } from "./empty-student-results";
 
 const meta = {
-  title: "components/ui/EmptyStudentResults",
+  title: "components/students/EmptyStudentResults",
   component: EmptyStudentResults,
 } satisfies Meta<typeof EmptyStudentResults>;
 

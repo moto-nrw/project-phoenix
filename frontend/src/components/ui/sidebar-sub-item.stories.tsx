@@ -54,7 +54,7 @@ export const ActiveWithBadge: Story = {
     label: "Überblick",
     isActive: true,
     count: 4,
-    badge: { count: 3, tone: "staff", ariaLabel: "3 ungelesene Anmeldungen" },
+    badge: { count: 3, tone: "orange", ariaLabel: "3 ungelesene Anmeldungen" },
   },
 };
 

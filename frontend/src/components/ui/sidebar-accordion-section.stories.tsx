@@ -60,14 +60,14 @@ export const Loading: Story = {
 export const CollapsedWithCount: Story = {
   args: {
     label: "Anmeldungen",
-    badge: { count: 3, tone: "staff", ariaLabel: "3 ungelesene Anmeldungen" },
+    badge: { count: 3, tone: "orange", ariaLabel: "3 ungelesene Anmeldungen" },
   },
 };
 
 export const CollapsedWithZeroCount: Story = {
   args: {
     label: "Anmeldungen mit einer langen Bezeichnung",
-    badge: { count: 0, tone: "staff", ariaLabel: "0 ungelesene Anmeldungen" },
+    badge: { count: 0, tone: "orange", ariaLabel: "0 ungelesene Anmeldungen" },
   },
 };
 
@@ -81,7 +81,7 @@ export const RailWithCount: Story = {
   ],
   args: {
     label: "Anmeldungen",
-    badge: { count: 3, tone: "staff", ariaLabel: "3 ungelesene Anmeldungen" },
+    badge: { count: 3, tone: "orange", ariaLabel: "3 ungelesene Anmeldungen" },
     collapsed: true,
     labelsMounted: false,
     labelsVisible: false,
@@ -115,7 +115,7 @@ export const RailActive: Story = {
 export const FadingWithCount: Story = {
   args: {
     label: "Anmeldungen",
-    badge: { count: 3, tone: "staff", ariaLabel: "3 ungelesene Anmeldungen" },
+    badge: { count: 3, tone: "orange", ariaLabel: "3 ungelesene Anmeldungen" },
     collapsed: true,
     labelsMounted: true,
     labelsVisible: false,
