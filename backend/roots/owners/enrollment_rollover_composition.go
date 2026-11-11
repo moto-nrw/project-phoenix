@@ -18,26 +18,12 @@ func NewEnrollmentRollovers(src EnrollmentRolloverSources) enrollmentOwner.Rollo
 		Decisions: src.Decisions, Outbox: src.Outbox, ParentsURL: src.ParentsURL, Random: securityruntime.FillRandom, Logger: src.Logger,
 	}
 	if src.Settings != nil {
-		deps.Settings = enrollmentRolloverSettings{settings: src.Settings}
+		// The intake's settings binding serves the rollover too: grade
+		// collection, token lifetime and the legal blocks of the renewal
+		// terms (#6456) resolve as they do for a submission.
+		deps.Settings = intakeSettings(src.Settings)
 	}
 	return enrollmentCompose.NewRollovers(deps)
-}
-
-// enrollmentRolloverSettings binds grade collection and token lifetimes.
-type enrollmentRolloverSettings struct {
-	settings EnrollmentRolloverSettings
-}
-
-func (s enrollmentRolloverSettings) CollectGradeLevel(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectGradeLevel)
-}
-
-func (s enrollmentRolloverSettings) GradeLevelMax(ctx context.Context) (int, error) {
-	return s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)
-}
-
-func (s enrollmentRolloverSettings) StatusTokenTTLDays(ctx context.Context) (int, error) {
-	return s.settings.ResolveInt(ctx, configModels.KeyEnrollmentStatusTokenTTLDays)
 }
 
 // NewEnrollmentOfferingCapacity composes the owner's capacity gate the
@@ -56,11 +42,9 @@ func NewEnrollmentOfferingCapacity(offerings enrollmentCompose.CapacityOfferings
 	return enrollmentCompose.NewOfferingCapacity(offerings, peaks, waitlistEnabled)
 }
 
-// EnrollmentRolloverSettings resolves the settings the rollover reads.
-type EnrollmentRolloverSettings interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-}
+// EnrollmentRolloverSettings resolves the settings the rollover reads, the
+// same keys the intake resolves.
+type EnrollmentRolloverSettings = EnrollmentIntakeSettings
 
 // EnrollmentRolloverSources are the owners the root binds the rollover to.
 type EnrollmentRolloverSources struct {

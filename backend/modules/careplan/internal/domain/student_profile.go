@@ -30,3 +30,10 @@ type StudentLiveStatus struct {
 	Excused      bool
 	ExcusedSince *time.Time
 }
+
+// StudentCareProfileSave is one care profile of a new membership with its
+// departure plan, as a batch inserts it.
+type StudentCareProfileSave struct {
+	Profile StudentCareProfile
+	Plan    *StudentDeparturePlan
+}

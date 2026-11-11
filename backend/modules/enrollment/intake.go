@@ -310,6 +310,34 @@ type RequestStatus struct {
 type StatusPage struct {
 	EditMode         string
 	CareFacilityTerm string
+	// RenewalTerms are the conditions a renewal asks the parents to accept
+	// for the new care phase (#6456); nil while no child of the request
+	// waits for a renewal decision.
+	RenewalTerms *RenewalTerms
+}
+
+// RenewalTerms are the required legal blocks of the form in force for the
+// phase of a renewal. A renewal carries no consent of the earlier phase over:
+// the parents accept these blocks explicitly, and only that acceptance is
+// evidence for the contract of the new phase (#6456).
+type RenewalTerms struct {
+	// FormSchemaID is the form version the blocks come from; 0 when the
+	// phase has no form and the tenant-wide blocks apply.
+	FormSchemaID int64
+	// TermsFingerprint binds the answer to the displayed wording and PDF references.
+	TermsFingerprint string
+	Blocks           []LegalBlock
+	// ConfirmedAt is when the parents last accepted exactly these blocks;
+	// nil while they have not.
+	ConfirmedAt *time.Time
+}
+
+// RenewalConfirmation is the parents' answer to the renewal terms: the
+// ticked blocks, the form version and the content fingerprint the page showed.
+type RenewalConfirmation struct {
+	ConsentFlags          FormValues
+	DisplayedFormSchemaID int64
+	TermsFingerprint      string
 }
 
 // EditDraft is the persisted request that reopens the public form.
@@ -350,9 +378,11 @@ type IntakeSubmissions interface {
 	Edit(ctx context.Context, token string, patch EditPatch) error
 	// Withdraw withdraws one child, or every open child when childID is 0.
 	Withdraw(ctx context.Context, token string, childID int64) error
-	// ConfirmRenewal moves the request's pending_renewal children to
-	// submitted and reports how many it moved.
-	ConfirmRenewal(ctx context.Context, token string) (int, error)
+	// ConfirmRenewal records the parents' acceptance of the renewal terms
+	// as a new legal evidence entry, moves the request's pending_renewal
+	// children to submitted and reports how many it moved. auto_renewed
+	// children keep their status (#6456).
+	ConfirmRenewal(ctx context.Context, token string, confirmation RenewalConfirmation) (int, error)
 	// CreateLateInvite issues a late invite and returns its token once.
 	CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error)
 	// CreateManualApprovedEnrollment submits a staff-created enrollment and

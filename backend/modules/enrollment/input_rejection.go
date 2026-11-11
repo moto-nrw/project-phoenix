@@ -89,7 +89,12 @@ const (
 
 	CodeHolidayRegistrationFormChanged = "enrollment.holiday_registration_form_changed"
 
-	CodeConsentRequired       = "enrollment.consent_required"
+	CodeConsentRequired = "enrollment.consent_required"
+	// CodeRenewalTermsRequired refuses a renewal confirmation without the
+	// tick of a required block; CodeRenewalTermsChanged one for a form
+	// version that is no longer in force (#6456).
+	CodeRenewalTermsRequired  = "enrollment.renewal_terms_required"
+	CodeRenewalTermsChanged   = "enrollment.renewal_terms_changed"
 	CodeChildRequired         = "enrollment.child_required"
 	CodeChildNameRequired     = "enrollment.child_name_required"
 	CodeChildBirthDateInvalid = "enrollment.child_birth_date_invalid"

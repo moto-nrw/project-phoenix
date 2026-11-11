@@ -399,11 +399,23 @@ describe("enrollment-submission-api", () => {
   });
 
   it("confirms renewals and defaults missing counters to zero", async () => {
+    const accepted = {
+      consentFlags: { terms: true },
+      formSchemaId: "81",
+      termsFingerprint: "shown-terms",
+    };
     mockFetch.mockResolvedValueOnce(jsonResponse({ confirmed: 3 }));
-    await expect(confirmRenewal("tok")).resolves.toBe(3);
+    await expect(confirmRenewal("tok", accepted)).resolves.toBe(3);
+    // The ticks travel with the form version the page showed (#6456).
+    const [, init] = mockFetch.mock.calls.at(-1) as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      consent_flags: { terms: true },
+      form_schema_id: "81",
+      terms_fingerprint: "shown-terms",
+    });
 
     mockFetch.mockResolvedValueOnce(jsonResponse({}));
-    await expect(confirmRenewal("tok")).resolves.toBe(0);
+    await expect(confirmRenewal("tok", accepted)).resolves.toBe(0);
   });
 
   it("surfaces fallback messages when status mutations fail", async () => {
@@ -450,7 +462,13 @@ describe("enrollment-submission-api", () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ error: "Abgelaufen" }, { status: 410 }),
     );
-    await expect(confirmRenewal("tok")).rejects.toMatchObject({
+    await expect(
+      confirmRenewal("tok", {
+        consentFlags: {},
+        formSchemaId: "0",
+        termsFingerprint: "empty-terms",
+      }),
+    ).rejects.toMatchObject({
       message: "Bestätigung nicht möglich (HTTP 410)",
       code: "general.business_rejection",
     });
