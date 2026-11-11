@@ -3853,7 +3853,7 @@ describe.concurrent("ui-kit/confirmation-dismiss-lock", () => {
     `import { ConfirmationModal } from "~/components/ui/modal";
       export function Probe({ busy, why }: { busy: boolean; why: string }) {
         return (
-          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Freigeben?" isConfirmLoading={busy}${attribute}>
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Freigeben?" isConfirmLoading={busy} loadingText="Wird freigegeben …"${attribute}>
             <p>{why}</p>
           </ConfirmationModal>
         );

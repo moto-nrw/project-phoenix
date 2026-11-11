@@ -485,6 +485,8 @@ describe("PhasesEditor", () => {
   // #6652: the status change holds once the write is through; a failed
   // reload is a load error that says the change is saved, no action error.
   it("keeps a status change when the reload fails", async () => {
+    mocks.showActionError.mockClear();
+    mocks.updatePhase.mockClear();
     mocks.listPhases
       .mockReset()
       .mockResolvedValueOnce([phase()])

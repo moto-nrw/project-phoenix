@@ -75,6 +75,7 @@ describe("TraegerContactCard", () => {
   // #6652: the save holds once the write is through; a failed reload of the
   // page is a load error in the card that says the change is saved.
   it("keeps the saved values when the page reload fails", async () => {
+    mockSave.mockClear();
     mockSave.mockResolvedValue({
       name: "Petra Lindner",
       phone: "",

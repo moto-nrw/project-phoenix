@@ -241,6 +241,7 @@ describe("AbwesenheitenTab vacation takeover", () => {
     }
 
     it("keeps a booked takeover booked when the reload fails", async () => {
+      mocks.setVacationOpening.mockClear();
       failSecondQuotaLoad(quota());
       mocks.getAbsences.mockResolvedValue([]);
       mocks.setVacationOpening.mockResolvedValue(existingOpening);
@@ -270,6 +271,7 @@ describe("AbwesenheitenTab vacation takeover", () => {
     });
 
     it("keeps a deleted takeover deleted when the reload fails", async () => {
+      mocks.deleteVacationOpening.mockClear();
       failSecondQuotaLoad(
         quota({
           taken_before_days: 6,
