@@ -252,11 +252,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/workforce/internal/application/Service.LockStaffOffboarding",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/workforce/internal/application/Service.PreviewStaffOffboarding",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

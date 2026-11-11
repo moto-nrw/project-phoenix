@@ -11,6 +11,7 @@ package contracttest_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -399,4 +400,88 @@ func TestStaffRowLockIsAdmittedThroughTheLockOrder(t *testing.T) {
 		return tenant.OrderLock(ctx, tenant.LockScheduleDay, dayWriterRaceDate.String())
 	})
 	require.ErrorIs(t, err, tenant.ErrLockOrder, "a day lock after a staff row is refused")
+}
+
+// The current template adds lower-ID A while the existing occurrence names
+// B. A save on another day locks A then B. Replanning must lock their union
+// before deleting, rather than B in the snapshot and A in materialization.
+func TestReplanAndDeviationSaveLockTheCompleteRosterInOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module, _, _, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	newStaff := testpkg.CreateTestStaff(t, db, "Race", "New")
+	subject := testpkg.CreateTestStaff(t, db, "Race", "Subject")
+	lead := testpkg.CreateTestStaff(t, db, "Race", "Lead")
+	require.Less(t, newStaff.ID, subject.ID, "materialization adds a lower-ID person than the existing roster")
+	room := testpkg.CreateTestRoom(t, db, "Offboarding replan race")
+	period := testpkg.CreateTestCalendarPeriod(t, db, "Offboarding replan period", replanRaceDate, replanRaceDate.AddDays(27))
+	testpkg.SetCalendarPeriodActive(t, db, period, true)
+	template := testpkg.CreateTestActivityGroup(t, db, "Offboarding replan series")
+	frame := testpkg.CreateTestTimeframeForTenant(t, db, tenantID, "Offboarding replan frame")
+	for _, statement := range []struct {
+		query string
+		args  []any
+	}{
+		{`UPDATE schedule.timeframes SET start_time = '14:00', end_time = '15:00' WHERE id = ? AND tenant_id = ?`, []any{frame.ID, tenantID}},
+		{`UPDATE activities.groups SET is_template = TRUE, planned_room_id = ?, calendar_period_id = ? WHERE id = ? AND tenant_id = ?`, []any{room.ID, period.ID, template.ID, tenantID}},
+		{`INSERT INTO activities.schedules (tenant_id, weekday, timeframe_id, activity_group_id, week_pattern) VALUES (?, ?, ?, ?, 0)`, []any{tenantID, calendar.ISOWeekday(replanRaceDate), frame.ID, template.ID}},
+		{`INSERT INTO activities.supervisors (tenant_id, staff_id, group_id, is_primary, valid_from) VALUES (?, ?, ?, TRUE, ?)`, []any{tenantID, lead.ID, template.ID, replanRaceDate}},
+		{`INSERT INTO activities.supervisors (tenant_id, staff_id, group_id, is_primary, valid_from) VALUES (?, ?, ?, FALSE, ?)`, []any{tenantID, subject.ID, template.ID, replanRaceDate}},
+	} {
+		_, err := db.NewRaw(statement.query, statement.args...).Exec(ctx)
+		require.NoError(t, err)
+	}
+	require.NoError(t, api.MaterializeDayForTest(ctx, module, replanRaceDate))
+	require.ElementsMatch(t, []int64{lead.ID, subject.ID}, occurrenceStaff(t, db, template.ID), "the occurrence plans both supervisors")
+
+	// The template now adds a person absent from the old occurrence. Keep
+	// both old supervisors so their assignments remain after regeneration.
+	_, err = db.NewRaw(`INSERT INTO activities.supervisors (tenant_id, staff_id, group_id, is_primary, valid_from) VALUES (?, ?, ?, FALSE, ?)`, tenantID, newStaff.ID, template.ID, replanRaceDate).Exec(ctx)
+	require.NoError(t, err)
+	outside := testpkg.CreateTestActivityInstance(t, db, replanRaceDate.AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Outside replan"})
+	for _, id := range []int64{newStaff.ID, subject.ID} {
+		testpkg.CreateTestInstanceStaff(t, db, outside.ID, id, testpkg.InstanceStaffOpts{})
+	}
+	locked, release := make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	defer releaseOnce.Do(func() { close(release) })
+	barrier := startRaceTx(t, db, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.NewRaw(`SELECT id FROM users.staff_school_memberships WHERE id = ? FOR UPDATE`, subject.ID).Exec(ctx); err != nil {
+			return err
+		}
+		close(locked)
+		<-release
+		return nil
+	})
+	<-locked
+	replan := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
+		return api.ReplanTemplateDayForTest(ctx, module, template.ID, replanRaceDate)
+	})
+	awaitBlockedBy(t, db, replan, barrier.pid, "the re-plan")
+	save := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
+		return api.MarkStaffAbsentForTest(ctx, module, outside.ID, newStaff.ID, subject.ID)
+	})
+	// Old code waits on B's barrier after locking A; fixed code waits on A
+	// held by the replan. Observe either wait before releasing the barrier.
+	waiting := false
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		require.NoError(t, db.NewRaw(`SELECT cardinality(pg_blocking_pids(?::int)) > 0`, save.pid).Scan(ctx, &waiting))
+		if waiting {
+			break
+		}
+	}
+	require.True(t, waiting, "the deviation save must reach its staff lock")
+	releaseOnce.Do(func() { close(release) })
+	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
+	// Consume both outcomes even if one is the deadlock victim.
+	replanErr, saveErr := <-replan.done, <-save.done
+	require.NoError(t, replanErr, "the re-plan must not deadlock with a save outside its window")
+	require.NoError(t, saveErr, "the deviation save must not deadlock with the re-plan")
+	require.ElementsMatch(t, []int64{newStaff.ID, subject.ID, lead.ID}, occurrenceStaff(t, db, template.ID))
+	var absent int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM schedule.instance_staff WHERE instance_id = ? AND is_absent`, outside.ID).Scan(ctx, &absent))
+	require.Equal(t, 2, absent, "the concurrent save committed both absences")
 }

@@ -97,10 +97,10 @@ func (d *DueExits) RunDue(ctx context.Context) (DueRun, error) {
 
 // lockActedPlans takes, before the first savepoint, the locks of every
 // planned exit this run acts on (#6583): Workforce's absence and staff-shift
-// gates, then the membership rows, each ascending by staff id. The run keeps
-// every lock until it commits, so the exits share one lock order: an exit's
-// offboarding takes a gate, and no gate may follow another person's staff
-// row (tenant.LockStaffRows).
+// gates (all absence gates before any shift gate), then the membership
+// rows, each ascending by staff id. The run keeps every lock until commit,
+// so the exits share one lock order: an exit's offboarding takes a gate, and
+// no gate may follow another person's staff row (tenant.LockStaffRows).
 func (d *DueExits) lockActedPlans(ctx context.Context, plans []schoolmembership.PlannedExit, today calendar.Date) error {
 	staffIDs := make([]int64, 0, len(plans))
 	for _, plan := range plans {
@@ -110,10 +110,8 @@ func (d *DueExits) lockActedPlans(ctx context.Context, plans []schoolmembership.
 	}
 	slices.Sort(staffIDs)
 	staffIDs = slices.Compact(staffIDs)
-	for _, staffID := range staffIDs {
-		if err := d.planner.workflow.deps.Workforce.Lock(ctx, staffID); err != nil {
-			return err
-		}
+	if err := d.planner.workflow.deps.Workforce.Lock(ctx, staffIDs...); err != nil {
+		return err
 	}
 	for _, staffID := range staffIDs {
 		_, err := d.planner.exits.FindPlannedExitForMutation(ctx, staffID)

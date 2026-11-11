@@ -3,6 +3,9 @@ package staffoffboarding_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -380,4 +383,38 @@ func TestTwoPlannedExitsDueInOneRunBothComplete(t *testing.T) {
 	require.True(t, f.retired(t))
 	_, err = f.membership.FindStaff(ctx, other.ID)
 	require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound, "the second exit retired its member too")
+}
+
+// A report edit holds its subject's balance and absence gates before it
+// locks a substitute's shift gate. A reminder batch must not hold the
+// substitute's shift gate while waiting for the report subject's gates.
+func TestPlannedExitRemindersLockAllAbsencesBeforeAnyShift(t *testing.T) {
+	t.Parallel()
+	f, planner := newPlannerFixture(t)
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	other := testpkg.CreateTestStaff(t, db, "Reminder", "Second")
+	require.Less(t, f.staffID, other.ID)
+	for _, id := range []int64{f.staffID, other.ID} {
+		_, err := planner.Plan(ctx, id, plannedExitDate("2027-10-10"))
+		require.NoError(t, err)
+	}
+	f.today = "2027-10-03"
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	require.NoError(t, planner.RunDue(counter.Context(ctx)))
+	require.Empty(t, planner.lastRun.Failed)
+	require.Len(t, f.notices, 2)
+	require.False(t, f.retired(t), "a reminder keeps the membership live")
+	queries := counter.Queries()
+	index := func(kind string, staffID int64) int {
+		key := fmt.Sprintf("'%s:%d:%d'", kind, testpkg.Tenant(t), staffID)
+		i := slices.IndexFunc(queries, func(query string) bool { return strings.Contains(query, key) })
+		require.NotEqual(t, -1, i, "missing gate %s", key)
+		return i
+	}
+	firstShift := min(index("staff-shift", f.staffID), index("staff-shift", other.ID))
+	for _, id := range []int64{f.staffID, other.ID} {
+		require.Less(t, index("staff-balance", id), firstShift, "all balance gates precede every shift gate")
+		require.Less(t, index("staff-absence", id), firstShift, "all absence gates precede every shift gate")
+	}
 }
