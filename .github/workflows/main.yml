@@ -124,7 +124,14 @@ jobs:
               - 'backend/**/testdata/**'
               # Shrink-only ratchet registers, read by ./test.
               - 'backend/test/*.json'
+              # Read by path from tests in ./test, ./cmd and identityaccess.
+              - 'backend/architecture/composition.json'
+              - 'backend/auth/authorize/permissions/catalog.json'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
+              # Embedded into the backend build (go:embed).
+              - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/inbound/datareturn/openapi.json'
+              - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
               - 'scripts/backend-architecture.sh'
@@ -138,6 +145,10 @@ jobs:
               - 'backend/internal/architecture/**'
               - 'backend/tools/go.mod'
               - 'backend/tools/go.sum'
+              # Embedded into the backend build (go:embed).
+              - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/inbound/datareturn/openapi.json'
+              - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               # Notes such as backend/architecture/WORKPLAN.md feed no check.
               # Without a Go change they would select a full ./... lint.
               - '!backend/**/*.md'
@@ -169,6 +180,9 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
+              - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/inbound/datareturn/openapi.json'
+              - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
             seed-smoke-infra:
@@ -367,7 +381,7 @@ jobs:
         if: github.event_name == 'pull_request' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Select frontend test mode
         id: frontend-mode
@@ -479,7 +493,7 @@ jobs:
         if: matrix.suite == 'ratchets'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a

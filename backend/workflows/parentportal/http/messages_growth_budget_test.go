@@ -97,13 +97,9 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 		paths := []struct{ name, path string }{{"conversation", fmt.Sprintf("/me/messages/children/%d", chain.StudentID)}, {"threads", fmt.Sprintf("/me/messages/children/%d/threads", chain.StudentID)}, {"group_thread", fmt.Sprintf("/me/messages/group-threads/%d", groupID)}}
 		for _, entry := range paths {
 			// A parent request is bound to no school (ProtectedParentGroup); a
-			// bound context would make the conversation's read marker take the
-			// ambient way of two units (ADR 0161, #5862).
-			reqCtx := testpkg.Ctx(t)
-			if entry.name == "conversation" {
-				reqCtx = context.Background()
-			}
-			req := httptest.NewRequest("GET", entry.path, nil).WithContext(counter.Context(testpkg.WithPackageTenantRuntime(reqCtx)))
+			// bound context could select the ambient way instead of the
+			// production path (ADR 0161, #5862, #6616).
+			req := httptest.NewRequest("GET", entry.path, nil).WithContext(counter.Context(testpkg.WithPackageTenantRuntime(context.Background())))
 			req.Header.Set("Authorization", "Bearer "+token)
 			counter.Reset()
 			counter.Start()

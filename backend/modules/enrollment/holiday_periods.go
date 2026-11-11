@@ -208,6 +208,25 @@ type HolidayPeriodInput struct {
 	Weeks          []HolidayWeekInput
 }
 
+// HolidayWeekHost is a week of a holiday period with the school that hosts
+// it.
+type HolidayWeekHost struct {
+	WeekID       int64
+	StartsOn     calendar.Date
+	EndsOn       calendar.Date
+	HostSchoolID int64
+}
+
+// HolidayWeekHosts is the narrow read the Elternabrechnung needs to book a
+// holiday position on the KOST1 of its host school (#6624): the weeks of
+// one period of the Träger with their host school, nothing else of the
+// period. It runs in the Träger transaction of organizationID, which the
+// caller opens, and names the Träger in its own filter: a period of
+// another Träger has no weeks, also below row level security.
+type HolidayWeekHosts interface {
+	HolidayWeekHosts(ctx context.Context, organizationID, periodID int64) ([]HolidayWeekHost, error)
+}
+
 // HolidayPeriods lets the Träger-Büro plan holiday periods. Every operation
 // names the Träger of the session and runs in its Träger transaction, which
 // the caller opens.

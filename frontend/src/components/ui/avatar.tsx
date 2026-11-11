@@ -5,7 +5,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getInitials } from "~/lib/format-utils";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 
 type AvatarSize = "sm" | "md" | "lg" | "xl";

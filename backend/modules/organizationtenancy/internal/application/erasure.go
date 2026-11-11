@@ -85,10 +85,34 @@ func (s *Erasure) checkLedger(ctx context.Context, r organizationtenancy.Erasure
 	if err := s.store.CheckSchoolLock(ctx); err != nil {
 		return err
 	}
+	// A preview refuses where the run refuses.
+	for _, id := range ids {
+		if err := s.checkDataReturn(ctx, r, "school", id); err != nil {
+			return err
+		}
+	}
 	if r.DryRun {
 		return nil
 	}
 	return s.ledger.Check(ids, r.OrderReference)
+}
+
+// checkDataReturn refuses an erasure, and its preview, while a released
+// return package of the school or Träger still lies in the store (ADR 0203):
+// the erasure does not reach that store, so the package would stay
+// retrievable. Revoke and purge it first (tenant return revoke, tenant
+// return purge). A trigger on the root row repeats the check in the
+// transaction of the delete. A package of the Träger does not block the
+// erasure of one of its schools.
+func (s *Erasure) checkDataReturn(ctx context.Context, r organizationtenancy.ErasureRequest, kind string, id int64) error {
+	raw, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "data_return_open", kind, id)
+	if err != nil {
+		return err
+	}
+	if string(raw) != "0" {
+		return fmt.Errorf("erasure: %s %d has a released return package that is not purged; run tenant return revoke --archive and tenant return purge first; nothing erased", kind, id)
+	}
+	return nil
 }
 
 func (s *Erasure) runSchool(ctx context.Context, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
@@ -208,6 +232,9 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 // started. A refused preflight leaves the order withdrawable; from the mark
 // on, a run that fails halfway is resumed with the same order.
 func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64) error {
+	if err := s.checkDataReturn(ctx, r, "organization", r.OrganizationID); err != nil {
+		return err
+	}
 	if r.DryRun {
 		return nil
 	}
@@ -215,6 +242,13 @@ func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.E
 		return err
 	}
 	_, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference)
+	if err != nil {
+		// The begin refuses a package released since the check above (#6665);
+		// the store hides SQL errors, so name that cause when it applies.
+		if open := s.checkDataReturn(ctx, r, "organization", r.OrganizationID); open != nil {
+			return open
+		}
+	}
 	return err
 }
 

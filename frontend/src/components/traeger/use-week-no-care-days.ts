@@ -4,8 +4,9 @@
  * Tage ohne Betreuung je Ferienwoche im Editor (#4702). Feiertage und
  * Schließtage des Trägers kommen aus dem Kalender des Trägers, solange der
  * Editor die Tage ändert; die Schließtage, die eine Schule selbst einträgt,
- * nennt das Backend für die gespeicherte Woche. Gespeichert wird eine Woche
- * mit so einem Tag nicht; das Backend prüft es noch einmal.
+ * nennt das Backend für die gespeicherte Woche. Eine ganze Woche mit so einem
+ * Tag wird nicht gespeichert; bei einzelnen Tagen fällt nur dieser Tag weg
+ * (#6447). Das Backend prüft beides noch einmal.
  */
 
 import { useSession } from "next-auth/react";

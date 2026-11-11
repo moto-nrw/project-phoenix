@@ -82,7 +82,9 @@ conventions, and CI ratchets. They constrain code inside an owner; the policy
 defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
 and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
 
-**Query budgets (#2940)**: every list endpoint has a scenario in `test/query-budgets/` and a test that counts its statements with `testpkg.CaptureQueries` and calls `querybudgets.AssertQueryBudget` (package `test/query-budgets`, kept apart from `testpkg` so a budget edit retests only the packages that assert budgets). The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
+**Database roundtrips (MANDATORY)**: new code loads set-based, statement count independent of row count: batch-load by ID set (`= ANY(?)`), join or use `Relation`, write in bulk. A query per loop row is an N+1 and blocks the change; fix N+1s in touched code too.
+
+**Query budgets (#2940)**: every list endpoint has a `test/query-budgets/` scenario asserted via `testpkg.CaptureQueries` and `querybudgets.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unused entries and own `BeforeQuery` hooks. Pattern: Rule 15 in `.claude/rules/backend-conventions.md`.
 
 ## Calendar Dates: calendar.Date (MANDATORY)
 

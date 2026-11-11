@@ -3921,6 +3921,73 @@ describe.concurrent("ui-kit/confirmation-dismiss-lock", () => {
   });
 });
 
+describe.concurrent("ui-kit/confirmation-loading-text", () => {
+  const RULE = /ui-kit\(confirmation-loading-text\)/g;
+  const PATH = "src/components/probe/probe-loading-text.tsx";
+  const probe = (confirmText: string, extra = "") =>
+    `import { ConfirmationModal } from "~/components/ui/modal";
+      export function Probe({ busy, state, other }: { busy: boolean; state: { busy: boolean }; other: boolean }) {
+        ${extra}
+        return (
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Anmelden?" isConfirmLoading={busy} confirmText={${confirmText}}>
+            <p>{String(state.busy || other)}</p>
+          </ConfirmationModal>
+        );
+      }`;
+
+  it.each([
+    ["switched inline", `busy ? "Wird angemeldet…" : "Anmelden"`, ""],
+    [
+      "switched on the negated flag",
+      `!busy ? "Anmelden" : "Wird angemeldet…"`,
+      "",
+    ],
+    [
+      "switched in a local const",
+      "label",
+      `const label = busy ? "Wird gespeichert…" : "Gesundmelden";`,
+    ],
+    [
+      "switched in a nested branch",
+      `other ? "Aufheben" : busy ? "Wird gespeichert…" : "Entschuldigen"`,
+      "",
+    ],
+  ])("reports a confirmText %s", async (_label, confirmText, extra) => {
+    const result = await lintSource(probe(confirmText, extra), PATH);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it.each([
+    ["as a plain literal", `"Anmelden"`, ""],
+    ["switched on another value", `other ? "Aufheben" : "Entschuldigen"`, ""],
+    [
+      "in a const switched on another value",
+      "label",
+      `const label = other ? "Aufheben" : "Entschuldigen";`,
+    ],
+  ])("accepts a confirmText %s", async (_label, confirmText, extra) => {
+    const result = await lintSource(probe(confirmText, extra), PATH);
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei mit umgeschaltetem Text fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = probe(`busy ? "Wird angemeldet…" : "Anmelden"`);
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
   it.each(["src/app/school/probe/page.tsx", "src/app/operator/probe/page.tsx"])(
     "reports a hand-rolled card in %s",

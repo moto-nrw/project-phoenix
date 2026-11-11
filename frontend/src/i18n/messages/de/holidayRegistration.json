@@ -15,6 +15,10 @@
   "window": "Anmeldung vom {opens} bis {closes}",
   "binding": "Die Anmeldung ist verbindlich.",
   "requiredHint": "Felder mit * müssen Sie ausfüllen.",
+  "accountHintTitle": "Sie haben schon die Eltern-App?",
+  "accountHintText": "Melden Sie sich an. Dann sind Ihre Angaben schon eingetragen.",
+  "accountHintLogin": "Anmelden",
+  "backToParentApp": "Zurück zur Eltern-App",
   "notesTitle": "Hinweise vom Träger",
   "closedTitle": "Die Anmeldung ist nicht offen",
   "closedText": "Sie können Ihr Kind vom {opens} bis {closes} anmelden.",
@@ -161,10 +165,11 @@
   "fullDaysHint": "Schon voll: {days}",
   "fullDayAria": "{day}, schon voll",
   "fullDaysChosen": "{count, plural, one {Dieser Tag ist} other {Diese Tage sind}} schon voll: {days} Damit kommt Ihr Kind für die ganze Woche auf die Warteliste. Ohne {count, plural, one {diesen Tag} other {diese Tage}} bekommt es vielleicht gleich einen Platz.",
-  "dayLimitHint": "In diesen Ferien kann jedes Kind höchstens {limit} Tage kommen. Die Tage dürfen in verschiedenen Wochen liegen.",
+  "dayLimitHint": "In diesen Ferien kann jedes Kind höchstens {limit} Tage kommen. Das gilt für alle Anmeldungen des Kindes zusammen. Die Tage dürfen in verschiedenen Wochen liegen.",
   "dayLimitCount": "Gewählt: {count, plural, one {# Tag} other {# Tage}}.",
   "dayLimitOver": "Gewählt: {count, plural, one {# Tag} other {# Tage}}. Das sind zu viele. Bitte wählen Sie weniger Tage.",
   "summaryDays": "Tage: {days}",
   "contributionDays": "{count, plural, one {# Tag} other {# Tage}}",
-  "dayWithoutCare": "Am {date} ist keine Betreuung ({name})."
+  "dayWithoutCare": "Am {date} ist keine Betreuung ({name}).",
+  "noCareDayAria": "{day}, keine Betreuung"
 }

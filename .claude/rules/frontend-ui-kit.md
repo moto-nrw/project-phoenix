@@ -17,7 +17,7 @@ This kit is the MOTO design system.
 |---|---|
 | UI components | `frontend/src/components/ui/` |
 | Header / list-page kit | `frontend/src/components/ui/page-header/` |
-| Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
+| Brand colors | meaning: `lib/location-helper.ts` `LOCATION_COLORS` (sole source); hex: `lib/kit-palette.ts` |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
 Use direct file imports: `import { Button } from "~/components/ui/button"`. No `ui/index.ts` barrel.
@@ -96,6 +96,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | You need… | Use | Import from |
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
+| What a click does (hover, key focus, never tap) | `tooltip` on `Button`/`ButtonLink`, else `ActionHint`; no `title`. `Tooltip`: text only | `~/components/ui/button` |
 | Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px below `lg`), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
 | Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |

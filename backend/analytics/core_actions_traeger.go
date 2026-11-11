@@ -103,6 +103,7 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/corrections"}: notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/release"}:     notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/discard"}:     notCaptured,
 	// The corrections a reissued invoice carries over (#5663).
 	{http.MethodPut, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}:    notCaptured,
 	{http.MethodDelete, "/traeger/billing-runs/{id}/carried-corrections/{positionID}"}: notCaptured,
@@ -125,9 +126,11 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}: notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/"}:                    notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:        notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/discard"}:        notCaptured,
 	// The Jahresbescheide of the monthly care (#6219): Träger, no school.
 	{http.MethodPost, "/traeger/care-notice-runs/"}:             notCaptured,
 	{http.MethodPost, "/traeger/care-notice-runs/{id}/release"}: notCaptured,
+	{http.MethodPost, "/traeger/care-notice-runs/{id}/discard"}: notCaptured,
 	// The stored originals of the Jahresbescheide and their mail (#6347):
 	// Träger, no school.
 	{http.MethodPost, "/traeger/care-notice-runs/{id}/letters"}:                   notCaptured,

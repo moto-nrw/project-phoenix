@@ -35,7 +35,8 @@ import {
   getWeekRange,
   getWeekdays,
 } from "~/lib/timetable-helpers";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";

@@ -22,6 +22,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { formatDate } from "~/lib/date-helpers";
 import {
+  holidayCareDays,
   holidayDayLabel,
   holidayDayList,
   holidayWeekdayShort,
@@ -224,6 +225,12 @@ function DayChoice({
   const t = useTranslations("holidayRegistration");
   const locale = useLocale();
   const fullDays = week.fullDays ?? [];
+  // Every day from Monday to Friday stays in the row; a day without care
+  // (#6447) is shown struck through and cannot be chosen.
+  const bookable = week.careDays ?? [];
+  const weekDays = [
+    ...new Set([...holidayCareDays(week.startsOn, week.endsOn), ...bookable]),
+  ].sort();
   const chosenFull = days.filter((day) => fullDays.includes(day));
   const hint = [
     t("daysHint"),
@@ -245,12 +252,15 @@ function DayChoice({
         name={name}
         error={error}
         ariaLabel={t("daysLabel", { week: label })}
-        days={(week.careDays ?? []).map((day) => ({
+        days={weekDays.map((day) => ({
           value: day,
           label: holidayWeekdayShort(day, locale),
-          ariaLabel: fullDays.includes(day)
-            ? t("fullDayAria", { day: holidayDayLabel(day, locale) })
-            : holidayDayLabel(day, locale),
+          disabled: !bookable.includes(day),
+          ariaLabel: !bookable.includes(day)
+            ? t("noCareDayAria", { day: holidayDayLabel(day, locale) })
+            : fullDays.includes(day)
+              ? t("fullDayAria", { day: holidayDayLabel(day, locale) })
+              : holidayDayLabel(day, locale),
         }))}
         value={days}
         onToggle={(day) =>

@@ -49,6 +49,7 @@
     "ui-kit/form-modal-pending": "error",
     "ui-kit/slide-over-pending": "error",
     "ui-kit/confirmation-dismiss-lock": "error",
+    "ui-kit/confirmation-loading-text": "error",
     "ui-kit/green-fill-white-text": "error",
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",

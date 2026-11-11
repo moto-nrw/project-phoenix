@@ -14,12 +14,20 @@ func NewHolidayPeriods(today func() calendar.Date, schoolCalendar enrollment.Hol
 	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today, schoolCalendar)
 }
 
+// NewHolidayWeekHosts builds the read of the host school of each holiday week for the Elternabrechnung (#6624).
+func NewHolidayWeekHosts() enrollment.HolidayWeekHosts { return postgres.NewHolidayPeriodStore() }
+
 // NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722); schoolCalendar (#4702) may be nil only for links and quotes; wishModes (#4703).
 func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, health enrollment.HolidayHealthCipher, schoolCalendar enrollment.HolidaySchoolCalendar, wishModes enrollment.HolidayWishModes, random func([]byte) error, fingerprint func([]byte) string, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
 		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(), Forms: postgres.NewHolidayPeriodStore(),
 		Proofs: postgres.NewHolidayRegistrationStore(), Places: postgres.NewHolidayRegistrationStore(), Criteria: postgres.NewHolidayRegistrationStore(), Traeger: traeger, Mail: mail, Health: health, Calendar: schoolCalendar, WishModes: wishModes, Random: random, Fingerprint: fingerprint, Logger: logger,
 	})
+}
+
+// NewHolidayRegistrationAnnouncements builds the read of the published periods the parents app announces (#6671, ADR 0207), in the administrative transaction.
+func NewHolidayRegistrationAnnouncements() enrollment.HolidayRegistrationAnnouncements {
+	return postgres.NewHolidayRegistrationStore()
 }
 
 // NewHolidayWishes builds the prefill's sealed statements of the holiday care wish (school tenant transaction) and the office's decision on it (#4703).

@@ -1157,6 +1157,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (b parentBillingBillingRegistrations) HolidayWeekHosts(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayWeekHost, error) {\n\tweeks, err := b.hosts.HolidayWeekHosts(ctx, reviewer.OrganizationID, periodID)\n\tif err != nil {\n\t\treturn nil, parentBillingHolidayError(err)\n\t}\n\thosts := make([]parentbilling.HolidayWeekHost, len(weeks))\n\tfor i, week := range weeks {\n\t\thosts[i] = parentbilling.HolidayWeekHost{WeekID: week.WeekID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID}\n\t}\n\treturn hosts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingBillingRegistrations.HolidayWeekHosts",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (c parentBillingCareContracts) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {\n\tparties, err := c.contracts.BillingRecipients(ctx, organizationID, contractIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecipients := make(map[int64]parentbilling.CareRecipient, len(parties))\n\tfor contractID, party := range parties {\n\t\trecipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}\n\t}\n\treturn recipients, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingCareContracts.Recipients",
@@ -1199,13 +1206,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (b parentBillingHolidayRegistrations) RebookHolidayChild(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID, childID int64, bookings []parentbilling.HolidayBookingChoice) (parentbilling.HolidayRegistration, error) {\n\tchoices := make([]enrollmentOwner.HolidayBookingInput, len(bookings))\n\tfor i, booking := range bookings {\n\t\tchoices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}\n\t}\n\tdetail, err := b.review.RebookHolidayChild(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, childID, choices)\n\tif err != nil {\n\t\treturn parentbilling.HolidayRegistration{}, parentBillingPlacesError(err)\n\t}\n\tregistration := parentBillingRegistration(detail)\n\tregistration.View = detail\n\treturn registration, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/parentBillingHolidayRegistrations.RebookHolidayChild",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (b parentBillingHolidayRegistrations) RecordHolidaySiblings(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, action string, siblingIDs []int64) error {\n\treturn parentBillingHolidayError(b.review.RecordHolidaySiblings(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, action, siblingIDs))\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingHolidayRegistrations.RecordHolidaySiblings",
@@ -1227,13 +1227,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (b parentBillingHolidayRegistrations) SetHolidayWeekCapacity(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, weekID int64, capacity *int) ([]int64, error) {\n\tchange, err := b.places.SetHolidayWeekCapacity(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, weekID, capacity)\n\tif err != nil {\n\t\treturn nil, parentBillingPlacesError(err)\n\t}\n\treturn promotedRegistrations(change.Promotions), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/parentBillingHolidayRegistrations.SetHolidayWeekCapacity",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (p parentBillingLetterPost) EnqueueDocumentNotice(ctx context.Context, notice parentbilling.BillingDocumentNotice) error {\n\tpayload, err := json.Marshal(notice)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"document notice payload: %w\", err)\n\t}\n\t_, err = p.delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{OrganizationID: notice.OrganizationID, Template: parentbilling.PushKindBillingDocument, IdempotencyKey: fmt.Sprintf(\"parent-billing-document:%d\", notice.DocumentID), Payload: payload, Related: deliveryContract.RelatedEntity{Type: parentbilling.PushRelatedBillingDocument, ID: notice.DocumentID}})\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingLetterPost.EnqueueDocumentNotice",
@@ -1251,6 +1244,20 @@
       "evidence": "func (p parentBillingLetterPost) SenderText(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := p.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyBrandingLetterheadText})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyBrandingLetterheadText], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingLetterPost.SenderText",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c parentBillingPlaceChanges) RebookHolidayChild(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID, childID int64, bookings []parentbilling.HolidayBookingChoice) (parentbilling.HolidayPlaceChange, error) {\n\tchoices := make([]enrollmentOwner.HolidayBookingInput, len(bookings))\n\tfor i, booking := range bookings {\n\t\tchoices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}\n\t}\n\tdetail, err := c.workflow.RebookHolidayChild(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, childID, choices)\n\tif err != nil {\n\t\treturn parentbilling.HolidayPlaceChange{}, parentBillingPlacesError(err)\n\t}\n\treturn parentbilling.HolidayPlaceChange{Registration: detail, RegistrationID: detail.ID, MovedUp: sortedMovedUp(detail.Promotions)}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingPlaceChanges.RebookHolidayChild",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c parentBillingPlaceChanges) SetHolidayWeekCapacity(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, weekID int64, capacity *int) (parentbilling.HolidayPlaceChange, error) {\n\tchange, err := c.workflow.SetHolidayWeekCapacity(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, weekID, capacity)\n\tif err != nil {\n\t\treturn parentbilling.HolidayPlaceChange{}, parentBillingPlacesError(err)\n\t}\n\treturn parentbilling.HolidayPlaceChange{WeekID: weekID, Capacity: capacity, MovedUp: sortedMovedUp(change.Promotions)}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingPlaceChanges.SetHolidayWeekCapacity",
       "owner": "roots"
     },
     {
@@ -2480,7 +2487,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error) {\n\treturn a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots)\n}",
+      "evidence": "func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore, today enrollment.Date) (int64, error) {\n\treturn a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots, today)\n}",
       "form": "forward-debt",
       "id": "roots/owners/EnrollmentBookingProjection.RestoreCareExitOfferingLinks",
       "owner": "roots"
@@ -4496,7 +4503,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore) (int64, error) {\n\tvalues := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(restores))\n\tfor _, restore := range restores {\n\t\tvalues = append(values, enrollment.CareExitOfferingSnapshotRestore{SourceRowID: restore.SourceRowID, WasDeleted: restore.WasDeleted, Snapshot: restore.Snapshot})\n\t}\n\treturn e.projection.RestoreCareExitOfferingLinks(ctx, values)\n}",
+      "evidence": "func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore, today owner0.Date) (int64, error) {\n\tvalues := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(restores))\n\tfor _, restore := range restores {\n\t\tvalues = append(values, enrollment.CareExitOfferingSnapshotRestore{SourceRowID: restore.SourceRowID, WasDeleted: restore.WasDeleted, Snapshot: restore.Snapshot})\n\t}\n\treturn e.projection.RestoreCareExitOfferingLinks(ctx, values, enrollment.Date(today))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careExitEnrollment.RestoreCareExitOfferingLinks",
       "owner": "roots"
@@ -5535,6 +5542,13 @@
       "evidence": "func (p enrollmentPersons) UpdatePerson(ctx context.Context, person *enrollmentCompose.Person) error {\n\treturn p.people.SetPersonDetails(ctx, person.ID, peopledirectory.PersonDetails{FirstName: person.FirstName, LastName: person.LastName, Birthday: decisionBirthday(person.Birthday)})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPersons.UpdatePerson",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, move enrollmentOwner.PhaseBookingMove) error {\n\terr := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))\n\tvar conflict *careplan.PhaseBookingBoundsConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn \u0026enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseBookings.FollowPhaseBookingBounds",
       "owner": "roots"
     },
     {

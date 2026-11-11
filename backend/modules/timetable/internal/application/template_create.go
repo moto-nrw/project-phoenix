@@ -559,6 +559,15 @@ func (s *TemplateService) createTemplateRoster(
 	if err := closeOpenLegacyPlannedSupervisors(ctx, s.deps.ActivitySupervisorRepo, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
 		return &ports.ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
+	// Lock the complete roster, including weekday-only staff, in the same
+	// ascending order as deviation saves before the first supervisor insert.
+	staffIDs := make([]int64, 0, len(roster.Staff))
+	for _, row := range roster.Staff {
+		staffIDs = append(staffIDs, row.PersonID)
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, staffIDs); err != nil {
+		return &ports.ScheduleError{Op: "create template: lock staff", Err: err}
+	}
 	for _, row := range roster.Staff {
 		supervisor := &activityContract.SupervisorPlanned{
 			StaffID:          row.PersonID,

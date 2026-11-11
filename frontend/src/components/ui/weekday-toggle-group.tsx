@@ -4,6 +4,7 @@ import { useId } from "react";
 
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ToggleChip } from "~/components/ui/toggle-chip";
+import { cn } from "~/lib/utils";
 
 export interface WeekdayToggleOption<T extends string | number> {
   readonly value: T;
@@ -11,6 +12,12 @@ export interface WeekdayToggleOption<T extends string | number> {
   readonly label: string;
   /** Eigener vorgelesener Name, wenn das Kürzel nicht reicht. */
   readonly ariaLabel?: string;
+  /**
+   * Nur dieser Tag ist nicht wählbar, zum Beispiel ein Feiertag. Er bleibt
+   * sichtbar und durchgestrichen, damit die Reihe nicht springt. Den Grund
+   * nennen `ariaLabel` und der `hint` der Gruppe.
+   */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -61,9 +68,12 @@ export function WeekdayToggleGroup<T extends string | number>({
           key={day.value}
           pressed={value.includes(day.value)}
           onPressedChange={() => onToggle(day.value)}
-          disabled={disabled}
+          disabled={disabled || day.disabled}
           ariaLabel={day.ariaLabel}
-          className="max-w-14 min-w-10 flex-1 px-1"
+          className={cn(
+            "max-w-14 min-w-10 flex-1 px-1",
+            day.disabled && "bg-gray-50 line-through",
+          )}
         >
           {day.label}
         </ToggleChip>

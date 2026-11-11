@@ -17,6 +17,7 @@ import {
   canSeeDetailedLocation,
   getLocationColor,
   getLocationDisplay,
+  getRoomBadgeColor,
   isAtSchoolLocation,
   isCheckedInLocation,
   isInClassLocation,
@@ -408,7 +409,7 @@ function binaryLabel(
         // The yard follows the Schulhof room's own colour when one is set
         // (#2405); the backend ships it in `current_room_color`.
         color: student.current_room_color?.trim()
-          ? student.current_room_color
+          ? getRoomBadgeColor(student.current_room_color)
           : LOCATION_COLORS.SCHOOLYARD,
       };
     case "abwesend":

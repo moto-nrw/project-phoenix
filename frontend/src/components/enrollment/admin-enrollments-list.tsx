@@ -48,7 +48,10 @@ import {
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import {
+  ENROLLMENT_QR_CODE,
+  PublicLinkCopyButton,
+} from "~/components/enrollment/public-link-copy-button";
 import { StatCard } from "~/components/ui/stat-card";
 import { ButtonLink } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
@@ -472,8 +475,10 @@ function EnrollmentPhaseOverview({
           };
           return (
             <InsetPanel key={phase.id} tone="white" padding="md">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+              {/* Wraps: with link, form and QR code the actions need the
+                  row, and the phase name must stay readable. */}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-48 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="truncate text-sm font-semibold text-gray-900">
                       {phase.name}
@@ -485,7 +490,7 @@ function EnrollmentPhaseOverview({
                     {formatDate(phase.service_end_date)}
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                <div className="ml-auto flex shrink-0 flex-wrap justify-end gap-2">
                   <PhasePublicLinkActions
                     phase={phase}
                     tenantSlug={tenantSlug}
@@ -561,6 +566,7 @@ function PhasePublicLinkActions({
         <PublicLinkCopyButton
           url={phaseUrl}
           componentId={`AdminEnrollmentsList:${phase.id}`}
+          qrCode={ENROLLMENT_QR_CODE}
         />
       ) : null}
     </>

@@ -259,7 +259,7 @@ type EnrollmentSuiteRepositories struct {
 
 // Enrollment is the Enrollment booking projection.
 func (f *EnrollmentSuiteRepositories) Enrollment() owners.EnrollmentBookingProjection {
-	return owners.NewEnrollmentBookingProjection(owners.ComposeEnrollmentBookings(f.enrollment))
+	return owners.NewEnrollmentBookingProjection(owners.ComposeEnrollmentBookings(f.enrollment), owners.UngatedEnrollmentPhaseBounds())
 }
 
 // NewEnrollmentSuiteRepositories composes the projection's owner.

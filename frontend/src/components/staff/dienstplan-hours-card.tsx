@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { COVERAGE_DELTA_TEXT_COLOR } from "~/components/ui/planning/coverage-indicator";
+import { COVERAGE_DELTA_TEXT_COLOR } from "~/components/ui/planning/planning-colors";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   formatDeltaHours,

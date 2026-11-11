@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ClockIcon, EnvelopeOpenIcon } from "@phosphor-icons/react/ssr";
-import { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
+import { MOTO_DUOTONE_PALETTE as MOTO_DUOTONE_TONES } from "~/lib/kit-palette";
 import { MOTO_CONCEPTS } from "./moto-concepts";
 import { childrenConcept } from "~/lib/concepts/children";
 import { dashboardConcept } from "~/lib/concepts/dashboard";

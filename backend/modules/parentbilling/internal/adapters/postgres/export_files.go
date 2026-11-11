@@ -143,6 +143,9 @@ type exportFileRow struct {
 	SubmittedByAccountID *int64     `bun:"submitted_by_account_id"`
 	DatevAll             bool       `bun:"datev_all"`
 	ResolvedPositions    int        `bun:"resolved_positions"`
+	// CostCenterFallbacks are the holiday positions the file booked on the
+	// KOST1 of the holiday care (#6624).
+	CostCenterFallbacks []parentbilling.CostCenterFallback `bun:"cost_center_fallbacks,type:jsonb"`
 }
 
 // exportFileListRow is a protocol entry with what the list shows besides:
@@ -157,10 +160,14 @@ type exportFileListRow struct {
 }
 
 func (r exportFileRow) entry() parentbilling.ExportProtocolEntry {
+	fallbacks := r.CostCenterFallbacks
+	if fallbacks == nil {
+		fallbacks = []parentbilling.CostCenterFallback{}
+	}
 	return parentbilling.ExportProtocolEntry{ID: r.ID, FileNumber: r.FileNumber, Format: r.Format, RunKind: r.RunKind, RunID: r.RunID,
 		FileName: r.FileName, Fingerprint: r.ContentSHA256, InvoiceCount: r.InvoiceCount, TotalCents: r.TotalCents,
 		Reference: textOf(r.Reference), ExportedBy: r.ExportedByAccountID, ExportedAt: r.ExportedAt, SubmittedAt: r.SubmittedAt,
-		DatevAll: r.DatevAll, ResolvedPositions: r.ResolvedPositions}
+		DatevAll: r.DatevAll, ResolvedPositions: r.ResolvedPositions, CostCenterFallbacks: fallbacks}
 }
 
 func (r exportFileListRow) entry() parentbilling.ExportProtocolEntry {
@@ -170,6 +177,19 @@ func (r exportFileListRow) entry() parentbilling.ExportProtocolEntry {
 		entry.RepeatOf = *r.RepeatOf
 	}
 	return entry
+}
+
+// costCenterFallbacksJSON is the list as the column holds it, [] for none.
+func costCenterFallbacksJSON(fallbacks []parentbilling.CostCenterFallback) string {
+	if len(fallbacks) == 0 {
+		return "[]"
+	}
+	data, err := json.Marshal(fallbacks)
+	if err != nil {
+		// A list of strings and dates always marshals.
+		panic(fmt.Sprintf("parent billing: marshal the cost center fallbacks: %v", err))
+	}
+	return string(data)
 }
 
 // InsertExportFile records a file and the invoices it holds; the database
@@ -183,11 +203,12 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 	var row exportFileRow
 	if err := db.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
 		content_sha256, booking_sha256, invoice_count, total_cents, reference, exported_by_account_id, datev_all,
-		resolved_positions)
-		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?, ?, ?)
+		resolved_positions, cost_center_fallbacks)
+		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?, ?, ?, ?::jsonb)
 		RETURNING *`, organizationID, record.FileNumber, record.Format, record.RunKind, record.RunID, record.FileName, record.Content,
 		record.BookingContent, exportDocumentCount(record), record.TotalCents,
-		textRef(record.Reference), accountRef(accountID), record.DatevAll, record.ResolvedPositions).Scan(ctx, &row); err != nil {
+		textRef(record.Reference), accountRef(accountID), record.DatevAll, record.ResolvedPositions,
+		costCenterFallbacksJSON(record.CostCenterFallbacks)).Scan(ctx, &row); err != nil {
 		return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the export file: %w", err)
 	}
 	if err := insertExportFileInvoices(ctx, db, organizationID, row.ID, record); err != nil {

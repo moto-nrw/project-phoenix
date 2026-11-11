@@ -65,6 +65,56 @@ func (s *HolidayRegistrationStore) FindHolidayRegistrationLink(ctx context.Conte
 	return link, true, nil
 }
 
+const announcedHolidayRegistrationsQuery = `SELECT period.organization_id, period.id, period.public_token, period.name,
+		period.registration_opens_on, period.registration_closes_on,
+		(SELECT min(week.starts_on) FROM enrollment.holiday_period_weeks AS week
+			WHERE week.organization_id = period.organization_id AND week.holiday_period_id = period.id) AS first_day,
+		(SELECT max(week.ends_on) FROM enrollment.holiday_period_weeks AS week
+			WHERE week.organization_id = period.organization_id AND week.holiday_period_id = period.id) AS last_day
+	FROM enrollment.holiday_periods AS period
+	WHERE period.organization_id = ANY(?) AND period.status = 'published' AND period.registration_closes_on >= ?
+	ORDER BY period.registration_closes_on, period.registration_opens_on, period.id`
+
+// AnnouncedHolidayRegistrations reads the published periods of the given
+// Träger whose registration has not closed before on, in one statement
+// (#6671). Only the administrative transaction may read across Träger.
+func (s *HolidayRegistrationStore) AnnouncedHolidayRegistrations(ctx context.Context, organizationIDs []int64, on calendar.Date) ([]enrollment.HolidayRegistrationAnnouncement, error) {
+	if !tenant.IsAdminTx(ctx) {
+		return nil, errors.New("enrollment postgres: the announced holiday registrations require the administrative transaction")
+	}
+	if len(organizationIDs) == 0 {
+		return []enrollment.HolidayRegistrationAnnouncement{}, nil
+	}
+	db, err := NewDatabase()(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		OrganizationID       int64          `bun:"organization_id"`
+		ID                   int64          `bun:"id"`
+		PublicToken          string         `bun:"public_token"`
+		Name                 string         `bun:"name"`
+		RegistrationOpensOn  calendar.Date  `bun:"registration_opens_on"`
+		RegistrationClosesOn calendar.Date  `bun:"registration_closes_on"`
+		FirstDay             *calendar.Date `bun:"first_day"`
+		LastDay              *calendar.Date `bun:"last_day"`
+	}
+	if err := db.NewRaw(announcedHolidayRegistrationsQuery, pgdialect.Array(organizationIDs), on).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read announced holiday registrations: %w", err)
+	}
+	announcements := make([]enrollment.HolidayRegistrationAnnouncement, len(rows))
+	for i, row := range rows {
+		announcements[i] = enrollment.HolidayRegistrationAnnouncement{
+			OrganizationID: row.OrganizationID, PeriodID: row.ID, Token: row.PublicToken, Name: row.Name,
+			RegistrationOpensOn: row.RegistrationOpensOn, RegistrationClosesOn: row.RegistrationClosesOn,
+		}
+		if row.FirstDay != nil && row.LastDay != nil {
+			announcements[i].FirstDay, announcements[i].LastDay = *row.FirstDay, *row.LastDay
+		}
+	}
+	return announcements, nil
+}
+
 const (
 	// deleteExpiredHolidayRateLimitsQuery keeps the counters of a Träger
 	// small.

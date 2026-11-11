@@ -49,3 +49,20 @@ export const Empty: Story = {
     message: "",
   },
 };
+
+// Location or status colour: the pill tint of that colour.
+export const WithLocationColor: Story = {
+  args: {
+    type: "info",
+    message: "Das Kind ist auf dem Schulhof.",
+    color: "#F78C10",
+  },
+};
+
+export const WithRoomColor: Story = {
+  args: {
+    type: "info",
+    message: "Das Kind ist im Raum mit eigener Farbe.",
+    color: "#A3D977",
+  },
+};

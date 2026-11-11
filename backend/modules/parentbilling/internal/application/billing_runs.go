@@ -69,6 +69,9 @@ type RunStore interface {
 	// number another invoice carries is ErrInvoiceNumberTaken.
 	IssueDocuments(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, first int64, documents []parentbilling.BillingDocument) error
 	MarkRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64) (parentbilling.BillingRun, error)
+	// MarkRunDiscarded discards a calculated run of the Träger (#6628); a
+	// run that is not calculated is ErrBillingRunReleased.
+	MarkRunDiscarded(ctx context.Context, organizationID, runID int64) (parentbilling.BillingRun, error)
 	RunDocuments(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocument, error)
 	// RunLetters reads the letters of a released run; nil before they are
 	// created (#4669).
@@ -306,7 +309,7 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 		documents[i].IssuedOn = &issuedOn
 		documents[i].DocumentKind = documentKind
 	}
-	if err := freezeHolidayAccounts(ctx, b.store, b.settings, reviewer.OrganizationID, documents); err != nil {
+	if err := b.freezeAccounts(ctx, reviewer, run, documents); err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
 	if err := b.store.IssueDocuments(ctx, reviewer.OrganizationID, run, year, first, documents); err != nil {
@@ -354,6 +357,19 @@ func (b *BillingRuns) fingerprintedPreview(ctx context.Context, reviewer parentb
 		return preview{}, parentbilling.DocumentKindState{}, "", err
 	}
 	return current, kind, holidayPreviewFingerprint(run, current, kind.DocumentKind, legalRemedy), nil
+}
+
+// freezeAccounts copies where each position of the run's documents books
+// onto it, with the host school of each week read through Enrollment
+// (#4821, #6624).
+func (b *BillingRuns) freezeAccounts(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun,
+	documents []parentbilling.BillingDocument,
+) error {
+	weeks, err := b.registrations.HolidayWeekHosts(ctx, reviewer, run.HolidayPeriodID)
+	if err != nil {
+		return fmt.Errorf("parent billing: read the host schools of the weeks: %w", err)
+	}
+	return freezeHolidayAccounts(ctx, b.store, b.settings, reviewer.OrganizationID, weeks, documents)
 }
 
 // releasedKind is the kind of document the release freezes: the kind the
@@ -435,7 +451,7 @@ func (b *BillingRuns) lockCalculated(ctx context.Context, organizationID, runID 
 		return parentbilling.BillingRun{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.BillingRun{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.BillingRun{}, closedRunError(run.Status)
 	}
 	return run, nil
 }
@@ -513,12 +529,17 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 // number range the release uses.
 func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun) (parentbilling.BillingRunDetail, error) {
 	detail := parentbilling.BillingRunDetail{BillingRun: run, BilledInAdvance: run.Service == parentbilling.ServiceHoliday}
-	if run.Status == parentbilling.RunReleased {
+	switch run.Status {
+	case parentbilling.RunReleased:
 		if err := b.releasedDetail(ctx, reviewer.OrganizationID, &detail); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
-	} else if err := b.previewDetail(ctx, reviewer, &detail); err != nil {
-		return parentbilling.BillingRunDetail{}, err
+	case parentbilling.RunDiscarded:
+		discardedHolidayDetail(&detail)
+	default:
+		if err := b.previewDetail(ctx, reviewer, &detail); err != nil {
+			return parentbilling.BillingRunDetail{}, err
+		}
 	}
 	for _, document := range detail.Documents {
 		// A cancellation and a credit lower the sum, but are no invoice

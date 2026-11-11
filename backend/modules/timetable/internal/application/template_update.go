@@ -176,6 +176,9 @@ func (s *TemplateService) updateTemplateLocked(
 	if err := s.lockSeriesPredecessorDays(ctx, in, state.validFrom); err != nil {
 		return err
 	}
+	if err := s.lockTemplateUpdateStaff(ctx, in); err != nil {
+		return err
+	}
 	if err := s.writeTemplateFields(ctx, in, state, targetsProvided); err != nil {
 		return err
 	}

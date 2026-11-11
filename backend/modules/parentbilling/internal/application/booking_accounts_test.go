@@ -296,15 +296,17 @@ func TestFreezeCareAccountsCopiesWhereEachPositionBooks(t *testing.T) {
 		"September lies before the cost center")
 	assert.Equal(t, parentbilling.PositionAccounts{RevenueAccount: "4420", CostCenter: "ISP", Frozen: true}, invoices[0].MealPositions[0].Accounts)
 
-	documents := []parentbilling.BillingDocument{{ServiceFrom: onDay(2026, time.October, 12)}}
+	week := onDay(2026, time.October, 12)
+	documents := []parentbilling.BillingDocument{{ServiceFrom: week, Children: []parentbilling.BillingChild{{ChildID: 1,
+		Positions: []parentbilling.BillingPosition{{Kind: parentbilling.LineBase, AmountCents: 5000, WeekStartsOn: &week, WeekEndsOn: &week}}}}}}
 	store := &bookingAccountStore{assignments: parentbilling.BookingAssignments{CostCenters: []parentbilling.CostCenter{
 		{Scope: parentbilling.BookingScopeHoliday, ValidFrom: onDay(2026, time.October, 12), Code: "FER"}}}}
-	require.NoError(t, freezeHolidayAccounts(context.Background(), store, datevReadySettings(), sjrReviewer.OrganizationID, documents))
-	assert.Equal(t, parentbilling.PositionAccounts{RevenueAccount: "4400", CostCenter: "FER", Frozen: true}, documents[0].Accounts,
+	require.NoError(t, freezeHolidayAccounts(context.Background(), store, datevReadySettings(), sjrReviewer.OrganizationID, nil, documents))
+	assert.Equal(t, parentbilling.PositionAccounts{RevenueAccount: "4400", CostCenter: "FER", Frozen: true}, documents[0].Children[0].Positions[0].Accounts,
 		"the standard of the DATEV settings and the KOST1 of the holiday care")
 	// A Storno or credit relieves the accounts of its invoice.
-	documents[0].Accounts.RevenueAccount = "4430"
-	assert.Equal(t, "4430", cancellationOf(documents[0], "falsch").Accounts.RevenueAccount)
+	documents[0].Children[0].Positions[0].Accounts.RevenueAccount = "4430"
+	assert.Equal(t, "4430", cancellationOf(documents[0], "falsch").Children[0].Positions[0].Accounts.RevenueAccount)
 }
 
 func TestBookingAccountsChecksTheScopeOfTheTraeger(t *testing.T) {

@@ -164,7 +164,7 @@ jobs:
       - name: Setup Node.js for error-code generator fixtures
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Setup Go
         id: go
@@ -250,6 +250,7 @@ jobs:
           CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
           CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_data_return NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_tenant_export NOLOGIN BYPASSRLS;
           GRANT pg_read_all_data TO phoenix_tenant_export;
           GRANT phoenix_tenant TO phoenix_auth;
@@ -411,7 +412,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "pnpm"
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -897,6 +898,17 @@ jobs:
                    WHERE other.account_id = d.visitor_parent_account_id) = 1")
           echo "demo schools with the visitor's parent: ${parents}"
           test "${parents}" = 3
+          # Each ordered school bills its own contracts (#6621): its deferred
+          # seed adds the applications, then the Träger concludes and bills them.
+          billed=$(psql "${DB_DSN}" -At -c "
+            SELECT count(*) FROM platform.demo_school_states d
+            WHERE d.name LIKE 'ogs-smoke-%'
+              AND EXISTS (SELECT 1 FROM parent_billing.care_invoices i WHERE i.school_id = d.tenant_id)
+              AND EXISTS (SELECT 1 FROM parent_billing.export_files f
+                JOIN parent_billing.care_run_schools r ON r.organization_id = f.organization_id AND r.run_id = f.run_id
+                WHERE f.run_kind = 'care' AND f.format = 'datev' AND r.school_id = d.tenant_id)")
+          echo "demo schools with monthly invoices and a DATEV file of their own: ${billed}"
+          test "${billed}" = 3
 
       # Demo visitors are erased (#4048): hide the three schools as the
       # expiry does 14 days after their last use, let the demo process run its
@@ -925,9 +937,15 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "UPDATE platform.schools SET deleted_at = NOW() - INTERVAL '2 hours'
              WHERE id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%')"
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once
-          orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
-          echo "demo orders left after the erasure: ${orders}"
+          # The erasure starts no order after 250 ms and leaves the rest to its
+          # next run; with their own contracts and invoices (#6621) three
+          # schools can take two runs.
+          for run in 1 2 3; do
+            "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once
+            orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
+            echo "demo orders left after erasure run ${run}: ${orders}"
+            test "${orders}" = 0 && break
+          done
           test "${orders}" = 0
           for school in ${schools}; do
             left=$(find public/uploads \( -name "${school}" -o -name "${school}_*" \) | wc -l)

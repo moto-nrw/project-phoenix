@@ -89,7 +89,7 @@ type careService struct {
 
 // careContract stores an active contract with one effective version from
 // effectiveFrom and its party, as a conclusion leaves it (#4680, #4681).
-func careContract(t *testing.T, db *bun.DB, organizationID, schoolID int64, child, effectiveFrom string, services ...careService) int64 {
+func careContract(t *testing.T, db bun.IDB, organizationID, schoolID int64, child, effectiveFrom string, services ...careService) int64 {
 	t.Helper()
 	ctx := context.Background()
 	var contractID, versionID int64

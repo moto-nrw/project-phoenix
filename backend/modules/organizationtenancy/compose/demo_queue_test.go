@@ -286,8 +286,7 @@ func TestDemoSchoolQueueRetiresDeferredSchoolAfterAccessExpires(t *testing.T) {
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
 	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
 
-	hidden, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	hidden, erased := retireAtLeast(t, db, queue, []string{slug}, 1, 1)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 1, erased)
 	assert.True(t, schoolHidden(t, db, schoolID))

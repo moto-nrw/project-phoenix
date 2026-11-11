@@ -1,7 +1,13 @@
 import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
 import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { MODULE_KEYS } from "~/lib/modules";
 import { useBookedModules } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
@@ -9,7 +15,15 @@ import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
-import { staffService, staffAbsenceService } from "~/lib/staff-api";
+import {
+  SAVED_BUT_STALE_SUFFIX,
+  STALE_DATA_SUFFIX,
+} from "~/lib/hooks/use-refresh-after-write";
+import {
+  staffAbsenceService,
+  staffPlannedExitService,
+  staffService,
+} from "~/lib/staff-api";
 import { catalogText } from "~/test/error-catalog-text";
 import StaffDetailContent from "./page";
 
@@ -27,12 +41,17 @@ const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
 );
 const detailRequest = vi.hoisted(() => ({
   error: null as unknown,
+  // A failed revalidation: SWR keeps the confirmed data and sets the error.
+  staleError: null as unknown,
   endedOn: null as string | null,
   avatarUrl: undefined as string | undefined,
   plannedExitDate: null as string | null,
   mutate: vi.fn(),
 }));
 const roleAssignment = vi.hoisted(() => ({ currentIsLehrkraft: false }));
+const mockTenantMutate = vi.hoisted(() =>
+  vi.fn((_key: string) => Promise.resolve<unknown>(undefined)),
+);
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -108,7 +127,7 @@ vi.mock("~/lib/database/service-factory", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRSeedFrom: () => () => undefined,
-  useTenantMutate: () => vi.fn(),
+  useTenantMutate: () => mockTenantMutate,
   useTenantMutateMatching: () => vi.fn(),
   useInvalidateMatching: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
@@ -128,7 +147,7 @@ vi.mock("~/lib/swr", () => ({
       return {
         data: staffRecord(),
         isLoading: false,
-        error: null,
+        error: detailRequest.staleError,
         mutate: detailRequest.mutate,
       };
     }
@@ -308,7 +327,9 @@ describe("StaffDetailContent permissions", () => {
   );
   beforeEach(() => {
     vi.clearAllMocks();
+    mockTenantMutate.mockImplementation(() => Promise.resolve(undefined));
     detailRequest.error = null;
+    detailRequest.staleError = null;
     detailRequest.endedOn = null;
     detailRequest.avatarUrl = undefined;
     detailRequest.plannedExitDate = null;
@@ -1035,6 +1056,33 @@ describe("StaffDetailContent permissions", () => {
       expect(detailRequest.mutate).toHaveBeenCalled();
     });
 
+    // #6636: nach einem Schreiben setzt ein gescheitertes Nachladen nur den
+    // SWR-Fehler; die geladene Akte bleibt stehen, der Fehler steht darüber.
+    it("behält die geladene Personalakte, wenn das Nachladen scheitert", async () => {
+      detailRequest.plannedExitDate = "2026-12-31";
+      detailRequest.staleError = new ApiError("down", 503, {
+        code: "general.unavailable",
+      });
+      mockAdmin(["users:read", "users:delete"]);
+
+      render(<StaffDetailContent />);
+
+      const loadText = catalogText("general.unavailable", "die Personalakte");
+      expect(
+        await screen.findByText((text) => text.startsWith(loadText)),
+      ).toBeInTheDocument();
+      // Anker: die Akte mit Kopf und Aktionen bleibt stehen.
+      expect(screen.getByText("Austritt am 31.12.2026")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Weitere Aktionen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(`${loadText} ${STALE_DATA_SUFFIX}`),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(detailRequest.mutate).toHaveBeenCalled();
+    });
+
     it("nennt eine gelöschte Person statt eines Ladefehlers", () => {
       detailRequest.error = new ApiError("not found", 404, {
         code: "general.input",
@@ -1046,6 +1094,85 @@ describe("StaffDetailContent permissions", () => {
       expect(
         screen.getByText(/Diese Person gibt es nicht mehr\./),
       ).toBeInTheDocument();
+    });
+
+    // #6636: das Zurücknehmen ist gelungen, nur das Nachladen scheitert.
+    // Der Dialog schließt, kein Fehler des Zurücknehmens; der Ladefehler
+    // steht über dem Reiter und sein Wiederholen lädt nur nach.
+    it("meldet ein gescheitertes Nachladen nach dem Zurücknehmen des Austritts als Ladefehler", async () => {
+      detailRequest.plannedExitDate = "2026-12-31";
+      const withdraw = vi
+        .spyOn(staffPlannedExitService, "withdraw")
+        .mockResolvedValue(undefined);
+      let failRecord = true;
+      mockTenantMutate.mockImplementation((key: string) =>
+        key.startsWith("staff-record-") && failRecord
+          ? Promise.reject(
+              new ApiError("down", 503, { code: "general.unavailable" }),
+            )
+          : Promise.resolve(undefined),
+      );
+      mockAdmin(["users:read", "users:delete"]);
+
+      render(<StaffDetailContent />);
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Austritt zurücknehmen" }),
+      );
+      fireEvent.click(
+        within(await screen.findByRole("dialog")).getByRole("button", {
+          name: "Zurücknehmen",
+        }),
+      );
+
+      const message = `${catalogText("general.unavailable", "die Anzeige der Personalakte")} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Austritt zurücknehmen?" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "den Austritt")),
+      ).not.toBeInTheDocument();
+
+      failRecord = false;
+      const alert = screen.getByText(message).closest('[role="alert"]');
+      expect(alert).not.toBeNull();
+      fireEvent.click(
+        within(alert as HTMLElement).getByRole("button", {
+          name: "Wiederholen",
+        }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(message)).not.toBeInTheDocument(),
+      );
+      // Wiederholen lädt nur nach; zurückgenommen wird nicht noch einmal.
+      expect(withdraw).toHaveBeenCalledTimes(1);
+      expect(withdraw).toHaveBeenCalledWith("42");
+    });
+
+    it("zeigt einen Fehler beim Zurücknehmen des Austritts im offenen Dialog", async () => {
+      detailRequest.plannedExitDate = "2026-12-31";
+      vi.spyOn(staffPlannedExitService, "withdraw").mockRejectedValue(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      mockAdmin(["users:read", "users:delete"]);
+
+      render(<StaffDetailContent />);
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Austritt zurücknehmen" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Zurücknehmen" }),
+      );
+
+      expect(
+        await within(dialog).findByText(
+          catalogText("general.unavailable", "den Austritt"),
+        ),
+      ).toBeInTheDocument();
+      expect(mockTenantMutate).not.toHaveBeenCalledWith("staff-record-42");
     });
 
     it("zeigt einen Löschfehler im offenen Dialog", async () => {

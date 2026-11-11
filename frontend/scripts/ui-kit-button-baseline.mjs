@@ -52,7 +52,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/planning/plan-block.tsx",
-    lines: [213],
+    lines: [210],
     reason: "Planungsblock im Raster: Kachel, kein Knopf",
   },
   {
@@ -120,7 +120,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1067],
+    lines: [1068],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -190,7 +190,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1016],
+    lines: [1017],
     reason: "Termin-Block in der Wochenansicht: Kalenderzelle",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder

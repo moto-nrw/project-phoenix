@@ -52,6 +52,18 @@ func personRecordRelationships(relations []organizationtenancy.ExportRelationshi
 	return records
 }
 
+// personActorColumn reports a column that names who handled a row, not whom
+// the row is about. Authors, senders and signers stay subject columns: a
+// message, a letter or a signature is the person's own statement.
+func personActorColumn(table, column string) bool {
+	switch table + "." + column {
+	case "users.parent_announcements.created_by", "users.parent_group_threads.created_by_account_id",
+		"users.staff_message_threads.created_by_account_id", "users.staff_notices.created_by", "users.surveys.created_by":
+		return false
+	}
+	return strings.HasPrefix(column, "actor_") || strings.HasSuffix(column, "_by") || strings.Contains(column, "_by_")
+}
+
 func personMetadataLinks(table string, fields map[string]json.RawMessage) []personKey {
 	var metadata map[string]json.RawMessage
 	if json.Unmarshal(fields["metadata"], &metadata) != nil {
@@ -178,7 +190,10 @@ func openedValueReviewRules(catalog organizationtenancy.DataLifecycleCatalog) ma
 
 func personReviewRules(model organizationtenancy.ExportModelTable, node *personNode) []string {
 	rules := []string{"third-party-review"}
-	if !node.related {
+	switch {
+	case node.actor:
+		rules = append(rules, "handled-by-subject-not-about-subject")
+	case !node.related:
 		rules = append(rules, "context-not-subject")
 	}
 	if strings.HasPrefix(model.Name, "audit.") {

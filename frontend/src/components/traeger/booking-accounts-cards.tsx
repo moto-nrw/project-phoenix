@@ -563,14 +563,14 @@ export function CostCentersCard({
           ...page.schools.map((school) => ({
             key: `school-${school.id}`,
             title: school.name,
-            hint: "Monatsbeiträge und Mensa",
+            hint: "Monatsbeiträge, Mensa und Ferienwochen an dieser Schule",
             scope: "school" as const,
             scopeId: school.id,
           })),
           {
             key: "holiday",
             title: "Ferienbetreuung",
-            hint: "Alle Ferienläufe",
+            hint: "Ersatz für Ferienwochen einer Schule ohne Kostenstelle",
             scope: "holiday",
             scopeId: "0",
           },

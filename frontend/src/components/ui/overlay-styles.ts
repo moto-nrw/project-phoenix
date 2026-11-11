@@ -82,6 +82,11 @@ export const Z_LAYER = {
   popover: "z-[10001]",
   /** Menus opened from inside a popover (month/year select in the calendar). */
   popoverMenu: "z-[10002]",
+  /**
+   * Action hints of buttons (`ActionHint`), topmost: they also belong to
+   * buttons inside dialogs, popovers and menus, and never take a click.
+   */
+  tooltip: "z-[10003]",
 } as const;
 
 export type ZLayer = keyof typeof Z_LAYER;
@@ -99,4 +104,9 @@ export const Z_INDEX = {
   popover: zLayerValue("popover"),
   /** Menus opened from inside a popover (month/year select in the calendar). */
   popoverMenu: zLayerValue("popoverMenu"),
+  /**
+   * Action hints of buttons (`ActionHint`): they also belong to buttons inside
+   * dialogs, popovers and menus, and never take a click.
+   */
+  tooltip: zLayerValue("tooltip"),
 } as const;

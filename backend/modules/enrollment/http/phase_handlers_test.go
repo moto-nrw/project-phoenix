@@ -461,6 +461,46 @@ func TestUpdatePhaseHandler_PendingChildWindowConflictReturns409(t *testing.T) {
 	assert.Equal(t, "enrollment.phase_pending_child_window_conflict", body.Code)
 }
 
+// A window edit that would leave a care offering booking empty is refused
+// with its own code and the child's name, so the form says whose offerings
+// to adjust (#6597). Without a name the code stays.
+func TestUpdatePhaseHandler_BookingBoundsConflictReturns409(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		err     error
+		details map[string]any
+	}{
+		"named child": {
+			err:     &capability.PhaseBookingBoundsConflictError{RequestChildID: 7, ChildName: "Sophie Sharma"},
+			details: map[string]any{"child": "Sophie Sharma"},
+		},
+		"no name": {err: capability.ErrPhaseBookingBoundsConflict},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			mock := &mockPhaseService{
+				getByIDResult: makePhaseModel(1234, "Updated"),
+				updateErr:     fmt.Errorf("phase update: move booking bounds: %w", tc.err),
+			}
+			router := buildPhaseRouter(mock)
+			w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+			assert.Equal(t, http.StatusConflict, w.Code)
+			var body struct {
+				Code    string         `json:"code"`
+				Details map[string]any `json:"details"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, "enrollment.phase_booking_bounds_conflict", body.Code)
+			if tc.details == nil {
+				assert.Empty(t, body.Details)
+			} else {
+				assert.Equal(t, tc.details, body.Details)
+			}
+		})
+	}
+}
+
 func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 	t.Parallel()
 
