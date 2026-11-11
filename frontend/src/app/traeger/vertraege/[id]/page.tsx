@@ -6,6 +6,7 @@
 // behält sein PDF und lässt sich erneut senden. Ein abgeschlossener Vertrag
 // (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
+import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
 import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -80,6 +81,7 @@ export default function TraegerVertragPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
   const router = useRouter();
+  const latestRead = useRef(0);
   const [contract, setContract] = useState<CareContractDetail | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -99,7 +101,20 @@ export default function TraegerVertragPage() {
   // Reads the contract and sets it; rejects on a failure. The reload after a
   // send uses it directly, so a failure there keeps the contract (#6652).
   const readContract = useCallback(async () => {
-    setContract(await fetchCareContract(id));
+    const request = ++latestRead.current;
+    try {
+      const next = await fetchCareContract(id);
+      if (request === latestRead.current) setContract(next);
+    } catch (error) {
+      if (request !== latestRead.current) return;
+      if (isRefusal(error)) {
+        setContract(null);
+        setPdfUrl(null);
+        setRecipientEmail("");
+        setConfirmDiscard(false);
+      }
+      throw error;
+    }
   }, [id]);
 
   const load = useCallback(async () => {
@@ -348,8 +363,8 @@ export default function TraegerVertragPage() {
           </>
         ) : null
       }
-      error={pageLoad.error}
-      loading={!pageLoad.error && !contract}
+      error={contract ? pageLoad.error : (afterSend.error ?? pageLoad.error)}
+      loading={!pageLoad.error && !afterSend.error && !contract}
       overlays={
         <ConfirmDeleteModal
           isOpen={confirmDiscard}

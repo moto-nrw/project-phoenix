@@ -11,6 +11,7 @@ import {
   ChangeTraegerRolesModal,
   InviteTraegerAccountModal,
 } from "~/components/traeger/traeger-account-modals";
+import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
 import { TraegerAccountHistory } from "~/components/traeger/traeger-account-history";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -63,6 +64,8 @@ export default function TraegerAccountsPage() {
   // Confirmed data stays visible when a later load fails (#6652).
   const [loaded, setLoaded] = useState(false);
   const loadedRef = useRef(false);
+  const latestRead = useRef(0);
+  const [accessRefused, setAccessRefused] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<TraegerMember | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -75,10 +78,28 @@ export default function TraegerAccountsPage() {
   const { success } = useToast();
 
   const fetchBuero = useCallback(async () => {
-    setBuero(await fetchTraegerBuero());
-    setLoaded(true);
-    loadedRef.current = true;
-    clearLoadError();
+    const request = ++latestRead.current;
+    try {
+      const next = await fetchTraegerBuero();
+      if (request !== latestRead.current) return;
+      setBuero(next);
+      setLoaded(true);
+      loadedRef.current = true;
+      setAccessRefused(false);
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRead.current) return;
+      if (isRefusal(error)) {
+        setBuero({ members: [], invitations: [] });
+        setLoaded(false);
+        loadedRef.current = false;
+        setAccessRefused(true);
+        setInviting(false);
+        setEditing(null);
+        setPending(null);
+      }
+      throw error;
+    }
   }, [clearLoadError]);
 
   const load = useCallback(async () => {
@@ -273,18 +294,21 @@ export default function TraegerAccountsPage() {
         ) : null
       }
       statsLoading={loading}
+      loading={accessRefused && !bueroLoad.error && !afterWrite.error}
       actions={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => setInviting(true)}
-        >
-          <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-          Person einladen
-        </Button>
+        accessRefused ? undefined : (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => setInviting(true)}
+          >
+            <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Person einladen
+          </Button>
+        )
       }
-      error={loaded ? null : bueroLoad.error}
+      error={loaded ? null : (afterWrite.error ?? bueroLoad.error)}
       overlays={
         <>
           <InviteTraegerAccountModal
@@ -380,7 +404,7 @@ export default function TraegerAccountsPage() {
           />
         </SectionCard>
       ) : null}
-      {bueroLoad.error ? null : (
+      {accessRefused || bueroLoad.error ? null : (
         <TraegerAccountHistory version={historyVersion} />
       )}
     </TenantPage>

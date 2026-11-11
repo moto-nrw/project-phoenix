@@ -320,7 +320,7 @@ function ParentAnnouncementsContent() {
   // Liste, auch wenn das Formular schon zu ist (#6652).
   const formAfterWrite = useRefreshAfterWrite(
     "die Anzeige der Mitteilungen",
-    () => mutate(),
+    () => mutate(fetchAnnouncements(true), { revalidate: false }),
   );
 
   const {
@@ -772,7 +772,7 @@ function ParentAnnouncementsContent() {
               announcement={publishTarget}
               onClose={() => setPublishTarget(null)}
               onDone={async () => {
-                await mutate();
+                await formAfterWrite.refresh();
               }}
             />
           )}
@@ -782,7 +782,7 @@ function ParentAnnouncementsContent() {
               announcement={unpublishTarget}
               onClose={() => setUnpublishTarget(null)}
               onDone={async () => {
-                await mutate();
+                await formAfterWrite.refresh();
               }}
             />
           )}
@@ -792,7 +792,7 @@ function ParentAnnouncementsContent() {
               announcement={deleteTarget}
               onClose={() => setDeleteTarget(null)}
               onDone={async () => {
-                await mutate();
+                await formAfterWrite.refresh();
               }}
             />
           )}

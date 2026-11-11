@@ -6,7 +6,7 @@
 // Verwaltungsoberfläche in einem Auswahlfeld. Das Feld ist jetzt reine
 // Auswahl und verlinkt hierher.
 
-import { Suspense, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useLayoutEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -25,6 +25,8 @@ import {
   planningTrackService,
   type PlanningTrack,
 } from "~/lib/planning-track-api";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
@@ -65,14 +67,27 @@ function PlanningTracksPageContent() {
   const tenantMutate = useTenantMutate();
   const timetableEnabled = useTimetableEnabled();
 
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<PlanningTrack[]>(timetableEnabled ? CACHE_KEY : null, () =>
     planningTrackService.list(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   // Ladefehler mit Katalogtext statt eines eigenen Satzes (#2516).
   const loadError = useSwrLoadError(
     swrError,

@@ -750,6 +750,40 @@ describe("TraegerVertragPage", () => {
       ),
     ).toBeInTheDocument();
   });
+  it.each([403, 503])(
+    "handles a %s contract reload after sending",
+    async (status) => {
+      api.fetchCareContract
+        .mockResolvedValueOnce(DRAFT)
+        .mockRejectedValueOnce(new ApiError("failed", status));
+      api.sendCareContracts.mockResolvedValue({ sent: 1, skipped: [] });
+      renderPage();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Vertrag senden" }),
+      );
+      const code =
+        status === 403 ? "general.permission" : "general.unavailable";
+      // Anker: der Nachladefehler bestätigt den bereits erfolgten Versand.
+      expect(
+        await screen.findByText(
+          `${catalogText(code, "die Anzeige des Vertrags")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(screen.queryByText("Vertragsangaben")).not.toBeInTheDocument();
+        expect(screen.queryAllByText("erika@example.org")).toHaveLength(0);
+        expect(screen.queryByTestId("pdf-preview")).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "PDF herunterladen" }),
+        ).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByText("Vertragsangaben")).toBeVisible();
+        expect(screen.getByTestId("pdf-preview")).toBeVisible();
+      }
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+    },
+  );
+
   // #6652: after a confirmed send a failed reload is a load error above the
   // contract, not a failed send or a page error that replaces the contract.
   describe("reload after a write (#6652)", () => {

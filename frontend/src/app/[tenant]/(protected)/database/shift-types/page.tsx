@@ -4,7 +4,13 @@
 // lagen Liste und Formular in einem Slide-over, das der Dienstplan öffnete.
 // Der Dienstplan verlinkt jetzt hierher.
 
-import { Suspense, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -31,6 +37,8 @@ import {
   useRefreshAfterWrite,
 } from "~/lib/hooks/use-refresh-after-write";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useModuleBooked } from "~/lib/tenant-context";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
@@ -60,14 +68,27 @@ function ShiftTypesPageContent() {
   const { show: showSeedError } = useApiErrorDisplay();
   const [seeding, setSeeding] = useState(false);
 
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<ShiftType[]>(CACHE_KEY, () =>
     shiftTypeService.getShiftTypes(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
   // (#2517).
   const loadError = useSwrLoadError(

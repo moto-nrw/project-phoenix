@@ -197,6 +197,33 @@ afterEach(() => {
 // Die gemeinsame Fläche der Stammdaten-Kataloge (#3114): Sammlung links,
 // Objektansicht rechts, Anlegen als Kopf-Aktion.
 describe("CatalogPage", () => {
+  it("closes the create dialog when the resource loses its confirmed data", async () => {
+    const { config } = buildConfig();
+    const props = {
+      config,
+      items: ITEMS,
+      isLoading: false,
+      error: null,
+      onChanged: vi.fn(),
+      canManage: true,
+      selectedId: "1",
+    };
+    const view = render(<CatalogPage {...props} />);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Kategorie anlegen" })[0]!,
+    );
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    view.rerender(
+      <CatalogPage {...props} items={undefined} error="Kein Zugriff" />,
+    );
+    // Anker: der blockierende Fehler ersetzt den verweigerten Katalog.
+    expect(await screen.findByText("Kein Zugriff")).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Kategorie anlegen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("splits the collection into what is offered and what is not", () => {
     renderPage();
 

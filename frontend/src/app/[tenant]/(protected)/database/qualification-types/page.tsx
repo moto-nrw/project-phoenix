@@ -6,7 +6,7 @@
 // Erinnerung und Pflicht für alle. Archivieren statt Löschen: eingetragene
 // Nachweise behalten ihre Art.
 
-import { Suspense, useCallback } from "react";
+import { Suspense, useCallback, useLayoutEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -25,6 +25,8 @@ import {
   type QualificationTypeInput,
 } from "~/lib/staff-qualification-api";
 import { staffQualificationKeys } from "~/lib/swr/staff-keys";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const CACHE_KEY = staffQualificationKeys.types();
@@ -176,14 +178,27 @@ const config: CatalogConfig<QualificationType> = {
 function QualificationTypesPageContent() {
   const searchParams = useSearchParams();
   const tenantMutate = useTenantMutate();
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<QualificationType[]>(CACHE_KEY, () =>
     staffQualificationService.listTypes(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   const loadError = useSwrLoadError(
     swrError,
     "die Liste der Nachweisarten",

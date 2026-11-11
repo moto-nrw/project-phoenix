@@ -42,7 +42,10 @@ export function useTraegerMasterData(object: string, enabled = true) {
       setLoaded(true);
       clearLoadError();
     } catch (err) {
-      if (current === request.current) throw err;
+      if (current === request.current) {
+        setFailure(err);
+        throw err;
+      }
     } finally {
       if (current === request.current) setLoading(false);
     }
@@ -84,6 +87,7 @@ export function useTraegerMasterData(object: string, enabled = true) {
     loading,
     failure,
     error: pageLoad.error,
+    read,
     refresh,
   };
 }

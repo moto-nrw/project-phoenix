@@ -93,7 +93,10 @@ export function ParentSepaMandateView({
     } catch (error) {
       if (
         error instanceof ApiError &&
-        (error.status === 401 || error.status === 403)
+        (error.status === 401 ||
+          error.status === 403 ||
+          (error.status === 404 &&
+            error.code === "parent_billing.parent_document_not_found"))
       ) {
         setView(null);
       }

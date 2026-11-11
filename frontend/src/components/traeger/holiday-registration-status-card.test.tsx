@@ -1,5 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
@@ -88,6 +95,20 @@ describe("HolidayRegistrationStatusCard", () => {
     mockConfirm.mockReset();
     mockConfirmDebtorNumber.mockReset();
     mockChangeDebtorNumber.mockReset();
+  });
+
+  it("locks confirmation until the post-write read settles", async () => {
+    const reload = deferred();
+    mockConfirm.mockResolvedValue(HOLIDAY_CONTRIBUTION);
+    const onReload = vi.fn(() => reload.promise);
+    renderCard(HOLIDAY_REGISTRATION, vi.fn(), HOLIDAY_CONTRIBUTION, onReload);
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "Bestätigt …" })).toBeDisabled();
+    fireEvent.submit(document.querySelector("form")!);
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    await act(async () => reload.resolve());
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
   });
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {

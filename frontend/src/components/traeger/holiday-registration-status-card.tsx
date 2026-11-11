@@ -470,8 +470,8 @@ export function HolidayRegistrationStatusCard({
       setRunning(null);
       return;
     }
-    setRunning(null);
     await afterWrite.refresh();
+    setRunning(null);
   };
 
   const run = async (action: HolidayRegistrationAction | "cancel") => {

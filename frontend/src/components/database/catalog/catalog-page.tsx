@@ -202,6 +202,13 @@ export function CatalogPage<T extends CatalogItem>({
   // aus dem frisch geladenen Eintrag neu aufbaut (wie in den Räumen).
   const [formGeneration, setFormGeneration] = useState(0);
 
+  useEffect(() => {
+    if (items !== undefined) return;
+    setCreateOpen(false);
+    setRetireTarget(null);
+    setRemoveTarget(null);
+  }, [items]);
+
   const all = useMemo(() => items ?? [], [items]);
   const createDisabled = config.createDisabled ?? false;
 
@@ -636,17 +643,18 @@ export function CatalogPage<T extends CatalogItem>({
         ) : (
           config.stats(all)
         ),
-        actions: canManage ? (
-          <div className="flex items-center gap-2">
-            {headAction}
-            <DatabaseCreateAction
-              label={config.singular}
-              ariaLabel={`${config.singular} anlegen`}
-              disabled={createDisabled}
-              onClick={() => setCreateOpen(true)}
-            />
-          </div>
-        ) : undefined,
+        actions:
+          canManage && (items !== undefined || isLoading) ? (
+            <div className="flex items-center gap-2">
+              {items === undefined ? null : headAction}
+              <DatabaseCreateAction
+                label={config.singular}
+                ariaLabel={`${config.singular} anlegen`}
+                disabled={createDisabled || items === undefined}
+                onClick={() => setCreateOpen(true)}
+              />
+            </div>
+          ) : undefined,
       }}
       search={
         <PageHeaderWithSearch
@@ -672,7 +680,7 @@ export function CatalogPage<T extends CatalogItem>({
       }
       overlays={
         <>
-          {createOpen && (
+          {createOpen && items !== undefined && (
             <DatabaseFormModal<Record<string, unknown>>
               isOpen
               onClose={() => setCreateOpen(false)}
@@ -698,9 +706,9 @@ export function CatalogPage<T extends CatalogItem>({
 
           {/* Archivieren ist umkehrbar und damit keine Löschung
               (BAUARTEN-SPEC Bauart 2 Regel 6). */}
-          {config.retire && (
+          {config.retire && items !== undefined && (
             <ConfirmationModal
-              isOpen={retireTarget !== null}
+              isOpen={retireTarget !== null && items !== undefined}
               title={config.retire.confirmTitle}
               confirmText={config.retire.confirmLabel}
               cancelText="Abbrechen"
@@ -716,9 +724,9 @@ export function CatalogPage<T extends CatalogItem>({
             </ConfirmationModal>
           )}
 
-          {config.remove && (
+          {config.remove && items !== undefined && (
             <ConfirmDeleteModal
-              isOpen={removeTarget !== null}
+              isOpen={removeTarget !== null && items !== undefined}
               title={config.remove.confirmTitle}
               description={
                 removeTarget ? config.remove.describe(removeTarget) : ""
