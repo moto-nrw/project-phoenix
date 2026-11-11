@@ -622,6 +622,11 @@ describe("TraegerVorlagePage", () => {
         screen.queryByText(catalogText("general.unavailable", "die Vorlage")),
       ).not.toBeInTheDocument();
       expect(screen.getByLabelText(/Betreff/)).toBeEnabled();
+      // The saved version is the current one: no second save is offered,
+      // which would create another version.
+      expect(
+        screen.queryByRole("button", { name: "Speichern" }),
+      ).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
       expect(

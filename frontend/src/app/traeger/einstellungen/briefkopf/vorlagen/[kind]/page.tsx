@@ -208,7 +208,16 @@ function TemplateEditorPage({
       `Die Vorlage ist gespeichert. Neue Schreiben nutzen Version ${saved.version}.`,
     );
     // Das Formular bleibt gesperrt, bis der neue Stand geladen ist.
-    await afterSave.refresh();
+    const reloaded = await afterSave.refresh();
+    // Scheitert das Nachladen, gilt trotzdem die gespeicherte Version;
+    // sonst böte die Seite ein zweites Speichern an (#6652).
+    if (!reloaded) {
+      setData((before) =>
+        before
+          ? { ...before, detail: { ...before.detail, current: saved } }
+          : before,
+      );
+    }
     setSaving(false);
   };
 
