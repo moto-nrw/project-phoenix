@@ -1,6 +1,7 @@
 "use client";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { Z_LAYER } from "./overlay-styles";
+import { SCROLL_AREA_PROPS } from "./overlay-stack";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
@@ -8,6 +9,7 @@ import { cn } from "~/lib/utils";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useOverlay } from "./overlay-stack";
 import { createPortal } from "react-dom";
+import { FocusScope } from "@radix-ui/react-focus-scope";
 import type { DateRange, Matcher } from "react-day-picker";
 import { addDays } from "date-fns/addDays";
 import { addMonths } from "date-fns/addMonths";
@@ -89,11 +91,9 @@ export function DateRangePicker({
   // The open calendar takes its place in the overlay stack (#6732): over the
   // overlay it opened from, under one that opens later. It closes when that
   // overlay closes or rests, or when a dialog, side panel or tour opens above
-  // it, as the click that usually opens them would have. It does not close on
-  // Escape yet, so Escape stays with the overlay below (#6569).
+  // it, as the click that usually opens them would have.
   const closeCovered = useCallback(() => setIsOpen(false), []);
-  useOverlay(isOpen, "popover", {
-    takesEscape: false,
+  const { isTopmost } = useOverlay(isOpen, "popover", {
     elementRef: panelRef,
     onCovered: closeCovered,
   });
@@ -114,6 +114,38 @@ export function DateRangePicker({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Escape closes only the calendar, like in `DatePicker`. The overlay stack
+  // decides whether it is the topmost overlay (several calendars, a popover or
+  // a dialog above it). The window capture phase runs before the document
+  // listeners of Modal (bubble) and slide-over (Radix, capture), which decide
+  // Escape only among themselves. An open select keeps its own Escape.
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !isTopmost()) return;
+      const target = event.target;
+      // A list closes on Escape only from its own trigger, search field or
+      // options. `ListboxDropdown` has no global Escape listener, so Escape
+      // from body never closes a list, and taking it here takes nothing from
+      // the list (test "leaves an open select open on a body Escape, with or
+      // without a calendar").
+      if (
+        target instanceof Element &&
+        target.closest(
+          '[role="combobox"][aria-expanded="true"], [aria-haspopup="listbox"][aria-expanded="true"], [role="listbox"], [data-listbox-panel]',
+        )
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    };
+    window.addEventListener("keydown", closeOnEscape, true);
+    return () => window.removeEventListener("keydown", closeOnEscape, true);
+  }, [isOpen, isTopmost]);
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
@@ -282,23 +314,52 @@ function RangeCalendar({
 
   if (!mounted) return null;
 
-  return createPortal(
+  // Like `DatePicker`: inside a modal the panel stays in its FocusScope, or the
+  // trap pulls keyboard focus out of the calendar. The modal wrapper has no
+  // transform, so it can host the fixed panel. A slide-over transforms its
+  // content, so its calendar stays at the body with its own FocusScope.
+  // A press or focus in that body portal does not close the slide-over: Radix
+  // `DismissableLayer` counts portal children as inside through the React tree
+  // (test "keeps the slide-over open on a pointer press and focus in its
+  // calendar", real Vaul). No `stopPropagation` here: a press in one calendar
+  // must still close another open one.
+  // Inside a modal the panel shares the modal's stacking context, exactly like
+  // `DatePicker`: a tour coach mark over an open dialog lies above both alike.
+  const modalScope = triggerRef.current?.closest("[data-modal-focus-scope]");
+  const needsPortalledFocusScope =
+    !modalScope &&
+    triggerRef.current?.closest("[data-date-picker-focus-trap]") != null;
+
+  const panel = (
     <div
       ref={panelRef}
       data-range-panel
+      // A dialog locks the page scroll; the panel scrolls like `DatePicker`'s.
+      {...SCROLL_AREA_PROPS}
       className={`fixed ${Z_LAYER.popover} moto-popover-surface max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry
           ? {
               ...narrowStyle,
+              pointerEvents: "auto",
               visibility: isNarrowViewport === null ? "hidden" : undefined,
             }
-          : { top: geometry.top, left: geometry.left }
+          : { top: geometry.top, left: geometry.left, pointerEvents: "auto" }
       }
     >
       <RangeCalendarInline {...props} />
-    </div>,
-    document.body,
+    </div>
+  );
+
+  return createPortal(
+    needsPortalledFocusScope ? (
+      <FocusScope asChild loop trapped>
+        {panel}
+      </FocusScope>
+    ) : (
+      panel
+    ),
+    modalScope ?? document.body,
   );
 }
 

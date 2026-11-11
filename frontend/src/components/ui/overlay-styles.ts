@@ -80,7 +80,10 @@ export const Z_LAYER = {
   menu: "z-[10000]",
   /** Calendars and anchored popovers, also when opened from a dialog. */
   popover: "z-[10001]",
-  /** Menus opened from inside a popover (month/year select in the calendar). */
+  /**
+   * Menus opened from inside a popover or calendar (overflow menu in an
+   * `AnchoredPopover`, month/year select in the calendar).
+   */
   popoverMenu: "z-[10002]",
   /**
    * Action hints of buttons (`ActionHint`), topmost: they also belong to
@@ -102,7 +105,10 @@ export const Z_INDEX = {
   menu: zLayerValue("menu"),
   /** Anchored popover panels and calendars. */
   popover: zLayerValue("popover"),
-  /** Menus opened from inside a popover (month/year select in the calendar). */
+  /**
+   * Menus opened from inside a popover or calendar (overflow menu in an
+   * `AnchoredPopover`, month/year select in the calendar).
+   */
   popoverMenu: zLayerValue("popoverMenu"),
   /**
    * Action hints of buttons (`ActionHint`): they also belong to buttons inside

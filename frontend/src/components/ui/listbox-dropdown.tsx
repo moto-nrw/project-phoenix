@@ -3,7 +3,9 @@
 import { Z_INDEX } from "./overlay-styles";
 import { ChevronDown } from "lucide-react";
 import {
+  createContext,
   useCallback,
+  useContext,
   type CSSProperties,
   useEffect,
   useId,
@@ -16,6 +18,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { foldForSearch } from "~/lib/search-fold";
 import { cn } from "~/lib/utils";
 import {
   selectTriggerClassName,
@@ -91,10 +94,6 @@ export function ListboxTriggerContent({
 // and the menu portals to the body as usual.
 const SEARCHABLE_PORTAL_SCOPE = MODAL_SCOPE_SELECTOR;
 
-function normalizeSearch(value: string): string {
-  return value.trim().toLocaleLowerCase("de");
-}
-
 /**
  * The search field of `CustomSelect` and `MultiSelect`: filters the options
  * by label, empties itself when the menu closes, and says when nothing
@@ -107,12 +106,11 @@ export function useListboxSearch<O extends { readonly label: string }>(
   searchPlaceholder: string,
 ) {
   const [query, setQuery] = useState("");
-  const needle = normalizeSearch(query);
+  // Wie `SuggestInput`: „gomez“ findet „Gómez“ (#4949).
+  const needle = foldForSearch(query.trim());
   const visibleOptions =
     enabled && needle
-      ? options.filter((option) =>
-          normalizeSearch(option.label).includes(needle),
-        )
+      ? options.filter((option) => foldForSearch(option.label).includes(needle))
       : options;
   const listboxProps = enabled
     ? {
@@ -192,10 +190,10 @@ interface ListboxDropdownProps<K extends string> {
   /** Horizontal anchor of the portaled menu relative to the trigger. */
   readonly menuAlign?: "start" | "end";
   /**
-   * Stacking level of the portaled menu. The default (`Z_INDEX.menu`) clears
-   * modal overlays; a caller that itself portals higher — the kit calendar
-   * sits at `Z_INDEX.popover` — has to lift the menu above its own surface,
-   * or the menu opens behind it.
+   * Stacking level of the portaled menu. Without it the menu takes the level
+   * of the surface around it (`MenuLayerProvider`): `Z_INDEX.menu` above
+   * dialogs, `Z_INDEX.popoverMenu` inside an `AnchoredPopover`. A caller that
+   * portals higher on its own, like the kit calendar, sets it explicitly.
    */
   readonly menuZIndex?: number;
   readonly disabled?: boolean;
@@ -344,6 +342,22 @@ function consumeEscape(event: KeyboardEvent<HTMLButtonElement>): void {
   event.nativeEvent.stopImmediatePropagation();
 }
 
+// The level of select menus portaled from inside a surface that itself lies
+// above `Z_INDEX.menu`, such as an `AnchoredPopover` (#6569).
+const MenuLayerContext = createContext<number>(Z_INDEX.menu);
+
+/** Lifts the menus of all selects inside `children` to `zIndex`. */
+export function MenuLayerProvider({
+  zIndex,
+  children,
+}: Readonly<{ zIndex: number; children: ReactNode }>) {
+  return (
+    <MenuLayerContext.Provider value={zIndex}>
+      {children}
+    </MenuLayerContext.Provider>
+  );
+}
+
 export function ListboxDropdown<K extends string>({
   value,
   options,
@@ -362,7 +376,7 @@ export function ListboxDropdown<K extends string>({
   unstyledTrigger = false,
   menuClassName = "",
   menuAlign = "start",
-  menuZIndex = Z_INDEX.menu,
+  menuZIndex: menuZIndexProp,
   disabled = false,
   required = false,
   invalid = false,
@@ -382,6 +396,8 @@ export function ListboxDropdown<K extends string>({
   renderOptionActions,
   renderOption,
 }: ListboxDropdownProps<K>) {
+  const menuLayer = useContext(MenuLayerContext);
+  const menuZIndex = menuZIndexProp ?? menuLayer;
   const generatedListboxId = useId();
   const listboxId = id ? `${id}-listbox` : generatedListboxId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1116,6 +1132,7 @@ export function ListboxDropdown<K extends string>({
                   "overflow-hidden",
                   menuClassName,
                 )}
+                data-listbox-panel
                 {...SCROLL_AREA_PROPS}
                 // A pure container: the search field, the listbox and the slot
                 // content carry the semantics, this element only positions

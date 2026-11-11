@@ -17,11 +17,17 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
+import { MenuLayerProvider } from "./listbox-dropdown";
 import { SHEET_SCOPE_SELECTOR, useOverlay } from "./overlay-stack";
 
 const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
 const DEFAULT_MAX_HEIGHT = 420;
+// Inside a slide-over the panel portals into its focus trap; a body portal
+// would sit outside the trap and lose keyboard access. That keeps the panel in
+// the slide-over's stacking context, so `Z_INDEX.popover` only orders it on
+// the page and in modals. Above a tour coach mark over an open slide-over it
+// does not reach — a known limit of the slide-over portal, not of the level.
 const DEFAULT_PORTAL_SCOPE = SHEET_SCOPE_SELECTOR;
 const TABBABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
@@ -150,7 +156,9 @@ export function AnchoredPopover<
 
     const style: CSSProperties = {
       position: scope ? "absolute" : "fixed",
-      zIndex: Z_INDEX.menu,
+      // Above `Z_INDEX.menu`; selects inside the panel open their menus on
+      // `Z_INDEX.popoverMenu` through `MenuLayerProvider` below.
+      zIndex: Z_INDEX.popover,
       left: coordinateLeft,
       width,
       maxHeight: Math.min(DEFAULT_MAX_HEIGHT, availableHeight),
@@ -284,7 +292,7 @@ export function AnchoredPopover<
     open && portalContainer
       ? children({
           close: () => close(),
-          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popover },
+          overflowMenuPortal: { ownerId: panelId, zIndex: Z_INDEX.popoverMenu },
         })
       : null;
 
@@ -379,7 +387,14 @@ export function AnchoredPopover<
         panelId,
         toggle: () => onOpenChange(!open),
       })}
-      {panel && portalContainer ? createPortal(panel, portalContainer) : null}
+      {panel && portalContainer
+        ? createPortal(
+            <MenuLayerProvider zIndex={Z_INDEX.popoverMenu}>
+              {panel}
+            </MenuLayerProvider>,
+            portalContainer,
+          )
+        : null}
     </>
   );
 }
