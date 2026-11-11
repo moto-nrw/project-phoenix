@@ -495,6 +495,7 @@ export function TenantPage(props: TenantPageProps) {
         loading={props.loading}
         loadingLabel={props.loadingLabel}
         empty={props.empty}
+        overlays={props.overlays}
         testId={props.testId}
       >
         {props.children}
