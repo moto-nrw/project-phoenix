@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -40,6 +41,57 @@ func (d phaseResponseCareExits) StudentsWithCareExit(ctx context.Context, studen
 	result := make(map[int64]bool, len(exits))
 	for studentID := range exits {
 		result[studentID] = true
+	}
+	return result, nil
+}
+
+// phaseCareStudents reads the care end of the children a phase edit
+// reports on (#6598) from People Directory: status and care end of the
+// student rows, names from the directory's name projection.
+type phaseCareStudents struct {
+	query interface {
+		ListStudentsByID(context.Context, []int64) ([]peopledirectory.Student, error)
+		ListStudentNamesByID(context.Context, []int64) ([]peopledirectory.StudentName, error)
+	}
+}
+
+// NewEnrollmentPhaseCareStudents binds the phase edit's report to People
+// Directory.
+func NewEnrollmentPhaseCareStudents(query peopledirectory.StudentQuery) enrollmentOwner.PhaseCareStudents {
+	return phaseCareStudents{query: query}
+}
+
+func (d phaseCareStudents) PhaseCareStudents(ctx context.Context, studentIDs []int64) ([]enrollmentOwner.PhaseCareStudent, error) {
+	if len(studentIDs) == 0 {
+		return nil, nil
+	}
+	students, err := d.query.ListStudentsByID(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("phase care students: list students: %w", err)
+	}
+	names, err := d.query.ListStudentNamesByID(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("phase care students: list names: %w", err)
+	}
+	byID := make(map[int64]peopledirectory.StudentName, len(names))
+	for _, name := range names {
+		byID[name.StudentID] = name
+	}
+	result := make([]enrollmentOwner.PhaseCareStudent, 0, len(students))
+	for _, student := range students {
+		value := enrollmentOwner.PhaseCareStudent{
+			ID: student.ID, FirstName: byID[student.ID].FirstName, LastName: byID[student.ID].LastName,
+			SchoolClass: student.SchoolClass,
+			InCare:      student.Status == peopledirectory.StudentStatusPending || student.Status == peopledirectory.StudentStatusActive,
+		}
+		if student.EnrolledUntil != "" {
+			end, err := timezone.ParseDate(student.EnrolledUntil)
+			if err != nil {
+				return nil, fmt.Errorf("student %d: care end: %w", student.ID, err)
+			}
+			value.CareEnd = end
+		}
+		result = append(result, value)
 	}
 	return result, nil
 }

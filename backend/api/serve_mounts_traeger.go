@@ -120,11 +120,11 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	if err != nil {
 		return nil, err
 	}
-	review, places, allocation := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar)
+	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar)
 	_, allocationBilling := parentBillingCompose.NewHolidayContributions(parentBillingHolidayRegistrations{review: review}, parentBillingSettings{settings: settings})
 	decide := newHolidayAllocation(allocationBilling, review, places, allocation)
 	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
-	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, wishes, places, allocation, decide, holidaySchoolNames{overview: overview},
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, records, wishes, places, allocation, decide, holidaySchoolNames{overview: overview},
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
@@ -142,7 +142,6 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 type TraegerPortalSettings interface {
 	TraegerBrandingSettings
 	settingsHTTP.TraegerOperations
-	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
 }
 
 // traegerAlertSettings binds the thresholds of the dashboard hints (#4675) to

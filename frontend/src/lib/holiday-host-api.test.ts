@@ -8,7 +8,10 @@ import {
   fetchHolidayStudentHealth,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
+  fetchHolidayGuestGroups,
   formatHolidayHostAnswer,
+  formatHolidayWeekRange,
+  holidayGuestGroupHint,
   holidayGuestLabel,
 } from "./holiday-host-api";
 
@@ -32,6 +35,10 @@ const BACKEND_WEEK = {
   starts_on: "2026-09-14",
   ends_on: "2026-09-18",
   participants: 1,
+  booking_unit: "week",
+  care_starts_at: "07:45",
+  care_ends_at: "16:00",
+  day_participants: [],
 };
 
 describe("holiday host api", () => {
@@ -59,11 +66,40 @@ describe("holiday host api", () => {
         startsOn: "2026-09-14",
         endsOn: "2026-09-18",
         participants: 1,
+        bookingUnit: "week",
+        careStartsAt: "07:45",
+        careEndsAt: "16:00",
+        dayParticipants: new Map(),
         guestGroupId: null,
         guests: 0,
       },
     ]);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-weeks");
+  });
+
+  it("maps the children per booked day of a week booked by days", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: [
+          {
+            ...BACKEND_WEEK,
+            booking_unit: "day",
+            day_participants: [
+              { date: "2026-09-14", participants: 2 },
+              { date: "2026-09-16", participants: 1 },
+            ],
+          },
+        ],
+      }),
+    );
+
+    const [week] = await fetchHostedHolidayWeeks();
+    expect(week?.bookingUnit).toBe("day");
+    expect([...(week?.dayParticipants ?? [])]).toEqual([
+      ["2026-09-14", 2],
+      ["2026-09-16", 1],
+    ]);
   });
 
   it("maps a participant list, keeping holiday guests without a school", async () => {
@@ -385,6 +421,78 @@ describe("holiday host api", () => {
     ]);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "/api/holiday-weeks/students/7/health",
+    );
+  });
+});
+
+describe("Feriengruppe vor ihrer Woche", () => {
+  const week = {
+    groupId: "7",
+    weekId: "51",
+    startsOn: "2027-01-04",
+    endsOn: "2027-01-08",
+    guests: 3,
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("maps the Feriengruppen with IDs as strings", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        data: [
+          {
+            group_id: 7,
+            week_id: 51,
+            starts_on: "2027-01-04",
+            ends_on: "2027-01-08",
+            guests: 3,
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchHolidayGuestGroups()).resolves.toEqual([week]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/groups");
+  });
+
+  it("formats the week compactly", () => {
+    expect(formatHolidayWeekRange("2027-01-04", "2027-01-08")).toBe(
+      "04.–08.01.2027",
+    );
+    expect(formatHolidayWeekRange("2027-06-29", "2027-07-03")).toBe(
+      "29.06.–03.07.2027",
+    );
+    expect(formatHolidayWeekRange("2026-12-28", "2027-01-01")).toBe(
+      "28.12.2026–01.01.2027",
+    );
+  });
+
+  it("explains an empty group before its week", () => {
+    expect(holidayGuestGroupHint(week, "2026-11-11", 0)).toEqual({
+      label: "Feriengruppe 04.–08.01.2027",
+      message:
+        "3 Feriengäste kommen am 04.01. in die Gruppe. Bis zum 04.01. steht die Gruppe nicht unter „Gruppen“. Raum und Gruppenleitung können Sie schon jetzt festlegen.",
+    });
+  });
+
+  it("does not claim a group with own children is hidden", () => {
+    expect(
+      holidayGuestGroupHint({ ...week, guests: 1 }, "2026-11-11", 12).message,
+    ).toBe(
+      "1 Feriengast kommt am 04.01. in die Gruppe. Raum und Gruppenleitung können Sie schon jetzt festlegen.",
+    );
+    expect(
+      holidayGuestGroupHint({ ...week, guests: 0 }, "2026-11-11", 0).message,
+    ).toBe(
+      "Noch sind keine Feriengäste angemeldet. Bis zum 04.01. steht die Gruppe nicht unter „Gruppen“. Raum und Gruppenleitung können Sie schon jetzt festlegen.",
+    );
+  });
+
+  it("names the guests of a running week", () => {
+    expect(holidayGuestGroupHint(week, "2027-01-04", 0).message).toBe(
+      "3 Feriengäste sind diese Woche in der Gruppe.",
     );
   });
 });

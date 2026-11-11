@@ -14,6 +14,10 @@ const week = (
   startsOn,
   endsOn,
   participants,
+  bookingUnit: "week",
+  careStartsAt: "08:00",
+  careEndsAt: "16:00",
+  dayParticipants: new Map(),
   guestGroupId: null,
   guests: 0,
 });

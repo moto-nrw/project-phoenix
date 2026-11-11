@@ -27,6 +27,7 @@ import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
+import { holidayKeys } from "~/lib/swr/portal-keys";
 import { HolidayGuestGroupCard } from "./holiday-guest-group-card";
 
 const logger = createLogger({ component: "FerienwochenPage" });
@@ -206,7 +207,7 @@ export default function FerienwochenPage() {
   // Tenant-scoped keys: the list holds children's names and birth dates, so
   // another school's cache entry must never show here.
   const weeks = useSWRAuth(
-    isReady ? "holiday-weeks" : null,
+    isReady ? holidayKeys.hostedWeeks() : null,
     fetchHostedHolidayWeeks,
     REFRESH,
   );

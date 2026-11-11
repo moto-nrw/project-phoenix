@@ -60,22 +60,24 @@ func (rs *HolidayHostResource) assignGuestGroup(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusOK, transfer, "Holiday guests transferred successfully")
 }
 
-// HolidayGuestResource serves the sheet of a holiday guest and the hints
-// of the school's lists.
+// HolidayGuestResource serves the sheet of a holiday guest, the hints
+// of the school's lists and the Feriengruppen of its group lists.
 type HolidayGuestResource struct {
-	guests      capability.HolidayGuests
-	requireRead common.Middleware
-	requireList common.Middleware
+	guests        capability.HolidayGuests
+	requireRead   common.Middleware
+	requireList   common.Middleware
+	requireGroups common.Middleware
 }
 
 // NewHolidayGuestResource builds the routes. requireRead is the school
 // permission that opens the contacts of a child, requireList the one that
-// opens the child list, where the hints stand.
-func NewHolidayGuestResource(guests capability.HolidayGuests, requireRead, requireList common.Middleware) *HolidayGuestResource {
-	if guests == nil || requireRead == nil || requireList == nil {
+// opens the child list, where the hints stand, and requireGroups the one
+// that opens the group lists, where the Feriengruppen stand.
+func NewHolidayGuestResource(guests capability.HolidayGuests, requireRead, requireList, requireGroups common.Middleware) *HolidayGuestResource {
+	if guests == nil || requireRead == nil || requireList == nil || requireGroups == nil {
 		panic("enrollment holiday guest resource: the holiday guests and the permissions are required")
 	}
-	return &HolidayGuestResource{guests: guests, requireRead: requireRead, requireList: requireList}
+	return &HolidayGuestResource{guests: guests, requireRead: requireRead, requireList: requireList, requireGroups: requireGroups}
 }
 
 // Router mounts the route behind the school session.
@@ -84,6 +86,7 @@ func (rs *HolidayGuestResource) Router(protectedTenantRoutes func(chi.Router, fu
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		r.With(rs.requireList, withTx).Get("/", rs.listBadges)
+		r.With(rs.requireGroups, withTx).Get("/groups", rs.listGroups)
 		r.With(rs.requireRead, withTx).Get("/{studentId}", rs.getSheet)
 	})
 	return r
@@ -100,6 +103,22 @@ func (rs *HolidayGuestResource) listBadges(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	common.Respond(w, r, http.StatusOK, badges, "Holiday guest hints retrieved successfully")
+}
+
+// listGroups lists the Feriengruppen whose week has not ended, so the group
+// management explains a group that stands empty until its week (ADR 0120,
+// Nachtrag 2026-11-11).
+func (rs *HolidayGuestResource) listGroups(w http.ResponseWriter, r *http.Request) {
+	host, ok := hostOf(w, r)
+	if !ok {
+		return
+	}
+	groups, err := rs.guests.HolidayGuestGroups(r.Context(), host.SchoolID)
+	if err != nil {
+		renderHolidayGuestError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, groups, "Holiday guest groups retrieved successfully")
 }
 
 func (rs *HolidayGuestResource) getSheet(w http.ResponseWriter, r *http.Request) {

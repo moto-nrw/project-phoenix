@@ -7,6 +7,7 @@
 // E-Mail oder gleicher Nachname sind nur ein Hinweis.
 
 import { ClipboardList } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import {
   type MouseEvent as ReactMouseEvent,
@@ -51,6 +52,8 @@ import type {
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
+import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/use-holiday-registration-pdf";
+import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { billingConcept } from "~/lib/concepts/billing";
@@ -60,6 +63,7 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import {
@@ -71,6 +75,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
+  downloadHolidayRegistrationPdfs,
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
   fetchHolidayConfirmationSettings,
@@ -80,6 +85,7 @@ import {
   type HolidayWishFilter,
   type HolidayRegistrationStatus,
   type HolidayRegistrationSummary,
+  TRAEGER_HEALTH_RIGHT,
 } from "~/lib/traeger-holiday-registrations-api";
 import {
   fetchHolidaySiblingGroups,
@@ -92,10 +98,36 @@ const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
 
 type StatusChoice = HolidayRegistrationStatus | "all";
 
-const EXPORT_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
+const LIST_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
   "xlsx",
   "csv",
 ]);
+
+/**
+ * The entries of the download menu: the list as Excel or CSV, and one PDF
+ * per registration in a ZIP (#6691). The health information is its own
+ * entry, only for a person who may see it on the screen.
+ */
+function exportOptions(
+  filtered: boolean,
+  canSeeHealth: boolean,
+): readonly ExportMenuOption[] {
+  // Not "Auswahl": the ticked rows are for merging siblings, not for this.
+  const scope = filtered ? "Gefilterte" : "Alle";
+  return [
+    ...LIST_FORMATS,
+    { key: "pdf", format: "pdf", label: `${scope} als PDF (ZIP)` },
+    ...(canSeeHealth
+      ? [
+          {
+            key: HOLIDAY_PDF_HEALTH_KEY,
+            format: "pdf" as const,
+            label: `${scope} als PDF mit Gesundheitsangaben (ZIP)`,
+          },
+        ]
+      : []),
+  ];
+}
 
 const STATUS_OPTIONS: { value: StatusChoice; label: string }[] = [
   { value: "all", label: "Alle Status" },
@@ -357,7 +389,9 @@ export default function TraegerHolidayRegistrationsPage() {
   const [timeModel, setTimeModel] = useState("");
   const [wish, setWish] = useState<HolidayWishFilter>("");
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const { data: session } = useSession();
+  const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
   // Each new filter starts a new list; an answer for an older one is dropped.
   const generation = useRef(0);
   const {
@@ -461,6 +495,28 @@ export default function TraegerHolidayRegistrationsPage() {
       setExporting(null);
     }
   };
+
+  // One PDF per registration of the filter in a ZIP (#6691).
+  const exportPdfs = async (key: string, withHealth: boolean) => {
+    setExporting(key);
+    try {
+      const file = await downloadHolidayRegistrationPdfs(
+        periodId,
+        filter,
+        withHealth,
+      );
+      downloadBlob(file.blob, file.filename ?? "ferienanmeldungen.zip");
+    } catch (err) {
+      logger.error("traeger_holiday_registrations_pdf_export_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showActionError(err, { object: "die PDF-Dateien" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const deletionNotice = holidayDeletionNotice(list?.registrations ?? []);
 
   const mergeSiblings = async () => {
     if (merging || loading || selected.size < 2) return;
@@ -654,12 +710,17 @@ export default function TraegerHolidayRegistrationsPage() {
           ) : null}
           <ExportMenu
             ariaLabel="Anmeldungen herunterladen"
-            options={EXPORT_FORMATS}
+            options={exportOptions(activeFilters.length > 0, canSeeHealth)}
             busyKey={exporting}
             unavailable={loading || Boolean(loadError)}
             onSelect={(option) => {
               if (option.format === "csv" || option.format === "xlsx") {
                 void exportFile(option.format);
+              } else if (option.format === "pdf") {
+                void exportPdfs(
+                  option.key,
+                  option.key === HOLIDAY_PDF_HEALTH_KEY,
+                );
               }
             }}
           />
@@ -670,6 +731,7 @@ export default function TraegerHolidayRegistrationsPage() {
       onClearAllFilters={clearFilters}
       error={loadError}
     >
+      {deletionNotice ? <Alert type="info" message={deletionNotice} /> : null}
       {duplicates > 0 ? (
         <Alert
           type="warning"

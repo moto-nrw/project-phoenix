@@ -47,6 +47,8 @@ export function leadCarePlanTopic(): HelpTopic {
       // #4768: Raumfilter.
       "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
+      // ADR 0116: die ausgerichtete Ferienwoche im Plan.
+      "Richtet Ihre OGS eine Ferienwoche für den Träger aus, steht im Kopf jedes Tages `Ferienbetreuung` mit der Zahl der Kinder. Die Betreuungszeit ist in der Spalte orange hinterlegt. Planen Sie dafür Personal ein. An einem Schließtag gibt es keine Ferienbetreuung.",
       // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
       "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],

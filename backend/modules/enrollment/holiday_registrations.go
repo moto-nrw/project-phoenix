@@ -105,7 +105,8 @@ type HolidayRegistrationOffer struct {
 	// Form is the current version of the period's form (#5198).
 	Form HolidayPeriodForm
 	// ConsentTexts are the German texts of the fixed declarations the form
-	// shows, in HolidayConsentVersionCurrent (#5626).
+	// shows, in HolidayConsentVersionCurrent (#5626) with the retention of
+	// the Träger (#6691).
 	ConsentTexts HolidayConsentTexts
 	// HolidayWishMode is HolidayWishModeOff, or the Träger's
 	// holiday_registration.wish_mode when the period takes the holiday care
@@ -215,6 +216,13 @@ type HolidayRegistrationInput struct {
 	// (#5626); from HolidayConsentVersionHostHealth on the hosting OGS sees
 	// the health information.
 	ConsentVersion int
+	// RetentionDays are the days the privacy text the parent agreed to
+	// names (#6691): the retention of the Träger at the submission. The
+	// registration keeps them, whatever the Träger sets later.
+	RetentionDays int
+	// RemoteIP is the client address the stored registration counts under
+	// (#6726); it is not stored with the registration.
+	RemoteIP string
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -235,9 +243,10 @@ type HolidayRegistrations interface {
 	PublicHolidayFormDocument(context.Context, HolidayRegistrationLink, string) (HolidayFormDocument, error)
 	ResolveHolidayRegistrationLink(ctx context.Context, token string) (HolidayRegistrationLink, error)
 	HolidayRegistrationOffer(ctx context.Context, link HolidayRegistrationLink) (HolidayRegistrationOffer, error)
-	// CountHolidayRegistrationAttempt counts one attempt per IP address and
-	// per e-mail address and refuses with ErrRateLimited past the limit.
-	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, remoteIP, email string) error
+	// SubmitHolidayRegistration stores the registration and counts it per IP
+	// address and per e-mail address in the same transaction. Past a limit
+	// it refuses with ErrRateLimited or ErrEmailRateLimited and stores
+	// nothing (#6726).
 	SubmitHolidayRegistration(ctx context.Context, link HolidayRegistrationLink, input HolidayRegistrationInput) (HolidayRegistrationReceipt, error)
 	// CountHolidayProofUpload counts one upload per IP address and refuses
 	// with ErrUploadRateLimited past the limit (#5238).
@@ -300,20 +309,16 @@ type HolidayRegistrationMail struct {
 	Declaration  *HolidayRegistrationMailDeclaration `json:"declaration,omitempty"`
 }
 
-// HolidayRegistrationRetentionDays is how long the registrations of a period
-// stay after its last week: three months (spec #4611 user story 121). A
-// setting of the Träger follows with #4720.
-const HolidayRegistrationRetentionDays = 92
-
 // HolidayRegistrationDeletionLogRetentionYears is how long the deletion log
 // of the holiday registrations keeps an entry, like the deletion log of a
 // school (ADR 0118).
 const HolidayRegistrationDeletionLogRetentionYears = 3
 
 // HolidayRegistrationRetention deletes the registrations of every Träger
-// whose period ended more than HolidayRegistrationRetentionDays ago, logs
-// each deleted period in the deletion log of its Träger, and deletes the
-// expired abuse counters and log entries. It runs in the administrative
+// whose period ended more days ago than the registration keeps (#6691), and
+// the health information of the registrations whose period ended more than
+// HolidayHealthRetentionDays ago. It logs each period in the deletion log of
+// its Träger, and deletes the expired abuse counters and log entries. It runs in the administrative
 // transaction of the hourly cleanup.
 type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)

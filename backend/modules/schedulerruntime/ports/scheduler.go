@@ -119,8 +119,9 @@ type AccountRetention interface {
 }
 
 // HolidayRegistrationRetention deletes the public holiday registrations of
-// every Träger three months after their period ended (#4661) in the hourly
-// cleanup.
+// every Träger once the days each registration keeps after its period have
+// passed, and their health information after 92 days (#4661, #6691), in the
+// hourly cleanup.
 type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
 }

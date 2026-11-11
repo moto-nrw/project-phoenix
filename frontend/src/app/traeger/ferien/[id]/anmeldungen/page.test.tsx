@@ -20,14 +20,21 @@ import {
 const { mockConfirmationSettings } = vi.hoisted(() => ({
   mockConfirmationSettings: vi.fn(),
 }));
-const { mockPush, mockFetchList, mockDownload, mockDownloadBlob } = vi.hoisted(
-  () => ({
-    mockPush: vi.fn(),
-    mockFetchList: vi.fn(),
-    mockDownload: vi.fn(),
-    mockDownloadBlob: vi.fn(),
-  }),
-);
+const {
+  mockPush,
+  mockFetchList,
+  mockDownload,
+  mockDownloadPdfs,
+  mockDownloadBlob,
+  sessionPermissions,
+} = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockFetchList: vi.fn(),
+  mockDownload: vi.fn(),
+  mockDownloadPdfs: vi.fn(),
+  mockDownloadBlob: vi.fn(),
+  sessionPermissions: { current: [] as string[] },
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
@@ -50,6 +57,11 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
     filter: HolidayRegistrationFilter,
     format: string,
   ) => mockDownload(periodId, filter, format),
+  downloadHolidayRegistrationPdfs: (
+    periodId: string,
+    filter: HolidayRegistrationFilter,
+    withHealth: boolean,
+  ) => mockDownloadPdfs(periodId, filter, withHealth),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
 }));
 const { mockFetchGroups, mockMerge } = vi.hoisted(() => ({
@@ -258,6 +270,82 @@ describe("TraegerHolidayRegistrationsPage", () => {
     );
   });
 
+  it("says when moto deletes the registrations and downloads them as PDFs in a ZIP (#6691)", async () => {
+    sessionPermissions.current = [];
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: [
+        {
+          ...HOLIDAY_REGISTRATION_LIST.registrations[0]!,
+          deletesOn: "2028-01-09",
+          healthDeletesOn: "2027-04-11",
+        },
+      ],
+    });
+    const blob = new Blob(["PK"]);
+    mockDownloadPdfs.mockResolvedValue({
+      blob,
+      filename: "ferienanmeldungen-winterferien.zip",
+    });
+    renderPage();
+    await within(await screen.findByRole("table")).findByText("Eva Muster");
+
+    expect(
+      screen.getByText(
+        "moto löscht diese Anmeldungen am 09.01.2028. Laden Sie sie vorher herunter, wenn Sie sie länger brauchen. Gesundheitsangaben löscht moto schon am 11.04.2027.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldungen herunterladen" }),
+    );
+    // Without the right to see health information there is no such file.
+    expect(
+      screen.queryByRole("menuitem", { name: /Gesundheitsangaben/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Alle als PDF (ZIP)" }),
+    );
+    await waitFor(() =>
+      expect(mockDownloadBlob).toHaveBeenCalledWith(
+        blob,
+        "ferienanmeldungen-winterferien.zip",
+      ),
+    );
+    expect(mockDownloadPdfs).toHaveBeenCalledWith(
+      "5",
+      expect.objectContaining({ status: "" }),
+      false,
+    );
+  });
+
+  it("offers the PDFs with health information only with the right to see it (#6691)", async () => {
+    sessionPermissions.current = ["traeger_health:read"];
+    mockDownloadPdfs.mockResolvedValue({
+      blob: new Blob(["PK"]),
+      filename: null,
+    });
+    renderPage();
+    await within(await screen.findByRole("table")).findByText("Eva Muster");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldungen herunterladen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "Alle als PDF mit Gesundheitsangaben (ZIP)",
+      }),
+    );
+    await waitFor(() =>
+      expect(mockDownloadPdfs).toHaveBeenCalledWith(
+        "5",
+        expect.anything(),
+        true,
+      ),
+    );
+    sessionPermissions.current = [];
+  });
+
   it("explains an empty period", async () => {
     mockFetchList.mockResolvedValue({
       registrations: [],
@@ -461,7 +549,14 @@ function render(ui: React.ReactElement) {
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { id: "A", scope: "org", orgId: 7 } },
+    data: {
+      user: {
+        id: "A",
+        scope: "org",
+        orgId: 7,
+        permissions: sessionPermissions.current,
+      },
+    },
     status: "authenticated",
   }),
 }));

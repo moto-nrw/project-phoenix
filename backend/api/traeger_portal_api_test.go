@@ -114,7 +114,7 @@ func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPorta
 	require.NoError(t, err)
 	bankCipher, err := BankDataCipher(testpkg.TestBankDataKeys, "")
 	require.NoError(t, err)
-	mountParentBillingRoutes(router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), bankCipher, days, slog.Default())
+	mountParentBillingRoutes(router, router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), bankCipher, days, slog.Default())
 	mountTraegerClosingDayRoutes(router, owners.NewTraegerCalendarSchools(organizations, schoolSettings.Settings), organizations, delivery.Module, days)
 	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog,
 		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), owners.CareContractTestHolidays{}, "http://parents.localhost:3000")

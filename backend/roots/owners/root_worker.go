@@ -541,7 +541,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			outbox, err = BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, BuildParentDocumentNotices(db, env, portalReads, organizations, identity, people, notifications, delivery.Runtime.Module))
+				IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, BuildParentDocumentNotices(db, env, portalReads, organizations, identity, people, notifications, delivery.Runtime.Module), identity)
 			return
 		},
 	)
