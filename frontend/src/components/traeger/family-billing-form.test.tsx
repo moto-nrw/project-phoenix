@@ -193,6 +193,42 @@ describe("FamilyBillingForm and the family's debtor number", () => {
     );
   });
 
+  it("saves unrelated edits with an unchanged legacy number after the format tightens", async () => {
+    saveFamilyBilling.mockResolvedValue(STORED);
+    render(
+      <ToastProvider>
+        <FamilyBillingForm
+          target={target}
+          existing={{ ...STORED, debtorNumber: "LEGACY 1" }}
+          format={{ digitsOnly: true, minDigits: 5, maxDigits: 5 }}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Überweisung" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(saveFamilyBilling).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentMethod: "transfer",
+          debtorNumber: "LEGACY 1",
+        }),
+      ),
+    );
+    saveFamilyBilling.mockClear();
+    fireEvent.change(screen.getByLabelText(/Debitorennummer/), {
+      target: { value: "LEGACY 2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText(
+        "Die Debitorennummer hat 5 Ziffern, zum Beispiel 20815.",
+      ),
+    ).toBeInTheDocument();
+    expect(saveFamilyBilling).not.toHaveBeenCalled();
+  });
+
   it("refuses a number in another format of the Träger (#6675)", async () => {
     render(
       <ToastProvider>

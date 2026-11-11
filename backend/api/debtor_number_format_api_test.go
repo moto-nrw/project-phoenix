@@ -244,3 +244,57 @@ func TestFamilyDebtorNumberWriteQueryBudgetIsFlat(t *testing.T) {
 	assert.Len(t, set("20816").Statements, len(first.Statements), "the write reads and writes the same statements for any number of families")
 	querybudgets.AssertQueryBudget(t, "api.traeger.billing_family_debtor_number", first)
 }
+
+// Unrelated edits preserve legacy numbers after the format is tightened.
+// Changing the number through the contract form revokes its registration origin.
+func TestContractFormPreservesLegacyNumbersAndClearsChangedProvenance(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Familie Altformat")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	testpkg.OwnTraegerCareContracts(t, f.db, f.office.organization)
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", careMonth, sjrServices()...)
+	_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_parties SET email = 'eva.muster@example.org' WHERE contract_id = ?`, contract)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "LEGACY 1"}).Code)
+	fiveDigits(t, f)
+	save := func(number string) *httptest.ResponseRecorder {
+		return traegerJSON(t, f.traeger, billing, http.MethodPut, familyBillingPath,
+			map[string]any{"contract_id": contract, "recipient_kind": "applicant", "payment_method": "direct_debit", "due_day": 15, "debtor_number": number})
+	}
+	rec := save(" LEGACY 1 ")
+	assert.Equal(t, http.StatusOK, rec.Code, "unrelated payment edits keep the legacy number: %s", rec.Body.String())
+	assert.Equal(t, "LEGACY 1", f.familyNumber(t, "eva.muster@example.org"))
+	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "20815")
+	require.Equal(t, http.StatusOK, rec.Code, "an unchanged contract-form number keeps its origin: %s", rec.Body.String())
+	assertFormatRefused(t, save("LEGACY 2"), common.CodeParentBillingDebtorNumberDigits,
+		map[string]any{"digits": float64(5), "example": "20815"})
+	rec = save("30100")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "20816")
+	require.Equal(t, http.StatusConflict, rec.Code, "the old origin must not overwrite the contract-form replacement: %s", rec.Body.String())
+	assert.Equal(t, "30100", f.familyNumber(t, "eva.muster@example.org"))
+	assert.Equal(t, "20815", f.debtorNumberDetail(t, f.siblings).DebtorNumber, "the refused change rolls back")
+}
+
+func TestSiblingGroupConflictNamesEveryAffectedFamily(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Familie Mehrere Konflikte")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, map[string]any{"debtor_number": "30100"}).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.submitFamily(t, "eva.muster@example.org"), map[string]any{"debtor_number": "40100"}).Code)
+	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, f.siblings, f.again).Code)
+	rec := f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "20815"})
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	refusal := decodeProblem(t, rec)
+	require.NotNil(t, refusal.Details["families"])
+	assert.ElementsMatch(t, []any{
+		map[string]any{"family_email": "eva.muster@example.org", "family_debtor_number": "40100"},
+		map[string]any{"family_email": "papa.muster@example.org", "family_debtor_number": "30100"},
+	}, refusal.Details["families"], "replacement consent must show every conflicting family")
+	assert.Equal(t, "received", f.debtorNumberDetail(t, f.siblings).Status)
+	assert.Equal(t, "30100", f.familyNumber(t, "papa.muster@example.org"))
+	assert.Equal(t, "40100", f.familyNumber(t, "eva.muster@example.org"))
+	rec = f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "20815", "family_debtor_number": "replace"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "20815", f.familyNumber(t, "papa.muster@example.org"))
+	assert.Equal(t, "20815", f.familyNumber(t, "eva.muster@example.org"))
+}

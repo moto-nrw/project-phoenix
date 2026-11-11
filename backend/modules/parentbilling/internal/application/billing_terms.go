@@ -177,14 +177,6 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 	if err := validReviewer(reviewer); err != nil {
 		return nil, err
 	}
-	format, err := debtorNumberFormatOf(ctx, t.formats, reviewer.OrganizationID)
-	if err != nil {
-		return nil, err
-	}
-	family, err := normalizeFamilyBilling(input, format)
-	if err != nil {
-		return nil, err
-	}
 	if input.ContractID <= 0 {
 		return nil, parentbilling.ErrFamilyUnknown
 	}
@@ -196,12 +188,24 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 	if key == "" {
 		return nil, parentbilling.ErrFamilyUnknown
 	}
-	family.FamilyEmail, family.ContractID = key, input.ContractID
-	keep, err := t.keepsHolidayFamily(ctx, reviewer.OrganizationID, family)
+	stored, err := t.store.FamilyBillingOf(ctx, reviewer.OrganizationID, key)
 	if err != nil {
 		return nil, err
 	}
-	if !keep {
+	format, err := debtorNumberFormatOf(ctx, t.formats, reviewer.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	// Existing numbers keep their format when only recipient or payment changes.
+	if stored != nil && strings.TrimSpace(input.DebtorNumber) == stored.DebtorNumber {
+		format = parentbilling.DebtorNumberFormat{}
+	}
+	family, err := normalizeFamilyBilling(input, format)
+	if err != nil {
+		return nil, err
+	}
+	family.FamilyEmail, family.ContractID = key, input.ContractID
+	if !deviates(family) && (stored == nil || stored.LastUsedOn == nil) {
 		return nil, t.removeFamilyBilling(ctx, reviewer, key)
 	}
 	saved, err := t.store.SaveFamilyBilling(ctx, reviewer.OrganizationID, reviewer.AccountID, family)
@@ -227,19 +231,6 @@ func (t *BillingTerms) removeFamilyBilling(ctx context.Context, reviewer parentb
 		return fmt.Errorf("parent billing: record the family billing: %w", err)
 	}
 	return nil
-}
-
-// keepsHolidayFamily tells whether the row of the family stays: it
-// deviates, or the holiday care remembered the family (#6692).
-func (t *BillingTerms) keepsHolidayFamily(ctx context.Context, organizationID int64, family parentbilling.FamilyBilling) (bool, error) {
-	if deviates(family) {
-		return true, nil
-	}
-	stored, err := t.store.FamilyBillingOf(ctx, organizationID, family.FamilyEmail)
-	if err != nil {
-		return false, err
-	}
-	return stored != nil && stored.LastUsedOn != nil, nil
 }
 
 // deviates tells whether a deviation changes anything.

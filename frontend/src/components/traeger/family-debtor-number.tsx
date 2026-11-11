@@ -7,13 +7,11 @@
 // welche Nummer gilt. moto überschreibt nie still.
 
 import { History } from "lucide-react";
-import { type Ref, useEffect, useId, useState } from "react";
+import { type Ref } from "react";
 import { Button } from "~/components/ui/button";
-import { ChoiceTile } from "~/components/ui/choice-tile";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
-import { ConfirmationModal } from "~/components/ui/modal";
-import { Radio } from "~/components/ui/radio";
 import {
   DEBTOR_NUMBER_MAX_LENGTH,
   type DebtorNumberFormat,
@@ -102,12 +100,15 @@ export function FamilyDebtorNumberHint({
   return (
     <InsetPanel
       padding="compact"
-      className="mt-3 flex items-center gap-3 text-sm"
+      className="mt-3 flex flex-wrap items-start gap-3 text-sm sm:flex-nowrap sm:items-center"
     >
       <History aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-500" />
-      <p id={id} className="min-w-0 flex-1 text-gray-700">
+      <p
+        id={id}
+        className="min-w-0 flex-1 basis-[calc(100%-2rem)] text-gray-700 sm:basis-0"
+      >
         Bekannte Nummer dieser Familie:{" "}
-        <span className={`whitespace-nowrap ${DEBTOR_NUMBER_TEXT_CLASS}`}>
+        <span className={`wrap-anywhere ${DEBTOR_NUMBER_TEXT_CLASS}`}>
           {familyNumber}
         </span>
         {". Bitte prüfen."}
@@ -118,7 +119,7 @@ export function FamilyDebtorNumberHint({
         size="compact"
         onClick={() => onAdopt(familyNumber)}
         aria-label={`Debitorennummer ${familyNumber} übernehmen`}
-        className="shrink-0"
+        className="ml-7 shrink-0 sm:ml-0"
       >
         Übernehmen
       </Button>
@@ -126,118 +127,58 @@ export function FamilyDebtorNumberHint({
   );
 }
 
-/**
- * Asks which number applies when the number entered differs from the one the
- * family has (#6692). The action stays disabled until a choice is made.
- */
+/** Asks which number applies, naming every affected family before saving. */
 export function FamilyDebtorNumberConflictDialog({
   conflict,
-  confirmText,
-  loadingText,
   running,
   onChoose,
   onClose,
 }: Readonly<{
-  /** Both numbers; null keeps the dialog closed. */
   conflict: FamilyDebtorNumberConflict | null;
-  /** „Bestätigen“ at the confirmation, „Speichern“ at a change. */
-  confirmText: string;
-  loadingText: string;
   running: boolean;
   onChoose: (choice: FamilyDebtorNumberChoice) => void;
   onClose: () => void;
 }>) {
-  const [choice, setChoice] = useState<FamilyDebtorNumberChoice | null>(null);
-  const name = useId();
-  useEffect(() => {
-    if (conflict) setChoice(null);
-  }, [conflict]);
-
-  const options: {
-    value: FamilyDebtorNumberChoice;
-    label: string;
-    number: string;
-    description: string;
-  }[] = conflict
-    ? [
-        {
-          value: "replace",
-          label: "Neue Nummer für die Familie merken",
-          number: conflict.enteredNumber,
-          description: `Diese und spätere Anmeldungen der Familie bekommen ${conflict.enteredNumber}.`,
-        },
-        {
-          value: "keep",
-          label: "Gemerkte Nummer behalten",
-          number: conflict.familyNumber,
-          description: `Nur diese Anmeldung bekommt ${conflict.enteredNumber}. Die Familie behält ${conflict.familyNumber}.`,
-        },
-      ]
-    : [];
-
+  const multiple = (conflict?.families.length ?? 0) > 1;
+  const description = multiple
+    ? `Für diese Familien sind andere Nummern gemerkt: ${conflict?.families.map((family) => `${family.familyEmail}: ${family.familyNumber}`).join("; ")}. Bitte wählen Sie für alle genannten Familien.`
+    : conflict?.familyEmail
+      ? `Für die Familie ${conflict.familyEmail} ist schon eine andere Nummer gemerkt. Bitte wählen Sie.`
+      : "Für diese Familie ist schon eine andere Nummer gemerkt. Bitte wählen Sie.";
   return (
-    <ConfirmationModal
+    <ChoiceModal
       isOpen={conflict !== null}
       title="Welche Debitorennummer gilt?"
-      confirmText={confirmText}
-      loadingText={loadingText}
-      isConfirmLoading={running}
-      isConfirmDisabled={choice === null}
+      description={description}
+      isBusy={running}
       onClose={onClose}
-      onConfirm={() => {
-        if (choice) onChoose(choice);
+      onSelect={(choice) => {
+        if (choice === "keep" || choice === "replace") onChoose(choice);
       }}
-    >
-      <fieldset className="space-y-3">
-        <legend className="mb-3 text-sm text-gray-700">
-          {conflict?.familyEmail ? (
-            <>
-              Für die Familie{" "}
-              <span className="font-medium break-all text-gray-900">
-                {conflict.familyEmail}
-              </span>{" "}
-              ist schon eine andere Nummer gemerkt. Bitte wählen Sie.
-            </>
-          ) : (
-            "Für diese Familie ist schon eine andere Nummer gemerkt. Bitte wählen Sie."
-          )}
-        </legend>
-        {options.map((option) => {
-          const id = `${name}-${option.value}`;
-          return (
-            <ChoiceTile
-              key={option.value}
-              htmlFor={id}
-              selected={choice === option.value}
-              className="items-start p-4"
-            >
-              <Radio
-                id={id}
-                name={name}
-                value={option.value}
-                checked={choice === option.value}
-                onChange={() => setChoice(option.value)}
-                aria-describedby={`${id}-description`}
-                className="mt-0.5"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-gray-900">
-                  {option.label}
-                </span>
-                <span className="mt-1 block text-lg font-semibold break-all text-gray-900 tabular-nums">
-                  {option.number}
-                </span>
-                <span
-                  id={`${id}-description`}
-                  className="mt-1 block text-xs font-normal text-gray-600"
-                >
-                  {option.description}
-                </span>
-              </span>
-            </ChoiceTile>
-          );
-        })}
-      </fieldset>
-    </ConfirmationModal>
+      options={
+        conflict
+          ? [
+              {
+                value: "replace",
+                label: multiple
+                  ? "Neue Nummer für alle genannten Familien merken"
+                  : "Neue Nummer für die Familie merken",
+                description: multiple
+                  ? `Diese Anmeldungen und spätere Anmeldungen aller genannten Familien bekommen ${conflict.enteredNumber}.`
+                  : `Diese und spätere Anmeldungen der Familie bekommen ${conflict.enteredNumber}.`,
+              },
+              {
+                value: "keep",
+                label: multiple
+                  ? "Gemerkte Nummern behalten"
+                  : "Gemerkte Nummer behalten",
+                description: multiple
+                  ? `Diese Anmeldungen bekommen ${conflict.enteredNumber}. Jede genannte Familie behält ihre gemerkte Nummer.`
+                  : `Nur diese Anmeldung bekommt ${conflict.enteredNumber}. Die Familie behält ${conflict.familyNumber}.`,
+              },
+            ]
+          : []
+      }
+    />
   );
 }

@@ -154,7 +154,7 @@ function DebtorCell({
       {others.length > 0 ? (
         // On a phone the line wraps below the number instead of widening
         // the cell, so the pencil stays next to the number in every row.
-        <span className="block text-xs text-gray-500 max-sm:w-0 max-sm:min-w-full max-sm:whitespace-nowrap">
+        <span className="block text-xs wrap-anywhere text-gray-500 max-sm:w-0 max-sm:min-w-full">
           Auf Rechnungen:{" "}
           <span className="font-medium text-gray-700 tabular-nums">
             {others.join(", ")}

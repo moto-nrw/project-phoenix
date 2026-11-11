@@ -266,8 +266,6 @@ function DebtorNumberField({
         />
         <FamilyDebtorNumberConflictDialog
           conflict={conflict}
-          confirmText="Speichern"
-          loadingText="Speichert …"
           running={saving}
           onChoose={(choice) => void submit(choice)}
           onClose={() => setConflict(null)}
@@ -763,8 +761,6 @@ export function HolidayRegistrationStatusCard({
       </div>
       <FamilyDebtorNumberConflictDialog
         conflict={conflict}
-        confirmText="Bestätigen"
-        loadingText="Bestätigt …"
         running={running === "confirm"}
         onChoose={(choice) => void confirm(choice)}
         onClose={() => setConflict(null)}

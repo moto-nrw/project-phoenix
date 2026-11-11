@@ -141,7 +141,8 @@ COMMENT ON TABLE parent_billing.family_billing_events IS
 // #5623): only where every confirmed registration of the family key that
 // names a number names the same one. A family with two numbers stays
 // without, so the Träger-Büro decides. A family whose row already names
-// another number keeps it. Each new or changed row gets a "save" in its
+// another number keeps it. A matching existing number gets holiday retention
+// metadata but keeps its independent provenance. Each changed row gets a "save" in its
 // trail without an account. The number is kept from the last week the
 // registrations naming it booked (their submission without a booking), the
 // day the runtime keeps it from too, and came from the first of them.
@@ -181,9 +182,11 @@ saved AS (
 	ON CONFLICT (organization_id, family_email) DO UPDATE
 		SET debtor_number = EXCLUDED.debtor_number,
 			holder_first_name = EXCLUDED.holder_first_name, holder_last_name = EXCLUDED.holder_last_name,
-			last_used_on = EXCLUDED.last_used_on, debtor_number_registration_id = EXCLUDED.debtor_number_registration_id,
+			last_used_on = GREATEST(family.last_used_on, EXCLUDED.last_used_on),
+			debtor_number_registration_id = CASE WHEN family.debtor_number IS NULL
+				THEN EXCLUDED.debtor_number_registration_id ELSE family.debtor_number_registration_id END,
 			updated_at = CURRENT_TIMESTAMP
-		WHERE family.debtor_number IS NULL
+		WHERE family.debtor_number IS NULL OR family.debtor_number = EXCLUDED.debtor_number
 	RETURNING family.id, family.organization_id, family.care_contract_id
 )
 INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)

@@ -49,9 +49,17 @@ func renderDebtorNumberRefusal(w http.ResponseWriter, r *http.Request, err error
 	if !ok {
 		return false
 	}
-	common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingFamilyDebtorNumberConflict, map[string]any{
+	details := map[string]any{
 		"family_debtor_number": conflict.FamilyDebtorNumber, "debtor_number": conflict.DebtorNumber,
 		"family_email": conflict.FamilyEmail,
-	}))
+	}
+	if len(conflict.Families) > 1 {
+		families := make([]map[string]string, len(conflict.Families))
+		for i, family := range conflict.Families {
+			families[i] = map[string]string{"family_email": family.FamilyEmail, "family_debtor_number": family.DebtorNumber}
+		}
+		details["families"] = families
+	}
+	common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeParentBillingFamilyDebtorNumberConflict, details))
 	return true
 }

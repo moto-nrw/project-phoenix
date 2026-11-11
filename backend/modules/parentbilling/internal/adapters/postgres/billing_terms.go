@@ -192,6 +192,7 @@ func (s *Store) SaveFamilyBilling(ctx context.Context, organizationID, accountID
 		Set("payer_email = EXCLUDED.payer_email").Set("payer_street = EXCLUDED.payer_street").
 		Set("payer_postal_code = EXCLUDED.payer_postal_code").Set("payer_city = EXCLUDED.payer_city").
 		Set("payment_method = EXCLUDED.payment_method").Set("due_day = EXCLUDED.due_day").
+		Set("debtor_number_registration_id = CASE WHEN COALESCE(family_billing_row.debtor_number, '') = COALESCE(EXCLUDED.debtor_number, '') THEN family_billing_row.debtor_number_registration_id ELSE NULL END").
 		Set("debtor_number = EXCLUDED.debtor_number").
 		Set("updated_by_account_id = EXCLUDED.updated_by_account_id").Set("updated_at = CURRENT_TIMESTAMP").
 		Returning("*").Scan(ctx); err != nil {

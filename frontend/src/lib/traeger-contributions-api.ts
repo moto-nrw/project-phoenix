@@ -304,6 +304,7 @@ export async function fetchHolidayFamilyDebtorNumber(
 
 /** Both numbers of a refusal because the family has another number. */
 export interface FamilyDebtorNumberConflict {
+  readonly families: readonly { familyEmail: string; familyNumber: string }[];
   readonly familyNumber: string;
   readonly enteredNumber: string;
   /**
@@ -332,7 +333,28 @@ export function familyDebtorNumberConflictOf(
     return null;
   }
   const familyEmail = error.details?.family_email;
+  const families = Array.isArray(error.details?.families)
+    ? error.details.families.flatMap((family: unknown) => {
+        if (!family || typeof family !== "object") return [];
+        const row = family as Record<string, unknown>;
+        return typeof row.family_email === "string" &&
+          typeof row.family_debtor_number === "string"
+          ? [
+              {
+                familyEmail: row.family_email,
+                familyNumber: row.family_debtor_number,
+              },
+            ]
+          : [];
+      })
+    : [
+        {
+          familyEmail: typeof familyEmail === "string" ? familyEmail : "",
+          familyNumber,
+        },
+      ];
   return {
+    families,
     familyNumber,
     enteredNumber,
     familyEmail: typeof familyEmail === "string" ? familyEmail : "",

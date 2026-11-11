@@ -140,6 +140,8 @@ type FamilyDebtorNumberConflict struct {
 	FamilyEmail        string
 	FamilyDebtorNumber string
 	DebtorNumber       string
+	// Families names every conflict in a sibling group, including the first.
+	Families []FamilyDebtorNumber
 }
 
 func (c *FamilyDebtorNumberConflict) Error() string {

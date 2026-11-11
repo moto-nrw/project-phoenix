@@ -105,6 +105,40 @@ func TestFamilyDebtorNumberBackfillTakesOnlyAnUnambiguousNumber(t *testing.T) {
 		"one family with one number remembers it with the parent who registered last, until the last week a registration "+
 			"naming it booked, from its first registration; two numbers and a received registration stay out")
 
+	// Existing contract numbers that match holiday usage need retention too,
+	// but never become registration-owned merely because the values match.
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	var contract int64
+	require.NoError(t, db.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id, status)
+  VALUES (?, ?, 21, 'entwurf') RETURNING id`, organization, school).Scan(ctx, &contract))
+	register("Mara", "matching@example.org", "confirmed", "30100", "2026-06-04 10:00+02")
+	register("Nora", "different@example.org", "confirmed", "40100", "2026-06-05 10:00+02")
+	_, err := db.ExecContext(ctx, `INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id, recipient_kind, debtor_number)
+  VALUES (?0, 'matching@example.org', ?1, 'applicant', '30100'), (?0, 'different@example.org', ?1, 'applicant', '50100')`, organization, contract)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, familyDebtorNumberBackfillSQL)
+	require.NoError(t, err)
+	var matching struct {
+		Holder string `bun:"holder_first_name"`
+		UsedOn string `bun:"used_on"`
+		Origin *int64 `bun:"debtor_number_registration_id"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT holder_first_name, COALESCE(last_used_on::text, '') AS used_on, debtor_number_registration_id
+  FROM parent_billing.family_billing WHERE organization_id = ? AND family_email = 'matching@example.org'`, organization).Scan(ctx, &matching))
+	assert.Equal(t, "Mara", matching.Holder)
+	assert.Equal(t, "2026-06-04", matching.UsedOn)
+	assert.Nil(t, matching.Origin, "an independently assigned matching number keeps its provenance")
+	var different string
+	require.NoError(t, db.NewRaw(`SELECT debtor_number FROM parent_billing.family_billing WHERE organization_id = ?
+  AND family_email = 'different@example.org'`, organization).Scan(ctx, &different))
+	assert.Equal(t, "50100", different, "independently assigned numbers stay unchanged")
+	_, err = db.ExecContext(ctx, `DELETE FROM care_contract.contracts WHERE organization_id = ? AND id = ?`, organization, contract)
+	require.NoError(t, err)
+	var retained int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing WHERE organization_id = ?
+  AND family_email = 'matching@example.org' AND care_contract_id IS NULL AND debtor_number = '30100'`, organization).Scan(ctx, &retained))
+	assert.Equal(t, 1, retained, "holiday use keeps the matching number after contract deletion")
+
 	require.NoError(t, familyDebtorNumberDown(ctx, db))
 	var left int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing WHERE organization_id = ?`, organization).Scan(ctx, &left))

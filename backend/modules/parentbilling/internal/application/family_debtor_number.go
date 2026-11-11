@@ -132,6 +132,7 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 		return err
 	}
 	origin := registrations[0].ID
+	var conflicts []parentbilling.FamilyDebtorNumber
 	for _, family := range held {
 		if family.DebtorNumber == "" || family.DebtorNumber == *number || family.DebtorNumberRegistrationID == origin {
 			continue
@@ -141,9 +142,12 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 		case parentbilling.FamilyDebtorNumberKeep:
 			memories = slices.DeleteFunc(memories, func(memory parentbilling.FamilyMemory) bool { return memory.FamilyEmail == family.FamilyEmail })
 		default:
-			return &parentbilling.FamilyDebtorNumberConflict{FamilyEmail: family.FamilyEmail, FamilyDebtorNumber: family.DebtorNumber,
-				DebtorNumber: *number}
+			conflicts = append(conflicts, parentbilling.FamilyDebtorNumber{FamilyEmail: family.FamilyEmail, DebtorNumber: family.DebtorNumber})
 		}
+	}
+	if len(conflicts) > 0 {
+		return &parentbilling.FamilyDebtorNumberConflict{FamilyEmail: conflicts[0].FamilyEmail, FamilyDebtorNumber: conflicts[0].DebtorNumber,
+			DebtorNumber: *number, Families: conflicts}
 	}
 	saved, err := h.store.RememberFamilies(ctx, reviewer.OrganizationID, reviewer.AccountID, memories)
 	if err != nil {

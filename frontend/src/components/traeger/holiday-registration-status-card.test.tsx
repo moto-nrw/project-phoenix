@@ -895,24 +895,61 @@ describe("HolidayRegistrationStatusCard", () => {
       expect(dialog).toHaveTextContent(
         "Für die Familie papa.muster@example.org ist schon eine andere Nummer gemerkt.",
       );
-      const confirmChoice = screen
-        .getAllByRole("button", { name: "Bestätigen" })
-        .find((button) => dialog.contains(button))!;
-      expect(confirmChoice).toBeDisabled();
-      const keep = screen.getByRole("radio", {
+      const keep = screen.getByRole("button", {
         name: /Gemerkte Nummer behalten/,
       });
-      expect(keep).toHaveAccessibleDescription(
+      expect(keep).toHaveTextContent(
         "Nur diese Anmeldung bekommt 99. Die Familie behält 10 4711.",
       );
       fireEvent.click(keep);
-      expect(confirmChoice).toBeEnabled();
-      fireEvent.click(confirmChoice);
 
       await waitFor(() => expect(onReload).toHaveBeenCalled());
       expect(mockFamilyChoice).toHaveBeenLastCalledWith("keep");
       expect(mockConfirmDebtorNumber).toHaveBeenLastCalledWith("99");
       expect(screen.queryByText(/Bitte prüfen Sie/)).toBeNull();
+    });
+
+    it("shows every conflicting family before replacing their numbers", async () => {
+      mockConfirm
+        .mockRejectedValueOnce(
+          new ApiError("conflict", 409, {
+            code: "parent_billing.family_debtor_number_conflict",
+            details: {
+              family_email: "eva.muster@example.org",
+              family_debtor_number: "40100",
+              debtor_number: "99",
+              families: [
+                {
+                  family_email: "eva.muster@example.org",
+                  family_debtor_number: "40100",
+                },
+                {
+                  family_email: "papa.muster@example.org",
+                  family_debtor_number: "30100",
+                },
+              ],
+            },
+          }),
+        )
+        .mockResolvedValueOnce({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+      const { onReload } = renderWithFamily();
+      fireEvent.change(
+        screen.getByRole("textbox", { name: /^Debitorennummer/ }),
+        { target: { value: "99" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      const dialog = await screen.findByRole("dialog", {
+        name: "Welche Debitorennummer gilt?",
+      });
+      expect(dialog).toHaveTextContent("eva.muster@example.org: 40100");
+      expect(dialog).toHaveTextContent("papa.muster@example.org: 30100");
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: /Neue Nummer für alle genannten Familien merken/,
+        }),
+      );
+      await waitFor(() => expect(onReload).toHaveBeenCalled());
+      expect(mockFamilyChoice).toHaveBeenLastCalledWith("replace");
     });
 
     it("asks too when a confirmed registration gets another number", async () => {
@@ -932,18 +969,15 @@ describe("HolidayRegistrationStatusCard", () => {
       );
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-      const dialog = await screen.findByRole("dialog", {
-        name: "Welche Debitorennummer gilt?",
-      });
+      expect(
+        await screen.findByRole("dialog", {
+          name: "Welche Debitorennummer gilt?",
+        }),
+      ).toBeInTheDocument();
       fireEvent.click(
-        screen.getByRole("radio", {
+        screen.getByRole("button", {
           name: /Neue Nummer für die Familie merken/,
         }),
-      );
-      fireEvent.click(
-        screen
-          .getAllByRole("button", { name: "Speichern" })
-          .find((button) => dialog.contains(button))!,
       );
 
       await waitFor(() =>

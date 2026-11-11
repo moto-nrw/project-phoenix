@@ -106,9 +106,13 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function familyBillingErrors(
   draft: FamilyBillingDraft,
   format: DebtorNumberFormat = NO_DEBTOR_NUMBER_FORMAT,
+  storedNumber = "",
 ): Record<string, string> {
   const errors: Record<string, string> = {};
-  const debtorNumberError = debtorNumberFormatError(draft.debtorNumber, format);
+  const debtorNumberError =
+    draft.debtorNumber.trim() === storedNumber
+      ? null
+      : debtorNumberFormatError(draft.debtorNumber, format);
   if (debtorNumberError) errors.debtor_number = debtorNumberError;
   const need = (field: string, value: string, hint: string) => {
     if (!value.trim()) errors[field] = hint;
@@ -226,7 +230,7 @@ export function FamilyBillingForm({
 
   const submit = async () => {
     formErrors.clear();
-    const errors = familyBillingErrors(draft, format);
+    const errors = familyBillingErrors(draft, format, existing?.debtorNumber);
     if (Object.keys(errors).length > 0) {
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", errors);
       return;
