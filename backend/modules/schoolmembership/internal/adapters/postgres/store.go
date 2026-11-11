@@ -95,6 +95,15 @@ type externalCaregiverRecordRow struct {
 
 // --- staff ---
 
+// staffRowLock is the strength of every staff row lock (#6702). FOR NO KEY
+// UPDATE serializes the writers of one staff member, offboarding included,
+// but never makes a foreign-key key share wait: an assignment, shift,
+// absence, actor column or tombstone row that references the member takes
+// its key share without waiting for the row lock, so those implicit locks
+// close no cycle. Staff rows are deleted only with the whole school. The
+// caller admits the lock (findStaffRow, the merge composition).
+const staffRowLock = "NO KEY UPDATE"
+
 func (s *Store) FindStaff(ctx context.Context, id int64, lock string, includeDeleted bool) (schoolmembership.Staff, bool, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
@@ -106,7 +115,7 @@ func (s *Store) FindStaff(ctx context.Context, id int64, lock string, includeDel
 		query = query.Where(`"staff".deleted_at IS NULL`)
 	}
 	if lock != "" {
-		query = query.For(lock)
+		query = query.For(staffRowLock)
 	}
 	found, stats, err := scanOne(ctx, query, "find staff")
 	if err != nil || !found {
@@ -163,6 +172,9 @@ func (s *Store) ListStaff(ctx context.Context, filter schoolmembership.StaffFilt
 	}
 	if filter.PlannedExitOnly {
 		query = query.Where(`"staff".planned_exit_day IS NOT NULL`)
+	}
+	if filter.ForMutation {
+		query = query.For(staffRowLock + " OF staff")
 	}
 	stats, err := scanAll(ctx, query.OrderExpr(`"staff".id ASC`), "list staff")
 	if err != nil {

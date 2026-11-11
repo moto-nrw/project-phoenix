@@ -21,6 +21,9 @@ func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.
 	}
 	err = s.runWrite(ctx, "erase_next_retired_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var markStats domain.OperationStats
+		if err := admitLeaf(txCtx, true, "users.staff_school_memberships"); err != nil {
+			return err
+		}
 		result, found, markStats, err = s.store.MarkNextRetiredStaffErased(txCtx, retiredBefore, afterID)
 		stats.Add(markStats)
 		if err != nil || !found {

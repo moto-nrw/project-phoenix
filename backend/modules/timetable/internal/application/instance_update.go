@@ -49,6 +49,9 @@ func (s *InstanceLifecycleService) UpdatePlanned(ctx context.Context, instanceID
 		Date:            calendar.Date(instance.Date),
 		StartHHMMSS:     FormatTimeOfDay(instance.StartTime),
 	}
+	if err := s.lockEditedRoster(ctx, instance.ID, req); err != nil {
+		return nil, err
+	}
 	if err := s.updateLifecycleColumns(ctx, instance, applyPlannedEdit(instance, req)...); err != nil {
 		return nil, &ports.ScheduleError{Op: "update instance", Err: duplicateTemplateInstance(err)}
 	}
@@ -67,6 +70,29 @@ func (s *InstanceLifecycleService) UpdatePlanned(ctx context.Context, instanceID
 	}
 	s.broadcastPlannedInstanceChanged(ctx, "instance_update")
 	return LifecycleInstanceOf(instance), nil
+}
+
+// lockEditedRoster takes the staff rows of the block's new people and, when
+// the edited block is still operational, of its current people, in one
+// ascending batch after the day locks and before the block row (#6702). The
+// block guard re-locks the current people (held, skipped) and the new rows
+// only re-read held people, so the edit never holds the block or one person
+// while it waits for another.
+func (s *InstanceLifecycleService) lockEditedRoster(ctx context.Context, instanceID int64, req timetable.UpdateInstanceInput) error {
+	ids := domain.UniquePositiveIDs(req.StaffIDs)
+	if !req.Date.Before(calendar.TodayDate()) {
+		prior, err := staffOfInstance(ctx, s.deps.InstanceStaffRepo, instanceID)
+		if err != nil {
+			return &ports.ScheduleError{Op: "update instance: load existing staff", Err: err}
+		}
+		for _, row := range prior {
+			ids = append(ids, row.StaffID)
+		}
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, ids); err != nil {
+		return &ports.ScheduleError{Op: "update instance: lock staff", Err: err}
+	}
+	return nil
 }
 
 // editableInstance loads a planned block and takes the day locks of its

@@ -23,14 +23,15 @@ import (
 // changes, the notices and the access steps.
 type plannerFixture struct {
 	fixture
-	today      string
-	now        time.Time
-	blocked    bool
-	notify     bool
-	changes    []staffoffboarding.ExitPlanChange
-	notices    []staffoffboarding.ExitNotice
-	accessRuns int
-	deletion   []staffoffboarding.Actor
+	today        string
+	now          time.Time
+	blocked      bool
+	notify       bool
+	changes      []staffoffboarding.ExitPlanChange
+	notices      []staffoffboarding.ExitNotice
+	accessRuns   int
+	accountLocks [][]int64
+	deletion     []staffoffboarding.Actor
 	// beforeRunPlan changes a listed plan immediately before DueExits locks it.
 	beforeRunPlan func(context.Context) error
 	// failDeletion makes the offboarding's audit append fail, which rolls
@@ -95,6 +96,10 @@ func newPlannerFixture(t *testing.T) (*plannerFixture, *testPlanner) {
 	}
 	f.deps.PreviewAccess = func(context.Context, int64) (staffoffboarding.AccessPreview, error) {
 		return staffoffboarding.AccessPreview{Revision: "access"}, nil
+	}
+	f.deps.LockAccounts = func(_ context.Context, ids []int64) error {
+		f.accountLocks = append(f.accountLocks, slices.Clone(ids))
+		return nil
 	}
 	f.deps.ExecuteAccess = func(_ context.Context, id int64, revision string) (staffoffboarding.AccessResult, error) {
 		require.Equal(t, account.ID, id)
@@ -404,6 +409,8 @@ func TestPlannedExitRemindersLockAllAbsencesBeforeAnyShift(t *testing.T) {
 	require.NoError(t, planner.RunDue(counter.Context(ctx)))
 	require.Empty(t, planner.lastRun.Failed)
 	require.Len(t, f.notices, 2)
+	require.Len(t, f.accountLocks, 1, "the run prelocks accounts once before processing plans")
+	require.Len(t, f.accountLocks[0], 1, "only the first subject has a sign-in account")
 	require.False(t, f.retired(t), "a reminder keeps the membership live")
 	queries := counter.Queries()
 	index := func(kind string, staffID int64) int {

@@ -121,6 +121,21 @@ func openGuardianInvitations(identity interface {
 	}
 }
 
+// gateRetentionSteps splits off the steps that take a tenant-wide gate. They
+// run after the child deletion, which takes the class-write gate first, and
+// before the staff deletion (#6702): a staff deletion leaves leaf row locks
+// behind, and the unit of work's lock order admits no gate after them.
+func gateRetentionSteps(steps []schedulerPorts.RetentionStep) (gated, rest []schedulerPorts.RetentionStep) {
+	for _, step := range steps {
+		if step.Kind == auditModels.DeletionTypeGradeTransitionRetention {
+			gated = append(gated, step)
+			continue
+		}
+		rest = append(rest, step)
+	}
+	return gated, rest
+}
+
 // newWorkerRetention composes the nightly cleanup over the deletion log, the
 // settings the windows resolve from, the subject deletions and the owner
 // steps, in the order dataRetentionSteps, protocolRetentionSteps and
@@ -139,9 +154,11 @@ func newWorkerRetention(
 		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
 	deletions := deletionLog
+	gated, data := gateRetentionSteps(steps)
 	return workerRetention{
-		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff),
-			append(append(steps, attendanceRetentionSteps(attendance, settings)...), guardianRetentionSteps(guardians, settings)...)),
+		steps: append(schedulerPorts.RetentionPlan(studentRetentionStep(students), schedulerPorts.SubjectRetention{}, gated),
+			schedulerPorts.RetentionPlan(schedulerPorts.SubjectRetention{}, staffRetentionStep(staff),
+				append(append(data, attendanceRetentionSteps(attendance, settings)...), guardianRetentionSteps(guardians, settings)...))...),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},

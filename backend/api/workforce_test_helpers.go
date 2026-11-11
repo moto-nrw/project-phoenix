@@ -151,7 +151,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	shiftPlanSyncer, err := shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
 		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db.Pool()),
-		Deviations: timetable.TimetableData.Deviations, TimetableData: ttRows.OwnerRows().SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool()), owners.MustNewTimetableRecurrenceLock(db)),
+		LockStaff: owners.SickReportStaffLock(membership), Deviations: timetable.TimetableData.Deviations, TimetableData: ttRows.OwnerRows().SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool()), owners.MustNewTimetableRecurrenceLock(db)),
 		InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(ttRows.InstanceStaff), Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})
 	if err != nil {

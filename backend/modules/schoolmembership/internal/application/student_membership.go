@@ -91,6 +91,9 @@ func (s *Service) MovePendingWindow(ctx context.Context, move schoolmembership.P
 		return false, invalid("student ID is required")
 	}
 	err = s.runWrite(ctx, "move_pending_student_window", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "users.student_school_memberships"); err != nil {
+			return err
+		}
 		current, found, queryStats, readErr := s.store.LockStudentWindow(txCtx, move.StudentID)
 		stats.Add(queryStats)
 		if readErr != nil || !found || current.Status != "pending" {

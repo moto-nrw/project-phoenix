@@ -33,6 +33,7 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels
 	config := importService.NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: dataImportCompose.NewSchoolRolePolicy(), Authorization: api.NewImportAuthorization(), Transactions: dataImportCompose.NewTransactions(),
 		Invitations:                  invitations,
 		FindInvitedPeople:            identity.FindInvitedPersonIDs,
+		FindSchoolEmailIdentities:    api.NewImportSchoolEmailLookup(identity),
 		FindSchoolAccount:            api.NewImportSchoolAccountLookup(identity),
 		Roles:                        identity,
 		FindRolePermissionsByRoleIDs: identity.FindRolePermissionsByRoleIDs,

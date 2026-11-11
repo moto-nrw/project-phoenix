@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 func (s *Store) EnqueueDocumentCleanup(ctx context.Context, staffID int64, now time.Time) error {
@@ -20,6 +21,9 @@ func (s *Store) EnqueueDocumentCleanup(ctx context.Context, staffID int64, now t
 func (s *Store) ClaimDocumentCleanup(ctx context.Context, limit int, now time.Time) ([]workforce.DocumentCleanupClaim, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.staff_offboarding_cleanup"); err != nil {
 		return nil, err
 	}
 	rows := []struct {

@@ -456,6 +456,7 @@ func buildCreateTemplateInput(
 	createdBy int64,
 ) timetableModule.CreateTemplateCommand {
 	req := parsed.req
+	materializeFrom, materializeTo, _ := createTemplateWindow(req)
 	var createdByPtr *int64
 	if createdBy > 0 {
 		c := createdBy
@@ -494,7 +495,22 @@ func buildCreateTemplateInput(
 		RosterValidFrom:       rosterValidFrom,
 		ScheduleValidFrom:     parsed.startDate,
 		GradeLevelMax:         gradeLevelMax,
+		MaterializeFrom:       materializeFrom,
+		MaterializeTo:         materializeTo,
 	}
+}
+
+// createTemplateWindow is the request's valid materialization window.
+func createTemplateWindow(req *createTemplateRequest) (*calendar.Date, *calendar.Date, bool) {
+	if req.MaterializeFrom == nil || req.MaterializeTo == nil {
+		return nil, nil, false
+	}
+	from, ferr := berlinDate(*req.MaterializeFrom)
+	to, terr := berlinDate(*req.MaterializeTo)
+	if ferr != nil || terr != nil || to.Before(from) {
+		return nil, nil, false
+	}
+	return &from, &to, true
 }
 
 // renderCreateTemplateError maps a CreateTemplate failure to its HTTP response:
@@ -517,17 +533,18 @@ func (rs *Resource) materializeTemplateWindow(
 	templateID int64,
 	resp *createTemplateResponse,
 ) {
-	if req.MaterializeFrom == nil || req.MaterializeTo == nil || rs.MaterializationService == nil {
+	from, to, ok := createTemplateWindow(req)
+	if !ok || rs.MaterializationService == nil {
 		return
 	}
-	from, ferr := berlinDate(*req.MaterializeFrom)
-	to, terr := berlinDate(*req.MaterializeTo)
-	if ferr != nil || terr != nil || to.Before(from) {
-		return
-	}
-	mat, mErr := rs.MaterializationService.MaterializeForTenant(
-		ctx, from, to, timetableModule.MaterializationSourceManual,
-	)
+	// A savepoint keeps a failed run from committing some of its
+	// occurrences with the saved template.
+	var mat *timetableModule.MaterializationResult
+	mErr := tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+		var err error
+		mat, err = rs.MaterializationService.MaterializeForTenant(ctx, *from, *to, timetableModule.MaterializationSourceManual)
+		return err
+	})
 	if mErr != nil {
 		rs.getLogger().Warn("template create: materialize failed (template still saved)",
 			slog.Int64("template_id", templateID),

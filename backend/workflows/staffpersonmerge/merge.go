@@ -100,8 +100,8 @@ func (w *Workflow) Preview(ctx context.Context, schoolID int64, clientIP net.IP)
 	return w.candidates(ctx, schoolID, false)
 }
 
-// Execute locks the school repair gate, all live people by ID, then all
-// employments by ID. Every selected fingerprint is checked before any write.
+// Execute locks the school repair gate, all employments by ID, then all live
+// people by ID. Every selected fingerprint is checked before any write.
 // The caller must supply one administrative unit for the entire batch,
 // including its audit entries, and roll it back on error. HTTP callers use
 // the standing TenantTxMiddleware after the operator session gates.
@@ -173,12 +173,17 @@ func selectCandidates(candidates []Candidate, selections []Selection) ([]Candida
 	sort.Slice(result, func(i, j int) bool { return result[i].Donor.Person.ID < result[j].Donor.Person.ID })
 	return result, nil
 }
+
+// candidates locks, when asked, the school's staff rows before their people
+// (Konto → Schule → Profil, #6702): offboarding, retention and staff admin
+// hold a staff row while they lock its person, so the merge never holds a
+// person while it waits for a staff row.
 func (w *Workflow) candidates(ctx context.Context, schoolID int64, lock bool) ([]Candidate, error) {
-	people, err := w.people.StaffMergePeople(ctx, schoolID, lock)
+	memberships, err := w.memberships.StaffMergeMemberships(ctx, schoolID, lock)
 	if err != nil {
 		return nil, err
 	}
-	memberships, err := w.memberships.StaffMergeMemberships(ctx, schoolID, lock)
+	people, err := w.people.StaffMergePeople(ctx, schoolID, lock)
 	if err != nil {
 		return nil, err
 	}

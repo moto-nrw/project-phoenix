@@ -76,11 +76,12 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 	if err != nil {
 		return nil, err
 	}
-	selectedType, typeID, baseType, err := s.resolveRebookingTarget(ctx, req)
-	if err != nil {
+	// The work-time gates come before the target art's row (#6702).
+	if err := s.lockStaffAbsenceWrites(ctx, req.StaffID); err != nil {
 		return nil, err
 	}
-	if err := s.lockStaffAbsenceWrites(ctx, req.StaffID); err != nil {
+	selectedType, typeID, baseType, err := s.resolveRebookingTarget(ctx, req)
+	if err != nil {
 		return nil, err
 	}
 

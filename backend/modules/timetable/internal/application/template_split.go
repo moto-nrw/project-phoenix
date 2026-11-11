@@ -389,7 +389,7 @@ func (s *TemplateSplitService) splitInTransaction(
 	if err := s.lockSplitRecurrence(ctx, "split template"); err != nil {
 		return nil, err
 	}
-	if err := validateAssignableCategory(ctx, s.deps.CategoryRepo, in.CategoryID, "split template: validate category"); err != nil {
+	if err := s.validateSplitCatalogue(ctx, in); err != nil {
 		return nil, err
 	}
 	if err := s.lockSplitDays(ctx, in, tenantID); err != nil {
@@ -486,11 +486,6 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 	}
 	if err := s.validateSuccessorOfferingSource(ctx, *in, old.SourceCareOfferingIDs); err != nil {
 		return nil, nil, nil, err
-	}
-	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
-		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTracks, in.PlanningTrackID, old.PlanningTrackID); err != nil {
-			return nil, nil, nil, err
-		}
 	}
 	newGroup, scheduleIDs, err := s.createSplitSuccessor(
 		ctx, old, *in, tenantID, sourceValidUntil, activeEnrollments, activeSupervisors,
