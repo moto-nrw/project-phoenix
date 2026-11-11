@@ -55,7 +55,7 @@ func TestSchoolErasureRemovesPayrollDispatches(t *testing.T) {
 func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	// The message attachments (1.15.929, #6685) extend the erasure functions
+	// The message attachments (1.15.936, #6685) extend the erasure functions
 	// this test restores; they go first.
 	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	ctx := context.Background()

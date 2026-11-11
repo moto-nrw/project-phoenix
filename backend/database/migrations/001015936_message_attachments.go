@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const messageAttachmentsVersion = "1.15.929"
+const messageAttachmentsVersion = "1.15.936"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     messageAttachmentsVersion,
 		Description: "Nachrichten: Fotos und Dateien als Anhänge in Eltern- und Teamchats (#6685)",
 		DependsOn: []string{
-			holidayAcceptanceMailVersion,    // the newest on development (1.15.927)
+			holidayHostOwnContactsVersion,   // the newest on development (1.15.934)
 			"1.15.723",                      // client_message_id on the three message tables
 			"1.15.811",                      // the school erasure functions this migration extends
 			enrollmentRequestUploadsVersion, // the file phase of the school erasure as it stands

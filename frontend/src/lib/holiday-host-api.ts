@@ -7,7 +7,7 @@
  */
 
 import { apiErrorFromText, transportFetch } from "~/lib/api-error";
-import { formatDate } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 export interface HostedHolidayWeek {
@@ -394,6 +394,14 @@ export async function fetchHolidayGuestBadges(): Promise<HolidayGuestBadge[]> {
   }));
 }
 
+/** Was die Wahl der Feriengruppe bewirkt hat. */
+export interface HolidayGuestTransfer {
+  /** Feriengäste, die in der Gruppe stehen oder am ersten Tag dazukommen. */
+  readonly guests: number;
+  /** Eigene Kinder, deren gebuchte Tage jetzt eingeplant sind (#6678). */
+  readonly ownChildren: number;
+}
+
 /**
  * Eine Gruppe, die die Schule als Feriengruppe einer Woche gewählt hat
  * (ADR 0120, Nachtrag 2026-11-11). Vor dem ersten Tag der Woche sind die
@@ -495,12 +503,13 @@ export function holidayGuestGroupHint(
 
 /**
  * Wählt die Gruppe für die Feriengäste einer Woche. Das Backend übernimmt
- * die bestätigten Gäste sofort und gibt ihre Zahl zurück.
+ * die bestätigten Gäste sofort, plant die gebuchten Tage der eigenen Kinder
+ * ein und gibt beide Zahlen zurück.
  */
 export async function assignHolidayGuestGroup(
   weekId: string,
   groupId: string,
-): Promise<number> {
+): Promise<HolidayGuestTransfer> {
   const response = await transportFetch(
     `${BASE}/${encodeURIComponent(weekId)}/guest-group`,
     {
@@ -516,8 +525,13 @@ export async function assignHolidayGuestGroup(
       await response.text(),
     );
   }
-  const body = (await response.json()) as { data?: { guests?: number } };
-  return body.data?.guests ?? 0;
+  const body = (await response.json()) as {
+    data?: { guests?: number; own_children?: number };
+  };
+  return {
+    guests: body.data?.guests ?? 0,
+    ownChildren: body.data?.own_children ?? 0,
+  };
 }
 
 /** Betreuung, Notfall und Abholung eines Feriengasts. Jeder Abruf steht im Zugriffsprotokoll. */
@@ -593,4 +607,132 @@ export async function fetchHolidayStudentHealth(
       answers: [],
     },
   }));
+}
+
+// ─── Eigene Kinder in der Ferienwoche (#6678) ───────────────────────────────
+
+/**
+ * Ob die Anmeldung eines eigenen Kindes einem Kind der Schule zugeordnet
+ * ist: genau eines passt, keines passt oder mehrere passen.
+ */
+type HolidayOwnChildAssignmentState = "matched" | "not_found" | "ambiguous";
+
+export interface HolidayOwnChildAssignment {
+  /** Das Kind der Teilnehmerliste. */
+  readonly childId: string;
+  readonly assignment: HolidayOwnChildAssignmentState;
+  /** Die Kinderakte, wenn genau ein Kind passt. */
+  readonly studentId: string | null;
+}
+
+/**
+ * Die Zuordnung der eigenen Kinder einer Woche. Kinder anderer Schulen und
+ * Kinder ohne Schule stehen nicht darin.
+ */
+export async function fetchHolidayOwnChildAssignments(
+  weekId: string,
+): Promise<HolidayOwnChildAssignment[]> {
+  const entries = await readData<
+    | {
+        child_id: number | string;
+        assignment: HolidayOwnChildAssignmentState;
+        student_id?: number | string | null;
+      }[]
+    | null
+  >(
+    `${BASE}/${encodeURIComponent(weekId)}/own-children`,
+    "Die eigenen Kinder der Ferienwoche konnten nicht geladen werden",
+  );
+  return (entries ?? []).map((entry) => ({
+    childId: String(entry.child_id),
+    assignment: entry.assignment,
+    studentId: optionalId(entry.student_id ?? null),
+  }));
+}
+
+/**
+ * Was eine bestätigte Ferienanmeldung zu Betreuung, Notfall und Abholung
+ * eines eigenen Kindes angibt, für eine Woche, die die Schule ausrichtet.
+ * Die Stammdaten der Schule bleiben unverändert.
+ */
+export interface HolidayStudentRegistration {
+  readonly weekId: string;
+  readonly periodName: string;
+  /** Kalendertage der Ferienwoche als „YYYY-MM-DD“. */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  /** Gebuchte Tage einer tageweise gebuchten Woche; leer: ganze Woche. */
+  readonly days: readonly string[];
+  readonly timeModelName: string;
+  readonly timeModelStartsAt: string;
+  readonly timeModelEndsAt: string;
+  readonly emergencyContacts: HolidayGuestContact[];
+  readonly pickupContacts: HolidayGuestContact[];
+}
+
+/**
+ * Die Angaben der Ferienanmeldungen eines eigenen Kindes bis zum letzten Tag
+ * der Woche. Jeder Abruf mit Angaben steht im Zugriffsprotokoll.
+ */
+export async function fetchHolidayStudentRegistrations(
+  studentId: string,
+): Promise<HolidayStudentRegistration[]> {
+  const entries = await readData<
+    | {
+        week_id: number | string;
+        period_name: string;
+        starts_on: string;
+        ends_on: string;
+        days?: string[] | null;
+        time_model_name: string;
+        time_model_starts_at: string;
+        time_model_ends_at: string;
+        emergency_contacts?: HolidayGuestContact[] | null;
+        pickup_contacts?: HolidayGuestContact[] | null;
+      }[]
+    | null
+  >(
+    `${BASE}/students/${encodeURIComponent(studentId)}/registration`,
+    "Die Angaben aus der Ferienanmeldung konnten nicht geladen werden",
+  );
+  return (entries ?? []).map((entry) => ({
+    weekId: String(entry.week_id),
+    periodName: entry.period_name,
+    startsOn: entry.starts_on,
+    endsOn: entry.ends_on,
+    days: entry.days ?? [],
+    timeModelName: entry.time_model_name,
+    timeModelStartsAt: entry.time_model_starts_at,
+    timeModelEndsAt: entry.time_model_ends_at,
+    emergencyContacts: entry.emergency_contacts ?? [],
+    pickupContacts: entry.pickup_contacts ?? [],
+  }));
+}
+
+// ─── Feriengruppe vor ihrer Woche (#6680) ───────────────────────────────────
+
+/** Die Feriengruppen der Schule, deren Woche noch nicht begonnen hat. */
+export async function fetchHolidayGuestGroupHints(): Promise<
+  HolidayGuestGroup[]
+> {
+  const today = berlinTodayISO();
+  return (await fetchHolidayGuestGroups()).filter(
+    (group) => group.startsOn > today,
+  );
+}
+
+/**
+ * Der Satz, mit dem eine leere Feriengruppe erklärt, warum sie leer ist.
+ * Überall gleich: auf der Gruppenseite und im Check-in.
+ */
+export function holidayGuestGroupHintText(
+  hint: Pick<HolidayGuestGroup, "startsOn" | "guests">,
+): string {
+  const day = formatDate(hint.startsOn);
+  if (hint.guests === 0) {
+    return `Feriengruppe ab ${day}: Noch ist kein Feriengast bestätigt.`;
+  }
+  return hint.guests === 1
+    ? `Feriengruppe: 1 Kind kommt ab ${day} dazu.`
+    : `Feriengruppe: ${hint.guests} Kinder kommen ab ${day} dazu.`;
 }

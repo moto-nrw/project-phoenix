@@ -56,9 +56,9 @@ func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, heal
 	return applicationNative.NewHolidayHostParticipants(postgres.NewHolidayHostStore(), log, health, students, today)
 }
 
-// NewHolidayGuests builds the hosting school's holiday guests (ADR 0120, #4722, #5630).
-func NewHolidayGuests(people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) enrollment.HolidayGuests {
-	return applicationNative.NewHolidayGuests(postgres.NewHolidayGuestStore(), people, schools, care, health, log, today)
+// NewHolidayGuests builds the hosting school's holiday guests (ADR 0120, #4722, #5630) and the planned days of its own children (#6678).
+func NewHolidayGuests(people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, children enrollment.HolidayStudentsByBirthDate, ownPlans enrollment.HolidayOwnChildPlans, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) enrollment.HolidayGuests {
+	return applicationNative.NewHolidayGuests(postgres.NewHolidayGuestStore(), people, schools, care, children, ownPlans, health, log, today)
 }
 
 // NewHolidayGuestBadgeList builds only the hints „Gast aus …“, for the tablet (PyrePortal#499); nil today: Berlin day.

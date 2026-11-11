@@ -1178,7 +1178,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			}
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			holidayGuestGroupID = body.GroupID
-			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"week_id":51,"group_id":%s,"guests":1}}`, body.GroupID)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"week_id":51,"group_id":%s,"guests":1,"own_children":1}}`, body.GroupID)
 			return
 		}
 		if r.URL.Path == "/api/holiday-guests/groups" {

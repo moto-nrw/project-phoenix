@@ -92,7 +92,8 @@ func newHolidayGrowthFixture(t *testing.T, db *bun.DB, n int) holidayGrowthFixtu
 	require.NoError(t, err)
 	audit := owners.NewTestAuditPersistence(database, nil).DataAccessLog
 	today := func() calendar.Date { return calendar.NewDate(2099, 7, 6) }
-	guests := owners.NewHolidayGuests(people, organizations, care, audit, cipher, today)
+	students := owners.MustNewMembershipTestRepositories(database).Student
+	guests := owners.NewHolidayGuests(people, students, organizations, care, audit, cipher, today)
 	unit := testpkg.TenantRuntime(t, db)
 	schoolID, err := tenant.NewTenantID(school)
 	require.NoError(t, err)

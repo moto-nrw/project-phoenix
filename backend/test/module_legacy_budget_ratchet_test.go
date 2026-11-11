@@ -282,7 +282,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0209: the new composition of workflows/holidayallocation (+13).
 // ADR 0212: the message attachments of modules/communication/composition
 // (+25) and their port of workflows/parentportal/compose (+1).
-const moduleComposeBudgetTotal = 13325
+const moduleComposeBudgetTotal = 13320
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -306,7 +306,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0153: the contract offerings constructor (+9).
 	// ADR 0154: the booked care offering constructor (+13).
-	"modules/careplan/compose":             1680,
+	"modules/careplan/compose":             1675,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
