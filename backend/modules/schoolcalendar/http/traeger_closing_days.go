@@ -147,11 +147,18 @@ func (rs *TraegerClosingDayResource) delete(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(traegercalendar.ErrClosingDayNotFound, common.CodeTraegerClosingDayNotFound))
 		return
 	}
-	if err := rs.days.DeleteClosingDay(r.Context(), organizationID, id); err != nil {
+	families, err := rs.days.DeleteClosingDay(r.Context(), organizationID, id, r.URL.Query().Get("holiday_bookings_token"))
+	if err != nil {
 		renderTraegerClosingDayError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, nil, "Träger closing day deleted successfully")
+	common.Respond(w, r, http.StatusOK, TraegerClosingDayDeleted{NotifiedFamilies: families}, "Träger closing day deleted successfully")
+}
+
+// TraegerClosingDayDeleted is the answer of DELETE: the families told that
+// their days open again (#6457).
+type TraegerClosingDayDeleted struct {
+	NotifiedFamilies int `json:"notified_families"`
 }
 
 // renderTraegerClosingDayError names a refusal. The Owner refuses before it

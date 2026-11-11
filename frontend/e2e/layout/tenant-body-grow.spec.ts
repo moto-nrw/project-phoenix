@@ -188,3 +188,28 @@ test("a card inside a table row leaves the table's columns intact", async ({
   const second = await box(page, "second");
   expect(first.width).toBe(second.width);
 });
+
+test("an inner card in a list row keeps the row's grid", async ({ page }) => {
+  // Die Wochenliste in einer Hinweiszeile (ADR 0196): als Flex-Spalte verlor
+  // die Zeile ihre gemeinsame Aktionsspalte, der Knopf rutschte unter den Text.
+  await render(
+    page,
+    tenantPage(`<div>
+      <section class="${PLAIN_CARD}">
+        <ul class="sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4">
+          <li data-testid="row" class="flex flex-col gap-2 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-start">
+            <div class="min-w-0">
+              <p>Teamfortbildung</p>
+              <div class="mt-2"><div class="moto-content-surface overflow-hidden rounded-xl border">Woche</div></div>
+            </div>
+            <div><button data-testid="action" type="button">Eltern informieren</button></div>
+          </li>
+        </ul>
+      </section></div>`),
+  );
+
+  await expect(page.getByTestId("row")).toHaveCSS("display", "grid");
+  const row = await box(page, "row");
+  const action = await box(page, "action");
+  expect(action.y).toBeLessThan(row.y + 10);
+});

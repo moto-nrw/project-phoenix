@@ -27,9 +27,14 @@ type traegerClosingDayHolidayNotices struct {
 }
 
 func (n traegerClosingDayHolidayNotices) NotifyHolidayBookings(ctx context.Context, organizationID int64, day traegercalendar.ClosingDayInput) (int, error) {
-	notice, err := n.closures.NotifyHolidayClosure(ctx, organizationID, enrollment.HolidayClosure{
+	closure := enrollment.HolidayClosure{
 		SchoolIDs: day.SchoolIDs, StartsOn: day.StartDate, EndsOn: day.EndDate, Reason: day.Reason,
-	}, day.HolidayBookingsToken)
+		TraegerClosingDayID: day.ClosingDayID, Deleted: day.Deleted,
+	}
+	if day.Previous != nil {
+		closure.Previous = &enrollment.HolidayClosureSpan{SchoolIDs: day.Previous.SchoolIDs, StartsOn: day.Previous.StartDate, EndsOn: day.Previous.EndDate}
+	}
+	notice, err := n.closures.NotifyHolidayClosure(ctx, organizationID, closure, day.HolidayBookingsToken)
 	if err != nil {
 		tenant.MarkRollback(ctx)
 	}

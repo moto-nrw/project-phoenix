@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.holidayclosurenotification.waiting_delivery",
+  "max": 15,
+  "exact": true,
+  "description": "ADR 0196: worker discovery and one Träger unit following prepared or unknown mail, including transaction setup and retirement. All operations share one Enrollment send-key read and one Delivery status read. Statement count stays flat from one to three waiting operations; changed states add one bulk update."
+}
