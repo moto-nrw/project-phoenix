@@ -68,10 +68,19 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 	if err != nil {
 		return nil, err
 	}
-	phase, err := d.deps.Phases.Phase(ctx, target.request.PhaseID)
+	// An approval holds the gates already; the reader takes the recurrence
+	// gate again and reads the bounds the approval copies (#6657). Other
+	// decisions copy no bound and took no gate: they must not wait for it
+	// behind their row locks.
+	var gate func(context.Context) error
+	if input.Status == enrollmentNative.DecisionApproved {
+		gate = d.deps.LockTemplateRecurrence
+	}
+	locked, err := enrollmentNative.NewPhaseBoundsReader(d.deps.Phases, gate).LockedPhase(ctx, target.request.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
+	phase := locked.Phase()
 	if err := d.prepareApproval(ctx, target, phase, input); err != nil {
 		return nil, err
 	}

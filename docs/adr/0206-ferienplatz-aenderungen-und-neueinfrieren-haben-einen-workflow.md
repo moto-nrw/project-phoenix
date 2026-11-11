@@ -1,14 +1,14 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Ferienplatzänderungen und Neueinfrieren haben einen Workflow
 
-**Status: Vorgeschlagen.** Vorschlag vom 11.11.2026 zu
+**Status: Angenommen.** Freigegeben von Yannick Wenger am 11.11.2026.
+Vorschlag vom 11.11.2026 zu
 [#6555](https://github.com/moto-nrw/project-phoenix/issues/6555), nach Yannicks
-Entscheidung im Issue vom selben Tag. Yannick gibt die Architektur frei.
-Das Zusammenführen dieses Doku-PRs nimmt die ADR nicht an und erlaubt noch
-keinen neuen Owner im Produktcode.
+Entscheidung im Issue vom selben Tag. Der Doku-PR #6645 nahm die ADR noch
+nicht an; der umsetzende PR setzt den Status und registriert den Owner.
 
 ## Anlass und Umfang
 
@@ -198,7 +198,8 @@ dasselbe Ereignis. Eine erneute echte Beförderung bleibt ein neues Ereignis.
 
 Nach Yannicks Annahme wird der neue Workflow nach
 [ADR 0070](0070-principle-only-the-target-is-a-rule-and-debt-leaves-with-evidence.md)
-registriert. Dieser Doku-PR ändert noch keinen dieser Einträge:
+registriert. Der Doku-PR änderte noch keinen dieser Einträge; der umsetzende PR
+schneidet sie so:
 
 | Register/Policy | Erforderlicher Schnitt im Implementierungs-PR |
 |---|---|

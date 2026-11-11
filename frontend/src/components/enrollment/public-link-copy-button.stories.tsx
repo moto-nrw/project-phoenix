@@ -14,6 +14,10 @@ export const Default: Story = {
   args: {
     url: "https://storybook.moto-app.de/enroll/1",
     componentId: "public-link-copy-button-default",
+    qrCode: {
+      title: "QR-Code für die Anmeldung",
+      fileName: "qr-code-anmeldung",
+    },
   },
 };
 
@@ -22,5 +26,9 @@ export const CustomLabel: Story = {
     url: "https://storybook.moto-app.de/enroll/1",
     componentId: "public-link-copy-button-custom-label",
     label: "Link für Eltern kopieren",
+    qrCode: {
+      title: "QR-Code für die Anmeldung",
+      fileName: "qr-code-anmeldung",
+    },
   },
 };
