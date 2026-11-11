@@ -25,6 +25,11 @@ interface FormModalProps {
    * `ui-kit/form-modal-pending` fails a `FormModal` without it.
    */
   readonly pending?: FormModalPending;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). A running `pending` save locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** Keep backdrop taps from discarding in-progress form input (#3370). */
   readonly isBackdropDismissDisabled?: boolean;
   /**
@@ -57,6 +62,7 @@ export function FormModal({
   size = "lg",
   mobilePosition = "bottom",
   pending,
+  isDismissDisabled = false,
   isBackdropDismissDisabled = false,
   suspended = false,
   error,
@@ -80,7 +86,7 @@ export function FormModal({
       size={size}
       mobileSheet={mobilePosition === "bottom"}
       sheetFooter="row"
-      isDismissDisabled={busy}
+      isDismissDisabled={isDismissDisabled || busy}
       busy={busy}
       isBackdropDismissDisabled={isBackdropDismissDisabled}
       suspended={suspended}

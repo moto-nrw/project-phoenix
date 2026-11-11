@@ -1,10 +1,15 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { releaseFakeTimers } from "~/test/clock";
 import { Button } from "./button";
+import { ChoiceModal } from "./choice-modal";
+import { ConfirmDeleteModal } from "./confirm-delete-modal";
+import { ExportDialog } from "./export-dialog";
+import { FormModal } from "./form-modal";
 import { Modal, ModalCancelButton } from "./modal";
-import { MODAL_EXIT_MS, TOAST_FADE_CLASS, TOAST_FADE_MS } from "./motion";
+import { MODAL_CLOSE_DELAY_MS, MODAL_MOTION_STYLE } from "./motion";
 import {
   SlideOver,
   SlideOverBody,
@@ -16,25 +21,18 @@ import {
 
 vi.mock("vaul", () => import("~/test/mocks/vaul"));
 
+const noop = () => undefined;
+
 // One lock for closing in every kit dialog: `isDismissDisabled` (#6575).
 describe("isDismissDisabled", () => {
-  beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  });
-  afterEach(() => {
-    releaseFakeTimers();
-  });
-
   it("locks the Abbrechen of a Modal footer like the close X", () => {
     render(
       <Modal
         isOpen
-        onClose={vi.fn()}
+        onClose={noop}
         title="Speichern"
         isDismissDisabled
-        footer={
-          <ModalCancelButton onClick={vi.fn()}>Abbrechen</ModalCancelButton>
-        }
+        footer={<ModalCancelButton onClick={noop}>Abbrechen</ModalCancelButton>}
       >
         Inhalt
       </Modal>,
@@ -46,16 +44,14 @@ describe("isDismissDisabled", () => {
     expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
   });
 
-  it("hides the Abbrechen of a phone sheet below sm and keeps it from sm on", () => {
+  it("hides the Abbrechen of a stacked phone sheet below sm only", () => {
     render(
       <Modal
         isOpen
-        onClose={vi.fn()}
+        onClose={noop}
         title="Abmelden"
         mobileSheet
-        footer={
-          <ModalCancelButton onClick={vi.fn()}>Abbrechen</ModalCancelButton>
-        }
+        footer={<ModalCancelButton onClick={noop}>Abbrechen</ModalCancelButton>}
       >
         Inhalt
       </Modal>,
@@ -64,6 +60,25 @@ describe("isDismissDisabled", () => {
     expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
       "hidden",
       "sm:inline-flex",
+    );
+  });
+
+  it("keeps the Abbrechen of a phone sheet whose actions stay one row", () => {
+    render(
+      <Modal
+        isOpen
+        onClose={noop}
+        title="Formular"
+        mobileSheet
+        sheetFooter="row"
+        footer={<ModalCancelButton onClick={noop}>Abbrechen</ModalCancelButton>}
+      >
+        Inhalt
+      </Modal>,
+    );
+
+    expect(screen.getByRole("button", { name: "Abbrechen" })).not.toHaveClass(
+      "hidden",
     );
   });
 
@@ -98,17 +113,85 @@ describe("isDismissDisabled", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(onSave).toHaveBeenCalledTimes(1);
   });
+
+  it("locks FormModal, ChoiceModal and ConfirmDeleteModal without a running operation", () => {
+    const { unmount } = render(
+      <FormModal isOpen onClose={noop} title="Formular" isDismissDisabled>
+        Inhalt
+      </FormModal>,
+    );
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeDisabled();
+    unmount();
+
+    const choice = render(
+      <ChoiceModal
+        isOpen
+        onClose={noop}
+        title="Termin bearbeiten"
+        options={[{ value: "single", label: "Nur diesen Termin" }]}
+        onSelect={noop}
+        isDismissDisabled
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Nur diesen Termin" }),
+    ).toBeEnabled();
+    choice.unmount();
+
+    render(
+      <ConfirmDeleteModal
+        isOpen
+        title="Gerät löschen?"
+        description="Das Gerät wird entfernt."
+        gate={{ mode: "twoStep" }}
+        onConfirm={noop}
+        onClose={noop}
+        loading={false}
+        error=""
+        isDismissDisabled
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeDisabled();
+  });
+
+  it("locks the ExportDialog's X and Abbrechen without a running export", () => {
+    render(
+      <ExportDialog
+        isOpen
+        onClose={noop}
+        title="Liste exportieren"
+        formats={["pdf"]}
+        run={{
+          busy: null,
+          error: "",
+          bodyRef: { current: null },
+          download: noop,
+          updateFormat: noop,
+        }}
+        isDismissDisabled
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Export schließen" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Herunterladen" })).toBeEnabled();
+  });
 });
 
 describe("motion", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   });
-  afterEach(() => {
-    releaseFakeTimers();
-  });
 
-  it("closes a Modal once its exit animation has run, not before", async () => {
+  it("closes a Modal only after its exit animation has run", async () => {
     const onClose = vi.fn();
     render(
       <Modal isOpen onClose={onClose} title="Titel">
@@ -121,8 +204,11 @@ describe("motion", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
     await act(async () => {
-      vi.advanceTimersByTime(MODAL_EXIT_MS - 1);
+      vi.advanceTimersByTime(MODAL_CLOSE_DELAY_MS - 1);
     });
+    expect(MODAL_CLOSE_DELAY_MS).toBeGreaterThan(
+      Number.parseInt(MODAL_MOTION_STYLE["--moto-modal-exit"], 10),
+    );
     expect(onClose).not.toHaveBeenCalled();
     await act(async () => {
       vi.advanceTimersByTime(1);
@@ -130,20 +216,30 @@ describe("motion", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("gives the exit animation the duration the close timer waits for", () => {
+  it("animates the Modal with the durations from motion.ts", () => {
     render(
-      <Modal isOpen onClose={vi.fn()} title="Titel">
+      <Modal isOpen onClose={noop} title="Titel">
         Inhalt
       </Modal>,
     );
     const root = screen.getByRole("dialog").parentElement;
-    expect(root?.style.getPropertyValue("--moto-modal-exit")).toBe(
-      `${MODAL_EXIT_MS}ms`,
+    expect(root?.style.getPropertyValue("--moto-modal-enter")).toBe(
+      MODAL_MOTION_STYLE["--moto-modal-enter"],
     );
-  });
+    expect(root?.style.getPropertyValue("--moto-modal-exit")).toBe(
+      MODAL_MOTION_STYLE["--moto-modal-exit"],
+    );
 
-  it("reads the toast timer from the toast's transition class", () => {
-    expect(TOAST_FADE_CLASS).toBe(`duration-${TOAST_FADE_MS}`);
-    expect(TOAST_FADE_MS).toBeGreaterThan(0);
+    // The CSS takes its durations from those properties, not a literal.
+    const css = readFileSync(
+      path.join(process.cwd(), "src/styles/globals.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /\.animate-modalEnter\s*\{\s*animation:\s*modalEnter\s+var\(--moto-modal-enter\)/,
+    );
+    expect(css).toMatch(
+      /\.animate-modalExit\s*\{\s*animation:\s*modalExit\s+var\(--moto-modal-exit\)/,
+    );
   });
 });

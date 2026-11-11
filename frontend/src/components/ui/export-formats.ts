@@ -21,6 +21,12 @@ export const EXPORT_FORMAT_LABELS: Readonly<Record<ExportFileFormat, string>> =
 /** What a running export does: create a file or open the print view. */
 export type ExportRunKind = "download" | "print";
 
+/** Label of the action that starts an export. */
+export const EXPORT_ACTION_LABELS: Readonly<Record<ExportRunKind, string>> = {
+  download: "Herunterladen",
+  print: "Drucken",
+};
+
 /** Label of the action while its export runs. */
 export const EXPORT_BUSY_LABELS: Readonly<Record<ExportRunKind, string>> = {
   download: "Wird erstellt…",

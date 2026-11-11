@@ -6,6 +6,7 @@ import { Download, Printer } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import {
+  EXPORT_ACTION_LABELS,
   EXPORT_BUSY_LABELS,
   EXPORT_FORMAT_LABELS,
   type ExportFileFormat,
@@ -65,6 +66,11 @@ interface ExportDialogProps<F extends ExportFileFormat> {
    * options themselves say why; Drucken and Herunterladen wait.
    */
   readonly blocked?: boolean;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). A running export locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** Options of this export (template, period, columns). */
   readonly children?: ReactNode;
 }
@@ -88,6 +94,7 @@ export function ExportDialog<F extends ExportFileFormat>({
   defaultFormat,
   run,
   blocked = false,
+  isDismissDisabled = false,
   children,
 }: ExportDialogProps<F>) {
   const initialFormat = defaultFormat ?? formats[0];
@@ -110,7 +117,7 @@ export function ExportDialog<F extends ExportFileFormat>({
         if (!open) onClose();
       }}
       // Solange ein Export läuft, bleibt der Dialog stehen.
-      isDismissDisabled={busy !== null}
+      isDismissDisabled={isDismissDisabled || busy !== null}
     >
       <SlideOverContent size="md">
         <SlideOverHeader
@@ -171,7 +178,7 @@ export function ExportDialog<F extends ExportFileFormat>({
             variant="outline"
             size="md"
             onClick={onClose}
-            disabled={busy !== null}
+            disabled={busy !== null || isDismissDisabled}
           >
             Abbrechen
           </Button>
@@ -184,7 +191,9 @@ export function ExportDialog<F extends ExportFileFormat>({
               disabled={busy !== null || blocked}
             >
               <Printer className="h-4 w-4" aria-hidden />
-              {busy === "print" ? EXPORT_BUSY_LABELS.print : "Drucken"}
+              {busy === "print"
+                ? EXPORT_BUSY_LABELS.print
+                : EXPORT_ACTION_LABELS.print}
             </Button>
           ) : null}
           <Button
@@ -199,7 +208,7 @@ export function ExportDialog<F extends ExportFileFormat>({
             <Download className="h-4 w-4" aria-hidden />
             {busy === "download"
               ? EXPORT_BUSY_LABELS.download
-              : "Herunterladen"}
+              : EXPORT_ACTION_LABELS.download}
           </Button>
         </SlideOverFooter>
       </SlideOverContent>

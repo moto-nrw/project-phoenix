@@ -5,13 +5,17 @@
  */
 
 /** Entrance of the kit `Modal` panel (`.animate-modalEnter`). */
-export const MODAL_ENTER_MS = 250;
+const MODAL_ENTER_MS = 250;
+
+/** Exit of the kit `Modal` panel (`.animate-modalExit`). */
+const MODAL_EXIT_MS = 200;
 
 /**
- * Exit of the kit `Modal` panel (`.animate-modalExit`). `Modal` calls
- * `onClose` once it has run.
+ * `Modal` calls `onClose` this long after a dismissal starts: the exit
+ * animation plus a margin, because the animation only starts with the next
+ * paint while the timer starts at once.
  */
-export const MODAL_EXIT_MS = 200;
+export const MODAL_CLOSE_DELAY_MS = MODAL_EXIT_MS + 50;
 
 /**
  * CSS custom properties `Modal` sets on its root; `globals.css` reads them in

@@ -3,6 +3,7 @@
 import { ChevronDown, FileSpreadsheet, FileText, Printer } from "lucide-react";
 
 import {
+  EXPORT_ACTION_LABELS,
   EXPORT_BUSY_LABELS,
   EXPORT_FORMAT_LABELS,
   type ExportFileFormat,
@@ -59,14 +60,16 @@ export function exportMenuItems({
   onSelect,
   busyKey = null,
   unavailable = false,
-  header = "Herunterladen",
+  header = EXPORT_ACTION_LABELS.download,
 }: ExportMenuItemsArgs): OverflowMenuEntry[] {
   const entries: OverflowMenuEntry[] = options.map((option) => ({
     label:
       busyKey === option.key
         ? EXPORT_BUSY_LABELS[option.format ? "download" : "print"]
         : (option.label ??
-          (option.format ? EXPORT_FORMAT_LABELS[option.format] : "Drucken")),
+          (option.format
+            ? EXPORT_FORMAT_LABELS[option.format]
+            : EXPORT_ACTION_LABELS.print)),
     icon: optionIcon(option),
     disabled: unavailable || busyKey !== null,
     onClick: () => onSelect(option),
@@ -80,7 +83,7 @@ export function exportMenuItems({
  * `exportMenuItems`.
  */
 export function ExportMenu({
-  label = "Herunterladen",
+  label = EXPORT_ACTION_LABELS.download,
   ariaLabel,
   ...args
 }: ExportMenuItemsArgs & {

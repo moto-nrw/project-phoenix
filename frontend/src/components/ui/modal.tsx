@@ -19,8 +19,9 @@ import {
 import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
+import { cn } from "~/lib/utils";
 import { useBusyFocus } from "./hooks/useBusyFocus";
-import { MODAL_EXIT_MS, MODAL_MOTION_STYLE } from "./motion";
+import { MODAL_CLOSE_DELAY_MS, MODAL_MOTION_STYLE } from "./motion";
 
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
@@ -41,11 +42,11 @@ const MODAL_MAX_WIDTH: Record<ModalSize, string> = {
 
 /**
  * What the footer of the open `Modal` needs to know: whether every dismissal
- * path is locked, and whether the dialog is a phone sheet.
+ * path is locked, and whether its actions stack on a phone sheet.
  */
 const ModalFrameContext = React.createContext({
   isDismissDisabled: false,
-  mobileSheet: false,
+  stackedSheetFooter: false,
 });
 
 type ModalCancelButtonProps = Omit<
@@ -55,12 +56,13 @@ type ModalCancelButtonProps = Omit<
 
 /**
  * The Abbrechen of a `Modal` footer. It is a dismissal path, so the dialog's
- * `isDismissDisabled` locks it like the X, Escape and the backdrop. On a
- * phone sheet (`mobileSheet`) it is hidden: the actions stack in full width
- * and the X closes the sheet.
+ * `isDismissDisabled` locks it like the X, Escape and the backdrop. Below
+ * `sm`, on a phone sheet whose actions stack (`mobileSheet`,
+ * `sheetFooter="stacked"`), it is hidden: the X closes the sheet. Render it
+ * in `footer`; only there does it read the dialog's state.
  */
 export function ModalCancelButton({
-  className = "",
+  className,
   disabled = false,
   ...props
 }: ModalCancelButtonProps) {
@@ -71,14 +73,17 @@ export function ModalCancelButton({
       variant="outline"
       size="md"
       disabled={disabled || frame.isDismissDisabled}
-      className={`${className} ${frame.mobileSheet ? "hidden sm:inline-flex" : ""}`}
+      className={cn(
+        className,
+        frame.stackedSheetFooter && "hidden sm:inline-flex",
+      )}
       {...props}
     />
   );
 }
 
 /** How the footer of a phone sheet arranges its actions. */
-export type ModalSheetFooter = "stacked" | "row";
+type ModalSheetFooter = "stacked" | "row";
 
 // The phone layout of a dialog footer lives here only: the sheet adds the
 // safe-area inset, and a stacked footer turns into a row from `sm` on.
@@ -238,7 +243,7 @@ export function Modal({
         return;
       }
       onCloseRef.current();
-    }, MODAL_EXIT_MS);
+    }, MODAL_CLOSE_DELAY_MS);
   }, [isDismissDisabledRef, onCloseRef, onDismissStartRef]);
 
   // Cancel an in-flight dismissal as soon as dismissal gets locked, and bring
@@ -261,8 +266,11 @@ export function Modal({
   }, []);
 
   const frame = React.useMemo(
-    () => ({ isDismissDisabled, mobileSheet }),
-    [isDismissDisabled, mobileSheet],
+    () => ({
+      isDismissDisabled,
+      stackedSheetFooter: mobileSheet && sheetFooter === "stacked",
+    }),
+    [isDismissDisabled, mobileSheet, sheetFooter],
   );
 
   // Keeps focus in the dialog while a busy footer is disabled (#6533).

@@ -38,6 +38,11 @@ interface ChoiceModalProps {
   readonly onSelect: (value: string) => void;
   /** Disables all options (and Abbrechen) while the caller is working. */
   readonly isBusy?: boolean;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). `isBusy` locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** Why the last choice failed, from `useApiFormError` (#2516): shown at the
    *  top of the dialog with retry and request ID, like `FormModal`. */
   readonly error?: FormErrorInput;
@@ -51,6 +56,7 @@ export function ChoiceModal({
   options,
   onSelect,
   isBusy = false,
+  isDismissDisabled = false,
   error,
 }: ChoiceModalProps) {
   // While the caller is working, every dismiss path (backdrop, Escape,
@@ -68,7 +74,7 @@ export function ChoiceModal({
       onClose={onClose}
       title={title}
       footer={footer}
-      isDismissDisabled={isBusy}
+      isDismissDisabled={isDismissDisabled || isBusy}
     >
       <DialogErrorSlot error={error} />
       {description && (
