@@ -54,6 +54,7 @@ func TestMapSubmitError_EveryRefusalKeepsStatusAndCode(t *testing.T) {
 		{capability.ErrDuplicateEnrollment, http.StatusConflict, "enrollment.request_duplicate"},
 		{capability.ErrExistingStudentAlreadyRequested, http.StatusConflict, "enrollment.child_already_requested"},
 		{capability.ErrRateLimited, http.StatusTooManyRequests, "enrollment.submission_rate_limited"},
+		{capability.ErrEmailRateLimited, http.StatusTooManyRequests, "enrollment.submission_email_rate_limited"},
 		{capability.ErrCaptchaRequired, http.StatusBadRequest, "enrollment.captcha_required"},
 		{capability.ErrCaptchaFailed, http.StatusBadRequest, "enrollment.captcha_failed"},
 	}
@@ -71,9 +72,12 @@ func TestMapSubmitError_EveryRefusalKeepsStatusAndCode(t *testing.T) {
 				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body), w.Body.String())
 				assert.Equal(t, tc.code, body.Code)
 			}
-			if errors.Is(tc.err, capability.ErrRateLimited) {
+			switch {
+			case errors.Is(tc.err, capability.ErrRateLimited):
 				assert.Equal(t, "3600", w.Header().Get("Retry-After"))
-			} else {
+			case errors.Is(tc.err, capability.ErrEmailRateLimited):
+				assert.Equal(t, "86400", w.Header().Get("Retry-After"))
+			default:
 				assert.Empty(t, w.Header().Get("Retry-After"))
 			}
 		})

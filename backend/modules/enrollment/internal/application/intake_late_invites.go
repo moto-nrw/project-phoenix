@@ -155,8 +155,8 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 }
 
 // enforceRateLimit runs count in the tenant's transaction of its own, so the
-// count survives a refused submission or upload, and passes on its refusal.
-// Without a limiter the check is skipped.
+// count survives a refused upload, and passes on its refusal. Without a
+// limiter the check is skipped.
 func (s *Intake) enforceRateLimit(ctx context.Context, tenantID int64, count func(context.Context) error) error {
 	if s.deps.RateLimits == nil || tenantID <= 0 {
 		return nil
