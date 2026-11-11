@@ -25,7 +25,7 @@ export function traegerHolidayRegistrationTopic(): HelpTopic {
     result:
       "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
     notes: [
-      "Für einen Aushang gibt es den Link auch als QR-Code. Wählen Sie neben dem Link `QR-Code`, dann `Als Bild speichern`. In der Mitte steht Ihr Logo aus dem Briefkopf, sonst das moto-Logo.",
+      "Für einen Aushang gibt es den Link auch als QR-Code. Wählen Sie neben dem Link `QR-Code`, dann `Bild speichern`. In der Mitte steht Ihr Logo aus dem Briefkopf, sonst das moto-Logo.",
       "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
       "Eltern brauchen kein Elternkonto.",
       "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",

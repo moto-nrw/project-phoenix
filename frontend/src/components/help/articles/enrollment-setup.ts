@@ -57,7 +57,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Eltern melden sich über den Link oder im Elternportal an. Eingänge sehen Sie im `Überblick`.",
     notes: [
       "Über `Elternansicht öffnen` sehen Sie das Formular so wie die Eltern.",
-      "Für einen Aushang oder Elternbrief gibt es den Link auch als QR-Code. Wählen Sie im Menü der Phase `QR-Code anzeigen`, dann `Als Bild speichern`. Eltern scannen den Code mit der Handy-Kamera.",
+      "Für einen Aushang oder Elternbrief gibt es den Link auch als QR-Code. Wählen Sie im Menü der Phase `QR-Code anzeigen`, dann `Bild speichern`. Eltern scannen den Code mit der Handy-Kamera.",
       "In der Mitte des QR-Codes steht das Bild Ihrer Login-Seite, sonst das moto-Logo. Unter `Eigenes Bild` wählen Sie ein anderes.",
       "Ihre Betreuung heißt nicht OGS, sondern zum Beispiel GTS? Öffnen Sie `Einstellungen`, dann den Bereich `Anmeldung`. Wählen Sie bei `Name der Betreuung in Texten für Eltern` den passenden Namen.",
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",

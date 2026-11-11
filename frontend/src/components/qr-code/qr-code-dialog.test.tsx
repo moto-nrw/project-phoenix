@@ -142,7 +142,7 @@ describe("QrCodeDialog", () => {
     brandedQrPng.mockResolvedValue(png);
     renderDialog(false);
 
-    fireEvent.click(screen.getByRole("button", { name: "Als Bild speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bild speichern" }));
     await waitFor(() =>
       expect(downloadBlob).toHaveBeenCalledWith(png, "qr-code-anmeldung.png"),
     );
@@ -151,9 +151,7 @@ describe("QrCodeDialog", () => {
       { logoDataUrl: "data:image/png;base64,moto", pixelSize: 2048 },
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Für den Druck (SVG)" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Druckdatei (SVG)" }));
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(2));
     const [svg, name] = downloadBlob.mock.calls[1] as [Blob, string];
     expect(name).toBe("qr-code-anmeldung.svg");
@@ -165,7 +163,7 @@ describe("QrCodeDialog", () => {
     brandedQrPng.mockRejectedValue(new Error("png_failed"));
     renderDialog(false);
 
-    fireEvent.click(screen.getByRole("button", { name: "Als Bild speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bild speichern" }));
 
     expect(
       await screen.findByText(

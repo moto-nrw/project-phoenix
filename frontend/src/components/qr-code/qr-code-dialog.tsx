@@ -177,7 +177,7 @@ export function QrCodeDialog({
             loadingText="Wird gespeichert…"
             onClick={() => void save("svg")}
           >
-            Für den Druck (SVG)
+            Druckdatei (SVG)
           </Button>
           <Button
             type="button"
@@ -189,7 +189,7 @@ export function QrCodeDialog({
             onClick={() => void save("png")}
           >
             <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-            Als Bild speichern
+            Bild speichern
           </Button>
         </>
       }
