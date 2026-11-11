@@ -97,7 +97,7 @@ export function HolidayOwnChildrenCard({
         </p>
         {open.length > 0 && (
           <SectionCard
-            title="Ohne Kinderakte"
+            title="Noch nicht zugeordnet"
             headingLevel={3}
             titleSize="sm"
             titleClassName="font-medium text-gray-600"

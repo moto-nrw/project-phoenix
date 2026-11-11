@@ -623,7 +623,7 @@ describe("FerienwochenPage", () => {
       "href",
       "/test-tenant/students/90",
     );
-    expect(screen.queryByText("Ohne Kinderakte")).not.toBeInTheDocument();
+    expect(screen.queryByText("Noch nicht zugeordnet")).not.toBeInTheDocument();
     expect(ownChildrenMock).toHaveBeenCalledWith("51");
   });
 
@@ -637,7 +637,9 @@ describe("FerienwochenPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Ohne Kinderakte")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Noch nicht zugeordnet"),
+    ).toBeInTheDocument();
     expect(screen.getByText("1 offen")).toBeInTheDocument();
     expect(
       screen.getByText(

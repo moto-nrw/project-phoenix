@@ -127,6 +127,37 @@ func TestHostingSchoolPlansTheBookedDaysOfItsOwnChildAndShowsItsRegistration(t *
 	assert.Empty(t, f.registration(t, lead, lia), "and no registration to read")
 }
 
+// A child booked in two weeks the school hosts keeps its contacts in each
+// week: the contacts belong to the booking of the week, not to the child.
+func TestOwnChildBookedInTwoHostedWeeksShowsItsContactsInBoth(t *testing.T) {
+	t.Parallel()
+	f := newHolidayGuestFixture(t, "Träger Zwei Wochen")
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	lia := f.liaOfNord(t, "Lia")
+	f.confirm(t, f.siblings, "confirm")
+	var liaChild int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM enrollment.holiday_registration_children WHERE holiday_registration_id = ? AND first_name = 'Lia'`,
+		f.siblings).Scan(t.Context(), &liaChild))
+	// The OGS Nord hosts the second week too, and Lia is booked in both.
+	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_period_weeks SET host_school_id = ? WHERE id = ?`, f.nord, f.offer.Weeks[1].ID)
+	require.NoError(t, err)
+	bookings := []map[string]any{}
+	for _, week := range f.offer.Weeks[:2] {
+		bookings = append(bookings, map[string]any{"week_id": week.ID, "time_model_id": week.TimeModels[0].ID})
+	}
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, holidayRebookPath(f.periodID(t), f.siblings, liaChild), map[string]any{"bookings": bookings})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	entries := f.registration(t, lead, lia)
+	require.Len(t, entries, 2)
+	for _, entry := range entries {
+		require.Len(t, entry.Emergency, 2, "week %d names the parent and the emergency contact once", entry.WeekID)
+		assert.Equal(t, "Eva Muster", entry.Emergency[0].Name)
+		require.Len(t, entry.Pickup, 1, "week %d names who may collect the child", entry.WeekID)
+		assert.Equal(t, "Opa Muster", entry.Pickup[0].Name)
+	}
+}
+
 func TestOwnChildPlanLeavesThePlansOfTeamAndParentsAlone(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Eigene Pläne")

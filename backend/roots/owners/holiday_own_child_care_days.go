@@ -134,6 +134,7 @@ func (c holidayOwnChildCareDays) planMissing(ctx context.Context, today calendar
 			if err != nil {
 				c.logger.Warn("own holiday children left unplanned: the account that picked the group has no staff record",
 					"account_id", day.ActorAccountID,
+					"error", err,
 				)
 			}
 			staffID = resolved

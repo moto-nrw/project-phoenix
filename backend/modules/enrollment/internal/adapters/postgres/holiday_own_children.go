@@ -42,13 +42,15 @@ const (
 		WHERE week.host_school_id = ? AND week.ends_on >= ? AND period.status = 'published'
 			AND participant.home_school_id = ?
 		ORDER BY week.starts_on, week.id, participant.child_id`
-	ownChildContactsQuery = `SELECT contact.child_id, contact.kind, contact.name, contact.phone, contact.relationship
+	// ownChildContactsQuery names the week with each contact: a child booked
+	// in several hosted weeks has one booking and one set of contacts a week.
+	ownChildContactsQuery = `SELECT week.id AS week_id, contact.child_id, contact.kind, contact.name, contact.phone, contact.relationship
 		FROM enrollment.holiday_period_weeks AS week
 		JOIN enrollment.holiday_periods AS period
 			ON period.organization_id = week.organization_id AND period.id = week.holiday_period_id
 		CROSS JOIN LATERAL enrollment.holiday_host_own_contacts(week.organization_id, week.id) AS contact
 		WHERE week.host_school_id = ? AND week.ends_on >= ? AND period.status = 'published'
-		ORDER BY contact.child_id, contact.kind, contact.position`
+		ORDER BY week.id, contact.child_id, contact.kind, contact.position`
 	// guestGroupHintsQuery reads the holiday groups of hosted weeks that end
 	// on today or later with their guests counted. It reads no personal
 	// data.
@@ -98,11 +100,15 @@ func (s *HolidayGuestStore) ListOwnChildren(ctx context.Context, schoolID int64,
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	var contacts []holidayGuestContactRow
+	var contacts []struct {
+		WeekID int64 `bun:"week_id"`
+		holidayGuestContactRow
+	}
 	if err := db.NewRaw(ownChildContactsQuery, schoolID, today).Scan(ctx, &contacts); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: read the contacts of the school's own holiday children: %w", err)
 	}
-	byChild := make(map[int64]*enrollment.HolidayOwnChildBooking, len(rows))
+	type weekChild struct{ weekID, childID int64 }
+	byBooking := make(map[weekChild]*enrollment.HolidayOwnChildBooking, len(rows))
 	bookings := make([]enrollment.HolidayOwnChildBooking, len(rows))
 	for i, row := range rows {
 		days, err := holidayDaysOf(row.Days)
@@ -120,11 +126,11 @@ func (s *HolidayGuestStore) ListOwnChildren(ctx context.Context, schoolID int64,
 				TimeModelName: row.TimeModelName, TimeModelStarts: row.TimeModelStarts, TimeModelEnds: row.TimeModelEnds, Days: days,
 			},
 		}
-		byChild[row.ChildID] = &bookings[i]
+		byBooking[weekChild{row.WeekID, row.ChildID}] = &bookings[i]
 	}
 	for _, contact := range contacts {
-		if booking, ok := byChild[contact.ChildID]; ok {
-			appendContact(&booking.Emergency, &booking.Pickup, contact)
+		if booking, ok := byBooking[weekChild{contact.WeekID, contact.ChildID}]; ok {
+			appendContact(&booking.Emergency, &booking.Pickup, contact.holidayGuestContactRow)
 		}
 	}
 	return bookings, nil
