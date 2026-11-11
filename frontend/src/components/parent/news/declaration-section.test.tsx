@@ -188,7 +188,7 @@ describe("declarationErrorOutcome", () => {
     [409, "care.declaration_closed", false, true, false, false],
     [409, "care.declaration_action_not_allowed", false, true, false, false],
     [409, "care.child_care_ended", false, true, false, false],
-    [403, "care.declaration_password_required", true, false, false, false],
+    [403, "care.declaration_password_required", true, true, false, false],
     [403, "care.declaration_password_incorrect", true, false, false, true],
     [429, undefined, true, false, false, false],
     [400, undefined, true, false, false, false],
@@ -432,6 +432,63 @@ describe("Einverständnis in the detail view", () => {
       expect(
         screen.queryByRole("dialog", { name: "Ihre Antwort prüfen" }),
       ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("reloads and asks for the password the school switched on meanwhile (#6494)", async () => {
+    const submit = vi
+      .spyOn(parentApi, "submitDeclaration")
+      .mockRejectedValueOnce(
+        new ApiError("password", 403, {
+          code: "care.declaration_password_required",
+        }),
+      )
+      .mockResolvedValueOnce(submission("agreed"));
+    const onStale = vi.fn();
+    const { rerender } = render(
+      <NewsDetailModal
+        item={item()}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+        onStale={onStale}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zustimmen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ihre Antwort prüfen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
+
+    expect(
+      await within(dialog).findByText(
+        catalogText("care.declaration_password_required", "die Antwort"),
+      ),
+    ).toBeInTheDocument();
+    expect(onStale).toHaveBeenCalledWith("42");
+
+    // The reload brings the password requirement; the confirmation stays
+    // open and now shows the field.
+    rerender(
+      <NewsDetailModal
+        item={item({}, { requires_password: true })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+        onStale={onStale}
+      />,
+    );
+    const field = await within(dialog).findByLabelText(
+      "Passwort Ihres Eltern-Kontos",
+    );
+    fireEvent.change(field, { target: { value: "richtig" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
+    await waitFor(() =>
+      expect(submit).toHaveBeenLastCalledWith("42", {
+        studentId: "5",
+        action: "agreed",
+        versionId: "12",
+        password: "richtig",
+      }),
     );
   });
 

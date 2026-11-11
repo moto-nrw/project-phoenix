@@ -112,6 +112,7 @@ func (m *OfferingBookings) RestoreCareOfferingBookings(ctx context.Context, rest
 type offeringBookingEngine interface {
 	OfferingBookingQueries
 	OfferingBookingCommands
+	MoveCareOfferingBookingBounds(context.Context, []CareOfferingBookingBounds) error
 }
 
 type OfferingBookings struct {

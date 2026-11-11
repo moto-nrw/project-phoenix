@@ -272,9 +272,11 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0202: the pending-window command of a phase edit, the Students field of
 // modules/enrollment/compose (+2) and the NewPendingWindows constructor of
 // modules/schoolmembership/compose (+5).
+// ADR 0205: the booking-bounds command of a phase edit, the Bookings field of
+// modules/enrollment/compose (+2).
 // ADR 0203: the constructors of the HTTPS retrieval and the release CLI of
 // the return package of modules/organizationtenancy/compose add exactly 18 LOC.
-const moduleComposeBudgetTotal = 13278
+const moduleComposeBudgetTotal = 13280
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -326,7 +328,8 @@ var moduleComposeBudgets = map[string]int{
 	// #4703 added the holiday care wish constructor and shortened comments
 	// of the package by more than it added (-2).
 	// ADR 0202: the Students field of the phase administration (+2).
-	"modules/enrollment/compose":                   606,
+	// ADR 0205: the Bookings field of the phase administration (+2).
+	"modules/enrollment/compose":                   608,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

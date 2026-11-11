@@ -31,6 +31,10 @@ type PhaseDependencies struct {
 	// a phase-start edit (#6505). Optional: nil leaves the students alone
 	// (focused tests); the root always binds it.
 	Students enrollment.PhaseStudents
+	// Bookings carries the bounds the phase set on its offerings' bookings
+	// with a service-window edit (#6597). Optional like Students; the root
+	// always binds it.
+	Bookings enrollment.PhaseBookings
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).
@@ -242,6 +246,9 @@ func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
 		return s.translatePhaseWriteError(err)
 	}
 	if serviceWindowChanged {
+		if err := s.followBookingBounds(ctx, existing, phase); err != nil {
+			return err
+		}
 		if err := s.followPendingActivations(ctx, existing, phase); err != nil {
 			return err
 		}
