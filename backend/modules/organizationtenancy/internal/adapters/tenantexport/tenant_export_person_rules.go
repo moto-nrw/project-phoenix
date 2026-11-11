@@ -54,8 +54,13 @@ func personRecordRelationships(relations []organizationtenancy.ExportRelationshi
 
 // personActorColumn reports a column that names who handled a row, not whom
 // the row is about. Authors, senders and signers stay subject columns: a
-// message or a signature is the person's own statement.
-func personActorColumn(column string) bool {
+// message, a letter or a signature is the person's own statement.
+func personActorColumn(table, column string) bool {
+	switch table + "." + column {
+	case "users.parent_announcements.created_by", "users.parent_group_threads.created_by_account_id",
+		"users.staff_message_threads.created_by_account_id", "users.staff_notices.created_by", "users.surveys.created_by":
+		return false
+	}
 	return strings.HasPrefix(column, "actor_") || strings.HasSuffix(column, "_by") || strings.Contains(column, "_by_")
 }
 

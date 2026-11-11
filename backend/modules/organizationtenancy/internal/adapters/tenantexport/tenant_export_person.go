@@ -132,7 +132,7 @@ func newPersonNode(table string, fields map[string]json.RawMessage, columns map[
 		}
 	}
 	for _, rel := range relations {
-		if personActorColumn(rel.Column) && personIdentity(rel.TargetTable) {
+		if personActorColumn(table, rel.Column) && personIdentity(rel.TargetTable) {
 			node.handled = appendPersonKey(node.handled, rel.TargetTable, rel.TargetColumn, fields[rel.Column])
 			continue
 		}

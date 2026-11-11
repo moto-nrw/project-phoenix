@@ -422,7 +422,9 @@ Nur Schlüssel/Beziehungen bleiben im Arbeitsspeicher, Inhalte werden gestreamt.
    einzelne Zeile mit `handled-by-subject-not-about-subject` im Paket. Ihre
    abhängigen Zeilen und die dort genannten Kinder folgen nicht: Eine von
    einer Fachkraft angelegte AG bringt nicht die Anmeldungen der Kinder mit.
-   Eigene Äußerungen (Verfasser, Absender, Unterzeichner) bleiben Treffer.
+   Eigene Äußerungen (Verfasser, Absender, Unterzeichner) bleiben Treffer,
+   ebenso selbst angelegte Elternbriefe, Gesprächsverläufe, Aushänge und
+   Umfragen. Die Ausnahmen stehen in `personActorColumn`.
 2. Benötigte Elternzeilen liefern Kontext, begründen aber **keinen** weiteren
    Personenexport. Gemeinsame Erziehungsberechtigte führen deshalb nicht zu
    Geschwisterakten. Ein Beschäftigtenkonto an zwei Schulen führt nicht zum

@@ -23,6 +23,7 @@ type personExportFixture struct {
 	school, otherSchool          int64
 	child, sibling, foreignChild int64
 	guardian, staff, otherStaff  int64
+	staffAccount                 int64
 	uploads                      string
 }
 
@@ -85,7 +86,7 @@ func newPersonExportFixture(t *testing.T) personExportFixture {
 		_, err := db.NewRaw("UPDATE users.student_profiles SET photo_path = ? WHERE id = ?", "/uploads/"+key, student.id).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	return personExportFixture{db: db, school: a, otherSchool: b, child: x.ID, sibling: y.ID, foreignChild: z.ID, guardian: g.ID, staff: s.ID, otherStaff: sb.ID, uploads: root}
+	return personExportFixture{db: db, school: a, otherSchool: b, child: x.ID, sibling: y.ID, foreignChild: z.ID, guardian: g.ID, staff: s.ID, staffAccount: account.ID, otherStaff: sb.ID, uploads: root}
 }
 
 func personExport(t *testing.T, fixture personExportFixture, subject string) string {
@@ -301,6 +302,10 @@ func TestPersonExportStaffHandledRecordsBringNoForeignChildren(t *testing.T) {
 	day := calendar.NewDate(2026, time.January, 12)
 	device := testpkg.CreateTestDevice(t, f.db, fmt.Sprintf("synthetic-handled-%d", f.school))
 	testpkg.CreateTestAttendanceForDate(t, f.db, other, f.staff, device.ID, day, day.BerlinMidnight().Add(8*time.Hour), nil)
+	letter := testpkg.CreateTestParentAnnouncement(t, f.db, f.staffAccount, "SyntheticLetter")
+	_, err = f.db.NewRaw(`INSERT INTO users.parent_announcement_options (tenant_id, announcement_id, label, position)
+		VALUES (?, ?, 'synthetic-option', 1)`, f.school, letter.ID).Exec(t.Context())
+	require.NoError(t, err)
 
 	out := personExport(t, f, "staff:"+strconv.FormatInt(f.staff, 10))
 	require.Len(t, personTable(t, out, "activities.groups"), 1, "the group the staff member created")
@@ -311,6 +316,8 @@ func TestPersonExportStaffHandledRecordsBringNoForeignChildren(t *testing.T) {
 	}
 	// Notes the staff member wrote are their own statements and stay.
 	require.Len(t, personTable(t, out, "users.student_notes"), 2)
+	require.Len(t, personTable(t, out, "users.parent_announcements"), 1)
+	require.Len(t, personTable(t, out, "users.parent_announcement_options"), 1, "a letter the staff member wrote keeps its content")
 
 	rules := personReviewRulesByTable(t, out)
 	for _, table := range []string{"activities.groups", "active.attendance"} {

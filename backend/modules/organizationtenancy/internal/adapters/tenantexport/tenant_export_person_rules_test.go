@@ -2,7 +2,6 @@ package tenantexport
 
 import (
 	"encoding/json"
-	"slices"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -17,6 +16,9 @@ import (
 func TestPersonColumnsAreSubjectOrHandling(t *testing.T) {
 	t.Parallel()
 	subject := []string{
+		// The author of a letter, thread, notice or survey made a statement.
+		"users.parent_announcements.created_by", "users.parent_group_threads.created_by_account_id",
+		"users.staff_message_threads.created_by_account_id", "users.staff_notices.created_by", "users.surveys.created_by",
 		"accepted_account_id", "account_id", "author_account_id", "created_student_id", "guardian_account_id",
 		"guardian_profile_id", "last_sender_account_id", "matched_student_id", "membership_id", "organizer_account_id",
 		"organizer_staff_id", "person_id", "regular_staff_id", "related_staff_id",
@@ -38,8 +40,10 @@ func TestPersonColumnsAreSubjectOrHandling(t *testing.T) {
 		for _, rel := range personRelationships(table.ExportModelTable, catalog) {
 			switch {
 			case !personIdentity(rel.TargetTable):
-			case personActorColumn(rel.Column):
+			case personActorColumn(table.Name, rel.Column):
 				handling++
+			case personActorColumn("", rel.Column):
+				found[table.Name+"."+rel.Column] = true
 			default:
 				found[rel.Column] = true
 			}
@@ -49,11 +53,10 @@ func TestPersonColumnsAreSubjectOrHandling(t *testing.T) {
 	for column := range found {
 		got = append(got, column)
 	}
-	slices.Sort(got)
-	require.Equal(t, subject, got)
+	require.ElementsMatch(t, subject, got)
 	require.Positive(t, handling)
 	for _, column := range []string{"created_by", "reviewed_by_account_id", "actor_account_id", "recorded_by_staff_id"} {
-		require.True(t, personActorColumn(column), column)
+		require.True(t, personActorColumn("activities.groups", column), column)
 	}
-	require.False(t, personActorColumn("size_bytes"))
+	require.False(t, personActorColumn("documents.files", "size_bytes"))
 }
