@@ -49,6 +49,10 @@ type HolidayPeriodStore interface {
 	// child has booked, those of a cancelled registration included: reopening
 	// it brings its bookings back.
 	HolidayWeeksBookedTogether(ctx context.Context, organizationID, periodID int64) ([][2]int64, error)
+	// HolidayChildBookings lists the bookings of each child of the period
+	// whose registration is not cancelled, one list per child (#6506). A
+	// cancellation is final, so its bookings take no care day.
+	HolidayChildBookings(ctx context.Context, organizationID, periodID int64) ([][]enrollment.HolidayBookingInput, error)
 }
 
 // HolidayPeriods serves enrollment.HolidayPeriods.
@@ -157,6 +161,9 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 		return enrollment.HolidayPeriod{}, err
 	}
 	if err := refuseHolidayWeeksWithoutCare(ctx, h.calendar, input.Weeks, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
+	if err := h.refuseRaisedDayLimit(ctx, organizationID, periodID, input, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input, h.today()); err != nil {

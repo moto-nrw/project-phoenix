@@ -15,19 +15,25 @@ import (
 )
 
 func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.LifecycleTable) (organizationtenancy.ExportModelTable, error) {
-	model := organizationtenancy.ExportModelTable{Name: table.Name}
-	parts := strings.Split(table.Name, ".")
-	if len(parts) != 2 {
-		return model, exportTableError(table.Name)
-	}
 	if r.schema == nil {
 		schema, err := loadExportSchema(ctx, r.tx, r.catalog)
 		if err != nil {
-			return model, exportTableError(table.Name)
+			return organizationtenancy.ExportModelTable{Name: table.Name}, exportTableError(table.Name)
 		}
 		r.schema = schema
 	}
-	columns := r.schema.columns[table.Name]
+	return exportTableModel(table, r.schema)
+}
+
+// exportTableModel describes one included table as model.json and the
+// register (ADR 0201) describe it: its columns without the excluded ones,
+// the columns its owners write in their place, and its relations.
+func exportTableModel(table organizationtenancy.LifecycleTable, schema *exportSchema) (organizationtenancy.ExportModelTable, error) {
+	model := organizationtenancy.ExportModelTable{Name: table.Name}
+	if len(strings.Split(table.Name, ".")) != 2 {
+		return model, exportTableError(table.Name)
+	}
+	columns := schema.columns[table.Name]
 	if len(columns) == 0 {
 		return model, exportTableError(table.Name)
 	}
@@ -41,8 +47,7 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 		return model, err
 	}
 	model.Columns = append(model.Columns, owned...)
-	relations := r.schema.relations[table.Name]
-	for _, rel := range relations {
+	for _, rel := range schema.relations[table.Name] {
 		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {
 			model.Relationships = append(model.Relationships, organizationtenancy.ExportRelationship{Column: rel.Column, TargetTable: rel.TargetTable, TargetColumn: rel.TargetColumn})
 		}
