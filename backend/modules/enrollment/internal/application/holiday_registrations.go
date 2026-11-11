@@ -52,7 +52,8 @@ type HolidayRegistrationStore interface {
 	// InsertHolidayRegistration stores the registration without its health
 	// information and asks seal, once the registration has its ID, for the
 	// sealed values to store with it (#4722).
-	InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput,
+	// Every booking takes the placement waiting (#4699, #4700).
+	InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput, waiting string,
 		seal func(registrationID int64) (enrollment.HolidaySealedHealth, error)) (enrollment.HolidayRegistrationReceipt, error)
 }
 
@@ -63,9 +64,11 @@ type HolidayRegistrationDependencies struct {
 	Forms         HolidayFormStore
 	Proofs        HolidayProofStore
 	// Places gives the bookings of a sent registration their places (#4699).
-	Places  HolidayPlaceStore
-	Traeger enrollment.HolidayTraegerDirectory
-	Mail    enrollment.TraegerMailOutbox
+	Places HolidayPlaceStore
+	// Criteria reads the criteria a period by criteria asks (#4700).
+	Criteria HolidayCriteriaReader
+	Traeger  enrollment.HolidayTraegerDirectory
+	Mail     enrollment.TraegerMailOutbox
 	// Health seals the health information of a registration (#4722).
 	Health enrollment.HolidayHealthCipher
 	// Calendar names the host schools' days without care (#4702). The
@@ -96,7 +99,7 @@ var _ enrollment.HolidayRegistrations = (*HolidayRegistrations)(nil)
 
 // NewHolidayRegistrations builds the public registration over deps.
 func NewHolidayRegistrations(deps HolidayRegistrationDependencies) *HolidayRegistrations {
-	if deps.Registrations == nil || deps.Periods == nil || deps.Forms == nil || deps.Proofs == nil || deps.Places == nil || deps.Traeger == nil || deps.Mail == nil {
+	if deps.Registrations == nil || deps.Periods == nil || deps.Forms == nil || deps.Proofs == nil || deps.Places == nil || deps.Criteria == nil || deps.Traeger == nil || deps.Mail == nil {
 		panic("enrollment: the holiday registration store, periods, forms, proofs, places, Träger directory and mail outbox are required")
 	}
 	if deps.Health == nil {
@@ -157,6 +160,10 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 	if err != nil {
 		return enrollment.HolidayRegistrationOffer{}, err
 	}
+	questions, err := h.criterionQuestions(ctx, link.OrganizationID, period)
+	if err != nil {
+		return enrollment.HolidayRegistrationOffer{}, err
+	}
 	today := h.deps.Today()
 	texts, _ := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent)
 	wishMode, err := h.offerHolidayWishMode(ctx, link.OrganizationID, period)
@@ -164,8 +171,8 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 		return enrollment.HolidayRegistrationOffer{}, err
 	}
 	return enrollment.HolidayRegistrationOffer{
-		HolidayWishMode: wishMode,
-		Name:            period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
+		HolidayWishMode: wishMode, AllocationMode: period.AllocationMode, Criteria: questions,
+		Name: period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
 		Binding: period.Binding, Notes: period.Notes, Weeks: offeredHolidayWeeks(period.Weeks),
 		Open: !today.Before(period.RegistrationOpensOn) && !today.After(period.RegistrationClosesOn), Form: form,
 		ConsentTexts: texts, MaxDaysPerChild: period.MaxDaysPerChild, FullDays: fullDays,
@@ -310,8 +317,12 @@ func (h *HolidayRegistrations) completeSubmitted(ctx context.Context, link enrol
 // rows it belongs to (#4722).
 func (h *HolidayRegistrations) storeSubmitted(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,
 	form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error) {
+	input, err := h.checkCriteria(ctx, link.OrganizationID, period, input)
+	if err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
 	health, input := splitHolidayHealth(input, form)
-	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input,
+	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input, holidayWaitingPlacement(period, enrollment.HolidayRegistrationReceived),
 		func(registrationID int64) (enrollment.HolidaySealedHealth, error) {
 			return sealHolidayHealth(h.deps.Health, link.OrganizationID, registrationID, health)
 		})
@@ -359,6 +370,9 @@ func (h *HolidayRegistrations) refuseWeeksWithoutCare(ctx context.Context, perio
 // in its weeks and names the placement of each booking.
 func (h *HolidayRegistrations) placeSubmitted(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod,
 	input enrollment.HolidayRegistrationInput, registrationID int64) ([]enrollment.HolidayReceiptPlacement, error) {
+	if period.AllocationMode == enrollment.HolidayAllocationCriteria {
+		return pendingHolidayPlacements(input), nil
+	}
 	var weekIDs []int64
 	for _, child := range input.Children {
 		for _, booking := range child.Bookings {

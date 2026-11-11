@@ -242,7 +242,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractApplications.AcceptedApplications",
-      "binding_digest": "c79992393f0504fad2280152ab91c939",
+      "binding_digest": "ccb3fc5539d91b536da1d9e5f766998b",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",

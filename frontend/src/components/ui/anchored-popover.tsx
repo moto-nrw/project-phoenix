@@ -17,6 +17,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
+import { SHEET_SCOPE_SELECTOR } from "./overlay-stack";
 
 const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
@@ -26,7 +27,7 @@ const DEFAULT_MAX_HEIGHT = 420;
 // the slide-over's stacking context, so `Z_INDEX.popover` only orders it on
 // the page and in modals. Above a tour coach mark over an open slide-over it
 // does not reach — a known limit of the slide-over portal, not of the level.
-const DEFAULT_PORTAL_SCOPE = '[data-date-picker-focus-trap="true"]';
+const DEFAULT_PORTAL_SCOPE = SHEET_SCOPE_SELECTOR;
 const TABBABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
 

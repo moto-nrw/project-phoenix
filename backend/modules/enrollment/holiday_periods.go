@@ -70,6 +70,27 @@ func (r *HolidayWeeksBookedTogetherRefusal) Error() string {
 
 func (r *HolidayWeeksBookedTogetherRefusal) Unwrap() error { return ErrHolidayWeeksBookedTogether }
 
+// ErrHolidayWeekDayLimit reports a change of a booked week's dates that
+// would give a child more care days than the period allows (#6506).
+var ErrHolidayWeekDayLimit = errors.New("a booked child would take more care days than the period allows")
+
+// HolidayWeekDayLimitRefusal names the week, by its position in the written
+// period, whose new dates would give a child more care days than the bound,
+// whether it grew by starting earlier (else by ending later), the bound and
+// the days the child would take. It unwraps to ErrHolidayWeekDayLimit.
+type HolidayWeekDayLimitRefusal struct {
+	Week          int
+	StartsEarlier bool
+	Limit         int
+	Days          int
+}
+
+func (r *HolidayWeekDayLimitRefusal) Error() string {
+	return fmt.Sprintf("week %d: %d care days, the period allows %d: %v", r.Week+1, r.Days, r.Limit, ErrHolidayWeekDayLimit)
+}
+
+func (r *HolidayWeekDayLimitRefusal) Unwrap() error { return ErrHolidayWeekDayLimit }
+
 // HolidayTimeModel is a bookable care time of one week, such as "bis
 // 13 Uhr", with its price in cent. Times are wall-clock "HH:MM".
 //
@@ -127,8 +148,13 @@ type HolidayPeriod struct {
 	// HolidayWishRule takes the holiday care wish of the online
 	// registration into account (#4703); the Träger setting
 	// holiday_registration.wish_mode says how.
-	HolidayWishRule bool      `json:"holiday_wish_rule"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	HolidayWishRule bool `json:"holiday_wish_rule"`
+	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria
+	// (#4700); AllocationModeLocked reports a period with a registration,
+	// whose mode no longer changes.
+	AllocationMode       string    `json:"allocation_mode"`
+	AllocationModeLocked bool      `json:"allocation_mode_locked"`
+	UpdatedAt            time.Time `json:"updated_at"`
 	// PublicToken is the key of the period's one public registration link
 	// for all its schools (#4661, ADR 0110). Only the Träger-Portal reads it.
 	PublicToken string `json:"public_token"`
@@ -175,7 +201,11 @@ type HolidayPeriodInput struct {
 	HolidayWishRule      bool
 	// MaxDaysPerChild bounds the care days per child, nil for no bound.
 	MaxDaysPerChild *int
-	Weeks           []HolidayWeekInput
+	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria
+	// (#4700); empty is HolidayAllocationArrival. It changes only while the
+	// period has no registration.
+	AllocationMode string
+	Weeks          []HolidayWeekInput
 }
 
 // HolidayPeriods lets the Träger-Büro plan holiday periods. Every operation

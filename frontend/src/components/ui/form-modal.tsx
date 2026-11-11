@@ -88,9 +88,16 @@ export function FormModal({
           // Form actions stay one right-aligned row on every width; the
           // Modal footer around it adds the phone safe-area inset. The
           // disabled fieldset locks every footer action (Abbrechen too)
-          // while a save runs, without each caller wiring it again.
+          // while a save runs, without each caller wiring it again. A link
+          // (`ButtonLink`) ignores the fieldset, so a busy footer also
+          // swallows its clicks: leaving would look like a cancel too.
           <fieldset
             disabled={busy}
+            onClickCapture={(event) => {
+              if (!busy) return;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
             className="m-0 flex min-w-0 flex-1 flex-wrap justify-end gap-3 border-0 p-0"
           >
             {footer}

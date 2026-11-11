@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import type { NavLinkProps } from "~/components/ui/nav-link";
+import type { NavigationLinkProps } from "~/components/ui/navigation-link";
 import {
   type PortalSidebarTopOffset,
   SIDEBAR_ICON_CLASSES,
@@ -206,7 +206,7 @@ export function PortalSidebarGroup({
 }
 
 type PortalSidebarLinkProps = Omit<
-  NavLinkProps,
+  NavigationLinkProps,
   "children" | "className" | "aria-current" | "target" | "rel" | "title"
 > & {
   readonly label: string;

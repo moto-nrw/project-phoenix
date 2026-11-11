@@ -127,7 +127,9 @@ type HolidayQueuedBooking struct {
 	ChildID        int64
 	ChildPosition  int
 	Placed         bool
-	Days           []calendar.Date
+	// Pending marks a booking the Träger-Büro has not decided on (#4700).
+	Pending bool
+	Days    []calendar.Date
 }
 
 // holidayWeekdayNames are the German short names of the weekdays, Sunday

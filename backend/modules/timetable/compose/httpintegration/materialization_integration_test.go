@@ -682,10 +682,11 @@ func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, peri
 
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
-// per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos owners.TimetableRepositories) timetable.MaterializationCapability {
+// per-date care filter and the staffing announcement. adjust replaces
+// collaborators before composition.
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSuiteRepositories, timetableRepos owners.TimetableRepositories, adjust ...func(*timetablePorts.MaterializationDependencies)) timetable.MaterializationCapability {
 	t.Helper()
-	svc, err := compose.NewMaterialization(timetablePorts.MaterializationDependencies{
+	deps := timetablePorts.MaterializationDependencies{
 		GroupRepo:      timetableRepos.Timetable,
 		ScheduleRepo:   timetableRepos.ActivitySchedule,
 		EnrollmentRepo: timetableRepos.StudentEnrollment,
@@ -700,7 +701,11 @@ func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.CareScheduleSui
 		RecurrenceLock: owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)),
 		Transactions:   compose.NewTenantTransactions(db),
 		Logger:         slog.Default(),
-	})
+	}
+	for _, fn := range adjust {
+		fn(&deps)
+	}
+	svc, err := compose.NewMaterialization(deps)
 	require.NoError(t, err)
 	return svc
 }

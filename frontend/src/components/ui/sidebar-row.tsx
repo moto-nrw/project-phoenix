@@ -1,7 +1,9 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
+import NavigationLink, {
+  type NavigationLinkProps,
+} from "~/components/ui/navigation-link";
 import {
   NotificationBadge,
   type NotificationBadgeTone,
@@ -35,6 +37,28 @@ export interface SidebarRowBadge {
   readonly tone: NotificationBadgeTone;
   /** Was gezählt wird, ganz ausgesprochen („3 ungelesene Nachrichten“). */
   readonly ariaLabel: string;
+}
+
+/**
+ * Ein Sammelzähler aus mehreren Zählern (Kopfzeile einer Gruppe): Die Zahl
+ * ist die Summe, vorgelesen wird jeder Teil, damit „5“ nicht als fünf
+ * Nachrichten gilt, wenn darin Anmeldungen stecken (#6566).
+ */
+export function combineSidebarRowBadges(
+  badges: readonly (SidebarRowBadge | null)[],
+  tone: NotificationBadgeTone,
+): SidebarRowBadge | null {
+  const parts = badges.filter(
+    (badge): badge is SidebarRowBadge => badge != null && badge.count > 0,
+  );
+  if (parts.length === 0) return null;
+  const labels = parts.map((badge) => badge.ariaLabel);
+  const last = labels.pop();
+  return {
+    count: parts.reduce((sum, badge) => sum + badge.count, 0),
+    tone,
+    ariaLabel: labels.length > 0 ? `${labels.join(", ")} und ${last}` : last!,
+  };
 }
 
 function fadeClasses(visible: boolean): string {
@@ -109,7 +133,7 @@ function SidebarRowContent({
 }
 
 type SidebarRowLinkProps = Omit<
-  NavLinkProps,
+  NavigationLinkProps,
   "children" | "className" | "aria-current" | "target" | "rel" | "title"
 > &
   SidebarRowCollapseState & {
@@ -139,7 +163,7 @@ export function SidebarRowLink({
   ...linkProps
 }: SidebarRowLinkProps) {
   return (
-    <NavLink
+    <NavigationLink
       {...linkProps}
       data-active={active ? "true" : "false"}
       aria-current={active ? "page" : undefined}
@@ -158,7 +182,7 @@ export function SidebarRowLink({
         labelsMounted={labelsMounted}
         labelsVisible={labelsVisible}
       />
-    </NavLink>
+    </NavigationLink>
   );
 }
 

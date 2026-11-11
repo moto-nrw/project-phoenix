@@ -61,3 +61,15 @@ type GuardianPickupPermissions interface {
 	// whether the relationship has a pickup permission in that school.
 	ChangeGuardianPickupPermission(context.Context, GuardianPickupPermissionChange) (bool, error)
 }
+
+// GuardianPickupPermissionBatches records the pickup halves of many new
+// relationships at once (#5552, ADR 0067 addendum of 2026-11-08, point 3:
+// part of People Directory's LinkGuardiansToStudents). It is a leaf command
+// outside GuardianPickupPermissions; People Directory's root binding asserts
+// it.
+type GuardianPickupPermissionBatches interface {
+	// CreateGuardianPickupPermissions records every permission like
+	// CreateGuardianPickupPermission, in the caller's transaction, all or
+	// none. Every permission names the caller's school.
+	CreateGuardianPickupPermissions(context.Context, []GuardianPickupPermission) error
+}

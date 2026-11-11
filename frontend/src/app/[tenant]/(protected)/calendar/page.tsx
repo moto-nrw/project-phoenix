@@ -45,6 +45,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { DataTableSkeleton as TableSkeleton } from "~/components/ui/data-table";
@@ -462,7 +463,8 @@ function StaffCalendarPageInner() {
   // the schedule or make a bounded series unbounded).
   const [monthDays, setMonthDays] = useState<number[]>([]);
   const [occurrenceCount, setOccurrenceCount] = useState<number | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const save = useFormModalPending(formOpen && canManageCalendar, editingId);
+  const submitting = save.pending;
   // Fehler des Terminformulars: Alert oben im Panel, Feldfehler am Feld
   // (Bauart 2 Regel 5). Kein Toast: der verblasst, bevor jemand bei
   // fünfzehn Feldern das fehlende gefunden hat.
@@ -810,53 +812,56 @@ function StaffCalendarPageInner() {
           };
 
     formErrors.clear();
-    setSubmitting(true);
-    try {
-      if (editingId) {
-        // Editing keeps the original audience + delivery mode (see the API
-        // note): those cannot change without discarding collected RSVPs.
-        await updateStaffAppointment(editingId, {
-          title: title.trim(),
-          description: description.trim() || undefined,
-          location: location.trim() || undefined,
-          start_date: startDate,
-          end_date: endDate || startDate,
-          start_time: allDay ? "00:00" : startTime,
-          end_time: allDay ? "23:59" : endTime,
-          all_day: allDay,
-          overview_visibility: overviewVisibility,
-          recurrence,
-          send_email: sendEmail,
-        });
-      } else {
-        await createStaffAppointment({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          location: location.trim() || undefined,
-          start_date: startDate,
-          end_date: endDate || startDate,
-          start_time: allDay ? "00:00" : startTime,
-          end_time: allDay ? "23:59" : endTime,
-          all_day: allDay,
-          delivery_mode: deliveryMode,
-          overview_visibility: overviewVisibility,
-          recurrence,
-          targets: targets.map(serializeTarget),
-          send_email: sendEmail,
-        });
+    const saved = await save.run(async (op) => {
+      try {
+        if (editingId) {
+          // Editing keeps the original audience + delivery mode (see the API
+          // note): those cannot change without discarding collected RSVPs.
+          await updateStaffAppointment(editingId, {
+            title: title.trim(),
+            description: description.trim() || undefined,
+            location: location.trim() || undefined,
+            start_date: startDate,
+            end_date: endDate || startDate,
+            start_time: allDay ? "00:00" : startTime,
+            end_time: allDay ? "23:59" : endTime,
+            all_day: allDay,
+            overview_visibility: overviewVisibility,
+            recurrence,
+            send_email: sendEmail,
+          });
+        } else {
+          await createStaffAppointment({
+            title: title.trim(),
+            description: description.trim() || undefined,
+            location: location.trim() || undefined,
+            start_date: startDate,
+            end_date: endDate || startDate,
+            start_time: allDay ? "00:00" : startTime,
+            end_time: allDay ? "23:59" : endTime,
+            all_day: allDay,
+            delivery_mode: deliveryMode,
+            overview_visibility: overviewVisibility,
+            recurrence,
+            targets: targets.map(serializeTarget),
+            send_email: sendEmail,
+          });
+        }
+        toast.success(`Der Termin „${title.trim()}“ ist gespeichert.`);
+        if (op.isCurrent()) resetForm();
+        return true;
+      } catch (err) {
+        logFailure("calendar_appointment_save_failed", err);
+        if (op.isCurrent()) {
+          await formErrors.show(err, {
+            object: "das Speichern des Termins",
+            retry: () => latestSubmitRef.current(),
+          });
+        }
+        return false;
       }
-      toast.success(`Der Termin „${title.trim()}“ ist gespeichert.`);
-      resetForm();
-    } catch (err) {
-      logFailure("calendar_appointment_save_failed", err);
-      await formErrors.show(err, {
-        object: "das Speichern des Termins",
-        retry: () => latestSubmitRef.current(),
-      });
-      return;
-    } finally {
-      setSubmitting(false);
-    }
+    });
+    if (!saved) return;
     await refreshCalendar();
   };
 
@@ -1055,13 +1060,12 @@ function StaffCalendarPageInner() {
           <SlideOver
             open={formOpen && canManageCalendar}
             onOpenChange={(open) => {
-              if (!open && !submitting) resetForm();
+              if (!open) resetForm();
             }}
+            pending={save}
           >
             <SlideOverContent size="xl">
-              <SlideOverHeader
-                close={<SlideOverCloseButton disabled={submitting} />}
-              >
+              <SlideOverHeader close={<SlideOverCloseButton />}>
                 <SlideOverTitle>
                   {editingId ? "Termin ändern" : "Termin erstellen"}
                 </SlideOverTitle>

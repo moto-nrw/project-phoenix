@@ -2,7 +2,10 @@
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-/** One running save of a `FormModal`, bound to the dialog session it started in. */
+/**
+ * One running save of a `FormModal` or `SlideOver`, bound to the dialog
+ * session it started in.
+ */
 export interface FormModalOperation {
   /**
    * True while the dialog that started this operation is still the same:
@@ -15,10 +18,10 @@ export interface FormModalOperation {
 }
 
 /**
- * The pending contract of `FormModal` (#6533). Pass it as `pending` and run
- * every save through `run`: while it runs, `FormModal` locks the close X,
- * Escape, the backdrop and every footer action, and marks the dialog
- * `aria-busy`.
+ * The pending contract of `FormModal` (#6533) and `SlideOver` (#6593). Pass
+ * it as `pending` and run every save through `run`: while it runs, the
+ * dialog locks the close X, Escape, the backdrop (on a phone also the swipe)
+ * and every footer action, and marks itself `aria-busy`.
  */
 export interface FormModalPending {
   readonly pending: boolean;
@@ -33,8 +36,8 @@ export interface FormModalPending {
 }
 
 /**
- * Creates the pending contract for one `FormModal`. `isOpen` is the dialog's
- * own `isOpen`; a dialog that is only mounted while open passes nothing.
+ * Creates the pending contract for one `FormModal` or `SlideOver`. `isOpen`
+ * is the dialog's own `isOpen` / `open`; a dialog that is only mounted while open passes nothing.
  * `context` names what the open dialog works on, as a stable primitive (an
  * id); when it changes while the dialog stays open, a new session starts as
  * on reopening.

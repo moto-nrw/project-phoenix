@@ -151,19 +151,22 @@ type BillingDocument struct {
 	Kind  string `json:"kind"`
 	// DocumentKind is the kind of document the release froze (#4688); a
 	// draft carries the kind its release would freeze now.
-	DocumentKind        string                `json:"document_kind,omitempty"`
-	ReferenceDocumentID *int64                `json:"reference_document_id"`
-	ReferenceNumber     string                `json:"reference_number"`
-	Reason              string                `json:"reason"`
-	History             []BillingDocumentLink `json:"history"`
-	ReplacedCredits     []BillingDocumentLink `json:"replaced_credits"`
-	Number              string                `json:"number"`
-	IssuedOn            *calendar.Date        `json:"issued_on"`
-	RegistrationID      int64                 `json:"registration_id"`
-	RecipientFirstName  string                `json:"recipient_first_name"`
-	RecipientLastName   string                `json:"recipient_last_name"`
-	RecipientEmail      string                `json:"recipient_email"`
-	RecipientAddress    *PostalAddress        `json:"recipient_address"`
+	DocumentKind        string `json:"document_kind,omitempty"`
+	ReferenceDocumentID *int64 `json:"reference_document_id"`
+	// Accounts is where every position of the document books, copied by
+	// the release; a Storno or credit copies the invoice's (#4821).
+	Accounts           PositionAccounts      `json:"-"`
+	ReferenceNumber    string                `json:"reference_number"`
+	Reason             string                `json:"reason"`
+	History            []BillingDocumentLink `json:"history"`
+	ReplacedCredits    []BillingDocumentLink `json:"replaced_credits"`
+	Number             string                `json:"number"`
+	IssuedOn           *calendar.Date        `json:"issued_on"`
+	RegistrationID     int64                 `json:"registration_id"`
+	RecipientFirstName string                `json:"recipient_first_name"`
+	RecipientLastName  string                `json:"recipient_last_name"`
+	RecipientEmail     string                `json:"recipient_email"`
+	RecipientAddress   *PostalAddress        `json:"recipient_address"`
 	// RecipientKind and RecipientSecondName say who gets the invoice
 	// (#4689): the person of the registration, both parents or another
 	// payer. Payment is how and by when it is paid; an invoice issued
@@ -205,6 +208,9 @@ type BillingRunDetail struct {
 	DueDates []RunDueDate `json:"due_dates"`
 	// DocumentKindState is the kind the run issues (#4688).
 	DocumentKindState
+	// Fingerprint names the content of the preview of a calculated run; the
+	// release sends it back (#6506). A released run has none.
+	Fingerprint string `json:"fingerprint"`
 }
 
 // BillingCorrectionInput changes the amount of one child of a family in a
@@ -217,14 +223,17 @@ type BillingCorrectionInput struct {
 }
 
 // BillingRelease names the preview the Abrechnung checked: the release
-// refuses when the run would issue a different number of invoices or a
-// different sum.
+// refuses when the run would issue a different number of invoices, a
+// different sum or other content than the fingerprint names (#6506).
 type BillingRelease struct {
 	DocumentCount int
 	TotalCents    int64
 	// DocumentKind is the kind of document the Abrechnung saw; a release
 	// of another kind refuses (#4688). Empty skips the check.
 	DocumentKind string
+	// Fingerprint is the fingerprint of the preview the Abrechnung checked;
+	// a missing or other one refuses (#6506).
+	Fingerprint string
 }
 
 // NumberRange is the pattern of the invoice numbers of a service. Example

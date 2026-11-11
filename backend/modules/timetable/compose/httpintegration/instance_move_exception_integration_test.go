@@ -111,7 +111,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	require.Len(t, rows, 1)
 	inst := rows[0]
 
-	require.NoError(t, s.instance.DeleteCancelled(s.ctx, inst.ID))
+	require.NoError(t, deleteInTenantTx(t, s.ctx, s.db, s.instance, inst.ID))
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "delete must consume the original slot")

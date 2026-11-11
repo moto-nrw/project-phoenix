@@ -430,3 +430,51 @@ func TestHolidayClosureTellsABookingOfDaysOnlyAboutItsBookedDays(t *testing.T) {
 			"only the booked Tuesday, not the unbooked Wednesday")
 	})
 }
+
+// TestHolidayClosureCountsAPendingBookingWithoutAPlace: a booking that waits
+// for the decision of the Büro by criteria (#4700) has no place, so the
+// preview counts it with the waiting ones, but its mail preserves the
+// pending decision. Counted as placed, it would promise the family a place.
+func TestHolidayClosureCountsAPendingBookingWithoutAPlace(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	w := newPlacesWeek(t, db, "Träger Schließtag offen")
+	addSibling(t, db, w, "offen@example.org", "pending")
+	mail := &capturedMails{}
+	closures := newClosures(mail, nil)
+	closure := enrollment.HolidayClosure{SchoolIDs: []int64{hostSchoolOf(t, db, w.week)}, StartsOn: calendar.NewDate(2027, 7, 6), EndsOn: calendar.NewDate(2027, 7, 6), Reason: "Betriebsausflug"}
+
+	withinTraeger(t, db, w.organization, func(ctx context.Context) {
+		impact, err := closures.HolidayClosureImpact(ctx, w.organization, closure)
+		require.NoError(t, err)
+		require.Len(t, impact.Weeks, 1)
+		assert.Equal(t, 3, impact.Weeks[0].Children)
+		assert.Equal(t, 2, impact.Weeks[0].Waitlisted, "the waitlisted and the pending booking have no place")
+		_, err = closures.NotifyHolidayClosure(ctx, w.organization, closure, impact.Token)
+		require.NoError(t, err)
+		waiting, pending := 0, 0
+		for _, sent := range mail.mails {
+			var payload struct {
+				Children []struct {
+					Weeks []struct {
+						Waitlisted bool
+						Pending    bool
+					}
+				}
+			}
+			require.NoError(t, json.Unmarshal(sent.Payload, &payload))
+			for _, child := range payload.Children {
+				for _, week := range child.Weeks {
+					if week.Waitlisted {
+						waiting++
+					}
+					if week.Pending {
+						pending++
+					}
+				}
+			}
+		}
+		assert.Equal(t, 1, waiting, "only the waitlisted child is called waitlisted")
+		assert.Equal(t, 1, pending, "the mail keeps the office decision pending")
+	})
+}

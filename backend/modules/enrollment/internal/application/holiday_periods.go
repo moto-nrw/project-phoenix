@@ -49,6 +49,10 @@ type HolidayPeriodStore interface {
 	// child has booked, those of a cancelled registration included: reopening
 	// it brings its bookings back.
 	HolidayWeeksBookedTogether(ctx context.Context, organizationID, periodID int64) ([][2]int64, error)
+	// HolidayChildBookings lists the bookings of each child of the period
+	// whose registration is not cancelled, one list per child (#6506). A
+	// cancellation is final, so its bookings take no care day.
+	HolidayChildBookings(ctx context.Context, organizationID, periodID int64) ([][]enrollment.HolidayBookingInput, error)
 }
 
 // HolidayPeriods serves enrollment.HolidayPeriods.
@@ -150,16 +154,41 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 	if err := refuseBookedUnitChange(input.Weeks, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
+	if err := h.refuseLockedAllocationMode(ctx, organizationID, input, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	if err := h.refuseBookedTogether(ctx, organizationID, periodID, input.Weeks); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	if err := refuseHolidayWeeksWithoutCare(ctx, h.calendar, input.Weeks, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
+	if err := h.refuseRaisedDayLimit(ctx, organizationID, periodID, input, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input, h.today()); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	return h.markedPeriod(ctx, organizationID, periodID)
+}
+
+// refuseLockedAllocationMode keeps the allocation mode of a period with a
+// registration (#4700): the registrations came in under its rules. The
+// caller holds the period, which every submission locks before it inserts;
+// the count is read once more after the lock, so a registration committed
+// while this change waited for it counts.
+func (h *HolidayPeriods) refuseLockedAllocationMode(ctx context.Context, organizationID int64, input enrollment.HolidayPeriodInput, current enrollment.HolidayPeriod) error {
+	if input.AllocationMode == current.AllocationMode {
+		return nil
+	}
+	fresh, err := foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, current.ID, false))
+	if err != nil {
+		return err
+	}
+	if fresh.RegistrationCount > 0 {
+		return enrollment.ErrHolidayAllocationModeLocked
+	}
+	return nil
 }
 
 // refuseBookedTogether keeps a child from ending up in two weeks that share a
@@ -291,6 +320,9 @@ func keepArchivedHolidayTimeModels(input enrollment.HolidayPeriodInput, current 
 func normalizeHolidayPeriod(input enrollment.HolidayPeriodInput) enrollment.HolidayPeriodInput {
 	input.Name = strings.TrimSpace(input.Name)
 	input.Notes = strings.TrimSpace(input.Notes)
+	if input.AllocationMode == "" {
+		input.AllocationMode = enrollment.HolidayAllocationArrival
+	}
 	weeks := make([]enrollment.HolidayWeekInput, len(input.Weeks))
 	for i, week := range input.Weeks {
 		models := make([]enrollment.HolidayTimeModelInput, len(week.TimeModels))
@@ -334,6 +366,9 @@ func validateHolidayPeriod(input enrollment.HolidayPeriodInput, current enrollme
 	validateRegistrationWindow(input, errs)
 	if limit := input.MaxDaysPerChild; limit != nil && (*limit < 1 || *limit > enrollment.HolidayMaxDaysPerChildMax) {
 		errs["max_days_per_child"] = fmt.Errorf("must be between 1 and %d", enrollment.HolidayMaxDaysPerChildMax)
+	}
+	if input.AllocationMode != enrollment.HolidayAllocationArrival && input.AllocationMode != enrollment.HolidayAllocationCriteria {
+		errs["allocation_mode"] = errors.New("must be arrival or criteria")
 	}
 	if len(input.Weeks) > holidayMaxWeeks {
 		errs["weeks"] = fmt.Errorf("a period has at most %d weeks", holidayMaxWeeks)

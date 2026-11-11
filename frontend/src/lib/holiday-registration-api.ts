@@ -69,6 +69,17 @@ interface HolidayRegistrationSchool {
   readonly name: string;
 }
 
+/**
+ * A yes/no question of the Träger for the allocation of places (#4700),
+ * asked once for the family or for every child. Parents see the question
+ * only, never the answers of other families.
+ */
+interface HolidayRegistrationCriterion {
+  readonly id: string;
+  readonly question: string;
+  readonly scope: "family" | "child";
+}
+
 /** The published holiday period behind a link. */
 export interface HolidayRegistrationOffer {
   readonly traegerName: string;
@@ -92,6 +103,13 @@ export interface HolidayRegistrationOffer {
    * into account and how (#4703).
    */
   readonly holidayWishMode: HolidayWishMode;
+  /**
+   * "criteria": the office gives the places after the Träger's criteria;
+   * nobody gets a place at once (#4700). Absent reads as arrival.
+   */
+  readonly allocationMode?: "arrival" | "criteria";
+  /** The active criteria, only by criteria; empty otherwise. */
+  readonly criteria?: readonly HolidayRegistrationCriterion[];
 }
 
 /**
@@ -140,6 +158,9 @@ interface BackendOffer {
   } | null;
   consent_texts?: BackendConsentTexts | null;
   holiday_wish_mode?: HolidayWishMode;
+  allocation_mode?: "arrival" | "criteria";
+  criteria?:
+    { id: number; question: string; scope: "family" | "child" }[] | null;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -176,6 +197,8 @@ export interface HolidayRegistrationPayload {
     readonly custom_data: Readonly<Record<string, unknown>>;
     /** The sealed statement of the holiday care wish from the prefill (#4703). */
     readonly wish_proof?: string;
+    /** Answers to the criteria per child, by criterion ID (#4700). */
+    readonly criteria?: Readonly<Record<string, boolean>>;
   }[];
   readonly emergency_contacts: readonly HolidayContactPayload[];
   readonly pickup_persons: readonly HolidayContactPayload[];
@@ -199,6 +222,8 @@ export interface HolidayRegistrationPayload {
   readonly consent_version: number;
   /** Answers to the questions per family, by key (#5198). */
   readonly custom_data: Readonly<Record<string, unknown>>;
+  /** Answers to the criteria of the family, by criterion ID (#4700). */
+  readonly criteria?: Readonly<Record<string, boolean>>;
 }
 
 export interface HolidayContactPayload {
@@ -252,6 +277,15 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
     },
     consentTexts: consentTextsFromBackend(offer.consent_texts),
     holidayWishMode: offer.holiday_wish_mode ?? "off",
+    allocationMode: offer.allocation_mode ?? "arrival",
+    criteria:
+      offer.allocation_mode === "criteria"
+        ? (offer.criteria ?? []).map((criterion) => ({
+            id: String(criterion.id),
+            question: criterion.question,
+            scope: criterion.scope,
+          }))
+        : [],
   };
 }
 
@@ -309,13 +343,18 @@ export function uploadHolidayProof(
 
 /**
  * Whether one booking of the sent registration got a place or waits on the
- * waiting list of its week (#4699). The child is named by its position in
- * the form, from 1.
+ * waiting list of its week (#4699), or waits for the office to give the
+ * places (#4700). The child is named by its position in the form, from 1.
  */
 export interface HolidayReceiptPlacement {
   readonly childPosition: number;
   readonly weekId: string;
-  readonly placement: "placed" | "waitlisted";
+  readonly placement: "placed" | "waitlisted" | "pending";
+}
+
+function receiptPlacement(value: string): HolidayReceiptPlacement["placement"] {
+  if (value === "waitlisted" || value === "pending") return value;
+  return "placed";
 }
 
 /** Sends the registration and answers with the place of every booking. */
@@ -343,7 +382,7 @@ export async function submitHolidayRegistration(
   return (body?.data?.placements ?? []).map((entry) => ({
     childPosition: entry.child_position,
     weekId: String(entry.week_id),
-    placement: entry.placement === "waitlisted" ? "waitlisted" : "placed",
+    placement: receiptPlacement(entry.placement),
   }));
 }
 

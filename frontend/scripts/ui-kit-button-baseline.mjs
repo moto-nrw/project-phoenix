@@ -40,13 +40,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/NavigationTabs.tsx",
-    lines: [197],
+    lines: [201],
     reason: "Reiter: Auslöser des mobilen Reiter-Menüs",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [457],
+    lines: [461],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -58,7 +58,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/portal-bottom-nav.tsx",
-    lines: [393, 432],
+    lines: [394, 433],
     reason: "Navigationszeilen im „Mehr“-Blatt der unteren Leiste",
   },
   {
@@ -70,7 +70,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [380],
+    lines: [393],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -100,7 +100,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/app/[tenant]/(protected)/time-tracking/page.tsx",
-    lines: [816, 849, 949, 1130],
+    lines: [817, 850, 950, 1131],
     reason:
       "Pausen-Stepper −/+ und Stempelknöpfe Abwesenheit/Ausstempeln der Zeiterfassung (#5529: nicht angleichen)",
   },
@@ -120,7 +120,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1066],
+    lines: [1067],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
@@ -144,7 +144,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [1035],
+    lines: [1073],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {
@@ -190,7 +190,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1015],
+    lines: [1016],
     reason: "Termin-Block in der Wochenansicht: Kalenderzelle",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder

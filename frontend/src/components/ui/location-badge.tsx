@@ -2,6 +2,7 @@ import type {
   DisplayMode,
   StudentLocationContext,
 } from "@/lib/location-helper";
+import { formatTime } from "@/lib/date-helpers";
 import { PresenceHint } from "./presence-hint";
 import { StatusColorBadge } from "./status-color-badge";
 import {
@@ -15,25 +16,32 @@ import {
 } from "@/lib/location-helper";
 
 /**
- * Formats the location_since timestamp for display.
- * Shows only the time (HH:MM) since it's for "current" location.
+ * The clock time for „seit …“: Berlin wall clock, whatever the browser's zone.
+ * Null when the time is missing or unreadable, so no line shows.
  */
-function formatLocationSince(
+export function formatLocationSince(
   isoTimestamp: string | null | undefined,
 ): string | null {
-  if (!isoTimestamp) return null;
+  if (!isoTimestamp || Number.isNaN(Date.parse(isoTimestamp))) return null;
+  return formatTime(isoTimestamp);
+}
 
-  try {
-    const date = new Date(isoTimestamp);
-    if (Number.isNaN(date.getTime())) return null;
+const SINCE_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.PRESENT,
+  LOCATION_STATUSES.HOME,
+  LOCATION_STATUSES.IN_CLASS,
+]);
 
-    return date.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return null;
-  }
+/**
+ * Whether „seit …“ belongs under the pill: for a stay in a room, at home or in
+ * class, and for a day status (krank, Klassenfahrt, entschuldigt) that replaces
+ * the location. Never for Schulhof, Unterwegs or Schule (#6563).
+ */
+export function showsLocationSince(
+  locationStatus: string,
+  replacedByDayStatus: boolean,
+): boolean {
+  return replacedByDayStatus || SINCE_STATUSES.has(locationStatus);
 }
 
 /**
@@ -239,13 +247,13 @@ export function LocationBadge({
   const formattedTime = formatLocationSince(timeSource);
   const showSinceTime =
     showLocationSince &&
-    formattedTime &&
-    (parsed.status === LOCATION_STATUSES.PRESENT ||
-      parsed.status === LOCATION_STATUSES.HOME ||
-      parsed.status === LOCATION_STATUSES.IN_CLASS ||
+    formattedTime !== null &&
+    showsLocationSince(
+      parsed.status,
       sickMode === "replace" ||
-      classTripMode === "replace" ||
-      excusedMode === "replace");
+        classTripMode === "replace" ||
+        excusedMode === "replace",
+    );
 
   // At most one pill per child (#4371): the location stays the pill, a
   // further fact becomes a neutral line below it.

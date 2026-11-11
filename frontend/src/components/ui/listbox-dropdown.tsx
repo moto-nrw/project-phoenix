@@ -24,6 +24,7 @@ import {
 } from "./select-trigger-styles";
 
 import { CheckboxIndicator } from "./checkbox";
+import { MODAL_SCOPE_SELECTOR, SCROLL_AREA_PROPS } from "./overlay-stack";
 
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
@@ -89,7 +90,7 @@ export function ListboxTriggerContent({
 // pulls focus out of everything portaled to document.body, so the field could
 // be clicked but not typed into. Outside a dialog the selector matches nothing
 // and the menu portals to the body as usual.
-const SEARCHABLE_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
+const SEARCHABLE_PORTAL_SCOPE = MODAL_SCOPE_SELECTOR;
 
 /**
  * The search field of `CustomSelect` and `MultiSelect`: filters the options
@@ -927,12 +928,12 @@ export function ListboxDropdown<K extends string>({
           : cn(LIST_SCROLL_CLASS, MENU_SURFACE_CLASS, menuClassName)
       }
       // The menu is portaled to document.body, so it sits OUTSIDE the
-      // modal's [data-modal-content] subtree. useScrollLock cancels every
+      // modal's scroll area (SCROLL_AREA_PROPS). The scroll lock cancels every
       // wheel/touchmove outside that subtree, which would make an open
       // menu inside a scroll-locked modal impossible to scroll. Marking
       // the menu as modal content whitelists it in the scroll-lock
       // predicate so its own options can be reached.
-      data-modal-content="true"
+      {...SCROLL_AREA_PROPS}
       // Vaul/Radix dismiss the dialog on a pointerdown whose target is
       // outside the dialog content node. This menu is portaled to
       // document.body, so it is NOT inside that node — without this
@@ -1112,7 +1113,7 @@ export function ListboxDropdown<K extends string>({
                   menuClassName,
                 )}
                 data-listbox-panel
-                data-modal-content="true"
+                {...SCROLL_AREA_PROPS}
                 // A pure container: the search field, the listbox and the slot
                 // content carry the semantics, this element only positions
                 // them and keeps the dismissal handlers off the dialog.

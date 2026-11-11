@@ -142,6 +142,7 @@ type exportFileRow struct {
 	SubmittedAt          *time.Time `bun:"submitted_at"`
 	SubmittedByAccountID *int64     `bun:"submitted_by_account_id"`
 	DatevAll             bool       `bun:"datev_all"`
+	ResolvedPositions    int        `bun:"resolved_positions"`
 }
 
 // exportFileListRow is a protocol entry with what the list shows besides:
@@ -159,7 +160,7 @@ func (r exportFileRow) entry() parentbilling.ExportProtocolEntry {
 	return parentbilling.ExportProtocolEntry{ID: r.ID, FileNumber: r.FileNumber, Format: r.Format, RunKind: r.RunKind, RunID: r.RunID,
 		FileName: r.FileName, Fingerprint: r.ContentSHA256, InvoiceCount: r.InvoiceCount, TotalCents: r.TotalCents,
 		Reference: textOf(r.Reference), ExportedBy: r.ExportedByAccountID, ExportedAt: r.ExportedAt, SubmittedAt: r.SubmittedAt,
-		DatevAll: r.DatevAll}
+		DatevAll: r.DatevAll, ResolvedPositions: r.ResolvedPositions}
 }
 
 func (r exportFileListRow) entry() parentbilling.ExportProtocolEntry {
@@ -181,11 +182,12 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 	}
 	var row exportFileRow
 	if err := db.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
-		content_sha256, booking_sha256, invoice_count, total_cents, reference, exported_by_account_id, datev_all)
-		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?, ?)
+		content_sha256, booking_sha256, invoice_count, total_cents, reference, exported_by_account_id, datev_all,
+		resolved_positions)
+		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?, ?, ?)
 		RETURNING *`, organizationID, record.FileNumber, record.Format, record.RunKind, record.RunID, record.FileName, record.Content,
 		record.BookingContent, exportDocumentCount(record), record.TotalCents,
-		textRef(record.Reference), accountRef(accountID), record.DatevAll).Scan(ctx, &row); err != nil {
+		textRef(record.Reference), accountRef(accountID), record.DatevAll, record.ResolvedPositions).Scan(ctx, &row); err != nil {
 		return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the export file: %w", err)
 	}
 	if err := insertExportFileInvoices(ctx, db, organizationID, row.ID, record); err != nil {

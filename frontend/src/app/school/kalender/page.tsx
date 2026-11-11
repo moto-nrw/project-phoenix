@@ -44,6 +44,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Textarea } from "~/components/ui/textarea";
 import {
   useApiErrorDisplay,
@@ -131,7 +132,8 @@ export default function SchoolCalendarPage() {
   const [draft, setDraft] = useState<SchoolAppointmentDraft>(() =>
     emptySchoolAppointmentDraft(berlinTodayISO()),
   );
-  const [submitting, setSubmitting] = useState(false);
+  const save = useFormModalPending(formOpen, editingId);
+  const submitting = save.pending;
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
 
@@ -192,27 +194,29 @@ export default function SchoolCalendarPage() {
       return;
     }
     formErrors.clear();
-    setSubmitting(true);
-    try {
-      const body = schoolAppointmentRequest(draft);
-      if (editingId) {
-        await updateSchoolAppointment(editingId, body);
-      } else {
-        await createSchoolAppointment(body);
+    const saved = await save.run(async (op) => {
+      try {
+        const body = schoolAppointmentRequest(draft);
+        if (editingId) {
+          await updateSchoolAppointment(editingId, body);
+        } else {
+          await createSchoolAppointment(body);
+        }
+        toast.success(`Der Termin „${body.title}“ ist gespeichert.`);
+        if (op.isCurrent()) closeForm();
+        return true;
+      } catch (err) {
+        logFailure("school_appointment_save_failed", err);
+        if (op.isCurrent()) {
+          await formErrors.show(err, {
+            object: "das Speichern des Termins",
+            retry: () => latestSubmitRef.current(),
+          });
+        }
+        return false;
       }
-      toast.success(`Der Termin „${body.title}“ ist gespeichert.`);
-      closeForm();
-    } catch (err) {
-      logFailure("school_appointment_save_failed", err);
-      await formErrors.show(err, {
-        object: "das Speichern des Termins",
-        retry: () => latestSubmitRef.current(),
-      });
-      return;
-    } finally {
-      setSubmitting(false);
-    }
-    await refreshCalendar();
+    });
+    if (saved) await refreshCalendar();
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -316,13 +320,12 @@ export default function SchoolCalendarPage() {
           <SlideOver
             open={formOpen}
             onOpenChange={(open) => {
-              if (!open && !submitting) closeForm();
+              if (!open) closeForm();
             }}
+            pending={save}
           >
             <SlideOverContent size="md">
-              <SlideOverHeader
-                close={<SlideOverCloseButton disabled={submitting} />}
-              >
+              <SlideOverHeader close={<SlideOverCloseButton />}>
                 <SlideOverTitle>
                   {creating ? "Schultermin anlegen" : "Schultermin bearbeiten"}
                 </SlideOverTitle>

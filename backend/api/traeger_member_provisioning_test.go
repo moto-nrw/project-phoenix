@@ -26,6 +26,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/uptrace/bun"
 )
 
 func TestOperatorAssignsTheFirstPersonOfATraegerBuero(t *testing.T) {
@@ -682,4 +683,51 @@ func TestOperatorResendKeepsTheInvitedRoles(t *testing.T) {
 	operator.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"roles":["read_only"]`)
+}
+
+// A deactivated account that is not yet anonymized gets no Träger access
+// (#6535): the grant checks the account's state under its lock and refuses
+// with traeger.account_inactive, leaving no role, membership or grant audit,
+// and the account stays deactivated.
+func TestOperatorDoesNotAssignADeactivatedAccountToATraegerBuero(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-deactivated")
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("deactivated-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+	_, err := db.ExecContext(ctx, `UPDATE auth.accounts SET active = false WHERE id = ?`, account.ID)
+	require.NoError(t, err)
+
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource, nil)
+	body := bytes.NewBufferString(fmt.Sprintf(`{"email":%q,"roles":["administration"]}`, account.Email))
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/organizations/%d/traeger-members", organizationID), body)
+	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+	rec := httptest.NewRecorder()
+	operator.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"traeger.account_inactive"`)
+	requireNoTraegerGrant(t, db, operatorID, account.ID)
+}
+
+// requireNoTraegerGrant asserts that the account holds no Träger role, no
+// membership and no grant audit, and that it stays deactivated.
+func requireNoTraegerGrant(t *testing.T, db bun.IDB, operatorID, accountID int64) {
+	t.Helper()
+	ctx := context.Background()
+	var rows int
+	require.NoError(t, db.NewRaw(`SELECT (SELECT count(*) FROM platform.organization_accounts WHERE account_id = ?)
+		+ (SELECT count(*) FROM auth.organization_account_roles WHERE account_id = ?)
+		+ (SELECT count(*) FROM platform.operator_audit_log
+			WHERE operator_id = ? AND action = 'grant' AND resource_type = 'traeger_member' AND resource_id = ?)`,
+		accountID, accountID, operatorID, accountID).Scan(ctx, &rows))
+	assert.Zero(t, rows, "a deactivated account gets neither membership, Träger role nor grant audit")
+	var active bool
+	require.NoError(t, db.NewRaw(`SELECT active FROM auth.accounts WHERE id = ?`, accountID).Scan(ctx, &active))
+	assert.False(t, active, "the grant does not reactivate the account")
 }

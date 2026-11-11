@@ -8,7 +8,6 @@ import (
 	"go/token"
 	"go/types"
 	"path"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
@@ -65,51 +64,7 @@ func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
 			violations = append(violations, packageViolations...)
 		}
 	}
-	return finishSemanticEffects(project, policy, loaded, violations)
-}
-
-func loadTypedPackages(project string, build Build) ([]*packages.Package, error) {
-	environment := fixedBuildEnvironment(build)
-	dependencyRoots, err := dependencySourceRoots(project, environment)
-	if err != nil {
-		return nil, err
-	}
-	// Every first-party package is an initial ./... root with typed syntax.
-	// Dependencies need exported types, not their own syntax or type-info maps.
-	config := &packages.Config{
-		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
-			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
-		Dir:       project,
-		Env:       environment,
-		ParseFile: parseWithoutDependencyBodies(dependencyRoots),
-	}
-	loaded, err := packages.Load(config, "./...")
-	if err != nil {
-		return nil, fmt.Errorf("load Go types: %w", err)
-	}
-	for _, pkg := range loaded {
-		if len(pkg.Errors) > 0 {
-			return nil, fmt.Errorf("load Go types for %s: %s", pkg.PkgPath, pkg.Errors[0])
-		}
-	}
-	return loaded, nil
-}
-
-// dependencySourceRoots returns the directories that hold standard-library and
-// module-cache sources. Packages loaded from there are never analyzed; they
-// are type-checked only so the project's own packages resolve against them.
-func dependencySourceRoots(project string, environment []string) ([]string, error) {
-	output, err := processOutput(project, environment, "go", "env", "GOROOT", "GOMODCACHE")
-	if err != nil {
-		return nil, fmt.Errorf("locate dependency sources: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	var roots []string
-	for _, line := range strings.Split(string(output), "\n") {
-		if root := strings.TrimSpace(line); root != "" {
-			roots = append(roots, filepath.Clean(root)+string(filepath.Separator))
-		}
-	}
-	return roots, nil
+	return finishSemanticEffects(project, policy, loaded, append(violations, parentChildWriteGuardViolations(project, policy.ModulePath, loaded)...))
 }
 
 // parseWithoutDependencyBodies parses project files like the go/packages

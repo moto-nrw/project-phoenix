@@ -84,6 +84,9 @@ var (
 	// ErrHolidayRegistrationFrozen reports a cancellation of a registration
 	// after the registration deadline; the Träger-Büro reopens it first.
 	ErrHolidayRegistrationFrozen = errors.New("the holiday registration is frozen")
+	// ErrHolidayAllocationPending reports a confirmation of a registration
+	// with a booking the Büro has not decided on by criteria (#4700).
+	ErrHolidayAllocationPending = errors.New("the holiday registration has bookings without a decision on their place")
 	// ErrDebtorNumberLocked reports a change of the debtor number of a
 	// registration an issued invoice already bills: the invoice keeps its
 	// copy (#5621, ADR 0119).
@@ -386,6 +389,9 @@ type HolidayBillingSettings interface {
 	// takes over: its values of parent_billing.sibling_rank and
 	// parent_billing.cost_takeover_order or the defaults (#5664).
 	HolidayChain(ctx context.Context, organizationID int64) (HolidayChainSettings, error)
+	// DatevBillingSettings names the standard revenue account the release
+	// copies onto a position without an account of its own (#4821).
+	DatevBillingSettings
 }
 
 // HolidayConfirmationSettings is what the Träger-Büro needs to know before
@@ -428,6 +434,17 @@ type HolidayQuoteBooking struct {
 type HolidayQuoteChild struct {
 	Bookings []HolidayQuoteBooking
 	AgeRank  int
+}
+
+// HolidayAllocationBilling keeps direct allocations and promotions consistent
+// with frozen contributions and the invoices of their period.
+type HolidayAllocationBilling interface {
+	// AllocateHolidayPlaces holds the period's invoices before the allocation
+	// command, then recomputes the confirmed siblings of every registration
+	// that gained a place. decide joins the caller's transaction and returns
+	// registration IDs for both direct allocations and promotions.
+	// Any error must roll back the complete allocation, outbox and contributions.
+	AllocateHolidayPlaces(ctx context.Context, organizationID, accountID, periodID int64, decide func(context.Context) ([]int64, error)) error
 }
 
 // HolidayContributions computes, shows and freezes the holiday contribution

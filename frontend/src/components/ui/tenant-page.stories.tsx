@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Plus } from "lucide-react";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import { Button, ButtonLink } from "./button";
 import { SectionCard } from "./section-card";
@@ -38,5 +39,32 @@ export const HeadWithLinkAndButton: Story = {
         <p className="text-sm text-gray-600">Inhalt der Seite</p>
       </SectionCard>
     ),
+  },
+};
+
+/**
+ * Offener Erklärungs-Popover (`AnchoredPopover`): `play` klickt das Info-Symbol
+ * am Titel. Vorlage für offene Popover-Zustände im Pixel-Vergleich (#6562).
+ */
+export const InfoOpened: Story = {
+  args: {
+    title: "Kinder",
+    stats: "116 Kinder · 107 zuhause · 9 krank",
+    info: "Hier sehen Sie alle Kinder Ihrer Schule und wo sie gerade sind.",
+    children: (
+      <SectionCard title="Liste">
+        <p className="text-sm text-gray-600">Inhalt der Seite</p>
+      </SectionCard>
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole("button", {
+        name: "Erklärung zu Kinder",
+      }),
+    );
+    await expect(
+      await screen.findByRole("dialog", { name: "Erklärung zu Kinder" }),
+    ).toBeVisible();
   },
 };

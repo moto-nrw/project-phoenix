@@ -51,6 +51,8 @@
   "companion_note_required": "Ju lutemi shkruani me kë shkon fëmija në shtëpi.",
   "complete_withdrawal_confirmation_required": "Ende nuk mund të çregjistrohet: {object}. Konfirmoni me {confirmation}.",
   "consent_required": "Ju lutemi konfirmoni të gjitha pëlqimet e detyrueshme.",
+  "renewal_terms_required": "Ju lutemi pranoni kushtet për periudhën e re.",
+  "renewal_terms_changed": "Kushtet sapo u ndryshuan. Ju lutemi lexojini përsëri dhe pastaj pranojini.",
   "correction_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "correction_school_class_mismatch": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "day_selection_not_allowed": "Ditët e kësaj oferte janë të caktuara. Nuk mund të zgjidhni ditë.",
@@ -99,7 +101,9 @@
   "message_required": "Ju lutemi shkruani një mesazh.",
   "offering_adjustment_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "phase_care_offering_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "phase_has_effective_bookings": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_eligibility_setting_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "phase_pending_child_window_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_name_exists": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "phase_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "phase_not_eligible": "Ky regjistrim nuk është i hapur për llogarinë tuaj. Hyni në aplikacionin për prindër ose pyesni shkollën.",
@@ -146,6 +150,7 @@
   "holiday_booking_unit_booked": "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
   "holiday_child_day_limit": "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Janë zgjedhur {days}. Ju lutemi zgjidhni më pak ditë.",
   "holiday_weeks_booked_together": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "holiday_week_day_limit": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "hosted_holiday_week_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_guest_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_guest_group_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -153,5 +158,9 @@
   "holiday_registration_form_changed": "Organizatori sapo ndryshoi formularin. Ju lutemi kontrolloni të dhënat dhe dërgojeni regjistrimin përsëri.",
   "holiday_proof_limit": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "family_children_closed": "Numri i fëmijëve nuk mund të ndryshohet më këtu. Do ta gjeni në kontratën e kujdesit.",
-  "family_children_invalid": "Ju lutemi shkruani një numër nga 1 deri në 20."
+  "family_children_invalid": "Ju lutemi shkruani një numër nga 1 deri në 20.",
+  "holiday_allocation_mode_locked": "Ka tashmë regjistrime, ndaj ndarja e vendeve nuk ndryshon.",
+  "holiday_allocation_pending": "Ndani fillimisht vendet te skeda „Vergabe“.",
+  "holiday_allocation_full": "Në këtë javë nuk ka më vende të lira. Ju lutemi ngarkoni listën përsëri.",
+  "holiday_allocation_changed": "Lista ndryshoi. Kontrolloni vendimin përsëri."
 }

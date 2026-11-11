@@ -537,6 +537,7 @@ export default function DayLogPage() {
         <>
           {/* Die Gruppe steht im Panel neben der Tagesliste: die Zahlen der
               anderen Gruppen bleiben dabei sichtbar. */}
+          {/* oxlint-disable-next-line ui-kit/slide-over-pending -- zeigt die Gruppe und lädt Export oder Druck herunter; schreibt nichts. */}
           <SlideOver
             open={openGroup !== null}
             onOpenChange={(open) => {

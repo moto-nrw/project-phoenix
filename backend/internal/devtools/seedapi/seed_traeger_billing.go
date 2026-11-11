@@ -15,8 +15,9 @@ const seedBillingNumberPattern = "FE-{JJJJ}-{NNNN}"
 // seedBillingRunDetail is what the seed reads of a run: the sums of the
 // preview and the first child of the first invoice.
 type seedBillingRunDetail struct {
-	PreviewCount int   `json:"preview_count"`
-	PreviewCents int64 `json:"preview_cents"`
+	PreviewCount int    `json:"preview_count"`
+	PreviewCents int64  `json:"preview_cents"`
+	Fingerprint  string `json:"fingerprint"`
 	Documents    []struct {
 		RegistrationID int64 `json:"registration_id"`
 		Children       []struct {
@@ -68,7 +69,7 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID, costBearerID 
 		return 0, err
 	}
 	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/release", runID), map[string]any{
-		"document_count": run.PreviewCount, "total_cents": run.PreviewCents,
+		"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
 	}); err != nil {
 		return 0, fmt.Errorf("release the billing run: %w", err)
 	}

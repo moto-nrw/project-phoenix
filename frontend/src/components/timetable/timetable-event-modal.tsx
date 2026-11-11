@@ -228,6 +228,7 @@ export function TimetableEventModal({
     loadingStaff,
     staffLoadFailed,
     staffLoadError,
+    pending,
     submitting,
     handleSubmit,
     validateForm,
@@ -530,6 +531,7 @@ export function TimetableEventModal({
   return (
     <SlideOver
       open={isOpen}
+      pending={pending}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
@@ -540,15 +542,15 @@ export function TimetableEventModal({
         // drawer's DOM. Without these guards Vaul's DismissableLayer treats
         // every click inside the open dialog as an outside-click and closes
         // the slide-over, unmounting the dialog before its buttons can
-        // fire. See issue #1358. `submitting` additionally blocks dismissal
-        // mid-save (both the form submit and the scope flow set it).
+        // fire. See issue #1358. A running save locks every close path
+        // through `pending` on the SlideOver (#6593).
         onInteractOutside={(event: Event) => {
-          if (isModalOpen || choiceDialogOpen || submitting) {
+          if (isModalOpen || choiceDialogOpen) {
             event.preventDefault();
           }
         }}
         onEscapeKeyDown={(event: KeyboardEvent) => {
-          if (isModalOpen || choiceDialogOpen || submitting) {
+          if (isModalOpen || choiceDialogOpen) {
             event.preventDefault();
           }
         }}
@@ -842,7 +844,6 @@ export function TimetableEventModal({
                 variant="outline_danger"
                 size="md"
                 onClick={openSeriesDeleteConfirm}
-                disabled={submitting || deletingSeries}
                 className="w-full sm:w-auto"
               >
                 <span className="inline-flex items-center gap-2">
@@ -861,7 +862,6 @@ export function TimetableEventModal({
               size="md"
               className="flex-1 sm:flex-none"
               onClick={onClose}
-              disabled={submitting || deletingSeries}
             >
               Abbrechen
             </Button>
@@ -872,7 +872,6 @@ export function TimetableEventModal({
                 size="md"
                 className="flex-1 sm:flex-none"
                 onClick={() => setStep((current) => Math.max(current - 1, 0))}
-                disabled={submitting || deletingSeries}
               >
                 Zurück
               </Button>
@@ -891,7 +890,6 @@ export function TimetableEventModal({
                 variant="primary"
                 size="md"
                 className="flex-1 sm:flex-none"
-                disabled={submitting || deletingSeries}
               >
                 Weiter
               </Button>
@@ -905,8 +903,6 @@ export function TimetableEventModal({
                 isLoading={submitting}
                 loadingText="Speichere …"
                 disabled={
-                  submitting ||
-                  deletingSeries ||
                   closingDaysLoading ||
                   (isEditingInstance && initialInstance?.status !== "planned")
                 }

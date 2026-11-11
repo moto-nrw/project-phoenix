@@ -1,9 +1,16 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StudentsPage from "./page";
 import { useSession } from "next-auth/react";
 import { useToast } from "~/contexts/ToastContext";
+import { deferred } from "~/test/helpers/form-modal-pending";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
@@ -755,6 +762,41 @@ describe("StudentsPage", () => {
     expect(payload.guardians).toEqual([
       { first_name: "Erika", relationship_type: "parent" },
     ]);
+  });
+
+  // Das Panel schließt sich nach dem Anlegen selbst (#6593). Die Seite
+  // schließt aus der Antwort heraus nichts, sonst träfe eine späte Antwort
+  // das inzwischen neu geöffnete Panel.
+  it("keeps a create panel opened again when the earlier create answers late (#6593)", async () => {
+    const success = vi.fn();
+    vi.mocked(useToast).mockReturnValue({
+      success,
+    } as unknown as ReturnType<typeof useToast>);
+    const answer = deferred<Record<string, unknown>>();
+    mockCreate.mockReturnValueOnce(answer.promise);
+
+    render(<StudentsPage />);
+    fireEvent.click(screen.getAllByLabelText("Kind erstellen")[0]!);
+    fireEvent.click(await screen.findByTestId("submit-create"));
+    expect(mockCreate).toHaveBeenCalledOnce();
+    // Anker: das Anlegen-Panel ist offen, bevor es geschlossen wird.
+    expect(screen.getByTestId("student-create-modal")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("close-create-modal"));
+    expect(
+      screen.queryByTestId("student-create-modal"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByLabelText("Kind erstellen")[0]!);
+    expect(
+      await screen.findByTestId("student-create-modal"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      answer.resolve({ id: "3", first_name: "New", second_name: "Student" });
+    });
+
+    expect(success).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("student-create-modal")).toBeInTheDocument();
   });
 
   it("warns that the privacy consent was not saved when the create answer says so (#5970)", async () => {

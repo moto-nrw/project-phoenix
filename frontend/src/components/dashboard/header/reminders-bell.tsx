@@ -11,7 +11,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { useState } from "react";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
-import { NavLink } from "~/components/ui/nav-link";
+import NavigationLink from "~/components/ui/navigation-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Bell } from "lucide-react";
 import { useReminders } from "~/lib/hooks/use-reminders";
@@ -73,13 +73,13 @@ export function RemindersBell() {
       header={<p className="font-semibold text-gray-900">Erinnerungen</p>}
       footer={
         <div className="p-2">
-          <NavLink
+          <NavigationLink
             href={tenantPath("/reminders")}
             onClick={() => setIsOpen(false)}
             className="flex items-center justify-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900"
           >
             Alle ansehen
-          </NavLink>
+          </NavigationLink>
         </div>
       }
       renderTrigger={({ ref, toggle, panelId }) => (

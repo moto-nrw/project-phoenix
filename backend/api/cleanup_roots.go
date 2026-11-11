@@ -55,6 +55,7 @@ type RetentionCleanupRepositories struct {
 // into, with the read its suites check the rollback through.
 type RetentionDeletions interface {
 	owners.DataDeletionAppender
+	owners.DataDeletionBatchAppender
 	FindByStudentID(ctx context.Context, studentID int64) ([]*auditModels.DataDeletion, error)
 }
 

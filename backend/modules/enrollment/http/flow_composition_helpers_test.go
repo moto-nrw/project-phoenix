@@ -95,7 +95,12 @@ type phaseOfferings struct {
 	rows interface {
 		ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
 		CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
+		CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentNative.OfferingBooking, error)
 	}
+}
+
+func (o phaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentNative.OfferingBooking, error) {
+	return o.rows.CareOfferingBookingsForPhase(ctx, phaseID)
 }
 
 func (o phaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {
@@ -222,9 +227,9 @@ func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) 
 func (r requestFixtureRoot) Edit(ctx context.Context, token string, patch enrollmentAPI.EditPatch) error {
 	return fixturePublicTokenRoot(ctx, func(txCtx context.Context) error { return r.RequestService.Edit(txCtx, token, patch) })
 }
-func (r requestFixtureRoot) ConfirmRenewal(ctx context.Context, token string) (value int, err error) {
+func (r requestFixtureRoot) ConfirmRenewal(ctx context.Context, token string, confirmation enrollmentNative.RenewalConfirmation) (value int, err error) {
 	err = fixturePublicTokenRoot(ctx, func(txCtx context.Context) error {
-		value, err = r.RequestService.ConfirmRenewal(txCtx, token)
+		value, err = r.RequestService.ConfirmRenewal(txCtx, token, confirmation)
 		return err
 	})
 	return value, err

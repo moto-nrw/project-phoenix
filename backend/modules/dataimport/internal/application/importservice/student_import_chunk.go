@@ -11,15 +11,16 @@ import (
 // The student create is the second user of the chunk executor (#5552, ADR
 // 0067 addendum of 2026-11-08, step 5). A created child is found again by
 // its card or, without a hit for the card, by its name. Rows that share
-// neither never touch each other's match. Guardians are still written row by
-// row in processing order, so a later row reuses an earlier row's guardian as
-// on the row path; their e-mail joins the keys once a batch command writes
-// them.
+// neither never touch each other's match. Guardians with an e-mail are still
+// written row by row in processing order, so a later row reuses an earlier
+// row's guardian as on the row path; their e-mail joins the keys once a
+// batch command writes them. Guardians without one are batched (step 5c).
 
-// ChunkWriterReady reports whether the batch slices of People Directory,
-// Student Presence and the Audit consent recorder are bound.
+// ChunkWriterReady reports whether the batch slices of People Directory
+// (persons, new guardians), Student Presence and the Audit consent recorder
+// are bound.
 func (c *StudentImportConfig) ChunkWriterReady() bool {
-	return c.PersonBatches != nil && c.PrivacyConsentBatches != nil && c.ConsentHistoryBatches != nil
+	return c.PersonBatches != nil && c.PrivacyConsentBatches != nil && c.ConsentHistoryBatches != nil && c.GuardianBatches != nil
 }
 
 // ChunkMinRows: a batch segment costs six to seven statements (bound set and
@@ -31,7 +32,11 @@ func (c *StudentImportConfig) ChunkWriterReady() bool {
 func (c *StudentImportConfig) ChunkMinRows() int { return 6 }
 
 // ChunkKeys are the inputs a create row is matched by: the name (which a
-// card without a hit falls back to) and the card.
+// card without a hit falls back to) and the card. A guardian e-mail is no key
+// (#5552 step 5c): e-mail guardians are still written row by row in
+// processing order, so a later row reuses an earlier row's guardian as on the
+// row path, and a batched guardian has no e-mail and is never reused. Keying
+// on it would only split sibling files below ChunkMinRows.
 func (c *StudentImportConfig) ChunkKeys(row importModels.StudentImportRow) []string {
 	keys := []string{"name\x00" + matchKey(row.FirstName) + "\x00" + matchKey(row.LastName)}
 	if tag := matchKey(row.TagID); tag != "" {
@@ -106,16 +111,22 @@ func (c *StudentImportConfig) CreateChunk(ctx context.Context, rows []importMode
 	return c.writeLeafs(ctx, leafs, bounded)
 }
 
-// writeLeafs writes the collected consents and consent history, each in one
-// bundled statement, under one bound. Both touch only the new children and
-// the school row the persons statement already holds, so no wait moves
-// (PR #6408, tables C and D). An empty kind issues no statement, and with
-// neither the bound is not set.
+// writeLeafs writes the collected new guardians (step 5c), consents and
+// consent history, each kind in one bundled statement per table, under one
+// bound. All touch only rows of this transaction and the school row the
+// persons statement already holds, so no wait moves (PR #6408 and #6514,
+// tables C and D). An empty kind issues no statement, and with none the
+// bound is not set.
 func (c *StudentImportConfig) writeLeafs(ctx context.Context, leafs *studentLeafWrites, bounded ports.BatchStatement) error {
-	if len(leafs.consents) == 0 && !hasConsentEvents(leafs.transitions) {
+	if len(leafs.guardians) == 0 && len(leafs.consents) == 0 && !hasConsentEvents(leafs.transitions) {
 		return nil
 	}
 	return bounded(ctx, func(ctx context.Context) error {
+		if len(leafs.guardians) > 0 {
+			if err := c.GuardianBatches.CreateNewStudentGuardians(ctx, leafs.guardians); err != nil {
+				return fmt.Errorf("create guardians: %w", err)
+			}
+		}
 		if len(leafs.consents) > 0 {
 			if err := ports.ObserveCommand(ctx, "student-presence", "record_privacy_consents", func() error {
 				return c.PrivacyConsentBatches.RecordPrivacyConsents(ctx, leafs.consents)

@@ -114,6 +114,14 @@ vi.mock("~/lib/hooks/use-messages-unread", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-staff-messages-unread", () => ({
+  useStaffMessagesUnread: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
 vi.mock("~/lib/hooks/use-enrollment-requests-pending", () => ({
   useEnrollmentRequestsPending: vi.fn(() => ({
     unreadCount: 0,
@@ -158,6 +166,7 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { MODULE_KEYS } from "~/lib/modules";
 import {
   bindPersonalStorage,
@@ -318,6 +327,11 @@ describe("Sidebar", () => {
     );
     restoreDefaultHasPermission();
     vi.mocked(useMessagesUnread).mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
+    vi.mocked(useStaffMessagesUnread).mockReturnValue({
       unreadCount: 0,
       isLoading: false,
       refresh: vi.fn(),
@@ -643,6 +657,29 @@ describe("Sidebar", () => {
       expect(screen.getByText("Team-Chat").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/team-chat",
+      );
+    });
+
+    // Team-Chat und Eltern-Chat heißen beide „Nachrichten“; die Ansage nennt
+    // den Team-Chat wie seine Zeile (#6566).
+    it("nennt den Team-Chat-Zähler nach seiner Zeile", () => {
+      mockUseStaffMessagingEnabled.mockReturnValue(true);
+      vi.mocked(useStaffMessagesUnread).mockReturnValue({
+        unreadCount: 3,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const row = screen.getByText("Team-Chat").closest("a")!;
+      expect(within(row).getByText("3")).toHaveAccessibleName(
+        "3 ungelesene Nachrichten im Team-Chat",
+      );
+      const group = screen.getByRole("button", { name: /^Team/ });
+      expect(group).toHaveAttribute("aria-expanded", "false");
+      expect(within(group).getByText("3")).toHaveAccessibleName(
+        "3 ungelesene Nachrichten im Team-Chat",
       );
     });
 
@@ -2616,6 +2653,32 @@ describe("Sidebar", () => {
       expect(link).toHaveAttribute("href", "/time-tracking");
     });
 
+    it("zählt gesperrte Elternnachrichten nicht an der Gruppe", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseBookedModules.mockReturnValue(bookedWithout("eltern_app"));
+      vi.mocked(useMessagesUnread).mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      // Anker: die gesperrte Nachrichten-Zeile der Eltern-App ist sichtbar.
+      const messages = screen.getByRole("link", {
+        name: "Nachrichten , nicht gebucht",
+      });
+      expect(
+        within(messages).queryByLabelText("2 ungelesene Nachrichten"),
+      ).not.toBeInTheDocument();
+
+      const parents = screen.getByRole("button", { name: /^Eltern/ });
+      expect(
+        within(parents).queryByLabelText("2 ungelesene Nachrichten"),
+      ).not.toBeInTheDocument();
+    });
+
     it("zeigt der Leitung gesperrte Datenverwaltung ohne Routenrecht", () => {
       mockIsAdmin.mockReturnValue(false);
       mockHasEffectiveAdminScope.mockReturnValue(false);
@@ -3768,6 +3831,40 @@ describe("Sidebar", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("nennt am Unterpunkt eine Anmeldung in der Einzahl", () => {
+      mockUsePathname.mockReturnValue("/admin/enrollments");
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const overview = screen.getByRole("link", { name: /^Überblick/ });
+      expect(within(overview).getByText("1")).toHaveAccessibleName(
+        "1 ungelesene Anmeldung",
+      );
+    });
+
+    it("nennt am zugeklappten Bereich eine Anmeldung in der Einzahl", () => {
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+      fireEvent.click(screen.getByRole("button", { name: /^Eltern/ }));
+
+      expect(
+        screen.getAllByLabelText("1 ungelesene Anmeldung").length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.queryByLabelText("1 ungelesene Anmeldungen"),
+      ).not.toBeInTheDocument();
+    });
+
     it("zeigt den Zähler am zugeklappten Bereich", () => {
       render(<Sidebar />);
 
@@ -3777,6 +3874,59 @@ describe("Sidebar", () => {
       expect(
         screen.getAllByLabelText("3 ungelesene Anmeldungen").length,
       ).toBeGreaterThan(0);
+    });
+
+    // Die Gruppe zählt Nachrichten und Anmeldungen zusammen; vorgelesen
+    // wurde bisher die Summe als „ungelesene Nachrichten“ (#6566).
+    it("liest an der zugeklappten Gruppe jeden gezählten Teil vor", () => {
+      // Elternnachrichten verlangen users:read.
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage" ||
+          permission === "config:read" ||
+          permission === "users:update" ||
+          permission === "users:read",
+      );
+      vi.mocked(useMessagesUnread).mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const header = screen.getByRole("button", { name: /^Eltern/ });
+      expect(header).toHaveAttribute("aria-expanded", "false");
+      expect(within(header).getByText("5")).toHaveAccessibleName(
+        "2 ungelesene Nachrichten und 3 ungelesene Anmeldungen",
+      );
+    });
+
+    it("nennt an der Gruppe einen einzelnen Teil in der Einzahl", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage" ||
+          permission === "config:read" ||
+          permission === "users:update" ||
+          permission === "users:read",
+      );
+      vi.mocked(useMessagesUnread).mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+      mockUseEnrollmentsUnread.mockReturnValue({
+        unreadCount: 1,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const header = screen.getByRole("button", { name: /^Eltern/ });
+      expect(within(header).getByText("2")).toHaveAccessibleName(
+        "1 ungelesene Nachricht und 1 ungelesene Anmeldung",
+      );
     });
 
     it("zeigt ohne config:manage keinen Zähler", () => {

@@ -84,11 +84,14 @@ import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import {
+  type FormModalOperation,
+  useFormModalPending,
+} from "~/components/ui/use-form-modal-pending";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import {
@@ -266,7 +269,8 @@ export function PhasesEditor() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
   const [schemaSource, setSchemaSource] = useState<SchemaSource>("base");
-  const [saving, setSaving] = useState(false);
+  // Aktivieren/Ausschalten aus der Liste, außerhalb des Panels.
+  const [togglingActive, setTogglingActive] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Delete-confirmation modal state. deleteTarget drives visibility;
   // deleteImpact holds the fetched blast-radius counts.
@@ -293,6 +297,14 @@ export function PhasesEditor() {
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
+  const panelOpen = Boolean((editingId && draft) ?? rolloverSource);
+  // Saving a phase or creating a rollover locks the panel (#6593); a late
+  // answer must not close or fill the panel for another phase.
+  const panelSave = useFormModalPending(
+    panelOpen,
+    rolloverSource ? `rollover-${rolloverSource.id}` : editingId,
+  );
+  const saving = panelSave.pending || togglingActive;
   const { tenantSlug, tenant } = useTenant();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
   const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
@@ -506,29 +518,30 @@ export function PhasesEditor() {
         return;
       }
     }
-    setSaving(true);
-    try {
-      if (editingId === "new") {
-        const created = await createPhase(payload);
-        toast.success(`Die Anmeldephase „${created.name}“ ist angelegt.`);
-      } else if (editingId) {
-        const updated = await updatePhase(editingId, payload);
-        toast.success(`Die Anmeldephase „${updated.name}“ ist gespeichert.`);
+    await panelSave.run(async (op) => {
+      try {
+        if (editingId === "new") {
+          const created = await createPhase(payload);
+          toast.success(`Die Anmeldephase „${created.name}“ ist angelegt.`);
+        } else if (editingId) {
+          const updated = await updatePhase(editingId, payload);
+          toast.success(`Die Anmeldephase „${updated.name}“ ist gespeichert.`);
+        }
+        if (op.isCurrent()) cancelEdit();
+        await loadAll();
+        refreshPhaseExpiryWarnings();
+      } catch (err) {
+        logger.error("phase_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Anmeldephase",
+          retry: () => void latestSave.current(),
+        });
       }
-      cancelEdit();
-      await loadAll();
-      refreshPhaseExpiryWarnings();
-    } catch (err) {
-      logger.error("phase_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Anmeldephase",
-        retry: () => void latestSave.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
   const latestSave = useRef(save);
@@ -675,8 +688,11 @@ export function PhasesEditor() {
     startRolloverByID,
   ]);
 
-  const handleRolloverSuccess = (result: RolloverResult) => {
-    setRolloverSource(null);
+  const handleRolloverSuccess = (
+    result: RolloverResult,
+    op: FormModalOperation,
+  ) => {
+    if (op.isCurrent()) setRolloverSource(null);
     const summaryBits: string[] = [];
     if (result.summary.rolled_count > 0) {
       summaryBits.push(`${result.summary.rolled_count} übernommen`);
@@ -700,7 +716,7 @@ export function PhasesEditor() {
   );
   const handleToggleActive = useCallback(
     async (phase: Phase) => {
-      setSaving(true);
+      setTogglingActive(true);
       try {
         const updated = await updatePhase(phase.id, {
           ...phaseToInput(phase),
@@ -722,7 +738,7 @@ export function PhasesEditor() {
           retry: () => void latestToggleActive.current(phase),
         });
       } finally {
-        setSaving(false);
+        setTogglingActive(false);
       }
     },
     [loadAll, refreshPhaseExpiryWarnings, showActionError, toast],
@@ -913,8 +929,8 @@ export function PhasesEditor() {
           Formular ist zu breit für eine aufgeklappte Tabellenzeile, und die
           Liste darf beim Bearbeiten nicht verschwinden. */}
           <SlideOver
-            isDismissDisabled={saving}
-            open={Boolean((editingId && draft) ?? rolloverSource)}
+            pending={panelSave}
+            open={panelOpen}
             onOpenChange={(open) => {
               if (open) return;
               if (rolloverSource) {
@@ -925,9 +941,7 @@ export function PhasesEditor() {
             }}
           >
             <SlideOverContent size="lg">
-              <SlideOverHeader
-                close={<SlideOverCloseButton disabled={saving} />}
-              >
+              <SlideOverHeader>
                 <SlideOverTitle>
                   {rolloverSource
                     ? "Anmeldephase übertragen"
@@ -940,6 +954,7 @@ export function PhasesEditor() {
                 {rolloverSource ? (
                   <RolloverForm
                     source={rolloverSource}
+                    pending={panelSave}
                     onCancel={() => setRolloverSource(null)}
                     onSuccess={handleRolloverSuccess}
                   />
@@ -972,8 +987,8 @@ export function PhasesEditor() {
                 <p>
                   Möchten Sie die Anmeldephase{" "}
                   <span className="font-medium">„{deleteTarget.name}“</span>{" "}
-                  wirklich endgültig löschen? Sie kann jederzeit gelöscht
-                  werden, während des Betreuungszeitraums, davor und danach.
+                  wirklich endgültig löschen? Sind noch Kinder gebucht, geht das
+                  erst, wenn ihre Buchungen beendet sind.
                 </p>
               }
               warningSlot={

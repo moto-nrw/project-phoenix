@@ -356,6 +356,8 @@ import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplates
 
 import type { traegerFinanceExportsTopic as authored_traegerFinanceExportsTopic } from "./articles/traeger-finance-exports";
 
+import type { traegerHolidayAllocationTopic as authored_traegerHolidayAllocationTopic } from "./articles/traeger-holiday-allocation";
+
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
 
 import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from "./articles/traeger-holiday-form";
@@ -975,6 +977,9 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       // mehreren Schulen, und nur am Computer, wo auch der Schulname steht.
       "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
+    troubleshootingDetails: [
+      "Das Anpassen der Startseite lädt nicht? Ihre Karten bleiben lesbar. Wählen Sie bei der Fehlermeldung `Wiederholen`.",
+    ],
     notes: [
       "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen. Ein Kind, das da ist, zählt immer bei `Anwesend`, auch mit Krankmeldung.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
@@ -1037,6 +1042,9 @@ export const bankDetailsTopic = function bankDetailsTopic(): HelpTopic {
     group: "elternarbeit",
     audience: "lead",
     icon: "Landmark",
+    image: "/help/screens/bankverbindungen-export.webp",
+    imageAlt:
+      "Das Fenster zum Exportieren der Bankverbindungen mit der Auswahl des Formats.",
     steps: [
       "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Bankverbindungen`.",
@@ -2861,6 +2869,9 @@ export const exportsTopic = function exportsTopic(): HelpTopic {
     group: "auswertung",
     audience: "lead",
     icon: "Download",
+    image: "/help/screens/export-dialog.webp",
+    imageAlt:
+      "Das Fenster zum Exportieren einer Kinderliste mit Titel, Spalten und Format.",
     steps: [
       "Öffnen Sie `Datenverwaltung` und danach `Exporte`.",
       "Suchen Sie die passende Liste und wählen Sie `Liste erstellen`.",
@@ -6050,8 +6061,10 @@ export const parentEnrollStatusTopic =
         "Haben Sie die Anmeldung unterschrieben, steht auf der Statusseite der Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie Ihren Anmeldenachweis herunter.",
       ],
       differences: [
-        "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab.",
-        "Steht dort `Anmeldung wurde verlängert`? Dann müssen Sie nichts tun.",
+        "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab. Stehen darüber Bedingungen? Lesen Sie sie und setzen Sie die Häkchen. Ohne Häkchen klappt die Bestätigung nicht.",
+        "Steht dort `Anmeldung wurde verlängert` mit Bedingungen zum Ankreuzen? Die Betreuung läuft weiter. Für den Vertrag im neuen Zeitraum setzen Sie die Häkchen und tippen auf `Vertragsbedingungen bestätigen`.",
+        "Steht dort `Zustimmung für den neuen Zeitraum`, solange die Schule noch prüft? Lesen Sie die Bedingungen und die PDF-Anhänge. Setzen Sie die Häkchen und bestätigen Sie. Die Schule entscheidet danach über die Anmeldung.",
+        "Steht dort `Anmeldung wurde verlängert` ohne Bedingungen? Dann müssen Sie nichts tun.",
         "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
         "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",
         "Steht dort `Zugang zur Eltern-App nicht möglich`? Dann wenden Sie sich an die OGS.",
@@ -6423,6 +6436,7 @@ export const parentHolidayRegistrationTopic =
       notes: [
         "Achtet der Träger auf den Ferienwunsch aus der OGS-Anmeldung, steht das über den Kindern. Mit Elternkonto sehen Sie beim Kind, was in der OGS-Anmeldung steht.",
         "Ein Elternkonto brauchen Sie nicht.",
+        "Vergibt der Träger die Plätze nach festen Regeln? Dann steht im Formular `Fragen für die Platzvergabe`. Beantworten Sie jede Frage mit Ja oder Nein. Das Büro kann nach einem Nachweis fragen. Nach dem Absenden steht bei jeder Woche `Platz offen`. Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
         "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
         "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
         "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
@@ -7912,6 +7926,9 @@ export const staffNoticesTopic = function staffNoticesTopic(): HelpTopic {
     group: "planung",
     audience: "lead",
     icon: "Megaphone",
+    image: "/help/screens/tagesinformationen-anlegen.webp",
+    imageAlt:
+      "Das Fenster für eine neue Tagesinformation mit Titel, Hinweis, Empfängern und Wochentagen.",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf.",
       "Öffnen Sie `Tagesinformationen`.",
@@ -10307,7 +10324,7 @@ export const traegerBillingRunTopic =
         "Vor der Freigabe steht `Schreiben brauchen die Debitorennummer`? Ihr eigener Zahlungstext nennt die Debitorennummer, und Rechnungen mit Betrag haben keine. Tragen Sie die Nummern vor dem Freigeben in den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` `Debitorennummer beim Bestätigen abfragen` an ist. Freigeben geht trotzdem, der Knopf heißt dann `Trotzdem freigeben`. Die Schreiben lassen sich danach nur ohne den Platzhalter erstellen.",
       ],
       troubleshootingDetails: [
-        "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
+        "Die Freigabe meldet, dass sich der Lauf geändert hat? Seit Ihrer Prüfung hat sich etwas an den Rechnungen geändert. Zum Beispiel ein Betrag, eine Debitorennummer, die Fälligkeit oder eine neue bestätigte Anmeldung. Das gilt auch, wenn Zahl und Summe gleich bleiben. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
         "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
         "Die Schreiben lassen sich nicht erstellen, weil eine Bankverbindung fehlt? Die Verwaltung trägt sie unter `Abrechnungsvorgaben` ein. Danach erstellen Sie die Schreiben.",
         "Die Schreiben lassen sich nicht erstellen, weil Rechnungen keine Debitorennummer haben? Ihr eigener Zahlungstext nennt die Debitorennummer. Nach der Freigabe lässt sich die Nummer nicht mehr eintragen. Löschen Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` den eigenen Zahlungstext oder nehmen Sie den Platzhalter {Debitorennummer} heraus. Danach erstellen Sie die Schreiben.",
@@ -10652,6 +10669,7 @@ export const traegerCareContractsTopic =
         "Ein Kind zeigt `Mail-Adresse gesperrt`? Mails an die Adresse der Eltern kamen nicht an. Die Schule prüft die Adresse beim Kind unter `Erziehungsberechtigte` und wählt `Sperre aufheben`. Danach entsteht der Vertrag von selbst.",
         "Ein Kind zeigt `Mails gestoppt`? Die Schule hat die Mails an diese Eltern gestoppt. Der Vertrag kommt erst, wenn die Schule beim Kind unter `Erziehungsberechtigte` `Mails wieder senden` wählt.",
         "Ein Kind zeigt `Zustimmung zum Vertrag fehlt` oder `Bedingungen nach der Anmeldung geändert`? Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt, oder Sie haben die Bedingungen danach geändert. Dann entsteht kein aktiver Vertrag. Stellen Sie die Schule auf `Später verschicken` und schicken Sie den Vertrag. Eine frühere Anmeldung wird nicht nachträglich verbindlich.",
+        "Ein Kind zeigt `Zustimmung zur neuen Phase fehlt`? Das Kind wurde für einen neuen Zeitraum wieder angemeldet. Eine frühere Zustimmung gilt dafür nicht. Die Eltern stimmen den Bedingungen auf der Statusseite ihrer Anmeldung zu. Das zählt nur, bevor die Schule annimmt. Danach stellen Sie die Schule auf `Später verschicken` und schicken den Vertrag.",
         "Nach Änderungen an den Bedingungen: Speichern Sie diese zuerst. Ersetzen Sie danach den Text im Anmeldeformular durch den neuen gespeicherten Text. Unverändertes Speichern lässt eine passende Zustimmung weiter gelten.",
         "Schulen mit `Bei der Annahme` erlauben keine manuellen Entwürfe. Bereits vorhandene Entwürfe werden nicht automatisch abgeschlossen. Prüfen und verwerfen Sie diese bei Bedarf.",
         "Ein Kind fehlt in `Verträge erstellen`? Die Schule hat die Anmeldung noch nicht angenommen, oder das Kind hat schon einen Vertrag.",
@@ -11382,7 +11400,19 @@ export const traegerDatevExportTopic =
             "Wählen Sie oben rechts `DATEV-Werte`. Die Einstellungen öffnen sich im Bereich `DATEV`.",
             "Tragen Sie `Beraternummer` und `Mandantennummer` ein.",
             "Wählen Sie die `Länge der Sachkonten`, den `Kontenrahmen` und den `Beginn des Wirtschaftsjahres`.",
-            "Tragen Sie das `Erlöskonto für Elternbeiträge` ein.",
+            "Tragen Sie das `Standard-Erlöskonto` ein. Darauf bucht moto alles ohne eigenes Konto.",
+          ],
+        },
+        {
+          title: "Erlöskonten und Kostenstellen festlegen",
+          description:
+            "Nur nötig, wenn Ihr Steuerbüro Leistungen, Schulen oder Angebote getrennt bucht.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `Konten und Kostenstellen`.",
+            "Unter `Erlöskonten` wählen Sie bei `Monatsbeiträge`, `Mensa` oder `Ferienbetreuung` `Ändern`. Tragen Sie das Konto ein und wählen Sie `Speichern`. Ein Angebot kann ein eigenes Konto haben.",
+            "Unter `Kostenstellen (KOST1)` wählen Sie bei der Schule `Neue Kostenstelle`. Wählen Sie den Tag bei `Gilt ab` und tragen Sie die `Kostenstelle` ein.",
+            "Eine `Zweite Kostenstelle (KOST2)` je Angebot tragen Sie nur ein, wenn Ihr Steuerbüro sie braucht.",
           ],
         },
         {
@@ -11416,17 +11446,23 @@ export const traegerDatevExportTopic =
         "Hat ein Lauf keine neuen Buchungen, lässt sich `DATEV` nicht wählen. Dann entsteht keine Datei und keine Nummer.",
         "Die DATEV-Datei und die Sollstellung zählen in derselben Reihe von Dateinummern.",
         "Eine Rechnung über 0 € steht nicht in der DATEV-Datei. Sie bewegt kein Geld.",
+        "Eine Rechnung hält Erlöskonto und Kostenstellen beim Ausstellen fest. Ändern Sie später ein Konto, gilt das nur für neue Rechnungen. Ein Storno bucht auf dieselben Konten wie seine Rechnung.",
+        "Hat eine Rechnung Positionen auf verschiedenen Konten, steht sie mit einer Zeile je Konto in der DATEV-Datei. Ermäßigungen verteilen sich anteilig auf diese Zeilen.",
+        "Eine Kostenstelle gilt ab ihrem Tag bis zur nächsten. Maßgeblich ist der erste Tag der Leistung, also der Monat oder die Ferienwoche.",
       ],
       differences: [
         "Über der Liste steht `Die DATEV-Datei fehlt noch`? Es fehlen DATEV-Werte. Der Hinweis nennt sie. Bis dahin lässt sich `DATEV` nicht wählen.",
         "Beim Lauf steht `Alles exportiert`? Alle Buchungen sind schon in einer DATEV-Datei. Darunter steht ihre Nummer.",
         "Sie können die DATEV-Werte nur ansehen? Ändern darf, wer im Träger-Büro das Recht für die Einstellungen hat.",
+        "Im `Exportprotokoll` steht `… mit Konten vom Exporttag`? Diese Rechnungen wurden ausgestellt, bevor moto die Konten festgehalten hat. Die Datei nutzt dann die Werte vom Tag des Exports.",
       ],
       troubleshootingDetails: [
         "Es erscheint `Keine DATEV-Datei für …` mit ungültigen Debitorennummern? Eine ausgestellte Rechnung behält ihre Debitorennummer. Bei Monatsbeiträgen tragen Sie bei der Familie die richtige Nummer ein. Stornieren Sie dann die genannte Rechnung und stellen Sie sie neu aus. Bei Ferienbeiträgen ohne Gutschrift stornieren Sie zuerst die Rechnung. Korrigieren Sie die Debitorennummer in der Ferienanmeldung. Stellen Sie dann die Rechnung neu aus. Waren Rechnung und Storno in keiner DATEV-Datei, heben sie sich auf. Danach lässt sich `DATEV` für den Lauf wieder wählen. Die neue Rechnung kommt mit ihrem Lauf in DATEV.",
         "Hat eine Ferienrechnung mit ungültiger Debitorennummer schon eine Gutschrift? Dann ist kein Storno möglich. Laden Sie die Sollstellung des Laufs für Ihr Steuerbüro herunter. Es kann die Buchungen daraus manuell in DATEV erfassen. Der DATEV-Download dieses Laufs bleibt gesperrt.",
         "Es erscheint `Keine neuen Buchungen für …`? Jemand hat die Buchungen gerade heruntergeladen. Die Datei steht im `Exportprotokoll`.",
         "Der Hinweis nennt einen Wert, der `passt nicht`? Prüfen Sie ihn mit Ihrem Steuerbüro. Das Erlöskonto darf höchstens so viele Ziffern haben wie Ihre Sachkonten.",
+        "Es erscheint `Erlöskonto ist länger als Ihre Sachkonten` oder `Kostenstelle fehlt`? Schon festgehaltene Konten und Kostenstellen bleiben unverändert. Auch ein Storno übernimmt diese Werte. Laden Sie dann die Sollstellung dieses Laufs herunter. Geben Sie die Datei und den Hinweis an Ihr Steuerbüro. Es kann die genannten Werte berichtigen und manuell in DATEV buchen. Der DATEV-Download dieses Laufs bleibt dann gesperrt. Korrigieren Sie unter `Konten und Kostenstellen` die Werte für neue Rechnungen.",
+        "Ist in den DATEV-Werten `Kostenstelle ist Pflicht` an? Dann braucht jede Schule eine Kostenstelle. Sonst gibt es keine DATEV-Datei.",
       ],
       related: [
         HELP_TOPICS.traegerFinanceExports,
@@ -11626,6 +11662,7 @@ export const traegerFinanceExportsTopic =
         "Für Ihr Steuerbüro gibt es beim Lauf auch `DATEV`. Wie das geht, steht unter „DATEV-Werte eintragen“.",
         "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
         "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
+        "Wählen Sie als Inhalt `Erlöskonto`, `Kostenstelle (KOST1)` oder `Zweite Kostenstelle (KOST2)`, hat die Datei eine Zeile je Konto einer Rechnung. Der `Betrag` ist dann der Teil der Rechnung auf diesem Konto. Die Konten legen Sie unter `Konten und Kostenstellen` fest.",
       ],
       differences: [
         "Der Reiter `Exporte` fehlt? Ihnen fehlt das Recht `Finanz-Export`.",
@@ -11645,6 +11682,96 @@ export const traegerFinanceExportsTopic =
       ],
     };
   } satisfies typeof authored_traegerFinanceExportsTopic;
+
+/**
+ * `/traeger/ferien/kriterien` und `/traeger/ferien/[id]/vergabe` (#4700):
+ * Plätze nach Kriterien vergeben. moto sortiert vor, das Büro entscheidet.
+ */
+export const traegerHolidayAllocationTopic =
+  function traegerHolidayAllocationTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayAllocation,
+      title: "Ferienplätze nach Kriterien vergeben",
+      question: "Wie vergebe ich Ferienplätze nach Kriterien?",
+      summary:
+        "Eltern beantworten Ihre Fragen mit Ja oder Nein. moto sortiert die Anmeldungen danach vor. Ihr Büro entscheidet über jeden Platz.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CheckSquare",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+        "Der Ferienzeitraum hat noch keine Anmeldung. Danach bleibt die Art der Platzvergabe so.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Kriterien festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Ferienbetreuung`.",
+            "Wählen Sie oben `Kriterien der Platzvergabe`.",
+            "Wählen Sie eine Vorlage oder `Eigenes Kriterium`.",
+            "Geben Sie den Namen und die `Frage an die Eltern` ein. Wählen Sie bei `Gilt für`, ob die Frage für die Familie oder für jedes Kind gilt.",
+            "Bringen Sie die Kriterien mit den Pfeilen in die richtige Reihenfolge. Das oberste Kriterium zählt am meisten.",
+            "Wählen Sie `Kriterien speichern`.",
+          ],
+        },
+        {
+          title: "Ferienzeitraum nach Kriterien vergeben",
+          steps: [
+            "Öffnen Sie den Ferienzeitraum im Reiter `Planung`.",
+            "Wählen Sie bei `Wie werden die Plätze vergeben?` die Karte `Nach Kriterien`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Plätze vergeben",
+          steps: [
+            "Öffnen Sie den Ferienzeitraum und wählen Sie den Reiter `Vergabe`.",
+            "Je Woche stehen die offenen Anmeldungen in der Reihenfolge des Vorschlags. Die Linie zeigt, wo die freien Plätze enden.",
+            "Wählen Sie bei einem Kind `Platz geben` oder `Auf die Warteliste`. Weicht das vom Vorschlag ab, schreiben Sie eine `Begründung`.",
+            "Oder wählen Sie bei der Woche `Vorschlag übernehmen`. Mit mehreren Wochen gibt es oben `Vorschlag für alle Wochen übernehmen`.",
+            "Bestätigen Sie im Fenster.",
+          ],
+        },
+        {
+          title: "Angaben einer Familie prüfen",
+          steps: [
+            "Öffnen Sie die Anmeldung.",
+            "Wählen Sie bei `Angaben für die Vergabe` den Knopf `Prüfen`.",
+            "Wählen Sie je Kriterium `Trifft zu`, `Trifft nicht zu` oder `Nicht geprüft`.",
+            "Wählen Sie `Prüfung speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Die Eltern bekommen eine E-Mail mit dem Platz oder der Warteliste. Danach rücken Kinder von der Warteliste automatisch nach, wenn ein Platz frei wird. Die Warteliste ist nach Ihren Kriterien sortiert, dann nach Eingang.",
+      notes: [
+        "moto schlägt nur vor. Jede Entscheidung trifft Ihr Büro. Unter `Verlauf der Entscheidungen` steht jede Entscheidung mit Vorschlag und Begründung.",
+        "Bei gleichen Kriterien zählt, wer sich zuerst angemeldet hat.",
+        "Sobald Antworten vorliegen, bleibt `Gilt für` beim Kriterium fest.",
+        "Solange eine Woche offene Entscheidungen hat, rückt dort niemand nach. Nach der letzten Entscheidung können ältere Wartelisteneinträge nachrücken. Gerade auf die Warteliste gesetzte Kinder bleiben zunächst dort.",
+        "Eine Prüfung des Büros zählt vor der Angabe der Eltern. Sie ändert den Vorschlag für offene Plätze.",
+        "Fragen Sie nur, was Sie für die Vergabe brauchen. Fragen Sie nicht nach Gesundheit oder Förderbedarf.",
+        "Ein Kind mit offenem Platz zahlt nichts. Es steht auch nicht auf der Teilnehmerliste der OGS.",
+        "Eine Anmeldung mit offenem Platz können Sie erst bestätigen, wenn das Büro entschieden hat.",
+      ],
+      differences: [
+        "Bei einem Kriterium steht `ungeklärt`? Die Eltern haben dazu nichts gesagt, zum Beispiel weil das Kriterium später dazukam. Es zählt erst, wenn Ihr Büro es geprüft hat.",
+        "Der Reiter `Vergabe` fehlt? Der Ferienzeitraum vergibt die Plätze nach Eingang.",
+        "Die Karten bei `Wie werden die Plätze vergeben?` lassen sich nicht wählen? Es gibt schon Anmeldungen.",
+      ],
+      troubleshootingDetails: [
+        "Es erscheint, dass sich die Liste geändert hat? Jemand hat gerade entschieden oder eine Angabe geprüft. moto lädt die Liste neu. Prüfen Sie Ihre Entscheidung noch einmal.",
+        "Kein Platz für die gewünschten Tage frei? Erhöhen Sie im Reiter `Plätze` die Zahl der Plätze. Bei einzelnen Tagen prüft moto nur die gebuchten Tage.",
+        "Bei vielen Anmeldungen übernimmt moto den Vorschlag schrittweise. Bei einem Fehler bleiben gespeicherte Entscheidungen erhalten. Prüfen Sie die offenen Anmeldungen und versuchen Sie es erneut.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPlaces,
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayAllocationTopic;
 
 /** `/traeger/einstellungen/abrechnung` (#4664, #5627, #5685): Regeln des Ferienbeitrags und Kostenträger. */
 export const traegerHolidayContributionTopic =
@@ -11884,6 +12011,7 @@ export const traegerHolidayPeriodTopic =
             "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
             "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
             "Soll ein Kind nur eine bestimmte Zahl an Tagen kommen? Tragen Sie die Zahl bei `Höchstens Tage je Kind` ein, zum Beispiel 5. Ohne Grenze lassen Sie das Feld leer.",
+            "Wählen Sie bei `Wie werden die Plätze vergeben?` die Karte `Nach Eingang` oder `Nach Kriterien`. Nach Eingang bekommt zuerst einen Platz, wer sich zuerst anmeldet. Nach Kriterien entscheidet Ihr Büro.",
           ],
         },
         {
@@ -11921,6 +12049,7 @@ export const traegerHolidayPeriodTopic =
         "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Abrechnungsvorgaben` fest.",
       ],
       differences: [
+        "`Nach Eingang` und `Nach Kriterien` lassen sich nicht wählen? Es gibt schon Anmeldungen. Die Platzvergabe bleibt dann so.",
         "`Ganze Woche` und `Einzelne Tage` lassen sich nicht wählen? Für die Woche gibt es schon Anmeldungen. Die Buchungsart bleibt dann so. Bei einzelnen Tagen bleiben auch die Tage der Woche.",
         "Sie sehen in der Navigation kein `Ferienbetreuung`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
       ],
@@ -11928,6 +12057,7 @@ export const traegerHolidayPeriodTopic =
         "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell, das nicht archiviert ist.",
         "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
         "Die Woche lässt sich nicht speichern, weil keine Betreuung ist? An einem Feiertag oder Schließtag der Schule kann niemand buchen. Lassen Sie diesen Tag aus der Woche.",
+        "Eine Woche lässt sich nicht verlängern? Ein Kind ist schon für die ganze Woche angemeldet. Mit mehr Tagen hätte es mehr als `Höchstens Tage je Kind`. Lassen Sie die Woche so oder erhöhen Sie die Zahl.",
       ],
       related: [
         HELP_TOPICS.traegerLogin,
@@ -11935,6 +12065,7 @@ export const traegerHolidayPeriodTopic =
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerClosingDays,
         HELP_TOPICS.traegerHolidayWish,
+        HELP_TOPICS.traegerHolidayAllocation,
       ],
     };
   } satisfies typeof authored_traegerHolidayPeriodTopic;
@@ -12000,6 +12131,7 @@ export const traegerHolidayPlacesTopic =
         "Ohne Grenze bekommt jedes angemeldete Kind einen Platz. So ist jede neue Woche eingestellt.",
       ],
       differences: [
+        "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann bekommt beim Anmelden niemand sofort einen Platz. Bei der Woche steht dann zum Beispiel `3 offen`. Die Plätze vergibt Ihr Büro im Reiter `Vergabe`. Danach gelten Warteliste und Nachrücken wie hier beschrieben.",
         "Bei einer Woche steht `Voll`? Alle Plätze sind vergeben. Neue Anmeldungen für diese Woche kommen auf die Warteliste.",
         "Bei einer Woche steht `2 Tage voll` oder `Alle Tage voll`? Die Woche wird tageweise gebucht. An diesen Tagen sind alle Plätze vergeben.",
         "Bei einer Woche steht `Ohne Grenze`? Für die Woche gibt es keine Grenze.",
@@ -12012,6 +12144,7 @@ export const traegerHolidayPlacesTopic =
         HELP_TOPICS.traegerHolidayPeriod,
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerHolidayWish,
+        HELP_TOPICS.traegerHolidayAllocation,
       ],
     };
   } satisfies typeof authored_traegerHolidayPlacesTopic;
@@ -12134,6 +12267,7 @@ export const traegerHolidayRegistrationReviewTopic =
       notes: [
         "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
+        "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann steht bei einer Woche zuerst `Platz offen`. Bestätigen geht erst, wenn Ihr Büro im Reiter `Vergabe` entschieden hat. Unter `Angaben für die Vergabe` sehen Sie die Antworten der Eltern und prüfen sie mit `Prüfen`.",
         "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
@@ -12171,6 +12305,7 @@ export const traegerHolidayRegistrationReviewTopic =
         HELP_TOPICS.traegerHolidayRegistration,
         HELP_TOPICS.traegerHolidayPeriod,
         HELP_TOPICS.traegerHolidayPlaces,
+        HELP_TOPICS.traegerHolidayAllocation,
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerHolidayWish,
       ],

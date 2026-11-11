@@ -726,3 +726,55 @@ describe("booking of days (#4701)", () => {
     ).toBe("dayLimit");
   });
 });
+
+describe("criteria of the allocation (#4700)", () => {
+  const byCriteria: HolidayRegistrationOffer = {
+    ...offer,
+    allocationMode: "criteria",
+    criteria: [
+      { id: "1", question: "Sind beide Eltern berufstätig?", scope: "family" },
+      {
+        id: "2",
+        question: "Ist ein Geschwisterkind angemeldet?",
+        scope: "child",
+      },
+    ],
+  };
+
+  it("asks every family and every child criterion as a yes/no question", () => {
+    expect(validateRegistration(complete(), byCriteria)).toEqual({
+      "criteria.1": "yesNo",
+      "children.0.criteria.2": "yesNo",
+    });
+    const answered: RegistrationDraft = {
+      ...complete(),
+      criteria: { "1": false },
+      children: complete().children.map((child) => ({
+        ...child,
+        criteria: { "2": true },
+      })),
+    };
+    expect(validateRegistration(answered, byCriteria)).toEqual({});
+  });
+
+  it("sends the answers per family and per child, a stale criterion left out", () => {
+    const draft: RegistrationDraft = {
+      ...complete(),
+      criteria: { "1": true, "9": true },
+      children: complete().children.map((child) => ({
+        ...child,
+        criteria: { "2": false },
+      })),
+    };
+    const payload = payloadFromDraft(draft, byCriteria, "captcha");
+    expect(payload.criteria).toEqual({ "1": true });
+    expect(payload.children[0]?.criteria).toEqual({ "2": false });
+  });
+
+  it("asks and sends nothing for a period by arrival", () => {
+    expect(validateRegistration(complete(), offer)).toEqual({});
+    const payload = payloadFromDraft(complete(), offer, "captcha");
+    expect(payload).not.toHaveProperty("criteria");
+    expect(payload.children[0]).not.toHaveProperty("criteria");
+  });
+});

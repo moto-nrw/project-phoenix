@@ -18,7 +18,10 @@ import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Loading } from "~/components/ui/loading";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import type { CareRunStartInput } from "~/lib/traeger-care-billing-api";
+import type {
+  CareRun,
+  CareRunStartInput,
+} from "~/lib/traeger-care-billing-api";
 import {
   type CareRunSchool,
   fetchCareRunSchools,
@@ -46,12 +49,16 @@ export function CareRunStartModal({
   initialMonth,
   onClose,
   onStart,
+  onStarted,
 }: Readonly<{
   isOpen: boolean;
   months: readonly MonthOption[];
   initialMonth: string;
   onClose: () => void;
-  onStart: (input: CareRunStartInput) => Promise<void>;
+  /** Starts the run; may refresh data, but must not close or navigate. */
+  onStart: (input: CareRunStartInput) => Promise<CareRun>;
+  /** Closes and opens the run; called only while this dialog is current. */
+  onStarted: (run: CareRun) => void;
 }>) {
   const [month, setMonth] = useState(initialMonth);
   const [schools, setSchools] = useState<CareRunSchool[] | null>(null);
@@ -124,8 +131,9 @@ export function CareRunStartModal({
       return;
     }
     await save.run(async (op) => {
+      let run: CareRun;
       try {
-        await onStart({
+        run = await onStart({
           billingMonth: month,
           schoolIds: selected,
           invoiceDate: invoiceDate || null,
@@ -134,9 +142,13 @@ export function CareRunStartModal({
         logger.error("care_run_start_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object: "der Monatslauf" });
+        return;
       }
+      // A late answer must not close or navigate away from a newer dialog.
+      if (op.isCurrent()) onStarted(run);
     });
   };
 

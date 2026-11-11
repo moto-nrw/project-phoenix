@@ -1137,6 +1137,19 @@ describe.concurrent("ui-kit/no-raw-z-index", () => {
     expect(result.output).toContain("ui-kit(no-raw-z-index)");
   });
 
+  it("reports a plain Tailwind level inside the kit (#6574)", async () => {
+    const result = await lintSource(
+      `function Probe() {
+        return <div className="sticky top-0 md:z-20" />;
+      }
+      void Probe;`,
+      "src/components/ui/probe.tsx",
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-raw-z-index)");
+  });
+
   it("accepts Z_LAYER itself and leaves files outside the kit alone", async () => {
     const [layers, outside] = await Promise.all([
       lintSource(
@@ -2248,7 +2261,7 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
   it("follows aliased link imports", async () => {
     const result = await lintSource(
       `import AppLink from "next/link";
-      import { NavLink as SidebarLink } from "~/components/ui/nav-link";
+      import SidebarLink from "~/components/ui/navigation-link";
       import ProgressLink from "~/components/ui/navigation-link";
       function Probe() {
         return <>
@@ -2568,7 +2581,7 @@ describe("ui-kit/no-grey-button-fill", () => {
 
   it("accepts state tints, tracks, switches and navigation rows", async () => {
     const result = await lint(
-      `import { NavLink as SideLink } from "~/components/ui/nav-link";
+      `import SideLink from "~/components/ui/navigation-link";
       function Probe({ on }: { on: boolean }) {
         return (
           <>
@@ -3762,6 +3775,149 @@ describe.concurrent("ui-kit/form-modal-pending", () => {
     expect(kit.output).not.toMatch(RULE);
     expect(test.output).not.toMatch(RULE);
     expect(kit.status).toBe(0);
+  });
+});
+
+describe.concurrent("ui-kit/slide-over-pending", () => {
+  const RULE = /ui-kit\(slide-over-pending\)/g;
+  const PATH = "src/components/probe/probe-panel.tsx";
+
+  it.each([
+    ["without pending", ""],
+    ["with pending={undefined}", " pending={undefined}"],
+    ["with pending={null}", " pending={null}"],
+  ])("reports a saving SlideOver %s", async (_label, attribute) => {
+    const result = await lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        const save = async () => { await fetch("/x"); onClose(); };
+        return (
+          <SlideOver open onOpenChange={(o) => !o && onClose()}${attribute}>
+            <SlideOverContent><button type="button" onClick={() => void save()}>Speichern</button></SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it("accepts a SlideOver that passes the pending contract", async () => {
+    const result = await lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
+      export function Probe({ open }: { open: boolean }) {
+        const save = useFormModalPending(open);
+        return (
+          <SlideOver open={open} pending={save}>
+            <SlideOverContent><p>Inhalt</p></SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei ohne pending fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("accepts a panel without a save that names its reason", async () => {
+    const result = await lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      export function Probe({ open }: { open: boolean }) {
+        return (
+          // oxlint-disable-next-line ui-kit/slide-over-pending -- zeigt nur an, speichert nichts.
+          <SlideOver open={open}>
+            <SlideOverContent><p>Inhalt</p></SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = `import { SlideOver, SlideOverContent } from "./slide-over";
+      export const Probe = () => (
+        <SlideOver open><SlideOverContent><p /></SlideOverContent></SlideOver>
+      );`;
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+    expect(kit.status).toBe(0);
+  });
+});
+
+describe.concurrent("ui-kit/confirmation-dismiss-lock", () => {
+  const RULE = /ui-kit\(confirmation-dismiss-lock\)/g;
+  const PATH = "src/components/probe/probe-confirm.tsx";
+  const probe = (attribute: string) =>
+    `import { ConfirmationModal } from "~/components/ui/modal";
+      export function Probe({ busy, why }: { busy: boolean; why: string }) {
+        return (
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Freigeben?" isConfirmLoading={busy}${attribute}>
+            <p>{why}</p>
+          </ConfirmationModal>
+        );
+      }`;
+
+  it.each([
+    ["as a bare flag", " dismissibleWhileLoading"],
+    ["with an empty reason", ' dismissibleWhileLoading=""'],
+    ["with a blank reason", ' dismissibleWhileLoading={"  "}'],
+    ["with a computed reason", " dismissibleWhileLoading={why}"],
+    ["with a boolean", " dismissibleWhileLoading={true}"],
+    ["with an interpolated template", " dismissibleWhileLoading={`${why}`}"],
+  ])("reports an opt-out %s", async (_label, attribute) => {
+    const result = await lintSource(probe(attribute), PATH);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it.each([
+    ["without an opt-out (the default lock)", ""],
+    [
+      "with a written reason",
+      ' dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."',
+    ],
+    [
+      "with a reason in braces",
+      ' dismissibleWhileLoading={"Abbrechen verwirft nur die Auswahl."}',
+    ],
+    [
+      "with a reason as a plain template",
+      " dismissibleWhileLoading={`Lädt nur, schreibt nichts.`}",
+    ],
+  ])("accepts a ConfirmationModal %s", async (_label, attribute) => {
+    const result = await lintSource(probe(attribute), PATH);
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei mit leerem Opt-out fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = probe(" dismissibleWhileLoading");
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
   });
 });
 

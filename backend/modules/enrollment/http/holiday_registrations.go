@@ -104,10 +104,14 @@ type HolidayRegistrationOfferResponse struct {
 	Weeks                []HolidayRegistrationWeek `json:"weeks"`
 	// MaxDaysPerChild bounds the care days per child, null for no bound
 	// (#4701).
-	MaxDaysPerChild *int                        `json:"max_days_per_child"`
-	Schools         []HolidayRegistrationSchool `json:"schools"`
-	CaptchaSiteKey  string                      `json:"captcha_site_key"`
-	Form            HolidayRegistrationForm     `json:"form"`
+	MaxDaysPerChild *int `json:"max_days_per_child"`
+	// AllocationMode is "arrival" or "criteria"; Criteria are the questions
+	// of the active criteria the form asks by criteria (#4700).
+	AllocationMode string                                `json:"allocation_mode"`
+	Criteria       []capability.HolidayCriterionQuestion `json:"criteria"`
+	Schools        []HolidayRegistrationSchool           `json:"schools"`
+	CaptchaSiteKey string                                `json:"captcha_site_key"`
+	Form           HolidayRegistrationForm               `json:"form"`
 	// ConsentTexts are the German texts of the fixed declarations the form
 	// shows; they bind, a translation only helps reading (#5626).
 	ConsentTexts capability.HolidayConsentTexts `json:"consent_texts"`
@@ -160,6 +164,8 @@ type holidayChildRequest struct {
 	// WishProof is the sealed statement of the holiday care wish from the
 	// prefill of a parent with an account (#4703).
 	WishProof string `json:"wish_proof"`
+	// Criteria are the answers to the child criteria by criterion ID (#4700).
+	Criteria map[int64]bool `json:"criteria"`
 }
 
 type holidayContactRequest struct {
@@ -197,6 +203,9 @@ type HolidayRegistrationRequest struct {
 	CustomData        capability.HolidayAnswers `json:"custom_data"`
 	LegalAcceptances  map[string]bool           `json:"legal_acceptances"`
 	ConsentVersion    int                       `json:"consent_version"`
+	// Criteria are the answers to the family criteria by criterion ID
+	// (#4700).
+	Criteria map[int64]bool `json:"criteria"`
 }
 
 // Bind accepts the body; the Owner validates the registration as a whole.
@@ -214,6 +223,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 			HomeSchoolID: child.HomeSchoolID, GuestSchoolName: child.GuestSchoolName, Allergies: child.Allergies,
 			Medication: child.Medication, HealthNotes: child.HealthNotes, Bookings: bookings, CustomData: child.CustomData,
 			WishProof: child.WishProof,
+			Criteria:  child.Criteria,
 		}
 	}
 	var secondGuardian *capability.HolidayGuardianInput
@@ -237,6 +247,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		CustodyConfirmed: req.CustodyConfirmed, DeclarationName: req.DeclarationName,
 		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, BenefitsProofTokens: req.BenefitsProofs,
 		FormVersion: req.FormVersion, CustomData: req.CustomData, ConsentVersion: req.ConsentVersion,
+		Criteria: req.Criteria,
 	}
 }
 
@@ -323,6 +334,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		TraegerName: link.Traeger.Name, Name: offer.Name, RegistrationOpensOn: offer.RegistrationOpensOn,
 		RegistrationClosesOn: offer.RegistrationClosesOn, Binding: offer.Binding, Notes: offer.Notes, Open: offer.Open,
 		Weeks: weeks, Schools: schools, CaptchaSiteKey: siteKey, MaxDaysPerChild: offer.MaxDaysPerChild,
+		AllocationMode: offer.AllocationMode, Criteria: offer.Criteria,
 		Form: HolidayRegistrationForm{
 			Version: offer.Form.Version, Fields: holidayFormFields(offer.Form.Fields),
 			LegalBlocks: publicHolidayLegalBlocks(offer.Form.LegalBlocks), AddressRequirement: offer.Form.AddressRequirement,
