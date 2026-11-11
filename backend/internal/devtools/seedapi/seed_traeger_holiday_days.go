@@ -125,6 +125,13 @@ func seedHolidayDayRegistrations(rt *Runtime, auth AuthRef, token string, period
 	return seedHolidayOwnChild(rt, weekID, families[0].child, families[0].last)
 }
 
+// seedHolidayGroupName is the group the hosting school picks for its
+// holiday weeks.
+const seedHolidayGroupName = "Feriengruppe"
+
+// seedHolidayGroupKey keeps the holiday group for the later holiday steps.
+const seedHolidayGroupKey = "traeger.holiday_group"
+
 // seedHolidayOwnChild makes the confirmed child of the registration by days
 // a student of the hosting school and picks the holiday group for its week
 // (#6678): the registration names the hosting school as the home school, so

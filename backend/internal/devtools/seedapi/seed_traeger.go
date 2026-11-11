@@ -197,13 +197,6 @@ func seedHolidayParticipantList(rt *Runtime) (int64, error) {
 	return envelope.Data[0].ID, nil
 }
 
-// seedHolidayGroupName is the group the hosting school picks for its
-// holiday weeks.
-const seedHolidayGroupName = "Feriengruppe"
-
-// seedHolidayGroupKey keeps the holiday group for the later holiday steps.
-const seedHolidayGroupKey = "traeger.holiday_group"
-
 // seedHolidayGuests creates the group "Feriengruppe" at the hosting school
 // and picks it for the first hosted week (#4666): the confirmed holiday
 // guest of the siblings' registration joins it with its booked care, its
