@@ -20,11 +20,16 @@ func parentFlowsProject(t *testing.T) string {
 
 func checkParentFlows(t *testing.T, project string, overlay map[string][]byte) []Violation {
 	t.Helper()
-	violations, err := checkParentChildWriteFlows(project, parentChildWriteModule, overlay)
+	cgo := false
+	patterns := make([]string, 0, len(flowPackages))
+	for _, path := range flowPackages {
+		patterns = append(patterns, "./"+path)
+	}
+	loaded, err := loadTypedPatterns(project, Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgo}, overlay, patterns...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return violations
+	return parentChildWriteGuardViolations(project, parentChildWriteModule, loaded)
 }
 
 func TestParentChildWritesRunBehindTheGuard(t *testing.T) {

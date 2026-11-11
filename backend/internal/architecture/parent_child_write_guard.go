@@ -1,7 +1,6 @@
 package architecture
 
 import (
-	"fmt"
 	"go/ast"
 	"go/types"
 	"sort"
@@ -73,32 +72,6 @@ func (g *flowGraph) rootViolations(root *types.Func, reached map[string]bool) []
 		violations = append(violations, parentChildWriteViolation("parent-child-writes.unguarded", name, strings.Join(sinks, ","), g.location(root)))
 	}
 	return violations
-}
-
-// checkParentChildWriteFlows loads the two flow packages of project, with
-// overlay replacing or adding files, and applies the rule; the rule's tests
-// use it to check the real tree and its mutations.
-func checkParentChildWriteFlows(project, modulePath string, overlay map[string][]byte) ([]Violation, error) {
-	cgo := false
-	patterns := make([]string, 0, len(flowPackages))
-	for _, path := range flowPackages {
-		patterns = append(patterns, "./"+path)
-	}
-	loaded, err := packages.Load(&packages.Config{
-		Mode:    packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
-		Dir:     project,
-		Env:     fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgo}),
-		Overlay: overlay,
-	}, patterns...)
-	if err != nil {
-		return nil, err
-	}
-	for _, pkg := range loaded {
-		if len(pkg.Errors) > 0 {
-			return nil, fmt.Errorf("load %s: %v", pkg.PkgPath, pkg.Errors[0])
-		}
-	}
-	return parentChildWriteGuardViolations(project, modulePath, loaded), nil
 }
 
 func parentChildWriteViolation(rule, source, target string, locations []Location) Violation {
