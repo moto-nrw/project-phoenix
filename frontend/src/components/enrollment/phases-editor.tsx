@@ -54,7 +54,8 @@ import { Alert } from "~/components/ui/alert";
 import { useSession } from "next-auth/react";
 import { hasPermission } from "~/lib/auth-utils";
 import { CareExitModal } from "~/components/students/care-exit-modal";
-import { PhaseCareBeyondEndDialog } from "~/components/enrollment/phase-care-beyond-end-dialog";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { FramedList } from "~/components/ui/framed-list";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
@@ -150,6 +151,9 @@ const CARE_SELECTION_LABELS: Record<CareOfferingSelectionMode, string> = {
   at_least_one: "Mindestens ein Angebot",
   exactly_one: "Genau ein Angebot",
 };
+
+// Entspricht careplan.MaxCareExitBatchSize: jede Gruppe wird einzeln bestätigt.
+const CARE_EXIT_BATCH_SIZE = 500;
 
 const AUDIENCE_LABELS: Record<PhaseAudience, string> = {
   open: "Offen für alle",
@@ -303,7 +307,7 @@ export function PhasesEditor() {
   const rolloverRequestRef = useRef<string | null>(null);
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
   // Kinder, deren Betreuung nach dem Kürzen der Phase länger läuft (#6598).
-  // Erst der Hinweis, dann auf Wunsch „Betreuung beenden“ für alle.
+  // Erst der Hinweis, dann auf Wunsch einzeln bestätigte Gruppen bis 500 Kinder.
   const [careBeyondEnd, setCareBeyondEnd] = useState<{
     phaseName: string;
     phaseEnd: string;
@@ -904,6 +908,57 @@ export function PhasesEditor() {
     ],
   );
 
+  const careBeyondEndContent = careBeyondEnd ? (
+    <div className="space-y-4">
+      <p className="text-sm leading-6 text-gray-600">
+        {`Die Anmeldephase „${careBeyondEnd.phaseName}“ endet jetzt am ${formatDate(careBeyondEnd.phaseEnd)}. Bei ${careBeyondEnd.students.length === 1 ? "1 Kind" : `${careBeyondEnd.students.length} Kindern`} ist die Betreuung länger eingetragen. moto beendet sie nicht von selbst. Diese Liste sehen Sie nur jetzt.`}
+      </p>
+      <FramedList maxHeight="md">
+        {careBeyondEnd.students.map((child) => (
+          <li
+            key={child.studentId}
+            className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+          >
+            <span className="min-w-0">
+              <span className="block font-medium wrap-anywhere text-gray-900">
+                {`${child.firstName} ${child.lastName}`}
+              </span>
+              {child.schoolClass ? (
+                <span className="block text-xs text-gray-500">
+                  {schoolClassLabel(child.schoolClass)}
+                </span>
+              ) : null}
+            </span>
+            <span className="text-gray-700 sm:shrink-0 sm:text-right">
+              {`Betreuung bis ${formatDate(child.careEnd)}`}
+            </span>
+          </li>
+        ))}
+      </FramedList>
+      {canEndCare ? (
+        <>
+          <p className="text-sm leading-6 text-gray-600">
+            {careBeyondEnd.phaseEnd < berlinTodayISO()
+              ? "Soll die Betreuung mit der Phase enden? Das neue Ende ist schon vorbei. Die Betreuung kann frühestens heute enden."
+              : `Soll die Betreuung mit der Phase enden? Dann beenden Sie sie zum ${formatDate(careBeyondEnd.phaseEnd)}.`}
+          </p>
+          {careBeyondEnd.students.length > CARE_EXIT_BATCH_SIZE ? (
+            <p className="text-sm leading-6 text-gray-600">
+              Sie beenden zuerst die Betreuung der ersten 500 Kinder. Danach
+              bleiben die übrigen Kinder in dieser Liste.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <Alert
+          type="warning"
+          announce="off"
+          message="Die Betreuung beenden darf nur, wer Kinder verwalten darf. Notieren Sie die Namen und geben Sie sie an diese Person weiter."
+        />
+      )}
+    </div>
+  ) : null;
+
   return (
     <TenantPage
       title="Anmeldephasen"
@@ -1005,26 +1060,57 @@ export function PhasesEditor() {
           </SlideOver>
 
           {careBeyondEnd && !careExitOpen ? (
-            <PhaseCareBeyondEndDialog
-              phaseName={careBeyondEnd.phaseName}
-              phaseEnd={careBeyondEnd.phaseEnd}
-              students={careBeyondEnd.students}
-              canEndCare={canEndCare}
-              onEndCare={() => setCareExitOpen(true)}
-              onClose={() => setCareBeyondEnd(null)}
-            />
+            canEndCare ? (
+              <ConfirmationModal
+                isOpen
+                mobileSheet
+                title="Betreuung läuft länger als die Phase"
+                confirmText="Betreuung beenden"
+                cancelText="Schließen"
+                onConfirm={() => setCareExitOpen(true)}
+                onClose={() => setCareBeyondEnd(null)}
+              >
+                {careBeyondEndContent}
+              </ConfirmationModal>
+            ) : (
+              <Modal
+                isOpen
+                mobileSheet
+                title="Betreuung läuft länger als die Phase"
+                onClose={() => setCareBeyondEnd(null)}
+                footer={
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => setCareBeyondEnd(null)}
+                  >
+                    Schließen
+                  </Button>
+                }
+              >
+                {careBeyondEndContent}
+              </Modal>
+            )
           ) : null}
           {careBeyondEnd && careExitOpen ? (
             <CareExitModal
               isOpen
-              studentIds={careBeyondEnd.students.map(
-                (child) => child.studentId,
-              )}
+              studentIds={careBeyondEnd.students
+                .slice(0, CARE_EXIT_BATCH_SIZE)
+                .map((child) => child.studentId)}
               suggestedLastCareDay={careBeyondEnd.phaseEnd}
               onClose={() => setCareExitOpen(false)}
               onFinished={() => {
                 setCareExitOpen(false);
-                setCareBeyondEnd(null);
+                setCareBeyondEnd((current) => {
+                  if (!current) return null;
+                  const remaining =
+                    current.students.slice(CARE_EXIT_BATCH_SIZE);
+                  return remaining.length > 0
+                    ? { ...current, students: remaining }
+                    : null;
+                });
                 toast.success("Das Ende der Betreuung ist eingetragen.");
               }}
             />
