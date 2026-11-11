@@ -1805,6 +1805,26 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "reason": "Read-only account lookup by recipient email for the holiday acceptance renderer (#6672). Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. The root maps Identity's account-not-found error to no eligible account.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "reason": "Read-only guardian-role and active-school lookup for the holiday acceptance renderer (#6672), using the parents login predicate. Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. Lookup errors propagate so delivery retries.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindGuardianTenant",
+      "target_owner": "identity-access"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
       "classification": "platform",
@@ -2316,6 +2336,16 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerInts: reads the days the Träger keeps its holiday registrations (#6691).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",

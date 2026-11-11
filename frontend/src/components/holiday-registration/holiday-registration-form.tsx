@@ -138,7 +138,13 @@ export function HolidayRegistrationForm({
       setStep("form");
       setCaptchaToken("");
       if (err instanceof ApiError && err.code === FORM_CHANGED) {
-        setDraft((current) => ({ ...current, legalAcceptances: {} }));
+        // The privacy text may name another retention now (#6691): the
+        // parent agrees to the text the reloaded form shows, not the old one.
+        setDraft((current) => ({
+          ...current,
+          legalAcceptances: {},
+          privacyConsent: false,
+        }));
         await onFormChanged?.();
       } else if (
         err instanceof ApiError &&

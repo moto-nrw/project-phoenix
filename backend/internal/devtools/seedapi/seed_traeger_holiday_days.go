@@ -100,7 +100,7 @@ func seedHolidayDayRegistrations(rt *Runtime, auth AuthRef, token string, period
 			}},
 			"emergency_contacts": []map[string]any{{"name": "Oma " + family.last, "phone": "05402 000010", "relationship": "Großmutter"}},
 			"privacy_consent":    true, "binding_confirmed": true, "custody_confirmed": true,
-			"declaration_name": family.first + " " + family.last, "consent_version": 3, "captcha_token": seedTurnstileTestToken,
+			"declaration_name": family.first + " " + family.last, "consent_version": seedHolidayConsentVersion, "retention_days": seedHolidayRetentionDays, "captcha_token": seedTurnstileTestToken,
 		})
 		var refused *APIError
 		if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {

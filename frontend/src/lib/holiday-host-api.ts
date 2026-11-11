@@ -17,6 +17,19 @@ export interface HostedHolidayWeek {
   readonly startsOn: string;
   readonly endsOn: string;
   readonly participants: number;
+  /** „week“: ganze Woche gebucht; „day“: einzelne Tage (#4701). */
+  readonly bookingUnit: "week" | "day";
+  /**
+   * Betreuungszeit der Woche als „HH:MM“: frühester Beginn und spätestes
+   * Ende ihrer Zeitmodelle; leer ohne Zeitmodell.
+   */
+  readonly careStartsAt: string;
+  readonly careEndsAt: string;
+  /**
+   * Bestätigte Kinder je gebuchtem Tag einer tageweise gebuchten Woche,
+   * „YYYY-MM-DD“ → Anzahl. Leer bei einer ganzen Woche.
+   */
+  readonly dayParticipants: ReadonlyMap<string, number>;
   /** Gruppe der Feriengäste dieser Woche (#4666), `null` vor der Wahl. */
   readonly guestGroupId: string | null;
   /** Feriengäste in dieser Gruppe, deren Zugriff nicht vorzeitig endete. */
@@ -138,6 +151,10 @@ interface BackendWeek {
   starts_on: string;
   ends_on: string;
   participants: number;
+  booking_unit?: string;
+  care_starts_at?: string;
+  care_ends_at?: string;
+  day_participants?: { date: string; participants: number }[] | null;
   guest_group_id?: number | string | null;
   guests?: number;
 }
@@ -185,6 +202,12 @@ function mapWeek(week: BackendWeek): HostedHolidayWeek {
     startsOn: week.starts_on,
     endsOn: week.ends_on,
     participants: week.participants,
+    bookingUnit: week.booking_unit === "day" ? "day" : "week",
+    careStartsAt: week.care_starts_at ?? "",
+    careEndsAt: week.care_ends_at ?? "",
+    dayParticipants: new Map(
+      (week.day_participants ?? []).map((day) => [day.date, day.participants]),
+    ),
     guestGroupId: optionalId(week.guest_group_id ?? null),
     guests: week.guests ?? 0,
   };

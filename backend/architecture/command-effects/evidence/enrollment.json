@@ -1329,6 +1329,22 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "binding_digest": "1c8c3bd37faa5530dce6889d6a75a68c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "binding_digest": "4ade80137b47a684dc12ac6f3d63a76c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindGuardianTenant",
+      "target_owner": "identity-access"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
       "binding_digest": "494428f750ce40b13a61be292e9c6815",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
@@ -1711,6 +1727,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "binding_digest": "1a3cb8f1feaa9be2e7cc71ff656368ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",

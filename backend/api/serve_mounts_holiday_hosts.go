@@ -18,7 +18,8 @@ type HolidayHostSchools = owners.HolidayHostSchools
 
 // mountHolidayHostRoutes serves the participant lists of the school that
 // hosts a holiday week (#4665, ADR 0116) at /api/holiday-weeks, behind the
-// school session and config:read like the other enrollment lists, the group
+// school session and config:read like the other enrollment lists (the list
+// of weeks also behind the planning permissions), the group
 // choice for the week's holiday guests behind users:create, and the sheet of
 // a holiday guest (#4666, ADR 0120) at /api/holiday-guests behind users:read
 // with the hints „Gast aus …“ of its lists behind students:read (#5630).
@@ -47,8 +48,18 @@ func NewHolidayHostHTTP(schools HolidayHostSchools, people owners.HolidayGuestDi
 	return enrollmentAPI.NewHolidayHostResource(
 		enrollmentCompose.NewHolidayHostParticipants(owners.NewHolidayParticipantAccessLog(accessLog), healthData,
 			owners.NewHolidayStudentIdentities(people), today),
-		owners.NewHolidayHostSchoolNames(schools), common.RequiresPermission(permissions.ConfigRead),
+		owners.NewHolidayHostSchoolNames(schools), holidayHostWeeksPermission(), common.RequiresPermission(permissions.ConfigRead),
 		common.RequiresPermission(permissions.UsersRead))
+}
+
+// holidayHostWeeksPermission opens the list of hosted weeks to the people
+// who plan the school's staff and care as well: config:read for the page
+// „Ferienwochen“, schedules:read for the Betreuungsplan and
+// time_tracking:manage for the Dienstplan. The list names the week, its care
+// window and how many children come, never a child; the participant list
+// stays behind config:read.
+func holidayHostWeeksPermission() common.Middleware {
+	return common.RequiresAnyPermission(permissions.ConfigRead, permissions.SchedulesRead, permissions.TimeTrackingManage)
 }
 
 // NewHolidayHostGuestHTTP adds to the participant lists the group choice for

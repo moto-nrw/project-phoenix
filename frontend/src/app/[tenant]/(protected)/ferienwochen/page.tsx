@@ -249,7 +249,7 @@ export default function FerienwochenPage() {
   // Tenant-scoped keys: the list holds children's names and birth dates, so
   // another school's cache entry must never show here.
   const weeks = useSWRAuth(
-    isReady ? "holiday-weeks" : null,
+    isReady ? holidayKeys.hostedWeeks() : null,
     fetchHostedHolidayWeeks,
     REFRESH,
   );

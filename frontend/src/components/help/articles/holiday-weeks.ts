@@ -41,6 +41,7 @@ export function holidayWeeksTopic(): HelpTopic {
     result:
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
     notes: [
+      "Die Woche steht auch im `Betreuungsplan` und im `Dienstplan`: im Kopf jedes Tages mit `Ferienbetreuung`, der Zahl der Kinder und der Betreuungszeit. Ein Klick darauf öffnet diese Seite.",
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
       "Bei Tagesbuchung nennt die Spalte `Tage` die gebuchten Tage. Das gilt auch für Excel und CSV.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",

@@ -663,8 +663,8 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"custody_confirmed": true, "declaration_name": "Sabine Ferienkind",
-		"consent_version": 3,
-		"captcha_token":   seedTurnstileTestToken,
+		"consent_version": seedHolidayConsentVersion, "retention_days": seedHolidayRetentionDays,
+		"captcha_token": seedTurnstileTestToken,
 	}, nil
 }
 
@@ -760,9 +760,17 @@ func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[st
 		"registration_opens_on":  today.String(),
 		"registration_closes_on": firstMonday.AddDays(-7).String(), "binding": true,
 		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
-		"weeks": weeks,
+		// The text of the acceptance mail a confirmation sends (#6672).
+		"acceptance_mail_text": seedHolidayAcceptanceMailText,
+		"weeks":                weeks,
 	}
 }
+
+// seedHolidayAcceptanceMailText is what the demo Träger tells the parents
+// when it confirms a holiday registration (#6672).
+const seedHolidayAcceptanceMailText = "Bei Betreuung bis 16 Uhr geben Sie Ihrem Kind bitte ein Mittagessen mit.\n" +
+	"Bitte packen Sie Wechselkleidung, Sportsachen und regenfeste Kleidung ein.\n" +
+	"Wir freuen uns auf die Ferien mit Ihrem Kind!"
 
 // traegerSeedSettingKey is the setting the demo Träger sets for all its
 // schools (ADR 0086, #4652): parent news on, as the registry default already

@@ -1,10 +1,12 @@
-// Router-level test for the deletion of the holiday registrations three
-// months after their period (#4667, spec #4611 user story 121, ADR 0118):
-// with a test clock the hourly retention keeps everything on the 92nd day
-// after the last week and deletes the registrations, children, guests,
-// contacts, bookings, contributions and the trail on the 93rd, logs the
-// deletion for the Träger and leaves the issued invoices, their positions
-// and letters untouched.
+// Router-level test for the deletion of the holiday registrations after
+// their retention (#4667, #6691, spec #4611 user story 121, ADR 0118): each
+// registration keeps the days its privacy text names. With a test clock the
+// hourly retention keeps everything on the 92nd day after the last week. On
+// the 93rd it deletes the registration that agreed to three months and the
+// health information of the one that agreed to a year; that one goes on the
+// 366th day with children, guests, contacts, bookings, contributions and the
+// trail. Every run logs what went for the Träger and leaves the issued
+// invoices, their positions and letters untouched.
 package api
 
 import (
@@ -29,12 +31,13 @@ type holidayRegistrationDeletionEntry struct {
 	Registrations   int           `bun:"registrations"`
 	Children        int           `bun:"children"`
 	AuditEntries    int           `bun:"audit_entries"`
+	HealthRecords   int           `bun:"health_records"`
 }
 
-// TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay runs
+// TestHolidayRegistrationsGoAfterTheirRetentionAndInvoicesStay runs
 // on its own database: the retention deletes across every Träger, and the
 // test clock lies after the periods of the other tests.
-func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *testing.T) {
+func TestHolidayRegistrationsGoAfterTheirRetentionAndInvoicesStay(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	f := newReviewFixture(t, "Träger Löschfrist Rechnung")
@@ -117,7 +120,7 @@ func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *t
 	}
 	deletions := func() []holidayRegistrationDeletionEntry {
 		var entries []holidayRegistrationDeletionEntry
-		require.NoError(t, f.db.NewRaw(`SELECT holiday_period_id, period_ended_on, registrations, children, audit_entries
+		require.NoError(t, f.db.NewRaw(`SELECT holiday_period_id, period_ended_on, registrations, children, audit_entries, health_records
 			FROM enrollment.holiday_registration_deletions WHERE organization_id = ? ORDER BY id`, organization).Scan(ctx, &entries))
 		return entries
 	}
@@ -131,24 +134,85 @@ func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *t
 		}))
 	}
 
+	// Both registrations agreed to a year. The second family is turned into
+	// one from before #6691: version 3 of the texts with its three months.
+	var agreed []int
+	require.NoError(t, f.db.NewRaw(`SELECT retention_days FROM enrollment.holiday_registrations
+		WHERE organization_id = ? ORDER BY id`, organization).Scan(ctx, &agreed))
+	require.Equal(t, []int{holidayDefaultRetentionDays, holidayDefaultRetentionDays}, agreed,
+		"a new registration keeps the retention its privacy text names")
+	_, err = f.db.ExecContext(ctx, `UPDATE enrollment.holiday_registrations SET consent_version = 3, retention_days = ?
+		WHERE id = ?`, holidayLegacyRetentionDays, f.again)
+	require.NoError(t, err)
+	count := func(query string, args ...any) int {
+		t.Helper()
+		var rows int
+		require.NoError(t, f.db.NewRaw(query, args...).Scan(ctx, &rows))
+		return rows
+	}
+	trailOf := func(registration int64) int {
+		return count(`SELECT COUNT(*) FROM enrollment.holiday_registration_audit WHERE holiday_registration_id = ?`, registration)
+	}
+	health := func() int {
+		return count(`SELECT (SELECT COUNT(*) FROM enrollment.holiday_registrations
+				WHERE organization_id = ?0 AND health_data IS NOT NULL)
+			+ (SELECT COUNT(*) FROM enrollment.holiday_registration_children
+				WHERE organization_id = ?0 AND health_data IS NOT NULL)`, organization)
+	}
+	againTrail, siblingsTrail := trailOf(f.again), trailOf(f.siblings)
+	require.NotZero(t, againTrail)
+	require.Equal(t, 1, health(), "Lia's allergy is the health information of the fixture")
+
 	// The last week ends on 15.01.2027; the 92nd day after it is 17.04.2027.
 	lastDay := calendar.NewDate(2027, time.January, 15)
-	retain(lastDay.AddDays(holidayRetentionDays))
+	retain(lastDay.AddDays(holidayLegacyRetentionDays))
 	assert.Equal(t, before, personal(), "on the 92nd day after the period everything is still there")
+	assert.Equal(t, 1, health(), "and so is the health information")
 	assert.Empty(t, deletions(), "nothing deleted, nothing logged")
 
-	retain(lastDay.AddDays(holidayRetentionDays + 1))
-	for table, rows := range personal() {
-		assert.Zero(t, rows, "%s is gone on the 93rd day", table)
-	}
-	assert.Equal(t, []holidayRegistrationDeletionEntry{{
+	// On the 93rd day the three months of the old text are over, and so is
+	// the retention of the health information, whatever the registration
+	// keeps.
+	retain(lastDay.AddDays(holidayLegacyRetentionDays + 1))
+	assert.Zero(t, count(`SELECT COUNT(*) FROM enrollment.holiday_registrations WHERE id = ?`, f.again),
+		"the registration under the three months is gone on the 93rd day")
+	assert.Zero(t, trailOf(f.again), "with its trail")
+	assert.Equal(t, 1, count(`SELECT COUNT(*) FROM enrollment.holiday_registrations WHERE id = ?`, f.siblings),
+		"the registration that agreed to a year stays")
+	assert.Equal(t, 2, count(`SELECT COUNT(*) FROM enrollment.holiday_registration_children WHERE holiday_registration_id = ?`, f.siblings))
+	assert.Equal(t, siblingsTrail, trailOf(f.siblings), "with its trail")
+	assert.Zero(t, health(), "its health information went on the 93rd day")
+	afterThreeMonths := personal()
+	listReads := afterThreeMonths["enrollment.holiday_registration_audit"] - siblingsTrail
+	assert.Positive(t, listReads, "the reads of the list stay while a registration of the period stays")
+	first := holidayRegistrationDeletionEntry{
 		HolidayPeriodID: f.period.ID, PeriodEndedOn: lastDay,
-		Registrations: 2, Children: 3, AuditEntries: before["enrollment.holiday_registration_audit"],
-	}}, deletions(), "the deletion stands in the log of the Träger with its counts")
+		Registrations: 1, Children: 1, AuditEntries: againTrail, HealthRecords: 1,
+	}
+	assert.Equal(t, []holidayRegistrationDeletionEntry{first}, deletions(),
+		"the deletion stands in the log of the Träger with its counts")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, f.registrationPath(f.siblings, "/health"), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "Erdnüsse", "the office reads no health information any more")
+
+	retain(lastDay.AddDays(holidayDefaultRetentionDays))
+	afterHealthRead := personal()
+	assert.Equal(t, afterThreeMonths["enrollment.holiday_registrations"], afterHealthRead["enrollment.holiday_registrations"],
+		"on the 365th day the registration is still there")
+	assert.Len(t, deletions(), 1, "nothing deleted, nothing logged")
+
+	retain(lastDay.AddDays(holidayDefaultRetentionDays + 1))
+	for table, rows := range personal() {
+		assert.Zero(t, rows, "%s is gone on the 366th day", table)
+	}
+	assert.Equal(t, []holidayRegistrationDeletionEntry{first, {
+		HolidayPeriodID: f.period.ID, PeriodEndedOn: lastDay,
+		Registrations: 1, Children: 2, AuditEntries: afterHealthRead["enrollment.holiday_registration_audit"],
+	}}, deletions(), "the second deletion stands in the log with its counts")
 	assert.Equal(t, issued, invoices(), "the issued invoices, positions, letters and the trail of the run stay unchanged")
 
-	retain(lastDay.AddDays(holidayRetentionDays + 2))
-	assert.Len(t, deletions(), 1, "a period with nothing left writes no further entry")
+	retain(lastDay.AddDays(holidayDefaultRetentionDays + 2))
+	assert.Len(t, deletions(), 2, "a period with nothing left writes no further entry")
 
 	// The log keeps an entry for three years.
 	_, err = f.db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_deletions
@@ -156,15 +220,16 @@ func TestHolidayRegistrationsGoNinetyTwoDaysAfterTheirPeriodAndInvoicesStay(t *t
 		VALUES (?0, ?1, '2022-01-14', 1, 1, 0, NOW() - INTERVAL '3 years 1 day'),
 			(?0, ?1, '2024-01-12', 1, 1, 0, NOW() - INTERVAL '2 years 11 months')`, organization, f.period.ID)
 	require.NoError(t, err)
-	retain(lastDay.AddDays(holidayRetentionDays + 3))
+	retain(lastDay.AddDays(holidayDefaultRetentionDays + 3))
 	var kept []calendar.Date
 	for _, entry := range deletions() {
 		kept = append(kept, entry.PeriodEndedOn)
 	}
-	assert.ElementsMatch(t, []calendar.Date{lastDay, calendar.NewDate(2024, time.January, 12)}, kept,
+	assert.ElementsMatch(t, []calendar.Date{lastDay, lastDay, calendar.NewDate(2024, time.January, 12)}, kept,
 		"an entry older than three years goes")
 }
 
-// holidayRetentionDays is the window of user story 121: three months after
-// the last week of the period.
-const holidayRetentionDays = 92
+// holidayLegacyRetentionDays is the window of user story 121 the texts
+// before #6691 promise, and the retention of the health information: three
+// months after the last week of the period.
+const holidayLegacyRetentionDays = 92
