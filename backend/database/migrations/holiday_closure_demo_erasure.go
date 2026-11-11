@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The installed erasure of 1.15.918, extended only by the proposal deletion
+// The installed erasure of 1.15.927, extended only by the proposal deletion
 // that cascades to commands and their authorization history (ADR 0196).
 const demoVisitorErasureHolidayClosuresSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
@@ -590,7 +590,7 @@ const demoVisitorErasureHolidayClosuresSQL = `
 					USING enrollment.holiday_registration_children AS child
 					WHERE child.home_school_id = ANY (hidden_schools)
 						AND outbox.organization_id = child.organization_id
-						AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_closure_notice')
+						AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted', 'holiday_closure_notice', 'holiday_registration_accepted')
 						AND outbox.related_entity_type = 'holiday_registration'
 						AND (outbox.related_entity_id = child.holiday_registration_id
 							OR (outbox.kind = 'holiday_closure_notice'

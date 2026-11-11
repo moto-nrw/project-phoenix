@@ -527,7 +527,7 @@ func holidayClosureEventsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func holidayClosureEventsDown(ctx context.Context, db *bun.DB) error {
-	if err := installEmptyRunErasure(ctx, db); err != nil {
+	if err := installHolidayAcceptanceErasure(ctx, db); err != nil {
 		return err
 	}
 	if err := installSchoolErasureSteps(ctx, db, "remove the holiday closure notices from the school erasure",

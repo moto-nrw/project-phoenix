@@ -106,9 +106,11 @@ const (
 	findHolidayPeriodQuery = `SELECT ` + holidayPeriodColumns + ` FROM enrollment.holiday_periods
 		WHERE organization_id = ? AND id = ?`
 	// Booking submissions and rebookings hold this gate before calendar
-	// validation, so notification preparation cannot overtake their commit.
+	// validation, so notification preparation, which takes it exclusively,
+	// cannot overtake their commit. They take it shared: writers of different
+	// periods of the Träger do not wait for each other here (ADR 0209).
 	lockHolidayPeriodQuery = `WITH notice_gate AS MATERIALIZED (
-  SELECT pg_advisory_xact_lock(hashtextextended('enrollment:holiday-closure:' || ?0::text, 0))
+  SELECT pg_advisory_xact_lock_shared(hashtextextended('enrollment:holiday-closure:' || ?0::text, 0))
  ) SELECT ` + holidayPeriodColumns + ` FROM enrollment.holiday_periods CROSS JOIN notice_gate
  WHERE organization_id = ?0 AND id = ?1 FOR UPDATE OF holiday_periods`
 	listHolidayWeeksQuery = `SELECT id, holiday_period_id, starts_on, ends_on, host_school_id, capacity, booking_unit

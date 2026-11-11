@@ -496,7 +496,7 @@ func TestHolidayClosureRendererKeepsPendingSeparateFromWaitlisted(t *testing.T) 
 
 func TestHolidayClosureRendererMarksElapsedDates(t *testing.T) {
 	t.Parallel()
-	rendered, err := NewMailRenderers().HolidayClosureNotice(context.Background(), enrollment.MailKindHolidayClosureNotice,
+	rendered, err := NewMailRenderers(nil, "").HolidayClosureNotice(context.Background(), enrollment.MailKindHolidayClosureNotice,
 		json.RawMessage(`{"recipient_email":"guardian@example.test","contains_past_days":true,"children":[{"name":"Tom","weeks":[{"week":"Sommerferien"}]}]}`))
 	require.NoError(t, err)
 	assert.Equal(t, "Ferienbetreuung: Hinweis zu vergangenen Schließtagen", rendered.Subject)
@@ -505,7 +505,7 @@ func TestHolidayClosureRendererMarksElapsedDates(t *testing.T) {
 
 func TestHolidayClosureRendererRecognizesDatesPassedInTheOutbox(t *testing.T) {
 	t.Parallel()
-	rendered, err := NewMailRenderers().HolidayClosureNotice(t.Context(), enrollment.MailKindHolidayClosureNotice,
+	rendered, err := NewMailRenderers(nil, "").HolidayClosureNotice(t.Context(), enrollment.MailKindHolidayClosureNotice,
 		json.RawMessage(`{"recipient_email":"guardian@example.test","reopened_children":[{"name":"Tom","weeks":[{"week":"Sommerferien","closed_days":["Montag, 03.07.2000"],"dates":["2000-07-03"]}]}]}`))
 	require.NoError(t, err)
 	assert.Equal(t, true, contentOf(t, rendered)["ContainsPastDays"])
