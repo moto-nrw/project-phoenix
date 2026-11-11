@@ -7355,6 +7355,39 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.CreateEnrollmentProfiles",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrollmentBatches.CreateEnrollmentProfiles",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory/internal/application.Service.CreateEnrollmentProfiles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Batch form for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 7, exception E3 in its batch form); joins the caller's unit and opens no savepoint.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EnrollCreatedStudent",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrollmentBatches.EnrollCreatedStudent",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory/internal/application.Service.EnrollCreatedStudent. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Batch form for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 7, exception E3 in its batch form); joins the caller's unit and opens no savepoint.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.SaveEnrollmentCares",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrollmentBatches.SaveEnrollmentCares",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory/internal/application.Service.SaveEnrollmentCares. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Batch form for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 7, exception E3 in its batch form); joins the caller's unit and opens no savepoint.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.CurrentFamilyProtection",
       "classification": "platform",
       "effect": "scope",
@@ -16493,6 +16526,17 @@
       "target_owner": "audit-platform"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.studentOwners.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentOwnerWrites.SaveCareBatch",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: people-directory reaches modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles (care-plan) through the module's own student-owner adapter, which passes the care batch through as the public type (ADR 0067 addendum of 2026-11-08, point 3); every row names the caller's school. Preserve ambient scope, target validation and existing failure propagation. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.ActingAccountID",
       "classification": "query",
       "effect": "query",
@@ -16869,6 +16913,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentOwners.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.careBatches.SaveCareBatch",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: people-directory reaches modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles (care-plan) through the module's own student-owner adapter, which passes the care batch through as the public type (ADR 0067 addendum of 2026-11-08, point 3); every row names the caller's school. Preserve ambient scope, target validation and existing failure propagation. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
+      "target_owner": "care-plan"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentCompanions.CompanionDaysCoveredExcluding",
@@ -17331,6 +17386,17 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataDeletionRepository.Create",
       "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentOwnerWrites.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentOwners.SaveCareBatch",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: people-directory reaches modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles (care-plan) through the module's own student-owner adapter, which passes the care batch through as the public type (ADR 0067 addendum of 2026-11-08, point 3); every row names the caller's school. Preserve ambient scope, target validation and existing failure propagation. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
+      "target_owner": "care-plan"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.ActingAccountID",
@@ -20073,6 +20139,17 @@
       "reason": "E3 named People student/companion or staff-identity edit protocol. Preserve class gate, foreign row/cohort locks, in-lock checks and composite savepoint/best-effort caregiver behavior; hand rows 14-19, People student_write.go, student_enrollment.go, staff_directory.go. Target modules/careplan.StudentProfileCommands.SaveStudentCareProfile; modules/careplan/student_profiles.go:38. ",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentProfileCommands.SaveStudentCareProfile",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.studentOwners.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentOwners.SaveCareBatch",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Batch form of SaveCare for the care profiles of new memberships of the data import (ADR 0067 addendum of 2026-11-08, point 3: Care Plan SaveStudentCareProfiles is a leaf the E3 enrollment batch calls); every row names the caller's school. Target modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles; modules/careplan/student_profiles.go. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
       "target_owner": "care-plan"
     },
     {

@@ -149,7 +149,9 @@ func matrixFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 
 // runMatrixUpload imports the matrix file on its own tenant of the package
 // clone over a pool that records every statement and injects fault.
-func runMatrixUpload(t *testing.T, db *bun.DB, dsn string, options api.ImportTestOptions, fault *matrixFault) matrixUpload {
+// runMatrixUploadOf imports the file fixture builds on its own tenant of the
+// package clone over a pool that records every statement and injects fault.
+func runMatrixUploadOf(t *testing.T, db *bun.DB, dsn string, options api.ImportTestOptions, fault *matrixFault, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) matrixUpload {
 	t.Helper()
 	testpkg.OwnTenant(t)
 	var (
@@ -202,7 +204,7 @@ func runMatrixUpload(t *testing.T, db *bun.DB, dsn string, options api.ImportTes
 	module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), options)
 	require.NoError(t, err)
 	actor := newImporter(t, db)
-	rows := matrixFile(t, db)
+	rows := fixture(t, db)
 	upload.before = studentOutcomeOf(t, db, nil)
 	armed.Store(true)
 	done := awaitStudents(t, uploadStudents(t, module, pool, actor, rows, "matrix.csv"))
@@ -243,8 +245,16 @@ const (
 	classOwnerLink          matrixClass = "K3b in a guardian link savepoint"
 	classOwnerEnrollControl matrixClass = "K4a enrollment savepoint statement"
 	classOwnerLinkControl   matrixClass = "K4b guardian link savepoint statement"
-	classResolverRead       matrixClass = "K5 resolver read"
-	classResolverControl    matrixClass = "K5 resolver savepoint statement"
+	// The inner savepoint of School Membership's counting write when the
+	// school has a child quota (#5552 step 7, table review R1 finding 3):
+	// in a batch row it sits in the chunk savepoint, in a row created in
+	// place inside the enrollment savepoint.
+	classQuota                matrixClass = "K6 in the quota savepoint"
+	classQuotaControl         matrixClass = "K6c quota savepoint statement"
+	classQuotaInEnroll        matrixClass = "K3a/K6 in the quota savepoint of an enrollment"
+	classQuotaInEnrollControl matrixClass = "K3a/K6c quota savepoint statement of an enrollment"
+	classResolverRead         matrixClass = "K5 resolver read"
+	classResolverControl      matrixClass = "K5 resolver savepoint statement"
 	// classBoundControl sets or resets a bound: not the batch command, so a
 	// failure behaves as the row path's first write (table A: R for 40P01
 	// and 40001, otherwise 500) and a failed cleanup after it ends the upload
@@ -256,15 +266,19 @@ const (
 // cleanupPoints are the savepoint cleanup statements a failure of the class
 // runs through, numbered in order, and the chunk transaction's ROLLBACK.
 var cleanupPoints = map[matrixClass][]int{
-	classBounded:            {1, 2, outerRollback}, // chunk ROLLBACK TO, RELEASE
-	classChunk:              {1, 2, outerRollback},
-	classOwnerEnroll:        {1, 2, 3, 4, outerRollback}, // inner ROLLBACK TO, RELEASE, then the chunk's
-	classOwnerLink:          {1, 2, 3, 4, outerRollback},
-	classOwnerEnrollControl: {1, 2, outerRollback}, // the chunk's
-	classOwnerLinkControl:   {1, 2, outerRollback},
-	classResolverRead:       {1, 2, outerRollback}, // the read's
-	classResolverControl:    {1, 2, outerRollback}, // the chunk's
-	classBoundControl:       {1, 2, outerRollback}, // the chunk's
+	classBounded:              {1, 2, outerRollback}, // chunk ROLLBACK TO, RELEASE
+	classChunk:                {1, 2, outerRollback},
+	classOwnerEnroll:          {1, 2, 3, 4, outerRollback}, // inner ROLLBACK TO, RELEASE, then the chunk's
+	classOwnerLink:            {1, 2, 3, 4, outerRollback},
+	classOwnerEnrollControl:   {1, 2, outerRollback}, // the chunk's
+	classOwnerLinkControl:     {1, 2, outerRollback},
+	classQuota:                {1, 2, 3, 4, outerRollback},       // inner ROLLBACK TO, RELEASE, then the chunk's
+	classQuotaControl:         {1, 2, outerRollback},             // the chunk's
+	classQuotaInEnroll:        {1, 2, 3, 4, 5, 6, outerRollback}, // quota, enrollment, chunk
+	classQuotaInEnrollControl: {1, 2, 3, 4, outerRollback},       // enrollment, chunk
+	classResolverRead:         {1, 2, outerRollback},             // the read's
+	classResolverControl:      {1, 2, outerRollback},             // the chunk's
+	classBoundControl:         {1, 2, outerRollback},             // the chunk's
 }
 
 // matrixStatement is one statement of the chunk in the recording.
@@ -315,6 +329,8 @@ func savepointOwner(next string) string {
 	switch {
 	case strings.HasPrefix(next, `SELECT "person"`):
 		return "resolver"
+	case strings.HasPrefix(next, enrollmentWrite) && strings.Contains(next, "INSERT INTO users.student_school_memberships"):
+		return "quota"
 	case strings.HasPrefix(next, enrollmentWrite):
 		return "enroll"
 	case strings.HasPrefix(next, "WITH linked_guardian"):
@@ -381,15 +397,15 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 				segment, phase = segment+1, "resolve"
 			}
 			owners = append(owners, owner)
-			class = controlClass(t, owner, kind)
+			class = controlClass(t, owners, kind)
 		case strings.HasPrefix(kind, "RELEASE SAVEPOINT ") || strings.HasPrefix(kind, "ROLLBACK TO SAVEPOINT "):
 			if len(owners) == 0 {
 				done = true // the chunk's own release ends it
 				continue
 			}
 			owner := owners[len(owners)-1]
+			class = controlClass(t, owners, kind)
 			owners = owners[:len(owners)-1]
-			class = controlClass(t, owner, kind)
 			if owner == "resolver" {
 				phase = "resolved"
 			}
@@ -406,6 +422,10 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 			class = classResolverRead
 		case phase == "bound 1" || phase == "bound 2":
 			class = classBounded
+		case len(owners) > 1 && owners[len(owners)-1] == "quota" && owners[len(owners)-2] == "enroll":
+			class = classQuotaInEnroll
+		case len(owners) > 0 && owners[len(owners)-1] == "quota":
+			class = classQuota
 		case len(owners) > 0 && owners[len(owners)-1] == "enroll":
 			class = classOwnerEnroll
 		case len(owners) > 0 && owners[len(owners)-1] == "link":
@@ -414,6 +434,13 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 			t.Fatalf("statement %d runs in a savepoint the matrix does not know: %s", i, kind)
 		default:
 			class = classChunk
+		}
+		if class == classBounded && kind == batchClassGate {
+			// The enrollment batch takes the class gate in a statement of its
+			// own under the bound; the row path takes it in the first profile
+			// insert. It is no occurrence of the per-row gate statements.
+			record(key{0, phase, kind, class}, matrixStatement{kind: kind, index: i, class: class, row: -2, segment: segment, phase: phase})
+			continue
 		}
 		if class != classResolverRead && class != classResolverControl {
 			occurrence[kind]++
@@ -440,6 +467,10 @@ func chunkStatements(t *testing.T, batch, rowPath []string) []matrixStatement {
 		case classResolverRead, classResolverControl, classBoundControl:
 			statement.row = -1 // the row path has no resolver read and no bound
 		default:
+			if statement.row == -2 {
+				statement.row = firstRowPathStatement(t, rowPath, firstPerson, enrollmentWrite+" (SELECT pg_advisory_xact_lock_shared(#, #)), enrolled_person")
+				break
+			}
 			statement.row = rowPathIndex(t, rowPath, firstPerson, statement.kind, statement.row)
 		}
 		statements = append(statements, statement)
@@ -469,8 +500,15 @@ func classExtremes(statements []matrixStatement) map[matrixClass][2]int {
 
 // controlClass is the class of a savepoint statement by the savepoint it
 // belongs to.
-func controlClass(t *testing.T, owner, kind string) matrixClass {
+func controlClass(t *testing.T, owners []string, kind string) matrixClass {
 	t.Helper()
+	owner := owners[len(owners)-1]
+	if owner == "quota" {
+		if len(owners) > 1 && owners[len(owners)-2] == "enroll" {
+			return classQuotaInEnrollControl
+		}
+		return classQuotaControl
+	}
 	switch owner {
 	case "resolver":
 		return classResolverControl
@@ -481,6 +519,19 @@ func controlClass(t *testing.T, owner, kind string) matrixClass {
 	}
 	t.Fatalf("savepoint statement of an unknown savepoint: %s", kind)
 	return ""
+}
+
+// firstRowPathStatement is the first statement after the first person insert
+// on the row path that starts with prefix.
+func firstRowPathStatement(t *testing.T, rowPath []string, firstPerson int, prefix string) int {
+	t.Helper()
+	for i := firstPerson; i < len(rowPath); i++ {
+		if strings.HasPrefix(statementKind(rowPath[i]), prefix) {
+			return i
+		}
+	}
+	t.Fatalf("the row path issues no statement %q", prefix)
+	return -1
 }
 
 func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, occurrence int) int {
@@ -511,6 +562,10 @@ func rowPathIndex(t *testing.T, rowPath []string, firstPerson int, kind string, 
 	return -1
 }
 
+// batchClassGate is the class-writes gate statement the enrollment batch
+// takes before its profiles (#5552 step 7).
+const batchClassGate = "SELECT pg_advisory_xact_lock_shared(#, #)"
+
 // bundledStatement is one statement the batch command bundles after the
 // rows (#5552, steps 5b and 5c): how to recognize it in the batch recording
 // and the single statement of its table on the row path.
@@ -535,6 +590,10 @@ var bundledStatements = []bundledStatement{
 	{bundledPrefix("WITH linked_guardian AS ", "= ANY("), "WITH linked_guardian AS "},
 	{bundledPrefix("INSERT INTO users.student_guardian_pickup_permissions ", " SELECT "), "INSERT INTO users.student_guardian_pickup_permissions "},
 	{bundledPrefix("INSERT INTO auth.guardian_student_access ", " SELECT "), "INSERT INTO auth.guardian_student_access "},
+	// The enrollment batch of step 7: the profiles before the rows, the care
+	// profiles after them.
+	{bundledPrefix("WITH source AS ", "INSERT INTO users.student_profiles"), enrollmentWrite + " (SELECT pg_advisory_xact_lock_shared(#, #)), enrolled_person"},
+	{bundledPrefix("INSERT INTO users.student_care_profiles (", " unnest("), "INSERT INTO users.student_care_profiles AS care "},
 }
 
 // bundledLeafTable names the row-path statement a bundled statement stands
@@ -588,17 +647,51 @@ var matrixFailures = []error{
 // package clone: each upload has a tenant of its own.
 func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	t.Parallel()
+	runStudentFaultMatrix(t, matrixFile, false)
+}
+
+// TestStudentQuotaSavepointFaultMatrix is the matrix over the file with a
+// child quota (#5552 step 7, table review R1 finding 3): School Membership's
+// counting write then opens its inner savepoint, in the chunk savepoint for
+// a batch row and inside the enrollment savepoint for a row created in place
+// (the card row and a row with a group). Only the statements of those quota
+// classes are crossed; the rest is the matrix above.
+func TestStudentQuotaSavepointFaultMatrix(t *testing.T) {
+	t.Parallel()
+	runStudentFaultMatrix(t, matrixQuotaFile, true)
+}
+
+// matrixQuotaFile is matrixFile in a school with a child quota of 100 and
+// O3 in a group, so its child is created in place.
+func matrixQuotaFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
+	t.Helper()
+	testpkg.SetTestChildQuota(t, db, 1, 100)
+	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Kontingent %d", testpkg.Tenant(t)))
+	rows := matrixFile(t, db)
+	// The group row sits in the first segment (seven rows), which keeps
+	// ChunkMinRows batch rows beside it, so both segments take the batch.
+	rows[5].GroupName = group.Name
+	return rows
+}
+
+// quotaClasses are the classes only a school with a child quota records.
+var quotaClasses = map[matrixClass]bool{classQuota: true, classQuotaControl: true, classQuotaInEnroll: true, classQuotaInEnrollControl: true}
+
+// runStudentFaultMatrix runs the matrix over the file fixture builds; with
+// quota it crosses the quota classes only.
+func runStudentFaultMatrix(t *testing.T, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow, quota bool) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	dsn := testpkg.PackageTestDSN(t)
 	var batchRecording, rowRecording, clean matrixUpload
 	t.Run("recording", func(t *testing.T) {
-		batchRecording = runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, nil)
+		batchRecording = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, nil, fixture)
 		require.Equal(t, "200", batchRecording.status)
 		require.Equal(t, 2, countKind(batchRecording.statements, personBatch), "both batch segments ran")
 		require.Zero(t, batchRecording.replays)
 	})
 	t.Run("row path recording", func(t *testing.T) {
-		rowRecording = runMatrixUpload(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, nil)
+		rowRecording = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, nil, fixture)
 		clean = rowRecording
 	})
 	require.Equal(t, "200", clean.status)
@@ -633,7 +726,20 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 		require.Equal(t, 2, perKind[statement.rowPath], "each segment bundles %s once", statement.rowPath)
 	}
 	require.Equal(t, 8, bounds, "two segments × two bounds × set and reset")
-	require.Len(t, classes, len(cleanupPoints), "every class is in the recording")
+	for class := range cleanupPoints {
+		require.Equal(t, !quotaClasses[class] || quota, classes[class], "class %s in the recording", class)
+	}
+	if quota {
+		// Cross the quota classes only; every other statement is the
+		// matrix over the file without a quota.
+		kept := statements[:0]
+		for _, statement := range statements {
+			if quotaClasses[statement.class] {
+				kept = append(kept, statement)
+			}
+		}
+		statements = kept
+	}
 
 	// Part 1: every statement × every main error, cleanups succeed.
 	var mainOnly sync.Map // "index err" -> matrixUpload of the batch path
@@ -647,7 +753,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 					// tenant of its own.
 					var batch, rowPath matrixUpload
 					t.Run("batch", func(t *testing.T) {
-						batch = runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err})
+						batch = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err}, fixture)
 					})
 					require.True(t, batch.primary, "the fault fired")
 					mainOnly.Store(fmt.Sprint(statement.index, err), batch)
@@ -675,7 +781,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 						return
 					}
 					t.Run("row path", func(t *testing.T) {
-						rowPath = runMatrixUpload(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, &matrixFault{at: statement.row, err: err})
+						rowPath = runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{RowPathOnly: true}, &matrixFault{at: statement.row, err: err}, fixture)
 					})
 					require.True(t, rowPath.primary, "the fault fired on the row path")
 					want := rowPath
@@ -720,8 +826,10 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 				statement := statements[at]
 				mains, cleanups := minimumCleanupFailures, minimumCleanupErrors
 				if position == 0 || position == len(indices)-1 || statement.class == classBoundControl {
-					// First and last of each class, and every set and reset of
-					// every bound, get the whole cross.
+					// First and last of each class (the quota classes
+					// included), and every set and reset of every bound, get
+					// the whole cross; every other statement takes the
+					// minimum, so the package stays inside CI's ten minutes.
 					mains, cleanups = matrixFailures, matrixFailures
 				}
 				for _, err := range mains {
@@ -730,7 +838,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 							cases++
 							t.Run(fmt.Sprintf("%s × %v, cleanup %d × %v", statement.label(), err, point, err2), func(t *testing.T) {
 								t.Parallel()
-								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2)
+								runCleanupCase(t, db, dsn, clean, &mainOnly, statement, err, point, err2, fixture)
 							})
 						}
 					}
@@ -755,10 +863,10 @@ var minimumCleanupFailures = []error{
 }
 
 // runCleanupCase is one cell of part 2 (tables A and B of the PR).
-func runCleanupCase(t *testing.T, db *bun.DB, dsn string, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error) {
+func runCleanupCase(t *testing.T, db *bun.DB, dsn string, clean matrixUpload, mainOnly *sync.Map, statement matrixStatement, err error, point int, err2 error, fixture func(*testing.T, *bun.DB) []importModels.StudentImportRow) {
 	t.Helper()
 	logStatementOnFailure(t, statement)
-	got := runMatrixUpload(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2})
+	got := runMatrixUploadOf(t, db, dsn, api.ImportTestOptions{}, &matrixFault{at: statement.index, err: err, cleanup: point, err2: err2}, fixture)
 	require.True(t, got.primary, "the fault fired")
 	if err != injectedSQLState("40P01") {
 		require.Zero(t, got.deadlocks, "a cleanup's 40P01 is no deadlock of the upload")
@@ -806,25 +914,58 @@ func countKind(statements []string, prefix string) int {
 func TestStudentBatchQuotaRefusalMatchesTheRowPath(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	run := func(t *testing.T, options api.ImportTestOptions) (string, studentOutcome, error) {
-		testpkg.OwnTenant(t)
-		testpkg.SetTestChildQuota(t, db, 1, 3)
-		module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
-		require.NoError(t, err)
-		actor := newImporter(t, db)
-		upload := awaitStudents(t, uploadStudents(t, module, db, actor, namedStudentBatch("Kontingent", matrixRows), "quota.csv"))
-		return uploadStatus(upload.err), studentOutcomeOf(t, db, upload.result), upload.err
+	// The quota is reached at row k of six: places and existing children
+	// fixed per case, so the refused row and its details are known in
+	// advance (#5552 step 7: the profiles are created before the rows, the
+	// memberships still per row).
+	for _, c := range []struct {
+		name             string
+		places, existing int
+		refused          int
+	}{
+		{"first row", 1, 1, 1},
+		{"row 4", 3, 0, 4},
+		{"last row", 5, 0, 6},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			run := func(t *testing.T, options api.ImportTestOptions) (string, studentOutcome, error) {
+				testpkg.OwnTenant(t)
+				testpkg.SetTestChildQuota(t, db, 1, c.places)
+				for i := range c.existing {
+					testpkg.CreateTestStudent(t, db, fmt.Sprintf("Schon%d", i), "Da", "4A")
+				}
+				module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), options)
+				require.NoError(t, err)
+				actor := newImporter(t, db)
+				upload := awaitStudents(t, uploadStudents(t, module, db, actor, namedStudentBatch("Kontingent", matrixRows), "quota.csv"))
+				return uploadStatus(upload.err), studentOutcomeOf(t, db, upload.result), upload.err
+			}
+			var batchStatus, rowStatus string
+			var batch, rowPath studentOutcome
+			var batchErr, rowErr error
+			t.Run("batch", func(t *testing.T) { batchStatus, batch, batchErr = run(t, api.ImportTestOptions{}) })
+			t.Run("row path", func(t *testing.T) { rowStatus, rowPath, rowErr = run(t, api.ImportTestOptions{RowPathOnly: true}) })
+			require.Equal(t, "409 students.child_quota_reached", rowStatus)
+			require.Equal(t, rowStatus, batchStatus)
+			require.Equal(t, rowPath, batch)
+			var batchDetails, rowDetails interface{ ErrorDetails() any }
+			require.ErrorAs(t, batchErr, &batchDetails)
+			require.ErrorAs(t, rowErr, &rowDetails)
+			require.Equal(t, rowDetails.ErrorDetails(), batchDetails.ErrorDetails())
+			require.Contains(t, fmt.Sprint(rowDetails.ErrorDetails()), fmt.Sprintf("%d", c.places), "the details name the booked places")
+			require.Equal(t, []string{fmt.Sprintf("%d error", c.refused+1)}, quotaRowErrors(batch), "the refused row")
+		})
 	}
-	var batchStatus, rowStatus string
-	var batch, rowPath studentOutcome
-	var batchErr, rowErr error
-	t.Run("batch", func(t *testing.T) { batchStatus, batch, batchErr = run(t, api.ImportTestOptions{}) })
-	t.Run("row path", func(t *testing.T) { rowStatus, rowPath, rowErr = run(t, api.ImportTestOptions{RowPathOnly: true}) })
-	require.Equal(t, "409 students.child_quota_reached", rowStatus)
-	require.Equal(t, rowStatus, batchStatus)
-	require.Equal(t, rowPath, batch)
-	var batchDetails, rowDetails interface{ ErrorDetails() any }
-	require.ErrorAs(t, batchErr, &batchDetails)
-	require.ErrorAs(t, rowErr, &rowDetails)
-	require.Equal(t, rowDetails.ErrorDetails(), batchDetails.ErrorDetails())
+}
+
+// quotaRowErrors are the row number and severity of an outcome's blocking
+// row errors.
+func quotaRowErrors(outcome studentOutcome) []string {
+	var rows []string
+	for _, e := range outcome.RowErrors {
+		if parts := strings.SplitN(e, " ", 3); len(parts) >= 2 && parts[1] == "error" {
+			rows = append(rows, parts[0]+" "+parts[1])
+		}
+	}
+	return rows
 }
