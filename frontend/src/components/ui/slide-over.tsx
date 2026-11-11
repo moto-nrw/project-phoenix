@@ -300,9 +300,7 @@ const SlideOverContent = React.forwardRef<
       <SlideOverPortal>
         <SlideOverOverlay />
         <DrawerPrimitive.Content
-          ref={(
-            node: React.ComponentRef<typeof DrawerPrimitive.Content> | null,
-          ) => {
+          ref={(node) => {
             sheetRef.current = node;
             if (typeof ref === "function") ref(node);
             else if (ref) ref.current = node;
@@ -343,11 +341,7 @@ const SlideOverContent = React.forwardRef<
               event.preventDefault();
             }
           }}
-          onEscapeKeyDown={(
-            event: Parameters<
-              NonNullable<SlideOverContentProps["onEscapeKeyDown"]>
-            >[0],
-          ) => {
+          onEscapeKeyDown={(event) => {
             onEscapeKeyDown?.(event);
             // An overlay above the panel (dialog, tour) takes the Escape.
             // Radix handles Escape in capture, before nested controls close.
@@ -417,8 +411,7 @@ SlideOverCloseButton.displayName = "SlideOverCloseButton";
 /**
  * The textual dismissal control for a `SlideOverFooter`. It closes through
  * Vaul and reads the same dismissal lock as the header X; save actions in the
- * footer remain independent. Compound footer controls use
- * `useSlideOverDismissDisabled` for their cancel action.
+ * footer remain independent.
  */
 const SlideOverCancelButton = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Close>,
@@ -503,9 +496,8 @@ SlideOverBody.displayName = "SlideOverBody";
 /**
  * The panel's action row (`DialogActions`). It locks every action in it
  * while the panel's save runs and while a closed panel slides out (#6593).
- * A dismissal action uses `SlideOverCancelButton` (or reads
- * `useSlideOverDismissDisabled`); an external dismissal lock leaves save and
- * submit actions usable.
+ * A dismissal action uses `SlideOverCancelButton`; an external dismissal
+ * lock (`isDismissDisabled`) leaves save and submit actions usable.
  */
 const SlideOverFooter = ({
   className,

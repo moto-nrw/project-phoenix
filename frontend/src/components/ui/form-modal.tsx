@@ -12,9 +12,8 @@ interface FormModalProps {
   readonly title: string;
   readonly children: ReactNode;
   /**
-   * Footer actions. A dismissal action uses `ModalCancelButton`; a compound
-   * action reads `useModalDismissDisabled`. Submit actions stay independent
-   * of `isDismissDisabled`.
+   * Footer actions. A dismissal action uses `ModalCancelButton`, which
+   * `isDismissDisabled` locks; submit actions stay independent of it.
    */
   readonly footer?: ReactNode;
   readonly size?: ModalSize;
@@ -88,10 +87,7 @@ export function FormModal({
       footer={
         footer ? (
           // Form actions stay one right-aligned row on every width
-          // (`sheetFooter="row"`); the row locks while a save runs. A
-          // dismissal control uses ModalCancelButton (or reads
-          // useModalDismissDisabled) so the external lock never disables
-          // unrelated submit actions.
+          // (`sheetFooter="row"`); the row locks while a save runs.
           <DialogActions locked={busy} className="m-0 flex-1 border-0 p-0">
             {footer}
           </DialogActions>

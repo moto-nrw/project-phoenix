@@ -9,7 +9,6 @@ import { FormModal } from "./form-modal";
 import { Modal } from "./modal";
 import { ModalCancelButton } from "./modal-frame";
 import { MODAL_CLOSE_DELAY_MS, MODAL_MOTION_STYLE } from "./motion";
-import { EditActions } from "./edit-actions";
 import {
   SlideOver,
   SlideOverBody,
@@ -189,32 +188,6 @@ describe("isDismissDisabled", () => {
             </Button>
           </>
         }
-      >
-        Inhalt
-      </FormModal>,
-    );
-
-    const cancel = screen.getByRole("button", { name: "Abbrechen" });
-    expect(cancel).toBeDisabled();
-    fireEvent.click(cancel);
-    expect(onClose).not.toHaveBeenCalled();
-
-    const save = screen.getByRole("button", { name: "Speichern" });
-    expect(save).toBeEnabled();
-    fireEvent.click(save);
-    expect(onSave).toHaveBeenCalledOnce();
-  });
-
-  it("locks EditActions cancellation without locking its save action", () => {
-    const onClose = vi.fn();
-    const onSave = vi.fn();
-    render(
-      <FormModal
-        isOpen
-        onClose={onClose}
-        title="Formular"
-        isDismissDisabled
-        footer={<EditActions onCancel={onClose} onSave={onSave} />}
       >
         Inhalt
       </FormModal>,
