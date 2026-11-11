@@ -10,6 +10,8 @@ import {
 import { activeService } from "~/lib/active-api";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Supervisor } from "~/lib/active-helpers";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -154,6 +156,13 @@ export function UnclaimedRooms({
     }
   }, [providedGroups, providedStaffId]);
 
+  // Nach dem Übernehmen lädt das Banner nach; ein Fehler dabei ist kein
+  // Fehler der Übernahme (#6652).
+  const claimAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Schulhofs",
+    loadSchulhofStatus,
+  );
+
   // Load on mount and check dismissed state
   useEffect(() => {
     const wasDismissed = localStorage.getItem(DISMISSED_KEY) === "true";
@@ -169,7 +178,7 @@ export function UnclaimedRooms({
       await activeService.claimActiveGroup(state.activeGroupId);
       onClaimed();
       // Reload to update supervisor list
-      await loadSchulhofStatus();
+      await claimAfterWrite.refresh();
     } catch (err) {
       logger.error("failed to claim schulhof", {
         error: err instanceof Error ? err.message : String(err),
@@ -223,39 +232,42 @@ export function UnclaimedRooms({
     .join(", ");
 
   return (
-    <Alert
-      type="warning"
-      announce="off"
-      className="mb-4"
-      icon={<MotoConceptIcon concept={schoolyardConcept} size={20} />}
-      title="Schulhof-Aufsicht verfügbar"
-      message={
-        hasSupervisors
-          ? `Aktuelle Aufsicht: ${supervisorNames}`
-          : "Der Schulhof hat derzeit keine Aufsicht."
-      }
-      // Ein Schließen-X nur, solange jemand den Schulhof beaufsichtigt: ohne
-      // Aufsicht bleibt der Hinweis stehen.
-      onDismiss={hasSupervisors ? handleDismiss : undefined}
-      dismissLabel="Banner schließen"
-      action={
-        <Button
-          type="button"
-          variant="primary"
-          size="compact"
-          onClick={() => void handleClaim()}
-          disabled={claiming}
-        >
-          {claiming ? (
-            <span className="flex items-center gap-2">
-              <SpinnerIcon />
-              Wird übernommen...
-            </span>
-          ) : (
-            "Beaufsichtigen"
-          )}
-        </Button>
-      }
-    />
+    <>
+      <LoadErrorAlert error={claimAfterWrite.error} className="mb-4" />
+      <Alert
+        type="warning"
+        announce="off"
+        className="mb-4"
+        icon={<MotoConceptIcon concept={schoolyardConcept} size={20} />}
+        title="Schulhof-Aufsicht verfügbar"
+        message={
+          hasSupervisors
+            ? `Aktuelle Aufsicht: ${supervisorNames}`
+            : "Der Schulhof hat derzeit keine Aufsicht."
+        }
+        // Ein Schließen-X nur, solange jemand den Schulhof beaufsichtigt: ohne
+        // Aufsicht bleibt der Hinweis stehen.
+        onDismiss={hasSupervisors ? handleDismiss : undefined}
+        dismissLabel="Banner schließen"
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            size="compact"
+            onClick={() => void handleClaim()}
+            disabled={claiming}
+          >
+            {claiming ? (
+              <span className="flex items-center gap-2">
+                <SpinnerIcon />
+                Wird übernommen...
+              </span>
+            ) : (
+              "Beaufsichtigen"
+            )}
+          </Button>
+        }
+      />
+    </>
   );
 }

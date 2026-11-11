@@ -17,6 +17,7 @@ import {
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
@@ -42,7 +43,8 @@ interface HandOverSupervisionModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   /** Reloads the page and the sidebar after the caller left the session. */
-  readonly onDone: () => Promise<unknown>;
+  /** Reloads the overview; never rejects (#6652). */
+  readonly onDone: RefreshAfterWrite;
 }
 
 function useSupervisionChange(
@@ -65,8 +67,8 @@ function useSupervisionChange(
     if (mode === "hand-over" && !selectedStaffId) return;
     formErrors.clear();
     setIsSaving(true);
+    let message = "Sie sind nicht mehr als Aufsicht eingetragen.";
     try {
-      let message = "Sie sind nicht mehr als Aufsicht eingetragen.";
       if (mode === "hand-over") {
         const result = await substitutionService.handOverSupervision(
           activeGroupId,
@@ -76,17 +78,6 @@ function useSupervisionChange(
       } else {
         await substitutionService.releaseSupervision(activeGroupId);
       }
-      try {
-        await props.onDone();
-      } catch (cause) {
-        // Bewusst still: die Aufsicht ist geändert; die Seite lädt beim
-        // nächsten Abruf den neuen Stand.
-        logger.warn("supervision_change_refresh_failed", {
-          error: String(cause),
-        });
-      }
-      toast.success(message);
-      props.onClose();
     } catch (cause) {
       logger.error("supervision_change_failed", {
         mode,
@@ -99,9 +90,15 @@ function useSupervisionChange(
             : "das Abgeben der Aufsicht",
         retry: () => latestRef.current(),
       });
-    } finally {
       setIsSaving(false);
+      return;
     }
+    setIsSaving(false);
+    toast.success(message);
+    props.onClose();
+    // Die Aufsicht ist geändert; ein gescheitertes Nachladen zeigt die Seite
+    // als Ladefehler (#6652).
+    await props.onDone();
   };
   useLayoutEffect(() => {
     latestRef.current = () => void submit();

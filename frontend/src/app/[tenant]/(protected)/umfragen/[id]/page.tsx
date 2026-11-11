@@ -8,7 +8,10 @@ import { useParentTargetLookups } from "~/components/announcements/parent-target
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -44,6 +47,10 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   SURVEY_QUESTION_KIND_LABEL,
@@ -134,6 +141,15 @@ function SurveyDetail({ surveyId }: Readonly<{ surveyId: string }>) {
     revalidateOnFocus: false,
   });
   const notFound = loadError instanceof ApiError && loadError.status === 404;
+  // Nachladen nach dem Speichern des Entwurfs: ein Fehler dabei steht über
+  // dem Fragebogen und speichert nichts erneut (#6652).
+  const editAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Umfrage",
+    async (saved: Survey) => {
+      await mutate(saved, { revalidate: false });
+      await tenantMutate(SURVEY_LIST_KEY);
+    },
+  );
   const shownLoadError = useSwrLoadError(
     notFound ? undefined : loadError,
     "die Umfrage",
@@ -343,15 +359,17 @@ function SurveyDetail({ surveyId }: Readonly<{ surveyId: string }>) {
           <SectionCard title="Antworten je Person" loading />
         ))}
 
+      {tab === "fragebogen" ? (
+        <LoadErrorAlert error={editAfterWrite.error} />
+      ) : null}
       {tab === "fragebogen" &&
         (editing ? (
           <SurveyEditSection
             survey={survey}
             onCancel={() => updateUrlParams({ bearbeiten: null })}
-            onSaved={async (saved) => {
-              await mutate(saved, { revalidate: false });
-              await tenantMutate(SURVEY_LIST_KEY);
+            onSaved={(saved) => {
               updateUrlParams({ bearbeiten: null });
+              return editAfterWrite.refresh(saved);
             }}
           />
         ) : (
@@ -426,7 +444,8 @@ function SurveyEditSection({
 }: Readonly<{
   survey: Survey;
   onCancel: () => void;
-  onSaved: (saved: Survey) => Promise<void>;
+  /** Closes the editor and reloads; never rejects (#6652). */
+  onSaved: RefreshAfterWrite<[saved: Survey]>;
 }>) {
   const [draft, setDraft] = useState<SurveyEditorDraft>(() =>
     surveyDraftFromSurvey(survey),
@@ -449,9 +468,9 @@ function SurveyEditSection({
       return;
     }
     setSaving(true);
+    let saved: Survey;
     try {
-      const saved = await updateSurvey(survey.id, surveyInputFromDraft(draft));
-      await onSaved(saved);
+      saved = await updateSurvey(survey.id, surveyInputFromDraft(draft));
     } catch (err: unknown) {
       logger.error("survey_update_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -460,9 +479,11 @@ function SurveyEditSection({
         object: "die Umfrage",
         retry: () => void latestSave.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    await onSaved(saved);
   };
   useLayoutEffect(() => {
     latestSave.current = save;

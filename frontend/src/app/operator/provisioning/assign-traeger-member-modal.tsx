@@ -7,6 +7,7 @@ import { TraegerRoleChoice } from "~/components/traeger/traeger-role-choice";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { TraegerRole } from "~/lib/operator/provisioning-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AssignTraegerMemberModal" });
@@ -30,7 +31,8 @@ export function AssignTraegerMemberModal({
   readonly onClose: () => void;
   readonly organizationId: string;
   readonly organizationName: string;
-  readonly onAssigned: () => Promise<unknown>;
+  /** Reloads the Träger-Büro; never rejects (#6652). */
+  readonly onAssigned: RefreshAfterWrite;
 }) {
   const [email, setEmail] = useState("");
   const [roles, setRoles] = useState<TraegerRole[]>([]);
@@ -63,17 +65,18 @@ export function AssignTraegerMemberModal({
           email: email.trim(),
           roles,
         });
-        onClose();
-        toastSuccess(`Die Person ist dem Träger-Büro zugeordnet.`);
-        await onAssigned();
       } catch (error) {
         logger.error("traeger_member_assign_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         void showError(error, { object: "die Zuordnung zum Träger-Büro" });
-      } finally {
         setSaving(false);
+        return;
       }
+      setSaving(false);
+      onClose();
+      toastSuccess(`Die Person ist dem Träger-Büro zugeordnet.`);
+      await onAssigned();
     },
     [
       email,

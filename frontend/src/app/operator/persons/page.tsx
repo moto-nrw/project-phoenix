@@ -1,8 +1,9 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useLayoutEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { Trash2 } from "lucide-react";
@@ -11,6 +12,10 @@ import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { PersonTags } from "~/components/operator/persons-table";
@@ -46,7 +51,7 @@ function OperatorPersonsPageContent() {
     useState<OperatorPerson | null>(null);
 
   const {
-    data: schoolPersons,
+    data: cachedSchoolPersons,
     error: schoolPersonsError,
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
@@ -61,12 +66,38 @@ function OperatorPersonsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolPersons, accessRefused: schoolPersonsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && urlSchoolId
+        ? operatorProvisioningKeys.schoolPersons(urlSchoolId)
+        : null,
+      cachedSchoolPersons,
+      schoolPersonsError,
+    );
 
   const personsLoadError = useSwrLoadError(
     schoolPersonsError,
     "die Liste der Personen",
     () => void mutateSchoolPersons(),
+    schoolPersons?.length ? STALE_DATA_SUFFIX : undefined,
   );
+  // The deleted person leaves the list at once; the reload runs after the
+  // write and a failure stands above the list (#6652).
+  const deletedAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Personen",
+    async (deletedPerson: OperatorPerson) => {
+      await mutateSchoolPersons(
+        (persons) =>
+          persons?.filter((person) => person.id !== deletedPerson.id),
+        { revalidate: false },
+      );
+      await refreshPersons();
+    },
+  );
+
+  useLayoutEffect(() => {
+    if (schoolPersonsAccessRefused) setDeletePersonTarget(null);
+  }, [schoolPersonsAccessRefused]);
 
   const count = selectedSchool ? schoolPersons?.length : undefined;
 
@@ -100,15 +131,7 @@ function OperatorPersonsPageContent() {
           <DeletePersonModal
             person={deletePersonTarget}
             onClose={() => setDeletePersonTarget(null)}
-            onDeleted={(deletedPerson) =>
-              mutateSchoolPersons(
-                (persons) =>
-                  persons?.filter((person) => person.id !== deletedPerson.id),
-                { revalidate: false },
-              ).then(async () => {
-                await refreshPersons();
-              })
-            }
+            onDeleted={deletedAfterWrite.refresh}
           />
         </>
       }
@@ -116,14 +139,16 @@ function OperatorPersonsPageContent() {
       <LoadErrorAlert error={organizationsLoadError} />
       <LoadErrorAlert error={schoolsLoadError} />
       <LoadErrorAlert error={personsLoadError} />
+      <LoadErrorAlert error={deletedAfterWrite.error} />
 
       {!selectedSchool ? (
         <SimpleEmptyState
           title="Keine Schule ausgewählt"
           description="Wählen Sie eine Schule aus, um deren Personen anzuzeigen."
         />
-      ) : !schoolPersons || schoolPersonsError ? null : schoolPersons.length ===
-        0 ? (
+      ) : !schoolPersons ||
+        (schoolPersonsError &&
+          schoolPersons.length === 0) ? null : schoolPersons.length === 0 ? (
         <SimpleEmptyState
           title="Keine Personen"
           description={`Keine Personen in ${selectedSchool.name} vorhanden.`}
@@ -172,7 +197,7 @@ function OperatorPersonsPageContent() {
         </>
       )}
 
-      {selectedSchool && (
+      {selectedSchool && !schoolPersonsAccessRefused && (
         <StaffPersonMerge
           key={selectedSchool.id}
           schoolId={selectedSchool.id}

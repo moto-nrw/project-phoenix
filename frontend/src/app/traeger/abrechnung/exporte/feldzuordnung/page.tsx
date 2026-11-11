@@ -139,6 +139,7 @@ export default function TraegerSollMappingPage() {
             confirmText="Ja, wiederherstellen"
             confirmVariant="warning"
             isConfirmLoading={resetting}
+            loadingText="Wird wiederhergestellt …"
           >
             <p>
               Ihre Spalten und Einstellungen gehen verloren. Neue Dateien haben

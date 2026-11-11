@@ -8,6 +8,7 @@ import {
 } from "react";
 import { UserPlus } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import {
   SectionCard,
@@ -357,6 +358,7 @@ function OpenRoomBlock({
   if (currentRoster) {
     return (
       <SectionGroup label={title}>
+        <LoadErrorAlert error={actions.reloadError} />
         {actions.moveNotice ? (
           <Alert type="info" message={actions.moveNotice} />
         ) : null}
@@ -417,6 +419,7 @@ function OpenRoomBlock({
   const isLoading = canViewRoster && !roster.hasRosterError;
   return (
     <SectionGroup label={title}>
+      <LoadErrorAlert error={actions.reloadError} />
       {header}
       {isLoading ? (
         <ActiveSupervisionLoadingView withHeader={false} />

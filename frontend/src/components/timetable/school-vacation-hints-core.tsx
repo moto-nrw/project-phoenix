@@ -24,6 +24,8 @@ import { type ReactNode, useCallback, useState } from "react";
 import { TriangleAlert } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
@@ -128,6 +130,11 @@ function SchoolVacationHintList({
   const revalidateVacations = useTenantMutateMatching([
     timetableKeys.schoolVacationsFamily,
   ]);
+  // Nachladen nach der Bestätigung: ein Fehler dabei ist ein Ladefehler, keine
+  // gescheiterte Bestätigung (#6652).
+  const confirmAfterWrite = useRefreshAfterWrite("die Anzeige der Ferien", () =>
+    Promise.all([revalidateHints(), revalidateVacations()]),
+  );
   const tenantPath = useTenantAwarePath();
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -139,7 +146,7 @@ function SchoolVacationHintList({
         toast.success(
           `Gespeichert: Für „${hint.name}“ ist Betreuung geplant. Der Hinweis ist ausgeblendet.`,
         );
-        await Promise.all([revalidateHints(), revalidateVacations()]);
+        await confirmAfterWrite.refresh();
       } catch (err) {
         logger.error("school_vacation_acknowledge_failed", {
           start_date: hint.startDate,
@@ -150,7 +157,7 @@ function SchoolVacationHintList({
         setBusy(null);
       }
     },
-    [revalidateHints, revalidateVacations, showActionError, toast],
+    [confirmAfterWrite, showActionError, toast],
   );
 
   const actions = (hint: SchoolVacationHint, compact: boolean): ReactNode => {
@@ -203,48 +210,57 @@ function SchoolVacationHintList({
   };
 
   const [single] = hints;
-  return hints.length === 1 && single ? (
-    <Alert
-      type="warning"
-      announce="polite"
-      title="Termine in den Ferien prüfen"
-      message={vacationHintMessage(single)}
-      actionLayout="stacked"
-      action={
-        <div className="flex flex-wrap gap-2">{actions(single, false)}</div>
-      }
-      data-testid="school-vacation-hints"
-    />
-  ) : (
-    <SectionCard
-      title="Termine in den Ferien prüfen"
-      description={`In diesen Ferien sind Regeltermine geplant. ${DECISION_TEXT}`}
-      leading={
-        <TriangleAlert
-          className="text-moto-orange-strong mt-0.5 size-5 shrink-0"
-          aria-hidden="true"
-        />
-      }
-      testId="school-vacation-hints"
-    >
-      <ResponsiveActionList>
-        {hints.map((hint) => (
-          <li
-            key={`${hint.startDate}-${hint.endDate}`}
-            className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900">{hint.name}</p>
-              <p className="mt-0.5 text-sm text-gray-600">
-                {vacationRangeLabel(hint)} · {regelterminLabel(hint.count)}
-              </p>
-            </div>
-            <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
-              {actions(hint, true)}
-            </div>
-          </li>
-        ))}
-      </ResponsiveActionList>
-    </SectionCard>
+  const list =
+    hints.length === 1 && single ? (
+      <Alert
+        type="warning"
+        announce="polite"
+        title="Termine in den Ferien prüfen"
+        message={vacationHintMessage(single)}
+        actionLayout="stacked"
+        action={
+          <div className="flex flex-wrap gap-2">{actions(single, false)}</div>
+        }
+        data-testid="school-vacation-hints"
+      />
+    ) : (
+      <SectionCard
+        title="Termine in den Ferien prüfen"
+        description={`In diesen Ferien sind Regeltermine geplant. ${DECISION_TEXT}`}
+        leading={
+          <TriangleAlert
+            className="text-moto-orange-strong mt-0.5 size-5 shrink-0"
+            aria-hidden="true"
+          />
+        }
+        testId="school-vacation-hints"
+      >
+        <ResponsiveActionList>
+          {hints.map((hint) => (
+            <li
+              key={`${hint.startDate}-${hint.endDate}`}
+              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">
+                  {hint.name}
+                </p>
+                <p className="mt-0.5 text-sm text-gray-600">
+                  {vacationRangeLabel(hint)} · {regelterminLabel(hint.count)}
+                </p>
+              </div>
+              <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+                {actions(hint, true)}
+              </div>
+            </li>
+          ))}
+        </ResponsiveActionList>
+      </SectionCard>
+    );
+  return (
+    <>
+      <LoadErrorAlert error={confirmAfterWrite.error} />
+      {list}
+    </>
   );
 }

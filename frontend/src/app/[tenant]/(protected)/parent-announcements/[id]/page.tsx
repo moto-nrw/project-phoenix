@@ -34,7 +34,9 @@ import { fetchActivities } from "~/lib/activity-api";
 import type { Activity } from "~/lib/activity-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   fetchAnnouncement,
   fetchPollResults,
@@ -196,6 +198,12 @@ function AnnouncementDetailPageContent() {
   const refresh = async () => {
     await Promise.all([mutate(), tenantMutate(LIST_KEY)]);
   };
+  // Nach dem Speichern der Erinnerung lädt die Mitteilung nach; ein Fehler
+  // dabei steht über der Mitteilung, auch wenn der Dialog zu ist (#6652).
+  const reminderAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Mitteilung",
+    refresh,
+  );
 
   // Bis der Katalogtext des Ladefehlers da ist, bleibt das Skelett stehen.
   const awaitingErrorText = !!loadError && !notFound && !shownLoadError;
@@ -302,7 +310,7 @@ function AnnouncementDetailPageContent() {
             <AnnouncementReminderDialog
               announcement={announcement}
               onClose={() => setAction(null)}
-              onSaved={refresh}
+              onSaved={reminderAfterWrite.refresh}
             />
           )}
           {action === "delete" && (
@@ -318,6 +326,7 @@ function AnnouncementDetailPageContent() {
         </>
       }
     >
+      <LoadErrorAlert error={reminderAfterWrite.error} />
       <AnnouncementDetail
         announcement={announcement}
         groups={groups ?? []}

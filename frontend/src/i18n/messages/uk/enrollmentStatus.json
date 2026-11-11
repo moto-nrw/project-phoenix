@@ -3,6 +3,8 @@
   "errorObjectEdit": "зміна",
   "errorObjectReply": "відповідь",
   "errorObjectChangeRequests": "список запитів на зміну",
+  "reloadObject": "відображення запису",
+  "savedButStale": "Вашу зміну збережено. Лише відображення ще не оновлене.",
   "changeRequestSent": "Запит на зміну надіслано. {careTerm} його перевірить.",
   "loading": "Статус завантажується…",
   "invalidTitle": "Посилання на статус недійсне",

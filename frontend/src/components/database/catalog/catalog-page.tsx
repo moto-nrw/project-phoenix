@@ -36,7 +36,8 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Skeleton } from "~/components/ui/skeleton";
-import type { FormErrorDetail } from "~/components/ui/form-error";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -45,6 +46,7 @@ import {
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { configToFormSection, type SectionConfig } from "~/lib/database/types";
 import type { MotoConcept } from "~/lib/moto-concepts";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { foldForSearch } from "~/lib/search-fold";
 
@@ -73,6 +75,8 @@ interface CatalogRetire<T> {
   readonly menuLabel: string;
   readonly confirmTitle: string;
   readonly confirmLabel: string;
+  /** Text des Bestätigen-Knopfs, solange der Rückzug läuft. */
+  readonly loadingLabel: string;
   readonly describe: (item: T) => React.ReactNode;
   readonly run: (item: T) => Promise<unknown>;
   readonly toast: (item: T) => string;
@@ -138,7 +142,7 @@ interface CatalogPageProps<T extends CatalogItem> {
   readonly isLoading: boolean;
   /** Ladefehler der Liste, am besten aus `useSwrLoadError` (Wiederholen und
    *  Vorgangskennung kommen mit). Ein Fehler ist nie ein Leerzustand. */
-  readonly error: string | FormErrorDetail | null;
+  readonly error: FormErrorInput;
   /** Neu laden, nachdem geschrieben wurde. */
   readonly onChanged: () => Promise<unknown> | void;
   /** Ohne Recht bleibt die Fläche eine Liste zum Nachlesen. */
@@ -147,6 +151,8 @@ interface CatalogPageProps<T extends CatalogItem> {
   readonly selectedId: string | null;
   /** Zusätzliche Kopf-Aktion, z. B. „Beispiele hinzufügen". */
   readonly headAction?: React.ReactNode;
+  /** Hinweis über der Liste, z. B. der Ladefehler nach der Kopf-Aktion. */
+  readonly notice?: React.ReactNode;
 }
 
 /**
@@ -172,6 +178,7 @@ export function CatalogPage<T extends CatalogItem>({
   canManage,
   selectedId,
   headAction,
+  notice,
 }: CatalogPageProps<T>) {
   const toast = useToast();
   const { show: showWriteError } = useApiErrorDisplay();
@@ -194,6 +201,13 @@ export function CatalogPage<T extends CatalogItem>({
   // Zählt jedes gespeicherte Formular hoch, damit `DatabaseForm` seine Felder
   // aus dem frisch geladenen Eintrag neu aufbaut (wie in den Räumen).
   const [formGeneration, setFormGeneration] = useState(0);
+
+  useEffect(() => {
+    if (items !== undefined) return;
+    setCreateOpen(false);
+    setRetireTarget(null);
+    setRemoveTarget(null);
+  }, [items]);
 
   const all = useMemo(() => items ?? [], [items]);
   const createDisabled = config.createDisabled ?? false;
@@ -244,21 +258,16 @@ export function CatalogPage<T extends CatalogItem>({
   /**
    * Das Nachladen folgt erst auf einen bereits erfolgreichen Schreibvorgang.
    * Ein Fehler dabei darf dem Formular nicht vorgaukeln, die Änderung sei
-   * fehlgeschlagen: Sie liegt bereits im Backend und kann nach einem Neuladen
-   * angezeigt werden.
+   * fehlgeschlagen: Er steht als Ladefehler über der Liste und sagt, dass
+   * die Änderung gespeichert ist; „Wiederholen“ lädt nur neu (#6652).
    */
-  const refreshAfterWrite = useCallback(async () => {
-    try {
+  const afterWrite = useRefreshAfterWrite(
+    `die Anzeige der ${config.title}`,
+    async () => {
       await onChanged();
-      return true;
-    } catch (err: unknown) {
-      logger.error("catalog_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toast.warning("Die Änderung wurde gespeichert. Laden Sie die Seite neu.");
-      return false;
-    }
-  }, [onChanged, toast]);
+    },
+  );
+  const refreshAfterWrite = afterWrite.refresh;
 
   /**
    * Ein Schreibvorgang mit gemeinsamem Busy-, Fehler- und Nachlade-Vertrag.
@@ -266,20 +275,25 @@ export function CatalogPage<T extends CatalogItem>({
    * Bestätigungsdialoge schließen danach, Listenaktionen haben kein Formular.
    */
   const runWrite = useCallback(
-    async (event: string, write: () => Promise<unknown>) => {
+    async (
+      event: string,
+      write: () => Promise<unknown>,
+      afterWritten?: () => void,
+    ) => {
       setBusy(true);
       try {
         await write();
-        return { saved: true, refreshed: await refreshAfterWrite() };
       } catch (err: unknown) {
         logger.error(event, {
           error: err instanceof Error ? err.message : String(err),
         });
         void showWriteError(err, { object: errorObject });
-        return { saved: false, refreshed: false };
-      } finally {
         setBusy(false);
+        return { saved: false, refreshed: false };
       }
+      afterWritten?.();
+      setBusy(false);
+      return { saved: true, refreshed: await refreshAfterWrite() };
     },
     [refreshAfterWrite, showWriteError, errorObject],
   );
@@ -321,10 +335,12 @@ export function CatalogPage<T extends CatalogItem>({
     const target = retireTarget;
     const retire = config.retire;
     if (!target || !retire) return;
-    const result = await runWrite("catalog_retire_failed", () =>
-      retire.run(target),
+    const result = await runWrite(
+      "catalog_retire_failed",
+      () => retire.run(target),
+      () => setRetireTarget(null),
     );
-    setRetireTarget(null);
+    if (!result.saved) setRetireTarget(null);
     if (result.saved && result.refreshed) toast.success(retire.toast(target));
   }, [config, retireTarget, runWrite, toast]);
 
@@ -344,14 +360,16 @@ export function CatalogPage<T extends CatalogItem>({
     const target = removeTarget;
     const remove = config.remove;
     if (!target || !remove) return;
-    const result = await runWrite("catalog_remove_failed", () =>
-      remove.run(target),
+    const result = await runWrite(
+      "catalog_remove_failed",
+      () => remove.run(target),
+      () => {
+        setRemoveTarget(null);
+        select(null);
+      },
     );
-    setRemoveTarget(null);
-    if (result.saved) {
-      select(null);
-      if (result.refreshed) toast.success(remove.toast(target));
-    }
+    if (!result.saved) setRemoveTarget(null);
+    if (result.saved && result.refreshed) toast.success(remove.toast(target));
   }, [config, removeTarget, runWrite, select, toast]);
 
   const handleMove = useCallback(
@@ -595,10 +613,12 @@ export function CatalogPage<T extends CatalogItem>({
     <DatabasePageLayout
       loading={isLoading}
       sessionLoading={false}
-      error={error}
+      // Bestätigte Daten bleiben bei einem Ladefehler stehen; der Fehler
+      // steht darüber (#6652).
+      error={items === undefined ? error : null}
       className="flex w-full flex-col"
       empty={
-        hasNothing
+        hasNothing && !error && !afterWrite.error
           ? {
               title: isSearching
                 ? "Nichts gefunden"
@@ -623,17 +643,18 @@ export function CatalogPage<T extends CatalogItem>({
         ) : (
           config.stats(all)
         ),
-        actions: canManage ? (
-          <div className="flex items-center gap-2">
-            {headAction}
-            <DatabaseCreateAction
-              label={config.singular}
-              ariaLabel={`${config.singular} anlegen`}
-              disabled={createDisabled}
-              onClick={() => setCreateOpen(true)}
-            />
-          </div>
-        ) : undefined,
+        actions:
+          canManage && (items !== undefined || isLoading) ? (
+            <div className="flex items-center gap-2">
+              {items === undefined ? null : headAction}
+              <DatabaseCreateAction
+                label={config.singular}
+                ariaLabel={`${config.singular} anlegen`}
+                disabled={createDisabled || items === undefined}
+                onClick={() => setCreateOpen(true)}
+              />
+            </div>
+          ) : undefined,
       }}
       search={
         <PageHeaderWithSearch
@@ -659,7 +680,7 @@ export function CatalogPage<T extends CatalogItem>({
       }
       overlays={
         <>
-          {createOpen && (
+          {createOpen && items !== undefined && (
             <DatabaseFormModal<Record<string, unknown>>
               isOpen
               onClose={() => setCreateOpen(false)}
@@ -685,13 +706,14 @@ export function CatalogPage<T extends CatalogItem>({
 
           {/* Archivieren ist umkehrbar und damit keine Löschung
               (BAUARTEN-SPEC Bauart 2 Regel 6). */}
-          {config.retire && (
+          {config.retire && items !== undefined && (
             <ConfirmationModal
-              isOpen={retireTarget !== null}
+              isOpen={retireTarget !== null && items !== undefined}
               title={config.retire.confirmTitle}
               confirmText={config.retire.confirmLabel}
               cancelText="Abbrechen"
               isConfirmLoading={busy}
+              loadingText={config.retire.loadingLabel}
               isDismissDisabled={busy}
               onConfirm={() => void handleRetire()}
               onClose={() => setRetireTarget(null)}
@@ -702,9 +724,9 @@ export function CatalogPage<T extends CatalogItem>({
             </ConfirmationModal>
           )}
 
-          {config.remove && (
+          {config.remove && items !== undefined && (
             <ConfirmDeleteModal
-              isOpen={removeTarget !== null}
+              isOpen={removeTarget !== null && items !== undefined}
               title={config.remove.confirmTitle}
               description={
                 removeTarget ? config.remove.describe(removeTarget) : ""
@@ -719,6 +741,9 @@ export function CatalogPage<T extends CatalogItem>({
         </>
       }
     >
+      <LoadErrorAlert error={items === undefined ? null : error} />
+      <LoadErrorAlert error={afterWrite.error} />
+      {notice}
       <div className="min-h-0 flex-1 pb-4">
         <MasterDetailLayout
           list={

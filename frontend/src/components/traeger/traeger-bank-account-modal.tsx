@@ -7,6 +7,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   createTraegerBankAccount,
@@ -43,7 +44,8 @@ export function TraegerBankAccountModal({
 }: Readonly<{
   edit: BankAccountEdit | null;
   onClose: () => void;
-  onSaved: () => Promise<unknown>;
+  /** Reloads the card; never rejects (#6652). */
+  onSaved: RefreshAfterWrite;
 }>) {
   const [draft, setDraft] = useState<TraegerBankAccountInput>(EMPTY);
   const save = useFormModalPending(edit !== null);
@@ -90,8 +92,6 @@ export function TraegerBankAccountModal({
           await updateTraegerBankAccount(edit.account.id, draft);
           success(`Die Bankverbindung „${draft.label.trim()}“ ist geändert.`);
         }
-        if (op.isCurrent()) onClose();
-        await onSaved();
       } catch (err) {
         logger.error("traeger_bank_account_save_failed", {
           kind: edit.kind,
@@ -99,7 +99,10 @@ export function TraegerBankAccountModal({
         });
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object: "die Bankverbindung" });
+        return;
       }
+      if (op.isCurrent()) onClose();
+      await onSaved();
     });
   };
 

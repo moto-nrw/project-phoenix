@@ -86,6 +86,7 @@ export function BulkConfirmationDialog({
       confirmText={`${count} Anfragen freigeben`}
       cancelText="Zurück"
       isConfirmLoading={saving}
+      loadingText="Wird freigegeben …"
       isDismissDisabled={saving}
       mobileSheet
     >

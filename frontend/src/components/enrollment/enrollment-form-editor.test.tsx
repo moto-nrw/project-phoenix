@@ -163,6 +163,7 @@ import { EnrollmentFormEditor } from "./enrollment-form-editor";
 import { prepareFieldsForSave } from "./form-template-draft";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import type { FormField, FormSchema } from "~/lib/enrollment-form-schema-api";
 import {
   phase,
@@ -503,6 +504,41 @@ describe("EnrollmentFormEditor", () => {
     });
   });
 
+  // #6652: the new name holds once the write is through; a failed reload of
+  // the templates is a load error that says the change is saved.
+  it("keeps a renamed schema when the reload fails", async () => {
+    mocks.listSchemas
+      .mockReset()
+      .mockResolvedValueOnce([schema()])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([schema({ name: "Ferienprogramm" })]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+
+    render(<EnrollmentFormEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Umbenennen" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Name"), {
+      target: { value: "Ferienprogramm" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldeformulare")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mocks.listSchemas).toHaveBeenCalledTimes(3));
+    expect(mocks.renameSchema).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the rename dialog open and shows the error when the name is taken", async () => {
     mocks.listSchemas.mockResolvedValue([schema()]);
     mocks.listPhases.mockResolvedValue([]);
@@ -628,6 +664,41 @@ describe("EnrollmentFormEditor", () => {
         undefined,
       );
     });
+  });
+
+  it("keeps a saved template saved when the reload fails (#6652)", async () => {
+    mocks.listSchemas
+      .mockReset()
+      .mockResolvedValueOnce([schema()])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema());
+
+    render(<EnrollmentFormEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("switch", { name: "Unterschrift erforderlich" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldeformulare")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mocks.listSchemas).toHaveBeenCalledTimes(3));
+    expect(mocks.updateSchema).toHaveBeenCalledTimes(1);
   });
 
   it("renames AND publishes in one atomic request when name and content both change", async () => {

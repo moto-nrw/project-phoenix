@@ -39,6 +39,7 @@ import {
   runRosterActionRequest,
   type RosterAction,
 } from "~/components/active-supervisions/timetable-roster";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import type { SpontaneousActivityStartPayload } from "~/components/active-supervisions/spontaneous-activity-start";
 import type { ActiveSupervisionRoom } from "~/components/active-supervisions/view-model";
 import type { ReopenableInstance } from "~/components/active-supervisions/use-reopen-banner";
@@ -94,6 +95,9 @@ interface TimetableActionsOptions {
 }
 
 export interface TimetableActions {
+  /** Ein gescheitertes Nachladen nach Start, Ende oder Wiederaufnahme; die
+   *  Seite zeigt es als Ladefehler (#6652). */
+  readonly reloadError: ReturnType<typeof useRefreshAfterWrite>["error"];
   readonly isStartingInstance: string | null;
   readonly isStartingSpontaneous: boolean;
   /**
@@ -242,12 +246,18 @@ export function useTimetableActions(
   // write itself as failed. No extra SWR key bump afterwards: it fetched the
   // same aggregate a second time and kept the old view on screen meanwhile
   // (#3888).
-  const reloadAfterLifecycleChange = useCallback(async () => {
-    await Promise.allSettled([
-      mutateDashboard(),
-      refreshSupervision({ silent: true, force: true }),
-    ]);
-  }, [mutateDashboard, refreshSupervision]);
+  // Nachladen nach Start, Ende oder Wiederaufnahme: ein Fehler dabei ist ein
+  // Ladefehler der Seite, nie ein Fehler der Aktion, und „Wiederholen“ lädt
+  // nur (#6652).
+  const lifecycleAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Aufsicht",
+    () =>
+      Promise.all([
+        mutateDashboard(),
+        refreshSupervision({ silent: true, force: true }),
+      ]),
+  );
+  const reloadAfterLifecycleChange = lifecycleAfterWrite.refresh;
 
   // Hinweise und Fehler gehören zur aktiven Sitzung und dürfen nicht in eine
   // andere Aufsicht übernommen werden.
@@ -842,6 +852,7 @@ export function useTimetableActions(
   });
 
   return {
+    reloadError: lifecycleAfterWrite.error,
     isStartingInstance,
     isStartingSpontaneous,
     isCompletingInstance,

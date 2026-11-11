@@ -299,6 +299,7 @@ export function GroupMembersPanel({
         confirmText="Verlassen"
         confirmVariant="danger"
         isConfirmLoading={busy}
+        loadingText="Chat wird verlassen …"
       >
         <p className="text-sm text-gray-700">
           Sie sehen „{thread.group_name}“ und seine Nachrichten danach nicht

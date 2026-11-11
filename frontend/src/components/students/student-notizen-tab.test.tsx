@@ -14,6 +14,11 @@ const createMock = vi.fn();
 const updateMock = vi.fn();
 const removeMock = vi.fn();
 const listActivitiesMock = vi.fn();
+const discardRefusedMock = vi.fn(() => false);
+
+vi.mock("~/lib/swr/hooks", () => ({
+  useDiscardRefusedEntity: () => discardRefusedMock,
+}));
 
 vi.mock("~/lib/student-notes-api", async (importOriginal) => {
   const actual =
@@ -393,6 +398,8 @@ describe("StudentNotizenTab", () => {
     await waitFor(() => {
       expect(swrState.tenantMutate).toHaveBeenCalledWith(
         "student-permanent-notes-7",
+        expect.any(Promise),
+        { revalidate: false },
       );
     });
   });

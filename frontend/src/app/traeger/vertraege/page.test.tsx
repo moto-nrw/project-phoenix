@@ -1,6 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   CareContractSummary,
   ContractCandidate,
@@ -443,5 +453,196 @@ describe("TraegerVertraegePage", () => {
     expect((await screen.findAllByText("Aktiv"))[0]).toBeInTheDocument();
     expect(screen.getByText("seit 03.09.2026")).toBeInTheDocument();
     expect(screen.getByText("aktiv")).toBeInTheDocument();
+  });
+  // #6652: after a confirmed send a failed reload is a load error above the
+  // list, not a failed send or a page error that replaces the contracts.
+  describe("reload after a write (#6652)", () => {
+    it.each([401, 403])(
+      "discards contracts, candidates and overlays after reload refuses access (%s)",
+      async (status) => {
+        renderPage();
+        await screen.findAllByText("Lina Muster");
+        fireEvent.click(
+          screen.getAllByLabelText("Vertrag von Lina Muster auswählen")[0]!,
+        );
+        fireEvent.click(
+          screen.getByRole("button", { name: /Verträge erstellen/ }),
+        );
+        expect(await screen.findByRole("dialog")).toBeVisible();
+        api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
+        api.fetchCareContracts.mockRejectedValueOnce(
+          new ApiError("refused", status),
+        );
+        fireEvent.click(
+          screen.getByRole("button", { name: "1 Entwurf senden" }),
+        );
+        // A 401 leaves through the login path and has no inline error.
+        await waitFor(() =>
+          expect(
+            screen.getByRole("button", { name: "Verträge erstellen" }),
+          ).toBeDisabled(),
+        );
+        if (status === 403) {
+          expect(
+            await screen.findByText(
+              `${catalogText("general.permission", "die Anzeige der Verträge")} ${SAVED_BUT_STALE_SUFFIX}`,
+            ),
+          ).toBeVisible();
+        }
+        expect(screen.queryByText("Lina Muster")).not.toBeInTheDocument();
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "Verträge erstellen" }),
+        ).toBeDisabled();
+
+        fireEvent.change(
+          screen.getAllByPlaceholderText(
+            "Kind, Eltern oder Angebot suchen",
+          )[0]!,
+          { target: { value: "Lina" } },
+        );
+        await screen.findAllByText("Lina Muster");
+        expect(api.fetchContractCandidates).toHaveBeenCalledTimes(2);
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      },
+    );
+
+    it("shows a reload failure after sending while a new filter has no data yet", async () => {
+      const send = deferred<{ sent: string[]; skipped: [] }>();
+      const filtered = deferred<{
+        contracts: CareContractSummary[];
+        counts: {};
+        hasMore: boolean;
+      }>();
+      api.sendCareContracts.mockReturnValueOnce(send.promise);
+      renderPage();
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(
+        screen.getAllByLabelText("Vertrag von Lina Muster auswählen")[0]!,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "1 Entwurf senden" }),
+      );
+      api.fetchCareContracts
+        .mockReturnValueOnce(filtered.promise)
+        .mockRejectedValueOnce(new ApiError("down", 503))
+        .mockResolvedValue({
+          contracts: [SENT],
+          counts: { versendet: 1 },
+          hasMore: false,
+        });
+      fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: /^Versendet/ }),
+      );
+      await waitFor(() =>
+        expect(api.fetchCareContracts).toHaveBeenCalledTimes(2),
+      );
+      await act(async () => send.resolve({ sent: ["7"], skipped: [] }));
+      const retry = await screen.findByRole("button", { name: "Wiederholen" });
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        SAVED_BUT_STALE_SUFFIX,
+      );
+      await act(async () =>
+        filtered.resolve({ contracts: [DRAFT], counts: {}, hasMore: false }),
+      );
+      fireEvent.click(retry);
+      expect((await screen.findAllByText("Ben Muster"))[0]).toBeVisible();
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps created drafts created when the reload fails", async () => {
+      api.createCareContracts.mockResolvedValue({
+        created: [DRAFT],
+        skipped: [],
+      });
+      renderPage();
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+      fireEvent.click(await screen.findByRole("option", { name: /^Entwurf/ }));
+      await waitFor(() =>
+        expect(api.fetchCareContracts).toHaveBeenLastCalledWith(
+          expect.objectContaining({ status: "entwurf" }),
+        ),
+      );
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Verträge erstellen/ }),
+      );
+      const createButton = await screen.findByRole("button", {
+        name: "1 Entwurf erstellen",
+      });
+      api.fetchCareContracts.mockClear();
+      api.fetchCareContracts
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue({
+          contracts: [DRAFT, SENT],
+          counts: { entwurf: 1, versendet: 1 },
+          hasMore: false,
+        });
+
+      fireEvent.click(createButton);
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Verträge",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(api.createCareContracts).toHaveBeenCalledTimes(1);
+      // Anker: the confirmed rows stay listed.
+      expect(screen.getAllByText("Lina Muster")[0]).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Verträge")),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps sent drafts sent when the reload fails", async () => {
+      api.sendCareContracts.mockResolvedValue({ sent: ["7"], skipped: [] });
+      renderPage();
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(
+        screen.getAllByLabelText("Vertrag von Lina Muster auswählen")[0]!,
+      );
+      const sendButton = await screen.findByRole("button", {
+        name: "1 Entwurf senden",
+      });
+      api.fetchCareContracts.mockClear();
+      api.fetchCareContracts
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue({
+          contracts: [{ ...DRAFT, status: "versendet" }, SENT],
+          counts: { versendet: 2 },
+          hasMore: false,
+        });
+
+      fireEvent.click(sendButton);
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Verträge",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+      // Anker: the confirmed rows stay listed.
+      expect(screen.getAllByText("Lina Muster")[0]).toBeInTheDocument();
+      expect(screen.getAllByText("Ben Muster")[0]).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Verträge")),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(api.fetchCareContracts).toHaveBeenCalledTimes(2),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+      );
+      expect(screen.getAllByText("Lina Muster")[0]).toBeInTheDocument();
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+    });
   });
 });

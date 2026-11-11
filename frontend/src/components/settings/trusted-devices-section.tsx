@@ -23,6 +23,7 @@ import {
 import { formatDeviceLabelFromUserAgent } from "~/lib/device-label";
 import { createLogger } from "~/lib/logger";
 import { hasSessionAccess } from "~/lib/session-access";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   listTrustedDevices,
   revokeTrustedDevice,
@@ -74,15 +75,21 @@ export function TrustedDevicesSection({
   const latestRevokeRef = useRef<(deviceId: number) => void>(() => undefined);
 
   // The routes read the session cookie (#5005); a stripped session sends no
-  // request.
+  // request. Rejects on failure: after a write the caller shows it as a
+  // reload of a saved change and keeps the shown list (#6652).
+  const readDevices = useCallback(async () => {
+    if (!hasAccess) return;
+    const list = await listTrustedDevices(scope);
+    setDevices(list);
+  }, [hasAccess, scope]);
+  // Never rejects: a failed load shows its error in place of the list.
   const load = useCallback(async () => {
     if (!hasAccess) return;
     setLoading(true);
     setLoadFailed(false);
     clear();
     try {
-      const list = await listTrustedDevices(scope);
-      setDevices(list);
+      await readDevices();
     } catch (err) {
       logger.error("list_trusted_devices_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -95,7 +102,11 @@ export function TrustedDevicesSection({
     } finally {
       setLoading(false);
     }
-  }, [hasAccess, clear, scope, showLoadError]);
+  }, [hasAccess, clear, readDevices, showLoadError]);
+  const { error: reloadError, refresh: refreshDevices } = useRefreshAfterWrite(
+    "die Anzeige der vertrauten Geräte",
+    readDevices,
+  );
 
   useEffect(() => {
     if (sessionStatus === "authenticated") {
@@ -112,9 +123,6 @@ export function TrustedDevicesSection({
       revokeErrors.clear();
       try {
         await revokeTrustedDevice(scope, deviceId);
-        setRevokeTarget(null);
-        toast.success("Das Gerät ist entfernt.");
-        await load();
       } catch (err) {
         logger.error("revoke_trusted_device_failed", {
           device_id: deviceId,
@@ -124,11 +132,15 @@ export function TrustedDevicesSection({
           object: "das Entfernen des Geräts",
           retry: () => latestRevokeRef.current(deviceId),
         });
-      } finally {
         setRevokingId(null);
+        return;
       }
+      setRevokingId(null);
+      setRevokeTarget(null);
+      toast.success("Das Gerät ist entfernt.");
+      await refreshDevices();
     },
-    [hasAccess, scope, toast, load, revokeErrors],
+    [hasAccess, scope, toast, revokeErrors, refreshDevices],
   );
 
   useLayoutEffect(() => {
@@ -152,6 +164,7 @@ export function TrustedDevicesSection({
       {!loading && loadFailed && loadError ? (
         <LoadErrorAlert error={loadError} />
       ) : null}
+      <LoadErrorAlert error={reloadError} className="mb-4" />
       {!loading && !loadFailed && (!devices || devices.length === 0) && (
         <EmptyState
           variant="compact"
