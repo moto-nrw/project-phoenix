@@ -12626,11 +12626,107 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
       "binding_digest": "ef4f85427d467d99ec7c7f4470197148",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.BulkCancelPlanned",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycleDependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Complete",
@@ -12706,6 +12802,38 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
       "binding_digest": "ef4f85427d467d99ec7c7f4470197148",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
       "source_owner": "timetable-activities",
@@ -12714,11 +12842,171 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
       "binding_digest": "ef4f85427d467d99ec7c7f4470197148",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.BulkCancelPlanned",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycleDependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Complete",
@@ -12802,11 +13090,59 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
@@ -12815,6 +13151,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Reopen",
@@ -13170,11 +13522,59 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
@@ -13185,12 +13585,60 @@
       "target_owner": "school-structure"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceLifecycleCapability.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.CreateInstance",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.ReplanWeek",
@@ -13338,11 +13786,43 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.UpdatePlanned",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstancePlanning.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.instanceSeriesConversion.ConvertInstanceToSeries",
@@ -13529,6 +14009,38 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.CreateInstanceStaff",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.CreateInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.CreateInstanceStaff",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.CreateInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.CreateInstanceStaff",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.CreateInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.CreateInstanceStaff",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.CreateInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCapability.CreateInstanceStaff",
       "binding_digest": "811dfb901994f1b5d549cded3801745c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.CreateInstanceStaff",
@@ -13561,6 +14073,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.DeleteInstanceStaff",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.DeleteInstanceStaff",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCapability.DeleteInstanceStaff",
       "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteInstanceStaff",
@@ -13572,6 +14100,22 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCapability.DeleteInstanceStaff",
       "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.DeleteInstanceStaffByInstance",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteInstanceStaffByInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.DeleteInstanceStaffByInstance",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteInstanceStaffByInstance",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
       "target_owner": "tenant-runtime"
@@ -13593,6 +14137,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.DeleteUpcomingInstanceStaff",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteUpcomingInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.DeleteUpcomingInstanceStaff",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteUpcomingInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCapability.DeleteUpcomingInstanceStaff",
       "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.DeleteUpcomingInstanceStaff",
@@ -13609,6 +14169,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.PatchInstanceStaff",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.PatchInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.PatchInstanceStaff",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.PatchInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCapability.PatchInstanceStaff",
       "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.PatchInstanceStaff",
@@ -13620,6 +14196,38 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCapability.PatchInstanceStaff",
       "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.PatchInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.UpdateInstanceStaff",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.UpdateInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.UpdateInstanceStaff",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.UpdateInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.UpdateInstanceStaff",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.UpdateInstanceStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.UpdateInstanceStaff",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.InstanceStaffCommand.UpdateInstanceStaff",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
       "target_owner": "tenant-runtime"
@@ -14498,10 +15106,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.materializationService.MaterializeForTenant",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.MaterializationCapability.MaterializeForTenant",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.materializationService.MaterializeForTenant",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.MaterializationCapability.MaterializeForTenant",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.materializationService.MaterializeForTenant",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.MaterializationCapability.MaterializeForTenant",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -14527,6 +15151,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.materializationService.MaterializeForTenant",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.MaterializationCapability.MaterializeForTenant",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.materializationService.MaterializeForTenant",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.MaterializationCapability.MaterializeForTenant",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
@@ -14794,11 +15434,43 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operations.CreateAndStartSpontaneous",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OperationCapability.CreateAndStartSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operations.CreateAndStartSpontaneous",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OperationCapability.CreateAndStartSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operations.CreateAndStartSpontaneous",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OperationCapability.CreateAndStartSpontaneous",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operations.CreateAndStartSpontaneous",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OperationCapability.CreateAndStartSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operations.CreateAndStartSpontaneous",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OperationCapability.CreateAndStartSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operations.CreateAndStartSpontaneous",
@@ -21169,6 +21841,38 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.LockSeriesSeed",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.LockSeriesSeed",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.LockSeriesSeed",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.LockSeriesSeed",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
       "binding_digest": "740cb461ef55d28e9d6da288004dd419",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
@@ -23282,10 +23986,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.AddSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.AddSupervisor",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.AddSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -23305,6 +24025,22 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.AddSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.AddSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CanModifyActivity",
       "binding_digest": "87654355629183615f741aff5f33f49b",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CanModifyActivity",
@@ -23351,6 +24087,62 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CreateGroup",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CreateGroup",
+      "binding_digest": "8270001573b38d21df0e06fe4f432345",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CreateGroup",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CreateGroup",
+      "binding_digest": "889863c1f55aaedfc3d8881a4a4ec90a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CreateGroup",
+      "binding_digest": "7cef99be4227fbdccfb45f884c160d29",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CreateGroup",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.CreateGroup",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.DeleteGroup",
@@ -23482,10 +24274,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.DeleteSupervisor",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.DeleteSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.DeleteSupervisor",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.DeleteSupervisor",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.DeleteSupervisor",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.DeleteSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -23503,6 +24311,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.DeleteSupervisor",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.DeleteSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.DeleteSupervisor",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.DeleteSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.EnrollStudent",
@@ -23842,10 +24666,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.ReplaceSupervisor",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.ReplaceSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.ReplaceSupervisor",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.ReplaceSupervisor",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.ReplaceSupervisor",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.ReplaceSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -23863,6 +24703,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.ReplaceSupervisor",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.ReplaceSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.ReplaceSupervisor",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.ReplaceSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.SetPrimarySupervisor",
@@ -23890,10 +24746,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.SetPrimarySupervisor",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.SetPrimarySupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.SetPrimarySupervisor",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.SetPrimarySupervisor",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.SetPrimarySupervisor",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.SetPrimarySupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -23911,6 +24783,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.SetPrimarySupervisor",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.SetPrimarySupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.SetPrimarySupervisor",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.SetPrimarySupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UnenrollStudent",
@@ -24098,10 +24986,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupSupervisors",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupSupervisors",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupSupervisors",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupSupervisors",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupSupervisors",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupSupervisors",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -24119,6 +25023,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupSupervisors",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupSupervisors",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupSupervisors",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupSupervisors",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupWithDetails",
@@ -24146,10 +25066,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupWithDetails",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupWithDetails",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupWithDetails",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupWithDetails",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupWithDetails",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupWithDetails",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -24167,6 +25103,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupWithDetails",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupWithDetails",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateGroupWithDetails",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateGroupWithDetails",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateSupervisor",
@@ -24194,10 +25146,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateSupervisor",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateSupervisor",
       "binding_digest": "8270001573b38d21df0e06fe4f432345",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateSupervisor",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateSupervisor",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
     },
     {
@@ -24215,6 +25183,22 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateSupervisor",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.UpdateSupervisor",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.UpdateSupervisor",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.RoomNameDirectory.AllRoomNames",
@@ -24450,11 +25434,107 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.BulkCancelPlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.BulkCancelPlanned",
       "binding_digest": "ef4f85427d467d99ec7c7f4470197148",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.BulkCancelPlanned",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycleDependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.Cancel",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.Cancel",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.Cancel",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.Cancel",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CancelWithNotice",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CancelWithNotice",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CancelWithNotice",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CancelWithNotice",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.Complete",
@@ -24538,11 +25618,43 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CreateInstance",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CreateInstance",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CreateInstance",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CreateInstance",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CreateInstance",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.CreateInstance",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.Reopen",
@@ -24722,11 +25834,43 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.UpdatePlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.UpdatePlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.UpdatePlanned",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.UpdatePlanned",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.UpdatePlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.fromInstanceLifecycle.UpdatePlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.AddCalendarPeriod",
@@ -25535,6 +26679,62 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindReadScopeByIDs",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.CatalogSource.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "binding_digest": "8270001573b38d21df0e06fe4f432345",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.CatalogSource.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.CatalogSource.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "binding_digest": "889863c1f55aaedfc3d8881a4a4ec90a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.CatalogSource.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "binding_digest": "7cef99be4227fbdccfb45f884c160d29",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.CatalogSource.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.CatalogSource.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.CreateGroup",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.CatalogSource.CreateGroup",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CategoryRows.ListCategories",
@@ -28153,6 +29353,38 @@
       "target_owner": "audit-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.deviationLifecycle.CancelBlock",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.DeviationLifecycle.CancelBlock",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.deviationLifecycle.CancelBlock",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.DeviationLifecycle.CancelBlock",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.deviationLifecycle.CancelBlock",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.DeviationLifecycle.CancelBlock",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.deviationLifecycle.CancelBlock",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.DeviationLifecycle.CancelBlock",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableDeviationProtocol.RecordDeviationEvent",
       "binding_digest": "d3806756391d5536a0fa1fae62555d60",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.DeviationProtocol.RecordDeviationEvent",
@@ -28626,11 +29858,107 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.BulkCancelPlanned",
       "binding_digest": "ef4f85427d467d99ec7c7f4470197148",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.BulkCancelPlanned",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycleDependencies.Now",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Cancel",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.Cancel",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CancelWithNotice",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CancelWithNotice",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Complete",
@@ -28714,11 +30042,43 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.CreateInstance",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.CreateInstance",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.Reopen",
@@ -28898,11 +30258,43 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.InstanceLifecycleService.UpdatePlanned",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.InstanceLifecycle.UpdatePlanned",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CompleteActivitySession",
@@ -29714,11 +31106,43 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operationLifecycle.CreateSpontaneous",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationLifecycle.CreateSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operationLifecycle.CreateSpontaneous",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationLifecycle.CreateSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operationLifecycle.CreateSpontaneous",
       "binding_digest": "cc244fdb0c7b25d52880949d3295d0ea",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationLifecycle.CreateSpontaneous",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.TransitionsLockKey",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operationLifecycle.CreateSpontaneous",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationLifecycle.CreateSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operationLifecycle.CreateSpontaneous",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.OperationLifecycle.CreateSpontaneous",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.operationLifecycle.Reopen",
@@ -31175,6 +32599,38 @@
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/ports.CareOfferingChecks.ValidateOfferingSource",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "binding_digest": "811dfb901994f1b5d549cded3801745c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "binding_digest": "bd26315c989b0083426601a6b0092cb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "binding_digest": "789f6453f257a708b89fa9b4a4a12a1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.LockSeriesSeed",
+      "binding_digest": "c4f8b1c596e7ede27e0d046157ab6eb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.LockSeriesSeed",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.TemplateAssignmentsOn",
