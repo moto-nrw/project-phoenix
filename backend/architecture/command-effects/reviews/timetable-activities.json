@@ -27701,6 +27701,50 @@
     },
     {
       "adr": "0067",
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords; github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog}.LockSessionInstanceStaff",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.LockSessionInstanceStaff",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: timetable-activities reaches modules/schoolmembership.Capability.FindStaffForMutation (school-membership) through interface{modules/timetable.SessionRecords; modules/timetable.TemplateCatalog}.LockSessionInstanceStaff. Participates in the caller unit. New for #6702: the writer takes the staff rows of every person it plans in one ascending batch before its first row (tenant.LockStaffRows); target, effect and lock strength are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "adr": "0067",
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords; github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog}.LockSessionInstanceStaff",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.LockSessionInstanceStaff",
+      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: timetable-activities reaches modules/schoolmembership.Owner.FindStaffForMutation (school-membership) through interface{modules/timetable.SessionRecords; modules/timetable.TemplateCatalog}.LockSessionInstanceStaff. Participates in the caller unit. New for #6702: the writer takes the staff rows of every person it plans in one ascending batch before its first row (tenant.LockStaffRows); target, effect and lock strength are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords; github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog}.LockSessionInstanceStaff",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.LockSessionInstanceStaff",
+      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through interface{modules/timetable.SessionRecords; modules/timetable.TemplateCatalog}.LockSessionInstanceStaff. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Newly visible through the #6702 staff pre-lock (InstanceStaffLocks.LockStaffAssignments).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "interface{github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords; github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog}.LockSessionInstanceStaff",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.LockSessionInstanceStaff",
+      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through interface{modules/timetable.SessionRecords; modules/timetable.TemplateCatalog}.LockSessionInstanceStaff. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Newly visible through the #6702 staff pre-lock (InstanceStaffLocks.LockStaffAssignments).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.staffDeviations.ApplyBulkSubstitution",
       "classification": "leaf",
       "effect": "lock",
@@ -29066,6 +29110,16 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolmembership.Capability.ListStaff (school-membership) through *modules/timetable/internal/application.templateAdministration.CreateTemplate. No persistent, lock or scope effect; newly visible through the #6702 staff pre-lock, which reads the people it locks.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
       "adr": "0067",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
       "classification": "leaf",
@@ -29074,6 +29128,26 @@
       "reason": "Template creation prelocks the complete resolved supervisor roster through InstanceStaffLocks.LockStaffAssignments in ascending staff-ID order before inserting supervisor rows (#6583). FindStaffForMutation is the existing guarded staff-row lock, joins the caller tenant transaction and enforces the lock ledger; already-held rows are skipped. No foreign mutation or separate coordination protocol is added (ADR 0067).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolmembership.Owner.ListStaff (school-membership) through *modules/timetable/internal/application.templateAdministration.CreateTemplate. No persistent, lock or scope effect; newly visible through the #6702 staff pre-lock, which reads the people it locks.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolmembership.Query.ListStaff (school-membership) through *modules/timetable/internal/application.templateAdministration.CreateTemplate. No persistent, lock or scope effect; newly visible through the #6702 staff pre-lock, which reads the people it locks.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
     },
     {
@@ -43572,6 +43646,16 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/timetable.TemplateAdministration.CreateTemplate. No persistent, lock or scope effect; newly visible through the #6702 staff pre-lock, which reads the people it locks.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
       "classification": "leaf",
@@ -43580,6 +43664,26 @@
       "reason": "Template creation prelocks the complete resolved supervisor roster through InstanceStaffLocks.LockStaffAssignments in ascending staff-ID order before inserting supervisor rows (#6583). FindStaffForMutation is the existing guarded staff-row lock, joins the caller tenant transaction and enforces the lock ledger; already-held rows are skipped. No foreign mutation or separate coordination protocol is added (ADR 0067).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/timetable.TemplateAdministration.CreateTemplate. No persistent, lock or scope effect; newly visible through the #6702 staff pre-lock, which reads the people it locks.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
+      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/timetable.TemplateAdministration.CreateTemplate. No persistent, lock or scope effect; newly visible through the #6702 staff pre-lock, which reads the people it locks.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
     },
     {

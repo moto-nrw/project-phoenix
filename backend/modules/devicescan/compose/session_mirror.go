@@ -19,6 +19,7 @@ func NewSessionMirror(timetable interface {
 	HasInstance(context.Context, int64) (bool, error)
 	CreateInstance(context.Context, MirroredSession) (MirroredSession, error)
 	AddSessionInstanceStaff(context.Context, int64, int64) error
+	LockSessionInstanceStaff(context.Context, []int64) error
 	ActivityTitle(context.Context, int64) (string, error)
 	CalendarParts(time.Time) (string, int)
 }, publish application.MirrorPublisher, logger *slog.Logger) application.SessionMirror {

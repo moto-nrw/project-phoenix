@@ -166,6 +166,11 @@ type CreateTemplateCommand struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
+	// MaterializeFrom and MaterializeTo name the window the caller
+	// materializes in the same unit after the create; the create locks the
+	// people that run plans together with its roster (#6702).
+	MaterializeFrom *calendar.Date
+	MaterializeTo   *calendar.Date
 }
 
 // CreateTemplateResult reports the new template, its (possibly reused)

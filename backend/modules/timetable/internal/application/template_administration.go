@@ -262,6 +262,8 @@ func createTemplateInput(cmd timetable.CreateTemplateCommand) CreateTemplateInpu
 		RosterValidFrom:       cmd.RosterValidFrom,
 		ScheduleValidFrom:     cmd.ScheduleValidFrom,
 		GradeLevelMax:         cmd.GradeLevelMax,
+		MaterializeFrom:       cmd.MaterializeFrom,
+		MaterializeTo:         cmd.MaterializeTo,
 	}
 }
 
@@ -364,6 +366,7 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		Logger:                 deps.Logger,
 		Transactions:           deps.Transactions,
 		Today:                  deps.Today,
+		Materialization:        deps.Materialization,
 	})
 }
 
