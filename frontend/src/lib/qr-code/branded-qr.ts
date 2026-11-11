@@ -36,7 +36,7 @@ export const QR_DOT_RADIUS = 0.48;
 export const QR_INK = "black";
 export const QR_PAPER = "white";
 
-export interface QrRect {
+interface QrRect {
   readonly x: number;
   readonly y: number;
   readonly width: number;
