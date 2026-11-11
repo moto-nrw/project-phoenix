@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import type { SidebarRowBadge } from "~/components/ui/sidebar-row";
 import { Button } from "~/components/ui/button";
 import { NavSceneIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
@@ -25,12 +26,11 @@ interface SidebarGroupProps {
    */
   readonly containsActive: boolean;
   /**
-   * Summe der Zähler in der Gruppe. Sichtbar nur, solange die Gruppe zu ist;
-   * offen tragen die Zeilen ihre Zähler selbst.
+   * Sammelzähler der Gruppe (`combineSidebarRowBadges`). Sichtbar nur,
+   * solange die Gruppe zu ist; offen tragen die Zeilen ihre Zähler selbst.
+   * `ariaLabel` nennt, was gezählt wird (#6566).
    */
-  readonly badgeCount?: number;
-  /** Farbe des Zählers: Eltern-Zähler blau, Team-Zähler orange, wie an den Zeilen. */
-  readonly badgeTone?: "parents" | "staff";
+  readonly badge?: SidebarRowBadge | null;
   readonly collapsed?: boolean;
   readonly labelsMounted?: boolean;
   readonly labelsVisible?: boolean;
@@ -54,8 +54,7 @@ export function SidebarGroup({
   isOpen,
   onToggle,
   containsActive,
-  badgeCount = 0,
-  badgeTone = "staff",
+  badge,
   collapsed = false,
   labelsMounted = true,
   labelsVisible = true,
@@ -66,7 +65,10 @@ export function SidebarGroup({
   // wie bei den Zeilen darunter; nur eine zugeklappte Gruppe mit der
   // aktuellen Seite darin hebt es an.
   const iconColor = containsActive && !isOpen ? "text-gray-900" : "";
-  const showBadge = badgeCount > 0 && !isOpen;
+  const shownBadge = badge != null && badge.count > 0 && !isOpen ? badge : null;
+  const collapsedLabel = shownBadge
+    ? `${label}, ${shownBadge.ariaLabel}`
+    : label;
 
   return (
     <div>
@@ -78,7 +80,9 @@ export function SidebarGroup({
         data-setup-tour={tourId}
         className={`${SIDEBAR_GROUP_HEADING_CLASSES} cursor-pointer`}
         aria-expanded={isOpen}
-        {...(collapsed ? { title: label, "aria-label": label } : {})}
+        {...(collapsed
+          ? { title: label, "aria-label": collapsedLabel }
+          : {})}
       >
         <NavSceneIcon
           icon={Icon}
@@ -91,15 +95,15 @@ export function SidebarGroup({
             >
               {label}
             </span>
-            {showBadge && (
+            {shownBadge && (
               <span
                 aria-hidden={!labelsVisible}
                 className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
               >
                 <NotificationBadge
-                  count={badgeCount}
-                  tone={badgeTone}
-                  ariaLabel={`${badgeCount} ungelesene Nachrichten`}
+                  count={shownBadge.count}
+                  tone={shownBadge.tone}
+                  ariaLabel={shownBadge.ariaLabel}
                 />
               </span>
             )}
@@ -119,15 +123,18 @@ export function SidebarGroup({
             </svg>
           </>
         )}
-        {collapsed && showBadge && (
+        {/* Punkt wie an der Zeile (`size="sm"`). `top-0` statt `top-1`: die
+            Kopfzeile ist 8 px niedriger, so liegt der Punkt gleich zum Icon. */}
+        {collapsed && shownBadge && (
           <span
             aria-hidden={labelsVisible}
             className={`absolute top-0 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
           >
             <NotificationBadge
-              count={badgeCount}
-              tone={badgeTone}
-              ariaLabel={`${badgeCount} ungelesene Nachrichten`}
+              count={shownBadge.count}
+              tone={shownBadge.tone}
+              size="sm"
+              ariaLabel={shownBadge.ariaLabel}
             />
           </span>
         )}

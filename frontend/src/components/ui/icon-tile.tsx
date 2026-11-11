@@ -41,15 +41,16 @@ const SIZES: Record<
 };
 
 // Ein Grauton für die neutrale Kachel (#5582). Getönte Kacheln behalten die
-// Farbe ihrer Aussage; Farben nur über moto-Tokens.
+// Farbe ihrer Aussage; Farben nur über moto-Tokens. Die Fläche ist dieselbe
+// `-soft`-Stufe wie bei `Alert` und `InsetPanel` derselben Bedeutung (#6564).
 const TONES: Record<IconTileTone, string> = {
   neutral: "bg-gray-100 text-gray-600",
   inverse: "bg-gray-900 text-white",
   blue: "bg-moto-blue-soft text-moto-blue-strong",
-  green: "bg-moto-green/15 text-moto-green-strong",
+  green: "bg-moto-green-soft text-moto-green-strong",
   greenFill: "bg-moto-green-fill text-white",
-  orange: "bg-moto-orange/10 text-moto-orange-strong",
-  red: "bg-moto-red/10 text-moto-red",
+  orange: "bg-moto-orange-soft text-moto-orange-strong",
+  red: "bg-moto-red-soft text-moto-red",
 };
 
 interface IconTileProps extends Omit<

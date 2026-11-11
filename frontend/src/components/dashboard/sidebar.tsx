@@ -76,6 +76,7 @@ import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { SidebarAccordionSection } from "~/components/ui/sidebar-accordion-section";
 import { SidebarGroup } from "~/components/ui/sidebar-group";
 import {
+  combineSidebarRowBadges,
   SidebarRowLink,
   SidebarRowPlaceholder,
   SidebarSectionHeading,
@@ -537,14 +538,52 @@ const TENANT_SCOPED_HREFS = new Set<string>([
 // Vorlesetext des Anmeldungen-Zählers (#3778).
 const ENROLLMENTS_UNREAD_NOUN = "ungelesene Anmeldungen";
 
-const ROW_BADGE_LABELS: Readonly<
-  Record<string, { readonly tone: "staff" | "parents"; readonly noun: string }>
-> = {
-  "/anfragen": { tone: "staff", noun: "offene Anfragen" },
-  "/messages": { tone: "parents", noun: "ungelesene Nachrichten" },
-  "/team-chat": { tone: "staff", noun: "ungelesene Nachrichten" },
-  "/tagesinformationen": { tone: "staff", noun: "offene Tagesinformationen" },
+// `one` ist die Einzahl („1 offene Anfrage“), `noun` die Mehrzahl.
+interface CounterNoun {
+  readonly one: string;
+  readonly noun: string;
+}
+
+const ENROLLMENTS_COUNTER: CounterNoun = {
+  one: "ungelesene Anmeldung",
+  noun: ENROLLMENTS_UNREAD_NOUN,
 };
+
+const ROW_BADGE_LABELS: Readonly<
+  Record<string, CounterNoun & { readonly tone: "staff" | "parents" }>
+> = {
+  "/anfragen": {
+    tone: "staff",
+    one: "offene Anfrage",
+    noun: "offene Anfragen",
+  },
+  "/messages": {
+    tone: "parents",
+    one: "ungelesene Nachricht",
+    noun: "ungelesene Nachrichten",
+  },
+  // Wie die Zeile benannt, sonst klingt er wie der Eltern-Chat (#6566).
+  "/team-chat": {
+    tone: "staff",
+    one: "ungelesene Nachricht im Team-Chat",
+    noun: "ungelesene Nachrichten im Team-Chat",
+  },
+  "/tagesinformationen": {
+    tone: "staff",
+    one: "offene Tagesinformation",
+    noun: "offene Tagesinformationen",
+  },
+};
+
+/** Das gezählte Wort in Einzahl oder Mehrzahl („offene Anfrage“ / „… Anfragen“). */
+function counterNoun(count: number, noun: CounterNoun): string {
+  return count === 1 ? noun.one : noun.noun;
+}
+
+/** Der Vorlesetext eines Zählers, „1 offene Anfrage“ / „3 offene Anfragen“. */
+function counterAriaLabel(count: number, noun: CounterNoun): string {
+  return `${count} ${counterNoun(count, noun)}`;
+}
 
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
@@ -1127,11 +1166,11 @@ function SidebarContent({
     const count = rowBadgeCounts[href] ?? 0;
     const badge = ROW_BADGE_LABELS[href];
     if (count <= 0 || !badge) return null;
-    const ariaLabel =
-      href === "/anfragen" && count === 1
-        ? "1 offene Anfrage"
-        : `${count} ${badge.noun}`;
-    return { count, tone: badge.tone, ariaLabel };
+    return {
+      count,
+      tone: badge.tone,
+      ariaLabel: counterAriaLabel(count, badge),
+    };
   };
 
   const collapseState = { collapsed, labelsMounted, labelsVisible };
@@ -1681,7 +1720,7 @@ function SidebarContent({
         hasChildren={ENROLLMENT_SUB_PAGES.length > 0}
         badgeCount={enrollmentsUnreadCount}
         badgeTone="staff"
-        badgeNoun={ENROLLMENTS_UNREAD_NOUN}
+        badgeNoun={counterNoun(enrollmentsUnreadCount, ENROLLMENTS_COUNTER)}
       >
         {ENROLLMENT_SUB_PAGES.map((page) => (
           <SidebarSubItem
@@ -1693,7 +1732,10 @@ function SidebarContent({
               ? {
                   badgeCount: enrollmentsUnreadCount,
                   badgeTone: "staff" as const,
-                  badgeNoun: ENROLLMENTS_UNREAD_NOUN,
+                  badgeNoun: counterNoun(
+                    enrollmentsUnreadCount,
+                    ENROLLMENTS_COUNTER,
+                  ),
                 }
               : {})}
           />
@@ -1744,15 +1786,23 @@ function SidebarContent({
     }
   };
 
-  const entryBadgeCount = (entry: StaffNavEntry) => {
+  // Was eine Zeile der Gruppe zählt; die Kopfzeile der Gruppe nennt jeden
+  // Teil (#6566).
+  const entryBadge = (entry: StaffNavEntry): SidebarRowBadge | null => {
     if (entry.kind === "page") {
-      return visibleItemsByHref.has(entry.href)
-        ? (rowBadgeCounts[entry.href] ?? 0)
-        : 0;
+      const item = visibleItemsByHref.get(entry.href);
+      return item && !item.locked ? rowBadge(entry.href) : null;
     }
     return entry.section === "enrollments" && showEnrollments
-      ? enrollmentsUnreadCount
-      : 0;
+      ? {
+          count: enrollmentsUnreadCount,
+          tone: "staff",
+          ariaLabel: counterAriaLabel(
+            enrollmentsUnreadCount,
+            ENROLLMENTS_COUNTER,
+          ),
+        }
+      : null;
   };
 
   return (
@@ -1824,11 +1874,10 @@ function SidebarContent({
                     isOpen={isGroupOpen(group.key)}
                     onToggle={() => toggleGroup(group.key)}
                     containsActive={group.entries.some(isEntryActive)}
-                    badgeCount={group.entries.reduce(
-                      (sum, entry) => sum + entryBadgeCount(entry),
-                      0,
+                    badge={combineSidebarRowBadges(
+                      group.entries.map(entryBadge),
+                      group.key === "eltern" ? "parents" : "staff",
                     )}
-                    badgeTone={group.key === "eltern" ? "parents" : "staff"}
                     collapsed={collapsed}
                     labelsMounted={labelsMounted}
                     labelsVisible={labelsVisible}

@@ -16,7 +16,7 @@ type CoverageIndicatorSize = "sm" | "md";
 /**
  * Delta-Tönung des Freitext-`label` (Wochensummen): neutral hält die
  * zustandsabhängige Graufärbung, `under` färbt rot (Unterdeckung), `over`
- * amber (Überdeckung). Wirkt ausschließlich auf die Freitext-Label-Farbe.
+ * dunkles Amber (Überdeckung). Wirkt ausschließlich auf die Freitext-Label-Farbe.
  */
 type CoverageTone = "neutral" | "under" | "over";
 
@@ -65,10 +65,17 @@ const NUMBER_COLOR_CLASS: Record<CoverageState, string> = {
 /** Understaffing-red for the "Ist" figure, only ever used as text color. */
 const UNDERSTAFFED_TEXT_COLOR = MOTO_COLOR_PALETTE.red.base;
 
-/** Delta tint of the free-form label, text color only, never a fill. */
-const TONE_TEXT_COLOR: Record<Exclude<CoverageTone, "neutral">, string> = {
+/**
+ * Delta tint of the free-form label, text color only, never a fill. Both
+ * steps clear 4.5:1 on white; amber.base (1.9:1) is never a text color
+ * (#5576, Entscheidung 3), so Überdeckung takes amber.strong (7.1:1).
+ */
+export const COVERAGE_DELTA_TEXT_COLOR: Record<
+  Exclude<CoverageTone, "neutral">,
+  string
+> = {
   under: MOTO_COLOR_PALETTE.red.base,
-  over: MOTO_COLOR_PALETTE.amber.base,
+  over: MOTO_COLOR_PALETTE.amber.strong,
 };
 
 function defaultDescription({
@@ -113,7 +120,8 @@ export function CoverageIndicator({
 
   let numberContent: React.ReactNode = null;
   if (label !== undefined) {
-    const toneColor = tone === "neutral" ? undefined : TONE_TEXT_COLOR[tone];
+    const toneColor =
+      tone === "neutral" ? undefined : COVERAGE_DELTA_TEXT_COLOR[tone];
     numberContent = (
       <span
         className={`${numberSizeClass} tabular-nums ${numberColorClass}`}
