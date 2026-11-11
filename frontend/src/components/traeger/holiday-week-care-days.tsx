@@ -56,7 +56,7 @@ export function HolidayWeekCareDays({
   if (days.length === 0) return null;
   const bookable = bookableHolidayDays(startsOn, endsOn, noCareDays).length;
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 pt-2">
       <SectionLabel as="p" id={labelId}>
         Buchbare Tage · {bookable} von {days.length}
       </SectionLabel>
