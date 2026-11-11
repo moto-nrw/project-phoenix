@@ -9,7 +9,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     question:
       "Wie bestätige, ändere, storniere und buche ich Ferienanmeldungen um?",
     summary:
-      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um. Geschwister aus zwei Anmeldungen führen Sie zusammen.",
+      "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, ändern, stornieren und buchen Sie um, auch mehrere Anmeldungen auf einmal. Geschwister aus zwei Anmeldungen führen Sie zusammen.",
     image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
     imageAlt:
       "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
@@ -47,6 +47,19 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         ],
       },
       {
+        title: "Mehrere auf einmal bestätigen",
+        description:
+          "moto bestätigt nur Anmeldungen, die keine Angabe mehr brauchen. Die Familie bezahlt dann den Beitrag. Die anderen bestätigen Sie einzeln.",
+        steps: [
+          "Filtern Sie nach dem Status `Eingegangen`.",
+          "Setzen Sie einen Haken bei jeder Anmeldung. Mit dem Haken in der Kopfzeile wählen Sie alle aus.",
+          "Wählen Sie oben `Ausgewählte bestätigen`.",
+          "Das Fenster zeigt unter `Wird bestätigt`, welche Anmeldungen moto bestätigt. Darunter steht, welche offen bleiben und warum.",
+          "Wählen Sie zum Beispiel `12 bestätigen`. moto bestätigt eine Anmeldung nach der anderen. Lassen Sie die Seite so lange offen. Mit `Anhalten` hören Sie nach der laufenden Anmeldung auf.",
+          "Am Ende steht, welche Anmeldungen bestätigt sind und welche offen bleiben. Wählen Sie eine offene Anmeldung, um sie einzeln zu bestätigen.",
+        ],
+      },
+      {
         title: "Debitorennummer nachtragen oder ändern",
         description:
           "Das geht bei einer bestätigten Anmeldung, bis der Abrechnungslauf ihre Rechnung ausgestellt hat.",
@@ -73,7 +86,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         steps: [
           "In der Spalte `Geschwister` steht ein Hinweis wie `Vielleicht Geschwister: gleiche E-Mail` oder `Vielleicht Geschwister: gleicher Nachname`. Der Hinweis ändert nichts.",
           "Prüfen Sie, ob die Kinder wirklich Geschwister sind.",
-          "Setzen Sie in der Liste einen Haken bei jeder Anmeldung der Familie.",
+          "Setzen Sie in der Liste einen Haken bei jeder Anmeldung der Familie. Die Leiste über der Liste zeigt, wie viele ausgewählt sind.",
           "Wählen Sie `Als Geschwister zusammenführen`.",
           "In der Spalte `Geschwister` steht jetzt `Geschwister` mit den Nummern der anderen Anmeldungen.",
         ],
@@ -127,6 +140,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
     notes: [
       "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
+      "Offen bleibt eine Anmeldung, wenn ein Platz noch offen ist, die Eltern Leistungsbezug angeben, ein Kind vielleicht doppelt angemeldet ist oder die Debitorennummer fehlt. Eine Anmeldung von Geschwistern übernimmt die Debitorennummer der Geschwister.",
       "Beim Bestätigen bekommen die Eltern eine E-Mail mit den Kindern, Wochen und Zeitmodellen. Darin steht auch Ihr `Text der Annahme-Mail` aus dem Ferienzeitraum. Jede Anmeldung bekommt diese E-Mail nur einmal.",
       "Beim Stornieren bekommen Eltern keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
       "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann steht bei einer Woche zuerst `Platz offen`. Bestätigen geht erst, wenn Ihr Büro im Reiter `Vergabe` entschieden hat. Unter `Angaben für die Vergabe` sehen Sie die Antworten der Eltern und prüfen sie mit `Prüfen`.",
@@ -153,6 +167,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
     ],
     differences: [
+      "Auf dem Handy fehlt der Haken für alle Anmeldungen? Setzen Sie die Haken dort einzeln.",
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
       "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn in den Einstellungen unter `Abrechnungsvorgaben` an.",
       "Beim Bestätigen gibt es kein Feld `Debitorennummer`? Ihr Träger fragt sie nicht ab. Das legen Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` fest.",

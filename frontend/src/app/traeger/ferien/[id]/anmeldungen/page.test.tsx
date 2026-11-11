@@ -73,6 +73,14 @@ vi.mock("~/lib/traeger-sibling-groups-api", () => ({
   mergeHolidaySiblings: (periodId: string, ids: readonly string[]) =>
     mockMerge(periodId, ids),
 }));
+const { mockConfirm } = vi.hoisted(() => ({ mockConfirm: vi.fn() }));
+vi.mock("~/lib/traeger-contributions-api", () => ({
+  confirmHolidayRegistration: (
+    periodId: string,
+    registrationId: string,
+    benefitsExemption: boolean,
+  ) => mockConfirm(periodId, registrationId, benefitsExemption),
+}));
 vi.mock("~/lib/file-download", () => ({
   downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
 }));
@@ -428,11 +436,14 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
         name: "Anmeldung Nr. 7 von Eva Muster auswählen",
       }),
     );
+    // One registration can be confirmed, not merged (#6674).
+    expect(screen.getByText("1 Anmeldung ausgewählt")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "1 Anmeldung ausgewählt. Wählen Sie mindestens eine weitere Anmeldung derselben Familie.",
-      ),
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Als Geschwister zusammenführen" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       table.getByRole("checkbox", {
         name: "Anmeldung Nr. 8 von Tom Muster auswählen",
@@ -538,6 +549,189 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/2 Anmeldungen ausgewählt/)).toBeInTheDocument();
+  });
+});
+
+// Several registrations confirmed at once (#6674).
+const CLEAN = {
+  ...HOLIDAY_REGISTRATION_LIST.registrations[0]!,
+  children: HOLIDAY_REGISTRATION_LIST.registrations[0]!.children.map(
+    (child) => ({ ...child, duplicateRegistrationIds: [] }),
+  ),
+};
+const BULK_LIST = {
+  ...HOLIDAY_REGISTRATION_LIST,
+  registrations: [
+    { ...CLEAN, id: "21", guardianFirstName: "Anna" },
+    { ...CLEAN, id: "22", guardianFirstName: "Bodo" },
+    { ...CLEAN, id: "23", guardianFirstName: "Cem", benefitsDeclared: true },
+    {
+      ...CLEAN,
+      id: "24",
+      guardianFirstName: "Dana",
+      status: "confirmed" as const,
+    },
+  ],
+};
+
+async function selectRows(names: readonly string[]) {
+  const table = within(await screen.findByRole("table"));
+  for (const name of names) {
+    fireEvent.click(
+      await table.findByRole("checkbox", { name: `${name} auswählen` }),
+    );
+  }
+}
+
+describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
+  beforeEach(() => {
+    mockFetchList.mockReset();
+    mockFetchGroups.mockReset();
+    mockConfirm.mockReset();
+    mockFetchList.mockResolvedValue(BULK_LIST);
+    mockFetchGroups.mockResolvedValue([]);
+    mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("confirms what needs no input, one by one, and names why the rest stays open", async () => {
+    mockConfirm.mockImplementation((_period: string, id: string) =>
+      id === "22"
+        ? Promise.reject(
+            new ApiError("debtor", 400, {
+              code: "parent_billing.debtor_number_invalid",
+            }),
+          )
+        : Promise.resolve({}),
+    );
+    renderPage();
+    await selectRows([
+      "Anmeldung Nr. 21 von Anna Muster",
+      "Anmeldung Nr. 22 von Bodo Muster",
+      "Anmeldung Nr. 23 von Cem Muster",
+      "Anmeldung Nr. 24 von Dana Muster",
+    ]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+
+    const review = within(
+      await screen.findByRole("dialog", {
+        name: "2 Anmeldungen bestätigen?",
+      }),
+    );
+    expect(
+      review.getByText(
+        "Die Familie bezahlt den Ferienbeitrag. Die Eltern bekommen eine E-Mail mit den gebuchten Wochen.",
+      ),
+    ).toBeInTheDocument();
+    expect(review.getByText("Wird bestätigt")).toBeInTheDocument();
+    expect(review.getByText("Wer bezahlt, ist offen")).toBeInTheDocument();
+    expect(
+      review.getByText("Schon bestätigt oder storniert"),
+    ).toBeInTheDocument();
+    expect(mockConfirm).not.toHaveBeenCalled();
+
+    fireEvent.click(review.getByRole("button", { name: "2 bestätigen" }));
+
+    const result = within(
+      await screen.findByRole("dialog", { name: "1 Anmeldung bestätigt" }),
+    );
+    expect(mockConfirm.mock.calls).toEqual([
+      ["5", "21", false],
+      ["5", "22", false],
+    ]);
+    expect(
+      result.getByText(
+        "3 Anmeldungen bleiben offen. Bestätigen Sie sie einzeln.",
+      ),
+    ).toBeInTheDocument();
+    expect(result.getByText("Debitorennummer fehlt")).toBeInTheDocument();
+    expect(result.getByRole("link", { name: /Bodo Muster/ })).toHaveAttribute(
+      "href",
+      "/traeger/ferien/5/anmeldungen/22",
+    );
+
+    const loads = mockFetchList.mock.calls.length;
+    fireEvent.click(result.getByRole("button", { name: "Fertig" }));
+    await waitFor(() =>
+      expect(mockFetchList.mock.calls.length).toBeGreaterThan(loads),
+    );
+    expect(
+      screen.queryByText(/Anmeldungen? ausgewählt/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+
+  it("celebrates when every selected registration is confirmed", async () => {
+    mockConfirm.mockResolvedValue({});
+    renderPage();
+    await selectRows(["Anmeldung Nr. 21 von Anna Muster"]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "1 Anmeldung bestätigen?",
+        }),
+      ).getByRole("button", { name: "Bestätigen" }),
+    );
+
+    expect(
+      await screen.findByText("Alle ausgewählten Anmeldungen sind bestätigt."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "1 Anmeldung bestätigt" }),
+    ).toBeInTheDocument();
+  });
+
+  it("stops when no further confirmation can succeed", async () => {
+    mockConfirm.mockRejectedValue(new ApiError("expired", 401));
+    renderPage();
+    await selectRows([
+      "Anmeldung Nr. 21 von Anna Muster",
+      "Anmeldung Nr. 22 von Bodo Muster",
+    ]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "2 Anmeldungen bestätigen?",
+        }),
+      ).getByRole("button", { name: "2 bestätigen" }),
+    );
+
+    const result = within(
+      await screen.findByRole("dialog", { name: "Keine Anmeldung bestätigt" }),
+    );
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(result.getByText("Nicht mehr bestätigt")).toBeInTheDocument();
+    const loads = mockFetchList.mock.calls.length;
+    fireEvent.click(result.getByRole("button", { name: "Fertig" }));
+    // Nothing changed: the selection stays for another try.
+    expect(screen.getByText("2 Anmeldungen ausgewählt")).toBeInTheDocument();
+    expect(mockFetchList.mock.calls.length).toBe(loads);
+  });
+
+  it("explains a selection without anything to confirm", async () => {
+    renderPage();
+    await selectRows(["Anmeldung Nr. 23 von Cem Muster"]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Ausgewählte bestätigen" }),
+    );
+
+    const dialog = within(
+      await screen.findByRole("dialog", {
+        name: "Keine Anmeldung lässt sich hier bestätigen",
+      }),
+    );
+    expect(dialog.getByText("Wer bezahlt, ist offen")).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole("button", { name: "Schließen" }));
+    expect(mockConfirm).not.toHaveBeenCalled();
   });
 });
 
