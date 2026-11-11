@@ -70,7 +70,7 @@ src/
 
 ## Docker
 
-Development and production Dockerfiles are provided (`Dockerfile`, `Dockerfile.prod`). Both use Node 24 Alpine with pnpm.
+Development and production Dockerfiles are provided (`Dockerfile`, `Dockerfile.prod`). Both use Node 26 Alpine with pnpm.
 
 ```bash
 docker compose up frontend    # Run via docker-compose from project root
