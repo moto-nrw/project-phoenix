@@ -49,13 +49,13 @@ export function RequestIdButton({
         className="max-w-full min-w-0 self-center text-left break-all whitespace-normal"
       >
         {at > 0 ? (
-          // One flow inside the flex button: on a phone the label takes its
-          // own line, so the ID below it stays whole instead of leaving its
-          // last characters alone.
+          // One text flow inside the flex button: on a phone a line break
+          // puts the ID under its label, so the ID stays whole instead of
+          // leaving its last characters alone. Label and ID stay one text
+          // (the break is no text), as screen readers and tests read it.
           <span className="min-w-0">
-            <span className="max-sm:block">{text.slice(0, at).trimEnd()}</span>{" "}
-            <span>{requestId}</span>
-            {text.slice(at + requestId.length)}
+            {text.slice(0, at).trimEnd()}
+            <br className="sm:hidden" /> {text.slice(at)}
           </span>
         ) : (
           text
