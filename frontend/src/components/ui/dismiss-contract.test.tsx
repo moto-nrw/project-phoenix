@@ -159,6 +159,41 @@ describe("isDismissDisabled", () => {
     ).toBeDisabled();
   });
 
+  it("locks a FormModal footer dismissal without locking its submit action", () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn();
+    render(
+      <FormModal
+        isOpen
+        onClose={onClose}
+        title="Formular"
+        isDismissDisabled
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Abbrechen
+            </Button>
+            <Button type="submit" onClick={onSave}>
+              Speichern
+            </Button>
+          </>
+        }
+      >
+        Inhalt
+      </FormModal>,
+    );
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    expect(cancel).toBeDisabled();
+    fireEvent.click(cancel);
+    expect(onClose).not.toHaveBeenCalled();
+
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+    expect(onSave).toHaveBeenCalledOnce();
+  });
+
   it("locks the ExportDialog's X and Abbrechen without a running export", () => {
     render(
       <ExportDialog

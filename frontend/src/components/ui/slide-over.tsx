@@ -296,7 +296,9 @@ const SlideOverContent = React.forwardRef<
       <SlideOverPortal>
         <SlideOverOverlay />
         <DrawerPrimitive.Content
-          ref={(node) => {
+          ref={(
+            node: React.ComponentRef<typeof DrawerPrimitive.Content> | null,
+          ) => {
             sheetRef.current = node;
             if (typeof ref === "function") ref(node);
             else if (ref) ref.current = node;
@@ -337,7 +339,11 @@ const SlideOverContent = React.forwardRef<
               event.preventDefault();
             }
           }}
-          onEscapeKeyDown={(event) => {
+          onEscapeKeyDown={(
+            event: Parameters<
+              NonNullable<SlideOverContentProps["onEscapeKeyDown"]>
+            >[0],
+          ) => {
             onEscapeKeyDown?.(event);
             // An overlay above the panel (dialog, tour) takes the Escape.
             // Radix handles Escape in capture, before nested controls close.
