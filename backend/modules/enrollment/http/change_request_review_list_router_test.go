@@ -122,7 +122,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		PersonRepo:          repos.Person,
 		StudentRepo:         repos.Student,
-		GuardianAuthorizer:  repos.StudentGuardian,
+		GuardianHold:        owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(db), repos.StudentGuardian, repos.Student, repos.GuardianProfile, nil),
 		Settings:            settings,
 		OutboxEnqueuer:      discardingOutbox{},
 		FrontendURL:         "http://localhost:3000",
