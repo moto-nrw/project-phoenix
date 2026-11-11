@@ -1032,6 +1032,7 @@ export function TimetableEventModal({
           confirmText="Trotzdem fortfahren"
           cancelText="Abbrechen"
           isConfirmLoading={submitting}
+          loadingText="Wird gespeichert …"
           confirmVariant="warning"
         >
           {lostEdits && (

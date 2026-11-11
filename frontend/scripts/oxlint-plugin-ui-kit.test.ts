@@ -3866,7 +3866,7 @@ describe.concurrent("ui-kit/confirmation-dismiss-lock", () => {
     `import { ConfirmationModal } from "~/components/ui/modal";
       export function Probe({ busy, why }: { busy: boolean; why: string }) {
         return (
-          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Freigeben?" isConfirmLoading={busy}${attribute}>
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Freigeben?" isConfirmLoading={busy} loadingText="Wird freigegeben …"${attribute}>
             <p>{why}</p>
           </ConfirmationModal>
         );
@@ -3929,7 +3929,7 @@ describe.concurrent("ui-kit/confirmation-loading-text", () => {
       export function Probe({ busy, state, other }: { busy: boolean; state: { busy: boolean }; other: boolean }) {
         ${extra}
         return (
-          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Anmelden?" isConfirmLoading={busy} confirmText={${confirmText}}>
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Anmelden?" isConfirmLoading={busy} loadingText="Wird angemeldet …" confirmText={${confirmText}}>
             <p>{String(state.busy || other)}</p>
           </ConfirmationModal>
         );
@@ -3972,6 +3972,62 @@ describe.concurrent("ui-kit/confirmation-loading-text", () => {
 
     expect(result.output).not.toMatch(RULE);
     // Gegenprobe: dieselbe Datei mit umgeschaltetem Text fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  // #6652: isConfirmLoading without loadingText shows „Wird geladen...“.
+  const bare = (attributes: string, header = "") =>
+    `${header || 'import { ConfirmationModal } from "~/components/ui/modal";'}
+      export function Probe({ busy, rest }: { busy: boolean; rest: object }) {
+        return (
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Löschen?" confirmText="Widerrufen" ${attributes}>
+            <p>{String(busy)}{String(rest)}</p>
+          </ConfirmationModal>
+        );
+      }`;
+
+  it.each([
+    ["a flag", "isConfirmLoading={busy}", ""],
+    ["a literal true", "isConfirmLoading", ""],
+    ["a spread that may hide it", "{...rest} isConfirmLoading={busy}", ""],
+  ])(
+    "reports isConfirmLoading without loadingText on %s",
+    async (_l, attrs, header) => {
+      const result = await lintSource(bare(attrs, header), PATH);
+
+      expect(result.status).toBe(1);
+      expect(result.output.match(RULE)).toHaveLength(1);
+      expect(result.output).toContain("ohne `loadingText`");
+    },
+  );
+
+  it("reports an aliased ConfirmationModal by its local name", async () => {
+    const result = await lintSource(
+      `import { ConfirmationModal as Confirm } from "~/components/ui/modal";
+      export function Probe({ busy }: { busy: boolean }) {
+        return <Confirm isOpen onClose={() => undefined} onConfirm={() => undefined} title="Löschen?" isConfirmLoading={busy} />;
+      }`,
+      PATH,
+    );
+
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it.each([
+    [
+      "with its loadingText",
+      `isConfirmLoading={busy} loadingText="Wird widerrufen …"`,
+    ],
+    [
+      "with a computed loadingText",
+      `isConfirmLoading={busy} loadingText={busy ? "Wird widerrufen …" : ""}`,
+    ],
+    ["without isConfirmLoading", ""],
+    ["with a constant false flag", "isConfirmLoading={false}"],
+  ])("accepts a ConfirmationModal %s", async (_l, attrs) => {
+    const result = await lintSource(bare(attrs), PATH);
+
+    expect(result.output).not.toMatch(RULE);
     expect(result.status).toBe(0);
   });
 

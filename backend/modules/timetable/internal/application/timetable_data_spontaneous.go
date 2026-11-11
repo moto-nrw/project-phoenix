@@ -90,6 +90,15 @@ func (d *timetableData) ensureSpontaneousActivityCategory(ctx context.Context) (
 	return category, nil
 }
 
+// spontaneousGateScope is the gate's key without its tenant and object, the
+// ledger key of the gate.
+func spontaneousGateScope(key string) string {
+	if parts := strings.SplitN(key, ":", 3); len(parts) >= 2 {
+		return parts[0] + ":" + parts[1]
+	}
+	return key
+}
+
 // acquireSpontaneousLock takes a transaction-scoped advisory lock. A missing
 // tenant or transaction is an error, except in compositions without
 // advisory locks (unit tests), which skip the lock.
@@ -105,6 +114,12 @@ func (d *timetableData) acquireSpontaneousLock(ctx context.Context, key string) 
 	}
 	if d.deps.Advisory == nil {
 		return nil
+	}
+	// The start's gates guard catalogue rows (the room's occupancy, the
+	// activity name, the "Spontan" category) and come with them after the
+	// recurrence gate and before the block's day and people (#6702).
+	if err := tenant.OrderLock(ctx, tenant.LockReference, "advisory:"+spontaneousGateScope(key)); err != nil {
+		return err
 	}
 	return d.deps.Advisory.AcquireXactLock(ctx, key)
 }

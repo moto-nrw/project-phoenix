@@ -140,6 +140,12 @@ export interface HolidayRegistrationSummary {
    * confirmation (#5621); empty without one.
    */
   readonly debtorNumber: string;
+  /**
+   * The day moto deletes the registration and the day its health information
+   * goes (#6691), as "YYYY-MM-DD"; null for a period without weeks.
+   */
+  readonly deletesOn: string | null;
+  readonly healthDeletesOn: string | null;
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -362,6 +368,8 @@ interface BackendSummary {
   guardian_phone: string;
   benefits_declared?: boolean;
   debtor_number?: string;
+  deletes_on?: string | null;
+  health_deletes_on?: string | null;
   children?: BackendChild[] | null;
 }
 
@@ -474,6 +482,8 @@ function summaryFromBackend(
     guardianPhone: registration.guardian_phone,
     benefitsDeclared: registration.benefits_declared ?? false,
     debtorNumber: registration.debtor_number ?? "",
+    deletesOn: registration.deletes_on ?? null,
+    healthDeletesOn: registration.health_deletes_on ?? null,
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -691,6 +701,33 @@ export async function fetchHolidayRegistration(
     await traegerRequest<BackendDetail>(
       registrationPath(periodId, registrationId),
     ),
+  );
+}
+
+/**
+ * The registered children a school of the Träger knows (#6683): child ID to
+ * the one school that manages a child with the same names and date of birth
+ * today. Only a hint; moto links nothing. The backend records every
+ * comparison, so a page asks only for what it shows: the whole period, or
+ * one registration.
+ */
+export async function fetchHolidayKnownChildren(
+  periodId: string,
+  registrationId?: string,
+): Promise<ReadonlyMap<string, string>> {
+  const query = registrationId
+    ? `?registration_id=${encodeURIComponent(registrationId)}`
+    : "";
+  const known = await traegerRequest<{
+    children?: { child_id: number; school_id: number }[] | null;
+  } | null>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/registrations/known-children${query}`,
+  );
+  return new Map(
+    (known?.children ?? []).map((child) => [
+      String(child.child_id),
+      String(child.school_id),
+    ]),
   );
 }
 
@@ -946,16 +983,17 @@ export async function editHolidayRegistration(
   );
 }
 
-/** The export of a filter as CSV or Excel, with the backend's file name. */
-export async function downloadHolidayRegistrations(
-  periodId: string,
-  filter: HolidayRegistrationFilter,
-  format: "csv" | "xlsx",
-): Promise<{ readonly blob: Blob; readonly filename: string | null }> {
-  const response = await transportFetch(
-    `${registrationsPath(periodId)}/export${holidayRegistrationQuery(filter, { format })}`,
-    { credentials: "include", cache: "no-store" },
-  );
+interface DownloadedFile {
+  readonly blob: Blob;
+  readonly filename: string | null;
+}
+
+/** Fetches a file of the Träger portal with the backend's file name. */
+async function downloadTraegerFile(path: string): Promise<DownloadedFile> {
+  const response = await transportFetch(path, {
+    credentials: "include",
+    cache: "no-store",
+  });
   if (!response.ok) {
     const text = await response.text();
     let body: unknown = null;
@@ -974,6 +1012,47 @@ export async function downloadHolidayRegistrations(
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
   };
+}
+
+/** The export of a filter as CSV or Excel, with the backend's file name. */
+export async function downloadHolidayRegistrations(
+  periodId: string,
+  filter: HolidayRegistrationFilter,
+  format: "csv" | "xlsx",
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationsPath(periodId)}/export${holidayRegistrationQuery(filter, { format })}`,
+  );
+}
+
+/** The query that asks for the health information in a file (#6691). */
+function healthQuery(withHealth: boolean): Record<string, string> {
+  return withHealth ? { health: "true" } : {};
+}
+
+/**
+ * One registration as a PDF (#6691). With `withHealth` the file names the
+ * health information; the backend admits that only with the right to see it.
+ */
+export async function downloadHolidayRegistrationPdf(
+  periodId: string,
+  registrationId: string,
+  withHealth: boolean,
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationPath(periodId, registrationId)}/pdf${holidayRegistrationQuery(EMPTY_HOLIDAY_REGISTRATION_FILTER, healthQuery(withHealth))}`,
+  );
+}
+
+/** The registrations of a filter as a ZIP with one PDF each (#6691). */
+export async function downloadHolidayRegistrationPdfs(
+  periodId: string,
+  filter: HolidayRegistrationFilter,
+  withHealth: boolean,
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationsPath(periodId)}/pdf${holidayRegistrationQuery(filter, healthQuery(withHealth))}`,
+  );
 }
 
 /**

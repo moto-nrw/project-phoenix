@@ -41,6 +41,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentSearch,
 }));
 
+const mockDiscardRefused = vi.hoisted(() => vi.fn());
+vi.mock("~/lib/swr/hooks", () => ({
+  useDiscardRefusedEntity: () => mockDiscardRefused,
+}));
+
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   mutate: vi.fn(),
@@ -309,7 +314,8 @@ vi.mock("@/components/groups/groups-master-detail", () => ({
   ),
 }));
 
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 const mockGroups = [
   {
@@ -331,6 +337,7 @@ const mockGroups = [
 describe("GroupsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useTenantMutateMatching).mockReturnValue(vi.fn());
     currentSearch = new URLSearchParams();
 
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -390,6 +397,56 @@ describe("GroupsPage", () => {
     );
   });
 
+  it.each([403, 503])(
+    "handles a %s with cached groups and an open detail",
+    async (status) => {
+      setSelectedGroup("1");
+      const view = render(<GroupsPage />);
+      expect(await screen.findByTestId("detail-group-name")).toHaveTextContent(
+        "Gruppe Rot",
+      );
+      fireEvent.click(screen.getByTestId("trigger-delete"));
+      expect(screen.getByTestId("confirmation-modal")).toBeVisible();
+      vi.mocked(useSWRAuth).mockReturnValue({
+        data: mockGroups,
+        isLoading: false,
+        error: new ApiError("failed", status),
+        isValidating: false,
+        mutate: vi.fn(),
+      } as ReturnType<typeof useSWRAuth>);
+      view.rerender(<GroupsPage />);
+      const code =
+        status === 403 ? "general.permission" : "general.unavailable";
+      // Anker: die Seite zeigt den konkreten Fehler nach dem Abruf.
+      expect(
+        await screen.findByText(catalogText(code, "die Liste der Gruppen"), {
+          exact: false,
+        }),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(mockDiscardRefused).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 403 }),
+          expect.objectContaining({ codes: ["general.permission"] }),
+        );
+        expect(
+          screen.queryByTestId("groups-master-detail"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId("confirmation-modal"),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Gruppe erstellen" }),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText("Raum 101")).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByTestId("detail-group-name")).toHaveTextContent(
+          "Gruppe Rot",
+        );
+        expect(screen.getByTestId("confirmation-modal")).toBeVisible();
+      }
+    },
+  );
+
   it("shows empty state when no groups exist", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: [],
@@ -404,6 +461,56 @@ describe("GroupsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Keine Gruppen vorhanden")).toBeInTheDocument();
     });
+  });
+
+  it("shows the reload error and retry with an empty cached list", async () => {
+    const retry = vi.fn();
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: new ApiError("down", 503, { code: "general.unavailable" }),
+      isValidating: false,
+      mutate: retry,
+    } as ReturnType<typeof useSWRAuth>);
+
+    render(<GroupsPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.unavailable", "die Liste der Gruppen"),
+    );
+    expect(screen.queryByTestId("page-empty")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the reload error after creating the first group", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      isValidating: false,
+      mutate: vi.fn(),
+    } as ReturnType<typeof useSWRAuth>);
+    const reload = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(undefined);
+    vi.mocked(useTenantMutateMatching).mockReturnValue(reload);
+    mockCreate.mockResolvedValueOnce({ name: "Neue Gruppe" });
+    render(<GroupsPage />);
+    await screen.findByText("Keine Gruppen vorhanden");
+    fireEvent.click(screen.getAllByLabelText("Gruppe erstellen")[0]!);
+    fireEvent.click(await screen.findByTestId("submit-create"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      `${catalogText("general.unavailable", "die Anzeige der Gruppen")} ${SAVED_BUT_STALE_SUFFIX}`,
+    );
+    expect(screen.queryByTestId("page-empty")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
+    expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
   it("filters groups by search term", async () => {

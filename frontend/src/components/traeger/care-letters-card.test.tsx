@@ -105,6 +105,41 @@ describe("CareLettersCard (#4684)", () => {
     await waitFor(() => expect(onSendAll).toHaveBeenCalledTimes(1));
   });
 
+  it("closes the send confirmation when letters are discarded and keeps it closed after recovery", async () => {
+    const props = {
+      runId: "7",
+      payments: [null],
+      loadError: null,
+      sendingAll: false,
+      printing: null,
+      onCreated: vi.fn(),
+      onSendAll: vi.fn(),
+      onPrint: vi.fn(),
+    };
+    const view = render(
+      <ToastProvider>
+        <CareLettersCard {...props} letters={CREATED} />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "An alle senden" }));
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    view.rerender(
+      <ToastProvider>
+        <CareLettersCard {...props} letters={null} />
+      </ToastProvider>,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    view.rerender(
+      <ToastProvider>
+        <CareLettersCard {...props} letters={CREATED} />
+      </ToastProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: "An alle senden" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("prints only the families without an address", () => {
     const { onPrint } = renderCard(CREATED);
     fireEvent.click(screen.getByRole("button", { name: "Schreiben drucken" }));

@@ -1544,6 +1544,7 @@ function StaffCalendarPageInner() {
             title="Termin absagen"
             confirmText="Absagen"
             isConfirmLoading={Boolean(busyAppointmentId)}
+            loadingText="Wird abgesagt …"
             isDismissDisabled={Boolean(busyAppointmentId)}
           >
             <p className="text-sm text-gray-700">

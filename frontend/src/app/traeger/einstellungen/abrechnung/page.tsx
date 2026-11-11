@@ -20,6 +20,7 @@ import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-da
 import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
@@ -69,7 +70,7 @@ function useBillingDefaults(enabled: boolean) {
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
-  const load = useCallback(async () => {
+  const read = useCallback(async () => {
     if (!enabledRef.current) return;
     const generation = ++loadGeneration.current;
     try {
@@ -96,6 +97,14 @@ function useBillingDefaults(enabled: boolean) {
     } catch (err) {
       if (!enabledRef.current || generation !== loadGeneration.current) return;
       setFailure(err);
+      throw err;
+    }
+  }, [clearLoadError]);
+
+  const load = useCallback(async () => {
+    try {
+      await read();
+    } catch (err) {
       logger.error("traeger_billing_defaults_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -104,7 +113,7 @@ function useBillingDefaults(enabled: boolean) {
         retry: () => void load(),
       });
     }
-  }, [clearLoadError, showLoadError]);
+  }, [read, showLoadError]);
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -120,7 +129,7 @@ function useBillingDefaults(enabled: boolean) {
     clearLoadError();
   }, [enabled, load, clearLoadError]);
 
-  return { data, failure, error: pageLoad.error, load };
+  return { data, failure, error: pageLoad.error, load, read };
 }
 
 export default function TraegerAbrechnungsvorgabenPage() {
@@ -130,13 +139,24 @@ export default function TraegerAbrechnungsvorgabenPage() {
   const master = useTraegerMasterData("die Bankverbindungen");
   const billing = useBillingDefaults(canBill);
   const settings = useTraegerSettingsSchema();
+  const afterBankWrite = useRefreshAfterWrite(
+    "die Anzeige der Bankverbindungen",
+    master.read,
+  );
+  const afterBillingWrite = useRefreshAfterWrite(
+    "die Anzeige der Abrechnungsvorgaben",
+    billing.read,
+  );
   const onlineMandate = settings.data?.tabs
     .flatMap((tab) => tab.categories)
     .flatMap((category) => category.items)
     .find((item) => item.key === ONLINE_MANDATE_KEY)?.value;
   const error = metadataLoadError(
     master.error ??
-      (canBill ? (billing.error ?? settings.loadError) : null) ??
+      afterBankWrite.error ??
+      (canBill
+        ? (billing.error ?? afterBillingWrite.error ?? settings.loadError)
+        : null) ??
       null,
     master.loaded || (canBill && billing.data !== null),
     master.failure,
@@ -171,7 +191,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
           <TraegerBankAccountsCard
             accounts={master.masterData.bankAccounts}
             canEdit={canEditBank}
-            onChanged={master.refresh}
+            onChanged={afterBankWrite.refresh}
           />
         </>
       ) : null}
@@ -179,39 +199,39 @@ export default function TraegerAbrechnungsvorgabenPage() {
         <>
           <BillingTermsCard
             data={billing.data.terms}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <SepaCreditorCard
             creditor={billing.data.creditor}
             onlineMandate={
               typeof onlineMandate === "boolean" ? onlineMandate : null
             }
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <NumberRangeCard
             numberRange={billing.data.numberRange}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <NumberRangeCard
             service="care"
             numberRange={billing.data.careNumberRange}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <ContributionRulesCard
             kind="sibling"
             rules={billing.data.rules.filter((rule) => rule.kind === "sibling")}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <ContributionRulesCard
             kind="benefits_exemption"
             rules={billing.data.rules.filter(
               (rule) => rule.kind === "benefits_exemption",
             )}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <CostBearersCard
             bearers={billing.data.bearers}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
         </>
       ) : null}

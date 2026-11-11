@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -41,12 +42,12 @@ func TestGuardianAccessObservationsCountOnlyWrittenRows(t *testing.T) {
 	require.Len(t, observations, 4)
 	require.Zero(t, observations[0].Stats.Rows, "account SELECT changes no row")
 	require.Zero(t, observations[1].Stats.Rows, "email SELECT changes no row")
-	var expectedFirstWrites int64 = 1
+	var expectedFirstWrites int64
 	if first.RoleAssigned {
 		expectedFirstWrites++
 	}
-	require.Equal(t, expectedFirstWrites, observations[2].Stats.Rows, "only mapping and role writes count")
-	require.EqualValues(t, 1, observations[3].Stats.Rows, "repeat grant only updates the mapping")
+	require.Equal(t, expectedFirstWrites, observations[2].Stats.Rows, "the active mapping is held; only the missing role is written")
+	require.Zero(t, observations[3].Stats.Rows, "repeat grant holds the active mapping without writing it")
 }
 
 // Offboarding locks the account before changing its tenant mapping. A grant
@@ -92,6 +93,71 @@ func TestGuardianGrantUsesOffboardingAccountLockOrder(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, "active", mapping.Status, "the serialized later grant reactivates this tenant only")
 	require.Len(t, guardianRoleAssignments(t, db, account.ID, tenantID), 1)
+}
+
+// Two schools can hold the parent's key-share account lock at once. A
+// later guardian grant must not upgrade to a lock that conflicts with the
+// other school's hold: both approvals would wait for each other.
+func TestGuardianGrantsAcrossSchoolsKeepSharedAccountHolds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	access := newGuardianAccess(t, db)
+	account := testpkg.CreateTestAccount(t, db, "shared-guardian-grants")
+	secondTenant, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.OwnTenantRows(t, db, secondTenant)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondTenant)
+	lock := identityCompose.NewSchoolMembershipLock(db)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	defer cancel()
+	held := make(chan error, 2)
+	start := make(chan struct{})
+	done := make(chan error, 2)
+	for _, tenantID := range []int64{testpkg.Tenant(t), secondTenant} {
+		go func() {
+			done <- testpkg.WithTenantTx(t, testpkg.ContextForTenant(ctx, tenantID), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+				active, err := lock(txCtx, account.ID)
+				if err == nil && !active {
+					err = fmt.Errorf("guardian membership is not active at school %d", tenantID)
+				}
+				held <- err
+				if err != nil {
+					return err
+				}
+				select {
+				case <-start:
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				_, err = access.GrantGuardianTenantAccess(txCtx, account.ID)
+				return err
+			})
+		}()
+	}
+	for range 2 {
+		select {
+		case err := <-held:
+			require.NoError(t, err)
+		case err := <-done:
+			t.Fatalf("a guarded grant ended before both holds were acquired: %v", err)
+		case <-ctx.Done():
+			t.Fatal("both schools must hold the account before either grants access")
+		}
+	}
+	close(start)
+	for range 2 {
+		select {
+		case err := <-done:
+			require.NoError(t, err, "both guarded grants must commit without a lock upgrade deadlock")
+		case <-ctx.Done():
+			t.Fatal("the guarded grants did not finish")
+		}
+	}
+	for _, tenantID := range []int64{testpkg.Tenant(t), secondTenant} {
+		mapping, found := tenantMapping(t, db, account.ID, tenantID)
+		require.True(t, found)
+		require.Equal(t, "active", mapping.Status)
+		require.Len(t, guardianRoleAssignments(t, db, account.ID, tenantID), 1)
+	}
 }
 
 func TestGuardianGrantRefusesAnErasedAccount(t *testing.T) {

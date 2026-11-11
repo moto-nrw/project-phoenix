@@ -37,10 +37,11 @@ func editHolidayTimesOn(t *testing.T, db *bun.DB, org, account int64, booking ow
 			TimeModels: []holidayTimeModelBody{{ID: model, Name: "Ganztag", StartsAt: start, EndsAt: end, PriceCents: 4500}}}}}
 	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: account, OrganizationID: org, Scope: tenant.ScopeOrg, Permissions: []string{identityaccess.TraegerRightEnrollmentManage}})
 	require.NoError(t, err)
-	review, places, allocation := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{})
+	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{})
 	_, wishes := enrollmentCompose.NewHolidayWishes(testHealthCipher())
 	resource := enrollmentHTTP.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(func() calendar.Date { return on }, owners.HolidayTestSchoolCalendar{}),
-		review, wishes, places, allocation, allocation, holidaySchoolNames{}, common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
+		review, records, wishes, places, allocation, allocation, holidaySchoolNames{},
+		holidayKnownChildren{}, enrollmentCompose.NewHolidayKnownChildTrail(), common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

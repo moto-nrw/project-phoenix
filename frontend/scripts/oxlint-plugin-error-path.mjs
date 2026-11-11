@@ -959,6 +959,185 @@ const noErrorTextMatch = {
   },
 };
 
+// --- error-path/no-reload-in-write-catch -------------------------------------
+//
+// After a confirmed write the reload is a load, not part of the action
+// (#6636, #6652). A `try` that awaits a write and then a reload that can
+// reject (a callback `onX`, `refresh…`, `reload…`, `refetch…`,
+// `revalidate…`, `load`, `load…`), or both in one `Promise.all`, sends a failed
+// reload into the catch of the action: the user reads „konnte nicht
+// gespeichert werden“ although the change is saved, and a retry writes again.
+// The write keeps its own `try`; the reload runs afterwards through
+// `useRefreshAfterWrite`, whose `refresh()` never rejects and is therefore
+// allowed anywhere. A same-file helper that awaits write and reload counts
+// when a `try` with catch awaits it.
+
+const RELOAD_CALLEE_RE =
+  /^(?:on(?:[A-Z]\w*(?:ed|Done)|Done|Refresh\w*|Reload\w*)|refresh\w*|reload\w*|refetch\w*|revalidate\w*|load(?:[A-Z]\w*)?)$/;
+const PROMISE_COMBINATORS = new Set(["all", "race", "any"]);
+
+function calleeName(callee) {
+  const target = unwrap(callee);
+  if (target?.type === "Identifier") return target.name;
+  if (target?.type === "MemberExpression") return propertyName(target);
+  return null;
+}
+
+/** `refresh` from `useRefreshAfterWrite(…)`, destructured or as member,
+ *  also through a `const` copy of the hook's result. */
+function isSafeRefresh(callee, sourceCode, depth = 0) {
+  const target = unwrap(callee);
+  let identifier = target;
+  if (target?.type === "MemberExpression") identifier = unwrap(target.object);
+  if (identifier?.type !== "Identifier" || depth > 3) return false;
+  const variable = findVariable(sourceCode, identifier);
+  return Boolean(
+    variable?.defs.some((def) => {
+      if (def.type !== "Variable" || def.node.type !== "VariableDeclarator") {
+        return false;
+      }
+      const init = unwrap(def.node.init);
+      if (init?.type === "Identifier" || init?.type === "MemberExpression") {
+        return isSafeRefresh(init, sourceCode, depth + 1);
+      }
+      return (
+        init?.type === "CallExpression" &&
+        calleeName(init.callee) === "useRefreshAfterWrite"
+      );
+    }),
+  );
+}
+
+function isReloadCall(call, sourceCode) {
+  const name = calleeName(call.callee);
+  return (
+    name !== null &&
+    RELOAD_CALLEE_RE.test(name) &&
+    !isSafeRefresh(call.callee, sourceCode)
+  );
+}
+
+/** The function a same-file identifier names (`function f`, `const f = …`,
+ *  `const f = useCallback(…)`). */
+function localFunction(callee, sourceCode) {
+  const target = unwrap(callee);
+  if (target?.type !== "Identifier") return null;
+  const variable = findVariable(sourceCode, target);
+  for (const def of variable?.defs ?? []) {
+    if (def.node?.type === "FunctionDeclaration") return def.node;
+    if (def.node?.type !== "VariableDeclarator") continue;
+    let init = unwrap(def.node.init);
+    if (init?.type === "CallExpression" && isFunction(init.arguments[0])) {
+      init = init.arguments[0];
+    }
+    if (isFunction(init)) return init;
+  }
+  return null;
+}
+
+/** Awaited expressions under `node` in source order, not entering nested
+ *  functions and, when `skipCaughtTry`, not entering a `try` with catch. */
+function awaitedExpressions(node, skipCaughtTry, out = []) {
+  if (!node || typeof node.type !== "string") return out;
+  if (isFunction(node)) return out;
+  if (skipCaughtTry && node.type === "TryStatement" && node.handler) {
+    return out;
+  }
+  if (node.type === "AwaitExpression") {
+    out.push(node.argument);
+  }
+  for (const key of Object.keys(node)) {
+    if (key === "parent") continue;
+    const value = node[key];
+    if (Array.isArray(value)) {
+      for (const child of value) awaitedExpressions(child, skipCaughtTry, out);
+    } else if (value && typeof value.type === "string") {
+      awaitedExpressions(value, skipCaughtTry, out);
+    }
+  }
+  return out;
+}
+
+/** Splits awaited expressions into calls: `Promise.all([a(), b()])` yields
+ *  its elements as one group. */
+function awaitedCalls(expression) {
+  const target = unwrap(expression);
+  if (target?.type !== "CallExpression") return [];
+  const callee = unwrap(target.callee);
+  if (
+    callee?.type === "MemberExpression" &&
+    unwrap(callee.object)?.type === "Identifier" &&
+    unwrap(callee.object).name === "Promise" &&
+    PROMISE_COMBINATORS.has(propertyName(callee) ?? "")
+  ) {
+    const list = unwrap(target.arguments[0]);
+    if (list?.type !== "ArrayExpression") return [];
+    return list.elements
+      .map((element) => unwrap(element))
+      .map((element) =>
+        element?.type === "AwaitExpression"
+          ? unwrap(element.argument)
+          : element,
+      )
+      .filter((element) => element?.type === "CallExpression");
+  }
+  return [target];
+}
+
+/** Calls in `body` that reload after (or together with) a write. */
+function reloadsAfterWrite(body, sourceCode, skipCaughtTry, depth = 0) {
+  const found = [];
+  let wrote = false;
+  for (const expression of awaitedExpressions(body, skipCaughtTry)) {
+    const calls = awaitedCalls(expression);
+    if (calls.length === 0) continue;
+    const reloads = calls.filter((call) => isReloadCall(call, sourceCode));
+    const writes = calls.filter((call) => !reloads.includes(call));
+    if (reloads.length > 0 && (wrote || writes.length > 0)) {
+      found.push(...reloads);
+    }
+    for (const call of writes) {
+      const helper =
+        depth === 0 ? localFunction(call.callee, sourceCode) : null;
+      if (
+        helper &&
+        reloadsAfterWrite(helper.body, sourceCode, true, depth + 1).length > 0
+      ) {
+        found.push(call);
+      }
+    }
+    if (writes.length > 0) wrote = true;
+  }
+  return found;
+}
+
+const noReloadInWriteCatch = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A reload after a write does not share the write's catch; it runs through useRefreshAfterWrite.",
+    },
+    messages: {
+      shared:
+        "Schreiben und Nachladen teilen sich diesen catch: Scheitert nur das Nachladen, meldet die Aktion einen Fehler, obwohl gespeichert ist, und „Wiederholen“ schreibt erneut (#6652). Fangen Sie nur das Schreiben im try und laden Sie danach über `useRefreshAfterWrite(…).refresh()` nach.",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (!inScope(context)) return {};
+    const { sourceCode } = context;
+    return {
+      TryStatement(node) {
+        if (!node.handler) return;
+        for (const call of reloadsAfterWrite(node.block, sourceCode, false)) {
+          context.report({ node: call, messageId: "shared" });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "error-path" },
   rules: {
@@ -967,5 +1146,6 @@ export default {
     "no-hand-rolled-alert": noHandRolledAlert,
     "no-raw-error-toast": noRawErrorToast,
     "no-error-text-match": noErrorTextMatch,
+    "no-reload-in-write-catch": noReloadInWriteCatch,
   },
 };

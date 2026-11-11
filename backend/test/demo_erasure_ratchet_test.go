@@ -28,7 +28,9 @@ const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed ass
 // demoErasureExceptions are the tables in scope the erasure leaves on
 // purpose, each with its reason. A new table with personal data gets an
 // erasure path, not an entry. ADR 0187 adds parent_billing.sepa_debit_files,
-// which drops by trigger with its debits.
+// which drops by trigger with its debits. ADR 0212 adds
+// users.message_attachments and users.message_attachment_cleanup, which stay
+// with the messages of the school.
 var demoErasureExceptions = map[string]string{
 	"active.activity_session_attendance":             schoolContentUntil5559,
 	"active.activity_sessions":                       schoolContentUntil5559,
@@ -171,6 +173,8 @@ var demoErasureExceptions = map[string]string{
 	"users.external_caregivers":                      schoolContentUntil5559,
 	"users.guardian_financial_data":                  schoolContentUntil5559,
 	"users.guardian_phone_numbers":                   schoolContentUntil5559,
+	"users.message_attachment_cleanup":               schoolContentUntil5559,
+	"users.message_attachments":                      schoolContentUntil5559,
 	"users.parent_announcement_declaration_versions": schoolContentUntil5559,
 	"users.parent_announcement_responses":            schoolContentUntil5559,
 	"users.parent_announcements":                     schoolContentUntil5559,
@@ -222,7 +226,9 @@ var demoErasureExceptions = map[string]string{
 // demoErasureExceptionBudget is the recorded size of demoErasureExceptions.
 // It only falls: lower it when an entry leaves.
 // ADR 0187: the stored PAIN.008 files of the Träger-Rückgabe (+1).
-const demoErasureExceptionBudget = 187
+// ADR 0212: the photos and files of chat messages and their cleanup intents
+// stay with the messages they belong to (+2).
+const demoErasureExceptionBudget = 189
 
 func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 	t.Parallel()

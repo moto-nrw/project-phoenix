@@ -606,6 +606,30 @@ describe("file responses", () => {
     });
   });
 
+  // #6728: undici cancels the body of a fetch Response that is garbage
+  // collected while its stream is still unlocked. The session cookie exit
+  // awaits after the route returned; a collection then left errors as an
+  // empty 500 and files truncated.
+  it.each([
+    ["a backend error", 404, '{"status":404,"code":"general.not_found"}'],
+    ["a file", 200, "pdf"],
+  ])(
+    "takes the backend body of %s before the route returns",
+    async (_case, status, body) => {
+      const backend = new Response(body, { status });
+      fetchMock.mockResolvedValueOnce(backend);
+
+      const response = await portal.proxyFile("/proof")(
+        request("/api/proof"),
+        createMockContext(),
+      );
+
+      expect(backend.body?.locked).toBe(true);
+      expect(response.status).toBe(status);
+      await expect(response.text()).resolves.toBe(body);
+    },
+  );
+
   it("repeats a file request after a 401 with the renewed token", async () => {
     fetchMock
       .mockResolvedValueOnce(json({ status: 401 }, 401))

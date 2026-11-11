@@ -10,6 +10,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { resumeCare } from "~/lib/care-exit-api";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -33,7 +34,8 @@ interface CareResumeModalProps {
   readonly studentId: string;
   readonly displayName: string;
   readonly onClose: () => void;
-  readonly onResumed: () => Promise<void> | void;
+  /** Closes the dialog and reloads; never rejects (#6652). */
+  readonly onResumed: RefreshAfterWrite;
 }
 
 /** "Betreuung wieder aufnehmen" für ein Kind (#2487). */
@@ -65,20 +67,6 @@ export function CareResumeModal({
     errors.clear();
     try {
       await resumeCare(studentId, newStart, true);
-      try {
-        await onResumed();
-      } catch (refreshError) {
-        // Die Wiederaufnahme ist gespeichert. Ein fehlgeschlagenes Nachladen
-        // darf nicht als gescheiterte Wiederaufnahme mit Wiederholen erscheinen.
-        logger.error("care_resume_success_callback_failed", {
-          student_id: studentId,
-          error:
-            refreshError instanceof Error
-              ? refreshError.message
-              : String(refreshError),
-        });
-        onClose();
-      }
     } catch (resumeError) {
       logger.error("care_resume_failed", {
         student_id: studentId,
@@ -91,9 +79,14 @@ export function CareResumeModal({
         object: "die Wiederaufnahme",
         retry: () => void latestResumeRef.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    // Die Wiederaufnahme ist gespeichert. Ein gescheitertes Nachladen zeigt
+    // der Aufrufer als Ladefehler, nie als gescheiterte Wiederaufnahme
+    // (#6652).
+    await onResumed();
   };
   useLayoutEffect(() => {
     latestResumeRef.current = handleResume;

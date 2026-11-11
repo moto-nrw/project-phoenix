@@ -318,6 +318,12 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: () => mockTenantMutate,
 }));
 
+// The hint of a holiday group before its week (#6680) loads in its own
+// hook; this file's useSWRAuth mock answers every call with the live data.
+vi.mock("~/lib/hooks/use-holiday-guest-group-hint", () => ({
+  useHolidayGuestGroupHint: () => undefined,
+}));
+
 vi.mock("./ogs-group-helpers", () => ({
   countCheckedInStudents: (students: Array<{ current_location?: string }>) =>
     students.filter((student) => student.current_location !== "Zuhause").length,

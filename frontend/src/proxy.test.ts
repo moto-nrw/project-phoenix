@@ -248,6 +248,7 @@ function hostFor(route: string): string {
   if (route.startsWith("/api/parent/")) return PARENTS_HOSTNAME;
   if (route.startsWith("/api/holiday-registrations/")) return PARENTS_HOSTNAME;
   if (route.startsWith("/api/traeger/")) return TRAEGER_HOSTNAME;
+  if (route.startsWith("/api/school/")) return SCHOOL_HOSTNAME;
   return "school-a.localhost:3000";
 }
 
@@ -266,6 +267,10 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/traeger-documents/9/file",
     "/api/traeger/documents/1/file",
     "/api/holiday-registrations/token/documents/2",
+    "/api/messages/attachments/3/download",
+    "/api/staff-messages/attachments/4/download",
+    "/api/school/staff-messages/attachments/5/download",
+    "/api/parent/me/messages/children/6/attachments/7/download",
   ])("runs %s in the sandbox, not under the app CSP", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}?inline=1`, host));
@@ -281,6 +286,8 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/students/1/documents",
     "/api/traeger/holiday-periods/7/form/documents",
     "/api/traeger/contracts/6/document",
+    "/api/messages/attachments",
+    "/api/staff-messages/attachments/4",
   ])("keeps the app CSP on %s", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}`, host));
@@ -314,7 +321,11 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
       "enrollment/admin/requests/[id]/uploads/[uploadId]",
       "files/folders/[folderId]/files/[fileId]/download",
       "holiday-registrations/[token]/documents/[documentId]",
+      "messages/attachments/[attachmentId]/download",
+      "parent/me/messages/children/[studentId]/attachments/[attachmentId]/download",
       "parent/me/news/[announcementId]/attachments/[attachmentId]/download",
+      "school/staff-messages/attachments/[attachmentId]/download",
+      "staff-messages/attachments/[attachmentId]/download",
       "staff/[id]/documents/[documentId]/download",
       "students/[id]/documents/[documentId]/download",
       "students/care-schedule-change-requests/[requestId]/proof",

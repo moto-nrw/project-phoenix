@@ -41,6 +41,8 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		// The reminder of an unsigned care contract (#4679).
 		config.KeyCareContractSignatureReminderDays,
 		config.KeyCareContractTerminationConfirmation, config.KeyCareContractWithdrawalConfirmation,
+		// How long the Träger keeps its holiday registrations (#6691).
+		config.KeyHolidayRegistrationRetentionDays,
 		// What the holiday care wish does in a holiday period (#4703).
 		config.KeyHolidayRegistrationWishMode,
 		config.KeyParentBillingCareMonthChange,

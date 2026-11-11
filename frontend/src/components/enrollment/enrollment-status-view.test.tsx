@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -20,6 +21,8 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { EnrollmentStatusView } from "./enrollment-status-view";
 
@@ -1032,6 +1035,267 @@ describe("EnrollmentStatusView", () => {
     expect(
       screen.queryByText("Noch keine Änderungsanfrage gesendet."),
     ).not.toBeInTheDocument();
+  });
+
+  // #6652: once the write is through, a failed reload is a load error that
+  // says the change is saved; the shown status stays and the retry only
+  // reloads.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText(
+      "general.unavailable",
+      "die Anzeige der Anmeldung",
+    )} ${SAVED_BUT_STALE_SUFFIX}`;
+    const down = () =>
+      new ApiError("down", 503, { code: "general.unavailable" });
+
+    beforeEach(() => {
+      showActionError.mockClear();
+      toastSuccess.mockClear();
+    });
+
+    async function retryOnlyReloads(writeMock: { mock: { calls: unknown[] } }) {
+      // Other cards on the page may offer their own retry.
+      const alert = screen
+        .getByText(reloadText)
+        .closest<HTMLElement>('[role="alert"]');
+      expect(alert).not.toBeNull();
+      fireEvent.click(
+        within(alert!).getByRole("button", { name: "Wiederholen" }),
+      );
+      await waitFor(() => expect(mockFetchStatus).toHaveBeenCalledTimes(3));
+      await waitFor(() =>
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText("Lina Muster")).toBeInTheDocument();
+      expect(writeMock.mock.calls).toHaveLength(1);
+    }
+
+    it("keeps a sent reply sent when the reload fails", async () => {
+      const shown = status({ edit_mode: "change_request" });
+      mockFetchStatus
+        .mockResolvedValueOnce(shown)
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue(shown);
+      mockListEnrollmentChangeRequests.mockResolvedValue([
+        changeRequest({ status: "needs_parent_response" }),
+      ]);
+      mockReplyEnrollmentChangeRequest.mockResolvedValueOnce(
+        changeRequest({ status: "pending_review" }),
+      );
+      render(<EnrollmentStatusView token="tok" />);
+
+      fireEvent.change(await screen.findByLabelText("Antwort"), {
+        target: { value: "Nachweis folgt." },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Antwort senden" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.getByText("Lina Muster")).toBeInTheDocument();
+      expect(mockReplyEnrollmentChangeRequest).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Antwort")),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Status wird geladen…"),
+      ).not.toBeInTheDocument();
+
+      await retryOnlyReloads(mockReplyEnrollmentChangeRequest);
+    });
+
+    it("keeps a saved contact change saved when the reload fails", async () => {
+      mockFetchStatus
+        .mockResolvedValueOnce(status())
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue(status());
+      mockPatchStatus.mockResolvedValueOnce();
+      render(<EnrollmentStatusView token="tok" />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Bearbeiten" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.getByText("Lina Muster")).toBeInTheDocument();
+      expect(mockPatchStatus).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Änderung")),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Status wird geladen…"),
+      ).not.toBeInTheDocument();
+
+      await retryOnlyReloads(mockPatchStatus);
+    });
+
+    it.each([false, true])(
+      "preserves reopened contact drafts while a reload completes (retry: %s)",
+      async (retry) => {
+        const pending = deferred<StatusResponse>();
+        mockFetchStatus.mockResolvedValueOnce(status());
+        if (retry) mockFetchStatus.mockRejectedValueOnce(down());
+        mockFetchStatus.mockReturnValueOnce(pending.promise);
+        mockPatchStatus.mockResolvedValueOnce();
+        render(<EnrollmentStatusView token="tok" />);
+
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Bearbeiten" }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+        if (retry) {
+          const alert = (
+            await screen.findByText(reloadText)
+          ).closest<HTMLElement>('[role="alert"]')!;
+          fireEvent.click(
+            within(alert).getByRole("button", { name: "Wiederholen" }),
+          );
+        }
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Bearbeiten" }),
+        );
+        fireEvent.change(screen.getByLabelText("Vorname"), {
+          target: { value: "Neuer Entwurf" },
+        });
+
+        await act(async () => {
+          pending.resolve(status({ guardian_first_name: "Gespeichert" }));
+        });
+        expect(screen.getByDisplayValue("Neuer Entwurf")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+        expect(
+          await screen.findByText("Gespeichert Muster"),
+        ).toBeInTheDocument();
+      },
+    );
+
+    it("does not restore contact details from an older post-save reload", async () => {
+      const older = deferred<StatusResponse>();
+      mockFetchStatus
+        .mockResolvedValueOnce(status())
+        .mockReturnValueOnce(older.promise)
+        .mockResolvedValueOnce(status({ guardian_first_name: "Maria" }));
+      mockPatchStatus.mockResolvedValue(undefined);
+      render(<EnrollmentStatusView token="tok" />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Bearbeiten" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Bearbeiten" }),
+      );
+      fireEvent.change(screen.getByLabelText("Vorname"), {
+        target: { value: "Maria" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      expect(await screen.findByText("Maria Muster")).toBeVisible();
+      await act(async () =>
+        older.resolve(status({ guardian_first_name: "Veraltet" })),
+      );
+      expect(screen.getByText("Maria Muster")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+      expect(screen.getByLabelText("Vorname")).toHaveValue("Maria");
+    });
+
+    it("keeps a confirmed renewal confirmed when the reload fails", async () => {
+      const renewal = status({
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "pending_renewal",
+          },
+        ],
+      });
+      mockFetchStatus
+        .mockResolvedValueOnce(renewal)
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue(status());
+      mockConfirmRenewal.mockResolvedValueOnce(1);
+      render(<EnrollmentStatusView token="tok" />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung bestätigen" }),
+      );
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.getByText("Lina Muster")).toBeInTheDocument();
+      expect(mockConfirmRenewal).toHaveBeenCalledTimes(1);
+      expect(showActionError).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText("Status wird geladen…"),
+      ).not.toBeInTheDocument();
+
+      await retryOnlyReloads(mockConfirmRenewal);
+    });
+
+    it("applies a successful withdrawn status when only the change requests reload fails", async () => {
+      mockFetchStatus.mockResolvedValueOnce(status()).mockResolvedValue(
+        status({
+          withdrawn_at: "2026-09-09T12:00:00Z",
+          children: status().children.map((child) => ({
+            ...child,
+            status: "withdrawn",
+          })),
+        }),
+      );
+      mockWithdrawStatus.mockResolvedValueOnce();
+      render(<EnrollmentStatusView token="tok" />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung zurückziehen" }),
+      );
+      mockListEnrollmentChangeRequests.mockRejectedValueOnce(down());
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Endgültig zurückziehen" }),
+      );
+      expect(await screen.findByText(reloadText)).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: "Anmeldung zurückziehen" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Bestätigen/ }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("Lina Muster")).toBeVisible();
+      const alert = screen
+        .getByText(reloadText)
+        .closest<HTMLElement>('[role="alert"]')!;
+      fireEvent.click(
+        within(alert).getByRole("button", { name: "Wiederholen" }),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+      );
+      expect(mockWithdrawStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a withdrawn enrollment withdrawn when the reload fails", async () => {
+      mockFetchStatus
+        .mockResolvedValueOnce(status())
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue(status());
+      mockWithdrawStatus.mockResolvedValueOnce();
+      render(<EnrollmentStatusView token="tok" />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung zurückziehen" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Endgültig zurückziehen" }),
+      );
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.getByText("Lina Muster")).toBeInTheDocument();
+      expect(mockWithdrawStatus).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Anmeldung")),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Status wird geladen…"),
+      ).not.toBeInTheDocument();
+
+      await retryOnlyReloads(mockWithdrawStatus);
+    });
   });
 });
 

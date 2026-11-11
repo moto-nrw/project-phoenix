@@ -36,6 +36,54 @@ holds the checked list prices.
 - `scripts/test-perf.mjs` measures local CPU-seconds, peak RAM and wall time;
   the "CI cost" check run shows billed minutes and dollars per pull request.
 
+## Runtime targets
+
+A slow run costs money on every push and blocks every other pull request
+waiting for CI. Wall-clock time of a pull request run with warm caches, from
+push to `ci-gate`:
+
+| Scope | Target | Act at |
+|---|---|---|
+| Whole pull request run | 3–5 min | over 5 min |
+| `Test / Backend tests` job | ≤ 4 min | over 5 min |
+| One Go package in that job | ≤ 60 s | over 2 min |
+| Any other test job or shard | ≤ 3 min | over 4 min |
+
+A per-package budget checked by CI (#6784) is the source of truth for that
+row once it exists. Runs above target are debt to pay down, never headroom
+for more tests. The isolated-database deadline (10 min Go default minus
+`isolatedTestDatabaseDeadlineReserve`, about 7 min 25 s) is the failure
+point, not a budget.
+
+**Before and after.** A change that adds or changes tests, or the code they
+exercise, records the duration of each affected Go package or job on the base and on the branch:
+the gotestsum line `✓ <package> (<duration>)` in the CI log, or a local run
+with CI flags (`../scripts/run-go-toolchain.sh go test -tags=testhooks
+-count=1 -parallel 8 ./<pkg>`) alternated on base and branch on one machine.
+The PR states both when a package grows by more than 15 s or a job by more
+than 30 s.
+
+**Too slow, in this order:**
+
+1. Make it faster: shared setup, the package pool instead of an isolated
+   database slot, fewer writes or uploads per case, `t.Parallel()`.
+2. Question the form: thin the matrix to representative cases, merge cases,
+   move the check to a unit test, or delete what another test covers. This is
+   a test change the [test rule](no-test-modifications.md) allows.
+3. Keep the go test `-timeout`, `isolatedTestDatabaseDeadlineReserve`, the
+   slot limit and job `timeout-minutes` where they are; raising them makes a
+   slow package pass without making it fast.
+
+**Lesson of #6784 (November 2026).** No single pull request went red; the
+creep did. In four days the median of `api` grew from 39 s to 313 s,
+`dataimport/importtest` from 4 s to 310 s, and the backend job from 244 s
+to 504 s. Matrices merged without a runtime check drove it (#6510: seven
+`TestParentMealMessageWriteMatrix*` tests; #6514, #6307: about 5000 uploads
+at 0.15 s), an Actions cache over the 10 GB limit evicted the Go build cache
+(cold compile 574 s instead of 314 s), and one isolated slot per package
+(#6517) turned slow into red past 7 min 25 s. The repair stalled when an
+agent read the test rule as forbidding to thin those matrices.
+
 ## New or changed tests
 
 - Test at the cheapest level that catches the defect: a pure function or unit
@@ -67,6 +115,9 @@ the `ci-cost` skill: it measures the baseline and holds the proven patterns.
 - Change detection fails open: unknown paths run everything, and
   protected-branch pushes and the nightly run stay full.
 - Every job sets `timeout-minutes` at about three times its measured maximum.
+- The repository's Actions cache holds 10 GB; beyond that GitHub evicts the
+  oldest entries, including the Go build cache. A new cache key states its
+  size, checked with `gh cache list`.
 - A new job gets path filters through `detect-changes` in `main.yml` and runs
   only on non-draft pull requests.
 - Report CI timings from at least two warm runs; the first run after a cache

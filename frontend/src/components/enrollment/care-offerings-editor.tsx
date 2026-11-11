@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ApiError } from "~/lib/api-error";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -76,6 +77,7 @@ import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
@@ -569,10 +571,13 @@ export function CareOfferingsEditor({
   }, []);
 
   const loadAll = useCallback(
-    async (preferredPhaseId?: string) => {
+    async (preferredPhaseId?: string, options: { rethrow?: boolean } = {}) => {
       const requestSeq = ++catalogLoadSeq.current;
-      setLoading(true);
-      clearCatalogError();
+      // Nach einem Schreiben bleibt die bestätigte Liste stehen (#6652).
+      if (!options.rethrow) {
+        setLoading(true);
+        clearCatalogError();
+      }
       try {
         const phasesData = await listPhases();
         if (catalogLoadSeq.current !== requestSeq) return;
@@ -598,6 +603,24 @@ export function CareOfferingsEditor({
         logger.error("care_offerings_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (
+          err instanceof ApiError &&
+          (err.status === 401 || err.status === 403)
+        ) {
+          setOfferings([]);
+          setPhases([]);
+          setCatalogFailed(true);
+          selectedPhaseIdRef.current = "";
+          setSelectedPhaseId("");
+          setDraft(null);
+          setEditingId(null);
+          setCloneSource(null);
+          setDeleteTarget(null);
+          setBookingStats({});
+        }
+        // Vorübergehende Nachladefehler lassen bestätigte Daten stehen;
+        // der Aufrufer zeigt sie als Nachladefehler (#6652).
+        if (options.rethrow) throw err;
         setOfferings([]);
         setCatalogFailed(true);
         await showCatalogError(err, {
@@ -620,6 +643,12 @@ export function CareOfferingsEditor({
     void loadAll();
     return invalidateLoads;
   }, [invalidateLoads, loadAll]);
+  // Nachladen nach Speichern, Löschen oder Duplizieren: ein Fehler dabei ist
+  // ein Ladefehler über der Liste, kein Fehler der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Betreuungsangebote",
+    () => loadAll(undefined, { rethrow: true }),
+  );
 
   useEffect(() => {
     if (!selectedPhaseId) {
@@ -743,7 +772,7 @@ export function CareOfferingsEditor({
           );
         }
         if (op.isCurrent()) cancelFocusMode();
-        await loadAll();
+        await afterWrite.refresh();
       } catch (err) {
         logger.error("care_offering_save_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -776,7 +805,7 @@ export function CareOfferingsEditor({
       await deleteCareOffering(offering.id);
       toast.success(`Das Betreuungsangebot „${offering.name}“ ist gelöscht.`);
       setDeleteTarget(null);
-      await loadAll();
+      await afterWrite.refresh();
     } catch (err) {
       logger.error("care_offering_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -787,7 +816,7 @@ export function CareOfferingsEditor({
     } finally {
       setDeletingId(null);
     }
-  }, [deleteTarget, loadAll, clearDeleteErrors, showDeleteError, toast]);
+  }, [deleteTarget, afterWrite, clearDeleteErrors, showDeleteError, toast]);
 
   const clone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
@@ -799,7 +828,7 @@ export function CareOfferingsEditor({
         });
         toast.success(`Das Betreuungsangebot „${cloned.name}“ ist dupliziert.`);
         if (op.isCurrent()) setCloneSource(null);
-        await loadAll();
+        await afterWrite.refresh();
       } catch (err) {
         logger.error("care_offering_clone_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -934,6 +963,7 @@ export function CareOfferingsEditor({
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
       ) : null}
 
+      <LoadErrorAlert error={afterWrite.error} />
       {loading ? (
         <DataTable
           columns={columns}
@@ -942,7 +972,7 @@ export function CareOfferingsEditor({
           loadingRowCount={6}
           getRowKey={(offering) => offering.id}
         />
-      ) : catalogLoad.error ? (
+      ) : catalogFailed || catalogLoad.error ? (
         // Ein Ladefehler steht an Stelle des Katalogs, nie ein Leerzustand.
         <LoadErrorAlert error={catalogLoad.error} />
       ) : hasNoPhases ? (

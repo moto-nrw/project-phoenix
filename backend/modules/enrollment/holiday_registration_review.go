@@ -180,6 +180,14 @@ type HolidayRegistrationSummary struct {
 	// Träger, entered when the Träger-Büro confirms; empty without one
 	// (#5621). The letter names it as the reference to pay with.
 	DebtorNumber string `json:"debtor_number"`
+
+	// RetentionDays are the days after the last week of the period the
+	// registration stays, as its privacy text says (#6691). DeletesOn is the
+	// day the retention deletes it, HealthDeletesOn the day its health
+	// information goes; both are nil for a period without weeks.
+	RetentionDays   int            `json:"retention_days"`
+	DeletesOn       *calendar.Date `json:"deletes_on"`
+	HealthDeletesOn *calendar.Date `json:"health_deletes_on"`
 }
 
 // HolidayRegistrationList is the list of a period: the registrations of the

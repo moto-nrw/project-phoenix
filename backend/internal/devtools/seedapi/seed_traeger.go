@@ -203,7 +203,7 @@ func seedHolidayParticipantList(rt *Runtime) (int64, error) {
 // emergency contact and its pickup person. The sibling of the hosting school
 // stays in its own group. The step fails when no guest joins.
 func seedHolidayGuests(rt *Runtime, weekID int64) error {
-	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/groups", map[string]any{"name": "Feriengruppe", "teacher_ids": []int64{}})
+	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/groups", map[string]any{"name": seedHolidayGroupName, "teacher_ids": []int64{}})
 	if err != nil {
 		return fmt.Errorf("create the holiday group: %w", err)
 	}
@@ -211,6 +211,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 	if err != nil {
 		return fmt.Errorf("read the holiday group: %w", err)
 	}
+	rt.Values[seedHolidayGroupKey] = groupID
 	raw, err = rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-weeks/%d/guest-group", weekID),
 		map[string]any{"group_id": fmt.Sprint(groupID)})
 	if err != nil {
@@ -228,7 +229,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 		return fmt.Errorf("no holiday guest joined the holiday group")
 	}
 	fmt.Printf("  Ausrichtende OGS: %d holiday guest(s) in the Feriengruppe\n", envelope.Data.Guests)
-	return nil
+	return seedHolidayGuestGroupHint(rt, groupID)
 }
 
 // seedHolidayAddressForm saves the next version of the period's form with
@@ -383,6 +384,9 @@ func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, perio
 		return err
 	}
 	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
+		return err
+	}
+	if err := seedHolidayKnownChild(rt, auth, token, periodID, registration); err != nil {
 		return err
 	}
 	return seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings)
@@ -593,13 +597,14 @@ const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
 
 // The public holiday registration always requires Turnstile (ADR 0110). The
 // demo server holds a real Turnstile key, which refuses the test token. It
-// also counts every attempt per Träger, sender e-mail and IP address, and
-// all demo schools share one Träger and the seeded parent's address: after
-// five orders a day the server refuses the attempt before the captcha. On
-// either refusal the holiday step publishes the period without
-// registrations and skips what builds on them, the billing run and the
-// confirmation letters, instead of failing every demo school order.
-var seedHolidayRefusals = []string{seedCaptchaFailed, seedSubmissionRateLimited}
+// also counts every stored registration per Träger, sender e-mail and IP
+// address (#6726), and all demo schools share one Träger and the seeded
+// parent's address: past ten stored registrations a day the server refuses
+// the next one. On any of these refusals the holiday step publishes the
+// period without registrations and skips what builds on them, the billing
+// run and the confirmation letters, instead of failing every demo school
+// order.
+var seedHolidayRefusals = []string{seedCaptchaFailed, seedSubmissionRateLimited, seedSubmissionEmailRateLimited}
 
 var errSeedHolidayRegistrationRefused = errors.New("the server refuses the seeded holiday registration")
 
@@ -654,8 +659,8 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"custody_confirmed": true, "declaration_name": "Sabine Ferienkind",
-		"consent_version": 3,
-		"captcha_token":   seedTurnstileTestToken,
+		"consent_version": seedHolidayConsentVersion, "retention_days": seedHolidayRetentionDays,
+		"captcha_token": seedTurnstileTestToken,
 	}, nil
 }
 
@@ -751,9 +756,17 @@ func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[st
 		"registration_opens_on":  today.String(),
 		"registration_closes_on": firstMonday.AddDays(-7).String(), "binding": true,
 		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
-		"weeks": weeks,
+		// The text of the acceptance mail a confirmation sends (#6672).
+		"acceptance_mail_text": seedHolidayAcceptanceMailText,
+		"weeks":                weeks,
 	}
 }
+
+// seedHolidayAcceptanceMailText is what the demo Träger tells the parents
+// when it confirms a holiday registration (#6672).
+const seedHolidayAcceptanceMailText = "Bei Betreuung bis 16 Uhr geben Sie Ihrem Kind bitte ein Mittagessen mit.\n" +
+	"Bitte packen Sie Wechselkleidung, Sportsachen und regenfeste Kleidung ein.\n" +
+	"Wir freuen uns auf die Ferien mit Ihrem Kind!"
 
 // traegerSeedSettingKey is the setting the demo Träger sets for all its
 // schools (ADR 0086, #4652): parent news on, as the registry default already

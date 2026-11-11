@@ -298,3 +298,8 @@ func toDomainRosterEntry(row directory.StudentRosterEntry) domain.StudentRosterE
 	record.PickupDays, record.BusDays = row.Record.PickupDays, row.Record.BusDays
 	return domain.StudentRosterEntry{Record: record, FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID}
 }
+
+func (s *StudentStore) ListEnrolledIDsByIdentities(ctx context.Context, tenantID int64, identities []directory.StudentIdentity) ([][]int64, domain.OperationStats, error) {
+	ids, stats, err := s.reads.ListEnrolledIDsByIdentities(ctx, tenantID, identities)
+	return ids, domain.OperationStats(stats), projectionError(err)
+}

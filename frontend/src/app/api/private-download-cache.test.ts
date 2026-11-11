@@ -238,7 +238,9 @@ describe("private file responses (#5119)", () => {
     const { GET } = await import("./staff/time-tracking/export/route");
     const response = await call(GET, "GET");
     expect(response.status).toBe(200);
-    expect(response.body).toBe(stream);
+    // Taken over at once (forwardedBody), so a collected upstream Response
+    // cannot cancel it; the reads below prove it still streams unbuffered.
+    expect(stream.locked).toBe(true);
     expect(response.headers.get("Content-Length")).toBe("4");
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     const reader = response.body!.getReader();

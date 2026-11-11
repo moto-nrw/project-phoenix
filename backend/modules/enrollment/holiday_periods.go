@@ -139,9 +139,12 @@ type HolidayPeriod struct {
 	// Binding states that a registration is binding once submitted.
 	Binding bool `json:"binding"`
 	// Notes are the hints for parents, such as lunch or a packed lunch.
-	Notes       string     `json:"notes"`
-	Status      string     `json:"status"`
-	PublishedAt *time.Time `json:"published_at"`
+	Notes string `json:"notes"`
+	// AcceptanceMailText is the Träger's text of the acceptance mail
+	// (#6672), plain text; empty sends the fixed part only.
+	AcceptanceMailText string     `json:"acceptance_mail_text"`
+	Status             string     `json:"status"`
+	PublishedAt        *time.Time `json:"published_at"`
 	// MaxDaysPerChild bounds the care days one child books in the period,
 	// nil for no bound (#4701).
 	MaxDaysPerChild *int `json:"max_days_per_child"`
@@ -198,7 +201,9 @@ type HolidayPeriodInput struct {
 	RegistrationClosesOn calendar.Date
 	Binding              bool
 	Notes                string
-	HolidayWishRule      bool
+	// AcceptanceMailText is the text of the acceptance mail (#6672).
+	AcceptanceMailText string
+	HolidayWishRule    bool
 	// MaxDaysPerChild bounds the care days per child, nil for no bound.
 	MaxDaysPerChild *int
 	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria

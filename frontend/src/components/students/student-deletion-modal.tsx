@@ -25,6 +25,7 @@ import {
   type StudentDeletionImpact,
   type StudentDeletionReason,
 } from "~/lib/student-api";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 
@@ -74,7 +75,9 @@ interface StudentDeletionModalProps {
    *  späterer letzter Betreuungstag wird nicht abgewartet (#2434). */
   readonly skipsLastCareDay?: boolean;
   readonly onClose: () => void;
-  readonly onDeleted: () => Promise<void> | void;
+  /** Closes the dialog and updates the shown lists; a reload goes through
+   *  `useRefreshAfterWrite` and never rejects (#6652). */
+  readonly onDeleted: () => void | ReturnType<RefreshAfterWrite>;
 }
 
 // Endgültiges Löschen eines Kindes (#3110): Vorschau der Folgen, Löschgrund
@@ -184,21 +187,6 @@ export function StudentDeletionModal({
         acknowledged: true as const,
       };
       await deleteStudentWithData(studentId, input, completionId);
-      try {
-        await onDeleted();
-      } catch (refreshError) {
-        // The destructive request already succeeded. A failed list refresh
-        // must not be presented as a failed deletion or leave a retry button
-        // that can only answer 404 on the second attempt.
-        logger.error("student_delete_success_callback_failed", {
-          student_id: studentId,
-          error:
-            refreshError instanceof Error
-              ? refreshError.message
-              : String(refreshError),
-        });
-        onClose();
-      }
     } catch (deleteError) {
       logger.error("student_delete_failed", {
         student_id: studentId,
@@ -239,9 +227,14 @@ export function StudentDeletionModal({
       // Kein „Wiederholen“: ein erneutes Löschen geht wieder durch beide
       // Bestätigungsschritte, nicht über einen Knopf im Fehlerkasten.
       await errors.show(deleteError, { object: "die Löschung" });
-    } finally {
       setDeleting(false);
+      return;
     }
+    setDeleting(false);
+    // The deletion holds. A failed refresh of the lists is the caller's load
+    // error, never a failed deletion with a retry that can only answer 404
+    // (#6652).
+    await onDeleted();
   };
 
   return (

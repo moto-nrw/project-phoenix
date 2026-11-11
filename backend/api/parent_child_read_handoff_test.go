@@ -93,7 +93,7 @@ func newChildReadRigOn(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dep
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Use(RequestSettingsCacheMiddleware, RequestIdentityCacheMiddleware)
-	router.Mount("/parent", parentHTTP.NewResource(parentHTTP.ResourceConfig{Parent: portal}).Router(ParentSessionChain))
+	router.Mount("/parent", parentHTTP.NewResource(parentHTTP.ResourceConfig{Parent: portal, MessageAttachmentFiles: NewMemoryMessageAttachmentStorageForTests()}).Router(ParentSessionChain))
 	return childReadRig{db: db, router: router, bookConference: owners.ParentConferenceBooking(portal), childCheckDelay: childCheckDelay}
 }
 

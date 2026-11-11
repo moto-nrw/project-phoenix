@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import type { ClassDayHomework } from "~/lib/class-day-api";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import type { HomeworkInput } from "~/lib/school-class-day-api";
 
@@ -45,7 +46,8 @@ export function useClassHomework({
   readonly api?: ClassHomeworkApi;
   readonly schoolClass: string;
   readonly dateISO: string;
-  readonly onChanged: () => Promise<unknown>;
+  /** Reloads the class; never rejects (#6652). */
+  readonly onChanged: RefreshAfterWrite;
 }) {
   const [draft, setDraft] = useState<HomeworkDraft | null>(null);
   const submission = useFormModalPending(draft !== null);
@@ -95,9 +97,6 @@ export function useClassHomework({
         } else {
           await api.add(schoolClass, dateISO, input);
         }
-        await onChanged();
-        // Eine späte Antwort schließt keinen inzwischen neuen Entwurf (#6533).
-        if (op.isCurrent()) setDraft(null);
       } catch (cause) {
         logger.error("class_day_homework_save_failed", {
           error: cause instanceof Error ? cause.message : String(cause),
@@ -107,7 +106,11 @@ export function useClassHomework({
           object: "die Hausaufgabe",
           retry: () => void save(),
         });
+        return;
       }
+      await onChanged();
+      // Eine späte Antwort schließt keinen inzwischen neuen Entwurf (#6533).
+      if (op.isCurrent()) setDraft(null);
     });
   };
 
@@ -124,8 +127,6 @@ export function useClassHomework({
     setRemoving(true);
     try {
       await api.remove(schoolClass, deleting.id);
-      await onChanged();
-      setDeleting(null);
     } catch (cause) {
       logger.error("class_day_homework_delete_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -134,9 +135,12 @@ export function useClassHomework({
         object: "die Hausaufgabe",
         retry: () => void confirmDelete(),
       });
-    } finally {
       setRemoving(false);
+      return;
     }
+    setDeleting((current) => (current === deleting ? null : current));
+    setRemoving(false);
+    await onChanged();
   };
 
   return {

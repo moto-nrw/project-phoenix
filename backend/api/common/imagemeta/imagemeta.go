@@ -31,6 +31,23 @@ func Strip(data []byte, contentType string) ([]byte, error) {
 	}
 }
 
+// ShownRotated reports whether a viewer shows the JPEG turned by a quarter:
+// its Exif orientation swaps width and height (values 5 to 8). Layout code
+// that reserves the picture's frame from its pixel size needs the answer.
+func ShownRotated(data []byte, contentType string) bool {
+	if contentType != "image/jpeg" && contentType != "image/jpg" {
+		return false
+	}
+	// The Exif block sits in the first segments of the file.
+	head := data[:min(len(data), 1<<16)]
+	at := bytes.Index(head, exifHeader)
+	if at < 0 {
+		return false
+	}
+	orientation := exifOrientation(head[at+len(exifHeader):])
+	return orientation >= 5 && orientation <= 8
+}
+
 // --- Exif orientation -------------------------------------------------------
 
 const exifOrientationTag = 0x0112

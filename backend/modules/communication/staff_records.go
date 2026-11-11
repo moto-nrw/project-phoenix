@@ -2,6 +2,7 @@ package communication
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -16,8 +17,10 @@ type StaffMessageRecord struct {
 	SenderAccountID int64
 	SenderName      string
 	Body            string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// Attachments is the stored snapshot of the message's files (#6685).
+	Attachments json.RawMessage
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 type StaffThreadRecord struct {
 	ID             int64

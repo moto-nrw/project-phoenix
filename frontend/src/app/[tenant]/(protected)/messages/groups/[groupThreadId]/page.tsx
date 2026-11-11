@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  attachmentIdArgs,
+  PARENT_MESSAGE_ATTACHMENTS,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 
 import { isParentMessagingDisabled } from "~/lib/parent-messages-api";
@@ -109,10 +114,20 @@ function GroupMessageContent() {
   const { show: showActionError } = useApiErrorDisplay();
 
   const attempt = useMessageSendAttempt(messageKeys.groupMessage(threadId));
-  const send = async () => {
+  // Die Dateien des letzten Versuchs: „Wiederholen“ sendet sie erneut.
+  const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  // Ob der letzte Versuch ankam: sonst behält das Eingabefeld die Dateien.
+  const sendArrived = useRef(true);
+  const send = async (picked?: readonly MessageAttachment[]) => {
+    const attachments = picked ?? sentFiles.current;
     const body = draft.trim();
-    if (!body || sending || !messagingEnabled) return;
-    const clientMessageId = attempt.begin(body);
+    if ((!body && attachments.length === 0) || sending || !messagingEnabled)
+      return;
+    sentFiles.current = attachments;
+    sendArrived.current = true;
+    const clientMessageId = attempt.begin(
+      [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
+    );
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     sendAction.dismiss();
@@ -137,10 +152,16 @@ function GroupMessageContent() {
         ...current,
         messages: [
           ...current.messages,
-          { id, sender_name: "", body, created_at: "" },
+          { id, sender_name: "", body, created_at: "", attachments },
         ],
       }),
-      request: () => postGroupMessage(threadId, body, clientMessageId),
+      request: () =>
+        postGroupMessage(
+          threadId,
+          body,
+          clientMessageId,
+          ...attachmentIdArgs(attachments),
+        ),
       commit: (next) => void mutate(next, { revalidate: false }),
       keepFailed: true,
       refusal: {
@@ -150,7 +171,11 @@ function GroupMessageContent() {
           key === messageKeys.groupMessages(),
       },
     });
-    if (outcome.status === "done") attempt.complete(clientMessageId);
+    sendArrived.current = outcome.status !== "failed";
+    if (outcome.status === "done") {
+      attempt.complete(clientMessageId);
+      sentFiles.current = [];
+    }
     if (
       outcome.status !== "failed" ||
       (!outcome.refused && !attempt.isActive(clientMessageId))
@@ -281,6 +306,8 @@ function GroupMessageContent() {
               senderName={message.sender_name}
               createdAt={message.created_at}
               pending={sendAction.stateOf(message.id)}
+              attachments={message.attachments}
+              attachmentUrl={PARENT_MESSAGE_ATTACHMENTS.downloadUrl}
             />
           ))}
         </div>
@@ -303,9 +330,17 @@ function GroupMessageContent() {
                 draftRevision.current += 1;
                 setDraft(value);
               }}
-              onSend={() => void send()}
+              onSend={async (files) => {
+                  await send(files);
+                  return sendArrived.current;
+                }}
               sending={sending}
               placeholder="Weitere Nachricht an alle Eltern…"
+              attachments={{
+                uploadUrl: PARENT_MESSAGE_ATTACHMENTS.uploadUrl,
+                notice:
+                  "Alle Eltern dieser Gruppennachricht sehen die Datei.",
+              }}
             />
           ) : (
             <Alert

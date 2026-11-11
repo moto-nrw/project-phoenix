@@ -121,16 +121,26 @@ export function ChildConsentsSection({
     (consent) =>
       consent.key === "photo" && (consent.can_withdraw || consent.can_grant),
   );
+  // Ohne Recht zur Foto-Einwilligung bleibt der Widerruf über die OGS
+  // (#6650): Die Zeile sagt, wer ihn einträgt, statt eine Sackgasse zu zeigen.
+  const photoGrantedElsewhere = visibleConsents.some(
+    (consent) =>
+      consent.key === "photo" &&
+      consent.state === "granted" &&
+      !consent.can_withdraw,
+  );
+  let description = t("description");
+  if (canChangePhotoConsent) {
+    description = `${description} ${t("photoDescription")}`;
+  } else if (photoGrantedElsewhere) {
+    description = `${description} ${t("photoViaCareDescription")}`;
+  }
 
   return (
     <>
       <ParentSection
         title={t("title")}
-        description={
-          canChangePhotoConsent
-            ? `${t("description")} ${t("photoDescription")}`
-            : t("description")
-        }
+        description={description}
         concept={confirmationsConcept}
       >
         {successfulAction === "withdraw" ? (

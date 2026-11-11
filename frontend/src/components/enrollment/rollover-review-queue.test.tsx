@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 // ============================================================================
@@ -33,7 +39,9 @@ vi.mock("~/components/ui/back-link", () => ({
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { RolloverReviewQueue as Queue } from "./rollover-review-queue";
 
 function RolloverReviewQueue(props: { phaseID: string }) {
@@ -307,5 +315,145 @@ describe("RolloverReviewQueue", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(await screen.findByText(/Lina Beispiel/)).toBeInTheDocument();
+  });
+
+  // #6652: a write holds once it is through; a failed reload keeps the list
+  // and says the change is saved, and its retry only reloads.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Prüfliste")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    it.each([403, 503])(
+      "handles a %s reload after a confirmed decision without exposing refused data",
+      async (status) => {
+        mockListReview
+          .mockResolvedValueOnce([
+            makeItem(),
+            makeItem({
+              child_id: "998",
+              first_name: "Ben",
+              guardian_email: "ben-parent@example.test",
+            }),
+          ])
+          .mockRejectedValueOnce(new ApiError("failed", status));
+        mockDecideReview.mockResolvedValue(undefined);
+        render(<RolloverReviewQueue phaseID="77" />);
+        fireEvent.click(
+          (await screen.findAllByRole("button", { name: /Behalten/ }))[0]!,
+        );
+        const message = `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Prüfliste")} ${SAVED_BUT_STALE_SUFFIX}`;
+        expect(await screen.findByText(message)).toBeVisible();
+        if (status === 403) {
+          expect(screen.queryByText("Ben Beispiel")).not.toBeInTheDocument();
+          expect(
+            screen.queryByText("ben-parent@example.test"),
+          ).not.toBeInTheDocument();
+          expect(
+            screen.queryByRole("button", { name: /Behalten/ }),
+          ).not.toBeInTheDocument();
+          expect(
+            screen.queryByText(/Keine offenen Einträge/),
+          ).not.toBeInTheDocument();
+        } else {
+          expect(screen.getByText("Ben Beispiel")).toBeVisible();
+          expect(
+            screen.getByRole("button", { name: /Behalten/ }),
+          ).toBeEnabled();
+        }
+      },
+    );
+
+    it("ends loading when a decision refresh supersedes the new phase's initial read", async () => {
+      const write = deferred<void>();
+      const older = deferred<ReturnType<typeof makeItem>[]>();
+      mockListReview
+        .mockResolvedValueOnce([makeItem()])
+        .mockReturnValueOnce(older.promise)
+        .mockResolvedValueOnce([makeItem({ first_name: "Ben" })]);
+      mockDecideReview.mockReturnValueOnce(write.promise);
+      const view = render(<RolloverReviewQueue phaseID="77" />);
+      fireEvent.click(await screen.findByRole("button", { name: /Behalten/ }));
+      view.rerender(<RolloverReviewQueue phaseID="78" />);
+      await waitFor(() => expect(mockListReview).toHaveBeenCalledTimes(2));
+      await act(async () => write.resolve());
+      expect(await screen.findByText("Ben Beispiel")).toBeVisible();
+      await act(async () =>
+        older.resolve([makeItem({ first_name: "Veraltet" })]),
+      );
+      expect(screen.getByText("Ben Beispiel")).toBeVisible();
+      expect(screen.queryByText("Veraltet Beispiel")).not.toBeInTheDocument();
+    });
+
+    it("locks a confirmed decision when its reload fails", async () => {
+      mockListReview
+        .mockResolvedValueOnce([makeItem()])
+        .mockRejectedValueOnce(new ApiError("down", 503));
+      mockDecideReview.mockResolvedValue(undefined);
+      render(<RolloverReviewQueue phaseID="77" />);
+      fireEvent.click(await screen.findByRole("button", { name: /Behalten/ }));
+      expect(await screen.findByText(reloadText)).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: /Behalten/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Abschließen/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("ignores queue responses that precede confirmed decisions", async () => {
+      const older = deferred<ReturnType<typeof makeItem>[]>();
+      mockListReview
+        .mockResolvedValueOnce([
+          makeItem(),
+          makeItem({ child_id: "998", first_name: "Ben" }),
+        ])
+        .mockReturnValueOnce(older.promise)
+        .mockResolvedValueOnce([]);
+      mockDecideReview.mockResolvedValue(undefined);
+      render(<RolloverReviewQueue phaseID="77" />);
+      const keep = await screen.findAllByRole("button", { name: /Behalten/ });
+      fireEvent.click(keep[0]!);
+      await waitFor(() => expect(mockListReview).toHaveBeenCalledTimes(2));
+      fireEvent.click(
+        (await screen.findAllByRole("button", { name: /Behalten/ }))[0]!,
+      );
+      expect(await screen.findByText(/Keine offenen Einträge/)).toBeVisible();
+      await act(async () => older.resolve([makeItem()]));
+      expect(screen.getByText(/Keine offenen Einträge/)).toBeVisible();
+      expect(screen.queryByText("Lina Beispiel")).not.toBeInTheDocument();
+    });
+
+    it("keeps a decided entry decided when the reload fails", async () => {
+      mockListReview
+        .mockResolvedValueOnce([makeItem()])
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValueOnce([]);
+      mockDecideReview.mockResolvedValueOnce(undefined);
+      render(<RolloverReviewQueue phaseID="77" />);
+
+      expect(await screen.findByText(/Lina Beispiel/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Behalten/ }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      // Die Entscheidung ist bestätigt, der Eintrag ist nicht mehr offen.
+      expect(screen.queryByText(/Lina Beispiel/)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Entscheidung"),
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Prüfliste")),
+      ).not.toBeInTheDocument();
+      expect(mockDecideReview).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByText(/Keine offenen Einträge/),
+      ).toBeInTheDocument();
+      expect(mockListReview).toHaveBeenCalledTimes(3);
+      expect(mockDecideReview).toHaveBeenCalledTimes(1);
+    });
   });
 });

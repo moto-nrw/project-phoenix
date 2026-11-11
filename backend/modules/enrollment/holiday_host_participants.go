@@ -44,11 +44,29 @@ type HostedHolidayWeek struct {
 	Participants int           `json:"participants"`
 	// BookingUnit is how the week is booked (#4701).
 	BookingUnit string `json:"booking_unit"`
+	// CareStartsAt and CareEndsAt are the care window of the week, "HH:MM":
+	// the earliest start and the latest end of its time models. The
+	// planning views of the school show it, so the team can staff the week
+	// without opening the participant list.
+	CareStartsAt string `json:"care_starts_at"`
+	CareEndsAt   string `json:"care_ends_at"`
+	// DayParticipants counts the confirmed children per booked day of a week
+	// booked by days (#4701), in calendar order; days without a booked child
+	// are missing. Empty for a week booked as a whole: there every day has
+	// Participants children.
+	DayParticipants []HolidayDayCount `json:"day_participants"`
 	// GuestGroupID is the group the school picked for the week's holiday
 	// guests (#4666), nil before it picked one; Guests counts the guests in
 	// it whose access has not ended.
 	GuestGroupID *int64 `json:"guest_group_id"`
 	Guests       int    `json:"guests"`
+}
+
+// HolidayDayCount is the number of confirmed children booked on one day of
+// a week booked by days.
+type HolidayDayCount struct {
+	Date         calendar.Date `json:"date"`
+	Participants int           `json:"participants"`
 }
 
 // HolidayParticipant is one confirmed child of a hosted week with the

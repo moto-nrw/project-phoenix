@@ -506,6 +506,15 @@ vi.mock("~/lib/hooks/use-holiday-guest-labels", () => ({
   useHolidayGuestLabels: () => holidayGuestLabelMock,
 }));
 
+// The hint of a holiday group before its week (#6680) loads in its own hook.
+const { holidayGroupHintMock } = vi.hoisted(() => ({
+  holidayGroupHintMock: vi.fn(),
+}));
+vi.mock("~/lib/hooks/use-holiday-guest-group-hint", () => ({
+  useHolidayGuestGroupHint: (groupId: string | null | undefined) =>
+    holidayGroupHintMock(groupId) as unknown,
+}));
+
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
@@ -572,6 +581,7 @@ function wireStudent(
 
 beforeEach(() => {
   holidayGuestLabelMock.mockReset();
+  holidayGroupHintMock.mockReset();
   // The sidebar memory belongs to the signed-in account (#5000).
   localStorage.setItem("moto:personal-storage-owner", "1:7");
   vi.mocked(useSession)
@@ -1199,6 +1209,35 @@ describe("OGSGroupPage additional scenarios", () => {
     await waitFor(() => {
       expect(screen.getByText(/Keine Kinder in/)).toBeInTheDocument();
     });
+  });
+
+  it("explains an empty holiday group before its week instead of sending to the child search (#6680)", async () => {
+    holidayGroupHintMock.mockReturnValue({
+      groupId: "1",
+      weekId: "51",
+      startsOn: "2027-01-04",
+      endsOn: "2027-01-08",
+      guests: 3,
+    });
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ students: [] }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(
+      await screen.findByText(
+        /Feriengruppe: 3 Kinder kommen ab 04\.01\.2027 dazu\./,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Keine Kinder in/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zur Kindersuche" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the table view when no children match", async () => {

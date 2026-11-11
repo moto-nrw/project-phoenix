@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.staff_batch.upsert_110",
-  "max": 1189,
+  "max": 1188,
   "exact": false,
   "description": "110-row staff upsert like staff_batch.upsert in two write transactions. Upsert mix: rows with an even index exist and change fixed cells, rows with an odd index are new, so the file and every 100-row chunk are half new and half existing. The validation reads the school's roles once with the reference preload and the permissions of the roles the file names once (SAVEPOINT, read, RELEASE) at the first row that checks its role (#5887). Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). The batch path writes each row without a row savepoint, because a failed row aborts its whole chunk (#5552, ADR 0067 addendum step 3)."
 }

@@ -36,6 +36,9 @@ import {
 } from "~/contexts/ToastContext";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { rolesConcept } from "~/lib/concepts/roles";
 
@@ -60,6 +63,10 @@ function RolesPageContent() {
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessRefused, setAccessRefused] = useState(false);
+  const latestRoleRequest = useRef(0);
+  const removedRoleIds = useRef(new Set<string>());
+  const clearSelectionRef = useRef<() => void>(() => undefined);
   // Ladefehler im Gerüst, Schreibfehler im jeweiligen Dialog (#2517).
   const rolesLoad = useApiLoadError();
   const { show: showRolesLoadError, clear: clearRolesLoadError } = rolesLoad;
@@ -102,15 +109,48 @@ function RolesPageContent() {
 
   const service = useMemo(() => createCrudService(rolesConfig), []);
 
-  const fetchRoles = useCallback(async () => {
+  // Rejects on failure: after a write the caller shows it as the reload of a
+  // saved change and keeps the confirmed list (#6652).
+  const readRoles = useCallback(async () => {
+    const request = ++latestRoleRequest.current;
     try {
-      setLoading(true);
       const data = await service.getList({ page: 1, pageSize: 500 });
+      if (request !== latestRoleRequest.current) return;
       const arr = Array.isArray(data.data) ? data.data : [];
       // Eltern vergibt die Einladung zur Eltern-App, nicht diese Seite (#4574).
-      setRoles(arr.filter((role) => !isHiddenSystemRole(role)));
+      setRoles(
+        arr.filter(
+          (role) =>
+            !isHiddenSystemRole(role) && !removedRoleIds.current.has(role.id),
+        ),
+      );
+      setAccessRefused(false);
+      setLoading(false);
       clearRolesLoadError();
+    } catch (error) {
+      if (request !== latestRoleRequest.current) return;
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        setAccessRefused(true);
+        setRoles([]);
+        setSelectedRoleDetail(null);
+        setShowCreateModal(false);
+        clearSelectionRef.current();
+        setLoading(false);
+      }
+      throw error;
+    }
+  }, [service, clearRolesLoadError]);
+
+  const fetchRoles = useCallback(async () => {
+    const request = latestRoleRequest.current + 1;
+    try {
+      setLoading(true);
+      await readRoles();
     } catch (err) {
+      if (request !== latestRoleRequest.current) return;
       logger.error("failed to fetch roles", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -123,11 +163,16 @@ function RolesPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [service, clearRolesLoadError, showRolesLoadError]);
+  }, [readRoles, showRolesLoadError]);
 
   useEffect(() => {
     void fetchRoles();
   }, [fetchRoles]);
+  const rolesAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Rollen",
+    readRoles,
+  );
+  const refreshRoles = rolesAfterWrite.refresh;
 
   const filters: FilterConfig[] = useMemo(() => [], []);
 
@@ -197,6 +242,13 @@ function RolesPageContent() {
     [updateUrlParams],
   );
 
+  useLayoutEffect(() => {
+    clearSelectionRef.current = () => {
+      handleDeleteCancel();
+      handleSelectRole(null);
+    };
+  });
+
   useEffect(() => {
     if (!selectedRoleId) {
       setSelectedRoleDetail(null);
@@ -252,8 +304,8 @@ function RolesPageContent() {
   const handlePermissionsSaved = useCallback(async () => {
     if (!selectedRole) return;
     setDetailReload((value) => value + 1);
-    await fetchRoles();
-  }, [fetchRoles, selectedRole]);
+    await refreshRoles();
+  }, [refreshRoles, selectedRole]);
 
   const handleCreateRole = useCallback(
     async (data: Partial<Role>) => {
@@ -264,9 +316,9 @@ function RolesPageContent() {
         `Die Rolle „${getRoleDisplayName(created.name)}“ ist angelegt.`,
       );
       setShowCreateModal(false);
-      await fetchRoles();
+      await refreshRoles();
     },
-    [service, fetchRoles, toastSuccess],
+    [service, refreshRoles, toastSuccess],
   );
 
   const handleUpdateRole = useCallback(
@@ -279,41 +331,47 @@ function RolesPageContent() {
       );
       // Liste und Detail neu laden.
       setDetailReload((value) => value + 1);
-      await fetchRoles();
+      await refreshRoles();
     },
-    [selectedRole, service, fetchRoles, toastSuccess],
+    [selectedRole, service, refreshRoles, toastSuccess],
   );
 
   const handleDeleteRole = useCallback(async () => {
     if (!selectedRole) return;
     setDeletePending(true);
     deleteErrors.clear();
+    let deleted: boolean;
     try {
-      const deleted = await service.remove(selectedRole.id);
-      if (!deleted) return;
-      toastSuccess(
-        `Die Rolle „${getRoleDisplayName(selectedRole.name)}“ ist gelöscht.`,
-      );
-      handleDeleteCancel();
-      setSelectedRoleDetail(null);
-      handleSelectRole(null);
-      await fetchRoles();
+      deleted = await service.remove(selectedRole.id);
     } catch (err) {
       // Der Bestätigungsdialog bleibt offen und nennt den Grund.
       void deleteErrors.show(err, {
         object: "das Löschen der Rolle",
         retry: () => latestDeleteRef.current(),
       });
+      return;
     } finally {
       setDeletePending(false);
     }
+    if (!deleted) return;
+    removedRoleIds.current.add(selectedRole.id);
+    setRoles((current) =>
+      current.filter((role) => role.id !== selectedRole.id),
+    );
+    toastSuccess(
+      `Die Rolle „${getRoleDisplayName(selectedRole.name)}“ ist gelöscht.`,
+    );
+    handleDeleteCancel();
+    setSelectedRoleDetail(null);
+    handleSelectRole(null);
+    await refreshRoles();
   }, [
     selectedRole,
     service,
     toastSuccess,
     handleDeleteCancel,
     handleSelectRole,
-    fetchRoles,
+    refreshRoles,
     deleteErrors,
   ]);
 
@@ -325,11 +383,16 @@ function RolesPageContent() {
 
   return (
     <DatabasePageLayout
-      loading={loading}
+      loading={
+        loading || (accessRefused && !rolesLoad.error && !rolesAfterWrite.error)
+      }
       sessionLoading={status === "loading"}
-      error={rolesLoad.error}
+      error={rolesLoad.error ?? (accessRefused ? rolesAfterWrite.error : null)}
       empty={
-        filteredRoles.length === 0
+        filteredRoles.length === 0 &&
+        !accessRefused &&
+        !rolesLoad.error &&
+        !rolesAfterWrite.error
           ? {
               title: searchTerm
                 ? "Keine Rollen gefunden"
@@ -386,7 +449,7 @@ function RolesPageContent() {
       intro={{
         title: "Rollen",
         description: statusLine,
-        actions: (
+        actions: accessRefused ? null : (
           <DatabaseCreateAction
             label="Rolle"
             ariaLabel="Rolle erstellen"
@@ -418,6 +481,8 @@ function RolesPageContent() {
         },
       }}
     >
+      <LoadErrorAlert error={rolesAfterWrite.error} className="mb-4" />
+
       {unclassifiedCount > 0 && (
         <div className="mb-6">
           <Alert

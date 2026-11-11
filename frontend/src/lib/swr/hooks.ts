@@ -754,11 +754,19 @@ export function useDiscardRefusedEntity() {
       entity: {
         codes: readonly ErrorCode[];
         matches: (key: string) => boolean;
+        /** The refused request's key, when its error did not pass through SWR. */
+        refusedKey?: string;
       },
     ): boolean => {
       if (!isEntityRefusal(error, entity.codes)) return false;
       if (prefix !== null) {
-        discardScopedEntries(cache, prefix, entity.matches, error);
+        discardScopedEntries(
+          cache,
+          prefix,
+          entity.matches,
+          error,
+          entity.refusedKey,
+        );
       }
       return true;
     },

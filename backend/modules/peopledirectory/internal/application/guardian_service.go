@@ -293,13 +293,9 @@ func (s *RetainedGuardianService) DeleteGuardianWithLinks(ctx context.Context, i
 }
 
 func (s *RetainedGuardianService) deleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
-	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
-		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
-	}
-	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
-		return err
-	}
-
+	// Take students before the profile, as the parent guard does. The first
+	// read only discovers locks; the locked reread below validates the exact
+	// confirmed link set before any link is removed.
 	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to load guardian links: %w", err)
@@ -311,6 +307,13 @@ func (s *RetainedGuardianService) deleteGuardianWithLinks(ctx context.Context, i
 	if _, err := s.StudentRepo.FindByIDsForUpdate(ctx, studentIDs); err != nil {
 		return fmt.Errorf("failed to lock guardian students: %w", err)
 	}
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
+		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
+	}
+	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
+		return err
+	}
+
 	// Reload after acquiring the shared serialization points. A waiting payer
 	// assignment now commits before this read, so its final is_payer state is
 	// either audited below or cannot change until this delete commits.

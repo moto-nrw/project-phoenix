@@ -231,6 +231,8 @@ export function invalidateSWRKeys(
   mode: SWRInvalidation,
   /** `discard`: the refusal that stays visible. */
   refusal?: unknown,
+  /** Explicit failing key when the refusal came from outside SWR's fetcher. */
+  refusedKey?: string,
 ): Promise<unknown[]> {
   const state = SWRGlobalState.get(cache);
   const keys = new Set<string>(cache.keys());
@@ -248,7 +250,7 @@ export function invalidateSWRKeys(
   // generation, everything else of the keys does not.
   if (mode === "discard" && refusal !== undefined) {
     for (const key of matched) {
-      if (cache.get(key)?.error === refusal) {
+      if (key === refusedKey || cache.get(key)?.error === refusal) {
         stampSWRError(refusal, dataGenerationOf(key));
       }
     }
@@ -281,6 +283,7 @@ export function invalidateSWRKeys(
       isValidating: false,
       isLoading: false,
       ...(mode === "clear" ? { error: undefined } : {}),
+      ...(mode === "discard" && key === refusedKey ? { error: refusal } : {}),
     } as Parameters<typeof set>[0]);
   }
   return Promise.all(revalidations);
@@ -296,6 +299,7 @@ export function discardScopedEntries(
   prefix: string,
   matches: (key: string) => boolean,
   refusal?: unknown,
+  refusedKey?: string,
 ): void {
   const scope = `${prefix}:`;
   void invalidateSWRKeys(
@@ -303,5 +307,6 @@ export function discardScopedEntries(
     (key) => key.startsWith(scope) && matches(key.slice(scope.length)),
     "discard",
     refusal,
+    refusedKey === undefined ? undefined : scopedSWRKey(prefix, refusedKey),
   );
 }

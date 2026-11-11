@@ -6,6 +6,8 @@ import { makePortalHandlers } from "../portal-handlers.server";
 export const parent = makePortalHandlers(parentPortal);
 
 export const {
+  proxyFile,
+  proxyUpload,
   proxyGet,
   proxyPost,
   proxyPut,

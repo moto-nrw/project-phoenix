@@ -30,6 +30,7 @@ import {
   type CaregiverCapabilityState,
 } from "~/lib/caregiver-capability-api";
 import { CaregiverBlockerResolutionPanel } from "~/components/teachers/caregiver-blocker-resolution-panel";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { rolesConcept } from "~/lib/concepts/roles";
@@ -48,9 +49,9 @@ interface CaregiverCapabilityModalProps {
   readonly accountLabel: string;
   readonly schoolId?: string;
   readonly schoolName?: string;
-  readonly onUpdated?: (
-    state: CaregiverCapabilityState,
-  ) => void | Promise<void>;
+  /** Reloads the shown account data; never rejects, so a failed reload
+   *  stays a load error of the page, not of the switch (#6652). */
+  readonly onUpdated?: RefreshAfterWrite;
 }
 
 function getRoleSummary(state: CaregiverCapabilityState): string {
@@ -212,10 +213,9 @@ export function CaregiverCapabilityModal({
     }
 
     await save.run(async (op) => {
+      formErrors.clear();
+      let nextState: CaregiverCapabilityState;
       try {
-        formErrors.clear();
-
-        let nextState: CaregiverCapabilityState;
         if (scope === "operator") {
           const resolvedSchoolId = operatorSchoolId;
           if (!resolvedSchoolId) {
@@ -242,10 +242,6 @@ export function CaregiverCapabilityModal({
               },
             );
         }
-
-        if (op.isCurrent()) setState(nextState);
-        toastSuccess(`Die Betreuung für ${accountLabel} ist eingeschaltet.`);
-        await onUpdated?.(nextState);
       } catch (error) {
         logger.error("failed to enable caregiver capability", {
           error: error instanceof Error ? error.message : String(error),
@@ -258,7 +254,12 @@ export function CaregiverCapabilityModal({
           object: "das Einschalten der Betreuung",
           retry: () => latestEnableRef.current(),
         });
+        return;
       }
+      if (op.isCurrent()) setState(nextState);
+      toastSuccess(`Die Betreuung für ${accountLabel} ist eingeschaltet.`);
+      // Never rejects; the dialog does not wait for the page's reload.
+      void onUpdated?.();
     });
   }
 
@@ -268,10 +269,9 @@ export function CaregiverCapabilityModal({
     }
 
     await save.run(async (op) => {
+      formErrors.clear();
+      let nextState: CaregiverCapabilityState;
       try {
-        formErrors.clear();
-
-        let nextState: CaregiverCapabilityState;
         if (scope === "operator") {
           const resolvedSchoolId = operatorSchoolId;
           if (!resolvedSchoolId) {
@@ -288,10 +288,6 @@ export function CaregiverCapabilityModal({
               accountId,
             );
         }
-
-        if (op.isCurrent()) setState(nextState);
-        toastSuccess(`Die Betreuung für ${accountLabel} ist ausgeschaltet.`);
-        await onUpdated?.(nextState);
       } catch (error) {
         logger.error("failed to disable caregiver capability", {
           error: error instanceof Error ? error.message : String(error),
@@ -320,7 +316,12 @@ export function CaregiverCapabilityModal({
               : current,
           );
         }
+        return;
       }
+      if (op.isCurrent()) setState(nextState);
+      toastSuccess(`Die Betreuung für ${accountLabel} ist ausgeschaltet.`);
+      // Never rejects; the dialog does not wait for the page's reload.
+      void onUpdated?.();
     });
   }
 

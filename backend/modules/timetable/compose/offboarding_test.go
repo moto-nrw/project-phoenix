@@ -38,7 +38,7 @@ func TestOperationalDateEditRejectsAssignmentsAddedAfterDiscovery(t *testing.T) 
 				Students: directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
 				Rooms:    testRooms(), Sessions: &fixedSessions{},
 				Observe: func(Observation) {},
-				LockStaffAssignment: func(context.Context, int64) error {
+				LockStaffAssignments: func(context.Context, []int64) error {
 					if !interleaved {
 						interleaved = true
 						// The editor has discovered A but has not locked the instance.

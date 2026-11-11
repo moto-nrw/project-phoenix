@@ -2,6 +2,8 @@
   "title": "Debitim direkt",
   "intro": "Me mandatin i lejoni ofruesit të tërheqë tarifat nga llogaria juaj.",
   "errorObject": "mandati i debitimit direkt",
+  "reloadObject": "pamja e mandatit",
+  "savedButStale": "Ndryshimi juaj u ruajt. Vetëm pamja nuk është ende e përditësuar.",
   "offTitle": "Debitimi direkt nuk është i mundur këtu",
   "off": "Ofruesi juaj nuk e pranon mandatin në aplikacion. Kërkoni nga ofruesi një formular në letër.",
   "creditorMissing": "Ofruesi juaj nuk mund të pranojë ende debitime direkte. Ju lutemi provoni më vonë.",

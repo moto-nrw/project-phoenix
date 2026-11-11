@@ -11,10 +11,25 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
+const careExit = vi.hoisted(() => ({
+  permissions: [] as string[],
+  preview: vi.fn(),
+  confirm: vi.fn(),
+}));
+
+vi.mock("~/lib/care-exit-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  previewCareExit: careExit.preview,
+  confirmCareExit: careExit.confirm,
+}));
+
 // useTenantMutate scopes its keys to the signed-in account (#5006).
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { id: "1" }, expires: "2099-01-01" },
+    data: {
+      user: { id: "1", permissions: careExit.permissions },
+      expires: "2099-01-01",
+    },
     status: "authenticated",
   }),
 }));
@@ -192,6 +207,7 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
 import { PhasesEditor } from "./phases-editor";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
   phase,
   schema,
@@ -203,6 +219,9 @@ import {
 
 beforeEach(() => {
   resetEditorMocks(mocks);
+  careExit.permissions = [];
+  careExit.preview.mockReset();
+  careExit.confirm.mockReset();
 });
 
 describe("PhasesEditor", () => {
@@ -236,6 +255,407 @@ describe("PhasesEditor", () => {
         screen.queryByRole("button", { name: "Dismiss panel" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  // #6598: Kürzt die Schule das Phasenende, nennt der Dialog nach dem
+  // Speichern die schon betreuten Kinder mit beiden Enden.
+  it("names the children whose care runs past a shortened end after saving", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue({
+      ...phase({ service_end_date: "2027-06-30" }),
+      careBeyondEnd: [
+        {
+          studentId: "7",
+          firstName: "Mia",
+          lastName: "Lang",
+          schoolClass: "2b",
+          careEnd: "2027-07-31",
+          phaseEnd: "2027-06-30",
+        },
+      ],
+    });
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Betreuung läuft länger als die Phase",
+    });
+    expect(within(dialog).getByText("Mia Lang")).toBeVisible();
+    expect(within(dialog).getByText("Betreuung bis 31.07.2027")).toBeVisible();
+    expect(
+      within(dialog).getByText(/endet jetzt am 30\.06\.2027/),
+    ).toBeVisible();
+    // Die Sitzung dieser Suite hat kein users:delete.
+    expect(
+      within(dialog).getByText(/Die Betreuung beenden darf nur/),
+    ).toBeVisible();
+    // Anker: der Hinweis nennt das betroffene Kind und die zuständige Person.
+    expect(
+      within(dialog).queryByRole("button", { name: "Betreuung beenden" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Schließen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Betreuung läuft länger als die Phase",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it.each([
+    [
+      "2027-06-30",
+      "Soll die Betreuung mit der Phase enden? Dann beenden Sie sie zum 30.06.2027.",
+    ],
+    [
+      "2026-09-01",
+      "Soll die Betreuung mit der Phase enden? Das neue Ende ist schon vorbei. Die Betreuung kann frühestens heute enden.",
+    ],
+  ])(
+    "names every child and explains the proposed end %s",
+    async (phaseEnd, explanation) => {
+      careExit.permissions = ["users:delete"];
+      mocks.listPhases.mockResolvedValue([phase()]);
+      mocks.listSchemas.mockResolvedValue([schema()]);
+      mocks.updatePhase.mockResolvedValue({
+        ...phase({ service_end_date: phaseEnd }),
+        careBeyondEnd: [
+          {
+            studentId: "7",
+            firstName: "Mia",
+            lastName: "Lang",
+            schoolClass: "2b",
+            careEnd: "2027-07-31",
+            phaseEnd,
+          },
+          {
+            studentId: "8",
+            firstName: "Ben",
+            lastName: "Berg",
+            schoolClass: "",
+            careEnd: "2027-07-15",
+            phaseEnd,
+          },
+        ],
+      });
+      render(<PhasesEditor />);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Aktionen für Schuljahr 2026/27",
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+      const dialog = await screen.findByRole("dialog", {
+        name: "Betreuung läuft länger als die Phase",
+      });
+      expect(within(dialog).getByText("Mia Lang")).toBeVisible();
+      expect(within(dialog).getByText("Klasse 2b")).toBeVisible();
+      expect(
+        within(dialog).getByText("Betreuung bis 31.07.2027"),
+      ).toBeVisible();
+      expect(within(dialog).getByText("Ben Berg")).toBeVisible();
+      expect(
+        within(dialog).getByText("Betreuung bis 15.07.2027"),
+      ).toBeVisible();
+      expect(
+        within(dialog).getByText(
+          /Bei 2 Kindern ist die Betreuung länger eingetragen/,
+        ),
+      ).toBeVisible();
+      expect(
+        within(dialog).getByText(
+          /moto beendet sie nicht von selbst. Diese Liste sehen Sie nur jetzt/,
+        ),
+      ).toBeVisible();
+      expect(within(dialog).getByText(explanation)).toBeVisible();
+      expect(
+        within(dialog).getByRole("button", { name: "Betreuung beenden" }),
+      ).toBeEnabled();
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Schließen" }),
+      );
+      // Anker: die Phasenliste bleibt nach dem Schließen verfügbar.
+      expect(
+        screen.getByRole("button", { name: "Aktionen für Schuljahr 2026/27" }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Betreuung läuft länger als die Phase",
+        }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    ["one child", false, false],
+    ["all children", true, false],
+    ["a child changed after preview", false, true],
+  ])(
+    "can exclude blocked children: %s",
+    async (_scenario, allBlocked, changedAfterPreview) => {
+      careExit.permissions = ["users:delete"];
+      const children = ["7", "8"].map((studentId) => ({
+        studentId,
+        firstName: `Kind ${studentId}`,
+        lastName: "Lang",
+        schoolClass: "2b",
+        careEnd: "2027-07-31",
+        phaseEnd: "2027-06-30",
+      }));
+      mocks.listPhases.mockResolvedValue([phase()]);
+      mocks.listSchemas.mockResolvedValue([schema()]);
+      mocks.updatePhase.mockResolvedValue({
+        ...phase({ service_end_date: "2027-06-30" }),
+        careBeyondEnd: children,
+      });
+      careExit.preview.mockImplementation(
+        async (input: { studentIds: string[] }) => {
+          const students = input.studentIds.map((studentId) => ({
+            studentId,
+            firstName: `Kind ${studentId}`,
+            lastName: "Lang",
+            blocker:
+              (allBlocked || studentId === "7") &&
+              (!changedAfterPreview || careExit.confirm.mock.calls.length > 0)
+                ? "Dieses Kind ist bereits abgeschlossen."
+                : "",
+            sourceOfferings: [],
+            weeklyPlans: [],
+          }));
+          return {
+            token: `preview-${input.studentIds.join("-")}`,
+            lastCareDay: "2027-06-30",
+            blocked: students.some((student) => student.blocker),
+            students,
+          };
+        },
+      );
+      if (changedAfterPreview) {
+        careExit.confirm.mockRejectedValueOnce(
+          new Error("Die Vorschau ist veraltet."),
+        );
+      }
+      careExit.confirm.mockResolvedValue({ studentsEnded: 1 });
+      render(<PhasesEditor />);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Aktionen für Schuljahr 2026/27",
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+      );
+      fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+      const notice = await screen.findByRole("dialog", {
+        name: "Betreuung läuft länger als die Phase",
+      });
+      fireEvent.click(
+        within(notice).getByRole("button", { name: "Betreuung beenden" }),
+      );
+      fireEvent.click(await screen.findByRole("combobox", { name: "Grund" }));
+      fireEvent.click(screen.getByRole("option", { name: "Umzug" }));
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+      if (changedAfterPreview) {
+        const confirm = await screen.findByRole("button", {
+          name: "Betreuung beenden",
+        });
+        await waitFor(() => expect(confirm).toBeEnabled());
+        fireEvent.click(confirm);
+      }
+      expect(
+        await screen.findByText("Die Betreuung wurde nicht beendet"),
+      ).toBeVisible();
+      const confirm = screen.getByRole("button", { name: "Betreuung beenden" });
+      await waitFor(() => expect(confirm).toBeDisabled());
+      const exclude = screen.getByRole("button", {
+        name: "Aus Auswahl nehmen",
+      });
+      await waitFor(() => expect(exclude).toBeEnabled());
+      fireEvent.click(exclude);
+      if (!allBlocked) {
+        const remaining = await screen.findByRole("dialog", {
+          name: "Betreuung läuft länger als die Phase",
+        });
+        expect(within(remaining).getByText("Kind 8 Lang")).toBeVisible();
+        // Anker: der Hinweis zeigt das verbleibende Kind.
+        expect(
+          within(remaining).queryByText("Kind 7 Lang"),
+        ).not.toBeInTheDocument();
+        fireEvent.click(
+          within(remaining).getByRole("button", { name: "Betreuung beenden" }),
+        );
+        fireEvent.click(await screen.findByRole("combobox", { name: "Grund" }));
+        fireEvent.click(screen.getByRole("option", { name: "Umzug" }));
+        fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+        const retryConfirm = await screen.findByRole("button", {
+          name: "Betreuung beenden",
+        });
+        await waitFor(() => expect(retryConfirm).toBeEnabled());
+        fireEvent.click(retryConfirm);
+        await waitFor(() =>
+          expect(careExit.confirm).toHaveBeenLastCalledWith(
+            "preview-8",
+            expect.objectContaining({
+              studentIds: ["8"],
+              lastCareDay: "2027-06-30",
+            }),
+          ),
+        );
+      }
+      expect(
+        await screen.findByRole("button", {
+          name: "Aktionen für Schuljahr 2026/27",
+        }),
+      ).toBeVisible();
+      // Anker: die Phasenliste ist nach Abschluss oder leerer Auswahl verfügbar.
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Betreuung läuft länger als die Phase",
+        }),
+      ).not.toBeInTheDocument();
+      expect(careExit.confirm).toHaveBeenCalledTimes(
+        allBlocked ? 0 : changedAfterPreview ? 2 : 1,
+      );
+    },
+  );
+
+  it("confirms at most 500 children at a time and keeps the rest", async () => {
+    careExit.permissions = ["users:delete"];
+    const children = Array.from({ length: 501 }, (_, index) => ({
+      studentId: String(index + 1),
+      firstName: `Kind ${index + 1}`,
+      lastName: "Lang",
+      schoolClass: "2b",
+      careEnd: "2027-07-31",
+      phaseEnd: "2027-06-30",
+    }));
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue({
+      ...phase({ service_end_date: "2027-06-30" }),
+      careBeyondEnd: children,
+    });
+    careExit.preview.mockImplementation(
+      async (input: { studentIds: string[] }) => ({
+        token: "preview-token",
+        lastCareDay: "2027-06-30",
+        blocked: false,
+        students: input.studentIds.map((studentId) => ({
+          studentId,
+          firstName: `Kind ${studentId}`,
+          lastName: "Lang",
+          blocker: "",
+          sourceOfferings: [],
+          weeklyPlans: [],
+        })),
+      }),
+    );
+    careExit.confirm.mockResolvedValue({ studentsEnded: 500 });
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+    const notice = await screen.findByRole("dialog", {
+      name: "Betreuung läuft länger als die Phase",
+    });
+    expect(within(notice).getByText("Kind 501 Lang")).toBeVisible();
+    fireEvent.click(
+      within(notice).getByRole("button", { name: "Betreuung beenden" }),
+    );
+    expect(
+      await screen.findByText(
+        "500 Kinder sind ausgewählt. Alle bekommen denselben Tag und denselben Grund.",
+      ),
+    ).toBeVisible();
+
+    // Abbrechen behält auch die noch nicht bestätigte Auswahl.
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    const resumed = await screen.findByRole("dialog", {
+      name: "Betreuung läuft länger als die Phase",
+    });
+    expect(within(resumed).getByText("Kind 1 Lang")).toBeVisible();
+    expect(within(resumed).getByText("Kind 501 Lang")).toBeVisible();
+    expect(
+      within(resumed).getByText(
+        "Sie beenden zuerst die Betreuung der ersten 500 Kinder. Danach bleiben die übrigen Kinder in dieser Liste.",
+      ),
+    ).toBeVisible();
+
+    for (const [index, batch] of [
+      children.slice(0, 500),
+      children.slice(500),
+    ].entries()) {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Betreuung beenden" }),
+      );
+      expect(await screen.findByLabelText("Letzter Betreuungstag")).toHaveValue(
+        "2027-06-30",
+      );
+      fireEvent.click(screen.getByRole("combobox", { name: "Grund" }));
+      fireEvent.click(screen.getByRole("option", { name: "Umzug" }));
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+      const confirm = await screen.findByRole("button", {
+        name: "Betreuung beenden",
+      });
+      await waitFor(() => expect(confirm).toBeEnabled());
+      expect(careExit.preview).toHaveBeenNthCalledWith(
+        index + 1,
+        expect.objectContaining({
+          studentIds: batch.map((child) => child.studentId),
+        }),
+      );
+      fireEvent.click(confirm);
+      await waitFor(() =>
+        expect(careExit.confirm).toHaveBeenCalledTimes(index + 1),
+      );
+      expect(careExit.confirm).toHaveBeenNthCalledWith(
+        index + 1,
+        "preview-token",
+        expect.objectContaining({
+          studentIds: batch.map((child) => child.studentId),
+        }),
+      );
+      if (index === 0) {
+        const remaining = await screen.findByRole("dialog", {
+          name: "Betreuung läuft länger als die Phase",
+        });
+        expect(within(remaining).getByText("Kind 501 Lang")).toBeVisible();
+        // Anker: der Hinweis zeigt das noch nicht bestätigte Kind.
+        expect(
+          within(remaining).queryByText("Kind 1 Lang"),
+        ).not.toBeInTheDocument();
+      }
+    }
+    // Anker: nach der letzten Bestätigung ist die Phasenliste geladen.
+    expect(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Betreuung läuft länger als die Phase",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses the button foreground color for the create action icon", async () => {
@@ -479,6 +899,114 @@ describe("PhasesEditor", () => {
         expect.objectContaining({ object: "die Anmeldephase" }),
       ),
     );
+  });
+
+  it("shows the reload error instead of the empty state after creating the first phase", async () => {
+    mocks.listPhases
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(new ApiError("failed", 503))
+      .mockResolvedValue([phase()]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.createPhase.mockResolvedValue(phase());
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
+    );
+    fireEvent.change(inputByName("name"), {
+      target: { value: "Schuljahr 2026/27" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldephasen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Noch keine Anmeldephase angelegt"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Schuljahr 2026/27")).toBeVisible();
+    expect(mocks.createPhase).toHaveBeenCalledTimes(1);
+  });
+
+  // #6652: the status change holds once the write is through; a failed
+  // reload is a load error that says the change is saved, no action error.
+  it("keeps a status change when the reload fails", async () => {
+    mocks.showActionError.mockClear();
+    mocks.updatePhase.mockClear();
+    mocks.listPhases
+      .mockReset()
+      .mockResolvedValueOnce([phase()])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([phase({ is_active: false })]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(phase({ is_active: false }));
+
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deaktivieren" }),
+    );
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldephasen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.showActionError).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(mocks.listPhases).toHaveBeenCalledTimes(3));
+    expect(mocks.updatePhase).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the confirmed inactive state when editing after a failed reload", async () => {
+    mocks.showActionError.mockClear();
+    mocks.updatePhase.mockClear();
+    mocks.listPhases
+      .mockReset()
+      .mockResolvedValueOnce([phase()])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([phase({ is_active: false })]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.updatePhase.mockResolvedValue(phase({ is_active: false }));
+
+    render(<PhasesEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Deaktivieren" }),
+    );
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldephasen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.showActionError).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Schuljahr 2026/27" }),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Aktivieren" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(mocks.updatePhase).toHaveBeenCalledTimes(2));
+    expect(mocks.updatePhase.mock.calls[1]?.[1]).toMatchObject({
+      is_active: false,
+    });
   });
 
   it("keeps a failed delete in the open dialog (#2515)", async () => {

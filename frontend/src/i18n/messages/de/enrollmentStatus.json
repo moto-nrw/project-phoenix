@@ -3,6 +3,8 @@
   "errorObjectEdit": "die Änderung",
   "errorObjectReply": "die Antwort",
   "errorObjectChangeRequests": "die Liste der Änderungsanfragen",
+  "reloadObject": "die Anzeige der Anmeldung",
+  "savedButStale": "Ihre Änderung ist gespeichert. Nur die Anzeige ist noch nicht aktuell.",
   "changeRequestSent": "Ihre Änderungsanfrage ist gesendet. Die {careTerm} prüft sie.",
   "loading": "Status wird geladen…",
   "invalidTitle": "Status-Link ungültig",

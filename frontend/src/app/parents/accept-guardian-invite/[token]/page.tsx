@@ -34,7 +34,7 @@ interface ValidationOutcome {
  * The failure as code and status for the shared error path (#2518). An
  * uncoded 410 or 404 from this endpoint still means the invitation.
  */
-async function loadFailure(
+async function readFailure(
   response: Response,
 ): Promise<GuardianInvitationLoadFailure> {
   let body: { code?: unknown; instance?: unknown } | undefined;
@@ -69,7 +69,7 @@ async function fetchInvitationServer(
       null,
     );
     if (!response.ok) {
-      return { invitation: null, failure: await loadFailure(response) };
+      return { invitation: null, failure: await readFailure(response) };
     }
 
     const raw =

@@ -1,4 +1,5 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
+import type { MessageAttachment } from "~/lib/message-attachments";
 import {
   ApiError,
   apiErrorFromBody,
@@ -41,6 +42,8 @@ export interface StaffMessage {
   /** Group chats: members who were eligible to read this message. */
   eligible_reader_account_ids?: string[];
   reader_count?: number;
+  /** Fotos und Dateien der Nachricht (#6685). */
+  attachments?: readonly MessageAttachment[];
 }
 
 /** A direct chat between two people, or a named group chat (#4776). */
@@ -229,6 +232,7 @@ export interface StaffMessagesApi {
     threadId: string,
     body: string,
     clientMessageId?: string,
+    attachmentIds?: readonly string[],
   ): Promise<StaffMessage>;
   /** Start a group chat (#4776). OGS portal only. */
   createGroup(name: string, accountIds: string[]): Promise<StaffThreadDetail>;
@@ -306,11 +310,15 @@ export function createStaffMessagesApi(basePath: string): StaffMessagesApi {
       return result.data;
     },
 
-    async postMessage(threadId, body, clientMessageId) {
+    async postMessage(threadId, body, clientMessageId, attachmentIds) {
       const fallback = "Die Nachricht konnte nicht gesendet werden";
       const result = await postEnvelope<StaffMessage>(
         `${basePath}/threads/${encodeURIComponent(threadId)}`,
-        { body, client_message_id: clientMessageId },
+        {
+          body,
+          client_message_id: clientMessageId,
+          ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
+        },
         fallback,
       );
       if (!result.data) {

@@ -25,9 +25,11 @@ const {
   participantsMock,
   downloadMock,
   assignMock,
+  ownChildrenMock,
   groupsMock,
   sessionPermissions,
 } = vi.hoisted(() => ({
+  ownChildrenMock: vi.fn(),
   weeksMock: vi.fn(),
   participantsMock: vi.fn(),
   downloadMock: vi.fn(),
@@ -55,6 +57,7 @@ vi.mock("~/lib/holiday-host-api", async (importOriginal) => ({
   fetchHolidayParticipants: participantsMock,
   downloadHolidayParticipants: downloadMock,
   assignHolidayGuestGroup: assignMock,
+  fetchHolidayOwnChildAssignments: ownChildrenMock,
 }));
 
 vi.mock("~/lib/api", () => ({
@@ -95,6 +98,10 @@ const firstWeek: HostedHolidayWeek = {
   startsOn: "2026-09-14",
   endsOn: "2026-09-18",
   participants: 2,
+  bookingUnit: "week",
+  careStartsAt: "08:00",
+  careEndsAt: "16:00",
+  dayParticipants: new Map(),
   guestGroupId: null,
   guests: 0,
 };
@@ -105,6 +112,10 @@ const secondWeek: HostedHolidayWeek = {
   startsOn: "2026-09-21",
   endsOn: "2026-09-25",
   participants: 1,
+  bookingUnit: "week",
+  careStartsAt: "08:00",
+  careEndsAt: "16:00",
+  dayParticipants: new Map(),
   guestGroupId: null,
   guests: 0,
 };
@@ -168,6 +179,7 @@ describe("FerienwochenPage", () => {
     vi.mocked(useTenantSlugSafe).mockReturnValue("test-tenant");
     downloadMock.mockResolvedValue(undefined);
     sessionPermissions.current = [];
+    ownChildrenMock.mockResolvedValue([]);
     groupsMock.mockResolvedValue([
       { id: "7", name: "Feriengruppe" },
       { id: "8", name: "Bären" },
@@ -484,7 +496,7 @@ describe("FerienwochenPage", () => {
     sessionPermissions.current = ["config:read", "users:create"];
     weeksMock.mockResolvedValue([firstWeek]);
     participantsMock.mockResolvedValue(listOf(firstWeek));
-    assignMock.mockResolvedValue(1);
+    assignMock.mockResolvedValue({ guests: 1, ownChildren: 0 });
 
     renderPage();
 
@@ -595,6 +607,80 @@ describe("FerienwochenPage", () => {
     expect(
       await screen.findByText(
         "2 Feriengäste in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("links the file of an own child and says that its days are planned (#6678)", async () => {
+    weeksMock.mockResolvedValue([firstWeek]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+    ownChildrenMock.mockResolvedValue([
+      { childId: "2", assignment: "matched", studentId: "90" },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("Kinder Ihrer OGS")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "1 Kind ist eingeplant. Der Check-in erwartet es an den gebuchten Tagen.",
+      ),
+    ).toBeInTheDocument();
+    const files = within(tableWith("Kinderakte"));
+    expect(files.getByRole("link", { name: "Akte öffnen" })).toHaveAttribute(
+      "href",
+      "/test-tenant/students/90",
+    );
+    expect(screen.queryByText("Noch nicht zugeordnet")).not.toBeInTheDocument();
+    expect(ownChildrenMock).toHaveBeenCalledWith("51");
+  });
+
+  it("names an own child whose registration fits no child in moto, with the next step (#6678)", async () => {
+    sessionPermissions.current = ["config:read", "users:create"];
+    weeksMock.mockResolvedValue([firstWeek]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+    ownChildrenMock.mockResolvedValue([
+      { childId: "2", assignment: "not_found", studentId: null },
+    ]);
+
+    renderPage();
+
+    expect(
+      await screen.findByText("Noch nicht zugeordnet"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 offen")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Kein Kind in moto hat diesen Namen und dieses Geburtsdatum.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Kind suchen: Lia Muster",
+      }),
+    ).toHaveAttribute("href", "/test-tenant/students/search?search=Muster");
+    expect(
+      within(tableWith("Kinderakte")).getByText("Nicht zugeordnet"),
+    ).toBeInTheDocument();
+  });
+
+  it("reports the planned own children after the group choice (#6678)", async () => {
+    sessionPermissions.current = ["config:read", "users:create"];
+    weeksMock.mockResolvedValue([{ ...firstWeek, guestGroupId: "7" }]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+    assignMock.mockResolvedValue({ guests: 1, ownChildren: 2 });
+
+    renderPage();
+
+    const take = await screen.findByRole("button", {
+      name: "Feriengäste übernehmen",
+    });
+    await waitFor(() => expect(take).toBeEnabled());
+    fireEvent.click(take);
+
+    expect(
+      await screen.findByText(
+        "1 Feriengast in der Gruppe. 2 Kinder Ihrer OGS sind eingeplant.",
       ),
     ).toBeInTheDocument();
   });

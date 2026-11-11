@@ -13,6 +13,8 @@ export type ButtonVariant =
   | "link"
   | "link_tone"
   | "fab"
+  | "send"
+  | "ghost_round"
   | "dashed"
   | "filter"
   | "segment"
@@ -102,6 +104,13 @@ export function buttonStyles({
     // Schwebender Anlegen-Knopf: rund, 56 px, grün wie `success`. Bringt sein
     // Maß selbst mit; die Größe des Aufrufs spielt keine Rolle.
     fab: "size-14 rounded-full p-0 bg-moto-green-fill text-white shadow-lg hover:bg-moto-green-fill-hover hover:shadow-xl active:bg-moto-green-fill-active",
+    // Senden neben dem Chatfeld (`MessageComposer`): rund, dunkel, ohne
+    // Schatten, so hoch wie das einzeilige Feld daneben (40 px, per Finger
+    // 48 px). Bringt sein Maß selbst mit.
+    send: "size-10 rounded-full p-0 bg-gray-900 text-white hover:bg-gray-700 active:bg-gray-800 pointer-coarse:size-12",
+    // `ghost` als Kreis: Symbolknopf in einem runden Feld (Büroklammer im
+    // Chatfeld), damit die Hover-Fläche dem Rund des Feldes folgt.
+    ghost_round: `${GHOST} rounded-full`,
     // Gestrichelte Hinzufügen-Fläche („Weitere Nummer hinzufügen“). Ruht
     // ohne Füllung: ein grau gefüllter Knopf passt in keine Rangstufe (#5574).
     dashed:

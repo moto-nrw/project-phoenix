@@ -24,6 +24,7 @@ export function parentGroupMessagesTopic(): HelpTopic {
     result:
       "Ihre Antwort steht danach im Chat mit der OGS zu Ihrem Kind. Andere Eltern sehen sie nicht.",
     notes: [
+      "Fotos öffnen Sie mit einem Tipp groß. Andere Dateien laden Sie mit dem Pfeil herunter. An Ihre Antwort können Sie mit `Foto oder Datei anhängen` selbst Dateien hängen.",
       "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
       "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
       "Unter `Antwort an die OGS` steht, wer Ihre Antwort lesen kann.",

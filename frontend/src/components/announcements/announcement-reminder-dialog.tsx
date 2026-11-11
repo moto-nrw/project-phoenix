@@ -16,6 +16,7 @@ import {
   berlinDayFromISO,
   berlinWallClockProblem,
 } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { updateAnnouncementReminder } from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
@@ -69,7 +70,8 @@ interface AnnouncementReminderDialogProps {
   readonly announcement: Announcement;
   readonly onClose: () => void;
   /** Läuft nach dem erfolgreichen Speichern, vor dem Schließen (neu laden). */
-  readonly onSaved: () => Promise<void> | void;
+  /** Reloads the announcement; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }
 
 /**
@@ -135,11 +137,6 @@ export function AnnouncementReminderDialog({
           reminder_at: remove || !day ? null : berlinDateTimeISO(day, time),
           reminder_text: remove || !text.trim() ? null : text.trim(),
         });
-        await onSaved();
-        // Eine späte Antwort schließt keinen inzwischen neuen Dialog (#6533).
-        if (!op.isCurrent()) return;
-        setConfirmRemove(false);
-        onClose();
       } catch (err) {
         logger.error("announcement_reminder_update_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -151,9 +148,15 @@ export function AnnouncementReminderDialog({
             : "das Speichern der Erinnerung",
           retry: () => latestSubmitRef.current(remove),
         });
-      } finally {
         setPending(null);
+        return;
       }
+      setPending(null);
+      await onSaved();
+      // Eine späte Antwort schließt keinen inzwischen neuen Dialog (#6533).
+      if (!op.isCurrent()) return;
+      setConfirmRemove(false);
+      onClose();
     });
   };
   // „Wiederholen“ sendet den Stand, der dann im Formular steht.

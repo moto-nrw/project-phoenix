@@ -52,7 +52,9 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { createCrudService } from "~/lib/database/service-factory";
 import { isValidISODate } from "~/lib/date-helpers";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { exportPlan } from "~/lib/plan-export-api";
 import { NO_PLAN_FILTER } from "~/lib/plan-filter";
@@ -286,6 +288,15 @@ function RoomDetailPageContent() {
     [roomId, tenantMutate, refreshRoomFamily],
   );
 
+  const roomAfterWrite = useRefreshAfterWrite("die Anzeige des Raums", () =>
+    Promise.all([
+      refreshRoomLists(),
+      // Refetch every consumer that holds room-stamped data so badges
+      // pick up the new color without a manual reload.
+      refreshRoomConsumers(),
+    ]),
+  );
+
   const handleSaveRoom = useCallback(
     async (data: Partial<Room>) => {
       if (!room) return;
@@ -296,12 +307,9 @@ function RoomDetailPageContent() {
         await service.update(room.id, payload);
         const savedName = data.name?.trim() || room.name;
         toastSuccess(`Der Raum „${savedName}“ ist gespeichert.`);
-        await Promise.all([
-          refreshRoomLists(),
-          // Refetch every consumer that holds room-stamped data so badges
-          // pick up the new color without a manual reload.
-          refreshRoomConsumers(),
-        ]);
+        // A failed reload is a load error above the room, never an error
+        // of the form (#6652).
+        await roomAfterWrite.refresh();
       } catch (updateError) {
         logger.error("failed to update room", {
           room_id: room.id,
@@ -313,7 +321,7 @@ function RoomDetailPageContent() {
         throw updateError;
       }
     },
-    [refreshRoomConsumers, refreshRoomLists, room, service, toastSuccess],
+    [roomAfterWrite, room, service, toastSuccess],
   );
 
   const handleDeleteRoom = useCallback(async () => {
@@ -503,6 +511,7 @@ function RoomDetailPageContent() {
         </>
       }
     >
+      <LoadErrorAlert error={roomAfterWrite.error} />
       {/* Ohne Übersicht und Stammdaten bleiben die Rauminformationen stehen;
           ein Plan steht dann darunter, ohne Reiterleiste. */}
       {!hasOccupancy && !canUpdate ? (

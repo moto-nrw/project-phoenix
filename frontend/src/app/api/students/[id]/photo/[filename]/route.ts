@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import {
+  forwardBackendResponse,
+  forwardedBody,
+} from "~/lib/backend-proxy-response.server";
 import { tenant } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
@@ -44,7 +47,7 @@ export const GET = tenant.route(async (request, _token, params) => {
   const lastModified = upstream.headers.get("last-modified");
   if (lastModified) headers.set("last-modified", lastModified);
 
-  return new NextResponse(upstream.body, {
+  return new NextResponse(forwardedBody(upstream), {
     status: 200,
     headers,
   });

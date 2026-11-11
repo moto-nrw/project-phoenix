@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayChip } from "~/components/planning/closing-day-marker";
+import { HolidayCareChip } from "~/components/planning/holiday-care-marker";
+import type { HolidayCareDay } from "~/lib/holiday-care";
 import {
   comparePlanningInstances,
   getGermanWeekdayShort,
@@ -31,6 +33,13 @@ interface MonthPlannerGridProps {
    * beschriftet.
    */
   closingDays?: ReadonlyMap<string, string>;
+  /**
+   * Tage mit Ferienbetreuung für den Träger, keyed YYYY-MM-DD (ADR 0116):
+   * die Zelle nennt Kinder und Betreuungszeit.
+   */
+  holidayCare?: ReadonlyMap<string, HolidayCareDay>;
+  /** Ziel der Ferienbetreuungs-Markierung; ohne Ziel ist sie eine Anzeige. */
+  holidayCareHref?: string;
   /** Dates outside active planning periods. */
   planningDisabledDateISOs?: ReadonlySet<string>;
   onDayClick: (dateISO: string) => void;
@@ -49,6 +58,8 @@ export function MonthPlannerGrid({
   instances,
   todayISO,
   closingDays,
+  holidayCare,
+  holidayCareHref,
   planningDisabledDateISOs,
   onDayClick,
   onInstanceClick,
@@ -79,6 +90,8 @@ export function MonthPlannerGrid({
           const isToday = iso === todayISO;
           const outsideMonth = day.getMonth() !== currentMonth;
           const closingReason = closingDays?.get(iso);
+          const care =
+            closingReason === undefined ? holidayCare?.get(iso) : undefined;
           const planningDisabled = planningDisabledDateISOs?.has(iso) ?? false;
           const conflicts = dayInstances.reduce(
             (sum, inst) => sum + inst.conflictWarnings.length,
@@ -138,7 +151,19 @@ export function MonthPlannerGrid({
                   />
                 )}
 
-                {planningDisabled && (
+                {care !== undefined && (
+                  <HolidayCareChip
+                    day={care}
+                    // Ein Link nur, wo die Zelle selbst kein Knopf ist; die
+                    // Inhaltsebene lässt Klicks sonst zur Tagesfläche durch.
+                    href={onInstanceClick ? holidayCareHref : undefined}
+                    stacked
+                    compactOnMobile
+                    className="pointer-events-auto mt-1 w-full"
+                  />
+                )}
+
+                {planningDisabled && care === undefined && (
                   <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
                     <MotoConceptIcon concept={calendarConcept} size={14} />
                     Nicht planbar
@@ -147,6 +172,7 @@ export function MonthPlannerGrid({
 
                 {dayInstances.length === 0 ? (
                   closingReason === undefined &&
+                  care === undefined &&
                   !planningDisabled && (
                     <div className="mt-5 flex items-center gap-1 text-xs text-gray-400">
                       <MotoConceptIcon concept={calendarConcept} size={14} />

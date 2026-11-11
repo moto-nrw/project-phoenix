@@ -10,6 +10,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
   HOLIDAY_CONTRIBUTION,
@@ -31,16 +33,24 @@ vi.mock("~/lib/traeger-api", () => ({
 const {
   mockRegistration,
   mockHealth,
+  mockConfirm,
   mockEdit,
   mockConfirmationSettings,
   sessionPermissions,
+  mockDownloadPdf,
+  mockDownloadBlob,
   contributionOverride,
+  mockKnown,
 } = vi.hoisted(() => ({
+  mockKnown: vi.fn(),
   mockRegistration: vi.fn(),
+  mockConfirm: vi.fn(),
   mockHealth: vi.fn(),
   mockEdit: vi.fn(),
   mockConfirmationSettings: vi.fn(),
   sessionPermissions: { current: [] as string[] },
+  mockDownloadPdf: vi.fn(),
+  mockDownloadBlob: vi.fn(),
   contributionOverride: { current: null as unknown },
 }));
 vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
@@ -51,9 +61,18 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
   fetchHolidayRegistrationHealth: () => mockHealth(),
   editHolidayRegistration: (...args: unknown[]) => mockEdit(...args),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
+  downloadHolidayRegistrationPdf: (...args: unknown[]) =>
+    mockDownloadPdf(...args),
+  fetchHolidayKnownChildren: (periodId: string, registrationId?: string) =>
+    mockKnown(periodId, registrationId),
+}));
+vi.mock("~/lib/file-download", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/file-download")>()),
+  downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
 }));
 const { mockContribution } = vi.hoisted(() => ({ mockContribution: vi.fn() }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
+  confirmHolidayRegistration: (...args: unknown[]) => mockConfirm(...args),
   // A test sets the contribution through the override (#5629) or the
   // mock (#5628).
   fetchHolidayContribution: () =>
@@ -72,7 +91,10 @@ import TraegerHolidayRegistrationPage from "./page";
 
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
-    mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockKnown.mockReset();
+    mockKnown.mockResolvedValue(new Map());
+    mockRegistration.mockReset().mockResolvedValue(HOLIDAY_REGISTRATION);
+    mockConfirm.mockReset().mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockHealth.mockReset();
@@ -209,6 +231,106 @@ describe("TraegerHolidayRegistrationPage", () => {
       ).not.toBeInTheDocument();
     });
 
+    // #6652: after a confirmed split a failed reload is a load error above
+    // the registration, not a failed split.
+    describe("reload after a write (#6652)", () => {
+      it.each([
+        ["registration", "split"],
+        ["health", "split"],
+        ["registration", "confirmation"],
+        ["health", "confirmation"],
+      ])(
+        "hides registration data when the %s reload refuses access after %s",
+        async (refused, action) => {
+          sessionPermissions.current = [
+            "traeger_enrollment:manage",
+            "traeger_health:read",
+          ];
+          mockContribution.mockResolvedValue({
+            ...HOLIDAY_CONTRIBUTION,
+            siblings: SIBLINGS,
+          });
+          mockSplit.mockResolvedValue(undefined);
+          renderPage();
+          expect(await screen.findByText("Erdnüsse")).toBeVisible();
+          expect(screen.getByText("eva@example.org")).toBeVisible();
+          expect(screen.getByText("Oma Muster")).toBeVisible();
+          const read = refused === "health" ? mockHealth : mockRegistration;
+          read.mockRejectedValueOnce(
+            new ApiError("refused", 403, { code: "general.permission" }),
+          );
+          if (action === "split") await confirmSplit();
+          else
+            fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+          // Anker: der Nachladefehler bestätigt die gespeicherte Änderung.
+          expect(
+            await screen.findByText(
+              `${catalogText("general.permission", "die Anzeige der Anmeldung")} ${SAVED_BUT_STALE_SUFFIX}`,
+            ),
+          ).toBeVisible();
+          expect(screen.queryByText("Erdnüsse")).not.toBeInTheDocument();
+          expect(screen.queryByText("eva@example.org")).not.toBeInTheDocument();
+          expect(screen.queryByText("Oma Muster")).not.toBeInTheDocument();
+          expect(
+            screen.queryByRole("button", { name: "Angaben der Eltern ändern" }),
+          ).not.toBeInTheDocument();
+          expect(
+            action === "split" ? mockSplit : mockConfirm,
+          ).toHaveBeenCalledTimes(1);
+        },
+      );
+
+      it("keeps a split registration split when the reload fails", async () => {
+        mockContribution.mockResolvedValue({
+          ...HOLIDAY_CONTRIBUTION,
+          siblings: SIBLINGS,
+        });
+        mockSplit.mockResolvedValue(undefined);
+        renderPage();
+        await screen.findByRole("link", { name: "Anmeldung Nr. 8" });
+        mockRegistration.mockClear();
+        mockRegistration.mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        );
+        mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
+
+        await confirmSplit();
+
+        const reloadText = `${catalogText(
+          "general.unavailable",
+          "die Anzeige der Anmeldung",
+        )} ${SAVED_BUT_STALE_SUFFIX}`;
+        expect(await screen.findByText(reloadText)).toBeInTheDocument();
+        expect(mockSplit).toHaveBeenCalledTimes(1);
+        // Anker: the confirmed registration stays shown.
+        expect(
+          screen.getByRole("heading", {
+            level: 1,
+            name: "Anmeldung von Eva Muster",
+          }),
+        ).toBeInTheDocument();
+        expect(
+          screen.getByRole("link", { name: "Anmeldung Nr. 8" }),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            catalogText("general.unavailable", "die Geschwister"),
+          ),
+        ).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        await waitFor(() =>
+          expect(
+            screen.queryByRole("heading", { name: "Geschwister" }),
+          ).not.toBeInTheDocument(),
+        );
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+        expect(mockRegistration).toHaveBeenCalledTimes(2);
+        expect(mockSplit).toHaveBeenCalledTimes(1);
+      });
+    });
+
     it("asks to check the invoice when a cancelled sibling changed the amount (#5662)", async () => {
       mockRegistration.mockResolvedValue({
         ...HOLIDAY_REGISTRATION,
@@ -257,6 +379,31 @@ describe("TraegerHolidayRegistrationPage", () => {
       screen.getByRole("link", { name: /Zurück zu den Anmeldungen/ }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");
   });
+  it("asks to check the school of a child another school knows (#6683)", async () => {
+    mockKnown.mockResolvedValue(new Map([["10", "32"]]));
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Schule „OGS Süd“ führt ein Kind mit gleichem Namen und Geburtsdatum. Angemeldet ist Ben als Feriengast. Bitte prüfen Sie die Schule.",
+      ),
+    ).toBeInTheDocument();
+    // Only this registration is compared, once.
+    expect(mockKnown).toHaveBeenCalledTimes(1);
+    expect(mockKnown).toHaveBeenCalledWith("5", "7");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Schule von Ben Muster ändern" }),
+    );
+    // The office lands in the edit of Ben's details, at his school.
+    expect(
+      await screen.findByRole("combobox", { name: /^Schule/ }),
+    ).toHaveTextContent("Andere Schule (Feriengast)");
+  });
+
   it("asks for the debtor number at the confirmation while the switch is on (#5621)", async () => {
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: true });
     render(
@@ -413,6 +560,76 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("says when moto deletes the registration and downloads it as a PDF (#6691)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      deletesOn: "2028-01-09",
+      healthDeletesOn: "2027-04-11",
+    });
+    const blob = new Blob(["%PDF-"]);
+    mockDownloadPdf.mockResolvedValue({
+      blob,
+      filename: "ferienanmeldung-7-muster.pdf",
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "moto löscht diese Anmeldung am 09.01.2028. Laden Sie sie vorher herunter, wenn Sie sie länger brauchen. Gesundheitsangaben löscht moto schon am 11.04.2027.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldung herunterladen" }),
+    );
+    // Without the right to see health information there is no such file.
+    expect(
+      screen.queryByRole("menuitem", { name: "PDF mit Gesundheitsangaben" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));
+    await waitFor(() =>
+      expect(mockDownloadBlob).toHaveBeenCalledWith(
+        blob,
+        "ferienanmeldung-7-muster.pdf",
+      ),
+    );
+    expect(mockDownloadPdf).toHaveBeenCalledWith("5", "7", false);
+  });
+
+  it("downloads the PDF with health information only with the right to see it (#6691)", async () => {
+    sessionPermissions.current = ["traeger_health:read"];
+    mockHealth.mockResolvedValue({ customData: {}, children: [] });
+    mockDownloadPdf.mockResolvedValue({
+      blob: new Blob(["%PDF-"]),
+      filename: null,
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anmeldung herunterladen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "PDF mit Gesundheitsangaben",
+      }),
+    );
+    await waitFor(() =>
+      expect(mockDownloadPdf).toHaveBeenCalledWith("5", "7", true),
+    );
+    expect(mockDownloadBlob).toHaveBeenCalledWith(
+      expect.any(Blob),
+      "ferienanmeldung-7.pdf",
+    );
+  });
+
   it("shows the declaration with name, custody, version and its texts (#5626)", async () => {
     render(
       <ToastProvider>
@@ -430,7 +647,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       "Ja, am 03.09.2026",
     );
     expect(field("Name als Erklärung")).toHaveTextContent("Eva Muster");
-    expect(field("Fassung der Texte")).toHaveTextContent("Fassung 3");
+    expect(field("Fassung der Texte")).toHaveTextContent("Fassung 4");
 
     const wording = screen.getByRole("heading", {
       name: "Wortlaut der Erklärung",

@@ -122,7 +122,7 @@ func newOwnerEdgeServiceWithSessions() (*Service, *ownerEdgeStore, *ownerEdgeSes
 	sessions := &ownerEdgeSessions{}
 	dependency := ownerEdgeDependency{}
 	service := New(store, ownerEdgeTransaction{}, dependency, dependency, sessions,
-		func(context.Context, int64) error { return nil }, func() string { return "2026-09-01" },
+		func(context.Context, []int64) error { return nil }, func() string { return "2026-09-01" },
 		func(observation internalports.Observation) {
 			if observation.Err != nil {
 				store.rejections = append(store.rejections, observation.Operation)

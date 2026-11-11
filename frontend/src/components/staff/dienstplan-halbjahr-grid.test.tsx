@@ -246,6 +246,8 @@ function renderGrid(
       reducedPath={props.reducedPath ?? false}
       todayIso={props.todayIso ?? ANCHOR}
       closingDayRanges={props.closingDayRanges}
+      holidayWeeks={props.holidayWeeks}
+      holidayCareHref={props.holidayCareHref}
       onWeekClick={onWeekClick}
     />,
   );
@@ -563,5 +565,43 @@ describe("DienstplanHalbjahrGrid closing days", () => {
       screen.getByRole("columnheader", { name: /KW 38/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Schließtag/)).not.toBeInTheDocument();
+  });
+});
+
+// Ferienbetreuung für den Träger (ADR 0116): eine Markierung je Woche.
+describe("DienstplanHalbjahrGrid holiday care", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("marks the week the school hosts, with children and care window in the tooltip", () => {
+    configureSWR({ periods: [PERIOD_6W], overviewByKey: allWeeksReady() });
+
+    renderGrid({
+      holidayWeeks: [
+        {
+          id: "3",
+          periodName: "Herbstferien",
+          startsOn: "2026-10-05",
+          endsOn: "2026-10-09",
+          participants: 3,
+          bookingUnit: "week",
+          careStartsAt: "07:45",
+          careEndsAt: "16:00",
+          dayParticipants: new Map(),
+          guestGroupId: null,
+          guests: 0,
+        },
+      ],
+    });
+
+    const marked = screen.getByTitle(
+      "Ferienbetreuung für den Träger: 3 Kinder, 07:45 bis 16:00 Uhr.",
+    );
+    // KW 41 (Mo 05.10.) ist die ausgerichtete Woche, keine andere trägt sie.
+    expect(marked.closest("th")).toHaveTextContent("KW 41");
+    expect(
+      screen.getAllByTitle(/^Ferienbetreuung für den Träger/),
+    ).toHaveLength(1);
   });
 });

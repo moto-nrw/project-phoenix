@@ -11,6 +11,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 import type { TraegerMasterData } from "~/lib/traeger-api";
 import type {
@@ -581,5 +582,142 @@ describe("TraegerVorlagePage", () => {
       ),
     ).toBeInTheDocument();
     expect(templatesApi.fetchDocumentTemplate).not.toHaveBeenCalled();
+  });
+  // #6652: after a saved version a failed reload is a load error above the
+  // template, not a page error that replaces the editor.
+  describe("reload after a write (#6652)", () => {
+    it.each([false, true])(
+      "adopts canonical saved text when reload fails: %s",
+      async (reloadFails) => {
+        renderPage();
+        const subject = await screen.findByLabelText(/Betreff/);
+        fireEvent.change(subject, { target: { value: "  Ihre Rechnung  " } });
+        const saved = {
+          ...detail().current,
+          version: 1,
+          standard: false,
+          subject: "Ihre Rechnung",
+        };
+        templatesApi.saveDocumentTemplate.mockResolvedValue(saved);
+        if (reloadFails) {
+          templatesApi.fetchDocumentTemplate.mockRejectedValueOnce(
+            new ApiError("down", 503),
+          );
+        } else {
+          templatesApi.fetchDocumentTemplate.mockResolvedValue(detail([saved]));
+        }
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+        await waitFor(() => expect(subject).toBeEnabled());
+        expect(subject).toHaveValue("Ihre Rechnung");
+        // Anker: der kanonische Betreff steht im weiterhin sichtbaren Editor.
+        expect(
+          screen.getByRole("figure", { name: "Vorschau des Briefs" }),
+        ).toBeVisible();
+        expect(
+          screen.queryByRole("button", { name: "Speichern" }),
+        ).not.toBeInTheDocument();
+      },
+    );
+
+    it.each(["before", "during"])(
+      "preserves edits made %s a reload retry",
+      async (when) => {
+        renderPage();
+        const subject = await screen.findByLabelText(/Betreff/);
+        fireEvent.change(subject, {
+          target: { value: "Gespeicherter Betreff" },
+        });
+        const saved: DocumentTemplateDetail["current"] = {
+          ...detail().current,
+          version: 1,
+          standard: false,
+          subject: "Gespeicherter Betreff",
+        };
+        templatesApi.saveDocumentTemplate.mockResolvedValue(saved);
+        templatesApi.fetchDocumentTemplate.mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+        const retry = await screen.findByRole("button", {
+          name: "Wiederholen",
+        });
+        await waitFor(() => expect(subject).toBeEnabled());
+        fireEvent.change(subject, {
+          target: { value: "Entwurf vor Wiederholen" },
+        });
+        let finishReload!: (value: DocumentTemplateDetail) => void;
+        templatesApi.fetchDocumentTemplate.mockReturnValueOnce(
+          new Promise<DocumentTemplateDetail>((resolve) => {
+            finishReload = resolve;
+          }),
+        );
+        fireEvent.click(retry);
+        if (when === "during") {
+          fireEvent.change(subject, {
+            target: { value: "Noch neuerer Entwurf" },
+          });
+        }
+        await act(async () => finishReload(detail([saved])));
+
+        expect(subject).toHaveValue(
+          when === "during"
+            ? "Noch neuerer Entwurf"
+            : "Entwurf vor Wiederholen",
+        );
+        expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+        expect(templatesApi.saveDocumentTemplate).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("keeps a saved template version when the reload fails", async () => {
+      renderPage();
+      const subject = await screen.findByLabelText(/Betreff/);
+      fireEvent.change(subject, { target: { value: "Ihre Rechnung" } });
+      const saved: DocumentTemplateDetail["current"] = {
+        kind: "rechnung",
+        version: 1,
+        standard: false,
+        createdAt: "2026-09-09T10:00:00Z",
+        ...STANDARD,
+        subject: "Ihre Rechnung",
+      };
+      templatesApi.saveDocumentTemplate.mockResolvedValue(saved);
+      templatesApi.fetchDocumentTemplate.mockClear();
+      templatesApi.fetchDocumentTemplate.mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      templatesApi.fetchDocumentTemplate.mockResolvedValue(detail([saved]));
+
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Vorlage",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(templatesApi.saveDocumentTemplate).toHaveBeenCalledTimes(1);
+      // Anker: the editor and its preview still show the saved text.
+      expect(screen.getByLabelText(/Betreff/)).toHaveValue("Ihre Rechnung");
+      expect(
+        screen.getByRole("figure", { name: "Vorschau des Briefs" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(catalogText("general.unavailable", "die Vorlage")),
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/Betreff/)).toBeEnabled();
+      // The saved version is the current one: no second save is offered,
+      // which would create another version.
+      expect(
+        screen.queryByRole("button", { name: "Speichern" }),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByText("Gilt für neue Schreiben"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+      expect(templatesApi.fetchDocumentTemplate).toHaveBeenCalledTimes(2);
+      expect(templatesApi.saveDocumentTemplate).toHaveBeenCalledTimes(1);
+    });
   });
 });

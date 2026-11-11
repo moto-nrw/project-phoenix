@@ -283,6 +283,8 @@ func (d *lifecycleStaff) FindStaffByPerson(_ context.Context, personID int64) (d
 	return domain.StaffMember{}, false, nil
 }
 
+func (d *lifecycleStaff) LockStaffPersonMerge(context.Context) error { return nil }
+
 func (d *lifecycleStaff) CreateStaff(_ context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error) {
 	if d.createStaffErr != nil {
 		return 0, d.createStaffErr

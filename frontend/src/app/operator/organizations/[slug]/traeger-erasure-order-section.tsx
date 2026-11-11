@@ -41,6 +41,7 @@ import {
 import {
   STALE_DATA_SUFFIX,
   useRefreshAfterWrite,
+  type RefreshAfterWrite,
 } from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -153,15 +154,29 @@ export function TraegerErasureOrderSection({
   // without data does the error replace the section (#6636).
   const loadError = useSwrLoadError(
     error,
-    "den Löschauftrag",
+    // Feminine object: the catalog texts use it as subject („… ist gerade
+    // nicht erreichbar“) and after „für“; „den Löschauftrag“ read „Den
+    // Löschauftrag ist …“ (#6652).
+    "die Anzeige des Löschauftrags",
     () => void mutate(),
     order === undefined ? undefined : STALE_DATA_SUFFIX,
+  );
+  // The reload after recording runs after the write; its failure stands
+  // above the section, never as an error of the form (#6652).
+  const recordRefresh = useRefreshAfterWrite(
+    "die Anzeige des Löschauftrags",
+    () => mutate(),
   );
 
   if (loadError && order === undefined) {
     return <LoadErrorAlert error={loadError} />;
   }
-  const staleError = loadError ? <LoadErrorAlert error={loadError} /> : null;
+  const staleError = (
+    <>
+      {loadError ? <LoadErrorAlert error={loadError} /> : null}
+      <LoadErrorAlert error={recordRefresh.error} />
+    </>
+  );
   if (isLoading || order === undefined) {
     return (
       <SectionCard title="Löschauftrag">
@@ -205,7 +220,7 @@ export function TraegerErasureOrderSection({
       {staleError}
       <RecordErasureOrderForm
         organizationId={organizationId}
-        onRecorded={() => mutate()}
+        onRecorded={recordRefresh.refresh}
       />
     </>
   );
@@ -313,7 +328,7 @@ function OpenErasureOrder({
         {order.recordsChoice ? null : (
           <RecordRecordsChoiceForm
             organizationId={organizationId}
-            onRecorded={onChanged}
+            onRecorded={refreshAfterWithdraw}
           />
         )}
       </SectionCard>
@@ -340,7 +355,8 @@ function RecordErasureOrderForm({
   onRecorded,
 }: {
   readonly organizationId: string;
-  readonly onRecorded: () => Promise<unknown>;
+  /** Reloads the order; never rejects (#6652). */
+  readonly onRecorded: RefreshAfterWrite;
 }) {
   const [orderReference, setOrderReference] = useState("");
   const [confirmedOn, setConfirmedOn] = useState<Date | null>(null);
@@ -376,8 +392,6 @@ function RecordErasureOrderForm({
           organizationId,
           request,
         );
-        toastSuccess("Der Löschauftrag ist erfasst.");
-        await onRecorded();
       } catch (recordError) {
         logger.warn("traeger_erasure_order_record_failed", {
           error:
@@ -385,10 +399,17 @@ function RecordErasureOrderForm({
               ? recordError.message
               : String(recordError),
         });
-        void showError(recordError, { object: "der Löschauftrag" });
-      } finally {
+        // „das Erfassen“ fits every catalog text („Für das Erfassen …“,
+        // „Das Erfassen … konnte nicht …“); „der Löschauftrag“ did not.
+        void showError(recordError, {
+          object: "das Erfassen des Löschauftrags",
+        });
         setSaving(false);
+        return;
       }
+      setSaving(false);
+      toastSuccess("Der Löschauftrag ist erfasst.");
+      await onRecorded();
     },
     [
       clearError,
@@ -490,7 +511,8 @@ function RecordRecordsChoiceForm({
   onRecorded,
 }: {
   readonly organizationId: string;
-  readonly onRecorded: () => Promise<unknown>;
+  /** Reloads the order; never rejects (#6652). */
+  readonly onRecorded: RefreshAfterWrite;
 }) {
   const records = useRecordsHandover();
   const [saving, setSaving] = useState(false);
@@ -511,8 +533,6 @@ function RecordRecordsChoiceForm({
           organizationId,
           request,
         );
-        toastSuccess("Die Wahl ist eingetragen.");
-        await onRecorded();
       } catch (recordError) {
         logger.warn("traeger_erasure_order_records_failed", {
           error:
@@ -521,9 +541,12 @@ function RecordRecordsChoiceForm({
               : String(recordError),
         });
         void showError(recordError, { object: "die Wahl des Kunden" });
-      } finally {
         setSaving(false);
+        return;
       }
+      setSaving(false);
+      toastSuccess("Die Wahl ist eingetragen.");
+      await onRecorded();
     },
     [clearError, onRecorded, organizationId, records, showError, toastSuccess],
   );

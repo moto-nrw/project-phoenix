@@ -1,9 +1,10 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
@@ -11,6 +12,10 @@ import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import {
   operatorProvisioningService,
   revalidateTenantCache,
@@ -40,7 +45,7 @@ export default function OperatorSchoolsPage() {
   const [createSchoolOpen, setCreateSchoolOpen] = useState(false);
 
   const {
-    data: organizations,
+    data: cachedOrganizations,
     error: organizationsError,
     mutate: mutateOrganizations,
   } = useSWRAuth(
@@ -52,9 +57,14 @@ export default function OperatorSchoolsPage() {
       dedupingInterval: 5000,
     },
   );
+  const { data: organizations } = useAccessControlledData(
+    isAuthenticated ? operatorProvisioningKeys.organizations() : null,
+    cachedOrganizations,
+    organizationsError,
+  );
 
   const {
-    data: schoolSummaries,
+    data: cachedSchoolSummaries,
     error: summariesError,
     isLoading: summariesLoading,
     mutate: mutateSummaries,
@@ -67,10 +77,17 @@ export default function OperatorSchoolsPage() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolSummaries, accessRefused: schoolSummariesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+      cachedSchoolSummaries,
+      summariesError,
+    );
   const summariesLoadError = useSwrLoadError(
     summariesError,
     "die Liste der Schulen",
     () => void mutateSummaries(),
+    schoolSummaries?.length ? STALE_DATA_SUFFIX : undefined,
   );
   // The create form and the trash need the providers.
   const organizationsLoadError = useSwrLoadError(
@@ -82,6 +99,15 @@ export default function OperatorSchoolsPage() {
   const refreshAll = useCallback(async () => {
     await mutateSummaries();
   }, [mutateSummaries]);
+  // The new school's list entry and its portal cache load after the write; a
+  // failure stands above the list, also after the dialog closed (#6652).
+  const createdAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Schulen",
+    async (subdomain: string) => {
+      await refreshAll();
+      await revalidateTenantCache([subdomain]);
+    },
+  );
 
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
@@ -125,6 +151,7 @@ export default function OperatorSchoolsPage() {
       restore: "die Wiederherstellung der Schule",
     },
     logEventPrefix: "school",
+    reloadObject: "die Anzeige der Schulen",
     onAfterSoftDelete: async (target) => {
       await revalidateTenantCache([target.subdomain]);
     },
@@ -175,6 +202,21 @@ export default function OperatorSchoolsPage() {
     [],
   );
 
+  const {
+    setDeleteTarget: setSchoolDeleteTarget,
+    setRestoreTarget: setSchoolRestoreTarget,
+  } = schoolDelete;
+  useLayoutEffect(() => {
+    if (!schoolSummariesAccessRefused) return;
+    setCreateSchoolOpen(false);
+    setSchoolDeleteTarget(null);
+    setSchoolRestoreTarget(null);
+  }, [
+    schoolSummariesAccessRefused,
+    setSchoolDeleteTarget,
+    setSchoolRestoreTarget,
+  ]);
+
   return (
     <TenantPage
       title="Schulen"
@@ -187,20 +229,22 @@ export default function OperatorSchoolsPage() {
           />
         )
       }
-      actions={actionButton}
+      actions={schoolSummariesAccessRefused ? undefined : actionButton}
       overlays={
         <>
           <CreateSchoolModal
             isOpen={createSchoolOpen}
             onClose={() => setCreateSchoolOpen(false)}
             organizations={activeOrganizations}
-            onCreated={() => refreshAll().then(() => undefined)}
+            onCreated={createdAfterWrite.refresh}
           />
         </>
       }
     >
       <div>
         <LoadErrorAlert error={summariesLoadError} />
+        <LoadErrorAlert error={schoolDelete.reloadError} />
+        <LoadErrorAlert error={createdAfterWrite.error} />
         <LoadErrorAlert error={organizationsLoadError} />
         {deletedSummaries.length > 0 && (
           <div className="mb-4 flex justify-end">
@@ -249,7 +293,7 @@ export default function OperatorSchoolsPage() {
             onAction={() => setCreateSchoolOpen(true)}
           />
         ) : (schoolSummaries === undefined && !summariesLoading) ||
-          summariesError ? null : (
+          (summariesError && !schoolSummaries?.length) ? null : (
           <DataTable
             columns={columns}
             rows={activeSummaries}

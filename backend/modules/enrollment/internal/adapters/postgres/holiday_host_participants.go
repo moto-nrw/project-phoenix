@@ -54,6 +54,11 @@ type hostedWeekRow struct {
 	BookingUnit    string        `bun:"booking_unit"`
 	GuestGroupID   *int64        `bun:"guest_group_id"`
 	Guests         int           `bun:"guests"`
+	CareStartsAt   *string       `bun:"care_starts_at"`
+	CareEndsAt     *string       `bun:"care_ends_at"`
+	// DayParticipants is the JSON array of {date, participants} of a week
+	// booked by days, built in the same statement.
+	DayParticipants json.RawMessage `bun:"day_participants,type:jsonb"`
 }
 
 type hostedTimeModelRow struct {
@@ -146,6 +151,19 @@ const (
 				WHERE booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
 					AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id,
 						booking.holiday_registration_child_id)) AS participants,
+			(SELECT to_char(MIN(model.starts_at), 'HH24:MI') FROM enrollment.holiday_week_time_models AS model
+				WHERE model.organization_id = week.organization_id AND model.holiday_period_week_id = week.id) AS care_starts_at,
+			(SELECT to_char(MAX(model.ends_at), 'HH24:MI') FROM enrollment.holiday_week_time_models AS model
+				WHERE model.organization_id = week.organization_id AND model.holiday_period_week_id = week.id) AS care_ends_at,
+			(SELECT COALESCE(jsonb_agg(jsonb_build_object('date', booked.day, 'participants', booked.children) ORDER BY booked.day), '[]'::jsonb)
+				FROM (SELECT booked_day AS day, COUNT(*) AS children
+					FROM enrollment.holiday_registration_bookings AS booking
+					CROSS JOIN LATERAL unnest(booking.days) AS booked_day
+					WHERE week.booking_unit = 'day' AND booking.organization_id = week.organization_id
+						AND booking.holiday_period_week_id = week.id
+						AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id,
+							booking.holiday_registration_child_id)
+					GROUP BY booked_day) AS booked) AS day_participants,
 			host_group.group_id AS guest_group_id,
 			(SELECT COUNT(*) FROM enrollment.holiday_guests AS guest
 				WHERE guest.tenant_id = week.host_school_id AND guest.holiday_period_week_id = week.id
@@ -196,7 +214,9 @@ func (s *HolidayHostStore) ListHostedHolidayWeeks(ctx context.Context, schoolID 
 	}
 	weeks := make([]enrollment.HostedHolidayWeek, len(rows))
 	for i, row := range rows {
-		weeks[i] = hostedWeek(row)
+		if weeks[i], err = hostedWeek(row); err != nil {
+			return nil, err
+		}
 	}
 	return weeks, nil
 }
@@ -239,7 +259,11 @@ func (s *HolidayHostStore) ReadHostedHolidayWeek(ctx context.Context, schoolID, 
 		}
 		participants[i].Days = booked[child.ChildID]
 	}
-	return hostedWeek(week), counted, participants, true, nil
+	hosted, err := hostedWeek(week)
+	if err != nil {
+		return enrollment.HostedHolidayWeek{}, nil, nil, false, err
+	}
+	return hosted, counted, participants, true, nil
 }
 
 // readHostedBookingDays reads the booked days of each child of a hosted week
@@ -266,12 +290,27 @@ func readHostedBookingDays(ctx context.Context, db bun.IDB, week hostedWeekRow) 
 	return booked, nil
 }
 
-func hostedWeek(row hostedWeekRow) enrollment.HostedHolidayWeek {
+func hostedWeek(row hostedWeekRow) (enrollment.HostedHolidayWeek, error) {
+	days := []enrollment.HolidayDayCount{}
+	if len(row.DayParticipants) > 0 {
+		if err := json.Unmarshal(row.DayParticipants, &days); err != nil {
+			return enrollment.HostedHolidayWeek{}, fmt.Errorf("enrollment postgres: decode booked holiday days: %w", err)
+		}
+	}
 	return enrollment.HostedHolidayWeek{
 		ID: row.ID, PeriodName: row.PeriodName, StartsOn: row.StartsOn, EndsOn: row.EndsOn, Participants: row.Participants,
 		BookingUnit:  row.BookingUnit,
+		CareStartsAt: clockOrEmpty(row.CareStartsAt), CareEndsAt: clockOrEmpty(row.CareEndsAt), DayParticipants: days,
 		GuestGroupID: row.GuestGroupID, Guests: row.Guests,
+	}, nil
+}
+
+// clockOrEmpty reads a care window bound; a week without time models has none.
+func clockOrEmpty(value *string) string {
+	if value == nil {
+		return ""
 	}
+	return *value
 }
 
 // studentHealthQuery matches a child of the hosting school to the confirmed

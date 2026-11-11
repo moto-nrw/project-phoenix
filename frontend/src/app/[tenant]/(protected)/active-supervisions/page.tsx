@@ -94,6 +94,7 @@ import {
   columnMenuEntries,
   phoneDetailMenuEntries,
 } from "~/components/ui/collection-view-switch";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import {
   AT_LEAST_LG,
@@ -231,6 +232,21 @@ function MeinRaumPageContent() {
   );
   // The own running supervision „Aufsicht abgeben“ was opened for (#4763).
   const [handOverTarget, setHandOverTarget] = useState<string | null>(null);
+
+  // Nachladen nach dem Eintragen oder Abgeben einer Aufsicht: ein Fehler
+  // dabei steht oben im Inhalt, auch wenn der Dialog zu ist (#6652).
+  const supervisorAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Aufsichten",
+    mutateDashboard,
+  );
+  const handOverAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Aufsichten",
+    () =>
+      Promise.all([
+        mutateDashboard(),
+        refreshSupervision({ silent: true, force: true }),
+      ]),
+  );
 
   const actions = useTimetableActions({
     allRooms,
@@ -926,7 +942,7 @@ function MeinRaumPageContent() {
               canGrantExternalView={canGrantExternalViewAccess(session)}
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
-              onAdded={mutateDashboard}
+              onAdded={supervisorAfterWrite.refresh}
             />
           ) : null}
           {handOverTarget ? (
@@ -935,12 +951,7 @@ function MeinRaumPageContent() {
               currentStaffId={currentStaffId}
               isOpen
               onClose={() => setHandOverTarget(null)}
-              onDone={() =>
-                Promise.all([
-                  mutateDashboard(),
-                  refreshSupervision({ silent: true, force: true }),
-                ])
-              }
+              onDone={handOverAfterWrite.refresh}
             />
           ) : null}
         </>
@@ -950,6 +961,9 @@ function MeinRaumPageContent() {
           Geruests: der zuletzt geladene Stand bleibt darunter bedienbar.
           Einzelaktionen melden sich als Toast oder in ihrem Dialog (#2517). */}
       {!hasNoAccess ? <LoadErrorAlert error={loadError} /> : null}
+      <LoadErrorAlert error={supervisorAfterWrite.error} />
+      <LoadErrorAlert error={actions.reloadError} />
+      <LoadErrorAlert error={handOverAfterWrite.error} />
       {showUnclaimedOnly ? (
         <>
           {reopenBanner}

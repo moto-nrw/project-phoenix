@@ -6,7 +6,7 @@
 // über sich selbst öffnete; die Fläche ist jetzt eine Sammlung wie Räume und
 // Gruppen, und das Termin-Formular verlinkt nur noch hierher.
 
-import { Suspense, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useLayoutEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -21,6 +21,9 @@ import { categoryService } from "~/lib/category-api";
 import { formatCount } from "~/lib/format-utils";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { activitiesConcept } from "~/lib/concepts/activities";
 
@@ -124,6 +127,7 @@ const config: CatalogConfig<ActivityCategory> = {
     menuLabel: "Archivieren",
     confirmTitle: "Terminkategorie archivieren?",
     confirmLabel: "Archivieren",
+    loadingLabel: "Wird archiviert …",
     describe: (item) =>
       `Die Terminkategorie „${item.name}“ wird für neue Termine und Aktivitäten nicht mehr angeboten. Bestehende Einträge behalten sie und bleiben gültig.`,
     run: (item) => categoryService.archiveCategory(item.id),
@@ -141,20 +145,34 @@ function CategoriesPageContent() {
   const searchParams = useSearchParams();
   const tenantMutate = useTenantMutate();
 
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<ActivityCategory[]>(CACHE_KEY, () =>
     categoryService.getManagedCategories(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
   // (#2517).
   const loadError = useSwrLoadError(
     swrError,
     "die Liste der Terminkategorien",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);

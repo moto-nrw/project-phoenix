@@ -64,5 +64,5 @@ func (s *Service) ApplyStudentPhotoConsent(
 }
 
 func (s *Service) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error {
-	return mapPhotoError(s.studentPhotos.ScheduleUnlink(ctx, storedURL))
+	return mapPhotoError(s.studentPhotos.queueUnlink(ctx, storedURL))
 }

@@ -35,7 +35,7 @@ var seedCoverageExemptions = map[string]string{
 	"platform.data_return_downloads":            "retrievals of a released return package only (ADR 0203); without a release there is nothing to retrieve",
 	"platform.school_erasures":                  "real administrative erasure orders only (#3837); a demo seed must never fabricate customer erasure evidence",
 	"platform.organization_erasure_orders":      "real erasure orders of a terminated Träger only (#4657); an order deactivates its Träger for good, so the demo Träger stay active and a seed fabricates no written confirmation",
-	"enrollment.holiday_registration_deletions": "real deletions only (#4667): the hourly retention logs a holiday period 92 days after its last week; the seed plans current holidays, so no period is old enough and a seed fabricates no deletion evidence",
+	"enrollment.holiday_registration_deletions": "real deletions only (#4667): the hourly retention logs a holiday period at the earliest 92 days after its last week (#6691); the seed plans current holidays, so no period is old enough and a seed fabricates no deletion evidence",
 	"parent_billing.beleg_deletions":            "real deletions only (#4720, ADR 0184): a Beleg goes years after its issue year under an instruction; the seed's Belege are from this year, so none is due and a seed fabricates no deletion evidence",
 	// active.presence_backfill_checkpoints carries no exemption any more: the
 	// cutover #2762 writes the switch's own verdict into the checkpoint of
@@ -125,6 +125,7 @@ var seedCoverageExemptions = map[string]string{
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
 	"users.class_list_entries":          "not in prod yet (migration newer than the deployed image)",
+	"users.message_attachment_cleanup":  "holds the file removal of a deleted message attachment (#6685); the seed deletes no message",
 	"users.parent_request_rss_feeds":    "user-created capability credential; seeding only its hash would create an unusable subscription",
 	"users.profiles":                    "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup": "empty in prod too",

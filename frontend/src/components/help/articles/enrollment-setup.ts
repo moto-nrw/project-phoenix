@@ -63,6 +63,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
       "Ändern Sie später `Beginn` oder `Ende` der Phase, ziehen die Buchungen der Kinder mit. Ein Angebotswechsel ab einem bestimmten Tag behält diesen Tag.",
+      "Sie ziehen das `Ende` der Phase vor? Dann nennt moto nach dem Speichern die Kinder, die schon betreut werden. Ihre Betreuung bleibt eingetragen, bis Sie sie beenden. Wählen Sie dafür `Betreuung beenden`. moto schlägt das neue Ende der Phase als letzten Betreuungstag vor. Bei mehr als 500 Kindern bestätigen Sie mehrere Gruppen einzeln. Die übrigen Kinder bleiben bis dahin in der Liste.",
       "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
       "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
@@ -74,6 +75,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen`, der Link zum Kopieren und der QR-Code. Diese Eltern melden sich im Elternportal an.",
     ],
     troubleshootingDetails: [
+      "Beim Beenden nennt moto Kinder, deren Betreuung nicht beendet werden kann? Wählen Sie unter diesen Kindern `Aus Auswahl nehmen`. Danach können Sie die Betreuung der übrigen Kinder erneut prüfen und beenden.",
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
       "Auf `Betreuungsangebote` steht `Erst eine Anmeldephase anlegen`? Dann fehlt die Phase noch. Angebote gibt es nur innerhalb einer Phase.",
       "Oben steht `Anschlussphase fehlt`? Dann laufen die Buchungen aus. Wählen Sie `Anschlussphase erstellen`.",
@@ -85,6 +87,7 @@ export function enrollmentSetupTopic(): HelpTopic {
       HELP_TOPICS.enrollments,
       HELP_TOPICS.leadEnrollmentExport,
       HELP_TOPICS.leadCalendarPeriods,
+      HELP_TOPICS.leadEndCare,
     ],
   };
 }

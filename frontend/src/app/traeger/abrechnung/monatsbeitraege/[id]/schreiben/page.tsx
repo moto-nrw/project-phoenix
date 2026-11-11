@@ -7,7 +7,7 @@
 // davon nur den Stand, damit sie diesen Code nicht lädt.
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
@@ -39,6 +39,7 @@ import {
 } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { downloadBlob } from "~/lib/file-download";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CareLetterMailing,
@@ -129,10 +130,31 @@ export default function TraegerCareRunLettersPage() {
   }, [load]);
 
   const released = run?.status === "released";
+  const lettersRequest = useRef(0);
+  const fetchLetters = useCallback(async () => {
+    const request = ++lettersRequest.current;
+    try {
+      const result = await fetchCareLetters(runId);
+      if (request !== lettersRequest.current) return;
+      setLetters(result);
+      clearLettersError();
+      return result;
+    } catch (error) {
+      if (request !== lettersRequest.current) return;
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        setLetters(null);
+        setShownLetter(null);
+        setCancelling(null);
+      }
+      throw error;
+    }
+  }, [runId, clearLettersError]);
   const loadLetters = useCallback(async () => {
     try {
-      setLetters(await fetchCareLetters(runId));
-      clearLettersError();
+      await fetchLetters();
     } catch (err) {
       logger.error("traeger_care_letters_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -142,11 +164,17 @@ export default function TraegerCareRunLettersPage() {
         retry: () => void loadLetters(),
       });
     }
-  }, [runId, clearLettersError, showLettersError]);
+  }, [fetchLetters, showLettersError]);
 
   useEffect(() => {
     if (released) void loadLetters();
   }, [released, loadLetters]);
+  // Nach dem Drucken laden die Schreiben nach; ein Fehler dabei ist ein
+  // Ladefehler, kein Fehler des Druckens (#6652).
+  const printAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Schreiben",
+    fetchLetters,
+  );
 
   // A mail on its way: look again until it is sent or failed.
   const waiting = (letters?.summary.queued ?? 0) > 0;
@@ -194,15 +222,16 @@ export default function TraegerCareRunLettersPage() {
     try {
       const file = await printCareLetters(runId, withoutEmailOnly);
       downloadBlob(file.blob, file.filename);
-      await loadLetters();
     } catch (err) {
       logger.error("traeger_care_letters_print_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void actionErrors.show(err, { object: "die Schreiben" });
-    } finally {
       setPrinting(null);
+      return;
     }
+    setPrinting(null);
+    await printAfterWrite.refresh();
   };
 
   // A cancelled invoice is issued again by the run of its month that is
@@ -212,8 +241,8 @@ export default function TraegerCareRunLettersPage() {
     setReissuing(true);
     try {
       // Another tab may already have released the replacement.
-      const latest = await fetchCareLetters(run.id);
-      setLetters(latest);
+      const latest = await fetchLetters();
+      if (!latest) return;
       const cancelled = new Set(
         latest.documents
           .filter(
@@ -349,7 +378,7 @@ export default function TraegerCareRunLettersPage() {
             runId={run.id}
             payments={run.invoices.map((invoice) => invoice.payment)}
             letters={letters}
-            loadError={lettersLoad.error}
+            loadError={lettersLoad.error ?? printAfterWrite.error}
             sendingAll={sendingAll}
             printing={printing}
             onCreated={setLetters}

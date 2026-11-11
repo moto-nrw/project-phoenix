@@ -243,6 +243,9 @@ func (s *materializationService) materializeForTenantLocked(
 	if err != nil {
 		return result, err
 	}
+	if err := s.lockMaterializationStaff(ctx, templates, schedules, people, world); err != nil {
+		return result, err
+	}
 
 	// Schedules and rosters are shared run inputs; the per-date decisions
 	// stay inside the same locked unit as before.
