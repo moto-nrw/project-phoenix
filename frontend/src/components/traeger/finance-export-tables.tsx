@@ -383,7 +383,7 @@ function CostCenterFallbackList({
   if (fallbacks.length === 0) return null;
   const shown = open ? fallbacks : fallbacks.slice(0, FALLBACKS_SHOWN);
   return (
-    <span className="mt-1.5 block text-sm text-gray-600">
+    <span className="mt-1.5 block text-sm wrap-anywhere text-gray-600">
       <ul className="space-y-1">
         {shown.map((fallback, index) => (
           <li
