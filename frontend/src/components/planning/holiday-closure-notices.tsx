@@ -32,7 +32,7 @@ import {
   useNoticeList,
   useNoticeNotify,
   type HolidayClosureNoticeRowContent,
-} from "~/lib/hooks/use-holiday-closure-notices";
+} from "~/components/planning/use-holiday-closure-notices";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { hasPermission } from "~/lib/auth-utils";
 import {
