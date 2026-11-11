@@ -420,7 +420,9 @@ func holidayClosureImpact(bookings []changedBooking) enrollment.HolidayClosureIm
 		}
 		week := &impact.Weeks[i]
 		week.Children++
-		if booking.Placement == enrollment.HolidayPlacementWaitlisted {
+		// A booking the Büro has not decided on by criteria has no place
+		// either (#4700).
+		if booking.Placement != enrollment.HolidayPlacementPlaced {
 			week.Waitlisted++
 		}
 		addDays(&week.ClosedDays, booking.closed)
@@ -562,9 +564,8 @@ func (h *HolidayClosures) enqueue(ctx context.Context, organizationID int64, tra
 		related = min(related, booking.RegistrationID)
 		registrations = append(registrations, booking.RegistrationID)
 		line := holidayClosureWeekLine(booking, schools)
-		waitlisted := booking.Placement == enrollment.HolidayPlacementWaitlisted
-		closed.add(booking, line, waitlisted, booking.closed)
-		reopened.add(booking, line, waitlisted, booking.reopened)
+		closed.add(booking, line, booking.closed)
+		reopened.add(booking, line, booking.reopened)
 		for _, day := range booking.closed {
 			if day.Reason != "" && !slices.Contains(reasons, day.Reason) {
 				reasons = append(reasons, day.Reason)
@@ -597,7 +598,7 @@ type mailChildren struct {
 	index    map[int64]int
 }
 
-func (m *mailChildren) add(booking changedBooking, line string, waitlisted bool, days []enrollment.HolidayClosedDay) {
+func (m *mailChildren) add(booking changedBooking, line string, days []enrollment.HolidayClosedDay) {
 	if len(days) == 0 {
 		return
 	}
@@ -610,7 +611,8 @@ func (m *mailChildren) add(booking changedBooking, line string, waitlisted bool,
 		m.index[booking.ChildID] = i
 		m.children = append(m.children, enrollment.HolidayClosureMailChild{Name: booking.FirstName + " " + booking.LastName, Guest: booking.Guest})
 	}
-	week := enrollment.HolidayClosureMailWeek{Week: line, Waitlisted: waitlisted}
+	week := enrollment.HolidayClosureMailWeek{Week: line, Waitlisted: booking.Placement == enrollment.HolidayPlacementWaitlisted,
+		Pending: booking.Placement == enrollment.HolidayPlacementPending}
 	for _, day := range days {
 		week.ClosedDays = append(week.ClosedDays, germanDay(day.Date))
 	}

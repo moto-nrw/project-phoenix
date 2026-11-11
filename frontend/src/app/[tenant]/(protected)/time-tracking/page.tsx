@@ -53,6 +53,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   SegmentedControl,
@@ -2169,6 +2170,9 @@ function EditSessionModal({
   const [absNote, setAbsNote] = useState("");
   const [absenceSaving, setAbsenceSaving] = useState(false);
   const [absenceDeleting, setAbsenceDeleting] = useState(false);
+  // Speichern, Abwesenheit speichern und löschen sperren das Panel (#6593);
+  // der Tag ist der Vorgang, an dem eine Antwort hängt.
+  const save = useFormModalPending(isOpen, date ? toISODate(date) : null);
   const absenceTypeSelect = useAbsenceTypeSelect({
     value: absType,
     onChange: setAbsType,
@@ -2335,106 +2339,118 @@ function EditSessionModal({
   const handleSave = async () => {
     if (!session || !sessionDay) return;
     if (hasInvalidTimeRange || hasUnresolvableTime) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      const checkInTime =
-        startChanged && startTime
-          ? berlinDateTimeISO(sessionDay, startTime)
-          : undefined;
-      const checkOutTime =
-        endChanged && endTime
-          ? berlinDateTimeISO(sessionDay, endTime)
-          : undefined;
+    await save.run(async (op) => {
+      setSaving(true);
+      formErrors.clear();
+      try {
+        const checkInTime =
+          startChanged && startTime
+            ? berlinDateTimeISO(sessionDay, startTime)
+            : undefined;
+        const checkOutTime =
+          endChanged && endTime
+            ? berlinDateTimeISO(sessionDay, endTime)
+            : undefined;
 
-      if (hasIndividualBreaks) {
-        // Build breaks array with only changed durations
-        const changedBreaks = session.breaks
-          .filter((brk) => {
-            const newDuration = breakDurations.get(brk.id);
-            return (
-              newDuration !== undefined && newDuration !== brk.durationMinutes
-            );
-          })
-          .map((brk) => ({
-            id: brk.id,
-            durationMinutes: breakDurations.get(brk.id)!,
-          }));
+        if (hasIndividualBreaks) {
+          // Build breaks array with only changed durations
+          const changedBreaks = session.breaks
+            .filter((brk) => {
+              const newDuration = breakDurations.get(brk.id);
+              return (
+                newDuration !== undefined && newDuration !== brk.durationMinutes
+              );
+            })
+            .map((brk) => ({
+              id: brk.id,
+              durationMinutes: breakDurations.get(brk.id)!,
+            }));
 
-        await onSave(session.id, {
-          checkInTime,
-          checkOutTime,
-          status,
-          notes: notes || undefined,
-          breaks: changedBreaks.length > 0 ? changedBreaks : undefined,
+          await onSave(session.id, {
+            checkInTime,
+            checkOutTime,
+            status,
+            notes: notes || undefined,
+            breaks: changedBreaks.length > 0 ? changedBreaks : undefined,
+          });
+        } else {
+          await onSave(session.id, {
+            checkInTime,
+            checkOutTime,
+            breakMinutes: editedBreak,
+            status,
+            notes: notes || undefined,
+          });
+        }
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("session_edit_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          session_id: session.id,
         });
-      } else {
-        await onSave(session.id, {
-          checkInTime,
-          checkOutTime,
-          breakMinutes: editedBreak,
-          status,
-          notes: notes || undefined,
-        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        // No retry link: the handlers live below the early returns, so a
+        // latest-ref is not possible; „Speichern“ resends the current draft.
+        await formErrors.show(err, { object: "die Arbeitszeit" });
+      } finally {
+        if (op.isCurrent()) setSaving(false);
       }
-      onClose();
-    } catch (err) {
-      logger.error("session_edit_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        session_id: session.id,
-      });
-      // No retry link: the handlers live below the early returns, so a
-      // latest-ref is not possible; „Speichern“ resends the current draft.
-      await formErrors.show(err, { object: "die Arbeitszeit" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const handleAbsenceSave = async () => {
     if (!absence) return;
-    setAbsenceSaving(true);
-    formErrors.clear();
-    try {
-      await onUpdateAbsence(absence.id, {
-        ...absenceRequestFor(absType),
-        date_start: absDateStart,
-        date_end: absDateEnd,
-        half_day: absHalfDay,
-        note: absNote.trim() || undefined,
-      });
-      onClose();
-    } catch (err) {
-      logger.error("update_absence_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        absence_id: absence.id,
-      });
-      // „Speichern“ resends the current draft (see handleSave).
-      await formErrors.show(err, { object: "die Abwesenheit" });
-    } finally {
-      setAbsenceSaving(false);
-    }
+    await save.run(async (op) => {
+      setAbsenceSaving(true);
+      formErrors.clear();
+      try {
+        await onUpdateAbsence(absence.id, {
+          ...absenceRequestFor(absType),
+          date_start: absDateStart,
+          date_end: absDateEnd,
+          half_day: absHalfDay,
+          note: absNote.trim() || undefined,
+        });
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("update_absence_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          absence_id: absence.id,
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        // „Speichern“ resends the current draft (see handleSave).
+        await formErrors.show(err, { object: "die Abwesenheit" });
+      } finally {
+        if (op.isCurrent()) setAbsenceSaving(false);
+      }
+    });
   };
 
   const handleAbsenceDelete = async () => {
     if (!absence) return;
-    setAbsenceDeleting(true);
-    formErrors.clear();
-    try {
-      await onDeleteAbsence(absence.id);
-      onClose();
-    } catch (err) {
-      logger.error("delete_absence_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        absence_id: absence.id,
-      });
-      await formErrors.show(err, {
-        object: "die Abwesenheit",
-        retry: () => void handleAbsenceDelete(),
-      });
-    } finally {
-      setAbsenceDeleting(false);
-    }
+    await save.run(async (op) => {
+      setAbsenceDeleting(true);
+      formErrors.clear();
+      try {
+        await onDeleteAbsence(absence.id);
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        logger.error("delete_absence_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          absence_id: absence.id,
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Abwesenheit",
+          retry: () => void handleAbsenceDelete(),
+        });
+      } finally {
+        if (op.isCurrent()) setAbsenceDeleting(false);
+      }
+    });
   };
 
   const modalTitle = getEditModalTitle(
@@ -2497,7 +2513,7 @@ function EditSessionModal({
   return (
     <SlideOver
       open={isOpen}
-      isDismissDisabled={saving || absenceSaving || absenceDeleting}
+      pending={save}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
@@ -2807,7 +2823,7 @@ function EditSessionModal({
                       variant="ghost_danger"
                       size="compact"
                       onClick={handleAbsenceDelete}
-                      disabled={absenceDeleting}
+                      disabled={save.pending}
                     >
                       {absenceDeleting
                         ? "Abwesenheit wird gelöscht…"

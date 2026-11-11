@@ -114,6 +114,9 @@ import {
 //                                     runs (#6533). A dialog without a save
 //                                     opts out with a disable comment and its
 //                                     reason.
+//   ui-kit/slide-over-pending       — the same for every SlideOver (#6593):
+//                                     X, Escape, backdrop, swipe and footer
+//                                     lock while its save runs.
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
@@ -2159,39 +2162,60 @@ const isEmptyExpression = (value) => {
   );
 };
 
-const formModalPending = {
-  meta: {
-    type: "problem",
-    docs: {
-      description:
-        "Every FormModal passes the pending contract from useFormModalPending.",
+/**
+ * The rule for one dialog component whose pending lock lives once in the kit:
+ * every use outside components/ui passes a non-empty `pending` attribute.
+ */
+function pendingContractRule(component, description, message) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: { missing: message },
+      schema: [],
     },
-    messages: {
-      missing:
-        "FormModal braucht `pending` aus useFormModalPending (~/components/ui/use-form-modal-pending): Während gespeichert wird, sperrt es X, Escape, Hintergrund und Fußleiste (#6533). Ein Dialog ohne Speichern begründet das mit `oxlint-disable-next-line ui-kit/form-modal-pending -- <Grund>`.",
+    create(context) {
+      const key = fileKey(context);
+      if (!key.startsWith("src/")) return {};
+      if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+      return {
+        JSXOpeningElement(node) {
+          if (node.name?.type !== "JSXIdentifier") return;
+          if (node.name.name !== component) return;
+          const pending = node.attributes.find(
+            (attribute) =>
+              attribute.type === "JSXAttribute" &&
+              attribute.name?.name === "pending",
+          );
+          if (pending == null || isEmptyExpression(pending.value)) {
+            context.report({ node, messageId: "missing" });
+          }
+        },
+      };
     },
-    schema: [],
-  },
-  create(context) {
-    const key = fileKey(context);
-    if (!key.startsWith("src/")) return {};
-    if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
-    return {
-      JSXOpeningElement(node) {
-        if (node.name?.type !== "JSXIdentifier") return;
-        if (node.name.name !== "FormModal") return;
-        const pending = node.attributes.find(
-          (attribute) =>
-            attribute.type === "JSXAttribute" &&
-            attribute.name?.name === "pending",
-        );
-        if (pending == null || isEmptyExpression(pending.value)) {
-          context.report({ node, messageId: "missing" });
-        }
-      },
-    };
-  },
-};
+  };
+}
+
+const formModalPending = pendingContractRule(
+  "FormModal",
+  "Every FormModal passes the pending contract from useFormModalPending.",
+  "FormModal braucht `pending` aus useFormModalPending (~/components/ui/use-form-modal-pending): Während gespeichert wird, sperrt es X, Escape, Hintergrund und Fußleiste (#6533). Ein Dialog ohne Speichern begründet das mit `oxlint-disable-next-line ui-kit/form-modal-pending -- <Grund>`.",
+);
+
+// --- ui-kit/slide-over-pending -------------------------------------------------
+//
+// The same contract for the kit SlideOver (#6593): the lock lives once in
+// SlideOver, every panel that saves hands it `pending` from
+// useFormModalPending(open), whose `op.isCurrent()` keeps a late answer away
+// from a panel opened in between. A panel that only shows or exports, or
+// hands its choice over synchronously, says so:
+// `// oxlint-disable-next-line ui-kit/slide-over-pending -- <reason>`.
+
+const slideOverPending = pendingContractRule(
+  "SlideOver",
+  "Every SlideOver passes the pending contract from useFormModalPending.",
+  "SlideOver braucht `pending` aus useFormModalPending(open) (~/components/ui/use-form-modal-pending), und jedes Speichern läuft über dessen `run`: Während gespeichert wird, sperrt es X, Escape, Hintergrund, Wischen und Fußleiste (#6593). Ein Panel ohne Speichern begründet das mit `oxlint-disable-next-line ui-kit/slide-over-pending -- <Grund>`.",
+);
 
 // --- ui-kit/no-kit-domain-import ---------------------------------------------
 //
@@ -5672,6 +5696,7 @@ export default {
   meta: { name: "ui-kit" },
   rules: {
     "form-modal-pending": formModalPending,
+    "slide-over-pending": slideOverPending,
     "green-fill-white-text": greenFillWhiteText,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,

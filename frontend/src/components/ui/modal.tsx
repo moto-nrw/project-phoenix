@@ -16,16 +16,9 @@ import {
 import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
+import { useBusyFocus } from "./hooks/useBusyFocus";
 
 const visibleModals: string[] = [];
-
-/** Disabled itself or inside a disabled fieldset (the busy footer). */
-function isDisabledControl(element: HTMLElement): boolean {
-  return (
-    element.matches(":disabled") ||
-    element.closest("fieldset:disabled") !== null
-  );
-}
 
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
@@ -206,37 +199,8 @@ export function Modal({
     };
   }, []);
 
-  // A busy dialog disables the control that started the operation (Speichern)
-  // and the footer around it; browsers then drop focus to the page. Keep it in
-  // the dialog while busy and hand it back once the control is usable again,
-  // unless the dialog moved it on meanwhile (first invalid field, #6533).
-  const busyFocusRef = React.useRef<HTMLElement | null>(null);
-  React.useLayoutEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-    if (busy) {
-      const active = document.activeElement;
-      if (
-        active instanceof HTMLElement &&
-        panel.contains(active) &&
-        isDisabledControl(active)
-      ) {
-        busyFocusRef.current = active;
-        panel.focus({ preventScroll: true });
-      }
-      return;
-    }
-    const previous = busyFocusRef.current;
-    busyFocusRef.current = null;
-    if (
-      previous &&
-      document.activeElement === panel &&
-      previous.isConnected &&
-      !isDisabledControl(previous)
-    ) {
-      previous.focus({ preventScroll: true });
-    }
-  }, [busy]);
+  // Keeps focus in the dialog while a busy footer is disabled (#6533).
+  useBusyFocus(panelRef, busy);
 
   // Handle modal context state for blur overlay
   useEffect(() => {

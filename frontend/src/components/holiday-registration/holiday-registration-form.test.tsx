@@ -501,6 +501,171 @@ describe("HolidayRegistrationForm", () => {
     await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
   });
 
+  it("asks the criteria as required yes/no questions and names the open place (#4700)", async () => {
+    mockSubmit.mockResolvedValue([
+      { childPosition: 1, weekId: "11", placement: "pending" },
+    ]);
+    renderForm(null, {
+      ...offer,
+      allocationMode: "criteria",
+      criteria: [
+        {
+          id: "1",
+          question: "Sind beide Eltern berufstätig?",
+          scope: "family",
+        },
+        {
+          id: "2",
+          question: "Ist ein Geschwisterkind angemeldet?",
+          scope: "child",
+        },
+      ],
+    });
+    expect(
+      screen.getByText(
+        "Das Büro vergibt die Plätze nach festen Regeln. Ihre Angaben helfen dabei. Das Büro kann nach einem Nachweis fragen.",
+      ),
+    ).toBeInTheDocument();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findAllByText("Bitte wählen Sie Ja oder Nein."),
+    ).toHaveLength(2);
+    expect(screen.getByText("Für Ben Muster")).toBeInTheDocument();
+
+    const family = screen.getByRole("group", {
+      name: /Sind beide Eltern berufstätig\?/,
+    });
+    fireEvent.click(within(family).getByRole("radio", { name: "Ja" }));
+    const sibling = screen.getByRole("group", {
+      name: /Ist ein Geschwisterkind angemeldet\?/,
+    });
+    fireEvent.click(within(sibling).getByRole("radio", { name: "Nein" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte prüfen Sie Ihre Angaben"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Sind beide Eltern berufstätig?"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        criteria: { "1": true },
+        children: [expect.objectContaining({ criteria: { "2": false } })],
+      }),
+    );
+    expect(await screen.findByText("Platz offen")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    { scope: "family" as const, field: "criteria.2" },
+    { scope: "child" as const, field: "children.0.criteria.2" },
+  ])(
+    "refreshes a missing $scope criterion and keeps the draft",
+    async ({ scope, field }) => {
+      const shown: HolidayRegistrationOffer = {
+        ...offer,
+        allocationMode: "criteria",
+        criteria: [
+          {
+            id: "1",
+            question: "Sind beide Eltern berufstätig?",
+            scope: "family",
+          },
+        ],
+      };
+      const refreshed: HolidayRegistrationOffer = {
+        ...shown,
+        criteria: [
+          ...shown.criteria!,
+          { id: "2", question: "Ist ein Geschwisterkind angemeldet?", scope },
+        ],
+      };
+      mockSubmit
+        .mockRejectedValueOnce(
+          new ApiError("missing criterion", 400, {
+            code: "enrollment.holiday_registration_invalid",
+            errors: [{ field, reason: "answer yes or no" }],
+          }),
+        )
+        .mockResolvedValue([]);
+      const reload = vi.fn(async () => {
+        view.rerender(
+          <NextIntlClientProvider locale="de" messages={deMessages}>
+            <ToastProvider>
+              <HolidayRegistrationForm
+                token="link-key"
+                offer={refreshed}
+                onFormChanged={reload}
+              />
+            </ToastProvider>
+          </NextIntlClientProvider>,
+        );
+      });
+      const view = renderForm(null, shown, reload);
+      fillRegistration();
+      fireEvent.click(
+        within(
+          screen.getByRole("group", { name: /Sind beide Eltern berufstätig/ }),
+        ).getByRole("radio", { name: "Ja" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+      );
+      await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+      fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Verbindlich anmelden" }),
+      );
+
+      const question = await screen.findByRole("group", {
+        name: /Ist ein Geschwisterkind angemeldet/,
+      });
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Ben");
+      expect(
+        within(
+          screen.getByRole("group", { name: /Sind beide Eltern berufstätig/ }),
+        ).getByRole("radio", { name: "Ja" }),
+      ).toBeChecked();
+      fireEvent.click(within(question).getByRole("radio", { name: "Nein" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+      );
+      await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+      fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Verbindlich anmelden" }),
+      );
+      await screen.findByText("Ihre Anmeldung ist eingegangen");
+      expect(mockSubmit).toHaveBeenCalledTimes(2);
+      expect(mockSubmit.mock.calls[1]?.[1]).toMatchObject({
+        criteria:
+          scope === "family" ? { "1": true, "2": false } : { "1": true },
+        children: [
+          expect.objectContaining({
+            criteria: scope === "child" ? { "2": false } : {},
+          }),
+        ],
+      });
+    },
+  );
+
   it("registers a holiday guest after the summary", async () => {
     mockSubmit.mockResolvedValue(undefined);
     const onStepChange = vi.fn();

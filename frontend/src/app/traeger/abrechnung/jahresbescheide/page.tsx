@@ -198,8 +198,8 @@ export default function TraegerJahresbescheidePage() {
             initialMonth={data.list.suggestedMonth}
             suggestedYear={data.list.suggestedYear}
             onClose={() => setStarting(false)}
-            onStart={async (input) => {
-              const run = await startCareNoticeRun(input);
+            onStart={startCareNoticeRun}
+            onStarted={(run) => {
               setStarting(false);
               openRun(run);
             }}

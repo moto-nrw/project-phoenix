@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.holiday_allocation",
+  "max": 10,
+  "exact": true,
+  "description": "GET holiday allocation: organization binding, period with weeks and time models, criteria, week places and waiting lists, pending bookings in the order of the proposal, answers and decisions. Flat across weeks, bookings, answers and decisions; the audit entry only writes.",
+  "route": "GET /traeger/holiday-periods/{id}/allocation"
+}

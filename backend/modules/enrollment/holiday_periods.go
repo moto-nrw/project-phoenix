@@ -127,8 +127,13 @@ type HolidayPeriod struct {
 	// HolidayWishRule takes the holiday care wish of the online
 	// registration into account (#4703); the Träger setting
 	// holiday_registration.wish_mode says how.
-	HolidayWishRule bool      `json:"holiday_wish_rule"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	HolidayWishRule bool `json:"holiday_wish_rule"`
+	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria
+	// (#4700); AllocationModeLocked reports a period with a registration,
+	// whose mode no longer changes.
+	AllocationMode       string    `json:"allocation_mode"`
+	AllocationModeLocked bool      `json:"allocation_mode_locked"`
+	UpdatedAt            time.Time `json:"updated_at"`
 	// PublicToken is the key of the period's one public registration link
 	// for all its schools (#4661, ADR 0110). Only the Träger-Portal reads it.
 	PublicToken string `json:"public_token"`
@@ -175,7 +180,11 @@ type HolidayPeriodInput struct {
 	HolidayWishRule      bool
 	// MaxDaysPerChild bounds the care days per child, nil for no bound.
 	MaxDaysPerChild *int
-	Weeks           []HolidayWeekInput
+	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria
+	// (#4700); empty is HolidayAllocationArrival. It changes only while the
+	// period has no registration.
+	AllocationMode string
+	Weeks          []HolidayWeekInput
 }
 
 // HolidayPeriods lets the Träger-Büro plan holiday periods. Every operation

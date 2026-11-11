@@ -27,6 +27,21 @@
             {{end}}
         </ul>
         {{end}}
+        {{if .PendingWeeks}}
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">Gewünscht:</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .PendingWeeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+    </div>
+    {{end}}
+
+    {{if .Pending}}
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Wer bekommt einen Platz?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Die Plätze vergibt das Büro des Trägers nach festen Regeln. Dabei helfen Ihre Angaben im Formular. Wann Sie sich angemeldet haben, entscheidet nicht allein. Sie bekommen eine E-Mail, sobald das Büro entschieden hat.</p>
     </div>
     {{end}}
 

@@ -334,6 +334,8 @@ export const traegerKeys = {
   period: (id: string) =>
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
+  // Kriterien der Platzvergabe (#4700): Namen und Fragen, keine Antworten.
+  holidayCriteria: () => "traeger-holiday-criteria",
   // Schließtage und Feiertage eines Jahres (#4702), keine Personendaten.
   closingDays: (from: string, to: string) =>
     `traeger-closing-days-${from}-${to}`,

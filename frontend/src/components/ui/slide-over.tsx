@@ -39,6 +39,12 @@
  * `SlideOverBody` is the scrolling middle; its `error` prop is the fixed slot
  * for a form's validation or save error (BAUARTEN-SPEC, Bauart 2 Regel 5), so
  * no panel places that alert on its own.
+ *
+ * A panel that saves passes `pending` from `useFormModalPending(open)` and
+ * runs every save through its `run` (#6593). While a save runs, the panel
+ * locks every way to close it (X, Escape, backdrop, swipe) and every footer
+ * action, and marks itself `aria-busy`; `ui-kit/slide-over-pending` fails a
+ * panel without it.
  */
 
 import * as React from "react";
@@ -49,7 +55,9 @@ import { cn } from "~/lib/utils";
 import { buttonClassName } from "./button";
 import { CloseIcon } from "./close-icon";
 import { FormErrorAlert } from "./form-error-alert";
+import { useBusyFocus } from "./hooks/useBusyFocus";
 import { useSheetAboveKeyboard } from "./hooks/useSheetAboveKeyboard";
+import type { FormModalPending } from "./use-form-modal-pending";
 import type { FormErrorInput } from "./form-error";
 import {
   OVERLAY_BACKDROP_CLASS,
@@ -91,14 +99,25 @@ function useSlideOverDirection(): {
 const SlideOverDirectionContext = React.createContext<"right" | "bottom">(
   "right",
 );
-const SlideOverDismissContext = React.createContext(false);
+/** True while the panel's save runs (`pending`): every close path is locked. */
+const SlideOverBusyContext = React.createContext(false);
+/**
+ * False once the panel is closed. Vaul keeps it on screen while it slides
+ * out; its footer must not start a save then that the next opening would
+ * count as its own.
+ */
+const SlideOverOpenContext = React.createContext(true);
 
 type SlideOverProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
   /**
-   * Sperrt alle Wege zum Schließen, während eine Mutation läuft. Das X zeigt
-   * den Zustand auch als deaktiviert an.
+   * The pending contract from `useFormModalPending(open)` (#6593). While its
+   * save runs, every way to close the panel (X, Escape, backdrop, swipe) and
+   * every footer action is locked, the X shows as disabled and the panel is
+   * `aria-busy`: a request that still commits must not look cancelled. Every
+   * panel that saves passes it; `ui-kit/slide-over-pending` fails one
+   * without it.
    */
-  isDismissDisabled?: boolean;
+  pending?: FormModalPending;
 };
 
 const SlideOver = ({
@@ -106,10 +125,11 @@ const SlideOver = ({
   open: openProp,
   defaultOpen = false,
   onOpenChange,
-  isDismissDisabled = false,
+  pending,
   dismissible = true,
   ...props
 }: SlideOverProps) => {
+  const busy = pending?.pending ?? false;
   const { direction: preferredDirection, isResolved } = useSlideOverDirection();
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
   const open = openProp ?? uncontrolledOpen;
@@ -138,29 +158,31 @@ const SlideOver = ({
 
   const handleOpenChange = React.useCallback(
     (nextOpen: boolean) => {
-      if (!nextOpen && isDismissDisabled) return;
+      if (!nextOpen && busy) return;
       setUncontrolledOpen(nextOpen);
       onOpenChange?.(nextOpen);
     },
-    [isDismissDisabled, onOpenChange],
+    [busy, onOpenChange],
   );
 
   return (
     <SlideOverDirectionContext.Provider value={direction}>
-      <SlideOverDismissContext.Provider value={isDismissDisabled}>
-        <DrawerPrimitive.Root
-          // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
-          // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
-          // geänderten Breakpoint neu auf.
-          key={direction}
-          direction={direction}
-          shouldScaleBackground={shouldScaleBackground}
-          open={open}
-          onOpenChange={handleOpenChange}
-          dismissible={dismissible && !isDismissDisabled}
-          {...props}
-        />
-      </SlideOverDismissContext.Provider>
+      <SlideOverBusyContext.Provider value={busy}>
+        <SlideOverOpenContext.Provider value={open}>
+          <DrawerPrimitive.Root
+            // Vaul liest die Richtung beim Mount für Drag-Achse und Animation.
+            // Der Key baut die Instanz erst nach dem Schließen für einen inzwischen
+            // geänderten Breakpoint neu auf.
+            key={direction}
+            direction={direction}
+            shouldScaleBackground={shouldScaleBackground}
+            open={open}
+            onOpenChange={handleOpenChange}
+            dismissible={dismissible && !busy}
+            {...props}
+          />
+        </SlideOverOpenContext.Provider>
+      </SlideOverBusyContext.Provider>
     </SlideOverDirectionContext.Provider>
   );
 };
@@ -244,9 +266,12 @@ const SlideOverContent = React.forwardRef<
     ref,
   ) => {
     const direction = React.useContext(SlideOverDirectionContext);
+    const busy = React.useContext(SlideOverBusyContext);
     const isSheet = direction === "bottom";
     const sheetRef = React.useRef<HTMLDivElement | null>(null);
     useSheetAboveKeyboard(sheetRef, isSheet);
+    // Keeps focus in the panel while the save disables its own button.
+    useBusyFocus(sheetRef, busy);
     return (
       <SlideOverPortal>
         <SlideOverOverlay />
@@ -257,6 +282,10 @@ const SlideOverContent = React.forwardRef<
             else if (ref) ref.current = node;
           }}
           data-date-picker-focus-trap="true"
+          // Focus target while a busy panel has disabled its own controls;
+          // Radix sets the same on its focus scope.
+          tabIndex={-1}
+          aria-busy={busy || undefined}
           className={cn(
             `fixed ${Z_LAYER.sheet} flex flex-col bg-white shadow-2xl outline-none`,
             isSheet
@@ -329,14 +358,14 @@ const SlideOverCloseButton = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Close>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
 >(({ className, children, disabled = false, ...props }, ref) => {
-  const isDismissDisabled = React.useContext(SlideOverDismissContext);
+  const busy = React.useContext(SlideOverBusyContext);
 
   return (
     <DrawerPrimitive.Close
       ref={ref}
       type="button"
       aria-label="Schließen"
-      disabled={disabled || isDismissDisabled}
+      disabled={disabled || busy}
       // Daran findet die Tour der ersten Schritte (#2832) das Schließen.
       data-overlay-close=""
       data-icon-only=""
@@ -411,18 +440,38 @@ const SlideOverBody = ({
 );
 SlideOverBody.displayName = "SlideOverBody";
 
+/**
+ * The panel's action row. A disabled fieldset locks every action in it
+ * (Abbrechen too) while the panel's save runs and while a closed panel
+ * slides out, without each caller wiring it again (#6593). A link (`ButtonLink`) ignores the fieldset, so a busy footer
+ * also swallows its clicks: leaving the page would look like a cancel too.
+ */
 const SlideOverFooter = ({
   className,
+  onClickCapture,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn(
-      "flex flex-row flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4",
-      className,
-    )}
-    {...props}
-  />
-);
+}: React.FieldsetHTMLAttributes<HTMLFieldSetElement>) => {
+  const busy = React.useContext(SlideOverBusyContext);
+  const open = React.useContext(SlideOverOpenContext);
+  const locked = busy || !open;
+  return (
+    <fieldset
+      className={cn(
+        "flex min-w-0 flex-row flex-wrap justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4",
+        className,
+      )}
+      {...props}
+      // After the spread: no caller can lift the lock.
+      disabled={locked}
+      onClickCapture={(event) => {
+        onClickCapture?.(event);
+        if (!locked) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    />
+  );
+};
 SlideOverFooter.displayName = "SlideOverFooter";
 
 const SlideOverTitle = React.forwardRef<

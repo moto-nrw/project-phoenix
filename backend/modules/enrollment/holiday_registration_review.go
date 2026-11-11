@@ -123,8 +123,8 @@ type HolidayRegistrationBooking struct {
 	// Days are the booked days of a week by days, empty for a whole week
 	// (#4701).
 	Days []calendar.Date `json:"days,omitempty"`
-	// Placement is HolidayPlacementPlaced or HolidayPlacementWaitlisted
-	// (#4699); WaitlistPosition is the place in the waiting list of the
+	// Placement is HolidayPlacementPlaced, HolidayPlacementWaitlisted
+	// (#4699) or HolidayPlacementPending (#4700); WaitlistPosition is the place in the waiting list of the
 	// week, from 1, for a waitlisted booking of a registration that counts.
 	Placement        string     `json:"placement"`
 	WaitlistPosition *int       `json:"waitlist_position,omitempty"`
@@ -237,7 +237,8 @@ type HolidayDebtorNumberChange struct {
 // and after a rebooking, the debtor number a confirmation entered or a
 // change changed, the changed fields of an edit as field paths such as
 // "guardian.phone" or "children.0.last_name" (#5629), the other
-// registrations of a sibling merge or split (#5628).
+// registrations of a sibling merge or split (#5628), a decision on a place
+// and a check of an answer by criteria (#4700).
 type HolidayRegistrationEventDetails struct {
 	From         string                     `json:"from,omitempty"`
 	ChildID      int64                      `json:"child_id,omitempty"`
@@ -246,6 +247,13 @@ type HolidayRegistrationEventDetails struct {
 	DebtorNumber *HolidayDebtorNumberChange `json:"debtor_number,omitempty"`
 	Fields       []string                   `json:"fields,omitempty"`
 	Siblings     []int64                    `json:"siblings,omitempty"`
+	// WeekIDs, Placement, Proposal and Reason name a decision of the Büro by
+	// criteria (#4700), Checks its checks of the parents' answers.
+	WeekIDs   []int64                 `json:"week_ids,omitempty"`
+	Placement string                  `json:"placement,omitempty"`
+	Proposal  string                  `json:"proposal,omitempty"`
+	Reason    string                  `json:"reason,omitempty"`
+	Checks    []HolidayCriterionCheck `json:"checks,omitempty"`
 	// Wish is the office's decision on a child's holiday care wish, From the
 	// wish before, empty when unknown (#4703).
 	Wish string `json:"wish,omitempty"`
@@ -312,6 +320,9 @@ type HolidayRegistrationDetail struct {
 	// recipients of the Elternabrechnung carry it (#5627), no answer does.
 	BenefitsProofAttached bool                       `json:"-"`
 	History               []HolidayRegistrationEvent `json:"history"`
+	// Criteria are the answers to the criteria of a period by criteria
+	// (#4700), empty for a period by arrival. Only the detail names them.
+	Criteria []HolidayRegistrationCriterion `json:"criteria"`
 	// Promotions are the bookings of other registrations that moved up from
 	// the waiting list because of the change that answers with this detail:
 	// a cancellation or a rebooking (#4699). A read has none.

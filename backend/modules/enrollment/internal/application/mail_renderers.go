@@ -62,12 +62,14 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 		subject = "Ferienanmeldung eingegangen: " + payload.PeriodName
 	}
 	children := make([]map[string]any, 0, len(payload.Children))
-	waitlisted := false
+	waitlisted, pending := false, false
 	for _, child := range payload.Children {
 		children = append(children, map[string]any{
 			"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks,
+			"PendingWeeks": child.PendingWeeks,
 		})
 		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
+		pending = pending || len(child.PendingWeeks) > 0
 	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
@@ -81,6 +83,7 @@ func renderHolidayRegistrationReceived(_ context.Context, kind string, raw json.
 			"Binding":      payload.Binding,
 			"Children":     children,
 			"Waitlisted":   waitlisted,
+			"Pending":      pending,
 			"Declaration":  holidayDeclarationContent(payload.Declaration),
 		},
 	}, nil
@@ -97,12 +100,18 @@ func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessa
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
 	subject := "Ferienplatz frei geworden"
+	if payload.Allocated {
+		// The Büro decided on the places by criteria (#4700).
+		subject = "Ferienplätze vergeben"
+	}
 	if payload.PeriodName != "" {
-		subject = "Ferienplatz frei geworden: " + payload.PeriodName
+		subject += ": " + payload.PeriodName
 	}
 	children := make([]map[string]any, 0, len(payload.Children))
+	waitlisted := false
 	for _, child := range payload.Children {
-		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks})
+		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks})
+		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
 	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
@@ -115,6 +124,8 @@ func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessa
 			"PeriodName":   payload.PeriodName,
 			"Binding":      payload.Binding,
 			"Children":     children,
+			"Allocated":    payload.Allocated,
+			"Waitlisted":   waitlisted,
 		},
 	}, nil
 }
@@ -131,8 +142,8 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 	if strings.TrimSpace(payload.Recipient) == "" {
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
-	closed, closedWaitlisted := holidayClosureMailChildren(payload.Children)
-	reopened, reopenedWaitlisted := holidayClosureMailChildren(payload.ReopenedChildren)
+	closed, closedWaitlisted, closedPending := holidayClosureMailChildren(payload.Children)
+	reopened, reopenedWaitlisted, reopenedPending := holidayClosureMailChildren(payload.ReopenedChildren)
 	subject := "Ferienbetreuung: An einem gebuchten Tag ist geschlossen"
 	switch {
 	case len(closed) > 0 && len(reopened) > 0:
@@ -152,6 +163,7 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 			"Children":          closed,
 			"ReopenedChildren":  reopened,
 			"Waitlisted":        closedWaitlisted || reopenedWaitlisted,
+			"Pending":           closedPending || reopenedPending,
 			"KeepsContribution": payload.KeepsContribution,
 		},
 	}, nil
@@ -159,18 +171,19 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 
 // holidayClosureMailChildren lays the children of one section of the
 // closing day mail out for the template.
-func holidayClosureMailChildren(mailChildren []enrollment.HolidayClosureMailChild) ([]map[string]any, bool) {
+func holidayClosureMailChildren(mailChildren []enrollment.HolidayClosureMailChild) ([]map[string]any, bool, bool) {
 	children := make([]map[string]any, 0, len(mailChildren))
-	waitlisted := false
+	waitlisted, pending := false, false
 	for _, child := range mailChildren {
 		weeks := make([]map[string]any, 0, len(child.Weeks))
 		for _, week := range child.Weeks {
-			weeks = append(weeks, map[string]any{"Week": week.Week, "ClosedDays": week.ClosedDays, "Waitlisted": week.Waitlisted})
+			weeks = append(weeks, map[string]any{"Week": week.Week, "ClosedDays": week.ClosedDays, "Waitlisted": week.Waitlisted, "Pending": week.Pending})
 			waitlisted = waitlisted || week.Waitlisted
+			pending = pending || week.Pending
 		}
 		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": weeks})
 	}
-	return children, waitlisted
+	return children, waitlisted, pending
 }
 
 // holidayDeclarationContent is the section "Ihre Erklärung" of the receipt

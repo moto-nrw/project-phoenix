@@ -24,6 +24,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import {
@@ -84,7 +85,11 @@ export function GraduatesModal({
   const [entries, setEntries] = useState<TransitionHistoryEntry[] | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [isPurging, setIsPurging] = useState(false);
+  // Mounted only while open. The session spans the hidden panel while the
+  // confirmation deletes, and the panel comes back locked until the list
+  // shows the result, so the same children cannot be deleted twice (#6593).
+  const save = useFormModalPending();
+  const isPurging = save.pending;
   // Ladefehler im Dialog mit Wiederholen, Löschfehler als Toast nach dem
   // Schließen der Rückfrage (#2517).
   const {
@@ -146,53 +151,54 @@ export function GraduatesModal({
     );
   };
 
-  const handlePurge = async () => {
-    setIsPurging(true);
-    let deleted = 0;
-    const failures: { name: string; error: unknown }[] = [];
+  const handlePurge = () =>
+    save.run(async (op) => {
+      let deleted = 0;
+      const failures: { name: string; error: unknown }[] = [];
 
-    // Sequential on purpose: each delete takes the per-tenant class-writes gate
-    // plus the child's companion-graph locks, so firing them in parallel would
-    // queue them against each other anyway and make a partial failure harder to
-    // report. A child that fails (e.g. a Laufgemeinschaft precondition) must not
-    // stop the rest.
-    for (const studentId of selectedIds) {
-      const entry = deletable.find((e) => e.studentId === studentId);
-      try {
-        await purgeGraduatedStudent(studentId);
-        deleted += 1;
-      } catch (err) {
-        logger.error("graduate_purge_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        failures.push({ name: entry?.personName ?? studentId, error: err });
+      // Sequential on purpose: each delete takes the per-tenant class-writes gate
+      // plus the child's companion-graph locks, so firing them in parallel would
+      // queue them against each other anyway and make a partial failure harder to
+      // report. A child that fails (e.g. a Laufgemeinschaft precondition) must not
+      // stop the rest.
+      for (const studentId of selectedIds) {
+        const entry = deletable.find((e) => e.studentId === studentId);
+        try {
+          await purgeGraduatedStudent(studentId);
+          deleted += 1;
+        } catch (err) {
+          logger.error("graduate_purge_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          failures.push({ name: entry?.personName ?? studentId, error: err });
+        }
       }
-    }
 
-    setIsPurging(false);
-    setConfirmOpen(false);
+      if (op.isCurrent()) setConfirmOpen(false);
 
-    if (deleted > 0) {
-      toast.success(
-        deleted === 1
-          ? "1 Kind ist endgültig gelöscht."
-          : `${deleted} Kinder sind endgültig gelöscht.`,
-      );
-      onPurged();
-    }
-    const [firstFailure] = failures;
-    if (firstFailure) {
-      // Der Grund des ersten Fehlschlags steht für alle: die Kinder scheitern
-      // in der Regel aus demselben Grund (etwa einer Laufgemeinschaft).
-      void showPurgeError(firstFailure.error, {
-        object:
-          failures.length === 1
-            ? `das Löschen von ${firstFailure.name}`
-            : `das Löschen von ${failures.length} Kindern`,
-      });
-    }
-    await load();
-  };
+      // Deleted is deleted: the list behind refreshes and the toasts report
+      // it even when the answer comes late.
+      if (deleted > 0) {
+        toast.success(
+          deleted === 1
+            ? "1 Kind ist endgültig gelöscht."
+            : `${deleted} Kinder sind endgültig gelöscht.`,
+        );
+        onPurged();
+      }
+      const [firstFailure] = failures;
+      if (firstFailure) {
+        // Der Grund des ersten Fehlschlags steht für alle: die Kinder scheitern
+        // in der Regel aus demselben Grund (etwa einer Laufgemeinschaft).
+        void showPurgeError(firstFailure.error, {
+          object:
+            failures.length === 1
+              ? `das Löschen von ${firstFailure.name}`
+              : `das Löschen von ${failures.length} Kindern`,
+        });
+      }
+      if (op.isCurrent()) await load();
+    });
 
   return (
     <>
@@ -200,6 +206,7 @@ export function GraduatesModal({
         // Ausgeblendet, solange die Lösch-Bestätigung offen ist — nie zwei
         // eigenständige Dialoge übereinander (#2774).
         open={!confirmOpen}
+        pending={save}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) onClose();
         }}

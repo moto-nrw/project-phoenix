@@ -11,6 +11,7 @@ import {
   fetchHolidayPeriods,
   fetchTraegerSettingsSchema,
 } from "~/lib/traeger-api";
+import { fetchHolidayCriteria } from "~/lib/traeger-holiday-allocation-api";
 
 export function useTraegerHolidayPeriods() {
   const { data: session } = useSession();
@@ -61,6 +62,29 @@ export function useTraegerHolidayPeriod(id: string) {
   return {
     ...response,
     preview,
+    loadError: metadataLoadError(
+      error,
+      response.data !== undefined,
+      response.error,
+    ),
+  };
+}
+
+/** The Träger's criteria of the allocation (#4700), highest priority first. */
+export function useTraegerHolidayCriteria() {
+  const { data: session } = useSession();
+  const response = useSWRAuth(
+    session?.user.scope === "org" ? traegerKeys.holidayCriteria() : null,
+    fetchHolidayCriteria,
+    { keepPreviousData: false },
+  );
+  const error = useSwrLoadError(
+    response.error,
+    "die Kriterien der Platzvergabe",
+    response.mutate,
+  );
+  return {
+    ...response,
     loadError: metadataLoadError(
       error,
       response.data !== undefined,
