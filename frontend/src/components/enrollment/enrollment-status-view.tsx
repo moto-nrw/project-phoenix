@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import { AlertTriangle, Check, Clock, Pencil } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale } from "next-intl";
@@ -65,10 +66,7 @@ import {
   translatedText,
 } from "~/lib/enrollment-translations";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  RenewalBanners,
-  type RenewalMode,
-} from "~/components/enrollment/enrollment-renewal-banners";
+import type { RenewalMode } from "~/components/enrollment/enrollment-renewal-banners";
 import { ApiError } from "~/lib/api-error";
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
@@ -83,6 +81,17 @@ import {
 } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
+
+// Only a renewal shows its terms (#6456): the consent fields, the legal text
+// dialog and its Markdown load when one is on the page, not with every
+// status page.
+const RenewalBanners = dynamic(
+  () =>
+    import("~/components/enrollment/enrollment-renewal-banners").then(
+      (module) => module.RenewalBanners,
+    ),
+  { ssr: false },
+);
 
 interface Props {
   readonly token: string;
@@ -686,16 +695,18 @@ function EnrollmentStatusContent({
         />
       ) : null}
 
-      <RenewalBanners
-        key={status.renewal_terms?.terms_fingerprint}
-        adjustHref={canRequestChange ? adjustHref : null}
-        confirmingRenewal={confirmingRenewal}
-        mode={renewalMode}
-        terms={status.renewal_terms}
-        withdrawingAll={withdrawingChild === "__all__"}
-        onConfirmRenewal={onConfirmRenewal}
-        onWithdraw={onWithdraw}
-      />
+      {renewalMode === null ? null : (
+        <RenewalBanners
+          key={status.renewal_terms?.terms_fingerprint}
+          adjustHref={canRequestChange ? adjustHref : null}
+          confirmingRenewal={confirmingRenewal}
+          mode={renewalMode}
+          terms={status.renewal_terms}
+          withdrawingAll={withdrawingChild === "__all__"}
+          onConfirmRenewal={onConfirmRenewal}
+          onWithdraw={onWithdraw}
+        />
+      )}
       <EnrollmentChildrenSection
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
