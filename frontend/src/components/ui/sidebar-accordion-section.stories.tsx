@@ -56,3 +56,38 @@ export const Loading: Story = {
     isLoading: true,
   },
 };
+
+export const CollapsedWithCount: Story = {
+  args: {
+    label: "Anmeldungen",
+    badgeCount: 3,
+    badgeTone: "staff",
+    badgeNoun: "ungelesene Anmeldungen",
+  },
+};
+
+export const CollapsedWithZeroCount: Story = {
+  args: {
+    label: "Anmeldungen mit einer langen Bezeichnung",
+    badgeCount: 0,
+  },
+};
+
+export const RailWithCount: Story = {
+  decorators: [
+    (Story) => (
+      <div className="w-11">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    label: "Anmeldungen",
+    badgeCount: 3,
+    badgeTone: "staff",
+    badgeNoun: "ungelesene Anmeldungen",
+    collapsed: true,
+    labelsMounted: false,
+    labelsVisible: false,
+  },
+};

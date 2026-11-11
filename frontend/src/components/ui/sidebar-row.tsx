@@ -37,6 +37,28 @@ export interface SidebarRowBadge {
   readonly ariaLabel: string;
 }
 
+/**
+ * Ein Sammelzähler aus mehreren Zählern (Kopfzeile einer Gruppe): Die Zahl
+ * ist die Summe, vorgelesen wird jeder Teil, damit „5“ nicht als fünf
+ * Nachrichten gilt, wenn darin Anmeldungen stecken (#6566).
+ */
+export function combineSidebarRowBadges(
+  badges: readonly (SidebarRowBadge | null)[],
+  tone: NotificationBadgeTone,
+): SidebarRowBadge | null {
+  const parts = badges.filter(
+    (badge): badge is SidebarRowBadge => badge != null && badge.count > 0,
+  );
+  if (parts.length === 0) return null;
+  const labels = parts.map((badge) => badge.ariaLabel);
+  const last = labels.pop();
+  return {
+    count: parts.reduce((sum, badge) => sum + badge.count, 0),
+    tone,
+    ariaLabel: labels.length > 0 ? `${labels.join(", ")} und ${last}` : last!,
+  };
+}
+
 function fadeClasses(visible: boolean): string {
   return `motion-safe:transition-opacity motion-safe:duration-150 ${visible ? "opacity-100" : "opacity-0"}`;
 }
