@@ -42,12 +42,12 @@ func TestGuardianAccessObservationsCountOnlyWrittenRows(t *testing.T) {
 	require.Len(t, observations, 4)
 	require.Zero(t, observations[0].Stats.Rows, "account SELECT changes no row")
 	require.Zero(t, observations[1].Stats.Rows, "email SELECT changes no row")
-	var expectedFirstWrites int64 = 1
+	var expectedFirstWrites int64
 	if first.RoleAssigned {
 		expectedFirstWrites++
 	}
-	require.Equal(t, expectedFirstWrites, observations[2].Stats.Rows, "only mapping and role writes count")
-	require.EqualValues(t, 1, observations[3].Stats.Rows, "repeat grant only updates the mapping")
+	require.Equal(t, expectedFirstWrites, observations[2].Stats.Rows, "the active mapping is held; only the missing role is written")
+	require.Zero(t, observations[3].Stats.Rows, "repeat grant holds the active mapping without writing it")
 }
 
 // Offboarding locks the account before changing its tenant mapping. A grant
