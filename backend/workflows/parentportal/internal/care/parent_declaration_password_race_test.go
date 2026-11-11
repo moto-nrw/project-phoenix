@@ -135,10 +135,9 @@ func (s *declarationSetup) requirePassword(t *testing.T) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	require.NoError(t, testpkg.TenantCommand2(t, s.seedCtx, db, s.repo.SetPublished, s.announcement.ID, nil))
-	draft, err := testpkg.TenantQuery1(t, s.seedCtx, db, s.repo.FindByID, s.announcement.ID)
-	require.NoError(t, err)
-	draft.Declaration.RequiresPassword = true
-	require.NoError(t, testpkg.TenantCommand1(t, s.seedCtx, db, s.repo.Update, draft))
+	settings := s.announcement.Declaration
+	settings.RequiresPassword = true
+	require.NoError(t, testpkg.TenantCommand2(t, s.seedCtx, db, s.repo.UpdateDeclarationSettings, s.announcement.ID, settings))
 	published := time.Now()
 	require.NoError(t, testpkg.TenantCommand2(t, s.seedCtx, db, s.repo.SetPublished, s.announcement.ID, &published))
 }

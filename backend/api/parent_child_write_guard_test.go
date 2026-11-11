@@ -30,7 +30,6 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
@@ -300,10 +299,7 @@ func (r *guardRig) declaration(t *testing.T, f childReadFamily) guardDeclaration
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, r.db, fixtures.Create, a))
 	require.NoError(t, testpkg.TenantCommand3(t, ctx, r.db, fixtures.ReplaceTargets, f.TenantID, a.ID,
 		[]*ParentAnnouncementTargetFixture{{TargetType: "student", TargetRefID: &f.StudentID}}))
-	version := &parentportal.DeclarationVersion{
-		TenantID: f.TenantID, AnnouncementID: a.ID, VersionNo: 1, Title: a.Title, Body: a.Body, Kind: "consent", PublishedAt: time.Now(),
-	}
-	version.ContentHash = owners.SecurityFingerprints{}.Content(ParentDeclarationCanonicalContent(version))
+	version := NewParentDeclarationVersionFixture(a)
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, r.db, fixtures.InsertDeclarationVersion, version))
 	published := time.Now().Add(-time.Minute)
 	require.NoError(t, testpkg.TenantCommand2(t, ctx, r.db, fixtures.SetPublished, a.ID, &published))
