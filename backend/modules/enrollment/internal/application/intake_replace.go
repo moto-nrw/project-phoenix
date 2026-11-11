@@ -232,6 +232,9 @@ func mergeReplacementAnswers(schema *enrollmentNative.FormSchema, editReq *Submi
 // the capacity gate.
 func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
 	plan.matchedExisting = matchExistingChildrenBySubmittedIdentity(plan.children, editReq.Children)
+	if err := s.holdReplacementCandidates(ctx, editReq, plan); err != nil {
+		return err
+	}
 	emailLC := guardianEmailKey(plan.req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
@@ -259,6 +262,21 @@ func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitReq
 		plan.overrides, err = s.applyCapacityOverflow(ctx, plan.phase, editReq.Children, preservedClaims(activeLinks), nil)
 	}
 	return err
+}
+
+// holdReplacementCandidates holds the children an edit may renew before
+// its phase locks (holdRenewalCandidates): the pins it carries over and the
+// children its identities match, as the stored request's identity.
+func (s *Intake) holdReplacementCandidates(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
+	carried := make([]*int64, len(editReq.Children))
+	for i, child := range editReq.Children {
+		if matched := plan.matchedExisting[i]; matched != nil && matched.RolloverSourceChildID == nil && sameSubmittedIdentity(matched, child) {
+			carried[i] = matched.MatchedStudentID
+		}
+	}
+	return s.holdRenewalCandidates(ctx, plan.req.TenantID, plan.phase, editReq.Children, carried, func() (reEnrollmentSubmitter, error) {
+		return reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, plan.req)
+	})
 }
 
 // preservedClaims counts, per offering, the children already holding it.
@@ -423,7 +441,7 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		}
 		submitter = resolvedSubmitter
 	}
-	if err := s.holdGuardianReEnrollment(ctx, submitter, pin, plan.phase.ID, req.TenantID, i); err != nil {
+	if err := s.holdGuardianReEnrollment(ctx, submitter, pin, req.TenantID, i); err != nil {
 		return nil, err
 	}
 	if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, pin, 0, i); err != nil {

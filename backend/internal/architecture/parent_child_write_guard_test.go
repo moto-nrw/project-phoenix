@@ -134,7 +134,7 @@ func TestParentRenewalsRunBehindTheGuard(t *testing.T) {
 func TestParentRenewalGuardRuleReportsTheUnlockedCheck(t *testing.T) {
 	t.Parallel()
 	file, source := renewalSource(t, "intake_submit.go")
-	guarded := "if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, plan.phase.ID, req.TenantID, i); err != nil {"
+	guarded := "if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {"
 	if !strings.Contains(source, guarded) {
 		t.Fatal("the submission no longer holds the renewal as this test expects; update the bypass")
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -252,17 +253,12 @@ func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter
 // holdGuardianReEnrollment is assertGuardianMayReEnrollStudent for the
 // parent's own submission and edit (#6638): the permission is asked behind
 // the parent guard, which keeps the identity's school membership,
-// relationship and permission locked until the request commits. It takes
-// the phase's match lock first, so two renewals naming siblings in opposite
-// order cannot each hold one child and wait for the other.
-func (s *Intake) holdGuardianReEnrollment(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, phaseID, tenantID int64, childIndex int) error {
+// relationship and permission locked until the request commits. The
+// candidates' locks are already held (holdRenewalCandidates); this call
+// decides.
+func (s *Intake) holdGuardianReEnrollment(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, tenantID int64, childIndex int) error {
 	if matchedStudentID == nil {
 		return nil
-	}
-	if !submitter.AdminManaged {
-		if err := s.deps.Requests.AcquireExistingStudentMatchLock(ctx, phaseID); err != nil {
-			return fmt.Errorf("submit: acquire existing-student match lock: %w", err)
-		}
 	}
 	granted, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, submitter, *matchedStudentID, tenantID)
 	if err != nil {
@@ -272,6 +268,63 @@ func (s *Intake) holdGuardianReEnrollment(ctx context.Context, submitter reEnrol
 		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
 	}
 	return nil
+}
+
+// holdRenewalCandidates takes the parent guard's locks of every enrolled
+// child a submission or edit may renew, in ascending id order and before the
+// intake's own phase locks (#6638). Approvals and change-request decisions
+// lock students before those phase locks; a renewal that took a phase lock
+// first and a child later could wait for them in a cycle, and two renewals
+// naming siblings in opposite order could wait for each other. A candidate is
+// a carried pin or the one enrolled child name and birthday match, the
+// existing_students rule and, for a signed-in parent, the relationship rule
+// of open and linked_parents phases. A refusal here decides nothing: the
+// renewal asks again when it pins the child (holdGuardianReEnrollment).
+func (s *Intake) holdRenewalCandidates(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, children []SubmitChild, carried []*int64, submitter func() (reEnrollmentSubmitter, error)) error {
+	if s.deps.GuardianHold == nil {
+		return nil
+	}
+	ids, err := s.renewalCandidates(ctx, tenantID, phase, children, carried, true)
+	if err != nil || len(ids) == 0 {
+		return err
+	}
+	identity, err := submitter()
+	if err != nil || identity.AdminManaged {
+		return err
+	}
+	if identity.GuardianAccountID == nil && phase.Audience != enrollmentNative.PhaseAudienceExistingStudents {
+		// Only a signed-in parent's relationship pins in these phases.
+		ids, _ = s.renewalCandidates(ctx, tenantID, phase, children, carried, false)
+	}
+	for _, id := range ids {
+		if _, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, id, tenantID); err != nil {
+			return fmt.Errorf("submit: hold re-enrollment candidate: %w", err)
+		}
+	}
+	return nil
+}
+
+// renewalCandidates lists the candidates' student ids, ascending and unique.
+func (s *Intake) renewalCandidates(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, children []SubmitChild, carried []*int64, match bool) ([]int64, error) {
+	matching := match && s.deps.Students != nil && (phase.Audience == enrollmentNative.PhaseAudienceExistingStudents || audienceChecksEnrolledChildren(phase))
+	var ids []int64
+	for i, child := range children {
+		if i < len(carried) && carried[i] != nil {
+			ids = append(ids, *carried[i])
+		}
+		if !matching {
+			continue
+		}
+		id, err := s.deps.Students.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, child.FirstName, child.LastName, child.DateOfBirth)
+		if err != nil {
+			return nil, fmt.Errorf("submit: resolve re-enrollment candidate: %w", err)
+		}
+		if id != nil {
+			ids = append(ids, *id)
+		}
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids), nil
 }
 
 // submitterHoldsRenewal is submitterMayRenewStudent behind the parent guard:

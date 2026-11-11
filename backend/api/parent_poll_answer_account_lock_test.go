@@ -86,7 +86,7 @@ func TestParentPollAnswerWaitsForAccountAccessRevocation(t *testing.T) {
 		t.Fatal("the revocation did not commit")
 	}
 	rec := awaitAnswer(t, done, answer.path)
-	require.GreaterOrEqual(t, rec.Code, http.StatusBadRequest, "the answer after the revocation is refused: %s", rec.Body.String())
-	require.Less(t, rec.Code, http.StatusInternalServerError, "a revocation is a refusal, not a failure: %s", rec.Body.String())
+	require.Equal(t, http.StatusConflict, rec.Code, "the guard refuses the answer as stale after the revocation: %s", rec.Body.String())
+	require.Contains(t, rec.Body.String(), "care.announcement_stale")
 	require.Empty(t, withoutWithdrawalRows(changedTables(before, rig.fingerprint(t, f))), "a refused answer changes nothing of the family")
 }

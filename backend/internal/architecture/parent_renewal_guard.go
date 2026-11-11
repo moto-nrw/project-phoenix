@@ -14,37 +14,32 @@ import (
 // child on the parent's own authority; that authority is held behind the
 // parent guard (guardianhold.Hold) until the request commits. The rule reads
 // the call graph of Enrollment's intake: every exported Intake method that
-// resolves a pin and writes request children must reach both held renewal
-// checks, and none may reach the unlocked renewal check, which only the
-// staff's later approvals ask. A rule that finds no such entry at all is
-// reported as stale, so a renamed port cannot switch it off.
+// resolves a pin and writes request children must reach the renewal's own
+// check (holdGuardianReEnrollment), that check must itself ask both held
+// variants, and no such method may reach the unlocked renewal check, which
+// only the staff's later approvals ask (approvals and change-request
+// decisions, outside this rule). A rule that finds no such entry, or no
+// intake package while Enrollment is loaded, is reported as stale, so a
+// renamed port or a moved package cannot switch it off.
 func parentRenewalGuardViolations(project, modulePath string, loaded []*packages.Package) []Violation {
-	var intake *packages.Package
-	for _, pkg := range loaded {
-		if pkg.PkgPath == modulePath+"/"+renewalPackage {
-			intake = pkg
-		}
-	}
+	intake, enrollmentLoaded := renewalIntakePackage(modulePath, loaded)
 	if intake == nil {
+		if enrollmentLoaded {
+			return []Violation{parentRenewalViolation("parent-renewal.stale", renewalPackage, "package not loaded", nil)}
+		}
 		return nil
 	}
 	graph := newFlowGraph([]*packages.Package{intake})
 	graph.project = project
 	var violations []Violation
 	renewing := 0
+	held := graph.renewalCheckHolds()
 	for _, root := range graph.methodsOf("Intake") {
-		locals, ports := graph.reach(root)
-		if !ports[renewalPinPort] || !ports[renewalChildWrite] {
-			continue
+		found, renews := graph.renewalRootViolations(root, held)
+		if renews {
+			renewing++
 		}
-		renewing++
-		name := graph.name(root)
-		if missing := missingKeys(ports, renewalHolds); len(missing) > 0 {
-			violations = append(violations, parentRenewalViolation("parent-renewal.unguarded", name, strings.Join(missing, ","), graph.location(root)))
-		}
-		if reached := presentKeys(locals, renewalUnlockedChecks); len(reached) > 0 {
-			violations = append(violations, parentRenewalViolation("parent-renewal.unlocked-check", name, strings.Join(reached, ","), graph.location(root)))
-		}
+		violations = append(violations, found...)
 	}
 	if renewing == 0 {
 		violations = append(violations, parentRenewalViolation("parent-renewal.stale", renewalPackage, renewalPinPort+"+"+renewalChildWrite, nil))
@@ -52,10 +47,45 @@ func parentRenewalGuardViolations(project, modulePath string, loaded []*packages
 	return violations
 }
 
+// renewalIntakePackage finds Enrollment's intake among the loaded packages
+// and reports whether any Enrollment package is loaded at all.
+func renewalIntakePackage(modulePath string, loaded []*packages.Package) (*packages.Package, bool) {
+	enrollmentLoaded := false
+	for _, pkg := range loaded {
+		if pkg.PkgPath == modulePath+"/"+renewalPackage {
+			return pkg, true
+		}
+		enrollmentLoaded = enrollmentLoaded || strings.HasPrefix(pkg.PkgPath, modulePath+"/modules/enrollment")
+	}
+	return nil, enrollmentLoaded
+}
+
+// renewalRootViolations checks one Intake entry; renews reports whether it
+// resolves a pin and writes request children at all.
+func (g *flowGraph) renewalRootViolations(root *types.Func, held map[string]bool) (violations []Violation, renews bool) {
+	locals, ports := g.reach(root)
+	if !ports[renewalPinPort] || !ports[renewalChildWrite] {
+		return nil, false
+	}
+	name := g.name(root)
+	missing := missingKeys(held, renewalHolds)
+	if !locals[renewalCheck] {
+		missing = []string{renewalCheck}
+	}
+	if len(missing) > 0 {
+		violations = append(violations, parentRenewalViolation("parent-renewal.unguarded", name, strings.Join(missing, ","), g.location(root)))
+	}
+	if reached := presentKeys(locals, renewalUnlockedChecks); len(reached) > 0 {
+		violations = append(violations, parentRenewalViolation("parent-renewal.unlocked-check", name, strings.Join(reached, ","), g.location(root)))
+	}
+	return violations, true
+}
+
 const (
 	renewalPackage    = "modules/enrollment/internal/application"
 	renewalPinPort    = "application.StudentMatches.FindEnrolledStudentIDByNameAndBirthday"
 	renewalChildWrite = "application.IntakeChildren.InsertChild"
+	renewalCheck      = "application.Intake.holdGuardianReEnrollment"
 )
 
 // renewalHolds are the held checks of the account and of the late invite's
@@ -76,6 +106,17 @@ func parentRenewalViolation(rule, source, target string, locations []Location) V
 		Scope: ScopeProduction, Rule: rule, Source: source, Target: target, Locations: locations,
 		Detail: "a parent's renewal of an existing child holds the parent's authority behind the parent guard until it commits (#6638): ask GuardianStudentHold, not the unlocked check",
 	}
+}
+
+// renewalCheckHolds are the ports the renewal's own check reaches.
+func (g *flowGraph) renewalCheckHolds() map[string]bool {
+	for fn := range g.decls {
+		if g.name(fn) == renewalCheck {
+			_, ports := g.reach(fn)
+			return ports
+		}
+	}
+	return map[string]bool{}
 }
 
 // methodsOf are the exported methods of the named type, sorted by name.

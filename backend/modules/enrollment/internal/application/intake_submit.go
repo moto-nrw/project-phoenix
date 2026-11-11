@@ -225,12 +225,7 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 
 // writeSubmission is the write transaction of a submission.
 func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan, outcome *submitOutcome) error {
-	// Serialize concurrent submits of one (phase, guardian email), so two
-	// parallel requests cannot both pass the duplicate check.
 	emailLC := guardianEmailKey(req.GuardianEmail)
-	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
-		return fmt.Errorf("submit: acquire dedup lock: %w", err)
-	}
 	lateInvite, err := s.submissionLateInvite(ctx, req, plan)
 	if err != nil {
 		return err
@@ -243,6 +238,14 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 		reEnrollEmail = lateInvite.GuardianEmail
 	}
 	submitter := reEnrollmentSubmitterFor(plan.submissionSource, req.GuardianAccountID, reEnrollEmail)
+	if err := s.holdRenewalCandidates(ctx, req.TenantID, plan.phase, req.Children, nil, func() (reEnrollmentSubmitter, error) { return submitter, nil }); err != nil {
+		return err
+	}
+	// Serialize concurrent submits of one (phase, guardian email), so two
+	// parallel requests cannot both pass the duplicate check.
+	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
+		return fmt.Errorf("submit: acquire dedup lock: %w", err)
+	}
 	if outcome.Warnings, err = s.checkSubmissionDuplicates(ctx, plan.phase.ID, req.GuardianEmail, plan.dupKeys, plan.duplicatePolicy, "submit"); err != nil {
 		return err
 	}
@@ -381,7 +384,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, plan.eligibility != eligibilityNone, i); err != nil {
 			return nil, err
 		}
-		if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, plan.phase.ID, req.TenantID, i); err != nil {
+		if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {
 			return nil, err
 		}
 		if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, matchedStudentID, 0, i); err != nil {

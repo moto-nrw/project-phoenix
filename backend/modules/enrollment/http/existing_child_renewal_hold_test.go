@@ -19,6 +19,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -70,17 +71,17 @@ func (g *renewalGate) park(ctx context.Context) {
 	})
 }
 
-// checkedProbe parks after the unlocked relationship check that pins the
-// child, the check before the write.
-type checkedProbe struct {
-	enrollmentCompose.GuardianStudentAuthorizer
+// checkedMatches parks after the first name-and-birthday match of a
+// submission, the check before the renewal holds anything.
+type checkedMatches struct {
+	enrollmentCompose.StudentMatches
 	gate *renewalGate
 }
 
-func (p checkedProbe) AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error) {
-	granted, err := p.GuardianStudentAuthorizer.AccountHasStudentPermission(ctx, accountID, studentID, tenantID, permission)
-	p.gate.park(ctx)
-	return granted, err
+func (m checkedMatches) FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, dateOfBirth calendar.Date) (*int64, error) {
+	id, err := m.StudentMatches.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, firstName, lastName, dateOfBirth)
+	m.gate.park(ctx)
+	return id, err
 }
 
 // writingChildren parks before the first write of a request child.
@@ -115,8 +116,8 @@ func setupRenewalRigFor(t *testing.T, audience string) *renewalRig {
 		Children:  writingChildren{IntakeChildren: env.repos.Enrollment(), gate: rig.writing},
 		Guardians: env.repos.Enrollment(), CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		Catalog: env.repos.Enrollment(), SchoolRepo: factorySchools{repos: env.reposSchools}, RateLimitRepo: env.repos.Enrollment(),
-		LateInviteRepo: env.repos.Enrollment(), StudentRepo: env.repos.Student,
-		GuardianAuthorizer: checkedProbe{GuardianStudentAuthorizer: env.repos.StudentGuardian, gate: rig.checked},
+		LateInviteRepo: env.repos.Enrollment(), StudentRepo: checkedMatches{StudentMatches: env.repos.Student, gate: rig.checked},
+		GuardianAuthorizer: env.repos.StudentGuardian,
 		GuardianHold:       testGuardianHold(env.db, env.repos),
 		OutboxEnqueuer:     env.outbox, Settings: env.settings, FrontendURL: "http://localhost:3000", Logger: slog.Default(),
 	})
@@ -227,15 +228,16 @@ func awaitRenewal(t *testing.T, done <-chan error) error {
 	}
 }
 
-// A withdrawal committed after the check before the write refuses the
-// renewal; nothing of it is stored.
+// A withdrawal committed after the check before the guard refuses the
+// renewal of an existing_students phase; nothing of it is stored. (An open
+// phase without the relationship stores the child unpinned for the office.)
 func TestParentRenewalRefusesAfterWithdrawalBeforeTheGuard(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupTestDB(t)
 	for _, change := range renewalWithdrawals {
 		t.Run(change.name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			rig := setupRenewalRig(t)
+			rig := setupRenewalRigFor(t, enrollmentNative.PhaseAudienceExistingStudents)
 			f := rig.family(t, "Vorher")
 			apply := change.run(t, rig, f)
 
@@ -245,9 +247,9 @@ func TestParentRenewalRefusesAfterWithdrawalBeforeTheGuard(t *testing.T) {
 			case backend := <-rig.checked.reached:
 				require.NoError(t, backend.err)
 			case err := <-done:
-				t.Fatalf("the renewal answered before its relationship check: %v", err)
+				t.Fatalf("the renewal answered before it matched the child: %v", err)
 			case <-time.After(renewalDeadline):
-				t.Fatal("the renewal never checked the relationship")
+				t.Fatal("the renewal never matched the child")
 			}
 			require.NoError(t, apply(), "the withdrawal commits while the renewal waits behind its check")
 			rig.checked.open()
@@ -373,4 +375,70 @@ func TestParentLateInviteRenewalHoldsTheGuardUntilCommit(t *testing.T) {
 	case <-time.After(renewalDeadline):
 		t.Fatal("the removal did not finish after the renewal")
 	}
+}
+
+// The renewal takes the child before the intake's phase locks, the order of
+// the staff decisions, which lock students before the duplicate and match
+// locks of the phase. A staff transaction that holds the child and then
+// takes those phase locks therefore commits while the renewal waits for the
+// child, instead of both waiting for each other.
+func TestParentRenewalTakesTheChildBeforeThePhaseLocks(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	rig := setupRenewalRig(t)
+	f := rig.family(t, "Reihenfolge")
+
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), renewalDeadline)
+	defer cancel()
+	started := make(chan renewalBackend, 1)
+	proceed := make(chan struct{})
+	staff := make(chan error, 1)
+	go func() {
+		staff <- testpkg.WithTenantTx(t, ctx, rig.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+			var backend renewalBackend
+			backend.err = tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &backend.pid)
+			if backend.err == nil {
+				_, backend.err = rig.repos.Student.FindByIDForUpdate(txCtx, f.studentID)
+			}
+			started <- backend
+			if backend.err != nil {
+				return backend.err
+			}
+			select {
+			case <-proceed:
+			case <-txCtx.Done():
+				return txCtx.Err()
+			}
+			records := rig.repos.Enrollment()
+			if err := records.AcquireSubmissionDedupLock(txCtx, rig.sourcePhase.ID, enrollmentNative.SubmissionDedupLockKey(f.email)); err != nil {
+				return err
+			}
+			return records.AcquireExistingStudentMatchLock(txCtx, rig.sourcePhase.ID)
+		})
+	}()
+	var holder renewalBackend
+	select {
+	case holder = <-started:
+		require.NoError(t, holder.err)
+	case <-ctx.Done():
+		t.Fatal("the staff transaction never locked the child")
+	}
+
+	done := rig.submitAsync(t, f)
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := rig.db.NewRaw("SELECT EXISTS (SELECT 1 FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid)))", holder.pid).
+			Scan(context.Background(), &waiting)
+		return err == nil && waiting
+	}, 10*time.Second, 10*time.Millisecond, "the renewal must wait for the child the staff transaction holds")
+	close(proceed)
+
+	select {
+	case err := <-staff:
+		require.NoError(t, err, "the staff transaction takes the phase locks and commits")
+	case <-time.After(renewalDeadline):
+		t.Fatal("the staff transaction did not commit")
+	}
+	require.NoError(t, awaitRenewal(t, done), "the renewal commits after the staff transaction")
+	require.Equal(t, 1, rig.requestsOf(t, f))
 }
