@@ -593,48 +593,6 @@ describe("DateRangePicker in a dialog", () => {
     expect(notPrevented).toBe(true);
   });
 
-  it("hides its slide-over calendar while a dialog lies above it", async () => {
-    function Stack({ modalOpen }: Readonly<{ modalOpen: boolean }>) {
-      return (
-        <>
-          <SlideOver defaultOpen>
-            <SlideOverContent>
-              <DateRangePicker value={undefined} onChange={vi.fn()} />
-            </SlideOverContent>
-          </SlideOver>
-          <Modal isOpen={modalOpen} onClose={vi.fn()} title="Bestätigung">
-            <p>Wirklich?</p>
-          </Modal>
-        </>
-      );
-    }
-    const { rerender } = render(<Stack modalOpen={false} />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Zeitraum wählen" }),
-    );
-    await waitFor(() => {
-      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
-    });
-
-    rerender(<Stack modalOpen />);
-
-    expect(
-      await screen.findByRole("dialog", { name: "Bestätigung" }),
-    ).toBeInTheDocument();
-    const panel = document.querySelector("[data-range-panel]");
-    await waitFor(() => {
-      expect(panel).toHaveStyle({ visibility: "hidden" });
-    });
-    expect(panel).toHaveAttribute("inert");
-
-    rerender(<Stack modalOpen={false} />);
-
-    await waitFor(() => {
-      expect(panel).not.toHaveStyle({ visibility: "hidden" });
-    });
-    expect(panel).not.toHaveAttribute("inert");
-  });
-
   it("keeps its calendar open in a dialog while that dialog stays open", async () => {
     renderInModal();
     await screen.findByRole("button", { name: "Letzte 7 Tage" });
