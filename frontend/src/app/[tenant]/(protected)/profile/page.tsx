@@ -26,7 +26,11 @@ import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { TenantPasswordChangeModal } from "~/components/auth/tenant-password-change-modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -63,9 +67,23 @@ function ProfileContent() {
   });
   const { success: toastSuccess } = useToast();
   const { profile, updateProfileData, refreshProfile } = useProfile();
+  const [isSaving, setIsSaving] = useState(false);
+  const profileAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Profils",
+    async (options: { sessionName?: string } = {}) => {
+      setIsSaving(true);
+      try {
+        await refreshProfile(true);
+        if ("sessionName" in options) {
+          await updateSession({ name: options.sessionName });
+        }
+      } finally {
+        setIsSaving(false);
+      }
+    },
+  );
 
   const [isEditing, setIsEditing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   // Speicherfehler stehen oben im Bearbeiten-Bereich der Karte, nicht als
   // Toast: Bauart 2 Regel 5. Katalogtext und Wiederholen (#2517).
   const formRef = useRef<HTMLDivElement>(null);
@@ -97,7 +115,7 @@ function ProfileContent() {
   }, [resetFormFromProfile]);
 
   const handleSaveProfile = async () => {
-    if (!hasSessionAccess(session) || !profile) return;
+    if (!hasSessionAccess(session) || !profile || isSaving) return;
 
     setIsSaving(true);
     formErrors.clear();
@@ -108,20 +126,6 @@ function ProfileContent() {
       };
 
       await updateProfile(updateData);
-
-      updateProfileData({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-      });
-
-      await refreshProfile(true);
-
-      const newName =
-        `${formData.firstName} ${formData.lastName}`.trim() || undefined;
-      await updateSession({ name: newName });
-
-      setIsEditing(false);
-      toastSuccess("Ihr Profil ist gespeichert.");
     } catch (err) {
       logger.error("profile_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -130,20 +134,31 @@ function ProfileContent() {
         object: "das Profil",
         retry: () => latestSaveRef.current(),
       });
-    } finally {
       setIsSaving(false);
+      return;
     }
+
+    updateProfileData({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+    });
+    setIsEditing(false);
+    toastSuccess("Ihr Profil ist gespeichert.");
+    // Profil und Sitzung laden nach dem Speichern; ein Fehler dabei ist ein
+    // Ladefehler, kein Fehler des Speicherns (#6652).
+    await profileAfterWrite.refresh({
+      sessionName:
+        `${formData.firstName} ${formData.lastName}`.trim() || undefined,
+    });
   };
 
   const handleAvatarChange = async (file: File) => {
-    if (!hasSessionAccess(session)) return;
+    if (!hasSessionAccess(session) || isSaving) return;
 
     try {
       setIsSaving(true);
       const compressedFile = await compressAvatar(file);
       await uploadAvatar(compressedFile);
-      await refreshProfile(true);
-      toastSuccess("Ihr Profilbild ist gespeichert.");
     } catch (err) {
       logger.error("avatar_upload_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -152,9 +167,11 @@ function ProfileContent() {
         object: "das Profilbild",
         retry: () => latestAvatarRef.current(file),
       });
-    } finally {
       setIsSaving(false);
+      return;
     }
+    toastSuccess("Ihr Profilbild ist gespeichert.");
+    await profileAfterWrite.refresh();
   };
 
   useLayoutEffect(() => {
@@ -192,6 +209,7 @@ function ProfileContent() {
             type="file"
             accept="image/*"
             aria-label="Profilbild auswählen"
+            disabled={isSaving}
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -205,6 +223,7 @@ function ProfileContent() {
             size="md"
             className="gap-2"
             onClick={() => avatarInputRef.current?.click()}
+            disabled={isSaving}
           >
             <Camera className="h-4 w-4" aria-hidden="true" />
             Profilbild ändern
@@ -212,6 +231,7 @@ function ProfileContent() {
         </>
       }
     >
+      <LoadErrorAlert error={profileAfterWrite.error} />
       <SectionCard
         title="Persönliche Daten"
         actions={
@@ -221,6 +241,7 @@ function ProfileContent() {
               variant="outline"
               size="md"
               onClick={() => setIsEditing(true)}
+              disabled={isSaving}
               className="gap-1.5"
             >
               <Pencil className="h-3.5 w-3.5" />

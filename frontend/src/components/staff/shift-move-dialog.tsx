@@ -358,6 +358,7 @@ export function ShiftMoveDialog({
         title="Verschieben bestätigen"
         confirmText="Verschieben"
         isConfirmLoading={isMoving}
+        loadingText="Wird verschoben …"
         // Keep the confirmation stable while the atomic request is in flight.
         isDismissDisabled={isMoving}
       >

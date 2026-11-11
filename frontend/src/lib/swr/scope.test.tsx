@@ -557,6 +557,35 @@ describe("useDiscardRefusedEntity (#5006)", () => {
     expect(rendered).not.toContain("Notiz");
   });
 
+  it("keeps an external refusal only on its explicit request key", async () => {
+    const detail = vi.fn().mockResolvedValue("Kind 7");
+    render(<ChildPage refuse={detail} />);
+    expect(await screen.findByText("Kind 7")).toBeInTheDocument();
+    expect(await screen.findByText("Notiz")).toBeInTheDocument();
+    const refusal = new ApiError("Forbidden", 403, {
+      code: "care.guardian_permission_denied",
+    });
+    const { result } = renderHook(() => useDiscardRefusedEntity());
+    act(() => {
+      result.current(refusal, {
+        codes: ["care.guardian_permission_denied"],
+        matches: (key) => key.startsWith("student-7-"),
+        refusedKey: "student-7-detail",
+      });
+    });
+
+    expect(screen.getByTestId("reader-student-7-detail")).toHaveTextContent(
+      "Fehler",
+    );
+    expect(screen.getByTestId("reader-student-7-notes")).toHaveTextContent(
+      "leer",
+    );
+    expect(screen.getByTestId("reader-student-8-notes")).toHaveTextContent(
+      "Andere",
+    );
+    expect(detail).toHaveBeenCalledTimes(1);
+  });
+
   it("leaves the cache alone for another code or status", () => {
     const { result } = renderHook(() => useDiscardRefusedEntity());
     const matches = vi.fn(() => true);

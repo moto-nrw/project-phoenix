@@ -12,6 +12,8 @@ import ShiftTypesPage from "./page";
 import { useModuleBooked } from "~/lib/tenant-context";
 
 const mockUpdateUrlParams = vi.hoisted(() => vi.fn());
+vi.mock("~/lib/swr/hooks", () => ({ useDiscardRefusedEntity: () => vi.fn() }));
+
 vi.mock("~/hooks/useUpdateUrlParams", () => ({
   useUpdateUrlParams: () => mockUpdateUrlParams,
 }));

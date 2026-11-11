@@ -352,6 +352,7 @@ export function LeaveRequestsCard() {
         confirmText="Stornieren"
         cancelText="Behalten"
         isConfirmLoading={cancelSubmitting}
+        loadingText="Wird storniert …"
         confirmVariant="danger"
       >
         {cancelTarget && (

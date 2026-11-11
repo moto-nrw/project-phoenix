@@ -5,10 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import {
-  operatorProvisioningService,
-  revalidateTenantCache,
-} from "~/lib/operator/provisioning-api";
+import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { isValidSlug } from "~/lib/operator/provisioning-helpers";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
@@ -18,6 +15,8 @@ import {
   FieldWarning,
   VisibilityToggle,
 } from "./provisioning-shared";
+
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 
 const logger = createLogger({ component: "EditSchoolModal" });
 
@@ -32,7 +31,9 @@ export function EditSchoolModal({
   readonly onClose: () => void;
   readonly school: School | null;
   readonly organizations: Organization[] | undefined;
-  readonly onUpdated: () => Promise<void>;
+  /** Reloads the school and the portal caches of the given subdomains;
+   *  never rejects (#6652). */
+  readonly onUpdated: RefreshAfterWrite<[subdomains: readonly string[]]>;
 }) {
   const [schoolOrgId, setSchoolOrgId] = useState("");
   const [schoolName, setSchoolName] = useState("");
@@ -103,9 +104,9 @@ export function EditSchoolModal({
       }
       setSchoolSaving(true);
       clearError();
+      const oldSubdomain = school.subdomain;
+      const newSubdomain = schoolSubdomain.trim();
       try {
-        const oldSubdomain = school.subdomain;
-        const newSubdomain = schoolSubdomain.trim();
         await operatorProvisioningService.updateSchool(school.id, {
           organization_id: parseInt(schoolOrgId, 10),
           name: schoolName.trim(),
@@ -119,19 +120,23 @@ export function EditSchoolModal({
           active: school.active,
           hidden: schoolHidden,
         });
-        if (oldSubdomain !== newSubdomain || school.hidden !== schoolHidden) {
-          await revalidateTenantCache([oldSubdomain, newSubdomain]);
-        }
-        onClose();
-        await onUpdated();
       } catch (error) {
         logger.error("school_update_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
         void showError(error, { object: "die Änderung an der Schule" });
-      } finally {
         setSchoolSaving(false);
+        return;
       }
+      setSchoolSaving(false);
+      onClose();
+      // The portal cache reloads with the page: its failure is a load error,
+      // the change itself is saved (#6652).
+      await onUpdated(
+        oldSubdomain !== newSubdomain || school.hidden !== schoolHidden
+          ? [oldSubdomain, newSubdomain]
+          : [],
+      );
     },
     [
       school,

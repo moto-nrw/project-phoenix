@@ -105,6 +105,7 @@ export function ExportFileNumberCard({
         title="Erste Dateinummer festlegen?"
         confirmText="Ja, festlegen"
         isConfirmLoading={saving}
+        loadingText="Wird festgelegt …"
       >
         <p>
           Die nächste Datei bekommt die Nummer {valid ? value : "–"}. Danach

@@ -176,6 +176,48 @@ describe("TransferDeviceModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // #6652: the transfer is done once the write holds; the reload runs after
+  // the dialog closed and never decides whether the transfer shows as done.
+  it("reports the transfer and closes while the reload still runs", async () => {
+    mockGetStatus.mockResolvedValue({
+      canTransfer: true,
+      isOnline: false,
+      lastSeen: null,
+      activeSession: null,
+    });
+    mockTransfer.mockResolvedValue({
+      ...device,
+      id: "2",
+      schoolId: "20",
+      schoolName: "Walbach",
+    });
+    const onTransferred = vi.fn(() => new Promise<boolean>(() => undefined));
+    const onClose = vi.fn();
+
+    render(
+      <TransferDeviceModal
+        device={device}
+        schools={[school("10", "Burbach"), school("20", "Walbach")]}
+        onClose={onClose}
+        onTransferred={onTransferred}
+      />,
+    );
+
+    await screen.findByText(
+      "Das Gerät ist offline und hat keine offene Sitzung.",
+    );
+    fireEvent.change(screen.getByLabelText("Zielschule"), {
+      target: { value: "20" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Schule wechseln" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Burbach 2 wurde nach Walbach verschoben.",
+    );
+    expect(mockTransfer).toHaveBeenCalledTimes(1);
+  });
+
   // #2519: a failed transfer stays in the dialog and the status is read again.
   it("keeps a failed transfer in the dialog and checks the status again", async () => {
     mockGetStatus.mockResolvedValue({

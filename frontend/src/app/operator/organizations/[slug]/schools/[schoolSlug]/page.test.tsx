@@ -17,6 +17,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
@@ -230,6 +231,7 @@ const mockSchool = {
 interface SetupOpts {
   orgs?: (typeof mockOrg)[];
   schools?: (typeof mockSchool)[];
+  schoolsError?: Error;
   accountsError?: Error;
   devicesError?: Error;
   personsError?: Error;
@@ -248,6 +250,7 @@ function setupSWR(opts: SetupOpts = {}) {
   const {
     orgs = [mockOrg],
     schools = [mockSchool],
+    schoolsError,
     accountsError,
     devicesError,
     personsError,
@@ -264,6 +267,7 @@ function setupSWR(opts: SetupOpts = {}) {
       case operatorProvisioningKeys.schoolSummaries():
         return {
           data: schools,
+          error: schoolsError,
           isLoading: false,
           mutate: mockMutateSchools,
         };
@@ -487,6 +491,33 @@ describe("OperatorSchoolDetailPage", () => {
     });
   });
 
+  // #6652: the status change holds once the write is through; a failed reload
+  // of the portal cache is a load error above the page, never a failed change.
+  it("keeps a status change successful when the portal cache reload fails", async () => {
+    setupSWR();
+    mockUpdateSchool.mockResolvedValue({ ...mockSchool, active: false });
+    vi.mocked(revalidateTenantCache).mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    await renderPage();
+    fireEvent.click(await screen.findByLabelText("Deaktivieren"));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Schule")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Änderung des Status"),
+      ),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(revalidateTenantCache).toHaveBeenCalledTimes(2));
+    expect(mockUpdateSchool).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the Kinderkontingent untouched when toggling the school", async () => {
     setupSWR();
     mockUpdateSchool.mockResolvedValue({ ...mockSchool, active: false });
@@ -667,6 +698,36 @@ describe("OperatorSchoolDetailPage", () => {
       "/operator/organizations/test-org/schools/test-school?tab=konten",
     )}`;
     expect(settings.closest("a")?.getAttribute("href")).toBe(expected);
+  });
+
+  it("discards a refused school overview until a successful fetch", async () => {
+    setupSWR();
+    const view = await renderPage();
+    expect(screen.getByText("Kontingentzahl")).toBeVisible();
+    for (const status of [403, 500]) {
+      setupSWR({ schoolsError: new ApiError("failed", status) });
+      view.rerender(
+        <Suspense fallback={null}>
+          <OperatorSchoolDetailPage {...schoolPageProps} />
+        </Suspense>,
+      );
+      expect(
+        await screen.findByText(
+          catalogText(
+            status === 403 ? "general.permission" : "general.server",
+            "die Übersicht der Schule",
+          ),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Kontingentzahl")).not.toBeInTheDocument();
+    }
+    setupSWR();
+    view.rerender(
+      <Suspense fallback={null}>
+        <OperatorSchoolDetailPage {...schoolPageProps} />
+      </Suspense>,
+    );
+    expect(await screen.findByText("Kontingentzahl")).toBeVisible();
   });
 
   // --- Tab flows ---

@@ -3,6 +3,8 @@
   "errorObjectEdit": "ndryshimi",
   "errorObjectReply": "përgjigjja",
   "errorObjectChangeRequests": "lista e kërkesave për ndryshim",
+  "reloadObject": "pamja e regjistrimit",
+  "savedButStale": "Ndryshimi juaj u ruajt. Vetëm pamja nuk është ende e përditësuar.",
   "changeRequestSent": "Kërkesa për ndryshim u dërgua. {careTerm} do ta shqyrtojë.",
   "loading": "Statusi po ngarkohet…",
   "invalidTitle": "Lidhje statusi e pavlefshme",

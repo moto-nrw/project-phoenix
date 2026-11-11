@@ -659,6 +659,7 @@ export function OfferingChangeRequestModal({
         confirmText={t("careOfferingsModal.withdrawalConfirmSubmit")}
         cancelText={t("careOfferingsModal.withdrawalConfirmBack")}
         isConfirmLoading={submitting}
+        loadingText={t("careOfferingsModal.submitting")}
       >
         <p className="text-sm text-gray-600">
           {t("careOfferingsModal.withdrawalConfirmBody", {

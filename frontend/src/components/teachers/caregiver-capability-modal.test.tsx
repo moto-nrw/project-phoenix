@@ -366,9 +366,63 @@ describe("CaregiverCapabilityModal", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Die Betreuung für Ada Lovelace ist eingeschaltet.",
     );
-    expect(onUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ accountId: "42" }),
+    // #6652: the callback only reloads the page; the dialog shows the new
+    // state itself.
+    expect(onUpdated).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  // #6652: the switch is done once the write holds; the page's reload runs on
+  // its own and never holds the dialog in its saving state.
+  it("finishes switching off while the page reload still runs", async () => {
+    const onUpdated = vi.fn(() => new Promise<boolean>(() => undefined));
+    mockGetTenantAccountCapability.mockResolvedValue(createState());
+    mockDisableTenantAccountCapability.mockResolvedValue(
+      createState({ hasUserRole: false, isActiveCaregiver: false }),
     );
+
+    render(
+      <CaregiverCapabilityModal
+        isOpen={true}
+        onClose={vi.fn()}
+        scope="tenant"
+        accountId="42"
+        accountLabel="Ada Lovelace"
+        onUpdated={onUpdated}
+      />,
+    );
+    fireEvent.click(await screen.findByText("Betreuung deaktivieren"));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("button", { name: "Betreuung aktivieren" }),
+    ).toBeEnabled();
+    expect(mockDisableTenantAccountCapability).toHaveBeenCalledTimes(1);
+  });
+
+  it("finishes switching on while the page reload still runs", async () => {
+    const onUpdated = vi.fn(() => new Promise<boolean>(() => undefined));
+    mockGetTenantAccountCapability.mockResolvedValue(
+      createState({ hasUserRole: false, isActiveCaregiver: false }),
+    );
+    mockEnableTenantAccountCapability.mockResolvedValue(createState());
+
+    render(
+      <CaregiverCapabilityModal
+        isOpen={true}
+        onClose={vi.fn()}
+        scope="tenant"
+        accountId="42"
+        accountLabel="Ada Lovelace"
+        onUpdated={onUpdated}
+      />,
+    );
+    fireEvent.click(await screen.findByText("Betreuung aktivieren"));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("button", { name: "Betreuung deaktivieren" }),
+    ).toBeEnabled();
+    expect(mockEnableTenantAccountCapability).toHaveBeenCalledTimes(1);
   });
 
   it("disables caregiver capability successfully", async () => {
@@ -404,9 +458,9 @@ describe("CaregiverCapabilityModal", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Die Betreuung für Ada Lovelace ist ausgeschaltet.",
     );
-    expect(onUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ hasUserRole: false }),
-    );
+    // #6652: the callback only reloads the page; the dialog shows the new
+    // state itself.
+    expect(onUpdated).toHaveBeenCalledExactlyOnceWith();
   });
 
   it("hides the disable button for legacy teacher-role accounts that are not active caregivers", async () => {

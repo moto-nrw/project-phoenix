@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 
@@ -22,7 +23,8 @@ export function TestTraegerSection({
 }: {
   readonly organizationId: string;
   readonly organizationActive: boolean;
-  readonly onChanged: () => Promise<unknown>;
+  /** Reloads the Träger; never rejects (#6652). */
+  readonly onChanged: RefreshAfterWrite;
 }) {
   const [running, setRunning] = useState(false);
   const { show: showError } = useApiErrorDisplay();
@@ -30,23 +32,27 @@ export function TestTraegerSection({
 
   const handleSampleChildren = useCallback(async () => {
     setRunning(true);
+    let createdCount: number;
     try {
       const result =
         await operatorProvisioningService.createSampleChildren(organizationId);
-      toastSuccess(
-        result.createdCount > 0
-          ? `${result.createdCount} Beispielkinder sind angelegt.`
-          : "Alle Beispielkinder sind schon da.",
-      );
-      await onChanged();
+      createdCount = result.createdCount;
     } catch (error) {
       logger.warn("test_traeger_sample_children_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
       void showError(error, { object: "das Anlegen der Beispielkinder" });
-    } finally {
       setRunning(false);
+      return;
     }
+    toastSuccess(
+      createdCount > 0
+        ? `${createdCount} Beispielkinder sind angelegt.`
+        : "Alle Beispielkinder sind schon da.",
+    );
+    // A failed reload is a load error of the page, not of the creation.
+    await onChanged();
+    setRunning(false);
   }, [onChanged, organizationId, showError, toastSuccess]);
 
   return (

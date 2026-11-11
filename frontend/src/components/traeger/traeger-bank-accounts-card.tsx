@@ -14,6 +14,8 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   deleteTraegerBankAccount,
@@ -47,6 +49,12 @@ export function TraegerBankAccountsCard({
   const deleteErrors = useApiFormError();
   const { show: showError } = useApiErrorDisplay();
   const { success } = useToast();
+  // A write's reload stands above the table as a load error, never as an
+  // error of the write or its closed dialog (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Bankverbindungen",
+    onChanged,
+  );
 
   const makeDefault = async (account: TraegerBankAccount) => {
     try {
@@ -54,14 +62,15 @@ export function TraegerBankAccountsCard({
         ...account,
         isDefault: true,
       });
-      success(`„${account.label}“ ist jetzt der Standard.`);
-      await onChanged();
     } catch (err) {
       logger.error("traeger_bank_account_default_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(err, { object: "die Bankverbindung" });
+      return;
     }
+    success(`„${account.label}“ ist jetzt der Standard.`);
+    await afterWrite.refresh();
   };
 
   const remove = async () => {
@@ -70,17 +79,18 @@ export function TraegerBankAccountsCard({
     deleteErrors.clear();
     try {
       await deleteTraegerBankAccount(deleting.id);
-      success(`Die Bankverbindung „${deleting.label}“ ist gelöscht.`);
-      setDeleting(null);
-      await onChanged();
     } catch (err) {
       logger.error("traeger_bank_account_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void deleteErrors.show(err, { object: "das Löschen der Bankverbindung" });
-    } finally {
       setBusy(false);
+      return;
     }
+    setBusy(false);
+    success(`Die Bankverbindung „${deleting.label}“ ist gelöscht.`);
+    setDeleting(null);
+    await afterWrite.refresh();
   };
 
   const columns: DataTableColumn<TraegerBankAccount>[] = [
@@ -180,6 +190,7 @@ export function TraegerBankAccountsCard({
         ) : null
       }
     >
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       <DataTable
         columns={columns}
         rows={[...accounts]}
@@ -196,7 +207,7 @@ export function TraegerBankAccountsCard({
       <TraegerBankAccountModal
         edit={edit}
         onClose={() => setEdit(null)}
-        onSaved={onChanged}
+        onSaved={afterWrite.refresh}
       />
       <ConfirmDeleteModal
         isOpen={deleting !== null}

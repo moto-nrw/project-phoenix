@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -13,7 +14,8 @@ const logger = createLogger({ component: "DeleteDeviceModal" });
 interface DeleteDeviceModalProps {
   device: OperatorDevice | null;
   onClose: () => void;
-  onDeleted: () => Promise<void> | void;
+  /** Reloads the device lists; never rejects (#6652). */
+  onDeleted: RefreshAfterWrite;
 }
 
 export function DeleteDeviceModal({
@@ -36,16 +38,17 @@ export function DeleteDeviceModal({
     clearError();
     try {
       await operatorProvisioningService.deleteDevice(device.id);
-      await onDeleted();
-      onClose();
     } catch (err) {
       logger.error("device_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(err, { object: "das Löschen des Geräts" });
-    } finally {
       setLoading(false);
+      return;
     }
+    setLoading(false);
+    onClose();
+    await onDeleted();
   }, [device, onClose, onDeleted, showError, clearError]);
 
   return (

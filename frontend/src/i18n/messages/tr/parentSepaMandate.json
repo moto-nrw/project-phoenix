@@ -2,6 +2,8 @@
   "title": "Otomatik ödeme",
   "intro": "Talimatla kurumunuzun ücretleri hesabınızdan çekmesine izin verirsiniz.",
   "errorObject": "otomatik ödeme talimatı",
+  "reloadObject": "talimat görünümü",
+  "savedButStale": "Değişikliğiniz kaydedildi. Yalnızca görünüm henüz güncel değil.",
   "offTitle": "Otomatik ödeme burada mümkün değil",
   "off": "Kurumunuz talimatı uygulamada kabul etmiyor. Kurumdan kâğıt bir form isteyin.",
   "creditorMissing": "Kurumunuz henüz otomatik ödeme kabul edemiyor. Lütfen daha sonra tekrar deneyin.",
