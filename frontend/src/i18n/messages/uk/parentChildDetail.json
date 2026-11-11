@@ -117,6 +117,8 @@
     "errorObjectAccounts": "список пов’язаних облікових записів",
     "errorObjectInvite": "запрошення",
     "errorObjectRemove": "доступ для цього облікового запису",
+    "reloadObject": "відображення контактів",
+    "savedButStale": "Вашу зміну збережено. Лише відображення ще не оновлене.",
     "errorObjectContact": "зміна контакту",
     "errorObjectPickup": "порядок забирання"
   },

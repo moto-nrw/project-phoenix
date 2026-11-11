@@ -37,6 +37,7 @@ import {
   updateGuardianRelationship,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { displayEmail, isDemoBuild } from "~/lib/demo-build";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -251,15 +252,36 @@ export default function GuardiansPanel({
     void load();
   }, [load]);
 
+  // The reload after a confirmed write (#6652) only reads and sets: the shown
+  // contacts and accounts stay while it runs, and a failure rejects, so the
+  // hook reports it as a load error that says the change is saved.
+  const readGuardians = useCallback(async () => {
+    const [nextGuardians, nextAccounts, nextRequests] = await Promise.all([
+      listChildGuardians(studentId),
+      listRelatedAccounts(studentId),
+      listPickupPermissionRequests(studentId),
+    ]);
+    clearGuardiansLoadError();
+    clearAccountsLoadError();
+    setGuardians(nextGuardians);
+    setAccounts(nextAccounts);
+    setPermissionRequests(nextRequests);
+  }, [clearAccountsLoadError, clearGuardiansLoadError, studentId]);
+  const { error: reloadError, refresh: refreshAfterWrite } =
+    useRefreshAfterWrite(t("guardians.reloadObject"), readGuardians, {
+      savedSuffix: t("guardians.savedButStale"),
+    });
+
+  // A dialog calls this after its write went through.
   const handleSaved = useCallback(
     async (text: string) => {
       setAddMode(null);
       setEditingContact(null);
       setEditingPickup(null);
-      await load();
       setMessage(text);
+      await refreshAfterWrite();
     },
-    [load],
+    [refreshAfterWrite],
   );
 
   const accountById = new Map(
@@ -280,32 +302,12 @@ export default function GuardiansPanel({
     setBusy(true);
     setMessage(null);
     clearInviteError();
+    let result: Awaited<ReturnType<typeof inviteRelatedAccount>>;
     try {
-      const result = await inviteRelatedAccount(
+      result = await inviteRelatedAccount(
         studentId,
         trimmed,
         confirmRoleUpgrade ? { confirmRoleUpgrade: true } : undefined,
-      );
-      if (result.outcome === "existing_contact_restricted") {
-        setAddMode(null);
-        setInviteEmail("");
-        setUpgradePrompt({
-          email: trimmed,
-          name: trimmed,
-          existingRole: result.existing_role,
-        });
-        return;
-      }
-      setUpgradePrompt(null);
-      setInviteEmail("");
-      setAddMode(null);
-      await load();
-      setMessage(
-        result.outcome === "pending_approval"
-          ? t("guardians.access.invitePending")
-          : result.outcome === "invited"
-            ? t("guardians.access.inviteSent", { email: trimmed })
-            : t("guardians.access.inviteLinked"),
       );
     } catch (err) {
       logger.error("related_account_invite_failed", {
@@ -323,9 +325,31 @@ export default function GuardiansPanel({
       } else {
         void showInviteError(err, options);
       }
+      return;
     } finally {
       setBusy(false);
     }
+    if (result.outcome === "existing_contact_restricted") {
+      setAddMode(null);
+      setInviteEmail("");
+      setUpgradePrompt({
+        email: trimmed,
+        name: trimmed,
+        existingRole: result.existing_role,
+      });
+      return;
+    }
+    setUpgradePrompt(null);
+    setInviteEmail("");
+    setAddMode(null);
+    setMessage(
+      result.outcome === "pending_approval"
+        ? t("guardians.access.invitePending")
+        : result.outcome === "invited"
+          ? t("guardians.access.inviteSent", { email: trimmed })
+          : t("guardians.access.inviteLinked"),
+    );
+    await refreshAfterWrite();
   };
   // Retry runs the current handler. Typing in the field clears the error,
   // so its retry always repeats the address that is still in the field.
@@ -346,9 +370,6 @@ export default function GuardiansPanel({
     setMessage(null);
     try {
       await removeRelatedAccount(studentId, guardianProfileId);
-      setConfirmRemoveId(null);
-      await load();
-      setMessage(t("guardians.access.removed"));
     } catch (err) {
       logger.error("related_account_remove_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -358,9 +379,13 @@ export default function GuardiansPanel({
         object: t("guardians.errorObjectRemove"),
         retry: () => void removeRef.current(guardianProfileId),
       });
+      return;
     } finally {
       setBusy(false);
     }
+    setConfirmRemoveId(null);
+    setMessage(t("guardians.access.removed"));
+    await refreshAfterWrite();
   };
   const removeRef = useRef(handleRemove);
   useLayoutEffect(() => {
@@ -370,6 +395,7 @@ export default function GuardiansPanel({
   return (
     <div className="space-y-5">
       {message && <Alert type="success" message={message} />}
+      <LoadErrorAlert error={reloadError} />
 
       <ParentSection
         title={t("guardians.contactsTitle")}

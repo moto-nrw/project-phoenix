@@ -3,6 +3,8 @@
   "errorObjectEdit": "the change",
   "errorObjectReply": "the reply",
   "errorObjectChangeRequests": "the list of change requests",
+  "reloadObject": "the enrollment view",
+  "savedButStale": "Your change is saved. Only the display is not up to date yet.",
   "changeRequestSent": "Change request sent. The {careTerm} will review it.",
   "loading": "Loading status…",
   "invalidTitle": "Invalid status link",

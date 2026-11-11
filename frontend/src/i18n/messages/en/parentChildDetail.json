@@ -117,6 +117,8 @@
     "errorObjectAccounts": "the list of connected accounts",
     "errorObjectInvite": "the invitation",
     "errorObjectRemove": "the access for this account",
+    "reloadObject": "the contacts view",
+    "savedButStale": "Your change is saved. Only the display is not up to date yet.",
     "errorObjectContact": "the change to the contact",
     "errorObjectPickup": "the pickup arrangement"
   },

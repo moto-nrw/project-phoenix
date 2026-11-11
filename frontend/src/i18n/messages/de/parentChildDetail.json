@@ -117,6 +117,8 @@
     "errorObjectAccounts": "die Liste der verbundenen Konten",
     "errorObjectInvite": "die Einladung",
     "errorObjectRemove": "die Freigabe für dieses Konto",
+    "reloadObject": "die Anzeige der Kontakte",
+    "savedButStale": "Ihre Änderung ist gespeichert. Nur die Anzeige ist noch nicht aktuell.",
     "errorObjectContact": "die Änderung am Kontakt",
     "errorObjectPickup": "die Abholregelung"
   },

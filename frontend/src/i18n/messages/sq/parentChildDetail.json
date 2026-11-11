@@ -117,6 +117,8 @@
     "errorObjectAccounts": "lista e llogarive të lidhura",
     "errorObjectInvite": "ftesa",
     "errorObjectRemove": "qasja për këtë llogari",
+    "reloadObject": "pamja e kontakteve",
+    "savedButStale": "Ndryshimi juaj u ruajt. Vetëm pamja nuk është ende e përditësuar.",
     "errorObjectContact": "ndryshimi i kontaktit",
     "errorObjectPickup": "rregullimi i marrjes"
   },

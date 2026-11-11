@@ -36,6 +36,7 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -170,6 +171,19 @@ function EnrollmentStatusViewContent({
   const [editLastName, setEditLastName] = useState("");
   const [editPhone, setEditPhone] = useState("");
 
+  // Puts a loaded status on the page; the first load and the reload after a
+  // write share it.
+  const applyStatus = useCallback(
+    (result: StatusResponse, requestChanges: EnrollmentChangeRequest[]) => {
+      setStatus(result);
+      setChangeRequests(requestChanges);
+      setEditFirstName(result.guardian_first_name);
+      setEditLastName(result.guardian_last_name);
+      setEditPhone(result.guardian_phone ?? "");
+    },
+    [],
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     clearLoadError();
@@ -196,11 +210,7 @@ function EnrollmentStatusViewContent({
         setChangeRequests([]);
         return;
       }
-      setStatus(result);
-      setChangeRequests(requestChanges ?? []);
-      setEditFirstName(result.guardian_first_name);
-      setEditLastName(result.guardian_last_name);
-      setEditPhone(result.guardian_phone ?? "");
+      applyStatus(result, requestChanges ?? []);
     } catch (err) {
       logger.error("status_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -214,6 +224,7 @@ function EnrollmentStatusViewContent({
     }
   }, [
     token,
+    applyStatus,
     loadErrorObject,
     requestsLoadErrorObject,
     clearLoadError,
@@ -231,6 +242,27 @@ function EnrollmentStatusViewContent({
     void load();
   }, [load]);
 
+  // The reload after a confirmed write (#6652) only reads and sets: the shown
+  // status stays while it runs, and a failure rejects, so the hook reports it
+  // as a load error that says the change is saved.
+  const readStatus = useCallback(async () => {
+    const [result, requestChanges] = await Promise.all([
+      fetchStatus(token),
+      listEnrollmentChangeRequests(token),
+    ]);
+    if (!result) {
+      setNotFound(true);
+      setChangeRequests([]);
+      return;
+    }
+    clearLoadError();
+    clearRequestsLoadError();
+    applyStatus(result, requestChanges);
+  }, [token, applyStatus, clearLoadError, clearRequestsLoadError]);
+  const afterWrite = useRefreshAfterWrite(t("reloadObject"), readStatus, {
+    savedSuffix: t("savedButStale"),
+  });
+
   const replyToChangeRequest = async (changeRequestId: string) => {
     const body = (replyDrafts[changeRequestId] ?? "").trim();
     if (!body) return;
@@ -239,9 +271,6 @@ function EnrollmentStatusViewContent({
     setReplyErrorId(changeRequestId);
     try {
       await replyEnrollmentChangeRequest(token, changeRequestId, body);
-      setReplyDrafts((prev) => ({ ...prev, [changeRequestId]: "" }));
-      toast.success(t("changeRequestReplySaved"));
-      await load();
     } catch (err) {
       logger.error("change_request_reply_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -251,9 +280,13 @@ function EnrollmentStatusViewContent({
         // Sends the answer as it reads now, not the failed draft.
         retry: () => void replyRef.current(changeRequestId),
       });
+      return;
     } finally {
       setReplyingChangeRequest(null);
     }
+    setReplyDrafts((prev) => ({ ...prev, [changeRequestId]: "" }));
+    toast.success(t("changeRequestReplySaved"));
+    await afterWrite.refresh();
   };
   const replyRef = useRef(replyToChangeRequest);
   useLayoutEffect(() => {
@@ -270,9 +303,6 @@ function EnrollmentStatusViewContent({
         guardian_last_name: editLastName.trim(),
         guardian_phone: editPhone.trim() || undefined,
       });
-      toast.success(t("editSaved"));
-      setEditing(false);
-      await load();
     } catch (err) {
       logger.error("status_edit_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -281,9 +311,13 @@ function EnrollmentStatusViewContent({
         object: t("errorObjectEdit"),
         retry: () => void saveEditRef.current(),
       });
+      return;
     } finally {
       setSavingEdit(false);
     }
+    toast.success(t("editSaved"));
+    setEditing(false);
+    await afterWrite.refresh();
   };
   const saveEditRef = useRef(saveEdit);
   useLayoutEffect(() => {
@@ -301,18 +335,9 @@ function EnrollmentStatusViewContent({
   const handleConfirmRenewal = async (confirmation: RenewalConfirmation) => {
     if (!status) return;
     setConfirmingRenewal(true);
+    let confirmed: number;
     try {
-      const confirmed = await confirmRenewal(token, confirmation);
-      if (confirmed === 0) {
-        toast.success(t("termsConfirmed"));
-      } else {
-        toast.success(
-          confirmed === 1
-            ? t("renewalConfirmedOne")
-            : t("renewalConfirmedMany", { count: confirmed }),
-        );
-      }
-      await load();
+      confirmed = await confirmRenewal(token, confirmation);
     } catch (err) {
       logger.error("status_confirm_renewal_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -329,9 +354,20 @@ function EnrollmentStatusViewContent({
           : () => void confirmRenewalRef.current(confirmation),
       });
       if (changed) await load();
+      return;
     } finally {
       setConfirmingRenewal(false);
     }
+    if (confirmed === 0) {
+      toast.success(t("termsConfirmed"));
+    } else {
+      toast.success(
+        confirmed === 1
+          ? t("renewalConfirmedOne")
+          : t("renewalConfirmedMany", { count: confirmed }),
+      );
+    }
+    await afterWrite.refresh();
   };
   const confirmRenewalRef = useRef(handleConfirmRenewal);
   useLayoutEffect(() => {
@@ -354,9 +390,6 @@ function EnrollmentStatusViewContent({
     withdrawError.clear();
     try {
       await withdrawStatus(token, childID);
-      setWithdrawTarget(null);
-      toast.success(childID ? t("withdrawnChild") : t("withdrawnAll"));
-      await load();
     } catch (err) {
       logger.error("status_withdraw_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -364,9 +397,13 @@ function EnrollmentStatusViewContent({
       // The error stays in the open dialog; its confirm button tries again,
       // so a retry still passes the confirmation.
       void withdrawError.show(err, { object: t("errorObject") });
+      return;
     } finally {
       setWithdrawingChild(null);
     }
+    setWithdrawTarget(null);
+    toast.success(childID ? t("withdrawnChild") : t("withdrawnAll"));
+    await afterWrite.refresh();
   };
 
   const confirmWithdraw = async () => {
@@ -416,6 +453,7 @@ function EnrollmentStatusViewContent({
         editing={editing}
         errors={{
           load: loadError,
+          reload: afterWrite.error,
           requests: requestsLoadError,
           edit: editError.error,
           editField: editError.fieldError,
@@ -473,6 +511,8 @@ function EnrollmentStatusViewContent({
 /** What failed on the status page, each shown where it belongs (#2515). */
 interface StatusErrors {
   readonly load: FormError | null;
+  /** The reload after a confirmed write (#6652). */
+  readonly reload: FormError | null;
   readonly requests: FormError | null;
   readonly edit: FormError | null;
   readonly editField: (name: string) => string | undefined;
@@ -632,6 +672,7 @@ function EnrollmentStatusContent({
       <EnrollmentStatusSummary status={status} submittedDate={submittedDate} />
 
       <LoadErrorAlert error={errors.load} />
+      <LoadErrorAlert error={errors.reload} />
 
       {allLocked ? (
         <SectionCard title={t("lockedAllTitle")} bodyClassName="mt-2 space-y-2">

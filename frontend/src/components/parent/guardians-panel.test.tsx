@@ -11,6 +11,7 @@ import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GuardiansPanel from "./guardians-panel";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 import { type ChildGuardian, type RelatedAccount } from "~/lib/parent-api";
 
@@ -1006,6 +1007,161 @@ describe("GuardiansPanel", () => {
       );
 
       expect(await screen.findByText("Nur Mo, Mi")).toBeInTheDocument();
+    });
+  });
+
+  // #6652: once the write is through, a failed reload is a load error that
+  // says the change is saved; the shown contacts stay and the retry only
+  // reloads.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText(
+      "general.unavailable",
+      "die Anzeige der Kontakte",
+    )} ${SAVED_BUT_STALE_SUFFIX}`;
+    const down = () =>
+      new ApiError("down", 503, { code: "general.unavailable" });
+    const petra: RelatedAccount = {
+      guardian_profile_id: "24",
+      first_name: "Petra",
+      last_name: "Schulze",
+      email: "petra@example.test",
+      relationship_type: "parent",
+      is_primary: false,
+      status: "active",
+      is_self: false,
+    };
+
+    async function retryOnlyReloads(writeMock: { mock: { calls: unknown[] } }) {
+      const loads = mocks.listChildGuardians.mock.calls.length;
+      // Other cards on the page may offer their own retry.
+      const alert = screen
+        .getByText(reloadText)
+        .closest<HTMLElement>('[role="alert"]');
+      expect(alert).not.toBeNull();
+      fireEvent.click(
+        within(alert!).getByRole("button", { name: "Wiederholen" }),
+      );
+      await waitFor(() =>
+        expect(mocks.listChildGuardians.mock.calls.length).toBeGreaterThan(
+          loads,
+        ),
+      );
+      await waitFor(() =>
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+      );
+      expect(screen.getByText("Helga Schneider")).toBeInTheDocument();
+      expect(writeMock.mock.calls).toHaveLength(1);
+    }
+
+    it("keeps a sent invitation sent when the reload fails", async () => {
+      mocks.inviteRelatedAccount.mockResolvedValue({
+        outcome: "invited",
+        guardian_profile_id: "8",
+      });
+      mocks.listRelatedAccounts
+        .mockResolvedValueOnce([petra])
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue([petra]);
+      render(<GuardiansPanel studentId="42" canInvite canRemove={false} />);
+
+      expect(await screen.findByText("petra@example.test")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Einladen" }));
+      const dialog = screen.getByRole("dialog", { name: "App-Zugang geben" });
+      fireEvent.change(
+        within(dialog).getByLabelText(
+          "E-Mail-Adresse der Person, die Sie einladen möchten",
+        ),
+        { target: { value: "person@example.test" } },
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Einladung senden" }),
+      );
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(
+        screen.getByText("Einladung an person@example.test gesendet."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Helga Schneider")).toBeInTheDocument();
+      expect(screen.getByText("petra@example.test")).toBeInTheDocument();
+      expect(mocks.inviteRelatedAccount).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByRole("dialog", { name: "App-Zugang geben" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText(
+            "general.unavailable",
+            "die Liste der verbundenen Konten",
+          ),
+        ),
+      ).not.toBeInTheDocument();
+
+      await retryOnlyReloads(mocks.inviteRelatedAccount);
+    });
+
+    it("keeps a removed access removed when the reload fails", async () => {
+      mocks.removeRelatedAccount.mockResolvedValue(undefined);
+      mocks.listRelatedAccounts
+        .mockResolvedValueOnce([petra])
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue([]);
+      render(<GuardiansPanel studentId="42" canInvite={false} canRemove />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Zugang entziehen" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Ja, Zugang entziehen" }),
+      );
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(
+        screen.getByText("Der Zugang wurde entzogen."),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Helga Schneider")).toBeInTheDocument();
+      expect(mocks.removeRelatedAccount).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Freigabe für dieses Konto"),
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText(
+            "general.unavailable",
+            "die Liste der verbundenen Konten",
+          ),
+        ),
+      ).not.toBeInTheDocument();
+
+      await retryOnlyReloads(mocks.removeRelatedAccount);
+    });
+
+    it("keeps a saved contact saved when the reload fails", async () => {
+      mocks.listChildGuardians
+        .mockResolvedValueOnce([editableGuardian])
+        .mockRejectedValueOnce(down())
+        .mockResolvedValue([editableGuardian]);
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Bearbeiten" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.getByText("Kontaktdaten gespeichert.")).toBeInTheDocument();
+      expect(screen.getByText("Helga Schneider")).toBeInTheDocument();
+      expect(mocks.updateGuardianContact).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Liste der Kontakte"),
+        ),
+      ).not.toBeInTheDocument();
+
+      await retryOnlyReloads(mocks.updateGuardianContact);
     });
   });
 });

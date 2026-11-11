@@ -3,6 +3,8 @@
   "errorObjectEdit": "zmiana",
   "errorObjectReply": "odpowiedź",
   "errorObjectChangeRequests": "lista próśb o zmianę",
+  "reloadObject": "widok zgłoszenia",
+  "savedButStale": "Twoja zmiana została zapisana. Tylko widok nie jest jeszcze aktualny.",
   "changeRequestSent": "Prośbę o zmianę wysłano. {careTerm} ją sprawdzi.",
   "loading": "Ładowanie statusu…",
   "invalidTitle": "Link do statusu jest nieprawidłowy",

@@ -117,6 +117,8 @@
     "errorObjectAccounts": "список связанных аккаунтов",
     "errorObjectInvite": "приглашение",
     "errorObjectRemove": "доступ для этой учётной записи",
+    "reloadObject": "отображение контактов",
+    "savedButStale": "Ваше изменение сохранено. Только отображение ещё не обновлено.",
     "errorObjectContact": "изменение контакта",
     "errorObjectPickup": "порядок забора ребёнка"
   },

@@ -117,6 +117,8 @@
     "errorObjectAccounts": "bağlı hesaplar listesi",
     "errorObjectInvite": "davet",
     "errorObjectRemove": "bu hesabın erişimi",
+    "reloadObject": "kişiler görünümü",
+    "savedButStale": "Değişikliğiniz kaydedildi. Yalnızca görünüm henüz güncel değil.",
     "errorObjectContact": "kişi değişikliği",
     "errorObjectPickup": "teslim alma düzeni"
   },

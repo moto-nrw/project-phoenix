@@ -117,6 +117,8 @@
     "errorObjectAccounts": "lista połączonych kont",
     "errorObjectInvite": "zaproszenie",
     "errorObjectRemove": "dostęp dla tego konta",
+    "reloadObject": "widok kontaktów",
+    "savedButStale": "Twoja zmiana została zapisana. Tylko widok nie jest jeszcze aktualny.",
     "errorObjectContact": "zmiana kontaktu",
     "errorObjectPickup": "ustalenie dotyczące odbioru"
   },
