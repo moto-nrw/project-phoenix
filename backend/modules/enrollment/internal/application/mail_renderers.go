@@ -142,6 +142,7 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 	if strings.TrimSpace(payload.Recipient) == "" {
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
+	payload.ContainsPastDays = payload.ContainsPastDays || holidayClosureMailHasPastDays(payload, calendar.TodayDate())
 	closed, closedWaitlisted, closedPending := holidayClosureMailChildren(payload.Children)
 	reopened, reopenedWaitlisted, reopenedPending := holidayClosureMailChildren(payload.ReopenedChildren)
 	subject := "Ferienbetreuung: An einem gebuchten Tag ist geschlossen"

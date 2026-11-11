@@ -102,6 +102,7 @@ const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.s
     calendar.appointment_reminder_push_deliveries,
     calendar.appointment_targets,
     calendar.appointments,
+    calendar.holiday_closure_authorizations,
     calendar.holiday_closure_events,
     calendar.holiday_closure_proposals,
     calendar.holiday_closure_revisions,
@@ -314,7 +315,7 @@ const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.s
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '45ce144272f6f3f674c2f3d15c534584a6051f576bf53d83ea0d3a218c8081b7' THEN
+    ) AS edge) <> '867945f4a80f2e3566b74efd88b74b770b224758f78cb6450ca41b09b84938d3' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
@@ -396,6 +397,8 @@ const holidayClosureErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.s
     SELECT 1 FROM calendar.appointment_recipients AS c JOIN users.staff_school_memberships AS p ON c."staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM calendar.appointments AS c JOIN users.staff_school_memberships AS p ON c."organizer_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM calendar.holiday_closure_authorizations AS c JOIN calendar.holiday_closure_events AS p ON c."tenant_id" = p."tenant_id" AND c."event_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM calendar.holiday_closure_events AS c JOIN calendar.holiday_closure_proposals AS p ON c."proposal_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

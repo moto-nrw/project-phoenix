@@ -127,6 +127,7 @@ CREATE TABLE calendar.holiday_closure_events (
 	requested_channel TEXT CHECK (requested_channel IN ('school', 'traeger')),
 	requested_at TIMESTAMPTZ,
 	processed_at TIMESTAMPTZ,
+ prepared_at TIMESTAMPTZ,
 	completed_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -170,10 +171,11 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 		IF v_school IS NOT NULL AND v_traeger IS NULL THEN
 			-- A deleted source may withdraw commands that never prepared mail.
 			-- Keep the confirmed proposal and outcome until normal retirement.
-			IF OLD.tenant_id = v_school AND OLD.state IN ('pending', 'leased') AND OLD.processed_at IS NULL
+			IF OLD.tenant_id = v_school AND OLD.state IN ('pending', 'leased', 'blocked') AND OLD.prepared_at IS NULL
 				AND NEW.state = 'no_mail' AND NEW.error_code = 'source_withdrawn'
 				AND NEW.lease_token IS NULL AND NEW.lease_until IS NULL
 				AND NEW.processed_at = CURRENT_TIMESTAMP AND NEW.completed_at = CURRENT_TIMESTAMP
+				AND NEW.prepared_at IS NOT DISTINCT FROM OLD.prepared_at
 				AND NEW.attempts = OLD.attempts AND NEW.next_attempt_at = OLD.next_attempt_at
 				AND NEW.requested_channel IS NOT DISTINCT FROM OLD.requested_channel
 				AND NEW.requested_at IS NOT DISTINCT FROM OLD.requested_at
@@ -184,6 +186,7 @@ CREATE FUNCTION calendar.guard_holiday_closure_event()
 			END IF;
 			IF OLD.state NOT IN ('failed', 'blocked') OR NEW.state <> 'pending'
 				OR NEW.lease_token IS NOT NULL OR NEW.attempts IS DISTINCT FROM OLD.attempts
+				OR NEW.prepared_at IS DISTINCT FROM OLD.prepared_at
 				OR NEW.processed_at IS DISTINCT FROM OLD.processed_at OR NEW.completed_at IS DISTINCT FROM OLD.completed_at THEN
 				RAISE EXCEPTION 'a school only takes up a failed holiday closure event again'
 					USING ERRCODE = 'check_violation', CONSTRAINT = 'chk_holiday_closure_events_school_fields';
@@ -470,6 +473,7 @@ DROP POLICY IF EXISTS holiday_closure_reader_traeger_closing_days ON schedule.tr
 DROP POLICY IF EXISTS holiday_closure_reader_federal_state ON config.setting_values;
 DROP FUNCTION IF EXISTS calendar.holiday_closure_due_traeger_ids();
 DROP FUNCTION IF EXISTS calendar.lock_holiday_closure_memberships(BIGINT[]);
+DROP TABLE IF EXISTS calendar.holiday_closure_authorizations;
 DROP TABLE IF EXISTS calendar.holiday_closure_events;
 DROP TABLE IF EXISTS calendar.holiday_closure_proposals;
 DROP TABLE IF EXISTS calendar.holiday_closure_revisions;
@@ -494,6 +498,12 @@ func holidayClosureEventsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, holidayClosureCalendarUpSQL); err != nil {
 		return fmt.Errorf("create the holiday closure proposals and events: %w", err)
 	}
+	if err := installHolidayClosureAuthorizations(ctx, db); err != nil {
+		return err
+	}
+	if err := installHolidayClosureDemoErasure(ctx, db); err != nil {
+		return err
+	}
 	if _, err := db.ExecContext(ctx, holidayClosureReaderUpSQL); err != nil {
 		return fmt.Errorf("create the read channel of the holiday closure worker: %w", err)
 	}
@@ -509,6 +519,9 @@ func holidayClosureEventsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func holidayClosureEventsDown(ctx context.Context, db *bun.DB) error {
+	if err := installEmptyRunErasure(ctx, db); err != nil {
+		return err
+	}
 	if err := installSchoolErasureSteps(ctx, db, "remove the holiday closure notices from the school erasure",
 		installAttendanceRetentionMarkErasurePlan, installEmailDeliveryEventErasurePreflight, installAttendanceRetentionMarkErasureResidual,
 		installAttendanceRetentionMarkErasureDelete, installAttendanceRetentionMarkErasurePreview); err != nil {

@@ -11392,6 +11392,7 @@ export const traegerClosingDaysTopic =
       ],
       troubleshootingDetails: [
         "Beim Speichern steht, die gebuchten Ferientage haben sich geändert? Inzwischen hat jemand gebucht oder storniert. Prüfen Sie die neue Liste im Dialog und speichern Sie noch einmal.",
+        "Auch ohne Schulhinweis können E-Mails ausfallen. Die Karte `Eltern noch nicht informiert` zeigt ihre Zahl. Wählen Sie `Erneut senden`. Bereits angenommene E-Mails werden nicht wiederholt.",
         "Eine Zeile zeigt `Nicht angekommen`? Wählen Sie noch einmal `Eltern informieren`. Familien, die schon eine E-Mail haben, bekommen keine zweite.",
         "Eine Zeile zeigt `Ergebnis unbekannt`? Schreiben Sie dem moto-Team. Es prüft den Versand.",
         "Nach dem Klick steht, der Schließtag wurde geändert? Die Schule hat ihn inzwischen geändert. Prüfen Sie die Zeile und wählen Sie noch einmal `Eltern informieren`.",

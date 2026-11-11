@@ -103,7 +103,7 @@ func newClosureWorldIn(t *testing.T, name string, db *bun.DB) closureWorld {
 		owners.NewHolidayOfficeTraeger(organizations), mail)
 	return closureWorld{
 		db: db, ctx: tenant.WithUnitOfWork(context.Background(), unit), organization: organization, school: school, records: records,
-		notices: owners.NewHolidayClosureNotifications(closures, organizations, slog.Default()), closures: closures, mail: mail,
+		notices: owners.NewHolidayClosureNotifications(closures, organizations, mail, slog.Default()), closures: closures, mail: mail,
 	}
 }
 

@@ -99,6 +99,7 @@ const holidayClosureErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school
   {"name": "calendar.appointment_reminder_push_deliveries","predicate": "r.tenant_id = $1"},
   {"name": "calendar.appointment_targets","predicate": "r.tenant_id = $1"},
   {"name": "calendar.appointments","predicate": "r.tenant_id = $1"},
+  {"name": "calendar.holiday_closure_authorizations","predicate": "r.tenant_id = $1"},
   {"name": "calendar.holiday_closure_events","predicate": "r.tenant_id = $1"},
   {"name": "calendar.holiday_closure_proposals","predicate": "r.tenant_id = $1"},
   {"name": "calendar.holiday_closure_revisions","predicate": "r.tenant_id = $1"},

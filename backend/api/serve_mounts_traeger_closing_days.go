@@ -50,7 +50,7 @@ func newHolidayClosures(organizations HolidayOrganizations, mail owners.HolidayC
 func mountHolidayClosureNotificationRoutes(root, tenant chi.Router, organizations HolidayOrganizations,
 	mail owners.HolidayClosureMail, holidayCalendar enrollmentOwner.HolidaySchoolCalendar, holidays owners.HolidayClosureHolidays, logger *slog.Logger,
 ) {
-	notices := owners.NewHolidayClosureNotifications(newHolidayClosures(organizations, mail, holidayCalendar, holidays), organizations,
+	notices := owners.NewHolidayClosureNotifications(newHolidayClosures(organizations, mail, holidayCalendar, holidays), organizations, mail,
 		logger.With("workflow", "holiday-closure-notification"))
 	resource := holidayClosureHTTP.NewResource(notices, common.RequiresPermission(permissions.SchedulesUpdate),
 		common.RequiresPermission(permissions.SchedulesUpdate), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))

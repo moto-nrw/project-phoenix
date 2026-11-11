@@ -35,6 +35,7 @@ type Capability interface {
 // caller's Träger transaction of organizationID. A repetition is another
 // attempt of the same mail, never a new one.
 type TraegerMails interface {
+	UnresolvedHolidayClosureEmails(ctx context.Context, organizationID int64) ([]deliveryContract.HolidayClosureMailRecovery, error)
 	TraegerEmailStatusesByKey(ctx context.Context, organizationID int64, idempotencyKeys []string) ([]deliveryContract.Status, error)
 	RetryFailedTraegerEmails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int64, error)
 }

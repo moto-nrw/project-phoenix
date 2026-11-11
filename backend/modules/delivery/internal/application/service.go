@@ -475,3 +475,25 @@ func boolCount(value bool) int {
 	}
 	return 0
 }
+
+// UnresolvedHolidayClosureEmails reports recovery metadata without recipients or message content.
+func (s *Service) UnresolvedHolidayClosureEmails(ctx context.Context, organizationID int64) ([]deliveryContract.HolidayClosureMailRecovery, error) {
+	if organizationID <= 0 {
+		return nil, errors.New("delivery: Träger is required")
+	}
+	rows, err := s.store.UnresolvedHolidayClosureEmails(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]deliveryContract.HolidayClosureMailRecovery, 0, len(rows))
+	for _, row := range rows {
+		if row.IdempotencyKey == nil {
+			continue
+		}
+		result = append(result, deliveryContract.HolidayClosureMailRecovery{
+			IdempotencyKey: *row.IdempotencyKey,
+			Unknown:        row.LastError != nil && *row.LastError == deliveryContract.DispatchOutcomeUnknown,
+		})
+	}
+	return result, nil
+}

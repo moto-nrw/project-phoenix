@@ -205,7 +205,9 @@ func settledState(delivery enrollment.HolidayClosureDelivery) string {
 		return schoolcalendar.HolidayClosureEventPrepared
 	case delivery.Sent > 0:
 		return schoolcalendar.HolidayClosureEventCompleted
+	// Send evidence follows its registrations by CASCADE. Waiting commands
+	// with no remaining recipients are resolved without claiming delivery.
 	default:
-		return ""
+		return schoolcalendar.HolidayClosureEventNoMail
 	}
 }

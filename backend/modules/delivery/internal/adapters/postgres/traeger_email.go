@@ -108,3 +108,24 @@ func (s *Store) RetryFailedTraegerEmails(ctx context.Context, organizationID int
 	}
 	return result.RowsAffected()
 }
+
+const unresolvedHolidayClosureEmailsSQL = `SELECT id, organization_id, kind, idempotency_key, status, last_error,
+ attempts, next_retry_at, sent_at, dead_letter_at, cancelled_at, created_at, updated_at, delivery_state, delivery_state_at
+ FROM platform.email_outbox
+ WHERE tenant_id IS NULL AND organization_id = ? AND kind = 'holiday_closure_notice' AND idempotency_key IS NOT NULL
+  AND (status = 'dead_letter' OR (status = 'cancelled' AND last_error IN (?, ?)))
+ ORDER BY id`
+
+// UnresolvedHolidayClosureEmails includes legacy and Träger-created notices
+// without requiring a school command. It exposes no recipient or content.
+func (s *Store) UnresolvedHolidayClosureEmails(ctx context.Context, organizationID int64) ([]domain.Intent, error) {
+	db, err := RequireTraegerDatabase(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []intentRow
+	if err := db.NewRaw(unresolvedHolidayClosureEmailsSQL, organizationID, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("delivery postgres: list unresolved holiday closure mail: %w", err)
+	}
+	return toDomainRows(domain.TransportEmail, rows), nil
+}

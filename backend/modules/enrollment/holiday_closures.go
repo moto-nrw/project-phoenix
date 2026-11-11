@@ -201,10 +201,11 @@ type HolidayClosureNotice struct {
 // HolidayClosureMailWeek is one booked week of a child in the notice with
 // its closed days, formatted for the mail.
 type HolidayClosureMailWeek struct {
-	Week       string   `json:"week"`
-	ClosedDays []string `json:"closed_days"`
-	Waitlisted bool     `json:"waitlisted"`
-	Pending    bool     `json:"pending,omitempty"`
+	Dates      []calendar.Date `json:"dates,omitempty"`
+	Week       string          `json:"week"`
+	ClosedDays []string        `json:"closed_days"`
+	Waitlisted bool            `json:"waitlisted"`
+	Pending    bool            `json:"pending,omitempty"`
 }
 
 // HolidayClosureMailChild is a child of the notice with its affected weeks.

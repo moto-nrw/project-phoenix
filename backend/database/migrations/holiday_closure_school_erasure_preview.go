@@ -106,6 +106,7 @@ const holidayClosureErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('calendar.appointment_reminder_push_deliveries',(SELECT count(*) FROM calendar.appointment_reminder_push_deliveries AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.appointment_targets',(SELECT count(*) FROM calendar.appointment_targets AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.appointments',(SELECT count(*) FROM calendar.appointments AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('calendar.holiday_closure_authorizations',(SELECT count(*) FROM calendar.holiday_closure_authorizations AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.holiday_closure_events',(SELECT count(*) FROM calendar.holiday_closure_events AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.holiday_closure_proposals',(SELECT count(*) FROM calendar.holiday_closure_proposals AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('calendar.holiday_closure_revisions',(SELECT count(*) FROM calendar.holiday_closure_revisions AS r WHERE r.tenant_id = p_school));

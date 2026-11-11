@@ -58,6 +58,8 @@ export function TraegerHolidayClosureNotices({
   const { show: showError } = useApiErrorDisplay();
   const { success } = useToast();
 
+  const retryableMails = pending?.retryableMails ?? 0;
+  const unknownMails = pending?.unknownMails ?? 0;
   const notices = pending?.notices ?? [];
   const suggested = notices.filter(
     (notice) => notice.status === "suggested" && !isSending(notice.id),
@@ -69,7 +71,9 @@ export function TraegerHolidayClosureNotices({
     try {
       const families = await notifyPendingHolidayClosures(pending.token);
       success(
-        `${familiesLabel(families)} ${families === 1 ? "bekommt" : "bekommen"} eine E-Mail.`,
+        retryableMails > 0 && suggested.length === 0
+          ? "Erneuter Versand ist beauftragt."
+          : `${familiesLabel(families)} ${families === 1 ? "bekommt" : "bekommen"} eine E-Mail.`,
       );
     } catch (err) {
       logger.error("traeger_holiday_closure_notify_failed", {
@@ -86,7 +90,7 @@ export function TraegerHolidayClosureNotices({
         });
       });
     }
-  }, [pending, reload, showError, success]);
+  }, [pending, reload, retryableMails, showError, success, suggested.length]);
 
   const rows: HolidayClosureNoticeRowContent<TraegerHolidayClosureNotice>[] =
     notices.map((notice) => {
@@ -117,17 +121,36 @@ export function TraegerHolidayClosureNotices({
   return (
     <HolidayClosureNoticeList
       title="Eltern noch nicht informiert"
-      description="Diese Schließtage haben Schulen selbst eingetragen. Sie liegen in gebuchten Ferienwochen. Die Eltern bekommen erst eine E-Mail, wenn Sie oder die Schule „Eltern informieren“ wählen."
+      description="Schulhinweise brauchen einen Klick von Ihnen oder der Schule. Fehlgeschlagene E-Mails können Sie erneut senden."
       rows={rows}
       intro={
-        suggested.length > 0 ? (
-          <HolidayClosureConsequences
-            keepsContribution={pending?.keepsContribution ?? true}
-          />
+        suggested.length > 0 || retryableMails > 0 || unknownMails > 0 ? (
+          <div className="space-y-2 text-sm">
+            {retryableMails > 0 ? (
+              <p>
+                {retryableMails === 1
+                  ? "1 E-Mail ist nicht angekommen."
+                  : `${retryableMails} E-Mails sind nicht angekommen.`}{" "}
+                Ein Klick versucht den Versand erneut.
+              </p>
+            ) : null}
+            {unknownMails > 0 ? (
+              <p>
+                Bei {unknownMails} E-Mail{unknownMails === 1 ? "" : "s"} ist das
+                Ergebnis unbekannt. Bitte lassen Sie den Versand vom moto-Team
+                prüfen.
+              </p>
+            ) : null}
+            {suggested.length > 0 ? (
+              <HolidayClosureConsequences
+                keepsContribution={pending?.keepsContribution ?? true}
+              />
+            ) : null}
+          </div>
         ) : null
       }
       action={
-        suggested.length > 1 ? (
+        suggested.length > 1 || retryableMails > 0 ? (
           <Button
             type="button"
             variant="primary"
@@ -137,7 +160,7 @@ export function TraegerHolidayClosureNotices({
             loadingText="Wird gesendet..."
           >
             <Mail className="h-4 w-4" aria-hidden="true" />
-            Alle Eltern informieren
+            {suggested.length > 0 ? "Alle Eltern informieren" : "Erneut senden"}
           </Button>
         ) : null
       }

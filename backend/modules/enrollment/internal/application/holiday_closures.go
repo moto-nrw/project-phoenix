@@ -746,6 +746,7 @@ func (m *mailChildren) add(booking changedBooking, line string, days []enrollmen
 		Pending: booking.Placement == enrollment.HolidayPlacementPending}
 	for _, day := range days {
 		week.ClosedDays = append(week.ClosedDays, germanDay(day.Date))
+		week.Dates = append(week.Dates, day.Date)
 	}
 	m.children[i].Weeks = append(m.children[i].Weeks, week)
 }

@@ -8,23 +8,24 @@ import (
 )
 
 const (
-	holidayClosureErasureTables = `{"name": "calendar.holiday_closure_events","predicate": "r.tenant_id = $1"},
+	holidayClosureErasureTables = `{"name": "calendar.holiday_closure_authorizations","predicate": "r.tenant_id = $1"},
+  {"name": "calendar.holiday_closure_events","predicate": "r.tenant_id = $1"},
   {"name": "calendar.holiday_closure_proposals","predicate": "r.tenant_id = $1"},
   {"name": "calendar.holiday_closure_revisions","predicate": "r.tenant_id = $1"},
   `
 	holidayClosureErasurePlanAnchor     = `{"name": "calendar.parent_conference_bookings",`
 	holidayClosureErasureLockAnchor     = "    calendar.parent_conference_bookings,\n"
-	holidayClosureErasureLock           = "    calendar.holiday_closure_events,\n    calendar.holiday_closure_proposals,\n    calendar.holiday_closure_revisions,\n"
+	holidayClosureErasureLock           = "    calendar.holiday_closure_authorizations,\n    calendar.holiday_closure_events,\n    calendar.holiday_closure_proposals,\n    calendar.holiday_closure_revisions,\n"
 	holidayClosureErasureScopeAnchor    = "    SELECT 1 FROM calendar.parent_conference_bookings AS c JOIN calendar.appointments AS p"
-	holidayClosureErasureScope          = "    SELECT 1 FROM calendar.holiday_closure_events AS c JOIN calendar.holiday_closure_proposals AS p ON c.\"proposal_id\" = p.\"id\" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)\n    UNION ALL\n"
+	holidayClosureErasureScope          = "    SELECT 1 FROM calendar.holiday_closure_authorizations AS c JOIN calendar.holiday_closure_events AS p ON c.\"tenant_id\" = p.\"tenant_id\" AND c.\"event_id\" = p.\"id\" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)\n    UNION ALL\n    SELECT 1 FROM calendar.holiday_closure_events AS c JOIN calendar.holiday_closure_proposals AS p ON c.\"proposal_id\" = p.\"id\" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)\n    UNION ALL\n"
 	holidayClosureErasureSignatureOld   = "3c5470c3e959fd028116c405a08023e05d22daf1ebad0da585b09d63b49440f8"
-	holidayClosureErasureSignatureNew   = "45ce144272f6f3f674c2f3d15c534584a6051f576bf53d83ea0d3a218c8081b7"
+	holidayClosureErasureSignatureNew   = "867945f4a80f2e3566b74efd88b74b770b224758f78cb6450ca41b09b84938d3"
 	holidayClosureErasureDeleteAnchor   = "   SELECT count(*) INTO v_count FROM calendar.parent_conference_bookings AS r"
 	holidayClosureErasurePreviewAnchor  = " v_counts := v_counts || jsonb_build_object('calendar.parent_conference_bookings',"
 	holidayClosureErasureResidualAnchor = "    SELECT 1 FROM calendar.parent_conference_bookings AS r WHERE r.tenant_id = p_school_id\n"
 )
 
-var holidayClosureErasureNames = []string{"calendar.holiday_closure_events", "calendar.holiday_closure_proposals", "calendar.holiday_closure_revisions"}
+var holidayClosureErasureNames = []string{"calendar.holiday_closure_authorizations", "calendar.holiday_closure_events", "calendar.holiday_closure_proposals", "calendar.holiday_closure_revisions"}
 
 func holidayClosureErasureDeletes() string {
 	var b strings.Builder

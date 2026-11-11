@@ -121,7 +121,7 @@ func (d holidayOfficeTraeger) HolidayTraeger(ctx context.Context, organizationID
 func HolidayClosureNotificationsJob(unit tenant.UnitOfWork, holidayCalendar enrollment.HolidaySchoolCalendar, holidays HolidayClosureHolidays,
 	organizations HolidayOfficeOrganizations, mail HolidayClosureMail, logger *slog.Logger,
 ) schedulerPorts.HolidayClosureNotifications {
-	notices := NewHolidayClosureNotifications(NewHolidayClosures(holidayCalendar, holidays, NewHolidayOfficeTraeger(organizations), mail), organizations,
+	notices := NewHolidayClosureNotifications(NewHolidayClosures(holidayCalendar, holidays, NewHolidayOfficeTraeger(organizations), mail), organizations, mail,
 		logger.With("workflow", "holiday-closure-notification"))
 	watchdog := schoolCalendarCompose.NewHolidayClosureEvents()
 	return schedulerPorts.HolidayClosureNotifications{

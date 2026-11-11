@@ -3,7 +3,6 @@ package holidayclosurenotification
 import (
 	"context"
 	"errors"
-	"fmt"
 	"hash/fnv"
 	"log/slog"
 	"maps"
@@ -20,6 +19,7 @@ import (
 // Dependencies are the owners' ports and the units.
 type Dependencies struct {
 	Proposals ports.Proposals
+	Mails     ports.Mails
 	Queue     ports.Queue
 	Closures  ports.Closures
 	Schools   ports.Schools
@@ -38,7 +38,7 @@ var _ Notifications = (*Service)(nil)
 // New builds the workflow over the ports the root binds.
 func New(dependencies Dependencies) *Service {
 	if dependencies.Proposals == nil || dependencies.Queue == nil || dependencies.Closures == nil ||
-		dependencies.Schools == nil || dependencies.Units == nil {
+		dependencies.Schools == nil || dependencies.Units == nil || dependencies.Mails == nil {
 		panic("holiday closure notification: every dependency is required")
 	}
 	if dependencies.Logger == nil {
@@ -350,33 +350,27 @@ func (s *Service) PendingHolidayClosures(ctx context.Context, organizationID int
 		Notices:              []TraegerNotice{},
 	}
 	err := s.Units.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
-		schools, err := s.currentSchools(ctx, organizationID)
-		if err != nil {
-			return err
-		}
 		notices, err := s.Proposals.TraegerHolidayClosureNotices(ctx, organizationID)
 		if err != nil {
 			return err
+		}
+		var schools map[int64]string
+		if len(notices) > 0 {
+			schools, err = s.currentSchools(ctx, organizationID)
+			if err != nil {
+				return err
+			}
 		}
 		notices = currentNotices(notices, organizationID, schools)
 		planned, err := s.plans(ctx, organizationID, notices)
 		if err != nil {
 			return err
 		}
-		var tokens []string
-		for _, notice := range notices {
-			item, impact, keep := traegerItem(notice, schools, planned)
-			if !keep {
-				continue
-			}
-			if notice.Status == schoolcalendar.HolidayClosureSuggested {
-				pending.Weeks = append(pending.Weeks, impact.Weeks...)
-				pending.Children += impact.Children
-				pending.Families += impact.Families
-				tokens = append(tokens, fmt.Sprintf("%d:%d:%s", notice.ProposalID, notice.Revision, impact.Token))
-			}
-			pending.Notices = append(pending.Notices, item)
+		tokens, err := s.mailRecovery(ctx, organizationID, &pending)
+		if err != nil {
+			return err
 		}
+		tokens = append(tokens, appendPendingNotices(&pending, notices, schools, planned)...)
 		pending.Token = pendingToken(tokens)
 		return nil
 	})
@@ -430,6 +424,10 @@ func (s *Service) NotifyPendingHolidayClosures(ctx context.Context, organization
 		}
 	}
 	var result NotifiedPending
+	result.RetriedMails, err = s.retryPendingMails(ctx, organizationID, pending.mailKeys)
+	if err != nil {
+		return result, err
+	}
 	var operations []string
 	for _, schoolID := range slices.Sorted(maps.Keys(bySchool)) {
 		confirmed, operationIDs, err := s.confirmAtSchool(ctx, organizationID, accountID, schoolID, bySchool[schoolID])
@@ -439,7 +437,7 @@ func (s *Service) NotifyPendingHolidayClosures(ctx context.Context, organization
 			return result, err
 		}
 	}
-	if result.Notices > 0 {
+	if result.Notices > 0 || result.RetriedMails > 0 {
 		if err := s.processTraeger(ctx, organizationID); err != nil {
 			s.Logger.Warn("holiday closure notices left for the worker",
 				"organization_id", organizationID,

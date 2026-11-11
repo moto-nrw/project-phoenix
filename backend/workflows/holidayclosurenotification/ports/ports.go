@@ -38,3 +38,14 @@ type Units interface {
 type Schools interface {
 	ListSchoolsByOrganization(ctx context.Context, organizationID int64) ([]organizationtenancy.School, error)
 }
+
+// ClosureMailRecovery names existing mail only; an unknown outcome never authorizes a retry.
+type ClosureMailRecovery struct {
+	Key     string
+	Unknown bool
+}
+
+type Mails interface {
+	HolidayClosureMailRecovery(context.Context, int64) ([]ClosureMailRecovery, error)
+	RetryFailedTraegerEmails(context.Context, int64, []string) (int64, error)
+}

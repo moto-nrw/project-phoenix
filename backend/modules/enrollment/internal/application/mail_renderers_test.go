@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -500,4 +501,22 @@ func TestHolidayClosureRendererMarksElapsedDates(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Ferienbetreuung: Hinweis zu vergangenen Schließtagen", rendered.Subject)
 	assert.Equal(t, true, contentOf(t, rendered)["ContainsPastDays"])
+}
+
+func TestHolidayClosureRendererRecognizesDatesPassedInTheOutbox(t *testing.T) {
+	t.Parallel()
+	rendered, err := NewMailRenderers().HolidayClosureNotice(t.Context(), enrollment.MailKindHolidayClosureNotice,
+		json.RawMessage(`{"recipient_email":"guardian@example.test","reopened_children":[{"name":"Tom","weeks":[{"week":"Sommerferien","closed_days":["Montag, 03.07.2000"],"dates":["2000-07-03"]}]}]}`))
+	require.NoError(t, err)
+	assert.Equal(t, true, contentOf(t, rendered)["ContainsPastDays"])
+	assert.Contains(t, rendered.Subject, "vergangenen")
+}
+
+func TestHolidayClosureMailDatesAreEvaluatedForEachDispatch(t *testing.T) {
+	t.Parallel()
+	for _, dates := range [][]calendar.Date{nil, {calendar.NewDate(2030, 7, 8)}} {
+		mail := enrollment.HolidayClosureMail{ReopenedChildren: []enrollment.HolidayClosureMailChild{{Weeks: []enrollment.HolidayClosureMailWeek{{ClosedDays: []string{"Montag, 08.07.2030"}, Dates: dates}}}}}
+		assert.False(t, holidayClosureMailHasPastDays(mail, calendar.NewDate(2030, 7, 7)))
+		assert.True(t, holidayClosureMailHasPastDays(mail, calendar.NewDate(2030, 7, 9)), "ISO and legacy persisted payloads both change with the dispatch day")
+	}
 }

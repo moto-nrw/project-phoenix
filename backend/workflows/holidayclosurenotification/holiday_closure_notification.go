@@ -69,13 +69,17 @@ type TraegerNotice struct {
 // the token the click confirms, and every notice the Büro follows.
 type Pending struct {
 	enrollment.HolidayClosureImpact
-	Notices []TraegerNotice `json:"notices"`
+	Notices        []TraegerNotice `json:"notices"`
+	RetryableMails int             `json:"retryable_mails"`
+	UnknownMails   int             `json:"unknown_mails"`
+	mailKeys       []string
 }
 
 // NotifiedPending is the answer of the Büro's click on the whole list.
 type NotifiedPending struct {
-	Notices  int `json:"notices"`
-	Families int `json:"families"`
+	RetriedMails int64 `json:"retried_mails"`
+	Notices      int   `json:"notices"`
+	Families     int   `json:"families"`
 }
 
 // Notifications is the workflow.

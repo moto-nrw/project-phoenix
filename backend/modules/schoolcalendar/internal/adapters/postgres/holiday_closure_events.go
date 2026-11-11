@@ -37,7 +37,7 @@ const (
 	unfinishedHolidayClosureEventSQL = `SELECT event.id, event.state, event.span_from, event.span_to, proposal.previous_start, proposal.previous_end
   FROM calendar.holiday_closure_events AS event JOIN calendar.holiday_closure_proposals AS proposal
    ON proposal.id = event.proposal_id AND proposal.tenant_id = event.tenant_id
-  WHERE event.tenant_id = ? AND event.source_kind = ? AND event.source_id = ? AND ((event.state IN ('pending', 'leased') AND event.processed_at IS NULL)
+  WHERE event.tenant_id = ? AND event.source_kind = ? AND event.source_id = ? AND ((event.state IN ('pending', 'leased', 'blocked', 'failed') AND event.prepared_at IS NULL)
    OR event.state = 'needs_confirmation')
    AND NOT EXISTS (SELECT 1 FROM calendar.holiday_closure_events AS newer
     WHERE newer.tenant_id = event.tenant_id AND newer.source_kind = event.source_kind
@@ -59,7 +59,7 @@ const (
   SET state = 'no_mail', error_code = 'source_withdrawn', lease_token = NULL, lease_until = NULL,
    processed_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
   WHERE tenant_id = ? AND source_kind = ? AND source_id = ?
-   AND state IN ('pending', 'leased') AND processed_at IS NULL`
+   AND state IN ('pending', 'leased', 'blocked') AND prepared_at IS NULL`
 
 	holidayClosureNoticeColumns = `proposal.id AS proposal_id, proposal.tenant_id, proposal.organization_id, proposal.source_id,
 		proposal.reason, proposal.previous_start, proposal.previous_end, proposal.current_start, proposal.current_end,
@@ -112,6 +112,7 @@ const (
 	finishHolidayClosureEventSQL = `UPDATE calendar.holiday_closure_events
 		SET state = ?, error_code = NULLIF(?, ''), lease_token = NULL, lease_until = NULL,
 			processed_at = CURRENT_TIMESTAMP,
+   prepared_at = CASE WHEN ? IN ('prepared', 'no_mail') THEN COALESCE(prepared_at, CURRENT_TIMESTAMP) ELSE prepared_at END,
 			completed_at = CASE WHEN ? IN ('completed', 'no_mail') THEN CURRENT_TIMESTAMP ELSE NULL END,
 			next_attempt_at = COALESCE(?, next_attempt_at)
 		WHERE organization_id = ? AND id = ? AND state = 'leased' AND lease_token = ?::uuid`
@@ -127,7 +128,8 @@ const (
 		WHERE event.organization_id = ? AND event.state IN ('prepared', 'unknown', 'failed')
 		ORDER BY event.id`
 	settleHolidayClosureEventsSQL = `UPDATE calendar.holiday_closure_events AS event
-  SET state = changes.state, completed_at = CASE WHEN changes.state = 'completed' THEN CURRENT_TIMESTAMP ELSE event.completed_at END
+  SET state = changes.state, completed_at = CASE WHEN changes.state IN ('completed', 'no_mail') THEN CURRENT_TIMESTAMP ELSE event.completed_at END,
+   error_code = CASE WHEN changes.state = 'no_mail' THEN 'recipients_erased' ELSE event.error_code END
   FROM unnest(?::bigint[], ?::text[]) AS changes(id, state)
   WHERE event.organization_id = ? AND event.id = changes.id AND event.state IN ('prepared', 'unknown', 'failed')`
 	retireHolidayClosureEventsSQL = `DELETE FROM calendar.holiday_closure_proposals AS proposal
@@ -599,7 +601,7 @@ func (s *HolidayClosureEventStore) FinishHolidayClosureEvent(ctx context.Context
 	if !outcome.RetryAt.IsZero() {
 		retryAt = &outcome.RetryAt
 	}
-	result, err := db.NewRaw(finishHolidayClosureEventSQL, outcome.State, outcome.ErrorCode, outcome.State, retryAt,
+	result, err := db.NewRaw(finishHolidayClosureEventSQL, outcome.State, outcome.ErrorCode, outcome.State, outcome.State, retryAt,
 		organizationID, eventID, leaseToken).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("school calendar postgres: finish the holiday closure event: %w", err)
@@ -640,7 +642,7 @@ func (s *HolidayClosureEventStore) SettleHolidayClosureEvents(ctx context.Contex
 	for i, settlement := range settlements {
 		switch settlement.State {
 		case schoolcalendar.HolidayClosureEventPrepared, schoolcalendar.HolidayClosureEventFailed,
-			schoolcalendar.HolidayClosureEventUnknown, schoolcalendar.HolidayClosureEventCompleted:
+			schoolcalendar.HolidayClosureEventUnknown, schoolcalendar.HolidayClosureEventCompleted, schoolcalendar.HolidayClosureEventNoMail:
 		default:
 			return errors.New("school calendar postgres: invalid holiday closure delivery state")
 		}

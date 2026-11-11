@@ -189,6 +189,8 @@ const holidayClosureErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.sc
     UNION ALL
     SELECT 1 FROM calendar.appointments AS r WHERE r.tenant_id = p_school_id
     UNION ALL
+    SELECT 1 FROM calendar.holiday_closure_authorizations AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
     SELECT 1 FROM calendar.holiday_closure_events AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM calendar.holiday_closure_proposals AS r WHERE r.tenant_id = p_school_id

@@ -461,3 +461,179 @@ func TestEditedNoticeReplacesAnOutstandingRenewal(t *testing.T) {
 		})
 	}
 }
+
+func TestPreparationFailureKeepsTheLastToldSourceRange(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorldIn(t, "Träger Vorbereitung fehlgeschlagen", testpkg.SetupIsolatedTestDB(t))
+	day := w.createClosingDay(t, "2030-07-08", "2030-07-08")
+	n := w.schoolNotices(t)[0]
+	_, err := w.notices.NotifyFromSchool(w.ctx, w.school, 0, n.ID, n.Revision, n.Token)
+	require.NoError(t, err)
+	move := func(date string) {
+		_, err := w.records.UpdateClosingDay(w.schoolCtx(), schoolcalendar.UpdateClosingDay{ID: day.ID, ClosingDayFields: schoolcalendar.ClosingDayFields{StartDate: date, EndDate: date, Reason: "Verschoben"}})
+		require.NoError(t, err)
+	}
+	move("2030-07-12")
+	events := schoolCalendarCompose.NewHolidayClosureEvents()
+	for _, notice := range w.schoolNotices(t) {
+		if notice.Status != "suggested" {
+			continue
+		}
+		require.NoError(t, tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+			_, err := events.ConfirmHolidayClosureNotice(ctx, notice.ID, notice.Revision, schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool, ImpactToken: notice.Token})
+			return err
+		}))
+	}
+	require.NoError(t, testpkg.WithinTraeger(w.ctx, w.organization, func(ctx context.Context) error {
+		event, leased, err := events.LeaseHolidayClosureEvent(ctx, w.organization, time.Minute)
+		require.NoError(t, err)
+		require.True(t, leased)
+		return events.FinishHolidayClosureEvent(ctx, w.organization, event.ID, event.LeaseToken, schoolcalendar.HolidayClosureOutcome{State: schoolcalendar.HolidayClosureEventPending, ErrorCode: "processing_failed", RetryAt: time.Now().Add(time.Hour)})
+	}))
+	move("2030-07-11")
+	var latest notification.Notice
+	for _, notice := range w.schoolNotices(t) {
+		if notice.Status == "suggested" {
+			latest = notice
+		}
+	}
+	require.NotNil(t, latest.Previous)
+	assert.Equal(t, calendar.NewDate(2030, 7, 8), latest.Previous.StartDate)
+	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, latest.ID, latest.Revision, latest.Token)
+	require.NoError(t, err)
+	require.Len(t, w.mails(t), 4)
+	assert.Contains(t, string(w.mails(t)[1].Payload), "Montag, 08.07.2030")
+}
+
+func TestErasedRegistrationsResolveWaitingCommands(t *testing.T) {
+	t.Parallel()
+	for _, state := range []string{"prepared", "unknown"} {
+		t.Run(state, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			w := newClosureWorldIn(t, "Träger gelöschte Anmeldungen", testpkg.SetupIsolatedTestDB(t))
+			w.createClosingDay(t, "2030-07-08", "2030-07-08")
+			n := w.schoolNotices(t)[0]
+			_, err := w.notices.NotifyFromSchool(w.ctx, w.school, 0, n.ID, n.Revision, n.Token)
+			require.NoError(t, err)
+			_, err = w.db.ExecContext(w.ctx, `UPDATE calendar.holiday_closure_events SET state=? WHERE organization_id=?`, state, w.organization)
+			require.NoError(t, err)
+			_, err = w.db.ExecContext(w.ctx, `DELETE FROM enrollment.holiday_registrations WHERE organization_id=?`, w.organization)
+			require.NoError(t, err)
+			require.NoError(t, w.notices.ProcessDue(w.ctx))
+			assert.Equal(t, []string{"no_mail"}, w.events(t), "erased recipients require no further transport work")
+			events := schoolCalendarCompose.NewHolidayClosureEvents()
+			require.NoError(t, tenant.WithAdminTx(w.ctx, w.db, func(ctx context.Context, _ bun.Tx) error {
+				due, err := events.DueHolidayClosureTraeger(ctx)
+				require.NoError(t, err)
+				assert.NotContains(t, due, w.organization, "resolved erasure no longer polls transport")
+				overdue, err := events.OverdueHolidayClosureEvents(ctx, 15*time.Minute)
+				require.NoError(t, err)
+				assert.Zero(t, overdue)
+				return nil
+			}))
+			_, err = w.db.ExecContext(w.ctx, `UPDATE calendar.holiday_closure_events SET completed_at=NOW()-interval '31 days' WHERE organization_id=?`, w.organization)
+			require.NoError(t, err)
+			require.NoError(t, w.notices.ProcessDue(w.ctx))
+			assert.Empty(t, w.events(t))
+			var authorizations int
+			require.NoError(t, w.db.NewRaw(`SELECT count(*) FROM calendar.holiday_closure_authorizations WHERE tenant_id=?`, w.school).Scan(w.ctx, &authorizations))
+			assert.Zero(t, authorizations, "authorization history retires with its resolved command")
+		})
+	}
+}
+
+func TestAuthorizationHistoryCommitsWithTheCommandAndAnonymizesActors(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorldIn(t, "Träger Freigabenachweis", testpkg.SetupIsolatedTestDB(t))
+	first := testpkg.CreateTestAccount(t, w.db, "closure.approver@example.org")
+	retry := testpkg.CreateTestAccount(t, w.db, "closure.retry@example.org")
+	w.createClosingDay(t, "2030-07-08", "2030-07-08")
+	n := w.schoolNotices(t)[0]
+	events := schoolCalendarCompose.NewHolidayClosureEvents()
+	err := tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+		_, err := events.ConfirmHolidayClosureNotice(ctx, n.ID, n.Revision, schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool, AccountID: first.ID, ImpactToken: n.Token})
+		if err != nil {
+			return err
+		}
+		return context.Canceled
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	var rolledBack int
+	require.NoError(t, w.db.NewRaw(`SELECT count(*) FROM calendar.holiday_closure_authorizations WHERE tenant_id=?`, w.school).Scan(w.ctx, &rolledBack))
+	assert.Zero(t, rolledBack)
+	assert.Empty(t, w.events(t))
+	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, first.ID, n.ID, n.Revision, n.Token)
+	require.NoError(t, err)
+	_, err = w.db.ExecContext(w.ctx, `UPDATE platform.email_outbox SET status='dead_letter', dead_letter_at=NOW(), last_error='mailbox unavailable' WHERE organization_id=?`, w.organization)
+	require.NoError(t, err)
+	require.NoError(t, w.notices.ProcessDue(w.ctx))
+	_, err = w.notices.NotifyFromTraeger(w.ctx, w.organization, retry.ID, n.ID, n.Revision, n.Token)
+	require.NoError(t, err)
+	var accounts []int64
+	require.NoError(t, w.db.NewRaw(`SELECT account_id FROM calendar.holiday_closure_authorizations WHERE tenant_id=? ORDER BY id`, w.school).Scan(w.ctx, &accounts))
+	assert.Equal(t, []int64{first.ID, retry.ID}, accounts)
+	var channels []string
+	require.NoError(t, w.db.NewRaw(`SELECT channel FROM calendar.holiday_closure_authorizations WHERE tenant_id=? ORDER BY id`, w.school).Scan(w.ctx, &channels))
+	assert.Equal(t, []string{"school", "traeger"}, channels)
+	// Renewing approval must preserve the earlier authorization identities too.
+	_, err = w.db.ExecContext(w.ctx, `UPDATE calendar.holiday_closure_events SET state='needs_confirmation' WHERE organization_id=?`, w.organization)
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+		_, err := events.ConfirmHolidayClosureNotice(ctx, n.ID, n.Revision, schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool, AccountID: first.ID, ImpactToken: n.Token})
+		return err
+	}))
+	require.NoError(t, w.db.NewRaw(`SELECT account_id FROM calendar.holiday_closure_authorizations WHERE tenant_id=? ORDER BY id`, w.school).Scan(w.ctx, &accounts))
+	assert.Equal(t, []int64{first.ID, retry.ID, first.ID}, accounts)
+	_, err = w.db.ExecContext(w.ctx, `DELETE FROM auth.accounts WHERE id IN (?, ?)`, first.ID, retry.ID)
+	require.NoError(t, err)
+	var anonymized int
+	require.NoError(t, w.db.NewRaw(`SELECT count(*) FROM calendar.holiday_closure_authorizations WHERE tenant_id=? AND account_id IS NULL`, w.school).Scan(w.ctx, &anonymized))
+	assert.Equal(t, 3, anonymized, "account erasure preserves the authorization history without its actor")
+}
+
+func TestOfficeRecoversTraegerMailWithoutAnySchoolCommand(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorldIn(t, "Träger eigener Wiederholungsweg", testpkg.SetupIsolatedTestDB(t))
+	for _, date := range []calendar.Date{"2030-07-08", "2030-07-12"} {
+		require.NoError(t, testpkg.WithinTraeger(w.ctx, w.organization, func(ctx context.Context) error {
+			closure := enrollment.HolidayClosure{SchoolIDs: []int64{w.school}, StartsOn: date, EndsOn: date, Reason: "Träger-Schließtag"}
+			impact, err := w.closures.HolidayClosureImpact(ctx, w.organization, closure)
+			require.NoError(t, err)
+			_, err = w.closures.NotifyHolidayClosure(ctx, w.organization, closure, impact.Token)
+			return err
+		}))
+	}
+	assert.Empty(t, w.events(t))
+	_, err := w.db.ExecContext(w.ctx, `UPDATE platform.email_outbox SET status='dead_letter', dead_letter_at=NOW(), last_error='mailbox unavailable' WHERE organization_id=?`, w.organization)
+	require.NoError(t, err)
+	pending, err := w.notices.PendingHolidayClosures(w.ctx, w.organization)
+	require.NoError(t, err)
+	raw, err := json.Marshal(pending)
+	require.NoError(t, err)
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(raw, &fields))
+	assert.Equal(t, float64(4), fields["retryable_mails"], "office recovery is visible even without a school proposal")
+	other := newClosureWorldIn(t, "Träger fremder Wiederholungsweg", w.db)
+	foreign, err := other.notices.PendingHolidayClosures(other.ctx, other.organization)
+	require.NoError(t, err)
+	assert.Zero(t, foreign.RetryableMails)
+	assert.Zero(t, foreign.UnknownMails)
+	_, err = w.notices.NotifyPendingHolidayClosures(w.ctx, w.organization, 0, pending.Token)
+	require.NoError(t, err)
+	require.Len(t, w.mails(t), 4)
+	for _, mail := range w.mails(t) {
+		assert.Equal(t, "pending", mail.Status)
+	}
+	assert.Empty(t, w.events(t), "mail recovery needs no unrelated school command")
+	_, err = w.db.ExecContext(w.ctx, `UPDATE platform.email_outbox SET status='dead_letter', dead_letter_at=NOW(), last_error=? WHERE organization_id=?`, deliveryContract.DispatchOutcomeUnknown, w.organization)
+	require.NoError(t, err)
+	unknown, err := w.notices.PendingHolidayClosures(w.ctx, w.organization)
+	require.NoError(t, err)
+	assert.Zero(t, unknown.RetryableMails)
+	assert.Equal(t, 4, unknown.UnknownMails)
+	_, err = w.notices.NotifyPendingHolidayClosures(w.ctx, w.organization, 0, unknown.Token)
+	require.NoError(t, err)
+	for _, mail := range w.mails(t) {
+		assert.Equal(t, "dead_letter", mail.Status, "unknown outcomes are never blindly repeated")
+	}
+}

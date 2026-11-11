@@ -28,6 +28,9 @@ const (
 // TestVisitorTraceCountsCountEveryRowHoldingTheVisitor fails when a row
 // leaveVisitorTraces writes holds the name and no count reads it (#6015).
 var visitorTraceCounts = map[string]string{
+	"calendar.holiday_closure_proposals":      `SELECT count(*) FROM calendar.holiday_closure_proposals WHERE tenant_id = ?0`,
+	"calendar.holiday_closure_events":         `SELECT count(*) FROM calendar.holiday_closure_events WHERE tenant_id = ?0`,
+	"calendar.holiday_closure_authorizations": `SELECT count(*) FROM calendar.holiday_closure_authorizations WHERE tenant_id = ?0`,
 	"users.persons": `SELECT count(*) FROM users.persons
 		WHERE tenant_id = ?0 AND first_name = '` + visitorFirst + `' AND last_name = '` + visitorLast + `'`,
 	"users.guardian_profiles": `SELECT count(*) FROM users.guardian_profiles
@@ -146,6 +149,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 	require.NoError(t, err)
 	_, err = db.NewRaw(`UPDATE users.guardian_profiles SET account_id = ?, has_account = true WHERE id = ?`, parent.ID, guardian.ID).Exec(ctx)
 	require.NoError(t, err)
+	leaveVisitorClosureAuthorization(t, db, schoolID, caregiver.ID)
 	testpkg.CreateTestStudentGuardianLinkForTenant(t, db, schoolID, student.ID, guardian.ID, "primary_guardian")
 	for _, statement := range []string{
 		`WITH phase AS (

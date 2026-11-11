@@ -343,7 +343,7 @@ export function HolidayClosureNoticeList<T extends HolidayClosureNotice>({
       </SectionCard>
     );
   }
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && !intro && !action) return null;
 
   const hiddenCount = Math.max(0, open.length - INITIAL_OPEN_COUNT);
   const visible = expanded ? open : open.slice(0, INITIAL_OPEN_COUNT);
@@ -361,7 +361,7 @@ export function HolidayClosureNoticeList<T extends HolidayClosureNotice>({
 
   return (
     <div className="flex flex-col gap-3">
-      {open.length > 0 ? (
+      {open.length > 0 || intro || action ? (
         <SectionCard
           title={title}
           concept={holidayWeeksConcept}
@@ -374,9 +374,11 @@ export function HolidayClosureNoticeList<T extends HolidayClosureNotice>({
           action={action}
         >
           {intro ? <div className="mb-3">{intro}</div> : null}
-          <ResponsiveActionList id={openListId}>
-            {visible.map(renderRow)}
-          </ResponsiveActionList>
+          {visible.length > 0 ? (
+            <ResponsiveActionList id={openListId}>
+              {visible.map(renderRow)}
+            </ResponsiveActionList>
+          ) : null}
           {hiddenCount > 0 ? (
             <Button
               type="button"

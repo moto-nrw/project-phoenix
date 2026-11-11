@@ -183,6 +183,56 @@ describe("TraegerClosingDaysPage (#4702)", () => {
     session.permissions = ["traeger_overview:read"];
   });
 
+  it("shows unknown standalone mail without offering a blind retry", async () => {
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    api.fetchPendingHolidayClosures.mockResolvedValue({
+      ...noPending,
+      unknownMails: 1,
+    });
+    render(<TraegerClosingDaysPage />);
+    expect(
+      await screen.findByText(/Bei 1 E-Mail ist das Ergebnis unbekannt/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Erneut senden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers mail recovery on a phone without requiring a school notice", async () => {
+    setViewportWidth(PHONE_WIDTH);
+    session.permissions = ["traeger_overview:read", "traeger_settings:manage"];
+    api.fetchPendingHolidayClosures.mockResolvedValue({
+      ...noPending,
+      token: "mail-recovery",
+      retryableMails: 2,
+      unknownMails: 1,
+    });
+    api.notifyPendingHolidayClosures.mockResolvedValue(0);
+    render(<TraegerClosingDaysPage />);
+    const retry = await screen.findByRole("button", { name: "Erneut senden" });
+    expect(
+      screen.getByText(/^2 E-Mails sind nicht angekommen\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Bei 1 E-Mail ist das Ergebnis unbekannt/),
+    ).toBeInTheDocument();
+    api.fetchPendingHolidayClosures.mockResolvedValue(noPending);
+    fireEvent.click(retry);
+    await waitFor(() =>
+      expect(api.notifyPendingHolidayClosures).toHaveBeenCalledWith(
+        "mail-recovery",
+      ),
+    );
+    expect(
+      await screen.findByText("Erneuter Versand ist beauftragt."),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Erneut senden" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("shows the closing days, the year overview and each school's federal state read only", async () => {
     render(<TraegerClosingDaysPage />);
 

@@ -24,7 +24,7 @@ const confirmHolidayClosureBatchSQL = `WITH requested AS (
   CASE WHEN requested.preserve_span THEN proposal.span_from ELSE GREATEST(proposal.span_from, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date) END,
   proposal.span_to, ?4, requested.token
  FROM calendar.holiday_closure_proposals AS proposal JOIN requested ON requested.proposal_id = proposal.id
- WHERE proposal.tenant_id = ?0 AND proposal.state = 'open' ON CONFLICT (proposal_id) DO NOTHING RETURNING proposal_id
+ WHERE proposal.tenant_id = ?0 AND proposal.state = 'open' ON CONFLICT (proposal_id) DO NOTHING RETURNING id, proposal_id, operation_id, revision
 ), confirmed AS (
  UPDATE calendar.holiday_closure_proposals SET state = 'confirmed', confirmed_at = CURRENT_TIMESTAMP
  WHERE tenant_id = ?0 AND id IN (SELECT proposal_id FROM created)
@@ -32,6 +32,10 @@ const confirmHolidayClosureBatchSQL = `WITH requested AS (
  UPDATE calendar.holiday_closure_events AS event
  SET state = 'pending', next_attempt_at = CURRENT_TIMESTAMP, error_code = NULL, requested_channel = ?4, requested_at = CURRENT_TIMESTAMP
  FROM requested WHERE event.tenant_id = ?0 AND event.proposal_id = requested.proposal_id AND event.state IN ('failed', 'blocked')
+ RETURNING event.id, event.operation_id, event.revision
+), authorized AS (
+ INSERT INTO calendar.holiday_closure_authorizations (tenant_id, event_id, operation_id, revision, account_id, channel)
+ SELECT ?0, id, operation_id, revision, NULLIF(?5, 0), ?4 FROM (SELECT id, operation_id, revision FROM created UNION ALL SELECT id, operation_id, revision FROM retried) AS commands
 ) SELECT count(*) FROM created`
 
 const renewHolidayClosureBatchSQL = `WITH source AS MATERIALIZED (
@@ -78,10 +82,14 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotices(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-	if err := renewHolidayClosureConfirmations(ctx, db, schoolID, ids, renew, actor); err != nil {
+	replacements, err := renewHolidayClosureConfirmations(ctx, db, schoolID, ids, renew, actor)
+	if err != nil {
 		return nil, err
 	}
-	if _, err := db.NewRaw(confirmHolidayClosureBatchSQL, schoolID, pgdialect.Array(ids), pgdialect.Array(tokens), pgdialect.Array(preserve), actor.Channel).Exec(ctx); err != nil {
+	if _, err := db.NewRaw(confirmHolidayClosureBatchSQL, schoolID, pgdialect.Array(ids), pgdialect.Array(tokens), pgdialect.Array(preserve), actor.Channel, actor.AccountID).Exec(ctx); err != nil {
+		return nil, err
+	}
+	if err := finishHolidayClosureRenewals(ctx, db, schoolID, replacements); err != nil {
 		return nil, err
 	}
 	rows, err = batchHolidayClosureRows(ctx, db, schoolID, ids, false)
@@ -135,19 +143,16 @@ func checkHolidayClosureConfirmations(confirmations []schoolcalendar.HolidayClos
 	return preserve, renew, nil
 }
 
-func renewHolidayClosureConfirmations(ctx context.Context, db bun.IDB, schoolID int64, ids, renew []int64, actor schoolcalendar.HolidayClosureActor) error {
+func renewHolidayClosureConfirmations(ctx context.Context, db bun.IDB, schoolID int64, ids, renew []int64, actor schoolcalendar.HolidayClosureActor) ([]holidayClosureReplacement, error) {
 	if len(renew) == 0 {
-		return nil
+		return nil, nil
 	}
-	var replacements []struct {
-		PreviousID    int64 `bun:"previous_id"`
-		ReplacementID int64 `bun:"replacement_id"`
-	}
+	var replacements []holidayClosureReplacement
 	if err := db.NewRaw(renewHolidayClosureBatchSQL, schoolID, pgdialect.Array(renew)).Scan(ctx, &replacements); err != nil {
-		return err
+		return nil, err
 	}
 	if len(replacements) != len(renew) {
-		return schoolcalendar.ErrHolidayClosureNoticeChanged
+		return nil, schoolcalendar.ErrHolidayClosureNoticeChanged
 	}
 	mapped := map[int64]int64{}
 	for _, replacement := range replacements {
@@ -162,13 +167,43 @@ func renewHolidayClosureConfirmations(ctx context.Context, db bun.IDB, schoolID 
 	}
 	rows, err := batchHolidayClosureRows(ctx, db, schoolID, replacementIDs, false)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, row := range rows {
 		if !holidayClosureActorMatchesOrganization(actor, row.OrganizationID) {
-			return schoolcalendar.ErrHolidayClosureNoticeNotFound
+			return nil, schoolcalendar.ErrHolidayClosureNoticeNotFound
 		}
 	}
-	_, err = db.NewRaw(`DELETE FROM calendar.holiday_closure_proposals WHERE tenant_id = ? AND id = ANY(?::bigint[])`, schoolID, pgdialect.Array(renew)).Exec(ctx)
+	return replacements, nil
+}
+
+type holidayClosureReplacement struct {
+	PreviousID    int64 `bun:"previous_id"`
+	ReplacementID int64 `bun:"replacement_id"`
+}
+
+const finishHolidayClosureRenewalsSQL = `WITH replacements AS (
+ SELECT * FROM unnest(?1::bigint[], ?2::bigint[]) AS item(previous_id, replacement_id)
+), moved AS (
+ UPDATE calendar.holiday_closure_authorizations AS entry SET event_id = next_event.id
+ FROM replacements
+ JOIN calendar.holiday_closure_events AS prior_event ON prior_event.tenant_id = ?0 AND prior_event.proposal_id = replacements.previous_id
+ JOIN calendar.holiday_closure_events AS next_event ON next_event.tenant_id = ?0 AND next_event.proposal_id = replacements.replacement_id
+ WHERE entry.tenant_id = ?0 AND entry.event_id = prior_event.id
+ RETURNING entry.id
+)
+DELETE FROM calendar.holiday_closure_proposals WHERE tenant_id = ?0 AND id = ANY(?1::bigint[])
+ AND (SELECT count(*) FROM moved) >= 0`
+
+// Move only the retention anchor, preserving the original authorization facts.
+func finishHolidayClosureRenewals(ctx context.Context, db bun.IDB, schoolID int64, replacements []holidayClosureReplacement) error {
+	if len(replacements) == 0 {
+		return nil
+	}
+	previous, current := make([]int64, len(replacements)), make([]int64, len(replacements))
+	for i, replacement := range replacements {
+		previous[i], current[i] = replacement.PreviousID, replacement.ReplacementID
+	}
+	_, err := db.NewRaw(finishHolidayClosureRenewalsSQL, schoolID, pgdialect.Array(previous), pgdialect.Array(current)).Exec(ctx)
 	return err
 }

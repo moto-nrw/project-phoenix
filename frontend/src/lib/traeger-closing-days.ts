@@ -85,6 +85,8 @@ export interface TraegerHolidayClosureNotice extends HolidayClosureNotice {
 
 /** Die Liste „Eltern noch nicht informiert“ mit allen Hinweisen. */
 export interface PendingHolidayClosures extends HolidayClosureImpact {
+  readonly retryableMails?: number;
+  readonly unknownMails?: number;
   readonly notices: readonly TraegerHolidayClosureNotice[];
 }
 
@@ -306,12 +308,16 @@ export async function fetchPendingHolidayClosures(): Promise<PendingHolidayClosu
   const data = await traegerRequest<
     | (BackendHolidayClosureImpact & {
         notices?: BackendTraegerNotice[] | null;
+        retryable_mails?: number;
+        unknown_mails?: number;
       })
     | null
   >(`${closuresPath}/pending`);
   return {
     ...mapHolidayClosureImpact(data),
     notices: (data?.notices ?? []).map(mapTraegerNotice),
+    retryableMails: data?.retryable_mails ?? 0,
+    unknownMails: data?.unknown_mails ?? 0,
   };
 }
 
