@@ -666,6 +666,12 @@ PyrePortal, so every rollout touches production. The Cloudflare DNS token stays
 in `/etc/caddy/cloudflare.env` on the server and reaches the file only as
 `{env.CLOUDFLARE_API_TOKEN}`. Client-IP rules: [contracts](contracts.md#client-ip-and-rate-limits).
 
+Maintenance page: while a frontend upstream is down (every deploy), the
+`(maintenance-html)` snippet answers 502/503 with the page in its heredoc. It
+rolls out with the Caddyfile; no file on the server belongs to it. Preview a
+change by serving the snippet from the server's Caddy version in Docker with a
+dead upstream, and attach desktop and phone screenshots to the PR.
+
 Checks: `node scripts/check-caddyfile.mjs` (CI, on every change) verifies that
 each `reverse_proxy` imports `client_ip_upstream`; `--cloudflare` also compares
 `trusted_proxies` with https://www.cloudflare.com/ips-v4 and `ips-v6`.
