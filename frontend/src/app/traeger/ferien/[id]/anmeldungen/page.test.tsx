@@ -171,7 +171,11 @@ describe("TraegerHolidayRegistrationsPage", () => {
     renderPage();
 
     const table = within(await screen.findByRole("table"));
-    expect(await table.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+    expect(await table.findByText("Bekannt an OGS Süd")).toHaveClass(
+      "max-w-full",
+      "min-w-0",
+      "whitespace-normal",
+    );
     expect(table.getByText("An der Schule bekannt")).toBeInTheDocument();
     // The whole period is compared once, not per filter.
     expect(mockFetchKnown).toHaveBeenCalledTimes(1);

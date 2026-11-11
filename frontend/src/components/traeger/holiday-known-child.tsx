@@ -72,18 +72,6 @@ function registeredAs(child: HolidayRegistrationChild): string {
     : "In der Anmeldung steht eine andere Schule.";
 }
 
-/** The plaque of the hint, for the list and the card. */
-export function KnownChildBadge({ view }: Readonly<{ view: KnownChildView }>) {
-  return (
-    <StatusBadge
-      tone={view.tone}
-      label={view.label}
-      icon={School}
-      title={view.title}
-    />
-  );
-}
-
 /**
  * The hint in the card of a child. The same school is a plaque; another
  * school asks the office to check the child's school and offers the change
@@ -100,7 +88,17 @@ export function KnownChildNotice({
   names: ReadonlyMap<string, string>;
   onEdit?: () => void;
 }>) {
-  if (view.sameSchool) return <KnownChildBadge view={view} />;
+  if (view.sameSchool) {
+    return (
+      <StatusBadge
+        tone={view.tone}
+        label={view.label}
+        icon={School}
+        title={view.title}
+        wrap
+      />
+    );
+  }
   const named =
     child.homeSchoolId === null
       ? `Angemeldet ist ${child.firstName} als Feriengast.`

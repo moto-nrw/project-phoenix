@@ -8,7 +8,7 @@
 // E-Mail oder gleicher Nachname sind nur ein Hinweis. Ausgewählte
 // Anmeldungen bestätigt das Büro hier auch gesammelt (#6674).
 
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, School } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -37,7 +37,6 @@ import {
   holidayWishView,
 } from "~/components/traeger/holiday-wish";
 import {
-  KnownChildBadge,
   knownChildView,
   useHolidayKnownChildren,
 } from "~/components/traeger/holiday-known-child";
@@ -287,7 +286,15 @@ function columns(
                       icon={wish.icon}
                     />
                   ) : null}
-                  {knownChild ? <KnownChildBadge view={knownChild} /> : null}
+                  {knownChild ? (
+                    <StatusBadge
+                      tone={knownChild.tone}
+                      label={knownChild.label}
+                      icon={School}
+                      title={knownChild.title}
+                      wrap
+                    />
+                  ) : null}
                   {child.duplicateRegistrationIds.length > 0 ? (
                     <StatusBadge
                       tone="warning"
