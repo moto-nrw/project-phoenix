@@ -85,6 +85,142 @@ export const LargeSize: Story = {
   },
 };
 
+const SINCE = "2026-09-09T06:15:00.000Z";
+
+export const AtSchool: Story = {
+  args: {
+    student: { current_location: "Schule", location_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const InClass: Story = {
+  args: {
+    student: { current_location: "Im Unterricht", location_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const AtHomeSince: Story = {
+  args: {
+    student: { current_location: "Zuhause", location_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const SchoolyardSince: Story = {
+  args: {
+    student: { current_location: "Schulhof", location_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const SchoolyardRoomColor: Story = {
+  args: {
+    student: { current_location: "Schulhof", current_room_color: "#0EA5E9" },
+  },
+};
+
+export const TransitSince: Story = {
+  args: {
+    student: { current_location: "Unterwegs", location_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const RoomNameSince: Story = {
+  args: {
+    student: { current_location: "Anwesend - Raum 101", location_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const UnknownSince: Story = {
+  args: {
+    student: { current_location: "Irgendwo", location_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const SickAtHomeSince: Story = {
+  args: {
+    student: { current_location: "Zuhause", sick: true, sick_since: SINCE },
+    showLocationSince: true,
+  },
+};
+
+export const ClassTripAtHome: Story = {
+  args: {
+    student: { current_location: "Zuhause", class_trip: true },
+  },
+};
+
+export const ExcusedAtSchoolSince: Story = {
+  args: {
+    student: {
+      current_location: "Schule",
+      excused: true,
+      location_since: SINCE,
+    },
+    showLocationSince: true,
+  },
+};
+
+export const NotArrivalAtHome: Story = {
+  args: {
+    student: {
+      current_location: "Zuhause",
+      location_since: SINCE,
+      arrival_is_exception: true,
+      arrival_notes: "Arzttermin",
+    },
+    showLocationSince: true,
+  },
+};
+
+export const SickButPresent: Story = {
+  args: {
+    student: { current_location: "Anwesend - Raum 101", sick: true },
+  },
+};
+
+export const ClassTripButPresent: Story = {
+  args: {
+    student: { current_location: "Schulhof", class_trip: true },
+  },
+};
+
+export const ExcusedButPresent: Story = {
+  args: {
+    student: { current_location: "Unterwegs", excused: true },
+  },
+};
+
+export const UnplannedPresent: Story = {
+  args: {
+    student: {
+      current_location: "Anwesend - Raum 101",
+      sick: true,
+      arrival_is_exception: true,
+      arrival_notes: "Arzttermin",
+    },
+  },
+};
+
+export const SmallSizeWithHint: Story = {
+  args: {
+    student: { current_location: "Anwesend", excused: true },
+    size: "sm",
+  },
+};
+
+export const LargeSizeWithHint: Story = {
+  args: {
+    student: { current_location: "Anwesend", excused: true },
+    size: "lg",
+  },
+};
+
 // The yard follows its room's colour (#2405), also the retired red #FF3130.
 export const SchoolyardRoomColors: Story = {
   render: () => (

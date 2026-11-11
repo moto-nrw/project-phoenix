@@ -38,9 +38,6 @@ export interface StudentLocationContext {
   class_trip?: boolean;
   class_trip_since?: string | null;
   has_full_access?: boolean;
-  /** Today has an arrival-schedule exception with null expected time — student is not coming */
-  not_arrival_today?: boolean;
-  not_arrival_reason?: string | null;
 }
 
 export const LOCATION_STATUSES = {
@@ -468,30 +465,6 @@ const CHECKED_IN_STATUSES: ReadonlySet<string> = new Set([
  */
 export function isCheckedInLocation(location?: string | null): boolean {
   return CHECKED_IN_STATUSES.has(parseLocation(location).status);
-}
-
-export type CountedDayStatus = "sick" | "class_trip" | "excused";
-
-/**
- * Der Tagesstatus, nach dem Zahlen, Statusfilter und Statusgruppen ein Kind
- * einordnen; krank vor Klassenfahrt vor entschuldigt.
- *
- * Ort vor Status (#6371): Ein eingechecktes Kind zählt in jeder Ansicht als
- * anwesend, genau einmal. Seine Krankmeldung, Entschuldigung oder Klassenfahrt
- * ist dann nur ein Hinweis am Ortsbadge und zählt nirgends mit. Ein Kind ohne
- * Check-in behält seinen Status.
- */
-export function countedDayStatus(student: {
-  readonly sick?: boolean | null;
-  readonly class_trip?: boolean | null;
-  readonly excused?: boolean | null;
-  readonly current_location?: string | null;
-}): CountedDayStatus | null {
-  if (isCheckedInLocation(student.current_location)) return null;
-  if (student.sick) return "sick";
-  if (student.class_trip) return "class_trip";
-  if (student.excused) return "excused";
-  return null;
 }
 
 /**

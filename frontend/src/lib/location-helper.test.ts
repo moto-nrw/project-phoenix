@@ -16,9 +16,9 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
   isCheckedInLocation,
-  countedDayStatus,
   type StudentLocationContext,
 } from "./location-helper";
+import { countedDayStatus } from "./presence-status";
 import {
   MOTO_COLOR_PALETTE,
   getPillTone,
