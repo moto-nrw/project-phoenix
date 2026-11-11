@@ -10,13 +10,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { buttonClassName, Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { FileTypeIcon } from "./file-type-icon";
-import { LoadErrorAlert } from "./form-error-alert";
 import { IconTile } from "./icon-tile";
 import { Z_LAYER } from "./overlay-styles";
 import { PdfPreview, useObjectUrl, usePdfViewerEnabled } from "./pdf-preview";
@@ -50,8 +48,6 @@ export interface AttachmentViewerLabels {
   readonly notViewable: string;
   /** A PDF on a device whose browser has no PDF viewer. */
   readonly notViewableOnDevice: string;
-  /** Noun phrase with article for a failed load, e.g. „die Datei“. */
-  readonly fileObject: string;
   /** "2 von 5". */
   readonly position: (current: number, total: number) => string;
 }
@@ -66,7 +62,6 @@ const GERMAN_LABELS: AttachmentViewerLabels = {
     "Diese Datei lässt sich hier nicht anzeigen. Laden Sie sie herunter, um sie zu öffnen.",
   notViewableOnDevice:
     "Auf diesem Gerät lässt sich die Datei hier nicht anzeigen. Öffnen Sie sie in einem neuen Tab oder laden Sie sie herunter.",
-  fileObject: "die Datei",
   position: (current, total) => `${current} von ${total}`,
 };
 
@@ -309,15 +304,16 @@ function PdfBody({ item, downloadHref, loadFile, labels }: BodyProps) {
   const viewer = usePdfViewerEnabled();
   const local = item.src.startsWith("blob:");
   const [blob, setBlob] = useState<Blob | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const { error, show, clear } = useApiLoadError();
+  // Kommt die Datei nicht an, bleibt der Weg über Herunterladen und den
+  // neuen Tab: dasselbe Feld wie bei einer Datei, die sich nicht zeigen lässt.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === item.src;
   const loadedUrl = useObjectUrl(blob);
   const canShow = viewer && (local || loadFile !== undefined);
 
   useEffect(() => {
     if (!canShow || local || !loadFile) return;
     let current = true;
-    clear();
     loadFile(item.src).then(
       (bytes) => {
         // Shown as a PDF whatever type the answer named, so nothing else
@@ -329,32 +325,20 @@ function PdfBody({ item, downloadHref, loadFile, labels }: BodyProps) {
         logger.warn("attachment_viewer_pdf_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        void show(err, {
-          object: labels.fileObject,
-          retry: () => setAttempt((count) => count + 1),
-        });
+        setFailedSrc(item.src);
       },
     );
     return () => {
       current = false;
     };
-  }, [
-    canShow,
-    local,
-    loadFile,
-    item.src,
-    attempt,
-    clear,
-    show,
-    labels.fileObject,
-  ]);
+  }, [canShow, local, loadFile, item.src]);
 
-  if (!canShow) {
+  if (!canShow || failed) {
     return (
       <FilePanel
         item={item}
         downloadHref={downloadHref}
-        text={labels.notViewableOnDevice}
+        text={failed ? labels.notViewable : labels.notViewableOnDevice}
         openHref={item.src}
         labels={labels}
       />
@@ -363,17 +347,11 @@ function PdfBody({ item, downloadHref, loadFile, labels }: BodyProps) {
   const url = local ? item.src : loadedUrl;
   return (
     <div className="pointer-events-none relative flex h-full w-full max-w-3xl flex-col items-center gap-3">
-      {error ? (
-        <div className="pointer-events-auto w-full max-w-md rounded-xl bg-white p-4 text-gray-900">
-          <LoadErrorAlert error={error} />
-        </div>
-      ) : (
-        <PdfPreview
-          url={url}
-          title={item.name}
-          className="pointer-events-auto aspect-auto min-h-0 flex-1"
-        />
-      )}
+      <PdfPreview
+        url={url}
+        title={item.name}
+        className="pointer-events-auto aspect-auto min-h-0 flex-1"
+      />
       <div className="pointer-events-auto flex flex-wrap justify-center gap-2">
         <a
           href={url ?? item.src}

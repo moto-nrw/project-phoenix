@@ -31,7 +31,6 @@ export function useParentAttachmentLabels(): {
       openInNewTab: t("openInNewTab"),
       notViewable: t("notViewable"),
       notViewableOnDevice: t("notViewableOnDevice"),
-      fileObject: t("fileObject"),
       position: (current, total) => t("position", { current, total }),
     };
     return {
