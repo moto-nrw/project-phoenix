@@ -6078,6 +6078,8 @@ const buttonNeedsTooltip = {
         "`noTooltip` braucht einen Grund, warum das Wort auf dem Knopf reicht (#6643).",
       emptyTooltip:
         'Leerer `tooltip`: einen Satz zur Folge des Klicks schreiben oder `noTooltip="<Grund>"` setzen (#6643).',
+      conflictingExplanation:
+        '`tooltip` und `noTooltip` dürfen nicht zusammen gesetzt sein (#6643).',
       missingHint:
         'Element in Knopf-Optik ohne Erklärung: in `ActionHint text="…"` einschließen (#6643).',
     },
@@ -6126,6 +6128,13 @@ const buttonNeedsTooltip = {
           const { title, tooltip, noTooltip } = tooltipProps;
           if (title) {
             context.report({ node: title.node, messageId: "title" });
+            return;
+          }
+          if (tooltip && noTooltip) {
+            context.report({
+              node: noTooltip.node,
+              messageId: "conflictingExplanation",
+            });
             return;
           }
           if (tooltip) {

@@ -4721,6 +4721,16 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
       "braucht einen Grund",
     ],
     [
+      "tooltip and noTooltip from separate spread object literals",
+      `<Button {...{ tooltip: "Öffnet die Akte." }} {...{ noTooltip: "Abbrechen schließt nur den Dialog." }}>Akte</Button>`,
+      "dürfen nicht zusammen",
+    ],
+    [
+      "tooltip and noTooltip from an attribute and a spread object literal",
+      `<Button tooltip="Öffnet die Akte." {...{ noTooltip: "Abbrechen schließt nur den Dialog." }}>Akte</Button>`,
+      "dürfen nicht zusammen",
+    ],
+    [
       "title in a spread object literal",
       `<Button {...{ title: "Akte", tooltip: "Öffnet die Akte." }}>Akte</Button>`,
       "`title` ersetzt keine Erklärung",
