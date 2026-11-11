@@ -72,6 +72,7 @@ type (
 		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollmentNative.Date) ([]*enrollmentNative.RequestChildOffering, error)
 		OfferingCapacityPeak(context.Context, int64, []int64, enrollmentNative.Date, enrollmentNative.Date) (int, error)
 		InsertChild(context.Context, *enrollmentNative.RequestChild) error
+		ChildByID(context.Context, int64) (*enrollmentNative.RequestChild, error)
 		ChildrenForRequest(context.Context, int64, bool) ([]*enrollmentNative.RequestChild, error)
 		ChildrenForRequests(context.Context, []int64) ([]*enrollmentNative.RequestChild, error)
 		DeleteRequestChildren(context.Context, int64) error

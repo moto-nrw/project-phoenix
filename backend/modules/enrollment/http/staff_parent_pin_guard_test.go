@@ -200,16 +200,20 @@ func waitsFor(db *bun.DB, pid int) bool {
 func awaitWaiter(t *testing.T, db *bun.DB, holderPID int, done <-chan error, msg string) int {
 	t.Helper()
 	var pid int
+	var ended bool
+	var endErr error
 	require.Eventually(t, func() bool {
 		select {
-		case err := <-done:
-			t.Fatalf("%s: it ended without waiting: %v", msg, err)
+		case endErr = <-done:
+			ended = true
+			return true
 		default:
 		}
 		err := db.NewRaw("SELECT l.pid FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid)) LIMIT 1", holderPID).
 			Scan(context.Background(), &pid)
 		return err == nil && pid > 0
 	}, 10*time.Second, 10*time.Millisecond, msg)
+	require.False(t, ended, "%s: it ended without waiting: %v", msg, endErr)
 	return pid
 }
 
@@ -234,6 +238,18 @@ func lockStudent(rig *pinGuardRig) func(context.Context, bun.Tx) error {
 		_, err := rig.repos.Student.FindByIDForUpdate(ctx, rig.f.studentID)
 		return err
 	}
+}
+
+// parkingOutbox parks the approval at its parent mail, after every check
+// and write and before the commit.
+type parkingOutbox struct {
+	testMailOutbox
+	gate *renewalGate
+}
+
+func (o *parkingOutbox) EnqueueMail(ctx context.Context, mail TestMail) error {
+	o.gate.park(ctx)
+	return o.testMailOutbox.EnqueueMail(ctx, mail)
 }
 
 // lockMatch holds the phase's existing-student match lock, which the
@@ -286,13 +302,39 @@ func TestParentPinApprovalHoldsTheGuardUntilCommit(t *testing.T) {
 	for _, change := range renewalWithdrawals {
 		t.Run(change.name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			rig := setupPinGuardRig(t, "Freigabe")
-			apply := change.run(t, rig.renewalRig, rig.f)
-			staffRace{
-				block:   lockStudent(rig),
-				staff:   func() <-chan error { return rig.decideAsync(t, rig.decision) },
-				refused: enrollmentNative.ErrChildPossiblyEnrolled,
-			}.run(t, rig.db, apply)
+			t.Run("im Guard", func(t *testing.T) {
+				testpkg.OwnTenant(t)
+				rig := setupPinGuardRig(t, "Freigabe")
+				apply := change.run(t, rig.renewalRig, rig.f)
+				staffRace{
+					block:   lockStudent(rig),
+					staff:   func() <-chan error { return rig.decideAsync(t, rig.decision) },
+					refused: enrollmentNative.ErrChildPossiblyEnrolled,
+				}.run(t, rig.db, apply)
+			})
+			t.Run("bis zum Commit", func(t *testing.T) {
+				testpkg.OwnTenant(t)
+				rig := setupPinGuardRig(t, "Freigabe")
+				apply := change.run(t, rig.renewalRig, rig.f)
+				outbox := &parkingOutbox{testMailOutbox: rig.outbox, gate: newRenewalGate()}
+				outbox.gate.armed.Store(true)
+				t.Cleanup(outbox.gate.open)
+				decision := newDecisionServiceForTestWithDependencies(rig.rolloverTestEnv, nil, nil, nil, nil, outbox)
+				done := rig.decideAsync(t, decision)
+				holder := awaitHolder(t, outbox.gate.reached, done, "the approval")
+				withdrawn := make(chan error, 1)
+				go func() { withdrawn <- apply() }()
+				require.Eventually(t, func() bool { return waitsFor(rig.db, holder.pid) }, 10*time.Second, 10*time.Millisecond,
+					"the withdrawal must wait for the approval that holds the guard")
+				select {
+				case err := <-withdrawn:
+					t.Fatalf("the withdrawal committed while the approval held the guard: %v", err)
+				default:
+				}
+				outbox.gate.open()
+				require.NoError(t, awaitRenewal(t, done), "the approval commits first")
+				require.NoError(t, awaitRenewal(t, withdrawn), "the withdrawal finishes after the approval")
+			})
 		})
 	}
 }

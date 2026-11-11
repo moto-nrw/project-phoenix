@@ -49,7 +49,8 @@ func parentRenewalGuardViolations(project, modulePath string, loaded []*packages
 // staffPinViolations covers the staff writes that reuse a parent's pin
 // (#6638): the approval of a parent's pin, the sync of an approved child's
 // family data and the change-request approval re-check the parent's
-// authority and must hold it behind the parent guard until they commit. No
+// authority and must hold it behind the parent guard until they commit; the
+// change-request approval must decide its pins on the held grants. No
 // exported method of the decision flow or the change requests may reach the
 // unlocked check, except the read that writes nothing. A missing entry and an
 // exemption that reaches no unlocked check are reported as stale.
@@ -58,22 +59,8 @@ func (g *flowGraph) staffPinViolations() []Violation {
 	found := map[string]bool{}
 	for _, typeName := range []string{"Decisions", "ChangeRequests"} {
 		for _, root := range g.methodsOf(typeName) {
-			name := g.name(root)
-			found[name] = true
-			locals, ports := g.reach(root)
-			if staffPinEntries[name] {
-				if missing := missingKeys(ports, renewalHolds); len(missing) > 0 {
-					violations = append(violations, parentRenewalViolation("parent-pin.unguarded", name, strings.Join(missing, ","), g.location(root)))
-				}
-			}
-			reached := append(presentKeys(locals, renewalUnlockedChecks), presentKeys(ports, staffPinUnlockedPorts)...)
-			_, read := staffPinReads[name]
-			switch {
-			case len(reached) > 0 && !read:
-				violations = append(violations, parentRenewalViolation("parent-pin.unlocked-check", name, strings.Join(reached, ","), g.location(root)))
-			case len(reached) == 0 && read:
-				violations = append(violations, parentRenewalViolation("parent-pin.stale", name, "no unlocked check reached", g.location(root)))
-			}
+			found[g.name(root)] = true
+			violations = append(violations, g.staffPinRootViolations(root)...)
 		}
 	}
 	for _, name := range append(sortedKeys(staffPinEntries), sortedKeys(staffPinReads)...) {
@@ -84,11 +71,35 @@ func (g *flowGraph) staffPinViolations() []Violation {
 	return violations
 }
 
-// staffPinEntries are the staff writes that re-check a parent's pin.
-var staffPinEntries = map[string]bool{
-	"application.Decisions.Decide":                true,
-	"application.Decisions.SyncApprovedChildData": true,
-	"application.ChangeRequests.Approve":          true,
+// staffPinRootViolations checks one exported method of the staff flows.
+func (g *flowGraph) staffPinRootViolations(root *types.Func) []Violation {
+	name := g.name(root)
+	locals, ports := g.reach(root)
+	var violations []Violation
+	if required, entry := staffPinEntries[name]; entry {
+		missing := missingKeys(ports, renewalHolds)
+		missing = append(missing, missingKeys(locals, required)...)
+		if len(missing) > 0 {
+			violations = append(violations, parentRenewalViolation("parent-pin.unguarded", name, strings.Join(missing, ","), g.location(root)))
+		}
+	}
+	reached := append(presentKeys(locals, renewalUnlockedChecks), presentKeys(ports, staffPinUnlockedPorts)...)
+	_, read := staffPinReads[name]
+	switch {
+	case len(reached) > 0 && !read:
+		violations = append(violations, parentRenewalViolation("parent-pin.unlocked-check", name, strings.Join(reached, ","), g.location(root)))
+	case len(reached) == 0 && read:
+		violations = append(violations, parentRenewalViolation("parent-pin.stale", name, "no unlocked check reached", g.location(root)))
+	}
+	return violations
+}
+
+// staffPinEntries are the staff writes that re-check a parent's pin, with
+// the local checks each must reach besides the hold.
+var staffPinEntries = map[string][]string{
+	"application.Decisions.Decide":                nil,
+	"application.Decisions.SyncApprovedChildData": nil,
+	"application.ChangeRequests.Approve":          {renewalCheck},
 }
 
 // staffPinReads may ask the unlocked check: they write nothing.

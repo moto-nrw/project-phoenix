@@ -173,7 +173,7 @@ func (d *Decisions) syncAuthorityRequest(ctx context.Context, run *approvedChild
 		return run.request, nil
 	}
 	if run.child.RolloverSourceChildID != nil {
-		origin, err := d.rolloverOriginRequest(ctx, run.child)
+		origin, err := rolloverOrigin(ctx, d.deps.Children, d.deps.Requests, d.deps.Runtime.NotFound, run.child)
 		if err != nil {
 			return nil, err
 		}
@@ -193,16 +193,20 @@ func (d *Decisions) syncAuthorityRequest(ctx context.Context, run *approvedChild
 // maxRolloverDepth bounds the walk to a rollover chain's first submission.
 const maxRolloverDepth = 50
 
-// rolloverOriginRequest loads the request a rollover chain started with, or
-// nil when a deleted phase cut the chain.
-func (d *Decisions) rolloverOriginRequest(ctx context.Context, child *enrollmentNative.RequestChild) (*enrollmentNative.Request, error) {
+// rolloverOrigin loads the request a rollover chain started with, or nil
+// when a deleted phase cut the chain.
+func rolloverOrigin(ctx context.Context, children interface {
+	ChildByID(context.Context, int64) (*enrollmentNative.RequestChild, error)
+}, requests interface {
+	RequestByID(context.Context, int64, bool) (*enrollmentNative.Request, error)
+}, notFound func(error) bool, child *enrollmentNative.RequestChild) (*enrollmentNative.Request, error) {
 	source := child
 	for depth := 0; source.RolloverSourceChildID != nil; depth++ {
 		if depth >= maxRolloverDepth {
 			return nil, fmt.Errorf("decision: rollover chain of child %d exceeds %d phases", child.ID, maxRolloverDepth)
 		}
-		next, err := d.deps.Children.ChildByID(ctx, *source.RolloverSourceChildID)
-		if err != nil && d.deps.Runtime.NotFound(err) {
+		next, err := children.ChildByID(ctx, *source.RolloverSourceChildID)
+		if err != nil && notFound(err) {
 			return nil, nil
 		}
 		if err != nil {
@@ -213,8 +217,8 @@ func (d *Decisions) rolloverOriginRequest(ctx context.Context, child *enrollment
 		}
 		source = next
 	}
-	origin, err := d.deps.Requests.RequestByID(ctx, source.RequestID, false)
-	if err != nil && d.deps.Runtime.NotFound(err) {
+	origin, err := requests.RequestByID(ctx, source.RequestID, false)
+	if err != nil && notFound(err) {
 		return nil, nil
 	}
 	if err != nil {

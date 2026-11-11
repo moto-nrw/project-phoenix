@@ -197,11 +197,11 @@ func TestParentPinGuardRuleReportsAnUnlockedApproval(t *testing.T) {
 func TestParentPinGuardRuleReportsAnUnheldChangeRequestApproval(t *testing.T) {
 	t.Parallel()
 	file, source := renewalSource(t, "change_request_apply.go")
-	guarded := "if run.holds, err = s.intake.holdReEnrollment(ctx, submitter, authority, graph, run.req.TenantID); err != nil {"
+	guarded := "holds, err := a.s.intake.holdReEnrollment(ctx, group.submitter, students, graph, a.run.req.TenantID)"
 	if !strings.Contains(source, guarded) {
 		t.Fatal("the change-request approval no longer holds the pins as this test expects; update the bypass")
 	}
-	bypass := strings.Replace(source, guarded, "_ = submitter\n\t\tif run.holds, err = (renewalHolds{}), error(nil); err != nil {", 1)
+	bypass := strings.Replace(source, guarded, "_, _ = students, graph\n\t\tholds, err := renewalHolds{}, error(nil)", 1)
 	reported := staffPinRules(checkRenewal(t, map[string][]byte{file: []byte(bypass)}))
 	if !reported["application.ChangeRequests.Approve"]["parent-pin.unguarded"] {
 		t.Fatalf("want the change-request approval reported as unguarded, got %+v", reported)
@@ -217,4 +217,20 @@ func staffPinRules(violations []Violation) map[string]map[string]bool {
 		reported[v.Source][v.Rule] = true
 	}
 	return reported
+}
+
+// The change-request approval decides its pins on the held grants; a pin
+// check that skips them is reported although the hold is still reached.
+func TestParentPinGuardRuleReportsAPinWithoutTheHeldGrant(t *testing.T) {
+	t.Parallel()
+	file, source := renewalSource(t, "change_request_apply.go")
+	guarded := "if err := s.intake.holdGuardianReEnrollment(run.holds, pin, index); err != nil {"
+	if !strings.Contains(source, guarded) {
+		t.Fatal("the change-request approval no longer checks the held grant as this test expects; update the bypass")
+	}
+	bypass := strings.Replace(source, guarded, "if err := error(nil); err != nil {", 1)
+	reported := staffPinRules(checkRenewal(t, map[string][]byte{file: []byte(bypass)}))
+	if !reported["application.ChangeRequests.Approve"]["parent-pin.unguarded"] {
+		t.Fatalf("want the change-request approval reported as unguarded, got %+v", reported)
+	}
 }
