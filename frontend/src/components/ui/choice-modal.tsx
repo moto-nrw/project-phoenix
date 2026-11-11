@@ -14,7 +14,8 @@
 import type { FormErrorInput } from "./form-error";
 import { DialogErrorSlot } from "./dialog-parts";
 import { Button } from "./button";
-import { Modal, ModalCancelButton } from "./modal";
+import { Modal } from "./modal";
+import { ModalCancelButton } from "./modal-frame";
 
 interface ChoiceModalOption {
   value: string;

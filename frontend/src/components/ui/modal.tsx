@@ -19,8 +19,8 @@ import {
 import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
-import { cn } from "~/lib/utils";
 import { useBusyFocus } from "./hooks/useBusyFocus";
+import { ModalCancelButton, ModalFrameContext } from "./modal-frame";
 import { MODAL_CLOSE_DELAY_MS, MODAL_MOTION_STYLE } from "./motion";
 
 // Shared a11y contract for all modal dialogs.
@@ -39,48 +39,6 @@ const MODAL_MAX_WIDTH: Record<ModalSize, string> = {
   lg: "max-w-2xl",
   xl: "max-w-4xl",
 };
-
-/**
- * What the footer of the open `Modal` needs to know: whether every dismissal
- * path is locked, and whether its actions stack on a phone sheet.
- */
-const ModalFrameContext = React.createContext({
-  isDismissDisabled: false,
-  stackedSheetFooter: false,
-});
-
-type ModalCancelButtonProps = Omit<
-  React.ComponentProps<typeof Button>,
-  "variant" | "size" | "type"
->;
-
-/**
- * The Abbrechen of a `Modal` footer. It is a dismissal path, so the dialog's
- * `isDismissDisabled` locks it like the X, Escape and the backdrop. Below
- * `sm`, on a phone sheet whose actions stack (`mobileSheet`,
- * `sheetFooter="stacked"`), it is hidden: the X closes the sheet. Render it
- * in `footer`; only there does it read the dialog's state.
- */
-export function ModalCancelButton({
-  className,
-  disabled = false,
-  ...props
-}: ModalCancelButtonProps) {
-  const frame = React.useContext(ModalFrameContext);
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="md"
-      disabled={disabled || frame.isDismissDisabled}
-      className={cn(
-        className,
-        frame.stackedSheetFooter && "hidden sm:inline-flex",
-      )}
-      {...props}
-    />
-  );
-}
 
 /** How the footer of a phone sheet arranges its actions. */
 type ModalSheetFooter = "stacked" | "row";

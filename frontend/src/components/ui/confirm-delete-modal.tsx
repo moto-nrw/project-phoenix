@@ -13,7 +13,8 @@ import { FieldLabel } from "./field-label";
 import type { FormErrorInput } from "./form-error";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
-import { Modal, ModalCancelButton } from "./modal";
+import { Modal } from "./modal";
+import { ModalCancelButton } from "./modal-frame";
 import { Radio } from "./radio";
 
 // Shared destructive-confirmation shell for every destructive action in the

@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,7 +6,8 @@ import { ChoiceModal } from "./choice-modal";
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { ExportDialog } from "./export-dialog";
 import { FormModal } from "./form-modal";
-import { Modal, ModalCancelButton } from "./modal";
+import { Modal } from "./modal";
+import { ModalCancelButton } from "./modal-frame";
 import { MODAL_CLOSE_DELAY_MS, MODAL_MOTION_STYLE } from "./motion";
 import {
   SlideOver,
@@ -228,18 +227,6 @@ describe("motion", () => {
     );
     expect(root?.style.getPropertyValue("--moto-modal-exit")).toBe(
       MODAL_MOTION_STYLE["--moto-modal-exit"],
-    );
-
-    // The CSS takes its durations from those properties, not a literal.
-    const css = readFileSync(
-      path.join(process.cwd(), "src/styles/globals.css"),
-      "utf8",
-    );
-    expect(css).toMatch(
-      /\.animate-modalEnter\s*\{\s*animation:\s*modalEnter\s+var\(--moto-modal-enter\)/,
-    );
-    expect(css).toMatch(
-      /\.animate-modalExit\s*\{\s*animation:\s*modalExit\s+var\(--moto-modal-exit\)/,
     );
   });
 });

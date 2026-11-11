@@ -130,7 +130,7 @@ export function ExportDialog<F extends ExportFileFormat>({
         </SlideOverHeader>
         <SlideOverBody ref={run.bodyRef} className="space-y-5">
           {/* Not the body's `error` slot: that keeps 16 px to the content,
-              this dialog 20 px, the gap of its sections. */}
+              this dialog 20 px, the gap of its sections (#6716). */}
           <FormErrorAlert message={run.error} />
           {filters.length > 0 ? (
             <section>
