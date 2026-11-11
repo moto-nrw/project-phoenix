@@ -150,6 +150,9 @@ export function AnchoredPopover<
 
     const style: CSSProperties = {
       position: scope ? "absolute" : "fixed",
+      // Above `Z_INDEX.menu`: a select inside the panel needs
+      // `menuZIndex={Z_INDEX.popoverMenu}` (documented at `menuZIndex`, a known
+      // risk of #6569 with no current user).
       zIndex: Z_INDEX.popover,
       left: coordinateLeft,
       width,

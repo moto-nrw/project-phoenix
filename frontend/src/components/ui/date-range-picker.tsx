@@ -218,7 +218,7 @@ export function DateRangePicker({
       if (
         target instanceof Element &&
         target.closest(
-          '[role="combobox"][aria-expanded="true"], [role="listbox"], [data-listbox-panel]',
+          '[role="combobox"][aria-expanded="true"], [aria-haspopup="listbox"][aria-expanded="true"], [role="listbox"], [data-listbox-panel]',
         )
       ) {
         return;

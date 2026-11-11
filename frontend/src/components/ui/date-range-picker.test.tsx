@@ -16,6 +16,7 @@ vi.mock("react-day-picker", () => ({
 
 import { DateRangePicker, RangeCalendarInline } from "./date-range-picker";
 import { CustomSelect } from "./custom-select";
+import { MultiSelect } from "./multi-select";
 import { Modal } from "./modal";
 import { SlideOver, SlideOverContent } from "./slide-over";
 import { AnchoredPopover } from "./anchored-popover";
@@ -638,6 +639,32 @@ describe("DateRangePicker in a dialog", () => {
     renderInModal();
     await screen.findByRole("button", { name: "Letzte 7 Tage" });
 
+    expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+  });
+
+  it("leaves Escape on an open multi-select trigger to that multi-select", async () => {
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Termine absagen">
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <MultiSelect
+          ariaLabel="Gruppen"
+          value={[]}
+          options={[{ value: "a", label: "Sterne" }]}
+          onChange={vi.fn()}
+        />
+      </Modal>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+    const trigger = screen.getByRole("button", { name: /Gruppen/ });
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(trigger, { key: "Escape" });
+
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
 });
