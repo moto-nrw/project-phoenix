@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -30,13 +30,22 @@ export function useTraegerMasterData(object: string, enabled = true) {
   const [loaded, setLoaded] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
+  const request = useRef(0);
 
   const read = useCallback(async () => {
-    const data = await fetchTraegerMasterData();
-    setMasterData(data);
-    setFailure(undefined);
-    setLoaded(true);
-    clearLoadError();
+    const current = ++request.current;
+    try {
+      const data = await fetchTraegerMasterData();
+      if (current !== request.current) return;
+      setMasterData(data);
+      setFailure(undefined);
+      setLoaded(true);
+      clearLoadError();
+    } catch (err) {
+      if (current === request.current) throw err;
+    } finally {
+      if (current === request.current) setLoading(false);
+    }
   }, [clearLoadError]);
 
   const load = useCallback(async () => {
@@ -49,8 +58,6 @@ export function useTraegerMasterData(object: string, enabled = true) {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, { object, retry: () => void load() });
-    } finally {
-      setLoading(false);
     }
   }, [object, read, showLoadError]);
 

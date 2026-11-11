@@ -586,6 +586,39 @@ describe("TraegerVorlagePage", () => {
   // #6652: after a saved version a failed reload is a load error above the
   // template, not a page error that replaces the editor.
   describe("reload after a write (#6652)", () => {
+    it.each([false, true])(
+      "adopts canonical saved text when reload fails: %s",
+      async (reloadFails) => {
+        renderPage();
+        const subject = await screen.findByLabelText(/Betreff/);
+        fireEvent.change(subject, { target: { value: "  Ihre Rechnung  " } });
+        const saved = {
+          ...detail().current,
+          version: 1,
+          standard: false,
+          subject: "Ihre Rechnung",
+        };
+        templatesApi.saveDocumentTemplate.mockResolvedValue(saved);
+        if (reloadFails) {
+          templatesApi.fetchDocumentTemplate.mockRejectedValueOnce(
+            new ApiError("down", 503),
+          );
+        } else {
+          templatesApi.fetchDocumentTemplate.mockResolvedValue(detail([saved]));
+        }
+        fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+        await waitFor(() => expect(subject).toBeEnabled());
+        expect(subject).toHaveValue("Ihre Rechnung");
+        // Anker: der kanonische Betreff steht im weiterhin sichtbaren Editor.
+        expect(
+          screen.getByRole("figure", { name: "Vorschau des Briefs" }),
+        ).toBeVisible();
+        expect(
+          screen.queryByRole("button", { name: "Speichern" }),
+        ).not.toBeInTheDocument();
+      },
+    );
+
     it.each(["before", "during"])(
       "preserves edits made %s a reload retry",
       async (when) => {

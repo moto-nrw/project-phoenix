@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -450,6 +457,50 @@ describe("TraegerVertraegePage", () => {
   // #6652: after a confirmed send a failed reload is a load error above the
   // list, not a failed send or a page error that replaces the contracts.
   describe("reload after a write (#6652)", () => {
+    it("shows a reload failure after sending while a new filter has no data yet", async () => {
+      const send = deferred<{ sent: string[]; skipped: [] }>();
+      const filtered = deferred<{
+        contracts: CareContractSummary[];
+        counts: {};
+        hasMore: boolean;
+      }>();
+      api.sendCareContracts.mockReturnValueOnce(send.promise);
+      renderPage();
+      await screen.findAllByText("Lina Muster");
+      fireEvent.click(
+        screen.getAllByLabelText("Vertrag von Lina Muster auswählen")[0]!,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "1 Entwurf senden" }),
+      );
+      api.fetchCareContracts
+        .mockReturnValueOnce(filtered.promise)
+        .mockRejectedValueOnce(new ApiError("down", 503))
+        .mockResolvedValue({
+          contracts: [SENT],
+          counts: { versendet: 1 },
+          hasMore: false,
+        });
+      fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: /^Versendet/ }),
+      );
+      await waitFor(() =>
+        expect(api.fetchCareContracts).toHaveBeenCalledTimes(2),
+      );
+      await act(async () => send.resolve({ sent: ["7"], skipped: [] }));
+      const retry = await screen.findByRole("button", { name: "Wiederholen" });
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        SAVED_BUT_STALE_SUFFIX,
+      );
+      await act(async () =>
+        filtered.resolve({ contracts: [DRAFT], counts: {}, hasMore: false }),
+      );
+      fireEvent.click(retry);
+      expect((await screen.findAllByText("Ben Muster"))[0]).toBeVisible();
+      expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps created drafts created when the reload fails", async () => {
       api.createCareContracts.mockResolvedValue({
         created: [DRAFT],
@@ -458,9 +509,7 @@ describe("TraegerVertraegePage", () => {
       renderPage();
       await screen.findAllByText("Lina Muster");
       fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
-      fireEvent.click(
-        await screen.findByRole("option", { name: /^Entwurf/ }),
-      );
+      fireEvent.click(await screen.findByRole("option", { name: /^Entwurf/ }));
       await waitFor(() =>
         expect(api.fetchCareContracts).toHaveBeenLastCalledWith(
           expect.objectContaining({ status: "entwurf" }),

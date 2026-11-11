@@ -1,4 +1,11 @@
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import GuardianApprovalQueue from "./guardian-approval-queue";
 import type { PendingApproval } from "@/lib/guardian-api";
@@ -306,6 +313,33 @@ describe("GuardianApprovalQueue", () => {
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith("42"));
     // initial load + reload after approve
     expect(mockList).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores an older reload after a later approval refreshed the queue", async () => {
+    const second = {
+      ...sampleRequest,
+      id: "43",
+      guardianName: "Petra Lindner",
+    };
+    mockList.mockResolvedValueOnce([sampleRequest, second]);
+    const older = deferred<PendingApproval[]>();
+    const newer = deferred<PendingApproval[]>();
+    mockList
+      .mockReturnValueOnce(older.promise)
+      .mockReturnValueOnce(newer.promise);
+    render(<GuardianApprovalQueue inviteModeState={staffApprovalMode} />);
+    expect(await screen.findByText("Julia Schröder")).toBeVisible();
+    fireEvent.click(screen.getAllByRole("button", { name: /Freigeben/ })[0]!);
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Petra Lindner")).toBeVisible();
+    fireEvent.click(screen.getAllByRole("button", { name: /Freigeben/ })[1]!);
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(3));
+    await act(async () => newer.resolve([]));
+    expect(await screen.findByText("Keine offenen Anfragen")).toBeVisible();
+    await act(async () => older.resolve([second]));
+    // Anker: der neuere leere Stand bleibt nach der verspäteten Antwort sichtbar.
+    expect(screen.getByText("Keine offenen Anfragen")).toBeVisible();
+    expect(screen.queryByText("Petra Lindner")).not.toBeInTheDocument();
   });
 
   it("rejects a request via the confirmation modal", async () => {

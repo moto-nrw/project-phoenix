@@ -203,13 +203,21 @@ export default function GuardianApprovalQueue({
   const rejectErrors = useApiFormError();
   const clearRejectError = rejectErrors.clear;
   const latestRejectRef = useRef<() => void>(() => undefined);
+  const request = useRef(0);
 
   // Rejects on failure: after a decision the caller shows it as a reload of
   // a saved change and keeps the shown list (#6652).
   const readRequests = useCallback(async () => {
-    setRequests(await listPendingApprovals());
-    setLoadFailed(false);
-    clearLoadError();
+    const current = ++request.current;
+    try {
+      const next = await listPendingApprovals();
+      if (current !== request.current) return;
+      setRequests(next);
+      setLoadFailed(false);
+      clearLoadError();
+    } catch (err) {
+      if (current === request.current) throw err;
+    }
   }, [clearLoadError]);
   // Never rejects: a failed load shows its error where the list belongs.
   const load = useCallback(async () => {

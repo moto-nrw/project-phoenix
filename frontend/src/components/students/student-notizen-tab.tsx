@@ -43,6 +43,7 @@ import {
 } from "~/lib/student-notes-api";
 import { NOTE_SHARED_WITH_SCHOOL_BADGE } from "~/components/students/note-badges";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
@@ -496,6 +497,26 @@ export function StudentNotizenTab({
 
   const showLoadError = load.show;
   const clearLoadError = load.clear;
+  const discardRefused = useDiscardRefusedEntity();
+  useLayoutEffect(() => {
+    const noteKeys = [
+      studentKeys.notes(studentId),
+      studentKeys.permanentNotes(studentId),
+      studentKeys.noteActivities(studentId),
+    ];
+    if (
+      discardRefused(error, {
+        codes: ["general.permission"],
+        matches: (key) => noteKeys.includes(key),
+      })
+    ) {
+      setComposing(false);
+      setDraft(emptyDraft());
+      setEditing(null);
+      setEditDraft(emptyDraft());
+      setDeleteTarget(null);
+    }
+  }, [discardRefused, error, studentId]);
   useEffect(() => {
     if (error) {
       void showLoadError(error, {

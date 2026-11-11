@@ -195,9 +195,10 @@ function TemplateEditorPage({
     setPreviewing(false);
     formErrors.clear();
     setSaving(true);
+    const submitted = draft;
     let saved: Awaited<ReturnType<typeof saveDocumentTemplate>>;
     try {
-      saved = await saveDocumentTemplate(kind, draft);
+      saved = await saveDocumentTemplate(kind, submitted);
     } catch (err) {
       logger.error("traeger_document_template_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -206,6 +207,11 @@ function TemplateEditorPage({
       setSaving(false);
       return;
     }
+    setDraft((current) =>
+      current && sameTemplateText(current, submitted)
+        ? templateTextOf(saved)
+        : current,
+    );
     success(
       `Die Vorlage ist gespeichert. Neue Schreiben nutzen Version ${saved.version}.`,
     );

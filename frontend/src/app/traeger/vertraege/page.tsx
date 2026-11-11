@@ -520,8 +520,8 @@ export default function TraegerVertraegePage() {
           </Button>
         </>
       }
-      error={pageLoad.error}
-      loading={!pageLoad.error && !data}
+      error={pageLoad.error ?? (!data ? afterWrite.error : null)}
+      loading={!pageLoad.error && !afterWrite.error && !data}
       overlays={
         data ? (
           <CareContractCreateModal
