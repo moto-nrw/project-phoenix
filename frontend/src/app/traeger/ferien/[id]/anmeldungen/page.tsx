@@ -52,7 +52,7 @@ import type {
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
-import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/holiday-registration-pdf-menu";
+import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/use-holiday-registration-pdf";
 import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";

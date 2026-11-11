@@ -5,13 +5,13 @@
 // screen; the backend checks the right again and records every download.
 
 import { useState } from "react";
-import { ExportMenu, type ExportMenuOption } from "~/components/ui/export-menu";
+import type { ExportMenuOption } from "~/components/ui/export-menu";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import { downloadHolidayRegistrationPdf } from "~/lib/traeger-holiday-registrations-api";
 
-const logger = createLogger({ component: "HolidayRegistrationPdfMenu" });
+const logger = createLogger({ component: "useHolidayRegistrationPdf" });
 
 /** The menu entry that asks for the file with health information. */
 export const HOLIDAY_PDF_HEALTH_KEY = "pdf-health";
@@ -31,7 +31,7 @@ function options(canSeeHealth: boolean): readonly ExportMenuOption[] {
   ];
 }
 
-export function HolidayRegistrationPdfMenu({
+export function useHolidayRegistrationPdf({
   periodId,
   registrationId,
   canSeeHealth,
@@ -65,12 +65,5 @@ export function HolidayRegistrationPdfMenu({
     }
   };
 
-  return (
-    <ExportMenu
-      ariaLabel="Anmeldung herunterladen"
-      options={options(canSeeHealth)}
-      busyKey={busy}
-      onSelect={(option) => void download(option.key)}
-    />
-  );
+  return { options: options(canSeeHealth), busyKey: busy, download };
 }
