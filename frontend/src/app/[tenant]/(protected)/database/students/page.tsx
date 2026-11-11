@@ -516,76 +516,67 @@ function StudentsPageContent() {
               onClick={() => setShowCreateModal(true)}
             />
             {/* Die Tour zeigt vom Menü aus den Import; den gibt es nur auf
-                breiten Bildschirmen. `data-icon-only`: das Gerüst lässt das
-                Symbol unter sm in der Zeile der Statuszeile. */}
-            <div
-              data-icon-only=""
-              data-setup-tour={isMobile ? undefined : "student-menu"}
-            >
-              <OverflowMenu
-                ariaLabel="Weitere Aktionen"
-                items={[
-                  ...(!isMobile
-                    ? [
-                        {
-                          label: "Importieren",
-                          icon: <Upload className="h-4 w-4" aria-hidden />,
-                          href: tenantPath("/database/students/import"),
-                          tourTarget: "student-import",
-                          // Navigation only: OverflowMenu verlangt onClick auch bei href.
-                          onClick: () => undefined,
+                breiten Bildschirmen. */}
+            <OverflowMenu
+              tourTarget={isMobile ? undefined : "student-menu"}
+              ariaLabel="Weitere Aktionen"
+              items={[
+                ...(!isMobile
+                  ? [
+                      {
+                        label: "Importieren",
+                        icon: <Upload className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/students/import"),
+                        tourTarget: "student-import",
+                        // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+                ...(canUpdateStudents
+                  ? [
+                      {
+                        label: selectionMode ? "Auswahl beenden" : "Auswählen",
+                        icon: <ListChecks className="h-4 w-4" aria-hidden />,
+                        onClick: () => {
+                          if (selectionMode) {
+                            finishSelection();
+                            return;
+                          }
+                          setSelectionMode(true);
                         },
-                      ]
-                    : []),
-                  ...(canUpdateStudents
-                    ? [
-                        {
-                          label: selectionMode
-                            ? "Auswahl beenden"
-                            : "Auswählen",
-                          icon: <ListChecks className="h-4 w-4" aria-hidden />,
-                          onClick: () => {
-                            if (selectionMode) {
-                              finishSelection();
-                              return;
-                            }
-                            setSelectionMode(true);
-                          },
-                        },
-                      ]
-                    : []),
-                  ...(hasPermission(session, "grade_transitions:read")
-                    ? [
-                        {
-                          label: "Schuljahreswechsel",
-                          icon: (
-                            <GraduationCap className="h-4 w-4" aria-hidden />
-                          ),
-                          href: tenantPath("/database/grade-transitions"),
-                          // Navigation only: OverflowMenu verlangt onClick auch bei href.
-                          onClick: () => undefined,
-                        },
-                      ]
-                    : []),
-                  {
-                    label: "Klassenliste",
-                    icon: <ClipboardList className="h-4 w-4" aria-hidden />,
-                    href: tenantPath("/database/students/class-list"),
-                    onClick: () => undefined,
-                  },
-                  ...(canDeleteStudents
-                    ? [
-                        {
-                          label: "Beendete Betreuungen",
-                          icon: <UserMinus className="h-4 w-4" aria-hidden />,
-                          href: tenantPath("/database/students/ended-care"),
-                          onClick: () => undefined,
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            </div>
+                      },
+                    ]
+                  : []),
+                ...(hasPermission(session, "grade_transitions:read")
+                  ? [
+                      {
+                        label: "Schuljahreswechsel",
+                        icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/grade-transitions"),
+                        // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Klassenliste",
+                  icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+                  href: tenantPath("/database/students/class-list"),
+                  onClick: () => undefined,
+                },
+                ...(canDeleteStudents
+                  ? [
+                      {
+                        label: "Beendete Betreuungen",
+                        icon: <UserMinus className="h-4 w-4" aria-hidden />,
+                        href: tenantPath("/database/students/ended-care"),
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </>
         ),
       }}

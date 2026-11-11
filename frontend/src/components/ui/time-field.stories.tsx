@@ -4,7 +4,17 @@ import { expect, screen, userEvent, within } from "storybook/test";
 
 import { TimeField } from "./time-field";
 
-function Demo({ initial }: { readonly initial: string }) {
+function Demo({
+  initial,
+  required,
+  invalid,
+  inline,
+}: {
+  readonly initial: string;
+  readonly required?: boolean;
+  readonly invalid?: boolean;
+  readonly inline?: boolean;
+}) {
   const [value, setValue] = useState(initial);
   return (
     <div className="max-w-xs p-6">
@@ -14,6 +24,9 @@ function Demo({ initial }: { readonly initial: string }) {
         label="Beginn"
         hint="Uhrzeit im Format HH:MM"
         placeholder="08:00"
+        required={required}
+        invalid={invalid}
+        inline={inline}
       />
     </div>
   );
@@ -30,6 +43,14 @@ type Story = StoryObj<typeof meta>;
 export const Empty: Story = { args: { initial: "" } };
 
 export const Filled: Story = { args: { initial: "13:30" } };
+
+/** Pflichtfeld mit Fehlerrahmen. */
+export const RequiredInvalid: Story = {
+  args: { initial: "", required: true, invalid: true },
+};
+
+/** Neben einem anderen Feld: Beschriftung und Hinweis nur für Vorleser. */
+export const Inline: Story = { args: { initial: "13:30", inline: true } };
 
 /** Offene Uhrzeit-Auswahl (#6576, Baseline des Pixel-Vergleichs). */
 export const Opened: Story = {

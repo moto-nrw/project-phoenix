@@ -513,7 +513,7 @@ function lohnartColumns(
                 void onSave(cat.unitSettingKey, next);
               }
             }}
-            controlSize="compact"
+            controlSize="dense"
             className="md:w-auto md:min-w-[10rem]"
           />
         ) : (
@@ -1130,7 +1130,7 @@ function WageTypesCard({
               saveWageType(wageType, { unit: next as WageTypeUnit });
             }
           }}
-          controlSize="compact"
+          controlSize="dense"
           className="md:w-auto md:min-w-[10rem]"
         />
       ),
@@ -1334,7 +1334,7 @@ function SurchargeRulesCard({
                 saveSurchargeRule(rule, { wageTypeId: next });
               }
             }}
-            controlSize="compact"
+            controlSize="dense"
             className="md:w-auto md:min-w-[10rem]"
           />
         );
@@ -1557,7 +1557,7 @@ function AbsenceTypeWageTypesCard({
               );
             }
           }}
-          controlSize="compact"
+          controlSize="dense"
           className="md:w-auto md:min-w-[12rem]"
         />
       ),

@@ -484,7 +484,7 @@ export function CalendarPeriodModal({
                     id="start_date"
                     name="start_date"
                     error={formErrors.fieldError("start_date")}
-                    controlSize="md"
+                    controlSize="compact"
                     value={form.startDate}
                     onChange={(next) => update("startDate", next)}
                     calendarLayout="popover"
@@ -495,7 +495,7 @@ export function CalendarPeriodModal({
                     id="end_date"
                     name="end_date"
                     error={formErrors.fieldError("end_date")}
-                    controlSize="md"
+                    controlSize="compact"
                     value={form.endDate}
                     onChange={(next) => update("endDate", next)}
                     calendarLayout="popover"
@@ -529,7 +529,7 @@ export function CalendarPeriodModal({
                     id="cycle_anchor"
                     name="week_cycle_anchor"
                     error={formErrors.fieldError("week_cycle_anchor")}
-                    controlSize="md"
+                    controlSize="compact"
                     value={form.weekCycleAnchor}
                     onChange={(next) => update("weekCycleAnchor", next)}
                     disabled={cycleLength <= 1}

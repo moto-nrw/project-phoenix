@@ -16,13 +16,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/segmented-control.tsx",
-    lines: [147, 187, 204],
+    lines: [149, 190, 208],
     reason: "SegmentedControl: Wertauswahl, kein Knopf",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/toggle-chip.tsx",
-    lines: [38],
+    lines: [40],
     reason: "ToggleChip: Schalter (aria-pressed), kein Knopf",
   },
   {
@@ -40,7 +40,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [390],
+    lines: [392],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {

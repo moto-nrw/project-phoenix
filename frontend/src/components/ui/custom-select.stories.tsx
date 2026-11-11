@@ -77,6 +77,30 @@ export const Empty: Story = {
   },
 };
 
+/** Beschriftung, Hinweis und Fehler aus der Feld-Hülle (#6579). */
+export const WithLabelHintAndError: Story = {
+  render: (args) => <ControlledCustomSelect {...args} />,
+  args: {
+    options: OPTIONS,
+    ariaLabel: undefined,
+    label: "Gruppe",
+    required: true,
+    hint: "Die Gruppe, in der das Kind betreut wird.",
+    error: "Bitte wählen Sie eine Gruppe.",
+  },
+};
+
+/** Dichte Zeilen: die kleinere Feldhöhe. */
+export const Compact: Story = {
+  render: (args) => <ControlledCustomSelect {...args} />,
+  args: {
+    options: OPTIONS,
+    value: "group-a",
+    ariaLabel: "Gruppe auswählen",
+    controlSize: "dense",
+  },
+};
+
 /** Offene Liste mit Suchfeld (#6576, Baseline des Pixel-Vergleichs). */
 export const SearchableOpened: Story = {
   render: (args) => <ControlledCustomSelect {...args} />,

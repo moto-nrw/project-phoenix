@@ -1020,7 +1020,7 @@ export default function StatisticsPage() {
                 onChange={setSchoolClasses}
                 placeholder="Alle Klassen"
                 summaryLabel={(count) => `${count} Klassen`}
-                controlSize="compact"
+                controlSize="dense"
                 className="md:w-44"
               />
               <MultiSelect
@@ -1030,7 +1030,7 @@ export default function StatisticsPage() {
                 onChange={setGroupIds}
                 placeholder="Alle Gruppen"
                 summaryLabel={(count) => `${count} Gruppen`}
-                controlSize="compact"
+                controlSize="dense"
                 className="md:w-56"
               />
             </div>

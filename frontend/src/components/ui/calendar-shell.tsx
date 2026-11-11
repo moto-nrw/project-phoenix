@@ -279,7 +279,7 @@ export function CalendarMonthHeader({
               onMonthChange(new Date(month.getFullYear(), Number(next), 1))
             }
             containerClassName="relative min-w-0"
-            size="compact"
+            size="dense"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}
@@ -297,7 +297,7 @@ export function CalendarMonthHeader({
               onMonthChange(new Date(Number(next), month.getMonth(), 1))
             }
             containerClassName="relative min-w-0"
-            size="compact"
+            size="dense"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
             menuZIndex={NAV_MENU_Z_INDEX}

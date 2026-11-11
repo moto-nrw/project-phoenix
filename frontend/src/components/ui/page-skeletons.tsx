@@ -15,6 +15,13 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { Skeleton } from "~/components/ui/skeleton";
 
+import {
+  HEAD_CONTROL_HEIGHT,
+  HEAD_CONTROL_HEIGHT_SELF,
+  HEAD_PADDING,
+  HEAD_TITLE_SIZE,
+} from "./control-geometry";
+
 // Deterministic width cycle — varied line lengths read as real text without
 // Math.random() (which would break SSR hydration and test snapshots).
 const LINE_WIDTHS = ["w-3/4", "w-1/2", "w-2/3", "w-5/6", "w-2/5", "w-3/5"];
@@ -61,15 +68,13 @@ export function SkeletonRegion({
 // Der Layouttest `page-header-skeleton.spec.ts` misst beide Varianten nach.
 //
 // Unter `lg` setzt die Portalhülle die Seitenhilfe als Knopf in den Kopf von
-// `TenantPage` (`MobilePageHelpTarget`): 40 px hoch, auf dem Telefon 44 px.
+// `TenantPage` (`MobilePageHelpTarget`), auf der Bedienhöhe der Kopfkarte.
 // Der Ladekopf bietet ihr denselben Platz an. Sonst wächst der Kopf einer
 // Seite ohne Statuszeile beim Wechsel um diesen Knopf.
-const HELP_CONTROL_HEIGHT =
-  "[&_a[data-button-link]]:h-10 max-sm:[&_a[data-button-link]]:h-11";
 const HEAD_GEOMETRY = {
   "tenant-page": {
-    surface: "compact:p-4 p-5 max-sm:p-4",
-    titleLine: "compact:text-xl h-lh text-2xl leading-tight max-sm:text-xl",
+    surface: HEAD_PADDING,
+    titleLine: `h-lh ${HEAD_TITLE_SIZE.standard}`,
     titleBar: "h-[1em]",
     statusLine: "mt-1 h-5",
   },
@@ -145,7 +150,7 @@ export function TenantPageHeaderSkeleton({
       {matches === "tenant-page" ? (
         <div className="flex items-start gap-x-4 max-sm:gap-x-2">
           <div className="min-w-0 flex-1">{titleRow}</div>
-          <div className={`contents ${HELP_CONTROL_HEIGHT}`}>
+          <div className={`contents ${HEAD_CONTROL_HEIGHT}`}>
             <MobilePageHelpTarget />
           </div>
         </div>
@@ -154,8 +159,14 @@ export function TenantPageHeaderSkeleton({
       )}
       {controls && (
         <div className="compact:mt-3 mt-4 flex items-center gap-3 max-sm:mt-3">
-          <Skeleton shape="control" className="h-10 w-48 min-w-0 max-sm:h-11" />
-          <Skeleton shape="control" className="h-10 w-32 min-w-0 max-sm:h-11" />
+          <Skeleton
+            shape="control"
+            className={`w-48 min-w-0 ${HEAD_CONTROL_HEIGHT_SELF}`}
+          />
+          <Skeleton
+            shape="control"
+            className={`w-32 min-w-0 ${HEAD_CONTROL_HEIGHT_SELF}`}
+          />
         </div>
       )}
     </header>

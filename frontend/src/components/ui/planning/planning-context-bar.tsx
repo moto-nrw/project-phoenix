@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 
 import { Button } from "~/components/ui/button";
+import { HEAD_CONTROL_HEIGHT_SELF } from "~/components/ui/control-geometry";
 import { StatusDot } from "~/components/ui/status-dot";
 import { PLANNING_COLORS } from "./planning-colors";
 import { cn } from "~/lib/utils";
@@ -143,7 +144,7 @@ export function PlanningContextBar({
             steht der Slot selbst zwischen den Pfeilen und die Gruppe füllt
             unter md die Zeile. */}
         <div
-          className={`inline-flex h-10 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white max-sm:h-11 md:order-1 ${
+          className={`inline-flex ${HEAD_CONTROL_HEIGHT_SELF} shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1 ${
             navigationInGroup ? "w-full md:w-auto" : ""
           }`}
         >

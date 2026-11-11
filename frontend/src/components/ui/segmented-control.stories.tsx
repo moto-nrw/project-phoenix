@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
+import { LayoutGrid, List } from "lucide-react";
+
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -48,6 +50,45 @@ export const PillTones: Story = {
           ariaLabel={`Arbeitsort ${item.label}`}
         />
       ))}
+    </div>
+  ),
+};
+
+/** Symbol-Segmente (#3834): das Label bleibt der vorgelesene Name. */
+export const IconOnly: Story = {
+  render: () => (
+    <SegmentedControl
+      iconOnly
+      items={[
+        {
+          value: "tiles",
+          label: "Kacheln",
+          icon: <LayoutGrid className="h-4 w-4" aria-hidden />,
+        },
+        {
+          value: "table",
+          label: "Liste",
+          icon: <List className="h-4 w-4" aria-hidden />,
+        },
+      ]}
+      value="tiles"
+      onChange={noop}
+      ariaLabel="Ansicht"
+    />
+  ),
+};
+
+/** Volle Breite, lange Beschriftungen brechen in gleich breiten Segmenten um. */
+export const FullWidth: Story = {
+  render: () => (
+    <div className="w-80">
+      <SegmentedControl
+        fullWidth
+        items={ITEMS}
+        value="home"
+        onChange={noop}
+        ariaLabel="Arbeitsort"
+      />
     </div>
   ),
 };

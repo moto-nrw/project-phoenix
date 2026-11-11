@@ -280,7 +280,7 @@ export function FilesPage() {
                   label: `${folder.name} (${folder.fileCount})`,
                 }))}
                 onChange={(value) => setSelectedId(value)}
-                controlSize="compact"
+                controlSize="dense"
               />
             </SectionCard>
             <SectionCard

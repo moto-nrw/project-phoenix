@@ -6,6 +6,7 @@ import {
   type ButtonSize,
   type ButtonVariant,
 } from "./button-styles";
+import { iconOnlyMarker } from "./control-geometry";
 import NavigationLink, { type NavigationLinkProps } from "./navigation-link";
 import { cn } from "~/lib/utils";
 
@@ -61,7 +62,7 @@ export function Button({
   const button = (
     <button
       type="submit"
-      data-icon-only={size === "icon" ? "" : undefined}
+      {...iconOnlyMarker(size === "icon")}
       className={buttonClassName({ variant, size, className, touchTarget })}
       {...props}
       // Nach den Props: `disabled={false}` vom Aufrufer hebt die Ladesperre
@@ -93,7 +94,7 @@ export function ButtonLink({
       // erfasst Knöpfe über `button`, Links in Button-Optik über dieses
       // Attribut (#5531).
       data-button-link=""
-      data-icon-only={size === "icon" ? "" : undefined}
+      {...iconOnlyMarker(size === "icon")}
     />
   );
   return tooltip ? <ActionHint text={tooltip}>{link}</ActionHint> : link;

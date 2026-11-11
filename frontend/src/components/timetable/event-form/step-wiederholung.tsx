@@ -95,7 +95,7 @@ export function StepWiederholung({
       <ISODatePicker
         id="event_series_last_day"
         name="end_date"
-        controlSize="md"
+        controlSize="compact"
         value={form.seriesEndDate}
         min={isEditingSeries ? undefined : form.date || undefined}
         max={selectedPeriod?.endDate}

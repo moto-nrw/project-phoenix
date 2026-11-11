@@ -139,7 +139,7 @@ export function DateTimePicker({
         disabled={disabled}
         hideClearButton={hideClearButton}
         required={required}
-        controlSize="md"
+        controlSize="compact"
         calendarLayout={calendarLayout}
         ariaLabel={dateAriaLabel}
         invalid={invalid}

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { useState } from "react";
 import { expect, screen, userEvent, within } from "storybook/test";
-import { DatePicker } from "./date-picker";
+import { DatePicker, ISODateInput, ISODatePicker } from "./date-picker";
 import { Modal } from "./modal";
 
 const meta: Meta<typeof DatePicker> = {
@@ -129,4 +129,79 @@ export const InDialogOpened: Story = {
     );
     await expect(await screen.findByRole("grid")).toBeVisible();
   },
+};
+
+function ISOFieldDemo() {
+  const [value, setValue] = useState("2026-09-09");
+  return (
+    <div className="max-w-xs p-10">
+      <ISODatePicker
+        id="start-date"
+        label="Startdatum"
+        required
+        hint="Der erste Betreuungstag."
+        error="Das Datum liegt in den Ferien."
+        value={value}
+        onChange={setValue}
+        controlSize="compact"
+      />
+    </div>
+  );
+}
+
+/** Beschriftung, Hinweis und Fehler aus der Feld-Hülle (#6579). */
+export const ISOWithLabelHintAndError: Story = {
+  render: () => <ISOFieldDemo />,
+};
+
+function SizesDemo() {
+  return (
+    <div className="flex max-w-xs flex-col gap-3 p-10">
+      <DatePicker value={null} onChange={() => undefined} ariaLabel="Klein" />
+      <DatePicker
+        value={null}
+        onChange={() => undefined}
+        ariaLabel="Mittel"
+        controlSize="compact"
+      />
+      <DatePicker
+        value={null}
+        onChange={() => undefined}
+        ariaLabel="Groß"
+        controlSize="large"
+        hint="Neben einem großen Eingabefeld."
+      />
+      <DatePicker
+        value={null}
+        onChange={() => undefined}
+        ariaLabel="Kalender öffnen"
+        iconOnly
+      />
+    </div>
+  );
+}
+
+/** Die Auslöser-Größen und der reine Symbol-Auslöser. */
+export const Sizes: Story = {
+  render: () => <SizesDemo />,
+};
+
+function ISOInputDemo() {
+  const [value, setValue] = useState("");
+  return (
+    <div className="max-w-xs p-10">
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value={value}
+        onChange={setValue}
+        error="Bitte geben Sie das Geburtsdatum ein."
+      />
+    </div>
+  );
+}
+
+/** Getipptes Datum mit Kalender daneben und Fehler darunter. */
+export const ISOInputWithError: Story = {
+  render: () => <ISOInputDemo />,
 };
