@@ -56,8 +56,10 @@ so sensibel wie das Paket selbst.
    Downloadbudget (höchstens 20). Widerruf (`tenant return revoke`) und Ablauf
    wirken für neue Anfragen sofort; ein laufender Download prüft alle 8 MiB, ob
    sein Token widerrufen oder bereinigt ist, und bricht dann ab. Nach einem
-   Restore der Datenbank widerruft `tenant return revoke --all` alle Tokens,
-   weil der Restore widerrufene Tokens und Downloadzähler zurückbringt. Jedes Token öffnet genau das Archiv seiner Zeile; keine
+   Restore der Datenbank widerruft das Restore-Skript selbst alle Tokens mit
+   Archiv, weil der Restore widerrufene Tokens und Downloadzähler zurückbringt
+   (`restore_data_return_revoked=<Anzahl>`); `tenant return revoke --all`
+   leistet dasselbe von Hand. Jedes Token öffnet genau das Archiv seiner Zeile; keine
    Anfrage wählt Schule, Träger oder Datei. Damit gibt es keinen Weg, mit dem
    Token einer Schule das Paket einer anderen zu holen.
 4. **HTTPS-Schnittstelle.** `GET /public/data-return/package` nennt Paketart,
@@ -76,8 +78,16 @@ so sensibel wie das Paket selbst.
    ergänzt das Operator-Protokoll in derselben Transaktion (Aktion
    `data_return_*`, je Token bzw. Archiv ein Eintrag, ohne Token, Schlüssel oder
    Personendaten) und sperrt das Archiv per Advisory-Lock, sodass Bereinigung
-   und neues Token desselben Archivs nicht ineinanderlaufen. Der Webzugang
-   `phoenix_auth` liest nur Tokens, zählt Downloads und schreibt Abrufzeilen. Jeder Abruf steht
+   und neues Token desselben Archivs nicht ineinanderlaufen. Ein weiteres Token
+   übernimmt Abrufzeitraum, Größe und Prüfsummen aus den Zeilen des Archivs,
+   nicht vom Aufrufer; Abrufzeitraum (höchstens 366 Tage) und Tokenlaufzeit
+   (höchstens 30 Tage) begrenzt auch die Funktion. Die Operator-ID übergibt der
+   Aufrufer: Sie ist Zuordnung, keine Anmeldung, wie bei der Schullöschung;
+   die Anmeldung ist der dedizierte Login in `phoenix_data_return`. Der
+   Webzugang `phoenix_auth` liest nur Tokens, zählt Downloads und schreibt
+   Abrufzeilen; `phoenix_admin`, `phoenix_tenant` und `phoenix_demo` haben auf
+   die Tabellen keine Rechte, sodass auch eine administrative Einheit des
+   Webservers kein Token ändern kann. Jeder Abruf steht
    mit Zeitpunkt, Ergebnis und Bytes in `platform.data_return_downloads`.
 6. **Ende.** `tenant return purge` löscht ein Archiv nach dem Abrufzeitraum
    oder sobald alle seine Tokens widerrufen sind, und leert die eingewickelten
@@ -87,7 +97,20 @@ so sensibel wie das Paket selbst.
    Schul-Fremdschlüssel (wie `platform.school_erasures`) und gehen drei Jahre
    nach dem Abrufzeitraum. `tenant erase` verweigert eine Schule oder einen
    Träger, solange ein Paket davon nicht bereinigt ist: Die Löschung erreicht
-   die Ablage nicht, das Paket bliebe sonst abrufbar.
+   die Ablage nicht, das Paket bliebe sonst abrufbar. Der Probelauf verweigert
+   ebenso. Ein `BEFORE DELETE`-Trigger auf `platform.schools` und
+   `platform.organizations` wiederholt die Prüfung in der Transaktion des
+   Löschens, nachdem er die Zeilensperre erhalten hat; die Freigabe sperrt
+   dieselbe Zeile mit `FOR KEY SHARE` und verweigert eine Schule oder einen
+   Träger, den es nicht mehr gibt. Freigabe und Löschung desselben Subjekts
+   laufen so nie aneinander vorbei.
+
+**Bewusst offen:** Die Löschung einer Schule wird **nicht** durch ein offenes
+Paket ihres Trägers gesperrt. Das Trägerpaket enthält die Unterlagen des
+Trägers (Verträge, Abrechnung, SEPA) und die Stammzeilen seiner Schulen; es
+bleibt nach der Löschung einer seiner Schulen abrufbar, bis der Träger
+gelöscht oder das Paket bereinigt wird. Ob das so bleiben soll, ist eine
+offene fachliche Entscheidung.
 
 Verfügbarkeit: Die Schnittstelle besteht dauerhaft; ein Paket ist ab seiner
 Freigabe nach der Wechselanfrage bis zum Ende des Abrufzeitraums abrufbar,

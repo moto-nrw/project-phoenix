@@ -469,6 +469,10 @@ func TestErasureCLIRefusesWhileAReturnPackageIsReleased(t *testing.T) {
 	request := organizationtenancy.ErasureRequest{SchoolID: school, OperatorID: operator.ID, OrderReference: "ORDER-6550",
 		Confirmation: fmt.Sprintf("school:%d", school), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute}
 	before := erasureTableCounts(t, db, school)
+	preview := request
+	preview.DryRun = true
+	_, err = service.Run(t.Context(), preview)
+	require.ErrorContains(t, err, "released return package", "the preview refuses where the run refuses")
 	_, err = service.Run(t.Context(), request)
 	require.ErrorContains(t, err, "released return package")
 	require.Equal(t, before, erasureTableCounts(t, db, school), "nothing erased")

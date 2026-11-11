@@ -85,21 +85,25 @@ func (s *Erasure) checkLedger(ctx context.Context, r organizationtenancy.Erasure
 	if err := s.store.CheckSchoolLock(ctx); err != nil {
 		return err
 	}
-	if r.DryRun {
-		return nil
-	}
+	// A preview refuses where the run refuses.
 	for _, id := range ids {
 		if err := s.checkDataReturn(ctx, r, "school", id); err != nil {
 			return err
 		}
 	}
+	if r.DryRun {
+		return nil
+	}
 	return s.ledger.Check(ids, r.OrderReference)
 }
 
-// checkDataReturn refuses an erasure while a released return package of the
-// school or Träger still lies in the store (ADR 0203): the erasure does not
-// reach that store, so the package would stay retrievable. Revoke and purge
-// it first (tenant return revoke, tenant return purge).
+// checkDataReturn refuses an erasure, and its preview, while a released
+// return package of the school or Träger still lies in the store (ADR 0203):
+// the erasure does not reach that store, so the package would stay
+// retrievable. Revoke and purge it first (tenant return revoke, tenant
+// return purge). A trigger on the root row repeats the check in the
+// transaction of the delete. A package of the Träger does not block the
+// erasure of one of its schools.
 func (s *Erasure) checkDataReturn(ctx context.Context, r organizationtenancy.ErasureRequest, kind string, id int64) error {
 	raw, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "data_return_open", kind, id)
 	if err != nil {
@@ -228,11 +232,11 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 // started. A refused preflight leaves the order withdrawable; from the mark
 // on, a run that fails halfway is resumed with the same order.
 func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64) error {
-	if r.DryRun {
-		return nil
-	}
 	if err := s.checkDataReturn(ctx, r, "organization", r.OrganizationID); err != nil {
 		return err
+	}
+	if r.DryRun {
+		return nil
 	}
 	if err := s.checkLedger(ctx, r, ids); err != nil {
 		return err

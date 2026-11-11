@@ -108,9 +108,26 @@ func (r *Release) Release(ctx context.Context, request organizationtenancy.DataR
 		KeepUntil: keepUntil}
 	issued, err = r.issue(ctx, row, key, request.OperatorID, request.DataReturnRecipient, now)
 	if err != nil {
-		_ = os.Remove(r.archivePath(name))
+		r.discardUnreleased(ctx, request.OperatorID, name)
 	}
 	return issued, err
+}
+
+// discardUnreleased removes the archive of a failed release only when the
+// database confirms that no grant names it. A lost answer after a commit
+// leaves a live grant: its archive stays. If the database cannot answer,
+// the file stays too; the purge sweeps it once no grant names it.
+func (r *Release) discardUnreleased(ctx context.Context, operatorID int64, name string) {
+	live, err := r.store.names(context.WithoutCancel(ctx), "data_return_live_archives", operatorID)
+	if err != nil {
+		return
+	}
+	for _, archive := range live {
+		if archive == name {
+			return
+		}
+	}
+	_ = os.Remove(r.archivePath(name))
 }
 
 // Grant issues another token for a live archive, with the archive key the

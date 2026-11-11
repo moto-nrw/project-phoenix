@@ -319,6 +319,26 @@ class Recovery:
         """)
         return quarantined
 
+    def revoke_data_return(self):
+        # ADR 0203: the store of released return packages is no part of the
+        # backup and survives an in-place restore, while the database brings
+        # back revoked tokens and spent downloads. Revoke every grant that
+        # still has an archive before any app can start; the operator issues
+        # new tokens. Older backups without the table need nothing.
+        global step
+        step = 'data_return_revoke'
+        if self.sql("SELECT to_regclass('platform.data_return_grants') IS NOT NULL;") != 't':
+            return
+        revoked = self.sql("""
+            WITH revoked AS (
+                UPDATE platform.data_return_grants SET revoked_at = now(), wrapped_key = NULL
+                WHERE purged_at IS NULL AND (revoked_at IS NULL OR wrapped_key IS NOT NULL)
+                RETURNING 1)
+            SELECT count(*) FROM revoked;
+        """)
+        require(re.fullmatch(r'[0-9]+', revoked))
+        print(f'restore_data_return_revoked={int(revoked)}', flush=True)
+
     def verify_quarantined_logins(self, quarantined):
         global step
         if not quarantined:
@@ -407,6 +427,7 @@ class Recovery:
             self.dc('exec', '-T', 'postgres', 'pg_restore', '-U', 'postgres', '-d', 'postgres',
                     '--exit-on-error', stdin=file)
         self.verify_quarantined_logins(quarantined)
+        self.revoke_data_return()
         step = 'uploads_restore'
         command(['docker', 'volume', 'create', self.volume])
         with (work / 'uploads.tar.gz').open('rb') as file:

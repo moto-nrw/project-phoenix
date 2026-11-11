@@ -66,7 +66,11 @@ func TestTenantReturnCLIKeepsSecretsOffStdout(t *testing.T) {
 		err := command.ExecuteContext(t.Context())
 		return stdout.String(), err
 	}
-	school := testpkg.UniqueTestTenantID(t)
+	school, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM platform.data_return_grants WHERE subject_id = ?`, school)
+		require.NoError(t, err)
+	})
 	secrets := t.TempDir()
 	require.NoError(t, os.Chmod(secrets, 0o700))
 	keepUntil := time.Now().AddDate(0, 0, 40).Format("2006-01-02")

@@ -12,8 +12,9 @@ vollständigem Download-/Hashvergleich und altersbasierte Bereinigung.
 Nicht gesichert wird das Volume `phoenix-<env>-data-return` mit den
 verschlüsselten, zum Abruf freigegebenen Rückgabepaketen (ADR 0203). Ein
 Restore der Datenbank belebt widerrufene Tokens wieder und setzt
-Downloadzähler zurück; deshalb nach jedem Restore als erstes alle Tokens
-widerrufen und neu ausstellen (Schritt „Datenrückgabe nach Restore“ in der Wiederherstellung).
+Downloadzähler zurück; der Restore widerruft deshalb alle Tokens mit Archiv
+selbst, neue stellt der Operator aus (Schritt „Datenrückgabe nach Restore“ in
+der Wiederherstellung).
 Ein täglicher systemd-Timer arbeitet unabhängig von Deployments. Jeder
 Teilfehler liefert einen Fehlerstatus; erst nach Prüfung und Bereinigung
 erscheint `backup_result=ok step=complete`. Eigene Grafana/Loki-Regeln erkennen
@@ -502,9 +503,11 @@ weder den Produktionshost noch den Monitoring-Host dafür gelesen.
    **Datenrückgabe nach Restore (ADR 0203):** Die Datenbank kennt wieder
    Tokens, die vor dem Restore widerrufen waren, mit zurückgesetzten
    Downloadzählern; die Ablage `phoenix-<env>-data-return` ist nicht
-   wiederhergestellt. Deshalb zuerst mit dem Freigabezugang
-   `tenant return revoke --all --operator <ID>` und danach
-   `tenant return purge --operator <ID>` ausführen
+   wiederhergestellt. Das Skript widerruft deshalb direkt nach dem
+   Datenbankimport jedes Token mit Archiv und leert dessen Schlüssel
+   (`restore_data_return_revoked=<Anzahl>`, Schritt `data_return_revoke`);
+   ältere Sicherungen ohne die Tabelle bleiben unberührt. Danach mit dem
+   Freigabezugang `tenant return purge --operator <ID>` ausführen
    ([Runbook](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act)).
    Laufende Wechsel danach neu exportieren, freigeben und neue Tokens
    ausstellen. Ohne diesen Schritt verweigert `tenant erase` auch die

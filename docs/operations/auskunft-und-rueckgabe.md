@@ -555,7 +555,9 @@ hat, kann es laden.
    Shell-History, Ausgabe oder dieses Runbook. Kein neues Env-Schema. Nach
    einem Restore ist der Login NOLOGIN (`restore_data_return_disabled`); ihn
    bewusst neu freischalten wie den Löschzugang und nach dem Lauf wieder auf
-   NOLOGIN setzen. Der Webzugang `phoenix_auth` kann nicht freigeben.
+   NOLOGIN setzen. Der Webzugang `phoenix_auth` kann nicht freigeben, auch
+   nicht über `phoenix_admin`. `--operator` ordnet die Aktion zu; die
+   Anmeldung ist dieser Login.
 2. **Geheimnisse nie auf die Ausgabe.** Die Container-Ausgabe von `server`
    landet in journald und Loki. Token und Paketschlüssel schreibt die CLI
    deshalb nur in eine **neue** Datei mit Modus 0600 (`--secrets-out`); sie
@@ -637,8 +639,15 @@ hat, kann es laden.
    (abgebrochene Freigaben), und Nachweiszeilen drei Jahre nach dem
    Abrufzeitraum. `tenant erase` verweigert eine Schule oder einen Träger,
    solange ein Paket davon nicht bereinigt ist: vorher
-   `tenant return revoke --archive` und `tenant return purge`.
+   `tenant return revoke --archive` und `tenant return purge`. Auch der
+   Probelauf (`--dry-run`) verweigert dann. Eine gleichzeitige Freigabe kann
+   nicht durchrutschen: Der Löschbefehl prüft in derselben Transaktion erneut,
+   und eine gelöschte Schule nimmt keine Freigabe mehr an. **Offen:** Ein
+   Paket des Trägers sperrt die Löschung einer seiner Schulen nicht; es
+   bleibt abrufbar, bis es bereinigt oder der Träger gelöscht wird. Das ist
+   der heutige Stand, keine getroffene fachliche Entscheidung.
 
 Die Ablage `phoenix-<env>-data-return` ist nicht Teil der täglichen
-Sicherung. Nach einem Restore der Datenbank zuerst `revoke --all` und `purge`
-ausführen, dann laufende Wechsel neu exportieren und freigeben.
+Sicherung. Der Restore widerruft alle Tokens mit Archiv selbst
+(`restore_data_return_revoked=<Anzahl>`); danach `purge` ausführen, laufende
+Wechsel neu exportieren und freigeben.

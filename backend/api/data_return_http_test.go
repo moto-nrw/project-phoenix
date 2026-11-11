@@ -35,7 +35,11 @@ func TestDataReturnOverHTTP(t *testing.T) {
 		_, err := db.ExecContext(context.Background(), `DELETE FROM platform.data_return_grants WHERE issued_by = ?`, operator.ID)
 		require.NoError(t, err)
 	})
-	school := testpkg.UniqueTestTenantID(t)
+	school, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM platform.data_return_grants WHERE subject_id = ?`, school)
+		require.NoError(t, err)
+	})
 	dir := filepath.Join(t.TempDir(), "package")
 	require.NoError(t, os.MkdirAll(dir, 0o700))
 	rows := fmt.Appendf(nil, "{\"id\":%d}\n", school)

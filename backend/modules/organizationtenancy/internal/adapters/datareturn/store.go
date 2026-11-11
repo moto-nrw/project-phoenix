@@ -116,12 +116,24 @@ func (s releaseStore) call(ctx context.Context, fn func(bun.Conn) error) error {
 	if _, err := conn.ExecContext(ctx, `SET ROLE phoenix_data_return`); err != nil {
 		return errors.New("data return: role phoenix_data_return unavailable to this login")
 	}
+	// The session is discarded afterwards, so these limits stay with it.
+	if _, err := conn.ExecContext(ctx, `SELECT set_config('lock_timeout', ?, false), set_config('statement_timeout', ?, false)`,
+		releaseLockTimeout, releaseStatementTimeout); err != nil {
+		return errors.New("data return: session limits unavailable")
+	}
 	if err := fn(conn); err != nil {
 		// SQL errors may carry values; the CLI shows the class only.
 		return fmt.Errorf("data return: database step refused: %w", errDatabaseStep)
 	}
 	return nil
 }
+
+// A release command waits briefly for a lock (an erasure or another
+// command on the same archive) and never runs a statement for long.
+const (
+	releaseLockTimeout      = "5s"
+	releaseStatementTimeout = "60s"
+)
 
 var errDatabaseStep = errors.New("operator inactive, archive not live or a constraint failed")
 

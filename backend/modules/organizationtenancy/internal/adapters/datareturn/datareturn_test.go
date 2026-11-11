@@ -90,6 +90,18 @@ func newFixtureOn(t *testing.T, db *bun.DB) *fixture {
 	return f
 }
 
+// school creates a school; its grants go before it at cleanup, since the
+// root row of a school with an unpurged package refuses to go.
+func (f *fixture) school(t *testing.T) int64 {
+	t.Helper()
+	id, _ := testpkg.CreateTestTenant(t, f.db)
+	t.Cleanup(func() {
+		_, err := f.db.ExecContext(context.Background(), `DELETE FROM platform.data_return_grants WHERE package = 'school' AND subject_id = ?`, id)
+		require.NoError(t, err)
+	})
+	return id
+}
+
 func (f *fixture) releaseSchool(t *testing.T, school int64, secret string, downloads int) organizationtenancy.DataReturnIssued {
 	t.Helper()
 	issued, err := f.release.Release(t.Context(), organizationtenancy.DataReturnReleaseRequest{Package: writePackage(t, school, secret, nil),
@@ -126,7 +138,7 @@ func zipFiles(t *testing.T, archive []byte) map[string]string {
 func TestReleaseServesAPackageOnlyToItsToken(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	a, b := testpkg.UniqueTestTenantID(t), testpkg.UniqueTestTenantID(t)
+	a, b := f.school(t), f.school(t)
 	issuedA := f.releaseSchool(t, a, "Synthetic A", 2)
 	issuedB := f.releaseSchool(t, b, "Synthetic B", 2)
 	require.NotEqual(t, issuedA.ArchiveName, issuedB.ArchiveName)
@@ -178,7 +190,7 @@ func TestReleaseServesAPackageOnlyToItsToken(t *testing.T) {
 func TestDownloadBudgetHoldsUnderConcurrentDownloads(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	issued := f.releaseSchool(t, testpkg.UniqueTestTenantID(t), "Synthetic", 2)
+	issued := f.releaseSchool(t, f.school(t), "Synthetic", 2)
 	// The pool, not the single phoenix_auth session: downloads run in parallel.
 	pool := NewRetrieval(f.db, testCrypto(), f.store, nil)
 	var wg sync.WaitGroup
@@ -205,7 +217,7 @@ func TestDownloadBudgetHoldsUnderConcurrentDownloads(t *testing.T) {
 func TestRevocationStopsADownloadInFlight(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
-	school := testpkg.UniqueTestTenantID(t)
+	school := f.school(t)
 	// 1 MiB that deflate cannot shrink, so the archive spans many checks.
 	big := make([]byte, 1<<20)
 	random := rand.New(rand.NewPCG(1, 2))
@@ -261,8 +273,8 @@ func (w writerFunc) Write(p []byte) (int, error) { return w(p) }
 func TestGrantRevokeAllAndPurge(t *testing.T) {
 	t.Parallel()
 	f := newFixtureOn(t, testpkg.SetupIsolatedTestDB(t))
-	a := f.releaseSchool(t, testpkg.UniqueTestTenantID(t), "A", 1)
-	b := f.releaseSchool(t, testpkg.UniqueTestTenantID(t), "B", 1)
+	a := f.releaseSchool(t, f.school(t), "A", 1)
+	b := f.releaseSchool(t, f.school(t), "B", 1)
 
 	_, err := f.release.Grant(t.Context(), organizationtenancy.DataReturnGrantRequest{ArchiveName: a.ArchiveName, ArchiveKey: b.ArchiveKey,
 		OperatorID: f.operator, DataReturnRecipient: customer(1)})
@@ -416,4 +428,95 @@ func TestRolesHoldExactlyTheirRights(t *testing.T) {
 	auth := roleSession(t, db, "phoenix_auth")
 	_, err = auth.ExecContext(t.Context(), `SELECT platform.data_return_list(1)`)
 	require.ErrorContains(t, err, "permission denied", "the HTTP role cannot run release functions")
+	// The web login assumes phoenix_admin for administrative units: that role
+	// may neither read nor change a grant or a download row.
+	admin := roleSession(t, db, "phoenix_admin")
+	for _, statement := range []string{
+		`SELECT 1 FROM platform.data_return_grants LIMIT 1`,
+		`UPDATE platform.data_return_grants SET max_downloads = 20`,
+		`UPDATE platform.data_return_grants SET expires_at = keep_until`,
+		`DELETE FROM platform.data_return_grants`,
+		`DELETE FROM platform.data_return_downloads`,
+		`SELECT nextval('platform.data_return_grants_id_seq')`,
+	} {
+		_, err := admin.ExecContext(t.Context(), statement)
+		require.ErrorContains(t, err, "permission denied", statement)
+	}
+}
+
+// issueRelease calls data_return_issue for a release of school with the
+// given archive name, inside db (a transaction or a pool).
+func issueRelease(ctx context.Context, db bun.IDB, operator, school int64, archive string, keepUntil time.Time) error {
+	hex64 := strings.Repeat("ab", 32)
+	_, err := db.NewRaw(`SELECT platform.data_return_issue(?, 'release', 'school', ?, ?, 10, ?, ?, 1, ?, 'customer', 'Schule', ?, '\x01'::bytea, ?, ?, 1)`,
+		operator, school, archive, hex64, hex64, hex64, strings.Repeat("cd", 16)+archive, time.Now().Add(time.Hour), keepUntil).Exec(ctx)
+	return err
+}
+
+// Scenario A: a release commits while an erasure deletes the school. The
+// delete waits for the release's row lock and then finds the grant: the
+// school stays, the package is not orphaned. Scenario B: a school that is
+// gone gets no release.
+func TestReleaseAndErasureOfTheSameSchoolAreSerialized(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	school := f.school(t)
+	keep := time.Now().Add(30 * 24 * time.Hour)
+
+	release, err := f.db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer func() { _ = release.Rollback() }()
+	require.NoError(t, issueRelease(t.Context(), release, f.operator, school, strings.Repeat("1", 32), keep))
+
+	erase, err := f.db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	defer func() { _ = erase.Rollback() }()
+	var erasePID int
+	require.NoError(t, erase.NewRaw(`SELECT pg_backend_pid()`).Scan(t.Context(), &erasePID))
+	deleted := make(chan error, 1)
+	go func() {
+		_, err := erase.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id = ?`, school)
+		deleted <- err
+	}()
+	require.Eventually(t, func() bool {
+		var waiting bool
+		err := f.db.NewRaw(`SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = ?`, erasePID).Scan(context.Background(), &waiting)
+		return err == nil && waiting
+	}, 10*time.Second, 20*time.Millisecond, "the delete waits for the release's lock")
+	require.NoError(t, release.Commit())
+	require.ErrorContains(t, <-deleted, "released return package that is not purged")
+	require.NoError(t, erase.Rollback())
+
+	// Scenario B: no release for a school that is gone.
+	gone := testpkg.UniqueTestTenantID(t)
+	require.ErrorContains(t, issueRelease(t.Context(), f.db, f.operator, gone, strings.Repeat("2", 32), keep), "does not exist or is erased")
+	_, err = f.release.Release(t.Context(), organizationtenancy.DataReturnReleaseRequest{Package: writePackage(t, gone, "x", nil),
+		SchoolID: gone, OperatorID: f.operator, KeepUntil: keep, DataReturnRecipient: customer(1)})
+	require.Error(t, err)
+	entries, err := os.ReadDir(f.store)
+	require.NoError(t, err)
+	require.Empty(t, entries, "a refused release leaves no archive behind")
+}
+
+// A grant takes everything but recipient, token and expiry from the
+// archive's own rows; the retrieval period is capped in SQL as well.
+func TestIssueTrustsNoCallerValuesForAGrant(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	issued := f.releaseSchool(t, f.school(t), "x", 1)
+	var keyCheck string
+	require.NoError(t, f.db.NewRaw(`SELECT key_check FROM platform.data_return_grants WHERE id = ?`, issued.GrantID).Scan(t.Context(), &keyCheck))
+	bogus := strings.Repeat("ef", 32)
+	var id int64
+	require.NoError(t, f.db.NewRaw(`SELECT platform.data_return_issue(?, 'grant', 'organization', 1, ?, 999999, ?, ?, 7, ?, 'customer', 'X', ?, '\x01'::bytea, ?, ?, 1)`,
+		f.operator, issued.ArchiveName, bogus, bogus, keyCheck, strings.Repeat("9", 64), time.Now().Add(time.Hour), time.Now().AddDate(5, 0, 0)).Scan(t.Context(), &id))
+	var same bool
+	require.NoError(t, f.db.NewRaw(`SELECT g.package = o.package AND g.subject_id = o.subject_id AND g.archive_bytes = o.archive_bytes
+		AND g.archive_sha256 = o.archive_sha256 AND g.manifest_sha256 = o.manifest_sha256 AND g.format_version = o.format_version
+		AND g.keep_until = o.keep_until FROM platform.data_return_grants g, platform.data_return_grants o WHERE g.id = ? AND o.id = ?`,
+		id, issued.GrantID).Scan(t.Context(), &same))
+	require.True(t, same)
+
+	school := f.school(t)
+	require.ErrorContains(t, issueRelease(t.Context(), f.db, f.operator, school, strings.Repeat("3", 32), time.Now().AddDate(2, 0, 0)), "within a year")
 }

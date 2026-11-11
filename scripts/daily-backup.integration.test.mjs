@@ -125,6 +125,9 @@ CREATE ROLE tenant_scope;
 CREATE SCHEMA platform;
 CREATE TABLE platform.schools(id bigserial PRIMARY KEY);
 INSERT INTO platform.schools VALUES (41), (42);
+CREATE TABLE platform.data_return_grants(id bigserial PRIMARY KEY, revoked_at timestamptz, purged_at timestamptz, wrapped_key bytea);
+INSERT INTO platform.data_return_grants (wrapped_key) VALUES ('\\x01');
+INSERT INTO platform.data_return_grants (purged_at) VALUES (now());
 SELECT setval('platform.schools_id_seq',42);
 GRANT tenant_scope TO phoenix_auth;
 CREATE TABLE records(tenant_id bigint, marker text);
@@ -220,6 +223,9 @@ exec '${realDocker}' "$@"
   assert.match(result.stdout, /restore_school_erasure_disabled=1/);
   assert.match(result.stdout, /restore_billing_retention_disabled=1/);
   assert.match(result.stdout, /restore_data_return_disabled=1/);
+  // ADR 0203: a restore revives no retrieval token; the purged grant stays as it was.
+  assert.match(result.stdout, /restore_data_return_revoked=1/);
+  assert.equal(sql('SELECT count(*) FROM platform.data_return_grants WHERE wrapped_key IS NOT NULL OR (purged_at IS NULL AND revoked_at IS NULL);'), '0');
   assert.equal(sql(`SELECT rolcanlogin FROM pg_roles WHERE rolname = 'diagnose synthetic';`), 'f');
   assert.equal(sql(`SELECT pg_has_role('diagnose synthetic', 'phoenix_diagnostics', 'SET');`), 't');
   for (const [login, group] of [['erase synthetic', 'phoenix_school_erasure'], ['billing synthetic', 'phoenix_billing_retention'], ['return synthetic', 'phoenix_data_return']]) {
