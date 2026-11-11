@@ -1,12 +1,18 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/nextjs-vite";
-import { Plus, Users } from "lucide-react";
+import { Plus, SlidersHorizontal, Users } from "lucide-react";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
 
 import { withNotBookedSlots } from "~storybook/fixtures/not-booked-slots";
 import { Button, ButtonLink } from "./button";
+import { CollectionViewSwitch } from "./collection-view-switch";
+import { CustomSelect } from "./custom-select";
+import { ISODatePicker } from "./date-picker";
+import { Input } from "./input";
+import { OverflowMenu } from "./page-header/OverflowMenu";
 import type { ActiveFilter, FilterConfig } from "./page-header/types";
 import { PagePathProvider } from "./page-path";
 import { SectionCard } from "./section-card";
+import { SegmentedControl } from "./segmented-control";
 import { TenantPage, TenantPageListSearch } from "./tenant-page";
 
 const meta = {
@@ -260,4 +266,166 @@ export const ModuleNotBookedLoadError: Story = {
     children: pageContent,
   },
   decorators: [withNotBookedSlots()],
+};
+
+/**
+ * Hervorgehobener Titel mit Element davor und Info-Knopf: Titelgrade und
+ * Kopf-Polster kommen aus der Kopfgeometrie (#6579).
+ */
+export const ProminentWithLeading: Story = {
+  args: {
+    title: "Guten Morgen, Frau Berg",
+    prominent: true,
+    leading: (
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+        <Users className="h-6 w-6 text-gray-600" aria-hidden />
+      </span>
+    ),
+    info: "Ihre Startseite zeigt, was heute ansteht.",
+    stats: "Mittwoch, 9. September",
+    children: pageContent,
+  },
+};
+
+/**
+ * Reine Symbol-Bedienelemente neben Textknöpfen: Unter `sm` bleiben Kebab,
+ * Symbolknopf und Ansichts-Umschalter neben der Statuszeile, jeder Textknopf
+ * bekommt eine eigene volle Zeile (#6579).
+ */
+export const IconAndTextActions: Story = {
+  args: {
+    title: "Alle Kinder",
+    stats: "116 Kinder · 107 zuhause · 9 krank",
+    actions: (
+      <>
+        <div data-icon-only="">
+          <CollectionViewSwitch value="tiles" onChange={fn()} />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Anpassen"
+        >
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+        </Button>
+        <Button type="button" size="md">
+          Kind anlegen
+        </Button>
+        <OverflowMenu items={[{ label: "Exportieren", onClick: fn() }]} />
+      </>
+    ),
+    children: pageContent,
+  },
+};
+
+/**
+ * Symbol-Bedienelemente mit eigenem Tour-Ziel oder eigenen Ereignissen: der
+ * Kebab mit Tour-Stopp und der Anpassen-Knopf der Startseite, der beim
+ * Zeigen vorlädt (#6579).
+ */
+export const SymbolActionsWithTourAndPreload: Story = {
+  args: {
+    title: "Kinder",
+    stats: "116 Kinder · 107 zuhause · 9 krank",
+    actions: (
+      <>
+        <div data-icon-only="" onPointerEnter={fn()} onFocus={fn()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Anpassen"
+            tooltip="Anpassen"
+          >
+            <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          </Button>
+        </div>
+        <Button type="button" size="md">
+          Kind anlegen
+        </Button>
+        <div data-icon-only="" data-setup-tour="student-menu">
+          <OverflowMenu items={[{ label: "Importieren", onClick: fn() }]} />
+        </div>
+        <div
+          className="contents"
+          data-icon-only=""
+          data-setup-tour="child-search-menu"
+        >
+          <OverflowMenu items={[{ label: "Abwesenheiten", onClick: fn() }]} />
+        </div>
+      </>
+    ),
+    children: pageContent,
+  },
+};
+
+/**
+ * Bedienband der Kopfkarte (`searchSlot`) mit Auswahl, Feld, Datumsauswahl,
+ * Umschalter und Knopf: alle auf der Bedienhöhe der Kopfkarte (#6579).
+ */
+export const ControlsInSearchSlot: Story = {
+  args: {
+    title: "Planung",
+    searchSlot: (
+      <div className="flex flex-wrap items-center gap-2">
+        <SegmentedControl
+          ariaLabel="Zeitraum"
+          items={[
+            { value: "week", label: "Woche" },
+            { value: "month", label: "Monat" },
+          ]}
+          value="week"
+          onChange={fn()}
+        />
+        <CustomSelect
+          ariaLabel="Gruppe"
+          value="sonne"
+          onChange={fn()}
+          options={[
+            { value: "sonne", label: "Sonne" },
+            { value: "mond", label: "Mond" },
+          ]}
+          className="w-40"
+        />
+        <div className="w-48">
+          <Input
+            aria-label="Suche"
+            placeholder="Suchen"
+            controlSize="compact"
+          />
+        </div>
+        <ISODatePicker ariaLabel="Datum" value="2026-09-09" onChange={fn()} />
+        <Button type="button" variant="outline" size="md">
+          Heute
+        </Button>
+      </div>
+    ),
+    children: pageContent,
+  },
+};
+
+const tabItems = [
+  { value: "overview", label: "Übersicht" },
+  { value: "groups", label: "Gruppen", badge: 3 },
+  { value: "rooms", label: "Räume" },
+  { value: "staff", label: "Personal" },
+  { value: "absences", label: "Abwesenheiten" },
+  { value: "settings", label: "Einstellungen", disabled: true },
+  { value: "history", label: "Verlauf" },
+  { value: "archive", label: "Archiv" },
+  { value: "documents", label: "Dokumente" },
+  { value: "statistics", label: "Statistik" },
+];
+
+/**
+ * Seitenreiter: Auf dem Desktop steht der Überhang unter „Mehr“, auf dem
+ * Telefon scrollt das Band (#6579).
+ */
+export const WithTabs: Story = {
+  args: {
+    title: "Schule",
+    tabs: { value: "groups", onChange: fn(), items: tabItems },
+    children: pageContent,
+  },
 };
