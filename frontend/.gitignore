@@ -29,6 +29,8 @@ next-env.d.ts
 
 # storybook
 /storybook-static
+# Kit-Pixel-Vergleich (#6562): Builds, Baseline, Diffs, Bericht
+/.kit-pixel/
 
 # misc
 .DS_Store
