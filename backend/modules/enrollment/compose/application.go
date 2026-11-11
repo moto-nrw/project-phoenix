@@ -52,6 +52,7 @@ type PhaseDependencies struct {
 	Resyncer       enrollment.SourcedTemplateResyncer
 	Students       enrollment.PhaseStudents
 	Bookings       enrollment.PhaseBookings
+	CareStudents   enrollment.PhaseCareStudents
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
 	CareExits      enrollment.PhaseResponseCareExits
@@ -71,13 +72,12 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		Resyncer:                        deps.Resyncer,
-		Students:                        deps.Students,
-		Bookings:                        deps.Bookings,
-		Settings:                        deps.Settings,
-		Responses:                       responses,
-		Runtime:                         tenantRuntime(),
-		Logger:                          deps.Logger,
-		Today:                           deps.Today,
+		Students:                        deps.Students, Bookings: deps.Bookings, CareStudents: deps.CareStudents,
+		Settings:  deps.Settings,
+		Responses: responses,
+		Runtime:   tenantRuntime(),
+		Logger:    deps.Logger,
+		Today:     deps.Today,
 	})
 }
 
@@ -123,9 +123,9 @@ func NewNotifications(deps NotificationDependencies) enrollment.Notifications {
 	})
 }
 
-// NewMailRenderers returns Enrollment's mail renderers.
-func NewMailRenderers() enrollment.MailRenderers {
-	return application.NewMailRenderers()
+// NewMailRenderers binds account eligibility and the parents URL to Enrollment's renderers.
+func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) enrollment.MailRenderers {
+	return application.NewMailRenderers(accounts, parentsURL)
 }
 
 // NewApprovedOfferingProjection composes the approved-offering projection.

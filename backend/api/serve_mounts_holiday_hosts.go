@@ -29,12 +29,13 @@ func mountHolidayHostRoutes(tenant chi.Router, schools HolidayHostSchools, peopl
 }
 
 // NewHolidayGuestHTTP serves the sheet of a holiday guest behind users:read,
-// the permission that opens a child's contacts, and the hints „Gast aus …“
+// the permission that opens a child's contacts, the hints „Gast aus …“
 // behind students:read, the permission of the child list they stand in
-// (#5630).
+// (#5630), and the Feriengruppen behind groups:read, the permission of the
+// group lists they stand in (ADR 0120, Nachtrag 2026-11-11).
 func NewHolidayGuestHTTP(guests enrollmentOwner.HolidayGuests) *enrollmentAPI.HolidayGuestResource {
 	return enrollmentAPI.NewHolidayGuestResource(guests, common.RequiresPermission(permissions.UsersRead),
-		common.RequiresPermission(permissions.StudentsRead))
+		common.RequiresPermission(permissions.StudentsRead), common.RequiresPermission(permissions.GroupsRead))
 }
 
 // NewHolidayHostHTTP binds the participant lists to Enrollment, the school

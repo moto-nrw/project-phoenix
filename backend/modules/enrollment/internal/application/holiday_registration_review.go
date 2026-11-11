@@ -105,8 +105,8 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // versions the answers belong to (#5198), health opens the health
 // information (#4722), schoolCalendar names the host schools' days without
 // care (#4702), traeger names the Träger and the host schools in the mail of
-// a booking that moved up (#6437) and of a decision by criteria. A nil today
-// uses the Berlin calendar day. The allocation by criteria shares the
+// a booking that moved up (#6437), of a decision by criteria and of the
+// acceptance (#6672). A nil today uses the Berlin calendar day. The allocation by criteria shares the
 // review's store, locks and mail (#4700), the files (#6691) its reads.
 func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation, *HolidayRegistrationRecords) {
 	if store == nil || periods == nil || forms == nil {

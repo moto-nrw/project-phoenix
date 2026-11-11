@@ -237,7 +237,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 		return fmt.Errorf("no holiday guest joined the holiday group")
 	}
 	fmt.Printf("  Ausrichtende OGS: %d holiday guest(s) in the Feriengruppe\n", envelope.Data.Guests)
-	return nil
+	return seedHolidayGuestGroupHint(rt, groupID)
 }
 
 // seedHolidayAddressForm saves the next version of the period's form with
@@ -761,9 +761,17 @@ func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[st
 		"registration_opens_on":  today.String(),
 		"registration_closes_on": firstMonday.AddDays(-7).String(), "binding": true,
 		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
-		"weeks": weeks,
+		// The text of the acceptance mail a confirmation sends (#6672).
+		"acceptance_mail_text": seedHolidayAcceptanceMailText,
+		"weeks":                weeks,
 	}
 }
+
+// seedHolidayAcceptanceMailText is what the demo Träger tells the parents
+// when it confirms a holiday registration (#6672).
+const seedHolidayAcceptanceMailText = "Bei Betreuung bis 16 Uhr geben Sie Ihrem Kind bitte ein Mittagessen mit.\n" +
+	"Bitte packen Sie Wechselkleidung, Sportsachen und regenfeste Kleidung ein.\n" +
+	"Wir freuen uns auf die Ferien mit Ihrem Kind!"
 
 // traegerSeedSettingKey is the setting the demo Träger sets for all its
 // schools (ADR 0086, #4652): parent news on, as the registry default already

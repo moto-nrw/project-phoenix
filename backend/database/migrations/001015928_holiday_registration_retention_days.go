@@ -14,9 +14,9 @@ func init() {
 		Version:     holidayRegistrationRetentionDaysVersion,
 		Description: "Ferienanmeldung: zugesagte Aufbewahrungsfrist je Anmeldung, Gesundheitsangaben im Löschprotokoll (#6691, ADR 0118)",
 		DependsOn: []string{
-			holidayRegistrationDeletionsVersion,  // the deletion log this extends
-			holidayHealthDataVersion,             // the sealed health information the log counts
-			holidayBookingExceptionSourceVersion, // the newest on development (1.15.923)
+			holidayRegistrationDeletionsVersion, // the deletion log this extends
+			holidayHealthDataVersion,            // the sealed health information the log counts
+			holidayAcceptanceMailVersion,        // the newest on development (1.15.927)
 		},
 	})
 	Migrations.MustRegister(holidayRegistrationRetentionDaysUp, holidayRegistrationRetentionDaysDown)

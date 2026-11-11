@@ -32,6 +32,25 @@ func GroupRosterPeople(source groupRosterSource) GroupRoster {
 	return groupRosterPeople{source: source}
 }
 
+// GroupMemberIDs returns the participation candidates of many groups in one
+// read, by group.
+func (p groupRosterPeople) GroupMemberIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	members := make(map[int64][]int64, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return members, nil
+	}
+	students, err := p.source.GetParticipationCandidatesByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		if student != nil && student.GroupID != nil {
+			members[*student.GroupID] = append(members[*student.GroupID], student.ID)
+		}
+	}
+	return members, nil
+}
+
 // GroupMembers returns the participation candidates of the group with their
 // person names; members without a person row are omitted.
 func (p groupRosterPeople) GroupMembers(ctx context.Context, groupID int64) ([]grouplive.RosterStudent, error) {

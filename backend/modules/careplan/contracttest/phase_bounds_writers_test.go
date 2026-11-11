@@ -187,7 +187,7 @@ func editHeldOpen(t *testing.T, env *decisionTestEnv, ctx context.Context, moved
 	phases := boundsPhases(t, env, recurrenceGate(t, env))
 	done := make(chan error, 1)
 	holdErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(holdCtx context.Context, tx bun.Tx) error {
-		if err := phases.UpdatePhase(holdCtx, moved); err != nil {
+		if err := phaseEdit(phases)(holdCtx, moved); err != nil {
 			return err
 		}
 		pid := backendPID(t, holdCtx, tx)
@@ -220,7 +220,7 @@ func writeHeldOpen(t *testing.T, env *decisionTestEnv, ctx context.Context, move
 		pid := backendPID(t, holdCtx, tx)
 		go func() {
 			edit <- testpkg.WithinTenantContext(t, ctx, env.db, testpkg.Tenant(t), func(editCtx context.Context) error {
-				return phases.UpdatePhase(editCtx, moved)
+				return phaseEdit(phases)(editCtx, moved)
 			})
 		}()
 		if waiting, err := waitUntilBlockedBy(t, holdCtx, env.db, pid, edit); !waiting {
@@ -360,7 +360,7 @@ func TestReplaceEditable_OpenEditMakesThePhaseEditWait(t *testing.T) {
 	edit := make(chan error, 1)
 	go func() {
 		edit <- testpkg.WithinTenantContext(t, ctx, env.db, testpkg.Tenant(t), func(editCtx context.Context) error {
-			return boundsPhases(t, env, recurrenceGate(t, env)).UpdatePhase(editCtx, movedSourcePhase(env, 7, -14))
+			return phaseEdit(boundsPhases(t, env, recurrenceGate(t, env)))(editCtx, movedSourcePhase(env, 7, -14))
 		})
 	}()
 	waiting, editErr := waitUntilBlockedBy(t, ctx, env.db, pid, edit)
@@ -504,7 +504,7 @@ func (f restoreFlow) cancel(t *testing.T, ctx context.Context) error {
 
 func (f restoreFlow) editPhase(t *testing.T, startDays, endDays int) {
 	t.Helper()
-	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), f.env.db, boundsPhases(t, f.env, recurrenceGate(t, f.env)).UpdatePhase, movedSourcePhase(f.env, startDays, endDays)))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), f.env.db, phaseEdit(boundsPhases(t, f.env, recurrenceGate(t, f.env))), movedSourcePhase(f.env, startDays, endDays)))
 }
 
 // A capped booking gets the phase's current end back when the care end is

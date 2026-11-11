@@ -12,6 +12,7 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -199,6 +200,37 @@ func (o enrollmentMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentCo
 	})
 }
 
+// HolidayAcceptanceAccounts tells the acceptance mail of a holiday
+// registration whether its address has a parent account (#6672): an account
+// of the address that holds the guardian role at a live school, the rule the
+// parents portal signs in by. Identity & Access serves it in the worker's
+// administrative scope.
+type HolidayAcceptanceAccounts interface {
+	FindAccountByEmail(ctx context.Context, email string) (identityaccess.Account, error)
+	FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error)
+}
+
+// holidayAcceptanceAccounts maps Identity account lookups to Enrollment's
+// account-eligibility port in the worker's administrative scope.
+type holidayAcceptanceAccounts struct {
+	accounts HolidayAcceptanceAccounts
+}
+
+func (a holidayAcceptanceAccounts) HasParentAccount(ctx context.Context, address string) (bool, error) {
+	if a.accounts == nil {
+		return false, nil
+	}
+	account, err := a.accounts.FindAccountByEmail(ctx, address)
+	if errors.Is(err, identityaccess.ErrAccountNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	guardian, _, err := a.accounts.FindGuardianTenant(ctx, account.ID)
+	return guardian, err
+}
+
 // enrollmentMailRenderers registers Enrollment's renderers by outbox kind.
 // Delivery chooses the sender from the mail's school name.
 func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFrom email.Email) map[string]deliveryCompose.MailRenderer {
@@ -241,6 +273,9 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		// A closing day in a booked holiday week (#6434): a mail of the
 		// Träger like the receipt.
 		enrollmentOwner.MailKindHolidayClosureNotice: render(renderers.HolidayClosureNotice),
+		// The acceptance of a holiday registration (#6672): a mail of the
+		// Träger like the receipt.
+		enrollmentOwner.MailKindHolidayRegistrationAccepted: render(renderers.HolidayRegistrationAccepted),
 	}
 }
 
