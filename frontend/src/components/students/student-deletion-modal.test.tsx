@@ -229,14 +229,17 @@ describe("StudentDeletionModal", () => {
     expect(mockDeleteStudent).toHaveBeenCalledOnce();
   });
 
+  // #6652: the caller's reload goes through useRefreshAfterWrite and never
+  // rejects; a failed reload resolves false and shows as the caller's load
+  // error. The deletion itself is done and offers no second attempt.
   it("does not offer a second deletion when refreshing after success fails", async () => {
-    const onDeleted = vi.fn().mockRejectedValue(new Error("refresh failed"));
+    const onDeleted = vi.fn().mockResolvedValue(false);
     const onClose = vi.fn();
     renderModal(onDeleted, onClose);
 
     fireEvent.click(await advanceToFinalConfirmation());
 
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledOnce());
     expect(mockDeleteStudent).toHaveBeenCalledOnce();
     expect(
       screen.queryByText("Das Kind konnte nicht gelöscht werden."),

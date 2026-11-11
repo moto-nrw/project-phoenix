@@ -372,34 +372,34 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     schoolsError,
     "die Liste der Schulen",
     () => void mutateSchoolSummaries(),
-    organizationSchoolSummaries === undefined ? undefined : STALE_DATA_SUFFIX,
+    organizationSchoolSummaries?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const accountsLoadError = useSwrLoadError(
     accountsError,
     "die Liste der Konten",
     () => void mutateOrgAccounts(),
-    orgAccounts === undefined ? undefined : STALE_DATA_SUFFIX,
+    orgAccounts?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const devicesLoadError = useSwrLoadError(
     devicesError,
     "die Liste der Geräte",
     () => void mutateOrgDevices(),
-    orgDevices === undefined ? undefined : STALE_DATA_SUFFIX,
+    orgDevices?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const personsLoadError = useSwrLoadError(
     personsError,
     "die Liste der Personen",
     () => void mutateOrgPersons(),
-    orgPersons === undefined ? undefined : STALE_DATA_SUFFIX,
+    orgPersons?.length ? STALE_DATA_SUFFIX : undefined,
   );
 
   const traegerMembersLoadError = useSwrLoadError(
     traegerBueroError,
     "die Liste des Träger-Büros",
     () => void reloadTraegerBuero(),
-    traegerMembers === undefined || traegerInvitations === undefined
-      ? undefined
-      : STALE_DATA_SUFFIX,
+    traegerMembers?.length || traegerInvitations?.length
+      ? STALE_DATA_SUFFIX
+      : undefined,
   );
 
   // A write's reload runs after the write; its failure is a load error above
@@ -935,6 +935,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               ))}
             </div>
           ) : !schoolsLoading &&
+            !schoolsError &&
             organizationSchoolSummaries !== undefined &&
             activeSchools.length === 0 ? (
             <SectionCard>
@@ -943,8 +944,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 description="Erstellen Sie eine neue Schule über die Kopfkarte."
               />
             </SectionCard>
-          ) : organizationSchoolSummaries === undefined &&
-            !schoolsLoading ? null : (
+          ) : (organizationSchoolSummaries === undefined && !schoolsLoading) ||
+            (schoolsError && !organizationSchoolSummaries?.length) ? null : (
             <DataTable
               columns={schoolColumns}
               rows={activeSchools}
@@ -961,8 +962,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         <>
           <LoadErrorAlert error={accountsLoadError} className="mb-4" />
           <LoadErrorAlert error={accountsAfterWrite.error} className="mb-4" />
-          {orgAccounts === undefined &&
-          !accountsLoading ? null : !accountsLoading &&
+          {(orgAccounts === undefined && !accountsLoading) ||
+          (accountsError && !orgAccounts?.length) ? null : !accountsError &&
+            !accountsLoading &&
             orgAccounts?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Konten für diesen Träger." />
@@ -982,8 +984,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         <>
           <LoadErrorAlert error={devicesLoadError} className="mb-4" />
           <LoadErrorAlert error={devicesAfterWrite.error} className="mb-4" />
-          {orgDevices === undefined &&
-          !devicesLoading ? null : !devicesLoading &&
+          {(orgDevices === undefined && !devicesLoading) ||
+          (devicesError && !orgDevices?.length) ? null : !devicesError &&
+            !devicesLoading &&
             orgDevices?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Geräte für diesen Träger." />
@@ -1004,8 +1007,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "personen" ? (
         <>
           <LoadErrorAlert error={personsLoadError} className="mb-4" />
-          {orgPersons === undefined &&
-          !personsLoading ? null : !personsLoading &&
+          {(orgPersons === undefined && !personsLoading) ||
+          (personsError && !orgPersons?.length) ? null : !personsError &&
+            !personsLoading &&
             orgPersons?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Personen für diesen Träger." />
@@ -1024,8 +1028,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         <>
           <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
           <LoadErrorAlert error={bueroAfterWrite.error} className="mb-4" />
-          {(traegerMembers === undefined || traegerInvitations === undefined) &&
-          !traegerBueroLoading ? null : !traegerBueroLoading &&
+          {((traegerMembers === undefined ||
+            traegerInvitations === undefined) &&
+            !traegerBueroLoading) ||
+          (traegerBueroError &&
+            traegerBueroEmpty) ? null : !traegerBueroLoading &&
             traegerBueroEmpty ? (
             <SimpleEmptyState
               title="Noch niemand im Träger-Büro"

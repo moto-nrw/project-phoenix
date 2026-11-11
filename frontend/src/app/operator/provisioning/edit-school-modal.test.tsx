@@ -186,10 +186,11 @@ describe("EditSchoolModal", () => {
         }),
       );
     });
-    expect(mockRevalidateTenantCache).toHaveBeenCalledWith([
-      "test-school",
-      "test-school",
-    ]);
+    // #6652: the portal cache reloads with the page, outside the write's
+    // catch; the dialog hands over the subdomains to reload.
+    await waitFor(() =>
+      expect(onUpdated).toHaveBeenCalledWith(["test-school", "test-school"]),
+    );
   });
 
   // Replies from parents reach the school only through this address (#2872).

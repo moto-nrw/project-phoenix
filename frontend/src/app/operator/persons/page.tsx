@@ -70,7 +70,7 @@ function OperatorPersonsPageContent() {
     schoolPersonsError,
     "die Liste der Personen",
     () => void mutateSchoolPersons(),
-    schoolPersons === undefined ? undefined : STALE_DATA_SUFFIX,
+    schoolPersons?.length ? STALE_DATA_SUFFIX : undefined,
   );
   // The deleted person leaves the list at once; the reload runs after the
   // write and a failure stands above the list (#6652).
@@ -133,7 +133,9 @@ function OperatorPersonsPageContent() {
           title="Keine Schule ausgewählt"
           description="Wählen Sie eine Schule aus, um deren Personen anzuzeigen."
         />
-      ) : !schoolPersons ? null : schoolPersons.length === 0 ? (
+      ) : !schoolPersons ||
+        (schoolPersonsError &&
+          schoolPersons.length === 0) ? null : schoolPersons.length === 0 ? (
         <SimpleEmptyState
           title="Keine Personen"
           description={`Keine Personen in ${selectedSchool.name} vorhanden.`}

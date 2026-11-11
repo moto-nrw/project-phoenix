@@ -4,7 +4,7 @@
 // welcher Rolle, wer eingeladen ist und der Verlauf der Änderungen (#5474).
 // Nur mit dem Recht „Konten verwalten“ (Rolle Leitung, #5471).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { UserPlus, Users } from "lucide-react";
 import {
@@ -62,6 +62,7 @@ export default function TraegerAccountsPage() {
   const [loading, setLoading] = useState(true);
   // Confirmed data stays visible when a later load fails (#6652).
   const [loaded, setLoaded] = useState(false);
+  const loadedRef = useRef(false);
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<TraegerMember | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -76,6 +77,7 @@ export default function TraegerAccountsPage() {
   const fetchBuero = useCallback(async () => {
     setBuero(await fetchTraegerBuero());
     setLoaded(true);
+    loadedRef.current = true;
     clearLoadError();
   }, [clearLoadError]);
 
@@ -89,13 +91,13 @@ export default function TraegerAccountsPage() {
       });
       await showLoadError(err, {
         object: "die Personen des Träger-Büros",
-        messageSuffix: loaded ? STALE_DATA_SUFFIX : undefined,
+        messageSuffix: loadedRef.current ? STALE_DATA_SUFFIX : undefined,
         retry: () => void load(),
       });
     } finally {
       setLoading(false);
     }
-  }, [fetchBuero, loaded, showLoadError]);
+  }, [fetchBuero, showLoadError]);
 
   useEffect(() => {
     void load();

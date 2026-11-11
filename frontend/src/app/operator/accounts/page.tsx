@@ -125,10 +125,10 @@ function OperatorAccountsPageContent() {
         : allAccountsError,
     "die Liste der Konten",
     () => void refreshAccounts(),
-    (urlSchoolId ? schoolAccounts : filterOrgId ? orgAccounts : allAccounts) ===
-      undefined
-      ? undefined
-      : STALE_DATA_SUFFIX,
+    (urlSchoolId ? schoolAccounts : filterOrgId ? orgAccounts : allAccounts)
+      ?.length
+      ? STALE_DATA_SUFFIX
+      : undefined,
   );
   // A dialog's write reloads the list afterwards; a failed reload stands
   // above the list, also after the dialog closed (#6652).
@@ -246,12 +246,15 @@ function OperatorAccountsPageContent() {
 
       {!urlSchoolId && filterOrgId && (
         <>
-          {!orgAccountsLoading && orgAccounts?.length === 0 ? (
+          {!orgAccountsError &&
+          !orgAccountsLoading &&
+          orgAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Für diesen Träger gibt es noch keine zugewiesenen Konten."
             />
-          ) : orgAccounts === undefined && !orgAccountsLoading ? null : (
+          ) : (orgAccounts === undefined && !orgAccountsLoading) ||
+            (orgAccountsError && !orgAccounts?.length) ? null : (
             <AccountsTable
               accounts={orgAccounts ?? []}
               showSchool
@@ -266,12 +269,15 @@ function OperatorAccountsPageContent() {
 
       {!urlSchoolId && !filterOrgId && (
         <>
-          {!allAccountsLoading && allAccounts?.length === 0 ? (
+          {!allAccountsError &&
+          !allAccountsLoading &&
+          allAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Es gibt noch keine Konten im System."
             />
-          ) : allAccounts === undefined && !allAccountsLoading ? null : (
+          ) : (allAccounts === undefined && !allAccountsLoading) ||
+            (allAccountsError && !allAccounts?.length) ? null : (
             <AccountsTable
               accounts={allAccounts ?? []}
               showSchool
@@ -305,12 +311,15 @@ function OperatorAccountsPageContent() {
               />
             )}
           </div>
-          {!schoolAccountsLoading && schoolAccounts?.length === 0 ? (
+          {!schoolAccountsError &&
+          !schoolAccountsLoading &&
+          schoolAccounts?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Konten"
               description="Für diese Schule gibt es noch keine zugewiesenen Konten."
             />
-          ) : schoolAccounts === undefined && !schoolAccountsLoading ? null : (
+          ) : (schoolAccounts === undefined && !schoolAccountsLoading) ||
+            (schoolAccountsError && !schoolAccounts?.length) ? null : (
             <AccountsTable
               accounts={schoolAccounts ?? []}
               selectedSchool={selectedSchool}

@@ -113,10 +113,10 @@ function OperatorDevicesPageContent() {
         : allDevicesError,
     "die Liste der Geräte",
     () => void refreshDevices(),
-    (urlSchoolId ? schoolDevices : filterOrgId ? orgDevices : allDevices) ===
-      undefined
-      ? undefined
-      : STALE_DATA_SUFFIX,
+    (urlSchoolId ? schoolDevices : filterOrgId ? orgDevices : allDevices)
+      ?.length
+      ? STALE_DATA_SUFFIX
+      : undefined,
   );
   // A dialog's write reloads the list afterwards; a failed reload stands
   // above the list, also after the dialog closed (#6652).
@@ -203,12 +203,15 @@ function OperatorDevicesPageContent() {
 
       {!urlSchoolId && filterOrgId && (
         <>
-          {!orgDevicesLoading && orgDevices?.length === 0 ? (
+          {!orgDevicesError &&
+          !orgDevicesLoading &&
+          orgDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diesen Träger gibt es noch keine registrierten Geräte."
             />
-          ) : orgDevices === undefined && !orgDevicesLoading ? null : (
+          ) : (orgDevices === undefined && !orgDevicesLoading) ||
+            (orgDevicesError && !orgDevices?.length) ? null : (
             <DevicesTable
               devices={orgDevices ?? []}
               showSchool
@@ -223,12 +226,15 @@ function OperatorDevicesPageContent() {
 
       {!urlSchoolId && !filterOrgId && (
         <>
-          {!allDevicesLoading && allDevices?.length === 0 ? (
+          {!allDevicesError &&
+          !allDevicesLoading &&
+          allDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Es gibt noch keine registrierten Geräte im System."
             />
-          ) : allDevices === undefined && !allDevicesLoading ? null : (
+          ) : (allDevices === undefined && !allDevicesLoading) ||
+            (allDevicesError && !allDevices?.length) ? null : (
             <DevicesTable
               devices={allDevices ?? []}
               showSchool
@@ -262,12 +268,15 @@ function OperatorDevicesPageContent() {
               />
             )}
           </div>
-          {!schoolDevicesLoading && schoolDevices?.length === 0 ? (
+          {!schoolDevicesError &&
+          !schoolDevicesLoading &&
+          schoolDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diese Schule gibt es noch keine registrierten Geräte."
             />
-          ) : schoolDevices === undefined && !schoolDevicesLoading ? null : (
+          ) : (schoolDevices === undefined && !schoolDevicesLoading) ||
+            (schoolDevicesError && !schoolDevices?.length) ? null : (
             <DevicesTable
               devices={schoolDevices ?? []}
               isLoading={schoolDevicesLoading}

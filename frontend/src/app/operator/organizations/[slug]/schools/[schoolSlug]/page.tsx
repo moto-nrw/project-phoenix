@@ -295,19 +295,19 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     accountsError,
     "die Liste der Konten",
     () => void mutateSchoolAccounts(),
-    schoolAccounts === undefined ? undefined : STALE_DATA_SUFFIX,
+    schoolAccounts?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const devicesLoadError = useSwrLoadError(
     devicesError,
     "die Liste der Geräte",
     () => void mutateSchoolDevices(),
-    schoolDevices === undefined ? undefined : STALE_DATA_SUFFIX,
+    schoolDevices?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const personsLoadError = useSwrLoadError(
     personsError,
     "die Liste der Personen",
     () => void mutateSchoolPersons(),
-    schoolPersons === undefined ? undefined : STALE_DATA_SUFFIX,
+    schoolPersons?.length ? STALE_DATA_SUFFIX : undefined,
   );
 
   // A write's reload runs after the write; its failure is a load error above
@@ -858,8 +858,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         <>
           <LoadErrorAlert error={accountsLoadError} className="mb-4" />
           <LoadErrorAlert error={accountsAfterWrite.error} className="mb-4" />
-          {schoolAccounts === undefined &&
-          !accountsLoading ? null : !accountsLoading &&
+          {(schoolAccounts === undefined && !accountsLoading) ||
+          (accountsError && !schoolAccounts?.length) ? null : !accountsError &&
+            !accountsLoading &&
             schoolAccounts?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Konten für diese Schule." />
@@ -880,8 +881,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         <>
           <LoadErrorAlert error={devicesLoadError} className="mb-4" />
           <LoadErrorAlert error={devicesAfterWrite.error} className="mb-4" />
-          {schoolDevices === undefined &&
-          !devicesLoading ? null : !devicesLoading &&
+          {(schoolDevices === undefined && !devicesLoading) ||
+          (devicesError && !schoolDevices?.length) ? null : !devicesError &&
+            !devicesLoading &&
             schoolDevices?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Geräte für diese Schule." />
@@ -902,8 +904,9 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
         <>
           <LoadErrorAlert error={personsLoadError} className="mb-4" />
           <LoadErrorAlert error={personsAfterWrite.error} className="mb-4" />
-          {schoolPersons === undefined &&
-          !personsLoading ? null : !personsLoading &&
+          {(schoolPersons === undefined && !personsLoading) ||
+          (personsError && !schoolPersons?.length) ? null : !personsError &&
+            !personsLoading &&
             schoolPersons?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Personen für diese Schule." />

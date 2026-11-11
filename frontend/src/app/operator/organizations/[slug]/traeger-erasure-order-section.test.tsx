@@ -418,7 +418,7 @@ describe("TraegerErasureOrderSection", () => {
       ).getByRole("button", { name: "Zurücknehmen" }),
     );
 
-    const loadText = catalogText("general.unavailable", "den Löschauftrag");
+    const loadText = catalogText("general.unavailable", "die Anzeige des Löschauftrags");
     expect(
       await screen.findByText((text) => text.startsWith(loadText)),
     ).toBeInTheDocument();
@@ -487,10 +487,27 @@ describe("TraegerErasureOrderSection", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "den Löschauftrag"),
+        catalogText("general.unavailable", "die Anzeige des Löschauftrags"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Löschauftrag erfasst")).not.toBeInTheDocument();
+  });
+
+  // #6652: the catalog texts use the object as subject and after „Für“; the
+  // old accusative „den Löschauftrag“ rendered „Den Löschauftrag ist …“.
+  it("names the order in a grammatical load error", async () => {
+    mockGetOrder.mockRejectedValue(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    renderSection(false);
+
+    expect(
+      await screen.findByText(
+        "Die Anzeige des Löschauftrags ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Den Löschauftrag/)).toBeNull();
   });
 
   it("offers no withdrawal once the erasure has started", async () => {

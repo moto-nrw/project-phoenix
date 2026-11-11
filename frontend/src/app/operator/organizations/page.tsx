@@ -77,7 +77,7 @@ export default function OperatorOrganizationsPage() {
     orgsError,
     "die Liste der Träger",
     () => void mutateOrgs(),
-    organizations === undefined ? undefined : STALE_DATA_SUFFIX,
+    organizations?.length ? STALE_DATA_SUFFIX : undefined,
   );
   const statsLoadError = useSwrLoadError(
     statsError,
@@ -313,6 +313,7 @@ export default function OperatorOrganizationsPage() {
             ))}
           </div>
         ) : !orgsLoading &&
+          !orgsError &&
           organizations !== undefined &&
           activeOrganizations.length === 0 ? (
           <ProvisioningEmptyState
@@ -321,7 +322,8 @@ export default function OperatorOrganizationsPage() {
             buttonLabel="Neuer Träger"
             onAction={() => setCreateOrgOpen(true)}
           />
-        ) : organizations === undefined && !orgsLoading ? null : (
+        ) : (organizations === undefined && !orgsLoading) ||
+          (orgsError && !organizations?.length) ? null : (
           <DataTable
             columns={columns}
             rows={activeOrganizations}

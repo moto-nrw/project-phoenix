@@ -366,9 +366,9 @@ describe("CaregiverCapabilityModal", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Die Betreuung für Ada Lovelace ist eingeschaltet.",
     );
-    expect(onUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ accountId: "42" }),
-    );
+    // #6652: the callback only reloads the page; the dialog shows the new
+    // state itself.
+    expect(onUpdated).toHaveBeenCalledExactlyOnceWith();
   });
 
   it("disables caregiver capability successfully", async () => {
@@ -404,9 +404,9 @@ describe("CaregiverCapabilityModal", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Die Betreuung für Ada Lovelace ist ausgeschaltet.",
     );
-    expect(onUpdated).toHaveBeenCalledWith(
-      expect.objectContaining({ hasUserRole: false }),
-    );
+    // #6652: the callback only reloads the page; the dialog shows the new
+    // state itself.
+    expect(onUpdated).toHaveBeenCalledExactlyOnceWith();
   });
 
   it("hides the disable button for legacy teacher-role accounts that are not active caregivers", async () => {

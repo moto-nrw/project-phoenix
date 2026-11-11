@@ -1,3 +1,4 @@
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
@@ -301,9 +302,12 @@ describe("CatalogPage", () => {
 
     await waitFor(() => expect(update).toHaveBeenCalled());
     expect(toastError).not.toHaveBeenCalled();
-    expect(toastWarning).toHaveBeenCalledWith(
-      "Die Änderung wurde gespeichert. Laden Sie die Seite neu.",
-    );
+    // #6652: the failed reload is a load error above the list that says the
+    // change is saved; its retry only reloads.
+    expect(
+      await screen.findByText((text) => text.endsWith(SAVED_BUT_STALE_SUFFIX)),
+    ).toBeInTheDocument();
+    expect(toastWarning).not.toHaveBeenCalled();
   });
 
   it("asks before taking an entry out of the selection", async () => {
@@ -330,9 +334,12 @@ describe("CatalogPage", () => {
 
     await waitFor(() => expect(retire).toHaveBeenCalledWith(ITEMS[0]));
     expect(toastError).not.toHaveBeenCalled();
-    expect(toastWarning).toHaveBeenCalledWith(
-      "Die Änderung wurde gespeichert. Laden Sie die Seite neu.",
-    );
+    // #6652: the failed reload is a load error above the list that says the
+    // change is saved; its retry only reloads.
+    expect(
+      await screen.findByText((text) => text.endsWith(SAVED_BUT_STALE_SUFFIX)),
+    ).toBeInTheDocument();
+    expect(toastWarning).not.toHaveBeenCalled();
   });
 
   it("offers a retired entry back", async () => {

@@ -75,7 +75,7 @@ export default function OperatorSchoolsPage() {
     summariesError,
     "die Liste der Schulen",
     () => void mutateSummaries(),
-    schoolSummaries === undefined ? undefined : STALE_DATA_SUFFIX,
+    schoolSummaries?.length ? STALE_DATA_SUFFIX : undefined,
   );
   // The create form and the trash need the providers.
   const organizationsLoadError = useSwrLoadError(
@@ -256,6 +256,7 @@ export default function OperatorSchoolsPage() {
             })}
           </div>
         ) : !summariesLoading &&
+          !summariesError &&
           schoolSummaries !== undefined &&
           activeSummaries.length === 0 ? (
           <ProvisioningEmptyState
@@ -264,7 +265,8 @@ export default function OperatorSchoolsPage() {
             buttonLabel="Neue Schule"
             onAction={() => setCreateSchoolOpen(true)}
           />
-        ) : schoolSummaries === undefined && !summariesLoading ? null : (
+        ) : (schoolSummaries === undefined && !summariesLoading) ||
+          (summariesError && !schoolSummaries?.length) ? null : (
           <DataTable
             columns={columns}
             rows={activeSummaries}
