@@ -31,8 +31,10 @@ import type {
  * translation is shown below them only while the offer has this version.
  * Version 3 adds the custody and the name as the declaration. Version 4
  * names the retention of the Träger in days instead of three months (#6691).
+ * Version 5 says that the Träger keeps the customer number of the Gemeinde
+ * (Debitorennummer) for later registrations and when it goes (#6692).
  */
-export const HOLIDAY_CONSENT_VERSION = 4;
+export const HOLIDAY_CONSENT_VERSION = 5;
 
 /** Bounds the typed name like the name of the parent. */
 export const DECLARATION_NAME_MAX_LENGTH = 100;

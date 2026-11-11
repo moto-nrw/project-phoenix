@@ -16,7 +16,7 @@ func NewContributionRules() parentbilling.ContributionRules {
 
 // NewHolidayContributions builds the holiday contribution and allocation billing over the root-bound registrations (ADR 0115).
 func NewHolidayContributions(registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
-	return application.NewHolidayContributions(postgres.NewStore(), registrations, settings)
+	return application.NewHolidayContributions(postgres.NewStore(), registrations, settings, calendar.TodayDate)
 }
 
 // NewBillingRuns builds the billing runs (#4668, ADR 0119, ADR 0122) and the kind of document per service (#4688) over the registrations and document templates the root binds.
@@ -44,7 +44,7 @@ func NewParentDocuments() *application.ParentDocuments {
 
 // NewBillingFamilies builds the invoices and amounts per family (#4691), checking a debtor number in the format of the Träger (#6675), and the finance exports with their protocol (#4693), whose DATEV booking batch (#4694) reads the DATEV settings of the Träger.
 func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings, schools parentbilling.CareSchools, formats parentbilling.DebtorNumberFormats) (parentbilling.BillingFamilies, parentbilling.FinanceExports, parentbilling.BookingAccountService) {
-	return application.NewBillingFamilies(postgres.NewStore(), formats), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
+	return application.NewBillingFamilies(postgres.NewStore(), formats, calendar.TodayDate), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
 }
 
 // MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686) and the discard of an empty open run (#6626).

@@ -199,14 +199,12 @@ func TestCorrectingATypoNeedsNoChoice(t *testing.T) {
 func TestSiblingGroupOfTwoFamiliesNamesTheFamilyInConflict(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Familie Zwei Nummern")
-	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
-	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, nil).Code)
+	// The sibling's family remembers 30100 from its own registration; a
+	// confirmation without a number would remember nothing (#6692).
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, map[string]any{"debtor_number": "30100"}).Code)
 	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, f.siblings, f.again).Code)
-	rec := traegerJSON(t, f.traeger, billing, http.MethodPut, billingFamilyDebtorNumberPath,
-		map[string]any{"family_email": "papa.muster@example.org", "debtor_number": "30100"})
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "20815"})
+	rec := f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "20815"})
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	refusal := decodeProblem(t, rec)
 	assert.Equal(t, common.CodeParentBillingFamilyDebtorNumberConflict, refusal.Code)

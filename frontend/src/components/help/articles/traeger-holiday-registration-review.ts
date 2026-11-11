@@ -57,7 +57,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
           "Wählen Sie unter `Status` den Knopf `Debitorennummer eintragen` oder `Debitorennummer ändern`.",
           "Das Feld `Debitorennummer` öffnet sich in der Karte. Tragen Sie die Nummer ein und wählen Sie `Speichern`.",
           "Weicht die Nummer von der gemerkten Nummer der Familie ab, wählen Sie im Dialog, welche gilt, und dann `Speichern`.",
-          "Hatte die Familie die Nummer von dieser Anmeldung, ändert moto beide ohne Nachfrage. So berichtigen Sie einen Tippfehler.",
+          "Hat die Familie die Nummer von genau dieser Anmeldung, ändert moto beide ohne Nachfrage. So berichtigen Sie einen Tippfehler. Hat die Anmeldung die gemerkte Nummer nur übernommen, fragt moto nach.",
         ],
       },
       {
@@ -156,7 +156,8 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
       "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
       "Eine Familie ist die E-Mail-Adresse der Eltern, die anmelden. Groß- und Kleinschreibung zählt nicht. Die gemerkte Nummer bleibt, auch wenn die Anmeldung gelöscht ist. Sie sehen und ändern sie unter `Abrechnung` im Reiter `Familien`. Ein anderer Träger und die Schulen sehen sie nicht.",
-      "moto löscht die gemerkte Nummer einer Familie ohne Betreuungsvertrag drei Jahre nach dem Ende des Jahres, in dem sie zuletzt gebraucht wurde. Solange es noch Rechnungen der Familie gibt, bleibt sie.",
+      "moto merkt sich nur eine Nummer. Bestätigen Sie ohne Nummer, merkt sich moto nichts zur Familie.",
+      "moto löscht die gemerkte Nummer einer Familie ohne Betreuungsvertrag drei Jahre nach dem Ende des Jahres, in dem sie zuletzt gebraucht wurde. Das gilt auch, wenn ein alter Betreuungsvertrag der Familie gelöscht wird. Solange es noch Rechnungen der Familie gibt, bleibt sie. Gibt es einen Löschstopp für Ferienrechnungen, bleibt sie auch.",
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",

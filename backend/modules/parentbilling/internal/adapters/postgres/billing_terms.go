@@ -60,9 +60,15 @@ type familyBillingRow struct {
 	HolderLastName  string  `bun:"holder_last_name" json:"holder_last_name"`
 	// LastUsedOn is set on a row of the holiday care (#6692); NULL on a
 	// deviation set from a contract alone.
-	LastUsedOn         *calendar.Date `bun:"last_used_on,type:date" json:"last_used_on"`
-	UpdatedByAccountID *int64         `bun:"updated_by_account_id" json:"-"`
-	UpdatedAt          time.Time      `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
+	LastUsedOn *calendar.Date `bun:"last_used_on,type:date" json:"last_used_on"`
+	// DebtorNumberRegistrationID is the holiday registration the number
+	// came from; NULL when set in the list of families (#6692).
+	DebtorNumberRegistrationID *int64 `bun:"debtor_number_registration_id" json:"-"`
+	// CascadeContractID is generated: the contract of a row no holiday
+	// registration used, which goes with it by cascade (#6692).
+	CascadeContractID  *int64    `bun:"cascade_contract_id,scanonly" json:"-"`
+	UpdatedByAccountID *int64    `bun:"updated_by_account_id" json:"-"`
+	UpdatedAt          time.Time `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
 }
 
 func (r familyBillingRow) family() parentbilling.FamilyBilling {
@@ -71,7 +77,7 @@ func (r familyBillingRow) family() parentbilling.FamilyBilling {
 		SecondFirstName: r.SecondFirstName, SecondLastName: r.SecondLastName, PayerFirstName: r.PayerFirstName,
 		PayerLastName: r.PayerLastName, PayerEmail: r.PayerEmail, DueDay: r.DueDay, UpdatedAt: r.UpdatedAt,
 		DebtorNumber: textOf(r.DebtorNumber), HolderFirstName: r.HolderFirstName, HolderLastName: r.HolderLastName,
-		LastUsedOn: r.LastUsedOn,
+		LastUsedOn: r.LastUsedOn, DebtorNumberRegistrationID: idOf(r.DebtorNumberRegistrationID),
 	}
 	if r.PaymentMethod != nil {
 		family.PaymentMethod = *r.PaymentMethod

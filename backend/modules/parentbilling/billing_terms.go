@@ -76,7 +76,8 @@ const (
 	// MaxDueDay is the latest day of a month a family's invoices may be due
 	// on, so the day exists in every month.
 	MaxDueDay = 28
-	// MaxBillingNameLength is the longest name of a second parent or payer.
+	// MaxBillingNameLength is the longest name of a second parent, a payer
+	// or the parent a holiday registration names for its family (#6692).
 	MaxBillingNameLength = 100
 )
 
@@ -182,7 +183,11 @@ type FamilyBilling struct {
 	HolderFirstName string         `json:"holder_first_name"`
 	HolderLastName  string         `json:"holder_last_name"`
 	LastUsedOn      *calendar.Date `json:"last_used_on"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	// DebtorNumberRegistrationID is the holiday registration the family has
+	// its number from, 0 when the office set it in the list of families:
+	// only that registration corrects the number without a choice (#6692).
+	DebtorNumberRegistrationID int64     `json:"-"`
+	UpdatedAt                  time.Time `json:"updated_at"`
 }
 
 // FamilyBillingInput is a deviation as the Abrechnung writes it: for the

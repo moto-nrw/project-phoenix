@@ -154,13 +154,16 @@ type HolidayFamilyDebtorNumber struct {
 
 // FamilyMemory is what a holiday registration tells the family of its
 // Träger (#6692): the parent who registered, the latest day a registration
-// of the family needs the number and, when not nil, the number itself.
+// of the family needs the number, the registration the number comes from
+// and, when not nil, the number itself. Without a number it tells the
+// family nothing and is not written.
 type FamilyMemory struct {
-	FamilyEmail  string
-	FirstName    string
-	LastName     string
-	UsedOn       calendar.Date
-	DebtorNumber *string
+	FamilyEmail    string
+	FirstName      string
+	LastName       string
+	UsedOn         calendar.Date
+	RegistrationID int64
+	DebtorNumber   *string
 }
 
 // FamilyDebtorNumberInput sets the number of a family of the Träger from

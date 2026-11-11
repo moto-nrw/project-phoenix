@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "509ccce4b0c350c3e74635cd0c99804dc6fb7a35d479b850ff33f212de42ca4f",
+  "catalogSHA256": "d7a642911f9410fb4212161c31ece513176cd8162d47bc5860a902986189e162",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -16772,6 +16772,18 @@
           "type": "date",
           "udt": "date",
           "nullable": true
+        },
+        {
+          "name": "debtor_number_registration_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "cascade_contract_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -16779,6 +16791,16 @@
           "column": "care_contract_id",
           "targetTable": "care_contract.contracts",
           "targetColumn": "id"
+        },
+        {
+          "column": "cascade_contract_id",
+          "targetTable": "care_contract.contracts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "care_contract.contracts",
+          "targetColumn": "organization_id"
         },
         {
           "column": "organization_id",

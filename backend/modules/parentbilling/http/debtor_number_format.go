@@ -29,9 +29,12 @@ func renderDebtorNumberFormat(w http.ResponseWriter, r *http.Request, err error)
 	if format.MinDigits == format.MaxDigits {
 		code, details = common.CodeParentBillingDebtorNumberDigits, map[string]any{"digits": format.MinDigits, "example": format.Example()}
 	}
-	response, _ := common.ErrorInvalidRequestWithCode(err, code).(*common.ErrResponse)
-	response.Details = details
-	common.RenderError(w, r, response)
+	// The field errors stay with the code; the format travels in details.
+	refused := common.ErrorInvalidRequestWithCode(err, code)
+	if response, ok := refused.(*common.ErrResponse); ok {
+		response.Details = details
+	}
+	common.RenderError(w, r, refused)
 	return true
 }
 

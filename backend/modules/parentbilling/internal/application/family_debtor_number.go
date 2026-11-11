@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -19,7 +20,8 @@ import (
 // registration (parentbilling.FamilyKey), in the Träger of the session only.
 // The next registration of the family reads the number as a proposal. A
 // number that differs from the family's needs the office's choice; it never
-// replaces the family's number on its own.
+// replaces the family's number on its own, unless the family has the number
+// from the very registration that changes it.
 
 // FamilyMemoryStore keeps the families of the holiday care in the Träger
 // transaction and records every read and change in the family's trail.
@@ -102,21 +104,26 @@ func (h *HolidayContributions) HolidayFamilyDebtorNumber(ctx context.Context, re
 	return parentbilling.HolidayFamilyDebtorNumber{DebtorNumber: family.DebtorNumber}, nil
 }
 
-// rememberFamilies tells the families of the registrations what a
+// rememberFamilies tells the families of the registrations the number a
 // confirmation or a change of the number decided, once per family however
 // many registrations it has: several registrations of one family confirmed
 // together (#6674) and a sibling group (#5628) write the family once, with
-// the same number. With a number set, a family whose number differs needs
-// the office's choice: FamilyDebtorNumberKeep leaves the family's number,
+// the same number. Without a number it tells no family anything and writes
+// no row (data minimisation). A family whose number differs needs the
+// office's choice: FamilyDebtorNumberKeep leaves the family's number,
 // FamilyDebtorNumberReplace takes the new one, no choice is a
-// FamilyDebtorNumberConflict. A family whose number is corrected, the
-// previous number of a changed registration, takes the correction without
-// a choice: it had the number from this registration. The rows are held
-// first, so two confirmations of a family decide one after the other.
+// FamilyDebtorNumberConflict. Only a family that has its number from the
+// registration the office confirms or changes, the first one, takes a
+// correction without a choice (#6692.3); one that has it from another
+// registration, a sibling's too, or from the list of families does not. The rows are held first, so two
+// confirmations of a family decide one after the other.
 func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer, registrations []parentbilling.HolidayRegistration,
-	number *string, choice, corrected string,
+	number *string, choice string,
 ) error {
-	memories := familyMemories(registrations, number, calendar.TodayDate())
+	if number == nil || *number == "" {
+		return nil
+	}
+	memories := familyMemories(registrations, *number, h.today())
 	if len(memories) == 0 {
 		return nil
 	}
@@ -124,20 +131,18 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 	if err != nil {
 		return err
 	}
-	if number != nil && *number != "" {
-		for _, family := range held {
-			if family.DebtorNumber == "" || family.DebtorNumber == *number || family.DebtorNumber == corrected {
-				continue
-			}
-			switch choice {
-			case parentbilling.FamilyDebtorNumberReplace:
-			case parentbilling.FamilyDebtorNumberKeep:
-				at := slices.IndexFunc(memories, func(memory parentbilling.FamilyMemory) bool { return memory.FamilyEmail == family.FamilyEmail })
-				memories[at].DebtorNumber = nil
-			default:
-				return &parentbilling.FamilyDebtorNumberConflict{FamilyEmail: family.FamilyEmail, FamilyDebtorNumber: family.DebtorNumber,
-					DebtorNumber: *number}
-			}
+	origin := registrations[0].ID
+	for _, family := range held {
+		if family.DebtorNumber == "" || family.DebtorNumber == *number || family.DebtorNumberRegistrationID == origin {
+			continue
+		}
+		switch choice {
+		case parentbilling.FamilyDebtorNumberReplace:
+		case parentbilling.FamilyDebtorNumberKeep:
+			memories = slices.DeleteFunc(memories, func(memory parentbilling.FamilyMemory) bool { return memory.FamilyEmail == family.FamilyEmail })
+		default:
+			return &parentbilling.FamilyDebtorNumberConflict{FamilyEmail: family.FamilyEmail, FamilyDebtorNumber: family.DebtorNumber,
+				DebtorNumber: *number}
 		}
 	}
 	saved, err := h.store.RememberFamilies(ctx, reviewer.OrganizationID, reviewer.AccountID, memories)
@@ -151,13 +156,9 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 }
 
 // familyMemories is one memory per family of the registrations, by key,
-// with the parent of its first registration and the later of today and the
-// last booked day of its registrations. An empty number removes none: it
-// tells the family nothing about its number.
-func familyMemories(registrations []parentbilling.HolidayRegistration, number *string, today calendar.Date) []parentbilling.FamilyMemory {
-	if number != nil && *number == "" {
-		number = nil
-	}
+// with the parent and the ID of its first registration and the later of
+// today and the last booked day of its registrations.
+func familyMemories(registrations []parentbilling.HolidayRegistration, number string, today calendar.Date) []parentbilling.FamilyMemory {
 	var memories []parentbilling.FamilyMemory
 	for _, registration := range registrations {
 		key := parentbilling.FamilyKey(registration.GuardianEmail)
@@ -173,17 +174,9 @@ func familyMemories(registrations []parentbilling.HolidayRegistration, number *s
 			continue
 		}
 		memories = append(memories, parentbilling.FamilyMemory{FamilyEmail: key, FirstName: truncateName(registration.GuardianFirstName),
-			LastName: truncateName(registration.GuardianLastName), UsedOn: used, DebtorNumber: number})
+			LastName: truncateName(registration.GuardianLastName), UsedOn: used, RegistrationID: registration.ID, DebtorNumber: &number})
 	}
-	slices.SortFunc(memories, func(a, b parentbilling.FamilyMemory) int {
-		switch {
-		case a.FamilyEmail < b.FamilyEmail:
-			return -1
-		case a.FamilyEmail > b.FamilyEmail:
-			return 1
-		}
-		return 0
-	})
+	slices.SortFunc(memories, func(a, b parentbilling.FamilyMemory) int { return strings.Compare(a.FamilyEmail, b.FamilyEmail) })
 	return memories
 }
 
@@ -201,11 +194,11 @@ func lastBookedDay(registration parentbilling.HolidayRegistration, today calenda
 	return last
 }
 
-// truncateName keeps a name within the 100 characters of the family row.
+// truncateName keeps a name within the characters of the family row.
 func truncateName(name string) string {
 	runes := []rune(name)
-	if len(runes) > 100 {
-		return string(runes[:100])
+	if len(runes) > parentbilling.MaxBillingNameLength {
+		return string(runes[:parentbilling.MaxBillingNameLength])
 	}
 	return name
 }
@@ -256,7 +249,7 @@ func (f *BillingFamilies) SetFamilyDebtorNumber(ctx context.Context, reviewer pa
 			return parentbilling.FamilyDebtorNumber{}, parentbilling.ErrFamilyNotFound
 		}
 	}
-	saved, err := f.store.SetFamilyDebtorNumber(ctx, reviewer.OrganizationID, reviewer.AccountID, key, number, calendar.TodayDate())
+	saved, err := f.store.SetFamilyDebtorNumber(ctx, reviewer.OrganizationID, reviewer.AccountID, key, number, f.today())
 	if err != nil {
 		return parentbilling.FamilyDebtorNumber{}, err
 	}

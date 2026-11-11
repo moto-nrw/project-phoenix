@@ -155,8 +155,8 @@ func TestSiblingGroupWritesEachFamilyOnce(t *testing.T) {
 	assert.Equal(t, "10 4711", f.debtorNumberDetail(t, f.again).DebtorNumber, "the group takes the number")
 	assert.Equal(t, "10 4711", f.familyNumber(t, "eva.muster@example.org"))
 	assert.Equal(t, "10 4711", f.familyNumber(t, "papa.muster@example.org"), "the family of the sibling remembers it too")
-	assert.Equal(t, []string{"save", "save"}, f.familyTrail(t, "papa.muster@example.org"),
-		"the confirmation without a number and the group's number, one entry each")
+	assert.Equal(t, []string{"save"}, f.familyTrail(t, "papa.muster@example.org"),
+		"the confirmation without a number remembers nothing (data minimisation); the group's number is one entry")
 	assert.Equal(t, []string{"save"}, f.familyTrail(t, "eva.muster@example.org"), "one write for the family")
 }
 
@@ -165,7 +165,7 @@ func TestFamiliesListShowsAndSetsTheNumberOfAHolidayFamily(t *testing.T) {
 	f := newReviewFixture(t, "Familie Liste")
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
 	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "10 4711"}).Code)
-	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, nil).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, map[string]any{"debtor_number": "20 1"}).Code)
 
 	type listedFamily struct {
 		ID                 int64  `json:"id"`
@@ -182,8 +182,8 @@ func TestFamiliesListShowsAndSetsTheNumberOfAHolidayFamily(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []listedFamily{
 		{RecipientFirstName: "Eva", RecipientLastName: "Muster", FamilyEmail: "eva.muster@example.org", FamilyDebtorNumber: "10 4711", HolidayOnly: true},
-		{RecipientFirstName: "Eva", RecipientLastName: "Muster", FamilyEmail: "papa.muster@example.org", HolidayOnly: true},
-	}, list(), "both families of the holiday care are listed before any invoice")
+		{RecipientFirstName: "Eva", RecipientLastName: "Muster", FamilyEmail: "papa.muster@example.org", FamilyDebtorNumber: "20 1", HolidayOnly: true},
+	}, list(), "both families of the holiday care with a number are listed before any invoice")
 
 	rec := traegerJSON(t, f.traeger, billing, http.MethodPut, billingFamilyDebtorNumberPath,
 		map[string]any{"family_email": " PAPA.muster@example.org", "debtor_number": " 20 815 "})
@@ -302,9 +302,124 @@ func TestFamilyNumberOutlivesTheRegistrationAndHasItsOwnPeriod(t *testing.T) {
 	retain(calendar.NewDate(2030, time.December, 31))
 	assert.Equal(t, "10 4711", f.familyNumber(t, "eva.muster@example.org"), "three years after the end of the year it is still kept")
 	retain(calendar.NewDate(2031, time.January, 1))
+	assert.Equal(t, "10 4711", f.familyNumber(t, "eva.muster@example.org"),
+		"without an instruction of the Träger for its holiday documents nothing is deleted")
+
+	_, err := f.db.ExecContext(ctx, `INSERT INTO parent_billing.beleg_retention_instructions (organization_id, beleg_type,
+			trigger_event, period, basis, legal_basis, instructed_by, instructed_on, instruction_reference)
+		VALUES (?, 'holiday_document', 'issued', 10, 'booking_voucher', '§ 147 AO', 'Kämmerei', '2026-11-09', 'AVV')`, f.office.organization)
+	require.NoError(t, err)
+	var suspension int64
+	require.NoError(t, f.db.NewRaw(`INSERT INTO parent_billing.beleg_retention_suspensions (organization_id, beleg_type,
+			reason, scope, responsible, review_on)
+		VALUES (?, 'holiday_document', 'Prüfung', 'alle Ferienbelege', 'Kämmerei', '2031-06-01') RETURNING id`, f.office.organization).
+		Scan(ctx, &suspension))
+	retain(calendar.NewDate(2031, time.January, 2))
+	assert.Equal(t, "10 4711", f.familyNumber(t, "eva.muster@example.org"), "a deletion stop of the Träger holds it")
+
+	_, err = f.db.ExecContext(ctx, `UPDATE parent_billing.beleg_retention_suspensions SET lifted_at = now() WHERE id = ?`, suspension)
+	require.NoError(t, err)
+	retain(calendar.NewDate(2031, time.January, 3))
 	assert.Equal(t, "-", f.familyNumber(t, "eva.muster@example.org"), "then the family without a document goes")
+	var logged []struct {
+		Type    string `bun:"beleg_type"`
+		On      string `bun:"deleted_on"`
+		Deleted int    `bun:"deleted_count"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT beleg_type, to_char(deleted_on, 'YYYY-MM-DD') AS deleted_on, deleted_count
+		FROM parent_billing.beleg_deletions WHERE organization_id = ?`, f.office.organization).Scan(ctx, &logged))
+	assert.Equal(t, []struct {
+		Type    string `bun:"beleg_type"`
+		On      string `bun:"deleted_on"`
+		Deleted int    `bun:"deleted_count"`
+	}{{Type: "family_debtor_number", On: "2031-01-03", Deleted: 1}}, logged, "the deletion log of the Träger counts it")
 	var trail int
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing_events
 		WHERE organization_id = ? AND care_contract_id IS NULL`, f.office.organization).Scan(ctx, &trail))
 	assert.Zero(t, trail, "and its trail with it")
+}
+
+// A confirmation without a number tells the family nothing (#6692, data
+// minimisation): no row is written for it, so a holiday family without a
+// number and without a document is neither kept nor listed.
+func TestConfirmationWithoutANumberRemembersNoFamily(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Familie Sparsam")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, nil).Code)
+	assert.Equal(t, "-", f.familyNumber(t, "papa.muster@example.org"), "no row without a number")
+}
+
+// The office corrects a number without a choice only where the family has
+// it from the very registration it changes (#6692.3). A registration that
+// took the family's number as the proposal did not give it to the family:
+// changing that registration asks again, and never replaces the family's
+// number on its own.
+func TestCorrectingAnAdoptedNumberAsksTheOffice(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Familie Herkunft")
+	adopted := f.submitFamily(t, "eva.muster@example.org")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "11111"}).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, adopted, map[string]any{"debtor_number": "11111"}).Code,
+		"the proposal is adopted without a choice")
+
+	rec := f.changeDebtorNumber(t, f.office.token, adopted, "22222")
+	require.Equal(t, http.StatusConflict, rec.Code, "the family has 11111 from another registration: %s", rec.Body.String())
+	assert.Equal(t, common.CodeParentBillingFamilyDebtorNumberConflict, decodeProblem(t, rec).Code)
+	assert.Equal(t, "11111", f.familyNumber(t, "eva.muster@example.org"), "nothing replaced silently")
+	assert.Equal(t, "11111", f.debtorNumberDetail(t, adopted).DebtorNumber, "the refused change rolls back")
+
+	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "33333")
+	require.Equal(t, http.StatusOK, rec.Code, "the registration the family has its number from corrects it: %s", rec.Body.String())
+	assert.Equal(t, "33333", f.familyNumber(t, "eva.muster@example.org"))
+
+	rec = traegerJSON(t, f.traeger, traegerColleague(t, f, identityaccess.TraegerRoleBilling), http.MethodPut, billingFamilyDebtorNumberPath,
+		map[string]any{"family_email": "eva.muster@example.org", "debtor_number": "44444"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = f.changeDebtorNumber(t, f.office.token, f.siblings, "55555")
+	require.Equal(t, http.StatusConflict, rec.Code, "a number set in the list of families no registration may correct: %s", rec.Body.String())
+	assert.Equal(t, "44444", f.familyNumber(t, "eva.muster@example.org"))
+}
+
+// A family row a holiday registration used outlives the care contract it
+// was set from (#6692): the contract's retention takes the deviation, not
+// the number, which then follows the period of a family without a contract.
+// A row no holiday registration used still goes with its contract.
+func TestFamilyNumberWithHolidayUseOutlivesItsContract(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Familie Vertragsende")
+	testpkg.OwnTraegerCareContracts(t, f.db, f.office.organization)
+	ctx := context.Background()
+	used := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lina", "2022-01-01")
+	unused := careContract(t, f.db, f.office.organization, f.office.schools[0], "Tom", "2022-01-01")
+	_, err := f.db.ExecContext(ctx, `INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id,
+			recipient_kind, payment_method, due_day, debtor_number) VALUES
+		(?0, 'eva.muster@example.org', ?1, 'applicant', 'transfer', 5, '10 4711'),
+		(?0, 'papa.muster@example.org', ?2, 'applicant', 'transfer', 5, '20 815')`, f.office.organization, used, unused)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, map[string]any{"debtor_number": "10 4711"}).Code)
+
+	_, err = f.db.ExecContext(ctx, `DELETE FROM care_contract.contracts WHERE organization_id = ? AND id IN (?, ?)`,
+		f.office.organization, used, unused)
+	require.NoError(t, err, "the contract retention deletes both contracts")
+
+	var rows []struct {
+		Email    string  `bun:"family_email"`
+		Contract *int64  `bun:"care_contract_id"`
+		Number   *string `bun:"debtor_number"`
+		Method   *string `bun:"payment_method"`
+		DueDay   *int    `bun:"due_day"`
+		Used     bool    `bun:"used"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT family_email, care_contract_id, debtor_number, payment_method, due_day,
+			last_used_on IS NOT NULL AS used
+		FROM parent_billing.family_billing WHERE organization_id = ? ORDER BY family_email`, f.office.organization).Scan(ctx, &rows))
+	require.Len(t, rows, 1, "the row without holiday use went with its contract")
+	assert.Equal(t, "eva.muster@example.org", rows[0].Email)
+	assert.Nil(t, rows[0].Contract, "the used row is a row without a contract now")
+	require.NotNil(t, rows[0].Number)
+	assert.Equal(t, "10 4711", *rows[0].Number, "and keeps its number")
+	assert.Nil(t, rows[0].Method, "the deviation went with its contract")
+	assert.Nil(t, rows[0].DueDay)
+	assert.True(t, rows[0].Used, "its own period applies")
+	assert.Equal(t, "10 4711", f.proposedNumber(t, f.submitFamily(t, "eva.muster@example.org")), "the next registration reads it")
 }

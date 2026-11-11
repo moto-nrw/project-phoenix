@@ -168,7 +168,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Rechnungen und Beträge einer Familie ansehen",
         description:
-          "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon, wenn ihre Anmeldung bestätigt ist.",
+          "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon, wenn ihre Anmeldung mit Debitorennummer bestätigt ist.",
         steps: [
           "Wählen Sie in der Navigation `Abrechnung`.",
           "Wählen Sie oben den Reiter `Familien`.",

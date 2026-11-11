@@ -39,17 +39,22 @@ type FamilyStore interface {
 type BillingFamilies struct {
 	store   FamilyStore
 	formats parentbilling.DebtorNumberFormats
+	// today is the Berlin day a number set in the list is needed from.
+	today func() calendar.Date
 }
 
 var _ parentbilling.BillingFamilies = (*BillingFamilies)(nil)
 
 // NewBillingFamilies builds the view of the families over the format of the
-// Träger's debtor numbers (#6675).
-func NewBillingFamilies(store FamilyStore, formats parentbilling.DebtorNumberFormats) *BillingFamilies {
+// Träger's debtor numbers (#6675); a nil today uses the Berlin day.
+func NewBillingFamilies(store FamilyStore, formats parentbilling.DebtorNumberFormats, today func() calendar.Date) *BillingFamilies {
 	if store == nil || formats == nil {
 		panic("parent billing: the store and the debtor number format are required")
 	}
-	return &BillingFamilies{store: store, formats: formats}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	return &BillingFamilies{store: store, formats: formats, today: today}
 }
 
 // ListBillingFamilies lists the families of the Träger by name and records

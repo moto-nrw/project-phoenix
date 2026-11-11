@@ -37,16 +37,24 @@ type HolidayContributions struct {
 	store         HolidayStore
 	registrations parentbilling.HolidayRegistrations
 	settings      parentbilling.HolidayBillingSettings
+	// today is the Berlin day the family's number is needed from (#6692).
+	today func() calendar.Date
 }
 
 var _ parentbilling.HolidayContributions = (*HolidayContributions)(nil)
 
-// NewHolidayContributions builds the holiday contribution.
-func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
+// NewHolidayContributions builds the holiday contribution; a nil today uses
+// the Berlin day.
+func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings,
+	today func() calendar.Date,
+) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
 	if store == nil || registrations == nil || settings == nil {
 		panic("parent billing: the store, the holiday registrations and the settings are required")
 	}
-	contributions := &HolidayContributions{store: store, registrations: registrations, settings: settings}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	contributions := &HolidayContributions{store: store, registrations: registrations, settings: settings, today: today}
 	return contributions, contributions
 }
 
@@ -216,7 +224,7 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	// took it (#6692); the caller rolls everything back on a conflict.
 	number := registration.DebtorNumber
 	if err := h.rememberFamilies(ctx, reviewer, slices.Concat([]parentbilling.HolidayRegistration{registration}, confirmedSharers(others, issued)),
-		&number, familyChoice, ""); err != nil {
+		&number, familyChoice); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
 	frozen, found, err := h.store.HolidayContributions(ctx, reviewer.OrganizationID, registration.ID)
