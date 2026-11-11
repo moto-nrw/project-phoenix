@@ -355,8 +355,19 @@ jobs:
 
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
+          # TEMP measurement for #6784, removed before merge.
+          ( while sleep 5; do
+              printf '%s %s ' "$(date -u +%T)" "$(cut -d' ' -f1-3 /proc/loadavg)"
+              head -1 /proc/stat | awk '{printf "cpu=%d/%d/%d/%d ", $2+$3, $4, $5, $6}'
+              ps -eo comm= | awk '/^compile$/{c++} /^link$/{l++} /\.test$/{t++} /^postgres$/{p++} END {printf "compile=%d link=%d test=%d pg=%d\n", c, l, t, p}'
+            done ) > "$RUNNER_TEMP/samples.txt" 2>&1 &
+          sampler=$!
+          status=0
           "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+            --junitfile junit.xml -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}" || status=$?
+          kill "$sampler" || true
+          echo "::group::samples"; cat "$RUNNER_TEMP/samples.txt"; echo "::endgroup::"
+          exit "$status"
 
       - name: Summarize race test resources
         if: ${{ always() && inputs.backend-race }}
