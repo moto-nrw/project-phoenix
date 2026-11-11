@@ -10,6 +10,7 @@ import { PresenceHint } from "./presence-hint";
 import { StatusColorBadge } from "./status-color-badge";
 import {
   LOCATION_COLORS,
+  getRoomBadgeColor,
   LOCATION_STATUSES,
   isAtSchoolLocation,
   isInClassLocation,
@@ -117,7 +118,7 @@ function resolveLocationStyle(
         // once per request and ships it in `current_room_color`. Unset (or
         // blank) falls back to the orange default.
         color: student.current_room_color?.trim()
-          ? student.current_room_color
+          ? getRoomBadgeColor(student.current_room_color)
           : LOCATION_COLORS.SCHOOLYARD,
       };
     default:

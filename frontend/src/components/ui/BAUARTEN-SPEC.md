@@ -290,7 +290,8 @@ bekommt eine shrink-only Baseline analog zum bestehenden
    CSS-Hexwert (`#83CD2D`, `text-[#4070C8]`, `text-[#666]`, ein nacktes
    `#abcd`) fällt durch; ein Literal zählt einmal. Ausgenommen sind die
    Quelle der Token selbst (`components/ui/kit-palette.ts`, wie das ganze
-   Kit), das Web-App-Manifest (`lib/favicon-variants.ts`) und
+   Kit), die fachlichen Legacy-Farben (`lib/location-helper.ts`), das
+   Web-App-Manifest (`lib/favicon-variants.ts`) und
    `app/global-error.tsx`, das ohne Stylesheet rendert. Hard-zero seit
    #3119: die Raumkategorie-Farben liegen als
    `MOTO_COLOR_PALETTE.emerald`/`violet`/`pink`, die neutrale Blockkante

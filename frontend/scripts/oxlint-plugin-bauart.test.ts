@@ -1441,7 +1441,7 @@ describe.concurrent("bauart rules", () => {
 
       const results = await Promise.all(
         [
-          "src/components/ui/kit-palette.ts",
+          "src/lib/location-helper.ts",
           "src/lib/favicon-variants.ts",
           "src/app/global-error.tsx",
           "src/test/fixtures/rooms.ts",

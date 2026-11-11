@@ -5,6 +5,7 @@ import {
   parseLocation,
   normalizeLocation,
   getLocationColor,
+  getRoomBadgeColor,
   getLocationDisplay,
   canSeeDetailedLocation,
   isPresentLocation,
@@ -311,6 +312,21 @@ describe("normalizeLocation", () => {
 // =============================================================================
 
 describe("getLocationColor", () => {
+  // #6573: #FF3130 was the Zuhause colour before the palette move. The
+  // backend still reserves it, so older rooms can carry it, and their badge
+  // label has always been #c62826. The kit no longer knows that hex.
+  it("keeps the label of a room in the retired red #FF3130", () => {
+    for (const location of ["Anwesend - Raum 101", "Schulhof"]) {
+      const color = getLocationColor(location, false, [], "#FF3130");
+      expect(getPillTone(color), location).toEqual({
+        backgroundColor: "#F9FAFB",
+        textColor: "#c62826",
+      });
+    }
+    expect(getPillTone(getRoomBadgeColor("#ff3130")).textColor).toBe("#c62826");
+    expect(getRoomBadgeColor("#A3D977")).toBe("#A3D977");
+  });
+
   it("returns HOME color for Zuhause", () => {
     expect(getLocationColor("Zuhause")).toBe(LOCATION_COLORS.HOME);
   });

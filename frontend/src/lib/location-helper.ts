@@ -84,6 +84,27 @@ export const LOCATION_COLORS = {
 } as const;
 
 /**
+ * Legacy room colours (#6573) whose badge keeps a label the kit palette no
+ * longer derives. #FF3130 was the Zuhause colour before the palette move; the
+ * backend still reserves it (`reservedRoomColors` in
+ * `backend/modules/facilities/room_lifecycle.go`), so rooms created before
+ * that can carry it. Their label has always read #c62826 (5.4:1 on the gray-50
+ * pill). The badge hands the kit that shade instead of the room hex: it lies
+ * outside the palette and clears the contrast target, so the kit keeps it.
+ */
+const LEGACY_ROOM_BADGE_COLORS: Readonly<Record<string, string>> = {
+  "#FF3130": "#c62826",
+};
+
+/**
+ * The colour a location badge shows for a room's own colour: the room hex,
+ * except for the legacy colours above.
+ */
+export function getRoomBadgeColor(roomColor: string): string {
+  return LEGACY_ROOM_BADGE_COLORS[roomColor.trim().toUpperCase()] ?? roomColor;
+}
+
+/**
  * Hover/active/text/background shade variants of the brand green
  * (LOCATION_COLORS.GROUP_ROOM). Centralised so the school check-in toggle and
  * any future "primary action" buttons stop hardcoding hex literals — see
@@ -241,7 +262,7 @@ function getColorForPresentWithRoom(
   // form sends "" when the user clears the picker, the backend translates
   // both to NULL; either way the badge falls back to OTHER_ROOM blue).
   if (roomColor && roomColor.length > 0) {
-    return roomColor;
+    return getRoomBadgeColor(roomColor);
   }
 
   // The Schulhof arrives here as an ordinary room ("Anwesend - Schulhof"),
@@ -292,7 +313,7 @@ export function getLocationColor(
     roomColor &&
     roomColor.length > 0
   ) {
-    return roomColor;
+    return getRoomBadgeColor(roomColor);
   }
 
   // Check status-based colors first (Home, Schoolyard, Transit)
