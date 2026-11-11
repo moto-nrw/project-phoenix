@@ -18,7 +18,7 @@ function explanation(module: ModuleKey): string {
   return `Diese Seite gehört zum Modul ${MODULE_LABELS[module]}. Ihre Schule nutzt es nicht. Wenn Sie es brauchen, sprechen Sie mit Ihrer Leitung.`;
 }
 
-export const STORY_NOT_BOOKED_SLOTS: NotBookedSlots = {
+const STORY_NOT_BOOKED_SLOTS: NotBookedSlots = {
   Alert: ({ module, className }) => (
     <Alert type="info" message={explanation(module)} className={className} />
   ),
