@@ -71,16 +71,14 @@ const search = { value: "", onChange: () => undefined, placeholder: "Suchen" };
 // Layouttests rendern bewusst statisches Produktionsmarkup, in dem Reacts
 // `useEffect` für die Portalregistrierung nicht läuft.
 const MOBILE_HELP = `
-  <span class="group relative inline-flex shrink-0 lg:hidden" data-icon-only>
-    <a
-      class="inline-flex aspect-square h-8 items-center justify-center shrink-0"
-      data-button-link
-      data-icon-only
-      aria-label="Hilfe zu dieser Seite"
-    >
-      <svg class="size-5" aria-hidden="true"></svg>
-    </a>
-  </span>`;
+  <a
+    class="inline-flex aspect-square h-8 items-center justify-center shrink-0 lg:hidden"
+    data-button-link
+    data-icon-only
+    aria-label="Hilfe zu dieser Seite"
+  >
+    <svg class="size-5" aria-hidden="true"></svg>
+  </a>`;
 
 const CASES: readonly {
   name: string;

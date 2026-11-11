@@ -1,7 +1,7 @@
 // lib/room-helpers.ts
 // Type definitions and helper functions for rooms
 
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RoomHelpers" });
@@ -14,9 +14,9 @@ const logger = createLogger({ component: "RoomHelpers" });
 // rooms/page.tsx and components/rooms/room-detail-content.tsx.
 const ROOM_CATEGORY_COLORS: Record<string, string> = {
   "Normaler Raum": MOTO_COLOR_PALETTE.indigo.base,
-  Gruppenraum: MOTO_COLOR_PALETTE.roomCategory.group,
-  Themenraum: MOTO_COLOR_PALETTE.roomCategory.theme,
-  Sport: MOTO_COLOR_PALETTE.roomCategory.sport,
+  Gruppenraum: MOTO_COLOR_PALETTE.emerald.base,
+  Themenraum: MOTO_COLOR_PALETTE.violet.base,
+  Sport: MOTO_COLOR_PALETTE.pink.base,
 };
 
 const ROOM_CATEGORY_FALLBACK_COLOR = MOTO_COLOR_PALETTE.neutral.base;

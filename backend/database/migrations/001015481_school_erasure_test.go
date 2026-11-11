@@ -142,6 +142,11 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		"parent_billing.holiday_sibling_group_members:parent_billing.drop_lone_holiday_sibling_group",
 		"parent_billing.sepa_debits:parent_billing.drop_sepa_debit_files_with_their_members",
 		"parent_billing.sepa_mandates:parent_billing.drop_sepa_debit_files_with_their_members",
+		// ADR 0203: refuses to delete the root of a school or Träger while a
+		// released return package of it is not purged; it writes nothing, so
+		// the plan needs no edge. The data-return grants carry no FK.
+		"platform.organizations:platform.data_return_refuse_open_delete",
+		"platform.schools:platform.data_return_refuse_open_delete",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",

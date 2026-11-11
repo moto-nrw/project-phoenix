@@ -134,3 +134,71 @@ func firstNonEmpty(value, fallback string) string {
 	}
 	return fallback
 }
+
+// HolidayRegistrationOfferChildResponse names a child of the account an
+// offer is for, by what the account's child list already shows.
+type HolidayRegistrationOfferChildResponse struct {
+	StudentID string `json:"student_id"`
+	FirstName string `json:"first_name"`
+}
+
+// HolidayRegistrationOfferResponse is a holiday period on the start page of
+// the parents app (#6671). token opens the registration form; open is false
+// before registration_opens_on. first_day and last_day span the care weeks
+// and are absent while the period has none.
+type HolidayRegistrationOfferResponse struct {
+	Token                string                                  `json:"token"`
+	Name                 string                                  `json:"name"`
+	TraegerName          string                                  `json:"traeger_name"`
+	RegistrationOpensOn  timezone.Date                           `json:"registration_opens_on"`
+	RegistrationClosesOn timezone.Date                           `json:"registration_closes_on"`
+	FirstDay             *timezone.Date                          `json:"first_day,omitempty"`
+	LastDay              *timezone.Date                          `json:"last_day,omitempty"`
+	Open                 bool                                    `json:"open"`
+	Children             []HolidayRegistrationOfferChildResponse `json:"children"`
+}
+
+// listHolidayRegistrationOffers serves GET /parent/me/holiday-registrations
+// (#6671): the published holiday periods of the Träger of the account's
+// children whose registration has not closed. The account comes from the
+// claims; the workflow offers a period only for children the account may
+// register.
+func (rs *Resource) listHolidayRegistrationOffers(w http.ResponseWriter, r *http.Request) {
+	if rs.ParentService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent holiday registration offers not configured")))
+		return
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
+		return
+	}
+	offers, err := rs.ParentService.HolidayRegistrationOffers(r.Context(), int64(claims.ID))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, holidayRegistrationOfferResponses(offers), "Holiday registration offers retrieved")
+}
+
+func holidayRegistrationOfferResponses(offers []parentService.HolidayRegistrationOffer) []HolidayRegistrationOfferResponse {
+	responses := make([]HolidayRegistrationOfferResponse, 0, len(offers))
+	for _, offer := range offers {
+		response := HolidayRegistrationOfferResponse{
+			Token: offer.Token, Name: offer.Name, TraegerName: offer.TraegerName,
+			RegistrationOpensOn: offer.RegistrationOpensOn, RegistrationClosesOn: offer.RegistrationClosesOn,
+			Open: offer.Open, Children: make([]HolidayRegistrationOfferChildResponse, 0, len(offer.Children)),
+		}
+		if !offer.FirstDay.IsZero() && !offer.LastDay.IsZero() {
+			first, last := offer.FirstDay, offer.LastDay
+			response.FirstDay, response.LastDay = &first, &last
+		}
+		for _, child := range offer.Children {
+			response.Children = append(response.Children, HolidayRegistrationOfferChildResponse{
+				StudentID: strconv.FormatInt(child.StudentID, 10), FirstName: child.FirstName,
+			})
+		}
+		responses = append(responses, response)
+	}
+	return responses
+}

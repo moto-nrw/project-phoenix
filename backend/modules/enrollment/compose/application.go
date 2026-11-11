@@ -51,6 +51,7 @@ type PhaseDependencies struct {
 	// Resyncer keeps the templates sourcing the phase's offerings in step.
 	Resyncer       enrollment.SourcedTemplateResyncer
 	Students       enrollment.PhaseStudents
+	Bookings       enrollment.PhaseBookings
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
 	CareExits      enrollment.PhaseResponseCareExits
@@ -59,8 +60,7 @@ type PhaseDependencies struct {
 	Today          func() calendar.Date
 }
 
-// NewResyncingPhases composes the phase administration in the ambient tenant transaction over the
-// sourced-template resyncer; a missing resyncer, record or offering port or recurrence lock is a construction error.
+// NewResyncingPhases composes the phase administration in the ambient tenant transaction over the sourced-template resyncer; a missing resyncer, record or offering port or recurrence lock is a construction error.
 func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 	var responses *application.PhaseResponseSources
 	if deps.Roster != nil || deps.CareExits != nil || deps.PortalAccounts != nil {
@@ -72,6 +72,7 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		Resyncer:                        deps.Resyncer,
 		Students:                        deps.Students,
+		Bookings:                        deps.Bookings,
 		Settings:                        deps.Settings,
 		Responses:                       responses,
 		Runtime:                         tenantRuntime(),

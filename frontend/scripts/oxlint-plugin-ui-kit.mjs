@@ -122,6 +122,10 @@ import {
 //                                     isConfirmLoading (#6594); the opt-out
 //                                     `dismissibleWhileLoading` carries its
 //                                     reason as a non-empty string literal.
+//   ui-kit/confirmation-loading-text — a ConfirmationModal's confirmText
+//                                     does not switch on its isConfirmLoading
+//                                     value: the button shows `loadingText`
+//                                     then, the switched text never (#6636).
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
@@ -132,8 +136,9 @@ import {
 //
 //   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
 //                                     text-muted-foreground …); bg-white/gray-*
-//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
-//                                     levels come from Z_LAYER
+//   ui-kit/no-raw-z-index           — no `z-[n]` or `z-n` inside
+//                                     src/components/ui/; levels come from
+//                                     Z_LAYER (#6574)
 //
 // One more keeps icon tiles on the kit (#5582):
 //
@@ -207,7 +212,7 @@ const SHADCN_TOKEN_RE =
   /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
 // Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
 // `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
-const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const RAW_Z_INDEX_RE = /(?<![\w-])z-(?:\[[^\]\s]+\]|\d+)(?![\w-])/g;
 const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -1080,7 +1085,7 @@ const noRawZIndex = makeClassStringRule({
   skipUiKit: false,
   onlyUiKit: true,
   skipFiles: [Z_LAYER_FILE],
-  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  docs: "Disallow z-index classes in the UI kit; every level comes from Z_LAYER.",
   messageId: "rawZIndex",
   message:
     "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
@@ -2277,6 +2282,90 @@ const confirmationDismissLock = {
         const reason = literalText(optOut.value);
         if (reason == null || reason.trim() === "") {
           context.report({ node: optOut, messageId: "reason" });
+        }
+      },
+    };
+  },
+};
+
+// --- ui-kit/confirmation-loading-text -----------------------------------------
+//
+// While `isConfirmLoading` the confirm button shows `loadingText` (spinner
+// and text), not `confirmText`. A caller that switches `confirmText` on the
+// same flag („Wird angemeldet…“) writes a text nobody sees; the reader gets
+// the generic default instead (#6636). The rule follows the flag through a
+// local `const` (`const label = busy ? "Wird …" : "Senden"`).
+
+/** `busy`, `state.busy`, `!busy` as one comparable key; null otherwise. */
+function flagKey(node) {
+  if (!node) return null;
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "UnaryExpression" && node.operator === "!") {
+    return flagKey(node.argument);
+  }
+  if (
+    node.type === "MemberExpression" &&
+    !node.computed &&
+    node.property?.type === "Identifier"
+  ) {
+    const object = flagKey(node.object);
+    return object == null ? null : `${object}.${node.property.name}`;
+  }
+  if (node.type === "ChainExpression") return flagKey(node.expression);
+  return null;
+}
+
+function attributeExpression(node, name) {
+  const attribute = node.attributes.find(
+    (item) => item.type === "JSXAttribute" && item.name?.name === name,
+  );
+  if (attribute?.value?.type !== "JSXExpressionContainer") return null;
+  return attribute.value.expression ?? null;
+}
+
+/** Whether `expression` (or the `const` it names) branches on `flag`. */
+function switchesOnFlag(expression, flag, sourceCode, depth = 0) {
+  if (!expression || depth > 3) return false;
+  if (expression.type === "ConditionalExpression") {
+    return (
+      flagKey(expression.test) === flag ||
+      switchesOnFlag(expression.consequent, flag, sourceCode, depth + 1) ||
+      switchesOnFlag(expression.alternate, flag, sourceCode, depth + 1)
+    );
+  }
+  if (expression.type === "Identifier" && sourceCode) {
+    const init = constantInitializer(expression, new Map(), sourceCode);
+    return switchesOnFlag(init, flag, sourceCode, depth + 1);
+  }
+  return false;
+}
+
+const confirmationLoadingText = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A ConfirmationModal shows its loading text through `loadingText`, not a switched `confirmText`.",
+    },
+    messages: {
+      switched:
+        "`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText=\"Wird …\"` und `confirmText` auf die Aktion.",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (node.name?.type !== "JSXIdentifier") return;
+        if (node.name.name !== "ConfirmationModal") return;
+        const flag = flagKey(attributeExpression(node, "isConfirmLoading"));
+        if (flag == null) return;
+        const confirmText = attributeExpression(node, "confirmText");
+        if (switchesOnFlag(confirmText, flag, context.sourceCode)) {
+          context.report({ node: confirmText, messageId: "switched" });
         }
       },
     };
@@ -5768,6 +5857,7 @@ export default {
     "form-modal-pending": formModalPending,
     "slide-over-pending": slideOverPending,
     "confirmation-dismiss-lock": confirmationDismissLock,
+    "confirmation-loading-text": confirmationLoadingText,
     "green-fill-white-text": greenFillWhiteText,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,

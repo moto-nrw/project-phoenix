@@ -64,6 +64,7 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import {
@@ -1904,6 +1905,21 @@ function TimetablesContent() {
   const archiveErrors = useApiFormError(archiveRef);
   const { clear: clearArchiveError, show: showArchiveError } = archiveErrors;
   const latestArchiveRef = useRef<() => void>(() => undefined);
+  // Nach dem Archivieren lädt der Plan nach. Scheitert das, ist das
+  // Archivieren trotzdem geschehen: der Fehler steht als Ladefehler über dem
+  // Plan, sein Wiederholen lädt nur nach (#6636).
+  const reloadAfterArchive = useCallback(async () => {
+    if (templatePeriodID) {
+      await tenantMutate(`timetable-templates-${templatePeriodID}`);
+    }
+    await tenantMutate(swrKey);
+    await tenantMutate(gapsSWRKey);
+  }, [gapsSWRKey, swrKey, templatePeriodID, tenantMutate]);
+  const archiveRefresh = useRefreshAfterWrite(
+    "die Anzeige der Regeltermine",
+    reloadAfterArchive,
+  );
+  const { refresh: refreshAfterArchive } = archiveRefresh;
 
   const handleArchiveTemplate = useCallback(async () => {
     if (!archivingTemplate) return;
@@ -1912,15 +1928,6 @@ function TimetablesContent() {
     clearArchiveError();
     try {
       await timetableService.archiveTemplate(archivingTemplate.id);
-      toast.success(
-        `Der Regeltermin „${archivingTemplate.name}“ ist archiviert.`,
-      );
-      setArchivingTemplate(null);
-      if (templatePeriodID) {
-        await tenantMutate(`timetable-templates-${templatePeriodID}`);
-      }
-      await tenantMutate(swrKey);
-      await tenantMutate(gapsSWRKey);
     } catch (err) {
       logger.error("template_archive_failed", {
         template_id: archivingTemplate.id,
@@ -1930,17 +1937,20 @@ function TimetablesContent() {
         object: "das Archivieren des Regeltermins",
         retry: () => latestArchiveRef.current(),
       });
-    } finally {
       setArchiveLoading(false);
+      return;
     }
+    toast.success(
+      `Der Regeltermin „${archivingTemplate.name}“ ist archiviert.`,
+    );
+    setArchivingTemplate(null);
+    setArchiveLoading(false);
+    await refreshAfterArchive();
   }, [
     archivingTemplate,
     clearArchiveError,
-    gapsSWRKey,
+    refreshAfterArchive,
     showArchiveError,
-    swrKey,
-    templatePeriodID,
-    tenantMutate,
     toast,
   ]);
 
@@ -2368,6 +2378,7 @@ function TimetablesContent() {
         confirmText="Archivieren"
         cancelText="Abbrechen"
         isConfirmLoading={archiveLoading}
+        loadingText="Wird archiviert…"
       >
         <div ref={archiveRef}>
           <FormErrorAlert message={archiveErrors.error} className="mb-3" />
@@ -2521,6 +2532,7 @@ function TimetablesContent() {
           : null
       }
     >
+      <LoadErrorAlert error={archiveRefresh.error} />
       <LoadErrorAlert error={periodsLoadError} />
       <LoadErrorAlert error={connectTemplatesLoadError} />
       <LoadErrorAlert error={connectLoadError} />

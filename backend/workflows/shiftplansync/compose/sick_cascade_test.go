@@ -615,12 +615,17 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 	markDone := make(chan error, 1)
 	go func() {
 		markDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			// The cascade runs behind the sick report's entry locks, as in
+			// SickReports: the days come before Workforce's staff row (#6583).
+			if err := e.cascade.LockSickReportWrite(ctx, e.subject.ID, absenceID, day.String(), day.String()); err != nil {
+				return err
+			}
 			return e.cascade.MarkSickForRange(ctx, input)
 		})
 	}()
 	select {
 	case err := <-markDone:
-		require.Failf(t, "cascade did not wait for staff lock", "returned early: %v", err)
+		require.Failf(t, "cascade did not wait for the shift write", "returned early: %v", err)
 	case <-time.After(150 * time.Millisecond):
 	}
 	close(release)

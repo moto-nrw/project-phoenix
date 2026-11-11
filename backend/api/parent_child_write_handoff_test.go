@@ -352,14 +352,24 @@ func TestParentChildWritesAnswerLikeBefore(t *testing.T) {
 			rec, _ := rig.send(t, photoConsent(method, g.StudentID), g.token)
 			require.Equal(t, "403 care.guardian_permission_denied", answer(t, rec), method)
 		}
+		// #6494, decision A: the end of care does not end the photo consent.
+		// The withdrawal clears it with one history row and the file after the
+		// commit; giving it again stays refused.
 		ended := calendar.NewDate(2026, 8, 1)
 		h := rig.family(t)
 		rig.givePhotoConsent(t, h)
 		testpkg.SetStudentLifecycle(t, rig.db, h.StudentID, "active", nil, &ended)
 		held := rig.state(t, h)
 		rec, _ = rig.send(t, photoConsent(http.MethodDelete, h.StudentID), h.token)
+		require.Equal(t, "200", answer(t, rec), rec.Body.String())
+		endedWithdrawn := rig.state(t, h)
+		require.Nil(t, endedWithdrawn.PhotoPath)
+		require.Nil(t, endedWithdrawn.PhotoGivenAt)
+		require.Equal(t, held.ConsentRows+1, endedWithdrawn.ConsentRows)
+		require.Equal(t, []photoUnlink{{path: *held.PhotoPath, committed: true}}, rig.photos.forPath(*held.PhotoPath))
+		rec, _ = rig.send(t, photoConsent(http.MethodPut, h.StudentID), h.token)
 		require.Equal(t, "403 care.child_care_ended", answer(t, rec))
-		require.Equal(t, held, rig.state(t, h))
+		require.Equal(t, endedWithdrawn, rig.state(t, h))
 	})
 }
 

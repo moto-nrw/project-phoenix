@@ -68,9 +68,8 @@ Self-Service-Export, keine allgemeine Export-API, keine Importer, kein SLA.
 
 ### B. Abrufweg (Art. 30 Abs. 2)
 
-Der Abrufweg für das fertige Paket folgt als eigener, gestapelter Schritt
-und ergänzt diesen Abschnitt. Bis dahin übergeben wir das Paket wie im
-[Runbook](../operations/auskunft-und-rueckgabe.md) verschlüsselt.
+Der Abrufweg für das fertige Paket steht in
+[ADR 0203](0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md).
 
 ## Folgen
 

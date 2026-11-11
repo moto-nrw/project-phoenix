@@ -18,10 +18,7 @@ import {
   getStudentTimeStatus,
   type StudentDayTimes,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   attendanceActorLabel,
@@ -377,21 +374,23 @@ export function StudentHeaderLocation({
     | "todayArrivalNote"
   >
 >) {
-  // Spread the student so any field LocationBadge consumes (current_room_color,
-  // future room-derived attributes, etc.) propagates without maintaining a
-  // parallel whitelist here. Only the not_arrival_* fields are computed locally.
-  const badgePlanning = getStudentPresenceBadgePlanning({
-    ...student,
-    arrival_is_exception: isArrivalException,
-    arrival_time: todayArrivalPlannedTime,
-    arrival_notes: todayArrivalNote,
-  });
+  // The page reads today's arrival from the child's arrival schedule, not from
+  // the student row; the badge reads today's plan from these fields itself.
+  //
+  // Sonderfall Kinderakte bis #6663: `isArrivalAbsent` ist auch bei Krank- und
+  // Entschuldigt-Meldung wahr, und die Kopfzeile wertet es als „kommt heute
+  // nicht“. Ein krankes Kind mit Ortstext ohne Status-Präfix zeigt hier darum
+  // „Ungeplant anwesend“, in den Listen „Krank“. Ein Plan ohne Ankunftszeit ist
+  // für den Badge genau diese Aussage.
+  const plannedAbsentFromArrivalSchedule = isArrivalAbsent ?? false;
   const badgeStudent = {
     ...student,
-    not_arrival_today:
-      badgePlanning.notArrivalToday || (isArrivalAbsent ?? false),
-    not_arrival_reason:
-      badgePlanning.notArrivalReason ?? todayArrivalNote ?? null,
+    arrival_is_exception:
+      isArrivalException || plannedAbsentFromArrivalSchedule,
+    arrival_time: plannedAbsentFromArrivalSchedule
+      ? undefined
+      : todayArrivalPlannedTime,
+    arrival_notes: todayArrivalNote,
   };
 
   return (

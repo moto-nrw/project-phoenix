@@ -105,6 +105,9 @@ type exportFile struct {
 	// resolvedPositions counts the positions booked on the values of the
 	// day of the export (#4821).
 	resolvedPositions int
+	// costCenterFallbacks are the holiday positions booked on the KOST1 of
+	// the holiday care (#6624).
+	costCenterFallbacks []parentbilling.CostCenterFallback
 }
 
 // recordExportFile takes the next file number of the Träger, renders the
@@ -127,7 +130,7 @@ func recordExportFile(ctx context.Context, store ExportFileStore, reviewer paren
 		Content: data, TotalCents: file.totalCents, Reference: file.reference, BookingContent: file.bookingContent,
 		CareInvoiceIDs: file.careInvoices, DocumentIDs: file.documents, CareNoticeIDs: file.notices, SEPADebitIDs: file.debits,
 		DocumentCount: file.documentCount, DatevAll: file.datevAll, DatevBookings: file.datevBookings,
-		ResolvedPositions: file.resolvedPositions,
+		ResolvedPositions: file.resolvedPositions, CostCenterFallbacks: file.costCenterFallbacks,
 	})
 	if err != nil {
 		return parentbilling.ExportProtocolEntry{}, nil, fmt.Errorf("parent billing: record the export file: %w", err)
@@ -381,12 +384,35 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 		}
 	}
 	file.documentCount = len(content.Invoices)
+	file.costCenterFallbacks = sollCostCenterFallbacks(soll.Mapping, rows)
 	entry, data, err := recordExportFile(ctx, f.store, reviewer, file)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
 	entry.RunLabel = content.Run.Label
 	return parentbilling.ExportedFile{Entry: entry, ContentType: sollContentType(soll.Mapping.Encoding), Data: data}, nil
+}
+
+// sollCostCenterFallbacks names the holiday positions on the KOST1 of the
+// holiday care when the file writes the KOST1 (#6624).
+func sollCostCenterFallbacks(mapping parentbilling.SollstellungMapping, rows []sollRow) []parentbilling.CostCenterFallback {
+	if !slices.ContainsFunc(mapping.Columns, func(column parentbilling.SollstellungColumn) bool {
+		return column.Field == parentbilling.SollFieldCostCenter
+	}) {
+		return nil
+	}
+	var fallbacks []parentbilling.CostCenterFallback
+	for i := 0; i < len(rows); {
+		invoice := rows[i].invoice
+		var lines []bookingLine
+		for ; i < len(rows) && rows[i].invoice.Number == invoice.Number; i++ {
+			if rows[i].line != nil {
+				lines = append(lines, *rows[i].line)
+			}
+		}
+		fallbacks = append(fallbacks, costCenterFallbacks(invoice, lines)...)
+	}
+	return fallbacks
 }
 
 // sollstellungRows are the rows of the file. A mapping that names where a

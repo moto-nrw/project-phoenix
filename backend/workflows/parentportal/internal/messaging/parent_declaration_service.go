@@ -71,10 +71,9 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	if err != nil {
 		return nil, false, err
 	}
-	if in.Action != DeclarationActionRevoked {
-		if err := s.authorizeDeclarationChild(ctx, accountID, in.StudentID, target.tenantID); err != nil {
-			return nil, false, err
-		}
+	child, err := s.authorizeDeclarationChild(ctx, accountID, in.StudentID, target.tenantID, in.Action)
+	if err != nil {
+		return nil, false, err
 	}
 	if !knownDeclarationAction(in.Action) {
 		return nil, false, ErrDeclarationActionNotAllowed
@@ -88,10 +87,16 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	}
 	var result *DeclarationSubmission
 	created := false
-	err = s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		result, created, err = s.writeDeclaration(adminCtx, accountID, announcementID, target, in, passwordConfirmed)
-		return err
+	err = s.Children.WithChildWrite(ctx, accountID, in.StudentID, child, declarationWriteAccess(in.Action), func(txCtx context.Context) error {
+		var writeErr error
+		result, created, writeErr = s.writeDeclaration(txCtx, accountID, announcementID, target, in, passwordConfirmed)
+		return writeErr
 	})
+	if errors.Is(err, care.ErrGuardianPermissionDenied) || errors.Is(err, care.ErrChildNotLinked) {
+		// The guard found the relationship, its permission or the school
+		// membership withdrawn since the check before the unit.
+		return nil, false, ErrDeclarationNotPermitted
+	}
 	if err != nil {
 		return nil, false, err
 	}
@@ -217,21 +222,40 @@ func (s *Service) ownDeclarationHistory(ctx context.Context, announcementID, acc
 }
 
 // authorizeDeclarationChild applies the project's guardian gate with the
-// action-specific permission. Seeing the child is not enough to declare.
-func (s *Service) authorizeDeclarationChild(ctx context.Context, accountID, studentID, tenantID int64) error {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionDeclarationSubmit)
+// action-specific permission. Seeing the child is not enough to declare. A
+// revocation needs portal access to the child only: a guardian who lost
+// parent_portal.declarations.submit still withdraws the own consent.
+func (s *Service) authorizeDeclarationChild(ctx context.Context, accountID, studentID, tenantID int64, action string) (*Child, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, declarationPermission(action))
 	switch {
-	case errors.Is(err, care.ErrGuardianPermissionDenied):
-		return ErrDeclarationNotPermitted
+	case errors.Is(err, care.ErrGuardianPermissionDenied),
+		errors.Is(err, care.ErrChildNotLinked) && action == DeclarationActionRevoked:
+		return nil, ErrDeclarationNotPermitted
 	case errors.Is(err, care.ErrChildNotLinked):
-		return ErrChildNotAnswerable
+		return nil, ErrChildNotAnswerable
 	case err != nil:
-		return err
+		return nil, err
 	}
 	if child.TenantID != tenantID {
-		return ErrChildNotAnswerable
+		return nil, ErrChildNotAnswerable
 	}
-	return nil
+	return child, nil
+}
+
+// declarationPermission is the relationship permission an action needs
+// besides portal access.
+func declarationPermission(action string) string {
+	if action == DeclarationActionRevoked {
+		return care.GuardianPermissionPortalAccess
+	}
+	return care.GuardianPermissionDeclarationSubmit
+}
+
+// declarationWriteAccess is what the child write guard holds until the
+// declaration commits (#6529): membership, child and relationship with portal
+// access, and for a new answer the submit permission.
+func declarationWriteAccess(action string) care.ChildWriteAccess {
+	return care.ChildWriteAccess{Permissions: []string{declarationPermission(action)}}
 }
 
 func confirmDeclarationPassword(ctx context.Context, required bool, password string, confirm PasswordConfirmer) (bool, error) {
@@ -253,10 +277,12 @@ func confirmDeclarationPassword(ctx context.Context, required bool, password str
 	return true, nil
 }
 
-// writeDeclaration decides and appends under the (announcement, child) lock,
-// against the committed history and a share lock on the authorizing
-// relationship, so neither a concurrent declaration nor a concurrent
-// revocation of the permission can slip between check and write.
+// writeDeclaration decides and appends behind the child write guard and
+// under the (announcement, child) lock, which also holds the announcement's
+// rules, against the committed history: neither a concurrent declaration, a
+// concurrent revocation of the permission nor a concurrent change of the
+// declaration's rules can slip between check and write. The password the
+// school asks for is the one of the locked declaration (#6494).
 func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementID int64, target *declarationTarget, in DeclarationInput, passwordConfirmed bool) (*DeclarationSubmission, bool, error) {
 	repo := s.AnnouncementRepo
 	if err := repo.LockDeclarationChild(ctx, announcementID, in.StudentID); err != nil {
@@ -265,6 +291,9 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	locked, err := s.lockedDeclarationVersion(ctx, target.tenantID, announcementID, in)
 	if err != nil {
 		return nil, false, err
+	}
+	if locked.requiresPassword && !passwordConfirmed {
+		return nil, false, ErrDeclarationPasswordRequired
 	}
 	version := locked.version
 	signer, mayDeclare, err := s.holdDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in)
@@ -326,12 +355,13 @@ func (s *Service) holdDeclarationSigner(ctx context.Context, tenantID, announcem
 
 // lockedDeclaration is the declaration as re-read under the child lock: its
 // rules, the version the request names, whether that is the current one, and
-// whether the settings ask for a signature.
+// whether the settings ask for a signature and the password.
 type lockedDeclaration struct {
 	rules             declarationRules
 	version           *DeclarationVersion
 	current           bool
 	requiresSignature bool
+	requiresPassword  bool
 }
 
 // lockedDeclarationVersion re-reads the announcement under the child lock.
@@ -371,6 +401,7 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 	return &lockedDeclaration{
 		rules: feedDeclarationRules(a.Declaration, a.ResponseDeadline), version: version,
 		current: version.ID == latest.ID, requiresSignature: a.Declaration.RequiresSignature,
+		requiresPassword: a.Declaration.RequiresPassword,
 	}, nil
 }
 

@@ -156,6 +156,7 @@ export const nodeLogicTestFiles = [
   "src/lib/invitation-api.test.ts",
   "src/lib/invitation-helpers.test.ts",
   "src/lib/iot-helpers.test.ts",
+  "src/lib/kit-palette.test.ts",
   "src/lib/loading-boundaries.test.ts",
   "src/lib/localized-date-format.test.ts",
   "src/lib/location-helper.test.ts",

@@ -9,12 +9,13 @@ import { AnchoredPopover } from "./anchored-popover";
 import { Button } from "./button";
 import { FieldLabel } from "./field-label";
 import { TimePickerPanel, type TimePickerLabels } from "./time-picker-panel";
+import { MODAL_SCOPE_SELECTOR, SHEET_SCOPE_SELECTOR } from "./overlay-stack";
 
 // Ein Modal kann das Popover in seiner Fokusfalle aufnehmen. Ein Vaul-Slide-over
 // transformiert seinen Inhalt dagegen; dessen Auswahl bleibt am Body und
 // bekommt dort eine eigene Fokusfalle.
-const PICKER_PORTAL_SCOPE = '[data-modal-focus-scope="true"]';
-const SLIDE_OVER_FOCUS_TRAP = '[data-date-picker-focus-trap="true"]';
+const PICKER_PORTAL_SCOPE = MODAL_SCOPE_SELECTOR;
+const SLIDE_OVER_FOCUS_TRAP = SHEET_SCOPE_SELECTOR;
 const PICKER_WIDTH = 168;
 
 /**

@@ -318,3 +318,27 @@ const HolidayRegistrationDeletionLogRetentionYears = 3
 type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
 }
+
+// HolidayRegistrationAnnouncement is a published holiday period a parent
+// can still register for or will soon be able to (#6671): what the parents
+// app shows before the form is opened. FirstDay and LastDay span the weeks
+// of the period and are zero without weeks.
+type HolidayRegistrationAnnouncement struct {
+	OrganizationID       int64
+	PeriodID             int64
+	Token                string
+	Name                 string
+	RegistrationOpensOn  calendar.Date
+	RegistrationClosesOn calendar.Date
+	FirstDay             calendar.Date
+	LastDay              calendar.Date
+}
+
+// HolidayRegistrationAnnouncements lists the published periods of the
+// given Träger whose registration has not closed before on, by the end of
+// the registration. Like the link lookup it reads across Träger and
+// therefore runs only in the administrative transaction; it returns nothing
+// of a draft and no registration.
+type HolidayRegistrationAnnouncements interface {
+	AnnouncedHolidayRegistrations(ctx context.Context, organizationIDs []int64, on calendar.Date) ([]HolidayRegistrationAnnouncement, error)
+}

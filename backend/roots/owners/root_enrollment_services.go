@@ -73,7 +73,8 @@ func BuildEnrollmentPhases(
 	phases, err := enrollmentCompose.NewResyncingPhases(enrollmentCompose.PhaseDependencies{
 		Records: enrollment.Bookings, Offerings: enrollmentPhaseOfferings{carePlan: carePlan}, Calendar: calendar,
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites, ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(offerings.Catalog),
-		Resyncer: offerings.Bookings, Students: NewEnrollmentPhaseStudents(pendingWindows), Settings: EnrollmentCollectionSettings{Settings: settings},
+		Resyncer: offerings.Bookings, Students: NewEnrollmentPhaseStudents(pendingWindows),
+		Bookings: NewEnrollmentPhaseBookings(carePlanCompose.NewOfferingBookings()), Settings: EnrollmentCollectionSettings{Settings: settings},
 		Roster: phaseResponseRoster{query: persons}, CareExits: phaseResponseCareExits{query: carePlan},
 		PortalAccounts: persons, Logger: env.Logger.With("service", "enrollment-phase"),
 	})
@@ -156,7 +157,7 @@ type EnrollmentFlows struct {
 // the rollover over the decision flow.
 func BuildEnrollmentFlows(
 	db transactionruntime.Database, env RootEnvironment, enrollment EnrollmentRows, notices EnrollmentNotices,
-	decisions *enrollmentCompose.Decisions, phases *enrollmentCompose.Phases, offerings CarePlanOfferings,
+	decisions *enrollmentCompose.Decisions, phases *enrollmentCompose.Phases, offerings CarePlanOfferings, owner TimetableOwner,
 	consent communication.NotificationConsentCapability, identity identityaccess.Owner, people PeopleRows,
 	structure StructureRows, carePlan careplan.Capability, carePlanRows CarePlanRows, schedules CarePlanSchedules,
 	membership schoolmembership.Capability, organizations organizationtenancy.Query, audit AuditOwner,
@@ -174,7 +175,8 @@ func BuildEnrollmentFlows(
 			RateLimitRepo: records, Uploads: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
 			AdminSubscribers: NewEnrollmentAdminSubscribers(consent, identity), ManualDecider: decisions,
 			FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL, Logger: env.Logger.With("service", "enrollment-request"),
-			FamilyChildrenPurpose: NewEnrollmentFamilyChildrenPurpose(organizations),
+			FamilyChildrenPurpose:  NewEnrollmentFamilyChildrenPurpose(organizations),
+			LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		}),
 		Reports: NewEnrollmentReports(EnrollmentReportSources{
 			Owner: records, Offerings: notices.CareOfferings, AccessLog: audit.Persistence.DataAccessLog,
@@ -192,7 +194,8 @@ func BuildEnrollmentFlows(
 			Decisions: decisions, BookingGates: offerings.Bookings,
 			CompanionGraphLocker: companionGraphCoordinator{CompanionLocks: carePlanRows.Companions, strandings: people.Students},
 			Settings:             settings, OutboxEnqueuer: intakeMailOutbox(outbox), FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL,
-			Logger: env.Logger.With("service", "enrollment-change-request"),
+			Logger:                 env.Logger.With("service", "enrollment-change-request"),
+			LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		}),
 		Uploads: NewEnrollmentRequestUploads(records, audit.Persistence.DataAccessLog, settings, env.Logger.With("service", "enrollment-uploads")),
 		Rollovers: NewEnrollmentRollovers(EnrollmentRolloverSources{

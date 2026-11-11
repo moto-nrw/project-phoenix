@@ -118,6 +118,9 @@ a missing tool or failed command is not a passed check.
 
 ## Git and skills
 
+Claim an issue before work: if no comment claims it, comment that you take it,
+with your branch; comment again if you drop it.
+
 PRs target `development`, or the branch of the PR below them when stacking;
 the `stacked-pr` skill owns that flow. Open every PR as a draft
 (`gh pr create --draft`) and push to it as often as the work needs; drafts run

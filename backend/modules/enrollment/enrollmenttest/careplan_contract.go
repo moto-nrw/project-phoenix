@@ -43,11 +43,12 @@ type (
 	OfferingChangeRecords = compose.OfferingChangeRecords
 )
 
-// DecisionApproved is the approval decision; FormFieldText a free-text
-// form field.
+// DecisionApproved is the approval decision, DecisionUnderReview the
+// school's review; FormFieldText a free-text form field.
 const (
-	DecisionApproved = enrollment.DecisionApproved
-	FormFieldText    = enrollment.FormFieldText
+	DecisionApproved    = enrollment.DecisionApproved
+	DecisionUnderReview = enrollment.DecisionUnderReview
+	FormFieldText       = enrollment.FormFieldText
 )
 
 // The public refusals the suite asserts with errors.Is.
@@ -61,7 +62,12 @@ var (
 	ErrCareOfferingTemplatePeriodMismatch     = enrollment.ErrCareOfferingTemplatePeriodMismatch
 	ErrCompleteWithdrawalConfirmationRequired = enrollment.ErrCompleteWithdrawalConfirmationRequired
 	ErrOfferingAdjustmentInvalid              = enrollment.ErrOfferingAdjustmentInvalid
+	ErrPhaseBookingBoundsConflict             = enrollment.ErrPhaseBookingBoundsConflict
 )
+
+// PhaseBookingBoundsConflictError names the application a refused phase
+// edit would leave with an empty booking.
+type PhaseBookingBoundsConflictError = enrollment.PhaseBookingBoundsConflictError
 
 // NewCareOfferingRows serves Care Plan's catalog administration in
 // enrollment rows, as the enrollment routes use it.

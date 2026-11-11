@@ -3,6 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { ToastProvider, useApiErrorDisplay } from "./ToastContext";
 
+vi.mock("@sentry/nextjs", () => ({
+  captureException: vi.fn(),
+  addBreadcrumb: vi.fn(),
+}));
+
+import * as Sentry from "@sentry/nextjs";
+
 vi.mock("~/lib/error-presentation", () => {
   throw new Error("Presenter chunk unavailable");
 });
@@ -48,5 +55,21 @@ describe("useApiErrorDisplay when the presenter chunk fails", () => {
       "The group could not be processed. Please try later.",
     );
     expect(screen.queryByText(/konnte nicht bearbeitet/)).toBeNull();
+  });
+
+  it("still reports a crash to Sentry, and no API failure", async () => {
+    const { result } = renderHook(() => useApiErrorDisplay(), {
+      wrapper: ToastProvider,
+    });
+    const crash = new TypeError("undefined is not an object");
+    await act(async () => {
+      await result.current.show(new ApiError("backend", 500), {
+        object: "Die Gruppe",
+      });
+      await result.current.show(crash, { object: "Die Gruppe" });
+    });
+    expect(vi.mocked(Sentry.captureException).mock.calls).toEqual([
+      [crash, { tags: { surface: "toast" } }],
+    ]);
   });
 });

@@ -17,11 +17,12 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
+import { SHEET_SCOPE_SELECTOR } from "./overlay-stack";
 
 const VIEWPORT_MARGIN = 8;
 const PANEL_GAP = 4;
 const DEFAULT_MAX_HEIGHT = 420;
-const DEFAULT_PORTAL_SCOPE = '[data-date-picker-focus-trap="true"]';
+const DEFAULT_PORTAL_SCOPE = SHEET_SCOPE_SELECTOR;
 const TABBABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]';
 

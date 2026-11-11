@@ -21,8 +21,11 @@ var sentryHandler = sentryhttp.New(sentryhttp.Options{Repanic: true})
 // ServerErrorReporting is the one place that reports HTTP server errors to
 // Sentry (#3639). Every answer with status 500 or higher becomes exactly one
 // event, whether it was written through RenderError, http.Error or
-// render.Status. Answers below 500 and requests the client canceled produce
-// none.
+// render.Status, and also when the client canceled the request meanwhile.
+// Such an event is a warning tagged client_canceled, so it can be filtered
+// and does not page like a defect. Answers below 500, the 499 for a client
+// that went away included, and answers marked by SkipServerErrorReport
+// produce none.
 //
 // A panic is reported by sentryhttp and repanics to the Recoverer mounted
 // before this middleware. The panic unwinds past the status check, so the
@@ -50,13 +53,18 @@ func reportServerErrors(next http.Handler) http.Handler {
 		next.ServeHTTP(ww, r.WithContext(common.WithServerErrorCapture(r.Context(), cause)))
 
 		status := ww.Status()
-		if status < http.StatusInternalServerError || cause.Unreported() || clientCanceled(r, cause.Err()) {
+		if status < http.StatusInternalServerError || cause.Unreported() {
 			return
 		}
 		hub.WithScope(func(scope *sentry.Scope) {
 			scope.SetTag("http.status_code", strconv.Itoa(status))
 			if cause.Code() != "" {
 				scope.SetTag("error_code", cause.Code())
+			}
+			if clientCanceled(r, cause.Err()) {
+				scope.SetTag("client_canceled", "true")
+				// The scope level overrides the event's own, for both captures.
+				scope.SetLevel(sentry.LevelWarning)
 			}
 			if cause.Err() != nil {
 				hub.CaptureException(cause.Err())
@@ -70,8 +78,8 @@ func reportServerErrors(next http.Handler) http.Handler {
 	})
 }
 
-// clientCanceled reports whether the answer only failed because the client
-// went away. That is no server error.
+// clientCanceled reports whether the client went away before the answer. The
+// 5xx is still reported, but marked so it does not page like a defect.
 func clientCanceled(r *http.Request, cause error) bool {
 	return errors.Is(r.Context().Err(), context.Canceled) || errors.Is(cause, context.Canceled)
 }

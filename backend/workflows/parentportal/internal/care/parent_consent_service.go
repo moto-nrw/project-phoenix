@@ -59,6 +59,9 @@ func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int
 		if loadErr == nil {
 			consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(GuardianPermissionConsentManage))
 		}
+		if loadErr == nil && student.CareEndedOn(s.todayDate()) {
+			withoutPhotoGrant(consents)
+		}
 		if loadErr != nil {
 			return fmt.Errorf("parent: get child consents: %w", loadErr)
 		}
@@ -72,13 +75,16 @@ func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int
 
 // WithdrawPhotoConsent atomically clears the voluntary photo consent and its
 // stored image. Repeated calls are successful without adding duplicate audit
-// entries.
+// entries. The end of care does not end the consent, so a guardian with the
+// consent permission withdraws it after the care ended as well (#6494): the
+// withdrawal must stay as easy as giving the consent (Art. 7 Abs. 3 DSGVO).
 func (s *Service) WithdrawPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
 	return s.setPhotoConsent(ctx, accountID, studentID, photoConsentActionWithdraw)
 }
 
 // GrantPhotoConsent records a new voluntary photo consent after a withdrawal.
-// It never restores a photo deleted by the earlier withdrawal.
+// It never restores a photo deleted by the earlier withdrawal and is refused
+// once the child's care ended.
 func (s *Service) GrantPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
 	return s.setPhotoConsent(ctx, accountID, studentID, photoConsentActionGrant)
 }
@@ -86,8 +92,10 @@ func (s *Service) GrantPhotoConsent(ctx context.Context, accountID, studentID in
 func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int64, action photoConsentAction) ([]ChildConsent, error) {
 	var consents []ChildConsent
 	err := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionConsentManage, func(child *Child) error {
-		if err := child.RequireCareRunning(); err != nil {
-			return err
+		if action == photoConsentActionGrant {
+			if err := child.RequireCareRunning(); err != nil {
+				return err
+			}
 		}
 		if s.StudentRepo == nil || s.StudentConsents == nil || s.Students == nil {
 			return fmt.Errorf("parent: consent dependencies not wired")
@@ -107,19 +115,21 @@ func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 	return consents, nil
 }
 
-// changePhotoConsent re-checks the care interval under the student lock, then
-// grants or withdraws the voluntary photo consent. The relationship's consent
-// permission is held by the guard of WithPermittedChildForWrite. A repeated
-// call changes nothing and appends no audit entry.
+// changePhotoConsent grants or withdraws the voluntary photo consent under
+// the student lock. A grant re-checks the care interval there; a withdrawal
+// does not, it ends a consent the guardian gave (#6494). The relationship's
+// consent permission is held by the guard of WithPermittedChildForWrite. A
+// repeated call changes nothing and appends no audit entry.
 func (s *Service) changePhotoConsent(ctx context.Context, tenantID, accountID, studentID int64, action photoConsentAction) ([]ChildConsent, error) {
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	if student.CareEndedOn(s.todayDate()) {
+	granting := action == photoConsentActionGrant
+	careEnded := student.CareEndedOn(s.todayDate())
+	if granting && careEnded {
 		return nil, ErrChildCareEnded
 	}
-	granting := action == photoConsentActionGrant
 	if granting && student.PhotoConsentGivenAt == nil {
 		if err := s.requirePhotoConsentWithdrawn(ctx, student); err != nil {
 			return nil, err
@@ -131,7 +141,21 @@ func (s *Service) changePhotoConsent(ctx context.Context, tenantID, accountID, s
 			return nil, err
 		}
 	}
-	return s.loadChildConsents(ctx, student, true)
+	consents, err := s.loadChildConsents(ctx, student, true)
+	if err == nil && careEnded {
+		withoutPhotoGrant(consents)
+	}
+	return consents, err
+}
+
+// withoutPhotoGrant drops the offer to give the photo consent again once the
+// child's care ended; a standing consent stays withdrawable.
+func withoutPhotoGrant(consents []ChildConsent) {
+	for i := range consents {
+		if consents[i].Key == StudentConsentPhoto {
+			consents[i].CanGrant = false
+		}
+	}
 }
 
 // requirePhotoConsentWithdrawn keeps the re-grant path from becoming a

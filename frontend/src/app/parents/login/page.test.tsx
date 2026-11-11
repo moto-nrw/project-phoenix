@@ -229,6 +229,34 @@ describe("ParentLoginPage i18n", () => {
     expect(mocks.redirect).toHaveBeenCalledWith("/parents");
   });
 
+  it("returns a parent to the holiday registration the login was opened from (#6671)", () => {
+    mocks.searchParamsGet.mockImplementation((key: string) =>
+      key === "next" ? "/ferienanmeldung/link-key" : null,
+    );
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { scope: "parent" } },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(mocks.redirect).toHaveBeenCalledWith("/ferienanmeldung/link-key");
+  });
+
+  it("ignores a return target that is no holiday registration", () => {
+    mocks.searchParamsGet.mockImplementation((key: string) =>
+      key === "next" ? "https://example.org/ferienanmeldung/link-key" : null,
+    );
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { scope: "parent" } },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(mocks.redirect).toHaveBeenCalledWith("/parents");
+  });
+
   // The layout's server snapshot carries no access token (#4990, #5005).
   it("redirects a signed-in parent whose session came from the server snapshot", () => {
     mocks.useSession.mockReturnValue({

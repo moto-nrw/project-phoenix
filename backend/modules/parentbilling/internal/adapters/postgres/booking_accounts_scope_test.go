@@ -120,14 +120,15 @@ func TestIssuedPositionsKeepWhereTheyBook(t *testing.T) {
 		require.NoError(t, err)
 		issuedOn := calendar.NewDate(2029, time.September, 21)
 		sequence := testpkg.UniqueTestTenantID(t)
+		frozenAt := parentbilling.PositionAccounts{RevenueAccount: "4420", CostCenter: "FER", Frozen: true}
 		document, err := store.IssueDocument(ctx, scope.organization, parentbilling.BillingRun{ID: run, Service: parentbilling.ServiceHoliday,
 			HolidayPeriodID: 1}, 2029, sequence, parentbilling.BillingDocument{
 			Number: fmt.Sprintf("FE-K-%d", sequence), IssuedOn: &issuedOn, RegistrationID: sequence, RecipientFirstName: "Eva",
 			RecipientLastName: "Beispiel", ServiceFrom: calendar.NewDate(2029, time.October, 1), ServiceUntil: calendar.NewDate(2029, time.October, 5),
 			TotalCents: 4500,
-			Accounts:   parentbilling.PositionAccounts{RevenueAccount: "4420", CostCenter: "FER", Frozen: true},
 			Children: []parentbilling.BillingChild{{ChildID: 1, FirstName: "Mia", LastName: "Beispiel", Positions: []parentbilling.BillingPosition{
-				{Kind: parentbilling.LineBase, AmountCents: 5000}, {Kind: parentbilling.LineSibling, AmountCents: -500}}}},
+				{Kind: parentbilling.LineBase, AmountCents: 5000, Accounts: frozenAt},
+				{Kind: parentbilling.LineSibling, AmountCents: -500, Accounts: frozenAt}}}},
 		})
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)

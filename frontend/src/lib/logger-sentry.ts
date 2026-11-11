@@ -3,7 +3,8 @@
  *
  * Structured logs become breadcrumbs for independently reported exceptions.
  * A log level alone does not decide whether a failure is a defect, so logging
- * never creates a Sentry event.
+ * never creates a Sentry event. The error display path reports a crash it
+ * shows itself (`ToastContext.tsx`).
  *
  * Entries arrive already redacted by the logger; Sentry's beforeSend scrubber
  * (sentry.shared.ts) runs on top.

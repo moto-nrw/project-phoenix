@@ -132,8 +132,6 @@ var demoErasureExceptions = map[string]string{
 	"meta.parent_student_consent_permission_grants":  schoolContentUntil5559,
 	"parent_billing.holiday_sibling_groups":          "a sibling group of the Träger-Büro names no person itself; its members go with their registrations, and a group left alone drops by trigger (drop_lone_holiday_sibling_group)",
 	"parent_billing.sepa_debit_files":                "ADR 0187: the stored PAIN.008 file of a message drops by trigger (drop_sepa_debit_files_with_their_members), an unsubmitted download with the first of its debits, installment notices or mandates, a submitted original with the last of its debits and notices, and those go with the demo visitor's contracts",
-	"parent_billing.run_events":                      "trail of a billing run of the demo Träger: action, time and the Träger-Büro account, names no family",
-	"parent_billing.run_letters":                     "payment text and emergency numbers of the confirmation letters of a run of the demo Träger, written by the Träger-Büro, no family",
 	"platform.billing_key_date_counts":               "school name and counts of an invoice key date, no person",
 	"platform.email_suppressions":                    schoolContentUntil5559,
 	"platform.organization_accounts":                 traegerBueroOnly,
@@ -224,7 +222,7 @@ var demoErasureExceptions = map[string]string{
 // demoErasureExceptionBudget is the recorded size of demoErasureExceptions.
 // It only falls: lower it when an entry leaves.
 // ADR 0187: the stored PAIN.008 files of the Träger-Rückgabe (+1).
-const demoErasureExceptionBudget = 189
+const demoErasureExceptionBudget = 187
 
 func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 	t.Parallel()

@@ -73,7 +73,6 @@ import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
-  countedDayStatus,
   parseLocation,
   isAtSchoolLocation,
   isInClassLocation,
@@ -82,6 +81,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
+import { countedDayStatus, dayStatusLabel } from "~/lib/presence-status";
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   teacherHintKey,
@@ -183,10 +183,7 @@ import {
   getStudentTimeStatus,
   getTimeStatusSortRank,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import {
   matchesTrackingFilter,
   parseTrackingFilter,
@@ -720,18 +717,12 @@ const HOME_STATUSES: ReadonlySet<string> = new Set([
   LOCATION_STATUSES.NOT_ARRIVAL,
 ]);
 
-const DAY_STATUS_LABELS = {
-  sick: "Krank",
-  class_trip: "Klassenfahrt",
-  excused: "Entschuldigt",
-} as const;
-
 // Ort vor Status (#6371): Ein eingechecktes Kind steht unter seinem Ort, auch
 // mit Krankmeldung, Entschuldigung oder Klassenfahrt. Der Status bleibt als
 // Hinweis am Ortsbadge.
 function statusLabelForStudent(student: Student): string {
   const dayStatus = countedDayStatus(student);
-  if (dayStatus) return DAY_STATUS_LABELS[dayStatus];
+  if (dayStatus) return dayStatusLabel(dayStatus);
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";
@@ -3642,17 +3633,7 @@ function SearchPageContent() {
                       locationBadge={
                         isToday ? (
                           <StudentPresenceBadge
-                            student={(() => {
-                              const badgePlanning =
-                                getStudentPresenceBadgePlanning(student);
-                              return {
-                                ...student,
-                                not_arrival_today:
-                                  badgePlanning.notArrivalToday,
-                                not_arrival_reason:
-                                  badgePlanning.notArrivalReason,
-                              };
-                            })()}
+                            student={student}
                             displayMode="contextAware"
                             userGroups={myGroups}
                             groupRooms={myGroupRooms}

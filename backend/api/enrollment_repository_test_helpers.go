@@ -29,7 +29,7 @@ type EnrollmentTestRepositories struct {
 
 // Enrollment is the Enrollment booking projection the suites read and write.
 func (r EnrollmentTestRepositories) Enrollment() owners.EnrollmentBookingProjection {
-	return owners.NewEnrollmentBookingProjection(owners.ComposeEnrollmentBookings(enrollmentCompose.New()))
+	return owners.NewEnrollmentBookingProjection(owners.ComposeEnrollmentBookings(enrollmentCompose.New()), owners.UngatedEnrollmentPhaseBounds())
 }
 
 func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, members owners.MembershipTestRepositories) (EnrollmentTestRepositories, error) {

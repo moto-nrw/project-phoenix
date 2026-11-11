@@ -282,3 +282,24 @@ func calendarDates(days []enrollmentOwner.Date) []calendar.Date {
 	}
 	return out
 }
+
+// enrollmentPhaseBookings binds the phase edit's booking bounds to Care
+// Plan's guarded command (#6597, ADR 0205). A booking the command refuses as
+// empty is a conflict of the phase edit.
+type enrollmentPhaseBookings struct {
+	bookings careplan.PhaseBookingBounds
+}
+
+// NewEnrollmentPhaseBookings binds the phase edit to Care Plan's bookings.
+func NewEnrollmentPhaseBookings(bookings careplan.PhaseBookingBounds) enrollmentOwner.PhaseBookings {
+	return enrollmentPhaseBookings{bookings: bookings}
+}
+
+func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, move enrollmentOwner.PhaseBookingMove) error {
+	err := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))
+	var conflict *careplan.PhaseBookingBoundsConflictError
+	if errors.As(err, &conflict) {
+		return &enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}
+	}
+	return err
+}

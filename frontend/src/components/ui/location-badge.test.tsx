@@ -1,20 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { LocationBadge } from "./location-badge";
-import {
-  LOCATION_STATUSES,
-  LOCATION_COLORS,
-  getLocationBadgeTone,
-} from "@/lib/location-helper";
-import type { StudentLocationContext } from "@/lib/location-helper";
+import { LOCATION_STATUSES, LOCATION_COLORS } from "@/lib/location-helper";
+import { getPillTone } from "~/lib/kit-palette";
+import type { PresenceStudent } from "@/lib/presence-status";
 
 // =============================================================================
 // TEST HELPERS
 // =============================================================================
 
 function createStudent(
-  overrides: Partial<StudentLocationContext> = {},
-): StudentLocationContext {
+  overrides: Partial<PresenceStudent> = {},
+): PresenceStudent {
   return {
     current_location: "Anwesend - Raum 101",
     location_since: "2024-01-15T10:00:00Z",
@@ -102,7 +99,7 @@ describe("LocationBadge", () => {
     it("lets not coming today replace Schule", () => {
       const student = createStudent({
         current_location: "Schule",
-        not_arrival_today: true,
+        arrival_is_exception: true,
       });
       render(<LocationBadge student={student} displayMode="contextAware" />);
 
@@ -142,8 +139,7 @@ describe("LocationBadge", () => {
         const badge = screen.getByText(LOCATION_STATUSES.SICK);
         const badgeContainer = badge.closest("span");
         expect(badgeContainer).toHaveStyle({
-          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.SICK)
-            .backgroundColor,
+          backgroundColor: getPillTone(LOCATION_COLORS.SICK).backgroundColor,
         });
       });
 
@@ -383,8 +379,7 @@ describe("LocationBadge", () => {
 
         const badge = screen.getByText(LOCATION_STATUSES.EXCUSED);
         expect(badge.closest("span")).toHaveStyle({
-          backgroundColor: getLocationBadgeTone(LOCATION_COLORS.EXCUSED)
-            .backgroundColor,
+          backgroundColor: getPillTone(LOCATION_COLORS.EXCUSED).backgroundColor,
         });
       });
 
@@ -668,7 +663,7 @@ describe("LocationBadge", () => {
       render(<LocationBadge student={student} displayMode="roomName" />);
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.OTHER_ROOM)
+        backgroundColor: getPillTone(LOCATION_COLORS.OTHER_ROOM)
           .backgroundColor,
       });
     });
@@ -689,7 +684,7 @@ describe("LocationBadge", () => {
       );
       const badgeContainer = screen.getByText("Raum A").closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM)
+        backgroundColor: getPillTone(LOCATION_COLORS.GROUP_ROOM)
           .backgroundColor,
       });
     });
@@ -713,7 +708,7 @@ describe("LocationBadge", () => {
         .getByText(LOCATION_STATUSES.SCHOOLYARD)
         .closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: getLocationBadgeTone("#A3D977").backgroundColor,
+        backgroundColor: getPillTone("#A3D977").backgroundColor,
       });
     });
 
@@ -733,7 +728,7 @@ describe("LocationBadge", () => {
         .getByText(LOCATION_STATUSES.SCHOOLYARD)
         .closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.SCHOOLYARD)
+        backgroundColor: getPillTone(LOCATION_COLORS.SCHOOLYARD)
           .backgroundColor,
       });
     });
@@ -744,7 +739,7 @@ describe("LocationBadge", () => {
       // payload at all — TypeScript represents that as `undefined`. The
       // badge must fall back to OTHER_ROOM blue without crashing or
       // rendering an empty backgroundColor.
-      const student: StudentLocationContext = {
+      const student: PresenceStudent = {
         current_location: "Anwesend - Bibliothek",
         location_since: "2024-01-15T10:00:00Z",
         // current_room_color intentionally omitted
@@ -752,7 +747,7 @@ describe("LocationBadge", () => {
       render(<LocationBadge student={student} displayMode="roomName" />);
       const badgeContainer = screen.getByText("Bibliothek").closest("span");
       expect(badgeContainer).toHaveStyle({
-        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.OTHER_ROOM)
+        backgroundColor: getPillTone(LOCATION_COLORS.OTHER_ROOM)
           .backgroundColor,
       });
     });

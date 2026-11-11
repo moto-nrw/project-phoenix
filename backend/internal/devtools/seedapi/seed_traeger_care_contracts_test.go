@@ -114,3 +114,43 @@ func TestSeedCareContractTemplateNamesTheContractPartner(t *testing.T) {
 	t.Parallel()
 	assert.NotEmpty(t, seedCareContractTemplate["contract_partner"])
 }
+
+// The Träger drafts, signs and bills the contracts of the seeded school's
+// accepted applications. A demo order (DeferHistory) adds its applications
+// and bookings only after the school opens, so its contract and billing
+// steps follow them there, as in a full seed (#6621).
+func TestTraegerCareStepsFollowTheApplicationsOfTheSchool(t *testing.T) {
+	t.Parallel()
+	for _, options := range []SeedOptions{{}, {DeferHistory: true}} {
+		seeder := &Seeder{options: options}
+		steps := fullDemoWorkflow(seeder).Steps
+		if options.DeferHistory {
+			steps = append(steps, deferredDemoSteps(seeder)...)
+		}
+		at := map[string][]int{}
+		for index, step := range steps {
+			if serial, ok := step.(traegerSerialStep); ok {
+				step = serial.Step
+			}
+			switch step.(type) {
+			case parentRequestsSeedStep:
+				at["requests"] = append(at["requests"], index)
+			case seedRegularBookingsStep:
+				at["bookings"] = append(at["bookings"], index)
+			case seedTraegerCareContractsStep:
+				at["contracts"] = append(at["contracts"], index)
+			case seedTraegerCareContractSignaturesStep:
+				at["signatures"] = append(at["signatures"], index)
+			case seedTraegerCareMonthsStep:
+				at["months"] = append(at["months"], index)
+			}
+		}
+		for _, key := range []string{"requests", "bookings", "contracts", "signatures", "months"} {
+			require.Len(t, at[key], 1, "defer %t: %s runs once", options.DeferHistory, key)
+		}
+		assert.Greater(t, at["contracts"][0], at["requests"][0], "defer %t: the applications precede their contracts", options.DeferHistory)
+		assert.Greater(t, at["contracts"][0], at["bookings"][0], "defer %t: the booked care precedes the contracts", options.DeferHistory)
+		assert.Greater(t, at["signatures"][0], at["contracts"][0], "defer %t", options.DeferHistory)
+		assert.Greater(t, at["months"][0], at["signatures"][0], "defer %t: the months bill concluded contracts", options.DeferHistory)
+	}
+}
