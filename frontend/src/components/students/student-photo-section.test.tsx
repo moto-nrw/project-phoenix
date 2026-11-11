@@ -393,6 +393,11 @@ describe("StudentPhotoSection (controlled)", () => {
       name: /Einwilligung der Eltern/i,
     });
     expect(consent).toBeChecked();
+    // Ausgeschaltet liefert die Akte keinen Zeitpunkt: Ein gesetzter Haken
+    // darf nicht schon vom Ende der Einwilligung sprechen.
+    expect(
+      screen.queryByText("Die Einwilligung endet beim Speichern."),
+    ).toBeNull();
     expect(
       screen.queryByRole("button", { name: /Foto (auswählen|ersetzen)/i }),
     ).toBeNull();

@@ -225,7 +225,9 @@ export function StudentPhotoSection({
               Ein Foto kann erst nach Bestätigung der Einwilligung hochgeladen
               werden.
             </span>
-          ) : (
+          ) : consentGiven ? null : (
+            // Ausgeschaltet zeigt die Akte keinen Zeitpunkt (#6650); nur
+            // der entfernte Haken braucht hier einen Satz.
             <span className="mt-0.5 block text-xs text-gray-500">
               Die Einwilligung endet beim Speichern.
             </span>
