@@ -1,5 +1,9 @@
 import { isNotCheckedInLocation, LOCATION_COLORS } from "./location-helper";
-import { countedDayStatus } from "./presence-status";
+import {
+  countedDayStatus,
+  dayStatusAbsenceLabel,
+  type CountedDayStatus,
+} from "./presence-status";
 import {
   berlinDateTimeISO,
   berlinTodayISO,
@@ -115,7 +119,7 @@ interface StudentTimeStatusInput {
 
 /** Why a student is not expected today. Drives the neutral "absent" rendering. */
 interface StudentAbsence {
-  reason: "sick" | "class_trip" | "excused";
+  reason: CountedDayStatus;
   /** German UI label, e.g. "krank gemeldet" or "entschuldigt". */
   label: string;
 }
@@ -154,23 +158,15 @@ export function getStudentAbsence({
   excused,
   currentLocation,
 }: StudentAbsenceInput): StudentAbsence | null {
-  switch (
-    countedDayStatus({
-      sick,
-      class_trip: classTrip,
-      excused,
-      current_location: currentLocation,
-    })
-  ) {
-    case "sick":
-      return { reason: "sick", label: "krank gemeldet" };
-    case "class_trip":
-      return { reason: "class_trip", label: "Klassenfahrt" };
-    case "excused":
-      return { reason: "excused", label: "entschuldigt" };
-    default:
-      return null;
-  }
+  const status = countedDayStatus({
+    sick,
+    class_trip: classTrip,
+    excused,
+    current_location: currentLocation,
+  });
+  return status
+    ? { reason: status, label: dayStatusAbsenceLabel(status) }
+    : null;
 }
 
 interface TimeParts {

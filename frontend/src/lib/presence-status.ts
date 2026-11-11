@@ -80,6 +80,8 @@ interface DayStatusRow {
   readonly rank: { readonly pill: number; readonly hint: number };
   /** Counts in the day-status figures, filters and groups of the lists. */
   readonly counted: boolean;
+  /** A counted status' text in the absence line of the day columns. */
+  readonly absence?: string;
 }
 
 const DAY_STATUS_TABLE = {
@@ -95,6 +97,7 @@ const DAY_STATUS_TABLE = {
     since: (student) => student.sick_since,
     rank: { pill: 0, hint: 1 },
     counted: true,
+    absence: "krank gemeldet",
   },
   class_trip: {
     key: "class_trip",
@@ -111,6 +114,7 @@ const DAY_STATUS_TABLE = {
     since: (student) => student.class_trip_since,
     rank: { pill: 1, hint: 2 },
     counted: true,
+    absence: "Klassenfahrt",
   },
   excused: {
     key: "excused",
@@ -124,6 +128,7 @@ const DAY_STATUS_TABLE = {
     since: (student) => student.excused_since,
     rank: { pill: 2, hint: 3 },
     counted: true,
+    absence: "entschuldigt",
   },
   // From today's plan, not from a report: "Kommt heute nicht" at home,
   // "Ungeplant anwesend" once the child is here anyway. The hint borrows the
@@ -171,6 +176,16 @@ export function dayStatusHint(key: DayStatusKey): DayStatusRow["hint"] {
   return DAY_STATUS_TABLE[key].hint;
 }
 
+/** The pill text of a status, e.g. for a status column in a list. */
+export function dayStatusLabel(key: DayStatusKey): string {
+  return DAY_STATUS_TABLE[key].pill.label;
+}
+
+/** The absence line text of a counted status („krank gemeldet“). */
+export function dayStatusAbsenceLabel(key: CountedDayStatus): string {
+  return DAY_STATUS_TABLE[key].absence;
+}
+
 /**
  * Der Tagesstatus, nach dem Zahlen, Statusfilter und Statusgruppen ein Kind
  * einordnen, in der Rangfolge der Tabelle (krank vor Klassenfahrt vor
@@ -204,7 +219,7 @@ export type PresenceView =
       readonly isGroupRoom?: boolean;
     };
 
-export type BinaryPresenceState = "anwesend" | "schulhof" | "abwesend";
+type BinaryPresenceState = "anwesend" | "schulhof" | "abwesend";
 
 interface LocationPill {
   readonly label: string;
@@ -229,9 +244,6 @@ export interface ResolvedPresence {
   /** The line below the pill, at most one (#4371). */
   readonly hint: {
     readonly status: DayStatusKey;
-    readonly label: string;
-    readonly concept: MotoConcept;
-    readonly dataAttr: string;
     readonly title: string | undefined;
   } | null;
 }
@@ -272,13 +284,7 @@ export function resolvePresence(
       presenceState: location.presenceState,
     },
     since: showsSince ? sinceTime : null,
-    hint: hintRow
-      ? {
-          status: hintRow.key,
-          ...hintRow.hint,
-          title: titleOf(hintRow),
-        }
-      : null,
+    hint: hintRow ? { status: hintRow.key, title: titleOf(hintRow) } : null,
   };
 }
 

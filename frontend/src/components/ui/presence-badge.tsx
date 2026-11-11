@@ -1,9 +1,9 @@
 import { resolvePresence, type PresenceStudent } from "@/lib/presence-status";
 import {
-  PresencePill,
-  type PresencePillSize,
-  type PresencePillVariant,
-} from "./presence-pill";
+  PresenceBadgeView,
+  type PresenceBadgeSize,
+  type PresenceBadgeVariant,
+} from "./presence-badge-view";
 
 /**
  * PresenceBadge — simplified binary-mode counterpart to LocationBadge.
@@ -22,8 +22,8 @@ import {
 interface PresenceBadgeProps {
   /** The child as loaded; today's plan is read from its planning fields. */
   readonly student: PresenceStudent;
-  readonly variant?: PresencePillVariant;
-  readonly size?: PresencePillSize;
+  readonly variant?: PresenceBadgeVariant;
+  readonly size?: PresenceBadgeSize;
   /** Show "seit XX:XX Uhr" under the badge. Default: false. */
   readonly showLocationSince?: boolean;
 }
@@ -37,7 +37,7 @@ export function PresenceBadge({
   showLocationSince = false,
 }: PresenceBadgeProps) {
   return (
-    <PresencePill
+    <PresenceBadgeView
       presence={resolvePresence(student, BINARY_VIEW)}
       size={size}
       variant={variant}

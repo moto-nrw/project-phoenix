@@ -25,9 +25,8 @@ describe("resolvePresence mixes the day planning in itself (#6572)", () => {
       );
 
       expect(presence.pill.label).not.toBe(LOCATION_STATUSES.NOT_ARRIVAL);
-      expect(presence.hint).toMatchObject({
+      expect(presence.hint).toEqual({
         status: "not_arrival",
-        label: LOCATION_STATUSES.UNPLANNED_PRESENT,
         title: "laut Plan nicht da",
       });
     },

@@ -1,10 +1,10 @@
 import type { DisplayMode } from "@/lib/location-helper";
 import { resolvePresence, type PresenceStudent } from "@/lib/presence-status";
 import {
-  PresencePill,
-  type PresencePillSize,
-  type PresencePillVariant,
-} from "./presence-pill";
+  PresenceBadgeView,
+  type PresenceBadgeSize,
+  type PresenceBadgeVariant,
+} from "./presence-badge-view";
 
 interface LocationBadgeProps {
   /** The child as loaded; today's plan is read from its planning fields. */
@@ -14,8 +14,8 @@ interface LocationBadgeProps {
   readonly groupRooms?: string[]; // Räume der eigenen OGS-Gruppen (für grüne Farbe)
   readonly supervisedRooms?: string[];
   readonly isGroupRoom?: boolean;
-  readonly variant?: PresencePillVariant;
-  readonly size?: PresencePillSize;
+  readonly variant?: PresenceBadgeVariant;
+  readonly size?: PresenceBadgeSize;
   /** Show "seit XX:XX Uhr" below the badge where the status allows it. Default: false */
   readonly showLocationSince?: boolean;
 }
@@ -45,7 +45,7 @@ export function LocationBadge({
     isGroupRoom,
   });
   return (
-    <PresencePill
+    <PresenceBadgeView
       presence={presence}
       size={size}
       variant={variant}

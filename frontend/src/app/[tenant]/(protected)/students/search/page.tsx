@@ -81,7 +81,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
-import { countedDayStatus } from "~/lib/presence-status";
+import { countedDayStatus, dayStatusLabel } from "~/lib/presence-status";
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   teacherHintKey,
@@ -717,18 +717,12 @@ const HOME_STATUSES: ReadonlySet<string> = new Set([
   LOCATION_STATUSES.NOT_ARRIVAL,
 ]);
 
-const DAY_STATUS_LABELS = {
-  sick: "Krank",
-  class_trip: "Klassenfahrt",
-  excused: "Entschuldigt",
-} as const;
-
 // Ort vor Status (#6371): Ein eingechecktes Kind steht unter seinem Ort, auch
 // mit Krankmeldung, Entschuldigung oder Klassenfahrt. Der Status bleibt als
 // Hinweis am Ortsbadge.
 function statusLabelForStudent(student: Student): string {
   const dayStatus = countedDayStatus(student);
-  if (dayStatus) return DAY_STATUS_LABELS[dayStatus];
+  if (dayStatus) return dayStatusLabel(dayStatus);
   if (isSchoolyardLocation(student.current_location)) return "Schulhof";
   if (isTransitLocation(student.current_location)) return "Unterwegs";
   if (isAtSchoolLocation(student.current_location)) return "Schule";

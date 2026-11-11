@@ -2,22 +2,22 @@ import type { ResolvedPresence } from "~/lib/presence-status";
 import { PresenceHint } from "./presence-hint";
 import { StatusColorBadge } from "./status-color-badge";
 
-export type PresencePillSize = "sm" | "md" | "lg";
-export type PresencePillVariant = "simple" | "modern";
+export type PresenceBadgeSize = "sm" | "md" | "lg";
+export type PresenceBadgeVariant = "simple" | "modern";
 
 /** The kit pill shape for the badge's own size and variant props. */
 function pillShape(
-  size: PresencePillSize,
-  variant: PresencePillVariant,
+  size: PresenceBadgeSize,
+  variant: PresenceBadgeVariant,
 ): { size?: "xs"; compact?: boolean } {
   if (size === "sm") return { size: "xs" };
   return size === "md" && variant === "simple" ? { compact: true } : {};
 }
 
-interface PresencePillProps {
+interface PresenceBadgeViewProps {
   readonly presence: ResolvedPresence;
-  readonly size: PresencePillSize;
-  readonly variant: PresencePillVariant;
+  readonly size: PresenceBadgeSize;
+  readonly variant: PresenceBadgeVariant;
   readonly showLocationSince: boolean;
 }
 
@@ -25,12 +25,12 @@ interface PresencePillProps {
  * Renders a resolved presence: the pill, „seit … Uhr“ and at most one hint
  * below it. Shared by `LocationBadge` and `PresenceBadge`; it decides nothing.
  */
-export function PresencePill({
+export function PresenceBadgeView({
   presence,
   size,
   variant,
   showLocationSince,
-}: PresencePillProps) {
+}: PresenceBadgeViewProps) {
   const { pill, since, hint } = presence;
   return (
     <div className="flex max-w-full min-w-0 flex-col items-end">
