@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The erasure of 1.15.939 is the erasure of 1.15.927 whose statement for the
+// The erasure of 1.15.942 is the erasure of 1.15.927 whose statement for the
 // mails of a registration also deletes the offer of a parent account (ADR
 // 0216), and nothing else changed.
 func TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer(t *testing.T) {
@@ -29,7 +29,7 @@ func TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer(t *testing.T) {
 }
 
 // TestHolidayRegistrationParentAccountGoesWithTheAccount pins the link of
-// 1.15.939 (ADR 0216 points 1 and 10): a registration names at most one
+// 1.15.942 (ADR 0216 points 1 and 10): a registration names at most one
 // account, keeps its row when the account goes, and the read by account and
 // the claim by address each have their index.
 func TestHolidayRegistrationParentAccountGoesWithTheAccount(t *testing.T) {
@@ -84,7 +84,7 @@ func TestHolidayParentAccountKindsBuildOnTheAcceptanceMail(t *testing.T) {
 }
 
 // TestHolidayRegistrationKeepsTheAccountAtItsTraeger pins the lasting
-// retention of 1.15.939 (ADR 0216 point 10): past the 30 days of its setup
+// retention of 1.15.942 (ADR 0216 point 10): past the 30 days of its setup
 // link an access at a live Träger keeps its account while a holiday
 // registration at that Träger names the account or, not yet claimed, its
 // address; a registration at another Träger or one that went keeps nothing.

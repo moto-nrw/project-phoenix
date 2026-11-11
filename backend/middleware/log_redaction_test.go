@@ -265,3 +265,28 @@ func TestRouteCredentialsStayOutOfLogs(t *testing.T) {
 		t.Fatal("no route with a credential parameter found; the route goldens moved")
 	}
 }
+
+func TestHolidayParentSetupCredentialsStayOutOfLogs(t *testing.T) {
+	t.Parallel()
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		var out bytes.Buffer
+		logger := slog.New(NewFeedTokenRedactor(slog.NewJSONHandler(&out, nil)))
+		router := chi.NewRouter()
+		router.Use(slogchi.NewWithConfig(logger, slogchi.Config{WithRequestHeader: true}))
+		router.HandleFunc("/auth/holiday-parent-setups/{token}", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+		request := httptest.NewRequest(method, "/auth/holiday-parent-setups/setup-credential", nil)
+		request.Header.Set("Referer", "https://parents.example/ferienkonto/setup-credential")
+		router.ServeHTTP(httptest.NewRecorder(), request)
+		if strings.Contains(out.String(), "setup-credential") || !strings.Contains(out.String(), "[REDACTED]") {
+			t.Errorf("setup credential not redacted: %s", out.String())
+		}
+	}
+	for _, path := range []string{
+		"/auth/holiday%2Dparent-setups/setup-credential",
+		"/parents/%66erienkonto/setup-credential?from=mail",
+	} {
+		if got := RedactFeedToken(path); strings.Contains(got, "setup-credential") {
+			t.Errorf("encoded setup credential survived: %s", got)
+		}
+	}
+}

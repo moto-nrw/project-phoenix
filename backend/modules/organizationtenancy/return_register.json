@@ -6592,6 +6592,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": true
+        },
+        {
+          "name": "portal_locale",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": null,

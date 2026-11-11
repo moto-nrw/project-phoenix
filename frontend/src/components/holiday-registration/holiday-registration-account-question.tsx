@@ -74,7 +74,7 @@ export function HolidayRegistrationAccountQuestion({
         <FieldErrorHint id={errorId} message={error} />
         {value === true ? (
           <p
-            className="mt-3 text-sm leading-6 text-gray-700"
+            className="mt-3 text-sm leading-6 [overflow-wrap:anywhere] text-gray-700"
             aria-live="polite"
           >
             {t("account.mailNote", { email: email.trim() })}

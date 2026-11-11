@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerParentAccessVersion = "1.15.938"
+const traegerParentAccessVersion = "1.15.941"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -80,7 +80,7 @@ DROP TABLE auth.traeger_parent_access;
 // with one more clause at its end: an access at a Träger keeps its account
 // only while the Träger is active and not deleted, and only for the 30 days
 // its setup link is valid (identityaccess.HolidayParentSetupTTL), the grace
-// an open invitation gives an account that has not signed in yet. 1.15.939
+// an open invitation gives an account that has not signed in yet. 1.15.942
 // adds the lasting reason, a holiday registration of the account at that
 // Träger, once the registration can name the account.
 const traegerParentAccessAccountUnusedSQL = `
@@ -173,7 +173,7 @@ func traegerParentAccessUp(ctx context.Context, db *bun.DB) error {
 }
 
 // installTraegerParentAccessAccountUnused installs auth.account_is_unused of
-// traegerParentAccessVersion; the rollback of 1.15.939 writes it back.
+// traegerParentAccessVersion; the rollback of 1.15.942 writes it back.
 func installTraegerParentAccessAccountUnused(ctx context.Context, tx bun.IDB) error {
 	if _, err := tx.ExecContext(ctx, traegerParentAccessAccountUnusedSQL); err != nil {
 		return fmt.Errorf("keep accounts with parents-portal access at a Träger: %w", err)

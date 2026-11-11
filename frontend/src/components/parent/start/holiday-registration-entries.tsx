@@ -1,10 +1,11 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { HOLIDAY_REGISTRATION_STATUS_TONES } from "~/components/holiday-registration/holiday-registration-badges";
 import { ButtonLink } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import {
-  HolidayRegistrationStatusBadge,
   useEntryLine,
   useHolidayRegistrationEntries,
 } from "~/components/parent/holiday-registration-entry-parts";
@@ -58,7 +59,10 @@ export function HolidayRegistrationEntriesCard() {
               </p>
               <p className="text-sm leading-6 text-gray-600">{line(entry)}</p>
             </div>
-            <HolidayRegistrationStatusBadge status={entry.status} />
+            <StatusBadge
+              label={t(`status.${entry.status}`)}
+              tone={HOLIDAY_REGISTRATION_STATUS_TONES[entry.status]}
+            />
           </li>
         ))}
       </ul>

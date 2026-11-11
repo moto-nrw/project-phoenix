@@ -98,7 +98,7 @@ var guardedOpeners = map[string]int{
 // childWriteGuardExemptions are the entries that write without a child of
 // the account being the subject of the write. Each one names why.
 var childWriteGuardExemptions = map[string]string{
-	"care.Service.UpdatePortalLocale":                   "the account's own portal language in every school profile; no child is written",
+	"care.Service.UpdatePortalLocale":                   "the account's own portal language on the account or its school profiles; no child is written",
 	"care.Service.StateFamilyChildren":                  "the family's number of children on a Träger contract, authorized per contract in the Träger unit",
 	"care.Service.DeclareContractNotice":                "withdrawal or termination of a Träger contract, authorized per contract in the Träger unit",
 	"care.Service.SignContract":                         "signature of a Träger contract, authorized per contract in the Träger unit",
@@ -187,6 +187,7 @@ var portClasses = map[string]string{
 	"care.OfferingChangeRequests.SubmitOfferingChange":          "write",
 	"care.OfferingChangeRequests.WithdrawCourseRequest":         "write",
 	"care.OfferingHistoryReads":                                 "read",
+	"care.ParentAccounts.SetAccountPortalLocale":                "write",
 	"care.ParentAccounts":                                       "read",
 	"care.PersonReads":                                          "read",
 	"care.PickupPermissionWrite":                                "write",

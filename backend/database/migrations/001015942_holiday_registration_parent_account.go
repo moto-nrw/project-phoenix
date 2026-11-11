@@ -8,14 +8,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayRegistrationParentAccountVersion = "1.15.939"
+const holidayRegistrationParentAccountVersion = "1.15.942"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayRegistrationParentAccountVersion,
 		Description: "Ferienanmeldung: Elternkonto an der Anmeldung und Angebot eines Kontos per Mail (#6673, ADR 0216)",
 		DependsOn: []string{
-			traegerParentAccessVersion,   // the newest migration on this branch (1.15.938)
+			traegerParentAccessVersion,   // the newest migration on this branch (1.15.941)
 			holidayAcceptanceMailVersion, // the outbox CHECK and the erasure this one extends (1.15.927)
 		},
 	})
@@ -88,7 +88,7 @@ COMMENT ON CONSTRAINT chk_email_outbox_traeger_kind ON platform.email_outbox IS
 	'The mail kinds of a Träger. A new kind needs its demo erasure in platform.erase_closed_demo_visitors (#6342).';
 `
 
-// holidayRegistrationAccountUnusedSQL is auth.account_is_unused of 1.15.938
+// holidayRegistrationAccountUnusedSQL is auth.account_is_unused of 1.15.941
 // whose access at a live Träger also keeps the account past the 30 days of
 // its setup link while a holiday registration at that Träger names the
 // account or, not yet claimed, its address (ADR 0216 point 10): the family
@@ -209,7 +209,7 @@ func holidayRegistrationParentAccountUp(ctx context.Context, db *bun.DB) error {
 }
 
 func holidayRegistrationParentAccountDown(ctx context.Context, db *bun.DB) error {
-	// auth.account_is_unused of 1.15.938 names no column this rollback drops.
+	// auth.account_is_unused of 1.15.941 names no column this rollback drops.
 	if err := installTraegerParentAccessAccountUnused(ctx, db); err != nil {
 		return err
 	}

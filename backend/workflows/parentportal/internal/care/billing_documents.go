@@ -131,9 +131,12 @@ type TraegerRuntime interface {
 }
 
 // ParentAccounts reads the address of an account and the account of an
-// address, in the caller's administrative transaction. found is false for an
+// address, and persists the account's portal language without a school.
+// Reads join the caller's administrative transaction. found is false for an
 // address without an account.
 type ParentAccounts interface {
+	FindAccountPortalLocale(context.Context, int64) (*string, error)
+	SetAccountPortalLocale(context.Context, int64, string) error
 	AccountEmail(ctx context.Context, accountID int64) (string, error)
 	AccountIDByEmail(ctx context.Context, email string) (accountID int64, found bool, err error)
 }

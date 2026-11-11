@@ -14,7 +14,8 @@ import type {
 } from "~/lib/holiday-registration-api";
 import type { ChildDraft } from "./holiday-registration-model";
 import { useWeekLabels } from "./holiday-registration-sections";
-import { HolidayPlacementBadge } from "./holiday-placement-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { HOLIDAY_PLACEMENT_BADGES } from "./holiday-registration-badges";
 
 export function HolidayRegistrationPlacements({
   childDrafts,
@@ -63,7 +64,11 @@ export function HolidayRegistrationPlacements({
                         className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-700"
                       >
                         <span>{labels.range(week)}</span>
-                        <HolidayPlacementBadge placement={state} />
+                        <StatusBadge
+                          label={t(HOLIDAY_PLACEMENT_BADGES[state].key)}
+                          tone={HOLIDAY_PLACEMENT_BADGES[state].tone}
+                          size="xs"
+                        />
                       </li>
                     );
                   })}

@@ -10,7 +10,11 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
-import { HolidayPlacementBadge } from "~/components/holiday-registration/holiday-placement-badge";
+import {
+  HOLIDAY_PLACEMENT_BADGES,
+  HOLIDAY_REGISTRATION_STATUS_TONES,
+} from "~/components/holiday-registration/holiday-registration-badges";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Alert } from "~/components/ui/alert";
 import { ButtonLink } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -22,7 +26,6 @@ import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
 import type { HolidayRegistrationEntry } from "~/lib/parent-holiday-registration-entries";
 import { parentPath } from "~/lib/parent-url";
 import {
-  HolidayRegistrationStatusBadge,
   useEntryLine,
   useHolidayRegistrationEntries,
 } from "./holiday-registration-entry-parts";
@@ -82,7 +85,12 @@ function HolidayRegistrationCard({
     <SectionCard
       concept={holidayWeeksConcept}
       title={entry.periodName}
-      titleBadge={<HolidayRegistrationStatusBadge status={entry.status} />}
+      titleBadge={
+        <StatusBadge
+          label={t(`status.${entry.status}`)}
+          tone={HOLIDAY_REGISTRATION_STATUS_TONES[entry.status]}
+        />
+      }
       description={line(entry)}
       namedRegion
     >
@@ -119,7 +127,13 @@ function HolidayRegistrationCard({
                           .join(" · ")}
                       </span>
                       {active ? (
-                        <HolidayPlacementBadge placement={week.placement} />
+                        <StatusBadge
+                          label={tr(
+                            HOLIDAY_PLACEMENT_BADGES[week.placement].key,
+                          )}
+                          tone={HOLIDAY_PLACEMENT_BADGES[week.placement].tone}
+                          size="xs"
+                        />
                       ) : null}
                     </li>
                   ))}
