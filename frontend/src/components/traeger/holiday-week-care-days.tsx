@@ -25,16 +25,6 @@ function noCareKindShort(day: HolidayNoCareDay): string {
   return day.kind === "holiday" ? "Feier\u00ADtag" : "Schließ\u00ADtag";
 }
 
-/** "Mi 06.01. Feiertag (Heilige Drei Könige)" für jeden Tag ohne Betreuung. */
-export function noCareDayList(days: readonly HolidayNoCareDay[]): string {
-  return days
-    .map(
-      (day) =>
-        `${holidayWeekdayShort(day.date)} ${holidayDayDate(day.date)} ${noCareKind(day)} (${day.name})`,
-    )
-    .join(", ");
-}
-
 /** Die Tage der Woche, an denen Eltern buchen können. */
 export function bookableHolidayDays(
   startsOn: string,
