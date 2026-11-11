@@ -9,7 +9,6 @@ import {
   InfoText,
 } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
@@ -134,7 +133,7 @@ export function HolidayStudentRegistrationSection({
   return (
     <SectionCard
       title="Angaben aus der Ferienanmeldung"
-      leading={<MotoConceptIcon concept={holidayWeeksConcept} size={20} />}
+      concept={holidayWeeksConcept}
       description="Das haben die Eltern für die Ferienbetreuung angegeben. Die Stammdaten des Kindes ändern sich nicht."
     >
       <div className="flex flex-col gap-6">

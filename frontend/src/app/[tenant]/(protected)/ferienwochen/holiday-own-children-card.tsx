@@ -1,11 +1,9 @@
 "use client";
 
 import { ButtonLink } from "~/components/ui/button";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { childrenConcept } from "~/lib/concepts/children";
 import { formatDate } from "~/lib/date-helpers";
 import type {
   HolidayOwnChildAssignment,
@@ -81,12 +79,16 @@ export function HolidayOwnChildrenCard({
   return (
     <SectionCard
       title="Kinder Ihrer OGS"
-      leading={<MotoConceptIcon concept={childrenConcept} size={20} />}
       description="Diese Kinder bleiben in ihrer Gruppe. Notfall, Abholung und Zeiten aus der Anmeldung stehen in der Kinderakte."
       action={
-        open.length > 0 ? (
-          <StatusBadge tone="warning" label={`${open.length} offen`} />
-        ) : undefined
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {week.guestGroupId && matched > 0 ? (
+            <StatusBadge tone="green" label={`${matched} eingeplant`} />
+          ) : null}
+          {open.length > 0 ? (
+            <StatusBadge tone="warning" label={`${open.length} offen`} />
+          ) : null}
+        </div>
       }
     >
       <div className="flex flex-col gap-4">

@@ -99,12 +99,17 @@ export function HolidayGuestGroupCard({
       : "Noch keine Gruppe gewählt. Die Gruppe wählt die Leitung.";
   } else {
     const group = `der Gruppe ${groupName ?? "der Woche"}`;
-    // Before the week the guests wait outside the group, like children
-    // before their first care day.
-    status =
-      week.startsOn > berlinTodayISO()
-        ? `Ab ${formatDate(week.startsOn)} ${week.guests === 1 ? "steht" : "stehen"} ${guestCount(week.guests)} in ${group}. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.`
-        : `${guestCount(week.guests)} in ${group}. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.`;
+    const later = "Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.";
+    if (week.guests === 0) {
+      // Eine Woche nur mit eigenen Kindern zählt keine „0 Feriengäste“.
+      status = `Noch ist kein Feriengast bestätigt. Gewählt ist ${groupName ? `die Gruppe ${groupName}` : "eine Gruppe"}. ${later}`;
+    } else if (week.startsOn > berlinTodayISO()) {
+      // Before the week the guests wait outside the group, like children
+      // before their first care day.
+      status = `Ab ${formatDate(week.startsOn)} ${week.guests === 1 ? "steht" : "stehen"} ${guestCount(week.guests)} in ${group}. ${later}`;
+    } else {
+      status = `${guestCount(week.guests)} in ${group}. ${later}`;
+    }
   }
 
   return (

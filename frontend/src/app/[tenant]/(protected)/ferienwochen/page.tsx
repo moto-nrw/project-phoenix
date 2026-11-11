@@ -103,7 +103,7 @@ function studentFileCell(
   }
   return (
     <NavigationLink
-      className="underline"
+      className="whitespace-nowrap underline"
       href={studentPath(assignment.studentId)}
     >
       Akte öffnen
