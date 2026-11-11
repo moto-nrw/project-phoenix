@@ -77,13 +77,20 @@ export function HolidayAcceptanceMailField({
             label="Text der Annahme-Mail"
             hint="Freiwillig. Zum Beispiel: was die Kinder mitbringen sollen."
             rows={10}
-            maxLength={MAX_ACCEPTANCE_MAIL_TEXT}
+            // HTML counts UTF-16 units; onChange limits Unicode code points.
+            maxLength={MAX_ACCEPTANCE_MAIL_TEXT * 2}
             placeholder={
               "Zum Beispiel:\nBei Betreuung bis 16 Uhr bitte Mittagessen mitgeben.\nBitte an Wechselkleidung, Sportsachen und Regenkleidung denken."
             }
             value={draft.acceptanceMailText}
             error={error}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) =>
+              onChange(
+                [...event.target.value]
+                  .slice(0, MAX_ACCEPTANCE_MAIL_TEXT)
+                  .join(""),
+              )
+            }
           />
           <p
             className="text-right text-xs text-gray-500 tabular-nums"
