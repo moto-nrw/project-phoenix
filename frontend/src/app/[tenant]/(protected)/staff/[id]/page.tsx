@@ -832,9 +832,7 @@ export default function StaffDetailContent() {
                   scope="tenant"
                   accountId={accountId}
                   accountLabel={recordLabel}
-                  onUpdated={async () => {
-                    await refreshRecord();
-                  }}
+                  onUpdated={refreshRecord}
                 />
                 {hasAccess ? (
                   <MFAAdminOverrideModal

@@ -1591,10 +1591,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Ankündigung bearbeiten Neue Ankündigung@534",
     ],
     "src/app/operator/provisioning/edit-organization-modal.tsx": [
-      "Träger bearbeiten@83",
+      "Träger bearbeiten@86",
     ],
     "src/app/operator/provisioning/edit-school-modal.tsx": [
-      "Schule bearbeiten@158",
+      "Schule bearbeiten@163",
     ],
     "src/app/school/kalender/page.tsx": [
       "Schultermin anlegen Schultermin bearbeiten@329",
@@ -1628,7 +1628,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Zwei-Faktor-Authentifizierung verwalten@387",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
-      "resolve Zuordnungen auflösen: Betreuung verwalten:@336",
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@335",
     ],
   }),
 );

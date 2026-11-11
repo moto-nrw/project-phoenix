@@ -23,6 +23,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { isAssignableStaffRole } from "~/lib/auth-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { isLehrkraftRole, systemRoleLabel } from "~/lib/role-labels";
 import {
@@ -69,7 +70,8 @@ interface AccountTenantAccessModalProps {
   readonly accountId: string;
   readonly accountLabel: string;
   readonly accountEmail: string;
-  readonly onUpdated?: () => void | Promise<void>;
+  /** Reloads the account list; never rejects (#6652). */
+  readonly onUpdated?: RefreshAfterWrite;
 }
 
 /**
@@ -313,14 +315,9 @@ export function AccountTenantAccessModal({
     report: (error: unknown) => void,
   ) {
     const ok = await save.run(async (op) => {
+      let next: AccountTenantAccess[];
       try {
-        const next = await action();
-        // Eine späte Antwort ändert keinen inzwischen neu geöffneten Dialog
-        // (#6533); Erfolgsmeldung und Nachladen beim Aufrufer laufen weiter.
-        if (op.isCurrent()) setAccess(next);
-        toastSuccess(successMessage);
-        await onUpdated?.();
-        return op.isCurrent();
+        next = await action();
       } catch (error) {
         logger.error(logEvent, {
           error: error instanceof Error ? error.message : String(error),
@@ -329,6 +326,13 @@ export function AccountTenantAccessModal({
         if (op.isCurrent()) report(error);
         return false;
       }
+      // Eine späte Antwort ändert keinen inzwischen neu geöffneten Dialog
+      // (#6533); Erfolgsmeldung und Nachladen beim Aufrufer laufen weiter.
+      // Ein gescheitertes Nachladen zeigt die Seite als Ladefehler (#6652).
+      if (op.isCurrent()) setAccess(next);
+      toastSuccess(successMessage);
+      await onUpdated?.();
+      return op.isCurrent();
     });
     return ok === true;
   }

@@ -44,6 +44,10 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import {
@@ -368,27 +372,78 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     schoolsError,
     "die Liste der Schulen",
     () => void mutateSchoolSummaries(),
+    organizationSchoolSummaries === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const accountsLoadError = useSwrLoadError(
     accountsError,
     "die Liste der Konten",
     () => void mutateOrgAccounts(),
+    orgAccounts === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const devicesLoadError = useSwrLoadError(
     devicesError,
     "die Liste der Geräte",
     () => void mutateOrgDevices(),
+    orgDevices === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const personsLoadError = useSwrLoadError(
     personsError,
     "die Liste der Personen",
     () => void mutateOrgPersons(),
+    orgPersons === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   const traegerMembersLoadError = useSwrLoadError(
     traegerBueroError,
     "die Liste des Träger-Büros",
     () => void reloadTraegerBuero(),
+    traegerMembers === undefined || traegerInvitations === undefined
+      ? undefined
+      : STALE_DATA_SUFFIX,
+  );
+
+  // A write's reload runs after the write; its failure is a load error above
+  // the data it reloads, never an error of the closed dialog (#6652).
+  const organizationAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Trägers",
+    refreshOrganizationDrillIn,
+  );
+  const editAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Trägers",
+    async () => {
+      const refreshed = await mutateOrganizations();
+      const updated = refreshed?.find((item) => item.id === organizationId);
+      if (updated && updated.slug !== slug) {
+        router.replace(
+          `/operator/organizations/${encodeURIComponent(updated.slug)}${currentTabSearch}`,
+        );
+      }
+    },
+  );
+  const statusAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Trägers",
+    async () => {
+      await refreshOrganizationDrillIn();
+      await revalidateTenantCache(activeSchools.map((item) => item.subdomain));
+    },
+  );
+  const schoolCreatedAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Schulen",
+    async (subdomain: string) => {
+      await refreshOrganizationDrillIn();
+      await revalidateTenantCache([subdomain]);
+    },
+  );
+  const accountsAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Konten",
+    () => mutateOrgAccounts(),
+  );
+  const devicesAfterWrite = useRefreshAfterWrite("die Anzeige der Geräte", () =>
+    Promise.all([mutateOrgDevices(), refreshOrganizationDrillIn()]),
+  );
+  const bueroAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Träger-Büros",
+    reloadTraegerBuero,
   );
 
   const handleSchoolClick = useCallback(
@@ -419,8 +474,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         slug: organization.slug,
         active: !organization.active,
       });
-      await refreshOrganizationDrillIn();
-      await revalidateTenantCache(activeSchools.map((item) => item.subdomain));
     } catch (error) {
       logger.warn("organization_toggle_active_failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -430,13 +483,10 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         object: "die Änderung des Status",
         retry: () => void handleToggleOrgActive(),
       });
+      return;
     }
-  }, [
-    activeSchools,
-    organization,
-    refreshOrganizationDrillIn,
-    showToggleError,
-  ]);
+    await statusAfterWrite.refresh();
+  }, [organization, showToggleError, statusAfterWrite]);
 
   const orgDelete = useSoftDeletable<OrganizationSummary>({
     softDeleteFn: operatorProvisioningService.softDeleteOrganization,
@@ -483,10 +533,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     },
     [schoolDelete],
   );
-
-  const handleDeviceDeleted = useCallback(async () => {
-    await Promise.all([mutateOrgDevices(), refreshOrganizationDrillIn()]);
-  }, [mutateOrgDevices, refreshOrganizationDrillIn]);
 
   const handleTabValueChange = useCallback(
     (value: string) => {
@@ -723,13 +769,13 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             onClose={() => setAssignTraegerOpen(false)}
             organizationId={organization.id}
             organizationName={organization.name}
-            onAssigned={reloadTraegerBuero}
+            onAssigned={bueroAfterWrite.refresh}
           />
 
           <InviteTraegerAccountModal
             isOpen={inviteTraegerOpen}
             onClose={() => setInviteTraegerOpen(false)}
-            onInvited={reloadTraegerBuero}
+            onInvited={bueroAfterWrite.refresh}
             invite={(input) =>
               operatorProvisioningService.inviteTraegerMember(organization.id, {
                 email: input.email,
@@ -764,9 +810,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               accountLabel={`${caregiverAccount.firstName} ${caregiverAccount.lastName}`.trim()}
               schoolId={caregiverSchoolContext.id}
               schoolName={caregiverSchoolContext.name}
-              onUpdated={async () => {
-                await mutateOrgAccounts();
-              }}
+              onUpdated={accountsAfterWrite.refresh}
             />
           ) : null}
 
@@ -796,24 +840,14 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             isOpen={createSchoolOpen}
             onClose={() => setCreateSchoolOpen(false)}
             organizations={activeOrganizations}
-            onCreated={() => refreshOrganizationDrillIn().then(() => undefined)}
+            onCreated={schoolCreatedAfterWrite.refresh}
           />
 
           <EditOrganizationModal
             isOpen={editOrgOpen}
             onClose={() => setEditOrgOpen(false)}
             organization={summaryToOrganization(organization)}
-            onUpdated={async () => {
-              const refreshed = await mutateOrganizations();
-              const updated = refreshed?.find(
-                (item) => item.id === organization.id,
-              );
-              if (updated && updated.slug !== slug) {
-                router.replace(
-                  `/operator/organizations/${encodeURIComponent(updated.slug)}${currentTabSearch}`,
-                );
-              }
-            }}
+            onUpdated={editAfterWrite.refresh}
           />
 
           <CreateDeviceModal
@@ -841,18 +875,21 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             device={transferDevice}
             schools={organizationSchoolsForDeviceModal}
             onClose={() => setTransferDevice(null)}
-            onTransferred={handleDeviceDeleted}
+            onTransferred={devicesAfterWrite.refresh}
           />
 
           <DeleteDeviceModal
             device={deleteDevice}
             onClose={() => setDeleteDevice(null)}
-            onDeleted={handleDeviceDeleted}
+            onDeleted={devicesAfterWrite.refresh}
           />
         </>
       }
     >
       <LoadErrorAlert error={organizationsLoadError} />
+      <LoadErrorAlert error={organizationAfterWrite.error} />
+      <LoadErrorAlert error={editAfterWrite.error} />
+      <LoadErrorAlert error={statusAfterWrite.error} />
 
       {activeTab === "uebersicht" ? (
         <>
@@ -861,7 +898,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             <TestTraegerSection
               organizationId={organization.id}
               organizationActive={organization.active}
-              onChanged={refreshOrganizationDrillIn}
+              onChanged={organizationAfterWrite.refresh}
             />
           ) : null}
         </>
@@ -870,6 +907,10 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "schulen" ? (
         <>
           <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
+          <LoadErrorAlert
+            error={schoolCreatedAfterWrite.error}
+            className="mb-4"
+          />
           {schoolDelete.showTrash ? (
             <div className="grid gap-4">
               {deletedSchools.map((school) => (
@@ -890,7 +931,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               ))}
             </div>
           ) : !schoolsLoading &&
-            !schoolsError &&
             organizationSchoolSummaries !== undefined &&
             activeSchools.length === 0 ? (
             <SectionCard>
@@ -899,8 +939,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 description="Erstellen Sie eine neue Schule über die Kopfkarte."
               />
             </SectionCard>
-          ) : (organizationSchoolSummaries === undefined && !schoolsLoading) ||
-            schoolsError ? null : (
+          ) : organizationSchoolSummaries === undefined &&
+            !schoolsLoading ? null : (
             <DataTable
               columns={schoolColumns}
               rows={activeSchools}
@@ -916,8 +956,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "konten" ? (
         <>
           <LoadErrorAlert error={accountsLoadError} className="mb-4" />
-          {(orgAccounts === undefined && !accountsLoading) ||
-          accountsError ? null : !accountsLoading &&
+          <LoadErrorAlert error={accountsAfterWrite.error} className="mb-4" />
+          {orgAccounts === undefined &&
+          !accountsLoading ? null : !accountsLoading &&
             orgAccounts?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Konten für diesen Träger." />
@@ -936,8 +977,10 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "geraete" ? (
         <>
           <LoadErrorAlert error={devicesLoadError} className="mb-4" />
-          {(orgDevices === undefined && !devicesLoading) ||
-          devicesError ? null : !devicesLoading && orgDevices?.length === 0 ? (
+          <LoadErrorAlert error={devicesAfterWrite.error} className="mb-4" />
+          {orgDevices === undefined &&
+          !devicesLoading ? null : !devicesLoading &&
+            orgDevices?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Geräte für diesen Träger." />
             </SectionCard>
@@ -957,8 +1000,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "personen" ? (
         <>
           <LoadErrorAlert error={personsLoadError} className="mb-4" />
-          {(orgPersons === undefined && !personsLoading) ||
-          personsError ? null : !personsLoading && orgPersons?.length === 0 ? (
+          {orgPersons === undefined &&
+          !personsLoading ? null : !personsLoading &&
+            orgPersons?.length === 0 ? (
             <SectionCard>
               <EmptyState title="Keine Personen für diesen Träger." />
             </SectionCard>
@@ -975,10 +1019,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {activeTab === "traeger-buero" ? (
         <>
           <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
-          {((traegerMembers === undefined ||
-            traegerInvitations === undefined) &&
-            !traegerBueroLoading) ||
-          traegerBueroError ? null : !traegerBueroLoading &&
+          <LoadErrorAlert error={bueroAfterWrite.error} className="mb-4" />
+          {(traegerMembers === undefined || traegerInvitations === undefined) &&
+          !traegerBueroLoading ? null : !traegerBueroLoading &&
             traegerBueroEmpty ? (
             <SimpleEmptyState
               title="Noch niemand im Träger-Büro"
@@ -991,7 +1034,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               invitations={traegerInvitations ?? []}
               isLoading={traegerBueroLoading}
               onResetMfa={setMfaResetMember}
-              onChanged={reloadTraegerBuero}
+              onChanged={bueroAfterWrite.refresh}
             />
           )}
         </>

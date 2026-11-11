@@ -18,6 +18,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   useApiFormError,
@@ -25,6 +26,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formatDate, formatTime } from "~/lib/date-helpers";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   fetchTraegerBuero,
@@ -55,6 +60,8 @@ export default function TraegerAccountsPage() {
     invitations: [],
   });
   const [loading, setLoading] = useState(true);
+  // Confirmed data stays visible when a later load fails (#6652).
+  const [loaded, setLoaded] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<TraegerMember | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -66,32 +73,43 @@ export default function TraegerAccountsPage() {
   const confirmErrors = useApiFormError();
   const { success } = useToast();
 
+  const fetchBuero = useCallback(async () => {
+    setBuero(await fetchTraegerBuero());
+    setLoaded(true);
+    clearLoadError();
+  }, [clearLoadError]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setBuero(await fetchTraegerBuero());
-      clearLoadError();
+      await fetchBuero();
     } catch (err) {
       logger.error("traeger_accounts_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
         object: "die Personen des Träger-Büros",
+        messageSuffix: loaded ? STALE_DATA_SUFFIX : undefined,
         retry: () => void load(),
       });
     } finally {
       setLoading(false);
     }
-  }, [clearLoadError, showLoadError]);
+  }, [fetchBuero, loaded, showLoadError]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const reloadAfterChange = useCallback(async () => {
-    setHistoryVersion((version) => version + 1);
-    await load();
-  }, [load]);
+  // A write's reload runs after the write; its failure stands above the list
+  // as a load error, never as an error of the closed dialog (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige des Träger-Büros",
+    async () => {
+      setHistoryVersion((version) => version + 1);
+      await fetchBuero();
+    },
+  );
 
   const closeConfirm = () => {
     setPending(null);
@@ -116,8 +134,6 @@ export default function TraegerAccountsPage() {
         await revokeTraegerInvitation(pending.invitation.id);
         success("Die Einladung ist zurückgenommen.");
       }
-      setPending(null);
-      await reloadAfterChange();
     } catch (err) {
       logger.error("traeger_account_change_failed", {
         kind: pending.kind,
@@ -127,9 +143,12 @@ export default function TraegerAccountsPage() {
         object:
           pending.kind === "remove" ? "das Entfernen" : "das Zurücknehmen",
       });
-    } finally {
       setConfirming(false);
+      return;
     }
+    setPending(null);
+    setConfirming(false);
+    await afterWrite.refresh();
   };
 
   const memberColumns: DataTableColumn<TraegerMember>[] = [
@@ -263,19 +282,19 @@ export default function TraegerAccountsPage() {
           Person einladen
         </Button>
       }
-      error={bueroLoad.error}
+      error={loaded ? null : bueroLoad.error}
       overlays={
         <>
           <InviteTraegerAccountModal
             isOpen={inviting}
             onClose={() => setInviting(false)}
-            onInvited={reloadAfterChange}
+            onInvited={afterWrite.refresh}
           />
           <ChangeTraegerRolesModal
             member={editing}
             members={buero.members}
             onClose={() => setEditing(null)}
-            onChanged={reloadAfterChange}
+            onChanged={afterWrite.refresh}
           />
           <ConfirmDeleteModal
             isOpen={pending !== null}
@@ -326,6 +345,8 @@ export default function TraegerAccountsPage() {
         </>
       }
     >
+      {loaded ? <LoadErrorAlert error={bueroLoad.error} /> : null}
+      <LoadErrorAlert error={afterWrite.error} />
       <DataTable
         columns={memberColumns}
         rows={[...buero.members]}

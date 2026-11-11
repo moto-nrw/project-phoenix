@@ -12,6 +12,10 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
+import {
   operatorProvisioningService,
   revalidateTenantCache,
 } from "~/lib/operator/provisioning-api";
@@ -71,6 +75,7 @@ export default function OperatorSchoolsPage() {
     summariesError,
     "die Liste der Schulen",
     () => void mutateSummaries(),
+    schoolSummaries === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   // The create form and the trash need the providers.
   const organizationsLoadError = useSwrLoadError(
@@ -82,6 +87,15 @@ export default function OperatorSchoolsPage() {
   const refreshAll = useCallback(async () => {
     await mutateSummaries();
   }, [mutateSummaries]);
+  // The new school's list entry and its portal cache load after the write; a
+  // failure stands above the list, also after the dialog closed (#6652).
+  const createdAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Schulen",
+    async (subdomain: string) => {
+      await refreshAll();
+      await revalidateTenantCache([subdomain]);
+    },
+  );
 
   const activeOrganizations = useMemo(
     () => organizations?.filter((o) => o.deletedAt == null) ?? [],
@@ -194,13 +208,14 @@ export default function OperatorSchoolsPage() {
             isOpen={createSchoolOpen}
             onClose={() => setCreateSchoolOpen(false)}
             organizations={activeOrganizations}
-            onCreated={() => refreshAll().then(() => undefined)}
+            onCreated={createdAfterWrite.refresh}
           />
         </>
       }
     >
       <div>
         <LoadErrorAlert error={summariesLoadError} />
+        <LoadErrorAlert error={createdAfterWrite.error} />
         <LoadErrorAlert error={organizationsLoadError} />
         {deletedSummaries.length > 0 && (
           <div className="mb-4 flex justify-end">
@@ -239,7 +254,6 @@ export default function OperatorSchoolsPage() {
             })}
           </div>
         ) : !summariesLoading &&
-          !summariesError &&
           schoolSummaries !== undefined &&
           activeSummaries.length === 0 ? (
           <ProvisioningEmptyState
@@ -248,8 +262,7 @@ export default function OperatorSchoolsPage() {
             buttonLabel="Neue Schule"
             onAction={() => setCreateSchoolOpen(true)}
           />
-        ) : (schoolSummaries === undefined && !summariesLoading) ||
-          summariesError ? null : (
+        ) : schoolSummaries === undefined && !summariesLoading ? null : (
           <DataTable
             columns={columns}
             rows={activeSummaries}

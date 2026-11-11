@@ -10,6 +10,10 @@ import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
@@ -109,6 +113,16 @@ function OperatorDevicesPageContent() {
         : allDevicesError,
     "die Liste der Geräte",
     () => void refreshDevices(),
+    (urlSchoolId ? schoolDevices : filterOrgId ? orgDevices : allDevices) ===
+      undefined
+      ? undefined
+      : STALE_DATA_SUFFIX,
+  );
+  // A dialog's write reloads the list afterwards; a failed reload stands
+  // above the list, also after the dialog closed (#6652).
+  const devicesAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Geräte",
+    refreshDevices,
   );
 
   const count = selectedSchool
@@ -172,12 +186,12 @@ function OperatorDevicesPageContent() {
             device={transferDevice}
             schools={activeSchools}
             onClose={() => setTransferDevice(null)}
-            onTransferred={() => refreshDevices().then(() => undefined)}
+            onTransferred={devicesAfterWrite.refresh}
           />
           <DeleteDeviceModal
             device={deleteDevice}
             onClose={() => setDeleteDevice(null)}
-            onDeleted={() => refreshDevices().then(() => undefined)}
+            onDeleted={devicesAfterWrite.refresh}
           />
         </>
       }
@@ -185,18 +199,16 @@ function OperatorDevicesPageContent() {
       <LoadErrorAlert error={organizationsLoadError} />
       <LoadErrorAlert error={schoolsLoadError} />
       <LoadErrorAlert error={devicesLoadError} />
+      <LoadErrorAlert error={devicesAfterWrite.error} />
 
       {!urlSchoolId && filterOrgId && (
         <>
-          {!orgDevicesError &&
-          !orgDevicesLoading &&
-          orgDevices?.length === 0 ? (
+          {!orgDevicesLoading && orgDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diesen Träger gibt es noch keine registrierten Geräte."
             />
-          ) : (orgDevices === undefined && !orgDevicesLoading) ||
-            orgDevicesError ? null : (
+          ) : orgDevices === undefined && !orgDevicesLoading ? null : (
             <DevicesTable
               devices={orgDevices ?? []}
               showSchool
@@ -211,15 +223,12 @@ function OperatorDevicesPageContent() {
 
       {!urlSchoolId && !filterOrgId && (
         <>
-          {!allDevicesError &&
-          !allDevicesLoading &&
-          allDevices?.length === 0 ? (
+          {!allDevicesLoading && allDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Es gibt noch keine registrierten Geräte im System."
             />
-          ) : (allDevices === undefined && !allDevicesLoading) ||
-            allDevicesError ? null : (
+          ) : allDevices === undefined && !allDevicesLoading ? null : (
             <DevicesTable
               devices={allDevices ?? []}
               showSchool
@@ -253,15 +262,12 @@ function OperatorDevicesPageContent() {
               />
             )}
           </div>
-          {!schoolDevicesError &&
-          !schoolDevicesLoading &&
-          schoolDevices?.length === 0 ? (
+          {!schoolDevicesLoading && schoolDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diese Schule gibt es noch keine registrierten Geräte."
             />
-          ) : (schoolDevices === undefined && !schoolDevicesLoading) ||
-            schoolDevicesError ? null : (
+          ) : schoolDevices === undefined && !schoolDevicesLoading ? null : (
             <DevicesTable
               devices={schoolDevices ?? []}
               isLoading={schoolDevicesLoading}
