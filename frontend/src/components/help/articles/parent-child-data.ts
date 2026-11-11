@@ -5,7 +5,8 @@ import { HELP_TOPICS } from "~/lib/help-topics";
  * Bereich `Angaben zum Kind` (i18n `parentMasterData`). Drei Arten von
  * Feldern: direkt aenderbar, nur auf Anfrage, und Gesundheitshinweise, die
  * sofort gespeichert werden. Dazu der Widerruf der Foto-Einwilligung
- * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494).
+ * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494), und der
+ * Weg über die OGS ohne Widerrufsrecht im Portal (#6650).
  */
 export function parentChildDataTopic(): HelpTopic {
   return {
@@ -57,12 +58,13 @@ export function parentChildDataTopic(): HelpTopic {
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
       "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
       "Nach dem Widerruf löscht moto ein gespeichertes Foto Ihres Kindes.",
-      "Ist die Betreuung beendet, können Sie die Foto-Einwilligung weiter widerrufen. Neu geben können Sie sie dann nicht mehr.",
+      "Nach dem letzten Betreuungstag löscht moto das Foto und die Foto-Einwilligung in der Nacht danach von selbst. Bis dahin können Sie weiter widerrufen.",
     ],
     differences: [
       "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",
     ],
     troubleshootingDetails: [
+      "Sie sehen bei `Foto-Einwilligung` kein `Widerrufen` oder haben kein Elternportal? Sagen Sie der OGS Bescheid. Die OGS trägt den Widerruf für Sie ein.",
       "moto sagt, das Bearbeiten sei deaktiviert? Dann nimmt Ihre OGS keine Änderungen über die App an. Schreiben Sie ihr eine Nachricht.",
     ],
     related: [

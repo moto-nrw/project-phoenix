@@ -14399,6 +14399,62 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint per child, the NOWAIT row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0212); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RegisterAfterCommit (tenant-runtime) through *modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint per child, the NOWAIT row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0212); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint per child, the NOWAIT row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0212); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.WithSavepoint (tenant-runtime) through *modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint per child, the NOWAIT row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0212); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0212",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoCareEnd.EndStudentPhotosAfterCare",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Existing StudentPhotoService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0212 approves exactly this binding of the nightly photo care end (#6650) to this observer, without classifying it as a query or guarded leaf.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoCapability.PurgeStudentPhotos",
       "classification": "platform",
       "effect": "scope",

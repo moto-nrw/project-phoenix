@@ -48,7 +48,9 @@ func (c *StudentPhotoCareEnd) EndStudentPhotosAfterCare(
 ) (peopledirectory.StudentPhotoCareEndResult, error) {
 	s, logger := c.photos, c.logger
 	var result peopledirectory.StudentPhotoCareEndResult
-	if logEnd == nil || s.runtime == nil {
+	if _, unbound := s.runtime.(DisabledStudentPhotos); logEnd == nil || s.runtime == nil || unbound {
+		// Without the root's runtime no file could be queued for removal:
+		// refuse instead of clearing rows whose files would stay.
 		return result, errors.New("people directory: the deletion log and the photo runtime are required to end photos after care")
 	}
 	if _, err := calendar.ParseDate(string(today)); err != nil {

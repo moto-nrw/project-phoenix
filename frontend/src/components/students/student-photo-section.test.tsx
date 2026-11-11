@@ -370,4 +370,55 @@ describe("StudentPhotoSection (controlled)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Foto auswählen/i }));
     expect(clickSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("offers only removing the consent while the school has photos off", () => {
+    const onConsentChange = vi.fn();
+    const { rerender } = render(
+      <StudentPhotoSection
+        student={makeStudent({ photo_url: "/api/students/42/photo/a.jpg" })}
+        consentGiven
+        onConsentChange={onConsentChange}
+        pendingPhotoBlob={null}
+        pendingPhotoRemoved={false}
+        onPickPhoto={() => {}}
+        onMarkRemoved={() => {}}
+        onCancelRemove={() => {}}
+        onPhotoError={() => {}}
+        uploadsEnabled={false}
+      />,
+    );
+
+    expect(screen.getByText(/Kinderfotos sind ausgeschaltet/)).toBeVisible();
+    const consent = screen.getByRole("checkbox", {
+      name: /Einwilligung der Eltern/i,
+    });
+    expect(consent).toBeChecked();
+    expect(
+      screen.queryByRole("button", { name: /Foto (auswählen|ersetzen)/i }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Foto entfernen/i }),
+    ).toBeNull();
+
+    fireEvent.click(consent);
+    expect(onConsentChange).toHaveBeenCalledWith(false);
+
+    rerender(
+      <StudentPhotoSection
+        student={makeStudent()}
+        consentGiven={false}
+        onConsentChange={onConsentChange}
+        pendingPhotoBlob={null}
+        pendingPhotoRemoved={false}
+        onPickPhoto={() => {}}
+        onMarkRemoved={() => {}}
+        onCancelRemove={() => {}}
+        onPhotoError={() => {}}
+        uploadsEnabled={false}
+      />,
+    );
+    expect(
+      screen.getByText("Die Einwilligung endet beim Speichern."),
+    ).toBeVisible();
+  });
 });

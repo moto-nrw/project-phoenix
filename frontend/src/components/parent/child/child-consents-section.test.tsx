@@ -138,6 +138,24 @@ describe("ChildConsentsSection", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("nennt ohne eigenes Recht den Widerruf über die OGS (#6650)", async () => {
+    mockedGet.mockResolvedValue([
+      ...granted.slice(0, 3),
+      { ...granted[3]!, can_withdraw: false },
+    ]);
+
+    renderSection();
+
+    expect(
+      await screen.findByText(
+        /^Hier sehen Sie, was für Ihr Kind gespeichert ist\. Die Foto-Einwilligung widerrufen Sie bei der \S+\.$/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Foto-Einwilligung widerrufen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("blendet den gesamten Bereich ohne hinterlegte Einwilligungen aus", async () => {
     mockedGet.mockResolvedValue(
       granted.map((consent) => ({

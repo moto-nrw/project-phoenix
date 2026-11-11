@@ -69,8 +69,11 @@ func newCareEndFixture(t *testing.T) *careEndFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	runtime := &careEndPhotoRuntime{}
-	end, err := NewStudentPhotoCareEnd(db, testpkg.StudentDirectory{}, runtime, func(Observation) {}, slog.Default())
+	directory, err := New(Dependencies{
+		DB: db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(Observation) {}, StudentPhotos: runtime,
+	}, nil)
 	require.NoError(t, err)
+	end := directory.StudentPhotoCareEnd(slog.Default())
 	return &careEndFixture{
 		db: db, ctx: testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db), tenant: testpkg.Tenant(t),
 		runtime: runtime, end: end,
@@ -250,4 +253,20 @@ func TestStudentPhotoCareEndNeverLeavesAPartialEnd(t *testing.T) {
 	result, err := f.run(t)
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Ended, "the next run ends both")
+}
+
+// TestStudentPhotoCareEndRefusesWithoutAPhotoRuntime keeps a composition
+// without the root's photo runtime from clearing rows whose files no queue
+// would remove.
+func TestStudentPhotoCareEndRefusesWithoutAPhotoRuntime(t *testing.T) {
+	t.Parallel()
+	f := newCareEndFixture(t)
+	child, _ := f.child(t, "Ohne", day(careEndToday.AddDays(-1)), "inactive")
+	directory, err := New(Dependencies{DB: f.db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(Observation) {}}, nil)
+	require.NoError(t, err)
+	f.end = directory.StudentPhotoCareEnd(slog.Default())
+
+	_, err = f.run(t)
+	require.Error(t, err)
+	assert.NotNil(t, f.photo(t, child).PhotoPath)
 }

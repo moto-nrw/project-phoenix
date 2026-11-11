@@ -85,6 +85,7 @@ type Dependencies struct {
 type Directory struct {
 	peopledirectory.Owner
 	students         *application.StudentService
+	photos           *application.StudentPhotoService
 	PersonWrites     peoplePorts.PersonWriter
 	StudentDirectory peoplePorts.StudentDirectoryAccess
 }
@@ -138,7 +139,7 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
 	}, providers...)
 	return &Directory{
-		Owner: service, students: students,
+		Owner: service, students: students, photos: studentPhotos,
 		PersonWrites:     application.NewPersonRows(service),
 		StudentDirectory: application.NewStudentDirectoryRows(students, studentPhotos),
 	}, nil

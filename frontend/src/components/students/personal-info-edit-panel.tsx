@@ -833,8 +833,12 @@ export function PersonalInfoEditPanel({
         value={editedStudent.address_city ?? ""}
         onChange={(value) => updateField("address_city", value)}
       />
-      {photosEnabled ? (
+      {/* Ausgeschaltete Fotos verbergen nur das Hochladen: Eine bestehende
+          Einwilligung bleibt entfernbar, damit das Team einen Widerruf von
+          Eltern ohne Elternportal eintragen kann (#6650). */}
+      {photosEnabled || student.photo_consent_given ? (
         <StudentPhotoSection
+          uploadsEnabled={photosEnabled}
           student={editedStudent}
           consentGiven={Boolean(editedStudent.photo_consent_given)}
           onConsentChange={handlePhotoConsentChange}
