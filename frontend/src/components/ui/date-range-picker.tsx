@@ -125,6 +125,11 @@ export function DateRangePicker({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || !isTopmost()) return;
       const target = event.target;
+      // A list closes on Escape only from its own trigger, search field or
+      // options. `ListboxDropdown` has no global Escape listener, so Escape
+      // from body never closes a list, and taking it here takes nothing from
+      // the list (test "leaves an open select open on a body Escape, with or
+      // without a calendar").
       if (
         target instanceof Element &&
         target.closest(

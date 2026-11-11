@@ -642,6 +642,40 @@ describe("DateRangePicker in a dialog", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
   });
+
+  it("leaves an open select open on a body Escape, with or without a calendar", async () => {
+    // `ListboxDropdown` has no global Escape listener: Escape from body never
+    // closes a list, so a calendar that takes it takes nothing from the list.
+    render(
+      <Modal isOpen onClose={vi.fn()} title="Termine absagen">
+        <DateRangePicker value={undefined} onChange={vi.fn()} />
+        <CustomSelect
+          ariaLabel="Grund"
+          value=""
+          options={[{ value: "krank", label: "Krank" }]}
+          onChange={vi.fn()}
+        />
+      </Modal>,
+    );
+    const select = screen.getByRole("combobox", { name: "Grund" });
+    fireEvent.keyDown(select, { key: "ArrowDown" });
+    expect(select).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    expect(select).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum wählen" }));
+    await waitFor(() => {
+      expect(document.querySelector("[data-range-panel]")).toBeInTheDocument();
+    });
+    fireEvent.keyDown(select, { key: "ArrowDown" });
+    expect(select).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+
+    expect(select).toHaveAttribute("aria-expanded", "true");
+  });
 });
 
 it.each(schoolDateCases("2026-06-01"))(
