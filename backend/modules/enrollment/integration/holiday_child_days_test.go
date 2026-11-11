@@ -81,7 +81,11 @@ func (p childDaysPeriod) insert(t *testing.T, db *bun.DB, b childDaysBooking) in
 	return child
 }
 
-var oleTag = enrollment.NewHolidayChildKey(" EVA.TAG@example.org", "Ole ", "Tag", calendar.NewDate(2018, 3, 4))
+var (
+	oleTag = enrollment.NewHolidayChildKey(" EVA.TAG@example.org", "Ole ", "Tag", calendar.NewDate(2018, 3, 4))
+	// inaTag is Ole of the other family in the fixture.
+	inaTag = enrollment.NewHolidayChildKey("ina.tag@example.org", "Ole", "Tag", calendar.NewDate(2018, 3, 4))
+)
 
 // TestHolidayChildBookingsCountTheSameChildOverItsRegistrations pins the
 // child the bound of care days counts across registrations (#6446): the
@@ -97,17 +101,18 @@ func TestHolidayChildBookingsCountTheSameChildOverItsRegistrations(t *testing.T)
 
 	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
 	require.NoError(t, testpkg.WithinTraeger(ctx, p.organization, func(ctx context.Context) error {
-		all, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, oleTag, 0)
+		all, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, []enrollment.HolidayChildKey{oleTag, inaTag}, 0)
 		require.NoError(t, err)
 		assert.Equal(t, []enrollment.HolidayBookingInput{
 			{WeekID: p.week, TimeModelID: p.model, Days: []calendar.Date{calendar.NewDate(2027, 7, 5), calendar.NewDate(2027, 7, 6)}},
 			{WeekID: p.week, TimeModelID: p.model, Days: []calendar.Date{calendar.NewDate(2027, 7, 7)}},
 			{WeekID: p.week, TimeModelID: p.model, Days: []calendar.Date{calendar.NewDate(2027, 7, 8)}},
-		}, all, "placed, pending and waiting bookings of the same family and child count")
+		}, all[oleTag], "placed, pending and waiting bookings of the same family and child count")
+		assert.Len(t, all[inaTag], 1, "one statement reads every asked child apart")
 
-		others, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, oleTag, p.first)
+		others, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, []enrollment.HolidayChildKey{oleTag}, p.first)
 		require.NoError(t, err)
-		assert.Len(t, others, 2, "the child row being rebooked is left out")
+		assert.Len(t, others[oleTag], 2, "the child row being rebooked is left out")
 		return nil
 	}))
 }
@@ -126,7 +131,7 @@ func TestHolidayChildBookingsKeepTheirTraegerBeneathRLS(t *testing.T) {
 	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
 	require.NoError(t, testpkg.WithinTraeger(ctx, own.organization, func(ctx context.Context) error {
 		require.NoError(t, testpkg.WithoutRequestRole(ctx))
-		read, err := store.ReadHolidayChildBookings(ctx, own.organization, foreign.period, oleTag, 0)
+		read, err := store.ReadHolidayChildBookings(ctx, own.organization, foreign.period, []enrollment.HolidayChildKey{oleTag}, 0)
 		require.NoError(t, err)
 		assert.Empty(t, read, "A counts no booking of B")
 		return nil

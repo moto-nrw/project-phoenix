@@ -439,11 +439,11 @@ func (h *HolidayRegistrationReview) rebook(ctx context.Context, organizationID i
 	}
 	// The period is locked: nothing else counts this child's days until
 	// this rebooking commits (#4701, #6446).
-	elsewhere, err := holidayDaysElsewhere(ctx, h.store, organizationID, period, key, childID)
+	held, err := holidayDaysElsewhere(ctx, h.store, organizationID, period, []enrollment.HolidayChildKey{key}, childID)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := refuseHolidayDayLimit(0, bookings, period, holidayBookedDayCount(kept, period), elsewhere); err != nil {
+	if err := refuseHolidayDayLimit(0, bookings, period, holidayBookedDayCount(kept, period), held[key]); err != nil {
 		return nil, nil, err
 	}
 	after := make([]enrollment.HolidayBookingChange, len(bookings))
