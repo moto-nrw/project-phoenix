@@ -42,7 +42,7 @@ func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffof
 	membership := deps.Membership
 	return staffoffboardingcompose.New(staffoffboarding.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx, Authorize: deps.Authorize,
-		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff,
+		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff, ListStaff: membership.ListStaff,
 		Membership: deps.Retirement, Workforce: work, Timetable: deps.Timetable, People: deps.People,
 		LockSupervision: deps.LockSupervision,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {

@@ -92,11 +92,15 @@ func startMergeRaceTx(t *testing.T, db *bun.DB, admin bool, write func(context.C
 
 func awaitMergeRaceBlockedBy(t *testing.T, db *bun.DB, run mergeRaceTx, blocker int64, what string) {
 	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
 	for {
 		select {
 		case err := <-run.done:
 			require.FailNow(t, what+" finished instead of waiting", "%v", err)
 		default:
+		}
+		if time.Now().After(deadline) {
+			require.FailNow(t, what+" never waited for the blocker")
 		}
 		var blocked bool
 		require.NoError(t, db.NewRaw(`SELECT ?::int = ANY(pg_blocking_pids(?::int))`, blocker, run.pid).Scan(context.Background(), &blocked))

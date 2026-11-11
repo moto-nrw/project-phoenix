@@ -380,7 +380,7 @@ func (c *StaffImportConfig) Update(ctx context.Context, staffID int64, row impor
 		return err
 	}
 	return c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
-		staff, err := c.Membership.FindStaff(ctx, staffID)
+		staff, err := c.lockedStaffRow(ctx, staffID)
 		if err != nil {
 			if errors.Is(err, ports.ErrStaffNotFound) {
 				return newCopyError("Mitarbeiter nicht gefunden")
@@ -391,11 +391,6 @@ func (c *StaffImportConfig) Update(ctx context.Context, staffID int64, row impor
 	})
 }
 
-// lockStaffPersonMerge takes the school's staff person merge gate before an
-// upsert's update row locks its staff row, outside the row's savepoint
-// (#6702). A later create of the same import would otherwise ask for the gate
-// while it holds that row, and a merge holds the gate while it waits for the
-// school's staff rows. A create takes the gate before its own staff row.
 // invitationSchoolName reads the tenant's display name once, for the first
 // invitation of the import: an import without e-mail addresses needs no
 // name. The name is best-effort: a missing one only degrades the e-mail
@@ -411,6 +406,11 @@ func (c *StaffImportConfig) invitationSchoolName(ctx context.Context) string {
 	return c.schoolName
 }
 
+// lockStaffPersonMerge takes the school's staff person merge gate before an
+// upsert's update row locks its staff row, outside the row's savepoint
+// (#6702). A later create of the same import would otherwise ask for the gate
+// while it holds that row, and a merge holds the gate while it waits for the
+// school's staff rows. A create takes the gate before its own staff row.
 func (c *StaffImportConfig) lockStaffPersonMerge(ctx context.Context) error {
 	if c.LockStaffPersonMerge == nil || importModeFromContext(ctx) != importModels.ImportModeUpsert {
 		return nil

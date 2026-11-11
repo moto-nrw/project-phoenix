@@ -64,12 +64,16 @@ func TestStaffRowLockLeavesForeignKeySharesFree(t *testing.T) {
 // fails at once, so no deadline decides the result.
 func requireFinishedWithoutWaitingFor(t *testing.T, poller *bun.DB, run raceTx, holder int64, what string) {
 	t.Helper()
+	// The deadline only bounds a hang without a wait on the holder.
+	deadline := time.After(30 * time.Second)
 	for {
 		select {
 		case err := <-run.done:
 			require.NoError(t, err, "%s must succeed", what)
 			return
-		default:
+		case <-deadline:
+			require.FailNow(t, what+" never finished")
+		case <-time.After(5 * time.Millisecond):
 		}
 		var blocked bool
 		require.NoError(t, poller.NewRaw(`SELECT ?::int = ANY(pg_blocking_pids(?::int))`, holder, run.pid).Scan(context.Background(), &blocked))

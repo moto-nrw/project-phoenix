@@ -147,8 +147,6 @@ func (s *staffMembershipDirectory) requireLivePersonLocked(ctx context.Context, 
 	return nil
 }
 
-// adoptOrCreateStaff adopts the live staff record of the person or creates
-// one, inside the caller's transaction.
 // lockLiveStaffOfPerson locks the person's live staff row, the one an
 // adoption updates, before the person row (Konto → Schule → Profil, #6702):
 // offboarding, retention and staff admin hold the staff row while they lock
@@ -168,6 +166,8 @@ func (s *staffMembershipDirectory) lockLiveStaffOfPerson(ctx context.Context, pe
 	return err
 }
 
+// adoptOrCreateStaff adopts the live staff record of the person or creates
+// one, inside the caller's transaction.
 func (s *staffMembershipDirectory) adoptOrCreateStaff(ctx context.Context, input peoplePorts.CreateStaffInput) (*peopleValues.Staff, error) {
 	existing, err := s.staff.FindByPersonID(ctx, input.PersonID)
 	if err != nil && !errors.Is(err, transactionruntime.ErrNoRows) {

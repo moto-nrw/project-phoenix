@@ -16,19 +16,20 @@ import (
 // so PostgreSQL never has to abort one of them with 40P01.
 //
 // The order spans owners: a staff exit's account row comes first (Konto →
-// Schule → Profil) and School Membership's class-write gate, then
-// Workforce's payroll-rules gate and per-staff
-// work-time gates come first (month close and offboarding hold them while
-// they take staff-shift gates), then the staff-shift gate before Timetable's
-// recurrence gate and day locks, because a sick report holds the gate while
-// its cascade writes the days, and plan writers that read sick reports hold
-// days, never the gate after a day. The staff rows come after the days and
-// before every other row (#6583): offboarding holds a staff row while it
-// locks that person's blocks, so a day writer takes the staff rows of every
-// person it plans or references before its first block row. Every other row
-// lock and every leaf advisory lock of the ordered owners is the last class,
-// LockLeaf (#6702); backend/test/row_lock_admission_test.go holds the
-// inventory and refuses an acquisition that skips OrderLock.
+// Schule → Profil), then School Membership's exclusive class-write gate,
+// Workforce's payroll-rules gate and per-staff work-time gates (month close
+// and offboarding hold them while they take staff-shift gates), then the
+// staff-shift gate before Timetable's recurrence gate, the grade transition
+// gate, the reference rows a writer pins and the day locks: a sick report
+// holds the gate while its cascade writes the days, and plan writers that
+// read sick reports hold days, never the gate after a day. The staff person
+// merge gate and the staff rows come after the days and before every other
+// row (#6583): offboarding holds a staff row while it locks that person's
+// blocks, so a day writer takes the staff rows of every person it plans or
+// references before its first block row. Every other row lock and every
+// leaf advisory lock of the ordered owners is the last class, LockLeaf
+// (#6702); backend/test/row_lock_admission_test.go holds the inventory and
+// refuses an acquisition that skips OrderLock.
 type LockClass uint8
 
 const (

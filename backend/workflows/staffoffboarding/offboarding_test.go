@@ -77,8 +77,8 @@ func newFixture(t *testing.T) fixture {
 		Authorize: func(context.Context) (staffoffboarding.Actor, error) {
 			return staffoffboarding.Actor{TenantID: testpkg.Tenant(t), AccountID: account.ID, StaffID: actor.ID, Username: "actor"}, nil
 		},
-		Today:      func() string { return "2027-10-02" },
-		FindStaff:  membership.FindStaff,
+		Today:     func() string { return "2027-10-02" },
+		FindStaff: membership.FindStaff, ListStaff: membership.ListStaff,
 		Membership: retirement, Workforce: workOffboarding, Timetable: timetableOffboarding, People: people,
 		PreviewAccess: func(context.Context, int64) (staffoffboarding.AccessPreview, error) {
 			return staffoffboarding.AccessPreview{}, errors.New("fixture subject has no account")

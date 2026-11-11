@@ -132,19 +132,25 @@ func (d *DueExits) lockActedPlans(ctx context.Context, plans []schoolmembership.
 // for an account that offboarding holds while it waits for those gates.
 func (d *DueExits) lockActedAccounts(ctx context.Context, staffIDs []int64) error {
 	deps := d.planner.workflow.deps
-	accounts := make([]int64, 0, len(staffIDs))
-	for _, staffID := range staffIDs {
-		staff, err := deps.FindStaff(ctx, staffID)
-		if errors.Is(err, schoolmembership.ErrStaffNotFound) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		person, err := deps.People.FindPerson(ctx, staff.PersonID)
-		if err != nil {
-			return err
-		}
+	if len(staffIDs) == 0 {
+		return nil
+	}
+	// Retired or missing members are no exit any more; their plans fail
+	// alone, as before.
+	staff, err := deps.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, MembershipOnly: true})
+	if err != nil {
+		return err
+	}
+	personIDs := make([]int64, 0, len(staff))
+	for _, member := range staff {
+		personIDs = append(personIDs, member.PersonID)
+	}
+	people, err := deps.People.ListPersonsByID(ctx, personIDs)
+	if err != nil {
+		return err
+	}
+	accounts := make([]int64, 0, len(people))
+	for _, person := range people {
 		if person.AccountID != nil {
 			accounts = append(accounts, *person.AccountID)
 		}

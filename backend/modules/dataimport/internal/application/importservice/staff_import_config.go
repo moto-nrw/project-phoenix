@@ -113,6 +113,11 @@ type StaffImportConfig struct {
 	// personnel number and by lowercased "vorname|nachname".
 	staffByPersonnelNumber map[string]*indexedStaff
 	staffByName            map[string][]*indexedStaff
+
+	// lockedStaff and emailMatches belong to the write chunk being applied
+	// (BatchWriteConfig, staff_import_write_batch.go).
+	lockedStaff  map[int64]ports.Staff
+	emailMatches map[string]int64
 }
 
 // indexedStaff is the in-memory match key of one existing staff member:
@@ -385,7 +390,7 @@ func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.S
 		}
 	}
 
-	if id, err := c.findStaffByLoginEmail(ctx, row.Email); err != nil || id != nil {
+	if id, err := c.matchedEmail(ctx, row.Email); err != nil || id != nil {
 		return id, err
 	}
 
