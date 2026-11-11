@@ -152,7 +152,7 @@ func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publi
 	if d.deps.LateInvites == nil || enrollmentNative.NormalizedSubmissionSource(req.SubmissionSource) != enrollmentNative.RequestSourceLateInvite {
 		return summary, nil
 	}
-	invite, err := d.deps.LateInvites.LateInviteByUsedRequestID(ctx, requestID)
+	invite, err := approvalLateInvite(ctx, d.deps.LateInvites, requestID)
 	if err != nil {
 		if errors.Is(err, enrollmentNative.ErrLateInviteNotFound) {
 			return summary, nil

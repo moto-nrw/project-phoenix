@@ -90,7 +90,7 @@ func TestRenewalCandidatesHoldSiblingsOnce(t *testing.T) {
 
 type countingRenewalHold struct{ calls int }
 
-func (h *countingRenewalHold) HoldAccountStudentsPermission(_ context.Context, _ int64, ids []int64, _ int64, _ string) (map[int64]bool, error) {
+func (h *countingRenewalHold) HoldAccountStudentsPermission(_ context.Context, _ int64, ids, _ []int64, _ int64, _ string) (map[int64]bool, error) {
 	h.calls++
 	grants := map[int64]bool{}
 	for _, id := range ids {
@@ -98,8 +98,8 @@ func (h *countingRenewalHold) HoldAccountStudentsPermission(_ context.Context, _
 	}
 	return grants, nil
 }
-func (h *countingRenewalHold) HoldGuardianEmailStudentsPermission(ctx context.Context, _ string, ids []int64, tenantID int64, permission string) (map[int64]bool, error) {
-	return h.HoldAccountStudentsPermission(ctx, 0, ids, tenantID, permission)
+func (h *countingRenewalHold) HoldGuardianEmailStudentsPermission(ctx context.Context, _ string, ids, graph []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	return h.HoldAccountStudentsPermission(ctx, 0, ids, graph, tenantID, permission)
 }
 
 // The directory can gain a new match while the dedup lock is being acquired.

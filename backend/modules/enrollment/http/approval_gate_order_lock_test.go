@@ -70,6 +70,34 @@ func gatedDecisionTest(t *testing.T) (*decisionTestEnv, func(context.Context) er
 	return &decisionTestEnv{rolloverTestEnv: base.rolloverTestEnv, decision: decision, bookings: bookings}, lock
 }
 
+// A standalone sync must wait for the gates before its parent guard locks
+// the student. A class writer already holding the gates still needs that row.
+func TestApprovedChildSyncTakesGatesBeforeGuardianAuthority(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	rig := setupPinGuardRig(t, "SyncGates")
+	rig.decideOutcome(t, rig.approval())
+	lock := owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, rig.db)).LockRecurrenceWrites
+	bookings := newBookingsForTest(rig.rolloverTestEnv, nil, lock, nil)
+	decision := newDecisionServiceForTestWithBookings(t, rig.rolloverTestEnv, bookings, nil, lock, nil, nil)
+	applier := enrollmentAPI.ChangeRequestApplierForTest(decisionOwner(t, decision))
+
+	classErr, syncErr := whileHoldingGates(t, rig.db, bookings.LockOfferingDerivedWrites,
+		func(ctx context.Context) error {
+			_, err := applier.SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+				RequestID: rig.submitted.Request.ID, ChildID: rig.submitted.Children[0].ID, ActorAccountID: rig.creatorID,
+			})
+			return err
+		},
+		func(ctx context.Context) error {
+			_, err := rig.repos.Student.FindByIDForUpdate(ctx, rig.f.studentID)
+			return err
+		},
+	)
+	require.NoError(t, classErr, "the class writer must acquire the student without a deadlock")
+	require.NoError(t, syncErr, "the sync must finish after the class writer commits")
+}
+
 // A change-request approval and the approval of a sibling child of the same
 // request take the gates before the request row. The change request locked
 // the parent request first and the recurrence gate later, while Decide

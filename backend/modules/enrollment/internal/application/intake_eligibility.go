@@ -220,7 +220,7 @@ func reEnrollmentSubmitterForPersistedRequest(ctx context.Context, lateInvites D
 		if lateInvites == nil {
 			return reEnrollmentSubmitter{}, errors.New("late invite repository is not configured")
 		}
-		invite, err := lateInvites.LateInviteByUsedRequestID(ctx, req.ID)
+		invite, err := approvalLateInvite(ctx, lateInvites, req.ID)
 		if err != nil {
 			return reEnrollmentSubmitter{}, fmt.Errorf("load late invite for request %d: %w", req.ID, err)
 		}
@@ -229,25 +229,31 @@ func reEnrollmentSubmitterForPersistedRequest(ctx context.Context, lateInvites D
 	return reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, email), nil
 }
 
-// assertGuardianMayReEnrollStudent enforces that a request renews student S
-// only if its account, or the email its late invite was issued to, already
-// holds parent_portal.enrollmentNative.submit on its own relationship to S. Staff
-// manual enrollment is the one bypass. It fails closed without an authorizer
-// or without any identity. It reads without locks; the staff's approval of a
-// parent's change request asks it, while the parent's own submission and
-// edit hold the permission instead (holdGuardianReEnrollment).
-func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, tenantID int64, childIndex int) error {
-	if matchedStudentID == nil {
-		return nil
+// holdReEnrollment holds the submitter's authority over the students behind
+// the parent guard until the caller's transaction ends (#6638). Staff manual
+// enrollment is the one bypass and holds nothing. It fails closed without
+// the hold or without any identity; errors of the hold pass through. The
+// change-request approval asks it for every pin and approved student before
+// its phase locks.
+func (s *Intake) holdReEnrollment(ctx context.Context, submitter reEnrollmentSubmitter, studentIDs, graph []int64, tenantID int64) (renewalHolds, error) {
+	holds := make(renewalHolds, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return holds, nil
 	}
-	granted, err := submitterMayRenewStudent(ctx, s.deps.GuardianAuthorizer, submitter, *matchedStudentID, tenantID)
+	if submitter.AdminManaged {
+		for _, id := range studentIDs {
+			holds[id] = true
+		}
+		return holds, nil
+	}
+	grants, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, submitter, studentIDs, graph, tenantID)
 	if err != nil {
-		return fmt.Errorf("submit: verify guardian re-enrollment permission for child %d: %w", childIndex, err)
+		return nil, fmt.Errorf("verify guardian re-enrollment permission: %w", err)
 	}
-	if !granted {
-		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
+	for _, id := range studentIDs {
+		holds[id] = grants[id]
 	}
-	return nil
+	return holds, nil
 }
 
 // renewalHolds retains the candidate set and its locked grants until commit.
@@ -281,7 +287,7 @@ func (s *Intake) holdRenewalCandidates(ctx context.Context, tenantID int64, phas
 	if identity.AdminManaged {
 		return s.holdStaffRenewalCandidates(ctx, ids)
 	}
-	grants, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, ids, tenantID)
+	grants, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, ids, nil, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("submit: hold re-enrollment candidates: %w", err)
 	}
@@ -352,15 +358,15 @@ func (s *Intake) matchRenewalCandidates(ctx context.Context, tenantID int64, chi
 // submitterHoldsRenewal is submitterMayRenewStudent behind the parent guard:
 // the same identities, the same permission and the same staff bypass, with
 // the facts locked until the caller's transaction ends.
-func submitterHoldsRenewal(ctx context.Context, authorizer GuardianStudentHold, submitter reEnrollmentSubmitter, studentIDs []int64, tenantID int64) (map[int64]bool, error) {
+func submitterHoldsRenewal(ctx context.Context, authorizer GuardianStudentHold, submitter reEnrollmentSubmitter, studentIDs, graph []int64, tenantID int64) (map[int64]bool, error) {
 	if authorizer == nil {
 		return nil, nil
 	}
 	switch {
 	case submitter.GuardianAccountID != nil:
-		return authorizer.HoldAccountStudentsPermission(ctx, *submitter.GuardianAccountID, studentIDs, tenantID, guardianPermissionEnrollmentSubmit)
+		return authorizer.HoldAccountStudentsPermission(ctx, *submitter.GuardianAccountID, studentIDs, graph, tenantID, guardianPermissionEnrollmentSubmit)
 	case submitter.GuardianEmail != "":
-		return authorizer.HoldGuardianEmailStudentsPermission(ctx, submitter.GuardianEmail, studentIDs, tenantID, guardianPermissionEnrollmentSubmit)
+		return authorizer.HoldGuardianEmailStudentsPermission(ctx, submitter.GuardianEmail, studentIDs, graph, tenantID, guardianPermissionEnrollmentSubmit)
 	default:
 		return nil, nil
 	}
@@ -369,9 +375,10 @@ func submitterHoldsRenewal(ctx context.Context, authorizer GuardianStudentHold, 
 // submitterMayRenewStudent reports whether the request identity holds
 // parent_portal.enrollment.submit on its own relationship to the student in
 // the tenant now. Staff manual enrollment is the one bypass. It answers false
-// without an authorizer or without any identity. Submission and every later
-// use of a parent's pin ask the same question, since the school can remove
-// the relationship in between (#6053).
+// without an authorizer or without any identity. It reads without locks, for
+// the office's detail read only: every write that uses a parent's pin asks
+// the same question behind the parent guard (submitterHoldsRenewal), since
+// the school can remove the relationship in between (#6053, #6638).
 func submitterMayRenewStudent(ctx context.Context, authorizer GuardianStudentAuthorizer, submitter reEnrollmentSubmitter, studentID, tenantID int64) (bool, error) {
 	if submitter.AdminManaged {
 		return true, nil

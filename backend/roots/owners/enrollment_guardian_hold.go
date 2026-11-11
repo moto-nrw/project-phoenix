@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold"
@@ -15,10 +16,12 @@ import (
 
 // EnrollmentGuardianHold is Enrollment's held renewal permission (#6638).
 // Candidates are locked as one ordered set before guardian profiles and
-// relationships; grants are returned per child.
+// relationships; grants are returned per child. The children slot also
+// locks the "läuft mit" graph of the graph students, in Care Plan's
+// ascending pass (the change-request approval, #6638).
 type EnrollmentGuardianHold interface {
-	HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
-	HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
+	HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error)
+	HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error)
 }
 
 // enrollmentGuardianHold binds Enrollment's held renewal permission
@@ -31,20 +34,28 @@ type enrollmentGuardianHold struct {
 	students      EnrollmentStudentMatches
 	profiles      peopledirectory.GuardianProfileReads
 	membership    func(context.Context, int64) (bool, error)
+	// companionGraph locks a graph with the candidates; nil locks the
+	// candidates only.
+	companionGraph func(ctx context.Context, subjectIDs, additional []int64) error
 }
 
 // NewEnrollmentGuardianHold binds the held renewal permission of
-// Enrollment to People Directory and Identity & Access.
-func NewEnrollmentGuardianHold(db transactionruntime.Database, relationships peopledirectory.GuardianRelationshipReads, students EnrollmentStudentMatches, profiles peopledirectory.GuardianProfileReads) EnrollmentGuardianHold {
-	return enrollmentGuardianHold{
+// Enrollment to People Directory, Identity & Access and Care Plan's
+// companion locks.
+func NewEnrollmentGuardianHold(db transactionruntime.Database, relationships peopledirectory.GuardianRelationshipReads, students EnrollmentStudentMatches, profiles peopledirectory.GuardianProfileReads, companions careplan.CompanionLocks) EnrollmentGuardianHold {
+	hold := enrollmentGuardianHold{
 		relationships: relationships, students: students, profiles: profiles,
 		membership: identityaccessCompose.NewSchoolMembershipLock(db.Pool()),
 	}
+	if companions != nil {
+		hold.companionGraph = companions.LockCompanionGraph
+	}
+	return hold
 }
 
 // HoldAccountStudentsPermission holds the account's relationship to the
 // student with the permission until the caller's school transaction ends.
-func (a enrollmentGuardianHold) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
+func (a enrollmentGuardianHold) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error) {
 	if err := enrollmentHoldTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
@@ -52,12 +63,12 @@ func (a enrollmentGuardianHold) HoldAccountStudentsPermission(ctx context.Contex
 	if found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {
 		return nil, err
 	}
-	return a.hold(ctx, guardianhold.Request{AccountID: accountID, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs)
+	return a.hold(ctx, guardianhold.Request{AccountID: accountID, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs, graph)
 }
 
 // HoldGuardianEmailStudentsPermission holds the relationship of the guardian
 // the address names; a profile with an account needs its membership as well.
-func (a enrollmentGuardianHold) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
+func (a enrollmentGuardianHold) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error) {
 	if err := enrollmentHoldTenant(ctx, tenantID); err != nil {
 		return nil, err
 	}
@@ -65,13 +76,16 @@ func (a enrollmentGuardianHold) HoldGuardianEmailStudentsPermission(ctx context.
 	if found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {
 		return nil, err
 	}
-	return a.hold(ctx, guardianhold.Request{Email: email, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs)
+	return a.hold(ctx, guardianhold.Request{Email: email, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs, graph)
 }
 
-func (a enrollmentGuardianHold) hold(ctx context.Context, req guardianhold.Request, studentIDs []int64) (map[int64]bool, error) {
+func (a enrollmentGuardianHold) hold(ctx context.Context, req guardianhold.Request, studentIDs, graph []int64) (map[int64]bool, error) {
 	grants, err := guardianhold.HoldMany(ctx, guardianhold.BatchLocks{
-		Locks:    guardianhold.Locks{Membership: a.membership, Profile: a.lockProfile, Owner: a.owner},
-		Children: a.lockChildren, Relationships: a.lockRelationships,
+		Locks: guardianhold.Locks{Membership: a.membership, Profile: a.lockProfile, Owner: a.owner},
+		Children: func(ctx context.Context, ids []int64) error {
+			return a.lockChildren(ctx, ids, graph)
+		},
+		Relationships: a.lockRelationships,
 	}, req, studentIDs)
 	if errors.Is(err, guardianhold.ErrNotLinked) || errors.Is(err, guardianhold.ErrPermissionDenied) {
 		return nil, nil
@@ -79,7 +93,14 @@ func (a enrollmentGuardianHold) hold(ctx context.Context, req guardianhold.Reque
 	return grants, err
 }
 
-func (a enrollmentGuardianHold) lockChildren(ctx context.Context, studentIDs []int64) error {
+// lockChildren locks the graph with the candidates in one ascending pass,
+// then the candidates themselves, which it requires to exist.
+func (a enrollmentGuardianHold) lockChildren(ctx context.Context, studentIDs, graph []int64) error {
+	if len(graph) > 0 && a.companionGraph != nil {
+		if err := a.companionGraph(ctx, graph, studentIDs); err != nil {
+			return err
+		}
+	}
 	students, err := a.students.FindByIDsForUpdate(ctx, studentIDs)
 	if err != nil {
 		return err
