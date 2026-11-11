@@ -313,6 +313,11 @@ function RangeCalendar({
   // trap pulls keyboard focus out of the calendar. The modal wrapper has no
   // transform, so it can host the fixed panel. A slide-over transforms its
   // content, so its calendar stays at the body with its own FocusScope.
+  // A press or focus in that body portal does not close the slide-over: Radix
+  // `DismissableLayer` counts portal children as inside through the React tree
+  // (test "keeps the slide-over open on a pointer press and focus in its
+  // calendar", real Vaul). No `stopPropagation` here: a press in one calendar
+  // must still close another open one.
   // Inside a modal the panel shares the modal's stacking context, exactly like
   // `DatePicker`: a tour coach mark over an open dialog lies above both alike.
   const modalScope = triggerRef.current?.closest("[data-modal-focus-scope]");
