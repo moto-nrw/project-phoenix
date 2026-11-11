@@ -51,6 +51,8 @@
   "companion_note_required": "Bitte geben Sie an, mit wem das Kind nach Hause geht.",
   "complete_withdrawal_confirmation_required": "{object} kann noch nicht abgemeldet werden. Bitte bestätigen Sie mit {confirmation}.",
   "consent_required": "Bitte bestätigen Sie alle Pflicht-Zustimmungen.",
+  "renewal_terms_required": "Bitte stimmen Sie den Bedingungen für den neuen Zeitraum zu.",
+  "renewal_terms_changed": "Die Bedingungen wurden gerade geändert. Bitte lesen Sie sie noch einmal und stimmen Sie dann zu.",
   "correction_reason_required": "Bitte geben Sie einen Grund für die Korrektur ein.",
   "correction_school_class_mismatch": "Die Klasse passt nicht zur Klassenstufe. Bitte wählen Sie eine passende Klasse.",
   "day_selection_not_allowed": "Bei diesem Angebot stehen die Tage fest. Sie können keine Tage auswählen.",

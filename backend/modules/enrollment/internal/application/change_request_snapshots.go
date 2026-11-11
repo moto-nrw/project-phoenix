@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"sort"
@@ -15,6 +16,47 @@ import (
 // A change request stores the request as it was (base) and as the family
 // wants it (proposed), both in the submission's JSON shape. The approval
 // compares the base to the current state and applies the proposal.
+
+// reconcileRenewalConsent runs with the change request, request and children
+// locked. Only required ticks evidenced after the proposal was created may
+// advance its base; optional consents and all other edits still conflict.
+// Carry those ticks into the proposal too, so an old answer cannot undo them.
+// The stored snapshots remain the original review evidence.
+func reconcileRenewalConsent(row *ChangeRequest, req *enrollment.Request, children []*enrollment.RequestChild, current map[string]any) bool {
+	base := withEmptyFormValues(row.BaseSnapshot)
+	if jsonEqual(current, base) {
+		return true
+	}
+	if !renewalRequest(children) {
+		return false
+	}
+	flags := maps.Clone(mapFromAny(base["consent_flags"]))
+	accepted := map[string]any{}
+	for _, entry := range req.LegalBlocksSnapshot {
+		if !entry.SnapshotAt.After(row.CreatedAt) || entry.FormSchemaID != entry.DisplayedFormSchemaID {
+			continue
+		}
+		var ticks map[string]any
+		if json.Unmarshal(entry.ConsentFlags, &ticks) != nil {
+			return false
+		}
+		for _, block := range entry.Blocks {
+			if block.Required && ticks[block.Key] == true {
+				accepted[block.Key] = true
+			}
+		}
+	}
+	maps.Copy(flags, accepted)
+	base["consent_flags"] = flags
+	if !jsonEqual(current, base) {
+		return false
+	}
+	proposed := maps.Clone(mapFromAny(row.ProposedSnapshot["consent_flags"]))
+	maps.Copy(proposed, accepted)
+	row.ProposedSnapshot = maps.Clone(row.ProposedSnapshot)
+	row.ProposedSnapshot["consent_flags"] = proposed
+	return true
+}
 
 // currentSnapshot is the request as stored now, with the bookings in force
 // today rather than at the service start: an approved dated change must not

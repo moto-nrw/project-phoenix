@@ -332,3 +332,15 @@ type AccountAccessStore interface {
 	FindRole(ctx context.Context, roleID int64) (domain.RoleFact, bool, domain.OperationStats, error)
 	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
 }
+
+// SchoolMembershipLockStore locks the account before pinning its active
+// mapping FOR SHARE in the caller's transaction (#6529).
+type SchoolMembershipLockStore interface {
+	LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error)
+	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
+}
+
+// GuardianInvitationLockStore pins the accounts an invitation participates in.
+type GuardianInvitationLockStore interface {
+	LockGuardianInvitationAccounts(ctx context.Context, inviterID int64, email string) error
+}

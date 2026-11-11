@@ -97,6 +97,9 @@ type PortalService interface {
 	// (#4801): parent_portal.access to see the days, and
 	// parent_portal.conference.book when book is set.
 	ParentConferenceChild(ctx context.Context, accountID, studentID int64, book bool) (*parentService.Child, error)
+	// WithParentConferenceBooking runs a booking, move or cancellation in the
+	// child's school unit behind the child write guard.
+	WithParentConferenceBooking(ctx context.Context, accountID, studentID int64, write func(ctx context.Context, child *parentService.Child) error) error
 
 	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*parentService.Profile, error)
 

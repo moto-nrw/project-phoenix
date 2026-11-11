@@ -31,6 +31,7 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 	}, api.ExcusedRequestTestPeople{Students: repos.Student, Persons: repos.Person, Events: repos.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:            parentMemberships(t, db),
 		GuardianChanges:        owners.ParentGuardianChanges(),
 		DeparturePolicy:        owners.ParentDeparturePolicy(),
 		GuardianPolicy:         owners.NewParentGuardianPolicy(),

@@ -128,7 +128,7 @@ func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeReq
 	if err != nil {
 		return nil, nil, err
 	}
-	if !jsonEqual(current, withEmptyFormValues(row.BaseSnapshot)) {
+	if !reconcileRenewalConsent(row, req, children, current) {
 		return nil, nil, enrollmentNative.ErrChangeRequestConflict
 	}
 	return req, children, nil

@@ -880,7 +880,7 @@ func TestRequestService_ConfirmRenewal_TransitionsPendingRenewalToSubmitted(t *t
 	parentReq, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), children[0].RequestID)
 	require.NoError(t, err)
 
-	confirmed, err := env.requestSvc.ConfirmRenewal(ctx, parentReq.StatusToken)
+	confirmed, err := env.requestSvc.ConfirmRenewal(ctx, parentReq.StatusToken, acceptedRenewalTerms(t, ctx, env.requestSvc, parentReq.StatusToken))
 	require.NoError(t, err)
 	assert.Equal(t, 1, confirmed)
 
@@ -905,11 +905,12 @@ func TestRequestService_ConfirmRenewal_IsIdempotent(t *testing.T) {
 	parentReq, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), children[0].RequestID)
 	require.NoError(t, err)
 
-	first, err := env.requestSvc.ConfirmRenewal(ctx, parentReq.StatusToken)
+	accepted := acceptedRenewalTerms(t, ctx, env.requestSvc, parentReq.StatusToken)
+	first, err := env.requestSvc.ConfirmRenewal(ctx, parentReq.StatusToken, accepted)
 	require.NoError(t, err)
 	assert.Equal(t, 1, first)
 
-	second, err := env.requestSvc.ConfirmRenewal(ctx, parentReq.StatusToken)
+	second, err := env.requestSvc.ConfirmRenewal(ctx, parentReq.StatusToken, accepted)
 	require.NoError(t, err)
 	assert.Equal(t, 0, second, "second confirm is a no-op")
 }
@@ -933,11 +934,12 @@ func TestRequestService_ConfirmRenewal_KeepsConcurrentDecision(t *testing.T) {
 	parentReq, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), children[0].RequestID)
 	require.NoError(t, err)
 
+	accepted := acceptedRenewalTerms(t, ctx, env.requestSvc, parentReq.StatusToken)
 	var confirmed int
 	err = decideWhileParentWrites(t, ctx, env.db, children[0].RequestID, children[0].ID, capability.ChildStatusApproved,
 		func(parentCtx context.Context) error {
 			var confirmErr error
-			confirmed, confirmErr = env.requestSvc.ConfirmRenewal(parentCtx, parentReq.StatusToken)
+			confirmed, confirmErr = env.requestSvc.ConfirmRenewal(parentCtx, parentReq.StatusToken, accepted)
 			return confirmErr
 		})
 	require.NoError(t, err)

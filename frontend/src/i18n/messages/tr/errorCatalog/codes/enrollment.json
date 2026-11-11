@@ -51,6 +51,8 @@
   "companion_note_required": "Lütfen çocuğun eve kiminle gittiğini belirtin.",
   "complete_withdrawal_confirmation_required": "{object} henüz kayıttan çıkarılamaz. Lütfen {confirmation} ile onaylayın.",
   "consent_required": "Lütfen tüm zorunlu onayları verin.",
+  "renewal_terms_required": "Lütfen yeni dönemin koşullarını onaylayın.",
+  "renewal_terms_changed": "Koşullar az önce değişti. Lütfen tekrar okuyun ve ardından onaylayın.",
   "correction_reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "correction_school_class_mismatch": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "day_selection_not_allowed": "Bu hizmetin günleri sabittir. Gün seçemezsiniz.",

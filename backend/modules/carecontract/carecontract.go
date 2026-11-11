@@ -204,16 +204,20 @@ type Candidate struct {
 	// AcceptanceIssue tells why the application gives no proof of the
 	// parents' agreement for a conclusion at the acceptance (Weg b): empty,
 	// SkipAcceptanceMissing or SkipAcceptanceChanged.
-	AcceptanceIssue string        `json:"acceptance_issue"`
-	SchoolName      string        `json:"school_name"`
-	ChildFirstName  string        `json:"child_first_name"`
-	ChildLastName   string        `json:"child_last_name"`
-	GuardianName    string        `json:"guardian_name"`
-	GuardianEmail   string        `json:"guardian_email"`
-	PhaseName       string        `json:"phase_name"`
-	Services        []Service     `json:"services"`
-	EffectiveFrom   calendar.Date `json:"effective_from"`
-	TemplateIssue   string        `json:"template_issue"`
+	AcceptanceIssue string `json:"acceptance_issue"`
+	// Renewal tells that the child was renewed into a new phase: a missing
+	// acceptance then means the parents have not accepted the conditions of
+	// that phase (#6456).
+	Renewal        bool          `json:"renewal"`
+	SchoolName     string        `json:"school_name"`
+	ChildFirstName string        `json:"child_first_name"`
+	ChildLastName  string        `json:"child_last_name"`
+	GuardianName   string        `json:"guardian_name"`
+	GuardianEmail  string        `json:"guardian_email"`
+	PhaseName      string        `json:"phase_name"`
+	Services       []Service     `json:"services"`
+	EffectiveFrom  calendar.Date `json:"effective_from"`
+	TemplateIssue  string        `json:"template_issue"`
 	// ModulesText names the booked modules as the contract does.
 	ModulesText string `json:"modules_text"`
 	// MailBlock names, for a child the conclusion at the acceptance (Weg b)

@@ -695,13 +695,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date) error {\n\treturn s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {\n\t\treturn s.MealPlan.ClearParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date})\n\t})\n}",
-      "form": "unclassified-evidence",
-      "id": "workflows/parentportal/internal/care/Service.ClearMealParticipationDay",
-      "owner": "workflows/parentportal"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *Service) ContractNoticeOptions(ctx context.Context, accountID, organizationID, contractID int64) (ContractNoticeOptions, error) {\n\treturn s.contractNotice(ctx, accountID, organizationID, contractID, func(txCtx context.Context, reader BillingDocumentReader, _ Traeger) (ContractNoticeOptions, error) {\n\t\treturn s.ContractNotices.ContractNoticeOptions(txCtx, organizationID, contractID, reader)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/care/Service.ContractNoticeOptions",
@@ -758,16 +751,16 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, participating bool) error {\n\treturn s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {\n\t\treturn s.MealPlan.SetParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date, Participating: participating})\n\t})\n}",
+      "evidence": "func (s *Service) StateFamilyChildren(ctx context.Context, accountID, organizationID, contractID int64, children int) (FamilyChildren, error) {\n\treturn s.familyChildren(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentSubmit, func(txCtx context.Context, reader FamilyChildrenReader) (FamilyChildren, error) {\n\t\treturn s.BillingDocuments.StateFamilyChildren(txCtx, organizationID, reader, children)\n\t})\n}",
       "form": "unclassified-evidence",
-      "id": "workflows/parentportal/internal/care/Service.SetMealParticipationDay",
+      "id": "workflows/parentportal/internal/care/Service.StateFamilyChildren",
       "owner": "workflows/parentportal"
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) StateFamilyChildren(ctx context.Context, accountID, organizationID, contractID int64, children int) (FamilyChildren, error) {\n\treturn s.familyChildren(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentSubmit, func(txCtx context.Context, reader FamilyChildrenReader) (FamilyChildren, error) {\n\t\treturn s.BillingDocuments.StateFamilyChildren(txCtx, organizationID, reader, children)\n\t})\n}",
+      "evidence": "func (s *Service) WithChildWrite(ctx context.Context, accountID, studentID int64, child *Child, access ChildWriteAccess, write func(ctx context.Context) error) error {\n\tif child == nil {\n\t\treturn ErrChildNotLinked\n\t}\n\tif write == nil {\n\t\treturn fmt.Errorf(\"parent: child write is required\")\n\t}\n\treturn s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {\n\t\tif err := s.guardChildWrite(txCtx, accountID, studentID, child, access); err != nil {\n\t\t\treturn err\n\t\t}\n\t\treturn write(txCtx)\n\t})\n}",
       "form": "unclassified-evidence",
-      "id": "workflows/parentportal/internal/care/Service.StateFamilyChildren",
+      "id": "workflows/parentportal/internal/care/Service.WithChildWrite",
       "owner": "workflows/parentportal"
     },
     {
@@ -1104,13 +1097,6 @@
       "evidence": "func (p requestShareRecordsBinding) CurrentForStudent(pA context.Context, pB int64) ([]*messaging.ParentRequestShareEvent, error) {\n\treturn p.callbacks.CurrentForStudent(pA, pB)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/requestShareRecordsBinding.CurrentForStudent",
-      "owner": "workflows/parentportal"
-    },
-    {
-      "build": "production",
-      "evidence": "func (r studentGuardianReads) AccountHasStudentPermission(ctx context.Context, account, student, tenant int64, permission string) (bool, error) {\n\treturn r.callbacks.Permission(ctx, account, student, tenant, permission)\n}",
-      "form": "unchanged-forward-evidence",
-      "id": "workflows/parentportal/studentGuardianReads.AccountHasStudentPermission",
       "owner": "workflows/parentportal"
     },
     {

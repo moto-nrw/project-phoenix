@@ -30,6 +30,8 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 	reposCare := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
