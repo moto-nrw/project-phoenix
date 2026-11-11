@@ -572,7 +572,7 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 			}
 			req.hydrateOmittedFields(model, existing)
 			var err error
-			report, err = rs.PhaseService.UpdatePhaseWithReport(ctx, model)
+			report, err = rs.PhaseService.UpdatePhase(ctx, model)
 			return err
 		},
 		func(ctx context.Context, id int64) (*enrollmentOwner.Phase, error) {

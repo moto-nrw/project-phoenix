@@ -1,10 +1,10 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -60,9 +60,7 @@ func (s *Phases) careBeyondShortenedEnd(ctx context.Context, before, after *enro
 			SchoolClass: student.SchoolClass, CareEnd: end, PhaseEnd: newEnd,
 		})
 	}
-	slices.SortFunc(result, func(a, b enrollment.CareBeyondPhaseEnd) int {
-		return cmp.Or(cmp.Compare(a.LastName, b.LastName), cmp.Compare(a.FirstName, b.FirstName), cmp.Compare(a.StudentID, b.StudentID))
-	})
+	slices.SortFunc(result, compareCareBeyondEnd)
 	return result, nil
 }
 
@@ -104,4 +102,21 @@ func (s *Phases) otherPhaseReach(ctx context.Context, phaseID int64, studentIDs 
 		}
 	}
 	return reach, nil
+}
+
+// compareCareBeyondEnd orders the children by last name, first name and id.
+func compareCareBeyondEnd(a, b enrollment.CareBeyondPhaseEnd) int {
+	if c := strings.Compare(a.LastName, b.LastName); c != 0 {
+		return c
+	}
+	if c := strings.Compare(a.FirstName, b.FirstName); c != 0 {
+		return c
+	}
+	switch {
+	case a.StudentID < b.StudentID:
+		return -1
+	case a.StudentID > b.StudentID:
+		return 1
+	}
+	return 0
 }

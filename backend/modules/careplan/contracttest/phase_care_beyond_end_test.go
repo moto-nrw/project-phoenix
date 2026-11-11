@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,10 +30,10 @@ func activate(t *testing.T, env *decisionTestEnv, c *sourcedChild) {
 	testpkg.SetStudentLifecycle(t, env.db, c.studentID, peopledirectory.StudentStatusActive, &c.start, &c.end)
 }
 
-func shortenPhase(t *testing.T, env *decisionTestEnv, endDays int) enrollmentNative.PhaseUpdateReport {
+func shortenPhase(t *testing.T, env *decisionTestEnv, endDays int) enrollmentTest.PhaseUpdateReport {
 	t.Helper()
 	report, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db,
-		boundsPhases(t, env, recurrenceGate(t, env)).UpdatePhaseWithReport, movedSourcePhase(env, 0, endDays))
+		boundsPhases(t, env, recurrenceGate(t, env)).UpdatePhase, movedSourcePhase(env, 0, endDays))
 	require.NoError(t, err)
 	return report
 }
@@ -48,7 +48,7 @@ func careState(t *testing.T, env *decisionTestEnv, studentID int64) (string, str
 	return students[0].Status, students[0].EnrolledUntil
 }
 
-func reportedChildren(report enrollmentNative.PhaseUpdateReport) []int64 {
+func reportedChildren(report enrollmentTest.PhaseUpdateReport) []int64 {
 	ids := []int64{}
 	for _, child := range report.CareBeyondEnd {
 		ids = append(ids, child.StudentID)
@@ -71,7 +71,7 @@ func TestPhaseShortening_NamesActiveChildAndLeavesItsCare(t *testing.T) {
 
 	report := shortenPhase(t, env, -31)
 	require.Len(t, report.CareBeyondEnd, 1)
-	assert.Equal(t, enrollmentNative.CareBeyondPhaseEnd{
+	assert.Equal(t, enrollmentTest.CareBeyondPhaseEnd{
 		StudentID: c.studentID, FirstName: "Gekuerzt", LastName: "Quelle", SchoolClass: report.CareBeyondEnd[0].SchoolClass,
 		CareEnd: c.end, PhaseEnd: newEnd,
 	}, report.CareBeyondEnd[0])
@@ -139,11 +139,11 @@ func TestPhaseShortening_OpenEditNamesTheChildAndTheCareEndFollows(t *testing.T)
 	preview, err := testpkg.TenantQuery1(t, ctx, env.db, f.lifecycle.Preview, f.exitInput(newEnd))
 	require.NoError(t, err)
 
-	var report enrollmentNative.PhaseUpdateReport
+	var report enrollmentTest.PhaseUpdateReport
 	phases := boundsPhases(t, env, recurrenceGate(t, env))
 	done := make(chan error, 1)
 	holdErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(holdCtx context.Context, tx bun.Tx) error {
-		if report, err = phases.UpdatePhaseWithReport(holdCtx, movedSourcePhase(env, 0, -31)); err != nil {
+		if report, err = phases.UpdatePhase(holdCtx, movedSourcePhase(env, 0, -31)); err != nil {
 			return err
 		}
 		pid := backendPID(t, holdCtx, tx)
@@ -177,11 +177,11 @@ func TestPhaseShortening_OpenEditNamesTheChildAndTheCareEndFollows(t *testing.T)
 
 // editWhileHolding runs write in a transaction, keeps it open until the
 // phase edit, started then, waits for it, and returns the edit's report.
-func editWhileHolding(t *testing.T, env *decisionTestEnv, ctx context.Context, endDays int, write func(context.Context) error) enrollmentNative.PhaseUpdateReport {
+func editWhileHolding(t *testing.T, env *decisionTestEnv, ctx context.Context, endDays int, write func(context.Context) error) enrollmentTest.PhaseUpdateReport {
 	t.Helper()
 	phases := boundsPhases(t, env, recurrenceGate(t, env))
 	type result struct {
-		report enrollmentNative.PhaseUpdateReport
+		report enrollmentTest.PhaseUpdateReport
 		err    error
 	}
 	edit := make(chan result, 1)
@@ -195,7 +195,7 @@ func editWhileHolding(t *testing.T, env *decisionTestEnv, ctx context.Context, e
 			var r result
 			r.err = testpkg.WithinTenantContext(t, ctx, env.db, testpkg.Tenant(t), func(editCtx context.Context) error {
 				var err error
-				r.report, err = phases.UpdatePhaseWithReport(editCtx, movedSourcePhase(env, 0, endDays))
+				r.report, err = phases.UpdatePhase(editCtx, movedSourcePhase(env, 0, endDays))
 				return err
 			})
 			edit <- r
@@ -213,6 +213,6 @@ func editWhileHolding(t *testing.T, env *decisionTestEnv, ctx context.Context, e
 		return r.report
 	case <-ctx.Done():
 		t.Fatal("the phase edit did not finish")
-		return enrollmentNative.PhaseUpdateReport{}
+		return enrollmentTest.PhaseUpdateReport{}
 	}
 }

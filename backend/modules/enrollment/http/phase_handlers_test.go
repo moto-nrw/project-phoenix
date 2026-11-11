@@ -69,11 +69,7 @@ func (m *mockPhaseService) CreatePhase(_ context.Context, phase *capability.Phas
 	m.createInput = phase
 	return m.createResult, m.createErr
 }
-func (m *mockPhaseService) UpdatePhase(_ context.Context, phase *capability.Phase) error {
-	m.updateInput = phase
-	return m.updateErr
-}
-func (m *mockPhaseService) UpdatePhaseWithReport(_ context.Context, phase *capability.Phase) (capability.PhaseUpdateReport, error) {
+func (m *mockPhaseService) UpdatePhase(_ context.Context, phase *capability.Phase) (capability.PhaseUpdateReport, error) {
 	m.updateInput = phase
 	return m.updateReport, m.updateErr
 }

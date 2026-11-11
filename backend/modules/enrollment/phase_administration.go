@@ -70,10 +70,9 @@ type PhaseAdministration interface {
 	ResponseOverview(ctx context.Context, id int64) (*PhaseResponseOverview, error)
 
 	CreatePhase(ctx context.Context, phase *Phase) (*Phase, error)
-	UpdatePhase(ctx context.Context, phase *Phase) error
-	// UpdatePhaseWithReport updates like UpdatePhase and reports the
-	// children whose care runs past a shortened end (#6598, ADR 0210).
-	UpdatePhaseWithReport(ctx context.Context, phase *Phase) (PhaseUpdateReport, error)
+	// UpdatePhase saves the phase and reports the children whose care runs
+	// past a shortened end (#6598, ADR 0210).
+	UpdatePhase(ctx context.Context, phase *Phase) (PhaseUpdateReport, error)
 
 	// DeleteImpact reports how many enrollment requests + care offerings a
 	// delete would remove, and how many created students would be kept.

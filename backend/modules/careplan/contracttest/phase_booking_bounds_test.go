@@ -141,7 +141,7 @@ func TestPhaseUpdate_CarriesPhaseBoundsOfBookingsAndLists(t *testing.T) {
 
 	failure := errors.New("after phase update")
 	err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		if err := phases.UpdatePhase(txCtx, moved); err != nil {
+		if err := phaseEdit(phases)(txCtx, moved); err != nil {
 			return err
 		}
 		return failure
@@ -151,7 +151,7 @@ func TestPhaseUpdate_CarriesPhaseBoundsOfBookingsAndLists(t *testing.T) {
 	c.assertRoster(t, c.start, c.end.AddDays(1), "after a rolled-back edit")
 	c.assertActivation(t, c.start, "after a rolled-back edit")
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phases.UpdatePhase, moved))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(phases), moved))
 	assert.Equal(t, []bookingWindow{{c.start.AddDays(-7), c.end.AddDays(15)}}, childBookings(t, env, c.childID))
 	c.assertRoster(t, c.start.AddDays(-7), c.end.AddDays(15), "after the edit")
 	c.assertActivation(t, c.start.AddDays(-7), "after the edit: activation and list start on the same day")
@@ -159,7 +159,7 @@ func TestPhaseUpdate_CarriesPhaseBoundsOfBookingsAndLists(t *testing.T) {
 	// Back again: the bounds still are the phase's and follow once more.
 	back := movedSourcePhase(env, 7, -14)
 	back.ServiceStartDate, back.ServiceEndDate = env.sourcePhase.ServiceStartDate, env.sourcePhase.ServiceEndDate
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phases.UpdatePhase, back))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(phases), back))
 	assert.Equal(t, []bookingWindow{{c.start, c.end.AddDays(1)}}, childBookings(t, env, c.childID))
 	c.assertRoster(t, c.start, c.end.AddDays(1), "after the edit back")
 }
@@ -181,7 +181,7 @@ func TestPhaseUpdate_KeepsSwitchesAndCareEndsOfBookings(t *testing.T) {
 	_, err := testpkg.TenantQuery2(t, ctx, env.db, carePlanCompose.NewOfferingBookings().EndCareOfferingBookings, []int64{ended.childID}, careplan.Date(careEnd))
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, boundsPhases(t, env, nil).UpdatePhase, movedSourcePhase(env, -7, 7)))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(boundsPhases(t, env, nil)), movedSourcePhase(env, -7, 7)))
 
 	assert.Equal(t, []bookingWindow{{start.AddDays(-7), switchDay}, {switchDay, end.AddDays(8)}}, childBookings(t, env, switched.childID),
 		"the switch day stays, the outer bounds follow")
@@ -204,7 +204,7 @@ func TestPhaseUpdate_RefusesEmptyBookingAtomically(t *testing.T) {
 		ctx, c.childID, enrollmentTest.Date(switchDay), []*enrollmentTest.RequestChildOffering{{CareOfferingID: c.offering.ID}}))
 	before := childBookings(t, env, c.childID)
 
-	err := testpkg.TenantCommand1(t, ctx, env.db, boundsPhases(t, env, nil).UpdatePhase, movedSourcePhase(env, 40, 0))
+	err := testpkg.TenantCommand1(t, ctx, env.db, phaseEdit(boundsPhases(t, env, nil)), movedSourcePhase(env, 40, 0))
 	require.ErrorIs(t, err, enrollmentTest.ErrPhaseBookingBoundsConflict)
 	var conflict *enrollmentTest.PhaseBookingBoundsConflictError
 	require.ErrorAs(t, err, &conflict)
@@ -264,7 +264,7 @@ func TestPhaseUpdate_WaitsForConcurrentBookingChange(t *testing.T) {
 		require.NoError(t, tx.NewRaw("SELECT pg_backend_pid()").Scan(holdCtx, &pid))
 		go func() {
 			done <- testpkg.WithinTenantContext(t, ctx, env.db, testpkg.Tenant(t), func(editCtx context.Context) error {
-				return phases.UpdatePhase(editCtx, movedSourcePhase(env, -7, 7))
+				return phaseEdit(phases)(editCtx, movedSourcePhase(env, -7, 7))
 			})
 		}()
 		for {
@@ -365,7 +365,7 @@ func TestPhaseUpdate_LocksApplicationsThatAppearWhileItWaits(t *testing.T) {
 		require.NoError(t, tx.NewRaw("SELECT pg_backend_pid()").Scan(holdCtx, &pid))
 		go func() {
 			edit <- testpkg.WithinTenantContext(t, ctx, env.db, testpkg.Tenant(t), func(editCtx context.Context) error {
-				return phases.UpdatePhase(editCtx, movedSourcePhase(env, -7, 7))
+				return phaseEdit(phases)(editCtx, movedSourcePhase(env, -7, 7))
 			})
 		}()
 		if waiting, err := waitUntilBlockedBy(t, ctx, env.db, pid, edit); !waiting {
@@ -473,7 +473,7 @@ func TestPhaseUpdate_WaitsForConcurrentApproval(t *testing.T) {
 		require.NoError(t, tx.NewRaw("SELECT pg_backend_pid()").Scan(holdCtx, &pid))
 		go func() {
 			edit <- testpkg.WithinTenantContext(t, ctx, env.db, testpkg.Tenant(t), func(editCtx context.Context) error {
-				return phases.UpdatePhase(editCtx, movedSourcePhase(env, -7, 7))
+				return phaseEdit(phases)(editCtx, movedSourcePhase(env, -7, 7))
 			})
 		}()
 		if waiting, err := waitUntilBlockedBy(t, holdCtx, env.db, pid, edit); !waiting {
@@ -493,4 +493,13 @@ func TestPhaseUpdate_WaitsForConcurrentApproval(t *testing.T) {
 	assert.Equal(t, []bookingWindow{{start.AddDays(-7), end.AddDays(8)}}, childBookings(t, env, childID))
 	c.assertRoster(t, start.AddDays(-7), end.AddDays(8), "after the approval and the edit")
 	c.assertActivation(t, start.AddDays(-7), "after the approval and the edit")
+}
+
+// phaseEdit is the phase edit as a command; the suites here do not read
+// its report (#6598).
+func phaseEdit(phases *enrollmentTest.Phases) func(context.Context, *enrollmentTest.Phase) error {
+	return func(ctx context.Context, phase *enrollmentTest.Phase) error {
+		_, err := phases.UpdatePhase(ctx, phase)
+		return err
+	}
 }

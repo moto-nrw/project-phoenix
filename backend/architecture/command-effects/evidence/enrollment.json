@@ -2321,6 +2321,54 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "binding_digest": "dd5881d4a667b7a815fa33227ecab1e7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "binding_digest": "28bbf82ff2c2f759b6989217f12a310d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "binding_digest": "7b9a3f72e6ad9360cc9a042603e970a4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "binding_digest": "f7e323179fbcc3f4b44afc4b92c48c3a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "binding_digest": "1b759e604996807f23b9c810c61080fe",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "binding_digest": "7edc2dce9d9a290294c1839c239c1d1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.phaseExpiryCarePlanDirectory.ListCareOfferings",
       "binding_digest": "af91eb3a58121afaf4f855cb5bd7a855",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseExpiryOfferings.ListCareOfferings",

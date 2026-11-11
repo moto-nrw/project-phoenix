@@ -229,14 +229,10 @@ func (s *Phases) create(ctx context.Context, phase *enrollment.Phase) (*enrollme
 
 // UpdatePhase validates and writes a phase and resyncs the templates sourcing its
 // offerings when the service window changed.
-func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error {
-	_, err := s.UpdatePhaseWithReport(ctx, phase)
-	return err
-}
-
-// UpdatePhaseWithReport updates the phase and reports the confirmed children
-// whose care runs past a shortened end (#6598). It changes none of them.
-func (s *Phases) UpdatePhaseWithReport(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
+//
+// It reports the confirmed children whose care runs past a shortened end
+// (#6598) and changes none of them.
+func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
 	var report enrollment.PhaseUpdateReport
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		var err error
