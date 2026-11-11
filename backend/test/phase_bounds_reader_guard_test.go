@@ -24,6 +24,8 @@ import (
 //  3. The booking writers of the intake and the change requests take a
 //     LockedPhase parameter, so a phase read elsewhere cannot reach them.
 //  4. The care exit workflow reads phases only through the reader.
+//  5. The production root binds the recurrence gate into the intake and the
+//     change requests and gives the care exit the gated reader.
 //
 // Read-only paths (forms, status page, reports) keep reading the phase
 // directly; they write no bound.
@@ -83,6 +85,8 @@ func (s *Intake) recordOfferingSubmission(phase enrollmentNative.LockedPhase) []
 }`,
 		"workflows/careexit/bookings.go": `package careexit
 func (b Bookings) read(ctx context.Context) { _, _ = b.phases.LockedPhase(ctx, 1); _ = locked.Phase() }`,
+		"roots/owners/root_enrollment_services.go": `package owners
+func build() { _ = NewEnrollmentIntake(EnrollmentIntakeSources{Catalog: records, LockTemplateRecurrence: lock}) }`,
 	}
 	writers := []string{"modules/enrollment/internal/application/intake_offerings.go:recordOfferingSubmission"}
 	if got := phaseBoundsViolations(parsePhaseBoundsFixtures(t, clean), nil, writers); len(got) != 0 {
@@ -104,6 +108,14 @@ func bookings(phase *enrollmentNative.Phase) enrollmentNative.CareBookingInput {
 		"a booking writer without a LockedPhase": {
 			"modules/enrollment/internal/application/intake_offerings.go": `package application
 func (s *Intake) recordOfferingSubmission(from, through enrollmentNative.Date) {}`,
+		},
+		"an intake bound without the gate": {
+			"roots/owners/root_enrollment_services.go": `package owners
+func build() { _ = NewEnrollmentIntake(EnrollmentIntakeSources{Catalog: records}) }`,
+		},
+		"the ungated reader in the production root": {
+			"roots/owners/root_careplan.go": `package owners
+func build() { _ = NewEnrollmentBookingProjection(NewEnrollmentBookings(), UngatedEnrollmentPhaseBounds()) }`,
 		},
 		"an unlocked phase read in the care exit": {
 			"workflows/careexit/bookings.go": `package careexit
@@ -150,9 +162,14 @@ func phaseBoundsGuardSources(backendRoot string) (map[string]*ast.File, error) {
 			if err != nil {
 				return err
 			}
-			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
 			if err != nil {
 				return err
+			}
+			if strings.HasPrefix(filepath.ToSlash(rel), "roots/") && builtForTestsOnly(file) {
+				// Test compositions may bind the ungated reader; the
+				// production root may not.
+				return nil
 			}
 			files[filepath.ToSlash(rel)] = file
 			return nil
@@ -194,6 +211,8 @@ func phaseBoundsViolations(files map[string]*ast.File, exemptions []phaseBoundsE
 				if readsPhaseUnlocked(fn) {
 					violations = append(violations, key+": reads a phase around the phase bounds reader")
 				}
+			case strings.HasPrefix(path, "roots/"):
+				violations = append(violations, ungatedRootBindings(key, fn)...)
 			}
 		}
 	}
@@ -215,6 +234,61 @@ func phaseBoundsViolations(files map[string]*ast.File, exemptions []phaseBoundsE
 	}
 	sort.Strings(violations)
 	return violations
+}
+
+// gatedSources are the root's source literals that must bind the
+// recurrence gate of the phase bounds reader.
+var gatedSources = []string{"EnrollmentIntakeSources", "EnrollmentChangeRequestSources"}
+
+// ungatedRootBindings reports a production root binding that leaves the
+// phase bounds reader without its gate.
+func ungatedRootBindings(key string, fn *ast.FuncDecl) []string {
+	var violations []string
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.CompositeLit:
+			name := typeName(n.Type)
+			if n.Type == nil || !slicesContains(gatedSources, name) {
+				return true
+			}
+			for _, elt := range n.Elts {
+				if kv, ok := elt.(*ast.KeyValueExpr); ok && typeName(kv.Key) == "LockTemplateRecurrence" {
+					return true
+				}
+			}
+			violations = append(violations, key+": binds "+name+" without LockTemplateRecurrence")
+		case *ast.Ident:
+			if n.Name == "UngatedEnrollmentPhaseBounds" {
+				violations = append(violations, key+": binds the ungated phase bounds reader in production")
+			}
+		}
+		return true
+	})
+	return violations
+}
+
+func slicesContains(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
+}
+
+// builtForTestsOnly reports a file behind the testhooks build tag.
+func builtForTestsOnly(file *ast.File) bool {
+	for _, group := range file.Comments {
+		if group.Pos() > file.Package {
+			break
+		}
+		for _, comment := range group.List {
+			if strings.HasPrefix(comment.Text, "//go:build") && strings.Contains(comment.Text, "testhooks") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func typeName(expr ast.Expr) string {

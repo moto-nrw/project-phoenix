@@ -242,9 +242,10 @@ func (s *ChangeRequests) create(ctx context.Context, token string, input enrollm
 
 func (s *ChangeRequests) createInTenant(ctx context.Context, token string, phaseID int64, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
 	// The phase bounds reader takes the recurrence gate before the request
-	// and child locks (#6657).
-	phase, err := s.lockedProposalPhase(ctx, phaseID)
-	if err != nil {
+	// and child locks (#6657). The checks of the phase keep their place:
+	// ensureCanCreate first, then the proposal's.
+	phase, err := s.intake.phaseBounds().LockedPhase(ctx, phaseID)
+	if err != nil && (errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) || !s.deps.Runtime.NotFound(err)) {
 		return nil, err
 	}
 	lockedReq, err := s.deps.Requests.RequestByToken(ctx, strings.TrimSpace(token), true)
@@ -276,6 +277,9 @@ func (s *ChangeRequests) createInTenant(ctx context.Context, token string, phase
 	capabilities, err := s.formCapabilities(ctx, nil)
 	if err != nil {
 		return nil, err
+	}
+	if phase.Phase() == nil || !phase.Phase().IsActive {
+		return nil, enrollmentNative.ErrEnrollmentDisabled
 	}
 	prepared, err := s.prepareProposed(ctx, phase, lockedReq, children, submission, capabilities, false, true)
 	if err != nil {

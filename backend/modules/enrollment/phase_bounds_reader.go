@@ -60,6 +60,37 @@ func (r PhaseBoundsReader) LockedPhase(ctx context.Context, id int64) (LockedPha
 	return LockedPhase{phase: phase}, nil
 }
 
+// LockedPhases takes the recurrence gate once and reads the phases in one
+// query, keyed by id. A phase that is gone is missing from the map. The
+// phase rows must read sets (PhasesByID).
+func (r PhaseBoundsReader) LockedPhases(ctx context.Context, ids []int64) (map[int64]LockedPhase, error) {
+	result := map[int64]LockedPhase{}
+	if len(ids) == 0 {
+		return result, nil
+	}
+	rows, ok := r.phases.(interface {
+		PhasesByID(context.Context, []int64) ([]*Phase, error)
+	})
+	if !ok {
+		return nil, errors.New("enrollment: phase bounds reader cannot read phase sets")
+	}
+	if r.lock != nil {
+		if err := r.lock(ctx); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrPhaseBoundsLock, err)
+		}
+	}
+	phases, err := rows.PhasesByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, phase := range phases {
+		if phase != nil {
+			result[phase.ID] = LockedPhase{phase: phase}
+		}
+	}
+	return result, nil
+}
+
 // LockedPhase is a phase PhaseBoundsReader read under the recurrence gate.
 // Only the reader builds one; writers of phase-derived bounds take it
 // instead of a *Phase, so a phase read elsewhere cannot reach them.

@@ -343,13 +343,16 @@ func (s *Intake) lockedPhaseForSubmission(ctx context.Context, phaseID int64) (e
 	return locked, nil
 }
 
-// lockedPhaseForEditableRequest is lockedPhaseForSubmission behind the
-// enrollment switch, like loadPhaseForEditableRequest.
-func (s *Intake) lockedPhaseForEditableRequest(ctx context.Context, phaseID int64) (enrollmentNative.LockedPhase, error) {
+// checkEditablePhase applies the checks of loadPhaseForEditableRequest to a
+// phase the caller already read: the enrollment switch and an active phase.
+func (s *Intake) checkEditablePhase(ctx context.Context, phase *enrollmentNative.Phase) error {
 	if !s.isEnrollmentEnabled(ctx) {
-		return enrollmentNative.LockedPhase{}, enrollmentNative.ErrEnrollmentDisabled
+		return enrollmentNative.ErrEnrollmentDisabled
 	}
-	return s.lockedPhaseForSubmission(ctx, phaseID)
+	if phase == nil || !phase.IsActive {
+		return enrollmentNative.ErrEnrollmentDisabled
+	}
+	return nil
 }
 
 func (s *Intake) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentNative.Phase, error) {

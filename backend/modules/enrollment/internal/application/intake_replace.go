@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -80,10 +81,14 @@ func (s *Intake) replaceEditable(ctx context.Context, token string, incoming Sub
 
 func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID, phaseID int64, incoming SubmitRequest, outcome *submitOutcome) error {
 	// The phase bounds reader takes the recurrence gate before the request
-	// and child locks (#6657); a phase edit open now finishes first.
-	locked, err := s.lockedPhaseForEditableRequest(ctx, phaseID)
+	// and child locks (#6657); a phase edit open now finishes first. The
+	// edit's own checks keep their order: editability, then the phase.
+	locked, err := s.phaseBounds().LockedPhase(ctx, phaseID)
 	if err != nil {
-		return err
+		if errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) {
+			return err
+		}
+		return fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, phaseID)
 	}
 	plan, editReq, err := s.lockEditableRequest(ctx, token, tenantID, incoming)
 	if err != nil {
@@ -165,6 +170,9 @@ func (s *Intake) lockEditableRequest(ctx context.Context, token string, tenantID
 // planReplacementCatalog loads the duplicate policy, the capabilities and
 // the open catalog of the locked phase and materializes the new picks.
 func (s *Intake) planReplacementCatalog(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
+	if err := s.checkEditablePhase(ctx, plan.phase); err != nil {
+		return err
+	}
 	phase := plan.phase
 	var err error
 	if plan.duplicatePolicy, err = s.deps.Settings.DuplicateHandling(ctx); err != nil {

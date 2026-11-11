@@ -43,7 +43,7 @@ type Bookings struct {
 // NewBookings binds the bookings to their owners. phases is Enrollment's
 // phase bounds reader (#6657). tenantID reads the school of the request,
 // the boundary of every snapshot. Every dependency is required; a missing
-// one is a composition error.
+// one is a composition error, a zero phases reader fails on its first read.
 func NewBookings(applications BookingApplications, store BookingStore, phases enrollment.PhaseBoundsReader, tenantID func(context.Context) int64) Bookings {
 	if applications == nil || store == nil || tenantID == nil {
 		panic("care exit bookings: enrollment applications, care plan bookings and the tenant are required")
@@ -66,18 +66,17 @@ type bookingSnapshotRow struct {
 	Phase *snapshotPhase `json:"phase,omitempty"`
 }
 
-// lockedPhases reads every phase once with the phase bounds reader.
+// lockedPhases reads the phases with the phase bounds reader, in one query.
+// A phase that is gone has no entry.
 func (b Bookings) lockedPhases(ctx context.Context, ids []int64) (map[int64]snapshotPhase, error) {
-	phases := make(map[int64]snapshotPhase, len(ids))
-	for _, id := range ids {
-		if _, done := phases[id]; done || id <= 0 {
-			continue
-		}
-		locked, err := b.phases.LockedPhase(ctx, id)
-		if err != nil {
-			return nil, fmt.Errorf("care exit: read phase %d of the bookings: %w", id, err)
-		}
-		start, end, err := locked.ServiceWindow()
+	wanted := slices.DeleteFunc(slices.Compact(slices.Sorted(slices.Values(ids))), func(id int64) bool { return id <= 0 })
+	locked, err := b.phases.LockedPhases(ctx, wanted)
+	if err != nil {
+		return nil, fmt.Errorf("care exit: read the phases of the bookings: %w", err)
+	}
+	phases := make(map[int64]snapshotPhase, len(locked))
+	for id, phase := range locked {
+		start, end, err := phase.ServiceWindow()
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +99,7 @@ func (b Bookings) CareExitOfferingSnapshots(ctx context.Context, studentIDs []in
 		return nil, err
 	}
 	ids, students, phaseOf := bookingChildren(children, studentIDs, sourceChildID)
-	phases, err := b.lockedPhases(ctx, slices.Sorted(maps.Values(phaseOf)))
+	phases, err := b.lockedPhases(ctx, slices.Collect(maps.Values(phaseOf)))
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +192,7 @@ func bookingChildren(children []enrollment.CareExitApplicationLink, studentIDs [
 func (b Bookings) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore, today enrollment.Date) (int64, error) {
 	rows := make([]bookingSnapshotRow, 0, len(snapshots))
 	phaseIDs := []int64{}
+	tenantID := b.tenantID(ctx)
 	for _, snapshot := range snapshots {
 		var row bookingSnapshotRow
 		if err := json.Unmarshal(snapshot.Snapshot, &row); err != nil {
@@ -202,11 +202,11 @@ func (b Bookings) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []
 			return 0, fmt.Errorf("care-exit snapshot booking identity mismatch")
 		}
 		rows = append(rows, row)
-		if row.Phase != nil {
+		// Care Plan skips another school's rows; their phases are not read.
+		if row.Phase != nil && row.TenantID == tenantID {
 			phaseIDs = append(phaseIDs, row.Phase.ID)
 		}
 	}
-	slices.Sort(phaseIDs)
 	current, err := b.lockedPhases(ctx, phaseIDs)
 	if err != nil {
 		return 0, err

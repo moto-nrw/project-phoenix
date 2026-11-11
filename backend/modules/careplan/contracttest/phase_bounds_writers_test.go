@@ -372,10 +372,12 @@ func TestReplaceEditable_OpenEditMakesThePhaseEditWait(t *testing.T) {
 		t.Error("the phase edit did not wait for the open form edit")
 	}
 	require.NoError(t, editErr, "the edit works on the committed form edit")
-	_, childID := requireSingleChild(t, result)
+	requestID, childID := requireSingleChild(t, result)
 
 	start, end := calendar.Date(env.sourcePhase.ServiceStartDate), calendar.Date(env.sourcePhase.ServiceEndDate)
 	assert.Equal(t, []bookingWindow{{start.AddDays(7), end.AddDays(-13)}}, childBookings(t, env, childID), "the edit moves the replaced booking")
+	c := approveIntoList(t, env, offering, requestID, childID, "BearbeitetVor")
+	c.assertRoster(t, start.AddDays(7), end.AddDays(-13), "after the approval")
 }
 
 // proposePhoneChange files the family's change request for the submitted
@@ -454,6 +456,8 @@ func TestChangeRequestApproval_OpenApprovalMakesThePhaseEditWait(t *testing.T) {
 
 	start, end := calendar.Date(env.sourcePhase.ServiceStartDate), calendar.Date(env.sourcePhase.ServiceEndDate)
 	assert.Equal(t, []bookingWindow{{start.AddDays(-7), end.AddDays(15)}}, childBookings(t, env, childID), "the edit moves the approved booking")
+	c := approveIntoList(t, env, offering, requestID, childID, "AntragVor")
+	c.assertRoster(t, start.AddDays(-7), end.AddDays(15), "after the approval")
 }
 
 // restoreFlow is a care end of an approved child through the lifecycle and
@@ -558,6 +562,7 @@ func TestCareExitCancel_DeletedBookingTakesTheCurrentPhaseEnd(t *testing.T) {
 			require.NoError(t, f.cancel(t, ctx))
 			assert.Equal(t, []bookingWindow{{f.start.AddDays(-7), switchDay}, {switchDay, f.end.AddDays(tc.endDays + 1)}}, childBookings(t, env, f.childID),
 				"the deleted half comes back with the phase's current end")
+			f.assertRoster(t, f.start.AddDays(-7), f.end.AddDays(tc.endDays+1), "after the cancellation")
 		})
 	}
 }
@@ -613,6 +618,7 @@ func TestCareExitCancel_WaitsForAnOpenPhaseEdit(t *testing.T) {
 
 	require.NoError(t, editHeldOpen(t, env, ctx, movedSourcePhase(env, 0, 14), f.cancelFrom(t)))
 	assert.Equal(t, []bookingWindow{{f.start, f.end.AddDays(15)}}, childBookings(t, env, f.childID))
+	f.assertRoster(t, f.start, f.end.AddDays(15), "after the cancellation and the edit")
 }
 
 // A phase edit that starts while a cancellation is open waits for it and
@@ -631,6 +637,7 @@ func TestCareExitCancel_OpenCancellationMakesThePhaseEditWait(t *testing.T) {
 		return err
 	})
 	assert.Equal(t, []bookingWindow{{f.start, f.end.AddDays(15)}}, childBookings(t, env, f.childID))
+	f.assertRoster(t, f.start, f.end.AddDays(15), "after the cancellation and the edit")
 }
 
 func (f restoreFlow) cancelFrom(t *testing.T) func(context.Context) error {
