@@ -1790,7 +1790,8 @@ function SidebarContent({
   // Teil (#6566).
   const entryBadge = (entry: StaffNavEntry): SidebarRowBadge | null => {
     if (entry.kind === "page") {
-      return visibleItemsByHref.has(entry.href) ? rowBadge(entry.href) : null;
+      const item = visibleItemsByHref.get(entry.href);
+      return item && !item.locked ? rowBadge(entry.href) : null;
     }
     return entry.section === "enrollments" && showEnrollments
       ? {

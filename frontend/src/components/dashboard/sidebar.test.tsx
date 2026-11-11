@@ -2653,6 +2653,32 @@ describe("Sidebar", () => {
       expect(link).toHaveAttribute("href", "/time-tracking");
     });
 
+    it("zählt gesperrte Elternnachrichten nicht an der Gruppe", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseBookedModules.mockReturnValue(bookedWithout("eltern_app"));
+      vi.mocked(useMessagesUnread).mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      // Anker: die gesperrte Nachrichten-Zeile der Eltern-App ist sichtbar.
+      const messages = screen.getByRole("link", {
+        name: "Nachrichten , nicht gebucht",
+      });
+      expect(
+        within(messages).queryByLabelText("2 ungelesene Nachrichten"),
+      ).not.toBeInTheDocument();
+
+      const parents = screen.getByRole("button", { name: /^Eltern/ });
+      expect(
+        within(parents).queryByLabelText("2 ungelesene Nachrichten"),
+      ).not.toBeInTheDocument();
+    });
+
     it("zeigt der Leitung gesperrte Datenverwaltung ohne Routenrecht", () => {
       mockIsAdmin.mockReturnValue(false);
       mockHasEffectiveAdminScope.mockReturnValue(false);
