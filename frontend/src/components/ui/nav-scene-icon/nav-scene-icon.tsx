@@ -3,7 +3,7 @@
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_DUOTONE_TONES } from "~/lib/kit-palette";
+import { MOTO_DUOTONE_PALETTE } from "~/lib/kit-palette";
 import type { MotoDuotoneTone } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 import { NAV_SCENES } from "./nav-scenes";
@@ -135,7 +135,9 @@ export function NavSceneIcon({
       height={size}
       className={cn("ns-icon shrink-0", className)}
       style={
-        active && tone ? { color: MOTO_DUOTONE_TONES[tone].primary } : undefined
+        active && tone
+          ? { color: MOTO_DUOTONE_PALETTE[tone].primary }
+          : undefined
       }
       data-nav-scene={icon.displayName}
       // Dasselbe Merkmal wie MotoDuotoneIcon: aktiv trägt das Icon den Ton

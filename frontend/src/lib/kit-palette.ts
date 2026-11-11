@@ -179,7 +179,7 @@ export type MotoDuotoneTone =
   | "stone";
 
 /** Primary and secondary layer of a duotone icon. */
-export const MOTO_DUOTONE_TONES: Record<
+export const MOTO_DUOTONE_PALETTE: Record<
   MotoDuotoneTone,
   { primary: string; secondary: string }
 > = {
