@@ -7,8 +7,21 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The installed erasure of 1.15.927, extended only by the proposal deletion
-// that cascades to commands and their authorization history (ADR 0196).
+// The installed erasure of 1.15.927, extended by proposal/history deletion
+// and evidence that a bundled closure mail was intentionally erased (ADR 0196).
+const holidayClosureDemoSendErasureSQL = `					-- Preserve evidence for the retained registrations in a bundled
+					-- mail, but stop polling or retrying content intentionally erased.
+					UPDATE enrollment.holiday_closure_sends AS send SET mail_erased = true
+					FROM platform.email_outbox AS outbox
+					WHERE outbox.tenant_id IS NULL AND outbox.kind = 'holiday_closure_notice'
+					 AND outbox.related_entity_type = 'holiday_registration'
+					 AND send.organization_id = outbox.organization_id AND send.idempotency_key = outbox.idempotency_key
+					 AND EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
+					  WHERE child.home_school_id = ANY (hidden_schools) AND child.organization_id = outbox.organization_id
+					   AND (outbox.related_entity_id = child.holiday_registration_id
+					    OR outbox.payload->'registration_ids' @> to_jsonb(child.holiday_registration_id)));
+`
+
 const demoVisitorErasureHolidayClosuresSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
@@ -586,7 +599,7 @@ const demoVisitorErasureHolidayClosuresSQL = `
 					-- The receipt of the registration went to the guardian's
 					-- address with the children and their weeks (#4662); it is a
 					-- mail of the Träger, named by the registration alone.
-					DELETE FROM platform.email_outbox AS outbox
+` + holidayClosureDemoSendErasureSQL + `					DELETE FROM platform.email_outbox AS outbox
 					USING enrollment.holiday_registration_children AS child
 					WHERE child.home_school_id = ANY (hidden_schools)
 						AND outbox.organization_id = child.organization_id

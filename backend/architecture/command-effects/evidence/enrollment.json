@@ -1745,6 +1745,14 @@
       "target_owner": "audit-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "binding_digest": "92fb215b0605d83aa418d4b939087d68",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
       "binding_digest": "ebe83cae8b9d6a63c2cfead62b589ed5",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.UploadHolidayProof",

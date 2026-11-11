@@ -6120,6 +6120,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m holidayRegistrationMailErasure) EraseHolidayRegistrationMails(ctx context.Context, registrations []enrollment.HolidayRegistrationReference) (int, error) {\n\torganizations, ids := make([]int64, len(registrations)), make([]int64, len(registrations))\n\tfor i, registration := range registrations {\n\t\torganizations[i], ids[i] = registration.OrganizationID, registration.RegistrationID\n\t}\n\treturn m.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails(ctx, organizations, ids)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (e invalidSchoolIdentityError) Error() string {\n\treturn e.err.Error()\n}",
       "form": "forward-debt",
       "id": "roots/owners/invalidSchoolIdentityError.Error",

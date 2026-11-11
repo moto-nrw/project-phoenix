@@ -17,7 +17,6 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -122,7 +121,7 @@ func NewWorker(
 		OperatorInvitationCleanup:    identity,
 		OperatorRetention:            schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
 		AccountRetention:             identity,
-		HolidayRegistrationRetention: enrollmentCompose.NewHolidayRegistrationRetention(nil),
+		HolidayRegistrationRetention: NewHolidayRegistrationRetention(nil),
 		WorkSessionCleanup:           workforce.TimeTracking.Jobs,
 		BreakAutoEnder:               workforce.TimeTracking.Jobs,
 		AutoCheckouter:               workforce.TimeTracking.Jobs,

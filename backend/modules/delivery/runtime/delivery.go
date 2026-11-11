@@ -39,3 +39,9 @@ type TraegerMails interface {
 	TraegerEmailStatusesByKey(ctx context.Context, organizationID int64, idempotencyKeys []string) ([]deliveryContract.Status, error)
 	RetryFailedTraegerEmails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int64, error)
 }
+
+// HolidayRegistrationMailErasure deletes personal mail copies in the existing
+// administrative transaction, independently of transport status or age.
+type HolidayRegistrationMailErasure interface {
+	EraseHolidayRegistrationMails(ctx context.Context, organizationIDs, registrationIDs []int64) (int, error)
+}

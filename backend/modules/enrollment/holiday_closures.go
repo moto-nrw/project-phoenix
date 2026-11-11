@@ -302,6 +302,12 @@ type HolidayClosureNoticeRecord struct {
 	State          string
 }
 
+// HolidayClosureSendKeys keeps erased mail as evidence without polling or retrying it.
+type HolidayClosureSendKeys struct {
+	Keys   []string
+	Erased int
+}
+
 // HolidayClosureSendRecord is one registration a family's mail of an
 // operation names, under the mail's idempotency key.
 type HolidayClosureSendRecord struct {

@@ -14343,6 +14343,12 @@
           "nullable": false
         },
         {
+          "name": "mail_erased",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
           "name": "created_at",
           "type": "timestamp with time zone",
           "udt": "timestamptz",

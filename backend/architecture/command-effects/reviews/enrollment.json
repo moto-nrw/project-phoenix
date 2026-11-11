@@ -2360,6 +2360,17 @@
       "target_owner": "audit-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "reason": "Platform erasure command in the existing administrative retention transaction (ADR 0098; ADR 0067 addendum, conditions 1 to 3; ADR 0196 section 8): Enrollment returns exactly the registrations deleted in its statement; Delivery erases their mail copies with explicit organization/registration pairs and its own admin guard. No scope switch, independent commit, foreign read or coordinated lock order. Failure rolls back registrations, send evidence and outbox together; TestHolidayMailErasureFailureRollsBackRegistrationRetention verifies it.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
       "classification": "query",
       "effect": "query",

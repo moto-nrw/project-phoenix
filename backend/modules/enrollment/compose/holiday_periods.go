@@ -37,8 +37,8 @@ func NewHolidayWishes(health enrollment.HolidayHealthCipher) (enrollment.Holiday
 }
 
 // NewHolidayRegistrationRetention deletes ended holiday registrations hourly (#4661, #4667); nil today: Berlin day.
-func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.HolidayRegistrationRetention {
-	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), today)
+func NewHolidayRegistrationRetention(mail enrollment.HolidayRegistrationMailErasure, today func() calendar.Date) enrollment.HolidayRegistrationRetention {
+	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), mail, today)
 }
 
 // NewHolidayRegistrationReview builds the Träger-Büro's review (ADR 0114, #4722), places (#4699), allocation by criteria (#4700) and the reads for the files (#6691); nil mail moves nobody up and decides nothing; traeger names the Träger and the host schools in those mails (#6437); schoolCalendar (#4702) may be nil without rebooking.

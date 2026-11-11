@@ -417,6 +417,7 @@ CREATE TABLE enrollment.holiday_closure_sends (
 	family_key TEXT NOT NULL CHECK (family_key ~ '^[0-9a-f]{64}$'),
 	holiday_registration_id BIGINT NOT NULL,
 	idempotency_key TEXT NOT NULL,
+	mail_erased BOOLEAN NOT NULL DEFAULT false,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	PRIMARY KEY (organization_id, operation_id, family_key, holiday_registration_id),
 	CONSTRAINT fk_holiday_closure_sends_registration FOREIGN KEY (organization_id, holiday_registration_id)

@@ -8,10 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/pwa"
 )
 
-// The Delivery services the typed root binds. The root may not import
-// Delivery's application packages, so the composition names the e-mail
-// outbox, the notification services and the live-event publisher for it
-// (ADR 0053 point 2).
+// Delivery's services and DTOs for the typed root (ADR 0053 point 2).
+// The root may not import Delivery's application packages.
 
 type (
 	EmailOutbox                   = emailoutbox.Service

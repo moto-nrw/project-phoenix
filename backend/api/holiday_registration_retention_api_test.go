@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -128,7 +128,7 @@ func TestHolidayRegistrationsGoAfterTheirRetentionAndInvoicesStay(t *testing.T) 
 		t.Helper()
 		unit := tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, f.db))
 		require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
-			_, err := enrollmentCompose.NewHolidayRegistrationRetention(func() calendar.Date { return today }).
+			_, err := owners.NewHolidayRegistrationRetention(func() calendar.Date { return today }).
 				DeleteExpiredHolidayRegistrations(adminCtx)
 			return err
 		}))

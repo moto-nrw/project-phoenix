@@ -112,7 +112,8 @@ func (s *Store) DeleteExpiredSystemEmails(ctx context.Context, before time.Time,
 		if deleteErr != nil {
 			return deleteErr
 		}
-		// Failed and unknown closure mail remains recoverable. Accepted mail
+		// Failed and unknown closure mail remains recoverable until its
+		// registrations expire; their retention erases all mail copies. Accepted mail
 		// keeps its key and outcome so a delayed reconciliation never retries it;
 		// only registration links remain for the existing erasure contract.
 		cleared, clearErr := affected("clear accepted holiday closure mail")(db.ExecContext(txCtx, `WITH expired AS MATERIALIZED (

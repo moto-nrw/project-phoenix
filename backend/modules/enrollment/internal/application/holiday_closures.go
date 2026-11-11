@@ -33,7 +33,7 @@ type HolidayClosureStore interface {
 	// candidate first when it has none.
 	HolidayClosureFamilyKey(ctx context.Context, organizationID int64, candidate []byte) ([]byte, error)
 	RecordHolidayClosureSends(ctx context.Context, organizationID int64, sends []enrollment.HolidayClosureSendRecord) error
-	HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationIDs []string) (map[string][]string, error)
+	HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationIDs []string) (map[string]enrollment.HolidayClosureSendKeys, error)
 }
 
 // errHolidayClosureMailRequired reports a notice without the outbox.
@@ -148,13 +148,14 @@ func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, org
 		return enrollment.HolidayClosureOperationResult{}, err
 	}
 	byOperation, err := h.store.HolidayClosureSendKeys(ctx, organizationID, []string{operation.OperationID})
-	keys := byOperation[operation.OperationID]
+	recorded := byOperation[operation.OperationID]
+	keys := recorded.Keys
 	if err != nil {
 		return enrollment.HolidayClosureOperationResult{}, err
 	}
 	// Recorded mails and day states committed together. Recovery only
 	// retries that content; it never reads or approves a newer calendar.
-	if len(keys) > 0 {
+	if len(keys) > 0 || recorded.Erased > 0 {
 		retried, err := h.mail.RetryFailedTraegerEmails(ctx, organizationID, keys)
 		return enrollment.HolidayClosureOperationResult{Mails: len(keys), Retried: retried}, err
 	}
@@ -162,18 +163,19 @@ func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, org
 	if err != nil {
 		return enrollment.HolidayClosureOperationResult{}, err
 	}
+	// The calendar revision was checked above. With no remaining changes,
+	// cancellation or erasure needs neither renewed approval nor a mail.
+	if len(plan.bookings) == 0 {
+		return enrollment.HolidayClosureOperationResult{}, nil
+	}
 	if operation.Token != "" && operation.Token != plan.token {
 		return enrollment.HolidayClosureOperationResult{}, enrollment.ErrHolidayClosureChanged
 	}
-	var result enrollment.HolidayClosureOperationResult
-	if len(plan.bookings) > 0 {
-		notice, err := h.notify(ctx, organizationID, operation.OperationID, plan.bookings)
-		if err != nil {
-			return enrollment.HolidayClosureOperationResult{}, err
-		}
-		result.Families, result.Mails = notice.Families, notice.Families
+	notice, err := h.notify(ctx, organizationID, operation.OperationID, plan.bookings)
+	if err != nil {
+		return enrollment.HolidayClosureOperationResult{}, err
 	}
-	return result, nil
+	return enrollment.HolidayClosureOperationResult{Families: notice.Families, Mails: notice.Families}, nil
 }
 
 // HolidayClosureOperationsDelivery reads all send keys and transport states
@@ -189,7 +191,7 @@ func (h *HolidayClosures) HolidayClosureOperationsDelivery(ctx context.Context, 
 	}
 	var keys []string
 	for _, operationKeys := range byOperation {
-		keys = append(keys, operationKeys...)
+		keys = append(keys, operationKeys.Keys...)
 	}
 	if len(keys) == 0 {
 		return result, nil
@@ -204,7 +206,7 @@ func (h *HolidayClosures) HolidayClosureOperationsDelivery(ctx context.Context, 
 	}
 	for operationID, operationKeys := range byOperation {
 		var delivery enrollment.HolidayClosureDelivery
-		for _, key := range operationKeys {
+		for _, key := range operationKeys.Keys {
 			switch outcome, found := outcomes[key]; {
 			case !found, outcome == enrollment.TraegerMailFailed:
 				delivery.Failed++
