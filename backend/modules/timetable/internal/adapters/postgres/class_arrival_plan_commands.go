@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type classArrivalPlanRow struct {
@@ -55,6 +56,9 @@ func (s *Store) LockClassArrivalPlan(ctx context.Context, class string) (domain.
 	}
 	// Keep the retained repository's key while both callers can update a class.
 	key := fmt.Sprintf("class-arrival:%d:%s", tenantID, class)
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "advisory:class-arrival"); err != nil {
+		return domain.OperationStats{}, err
+	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	_, err = db.NewRaw("SELECT pg_advisory_xact_lock(hashtext(?))", key).Exec(ctx)

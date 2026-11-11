@@ -42,7 +42,7 @@ func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students directory
 	module, err := New(Dependencies{
 		Provenance: testpkg.EnrollmentProvenance{},
 		DB:         db, Students: students, Rooms: testRooms(), Sessions: sessions,
-		LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe,
+		LockStaffAssignments: func(context.Context, []int64) error { return nil }, Observe: observe,
 	})
 	require.NoError(t, err)
 	return module

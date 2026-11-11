@@ -15,6 +15,11 @@ import { ChecksIcon } from "@phosphor-icons/react/ssr";
 import { Button } from "~/components/ui/button";
 import { formatChatTime } from "~/lib/date-helpers";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import {
+  MessageAttachments,
+  type MessageAttachmentLabels,
+} from "~/components/ui/message-attachments";
+import type { MessageAttachment } from "~/lib/message-attachments";
 
 /** One chat message bubble. */
 export function ChatBubble({
@@ -27,6 +32,9 @@ export function ChatBubble({
   deliveryStatusLabel,
   pending,
   pendingLabel,
+  attachments,
+  attachmentUrl,
+  attachmentLabels,
   showSenderName = true,
   showOwnSenderName = true,
   tone = "staff",
@@ -55,6 +63,14 @@ export function ChatBubble({
   pending?: "pending" | "failed";
   /** Text for `pending`; the staff chat has German defaults. */
   pendingLabel?: string;
+  /**
+   * Fotos und Dateien der Nachricht (#6685). Sie stehen über dem Text; eine
+   * Nachricht nur mit Anhängen hat keine Sprechblase.
+   */
+  attachments?: readonly MessageAttachment[];
+  /** Adresse, die einen Anhang speichert. Ohne sie bleiben Anhänge aus. */
+  attachmentUrl?: (attachmentId: string) => string;
+  attachmentLabels?: MessageAttachmentLabels;
   /** Whether to show the sender label above this bubble. */
   showSenderName?: boolean;
   // Whether to print the sender's name on the viewer's OWN bubbles. The parent
@@ -90,28 +106,44 @@ export function ChatBubble({
           {senderName}
         </p>
       ) : null}
-      {/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface, ui-kit/no-hand-rolled-notice -- Nachrichtensprechblase, keine Kartenfläche und kein Hinweis */}
-      <div
-        className={`relative max-w-[84%] rounded-xl px-3 py-2 break-words whitespace-pre-wrap sm:max-w-[72%] lg:max-w-[38rem] ${
-          pending === "pending" ? "opacity-70" : ""
-        } ${
-          parent
-            ? "text-[15px] leading-5 sm:text-base sm:leading-6"
-            : "text-sm leading-5"
-        } ${parent ? (own ? "rounded-br-md" : "rounded-bl-md") : ""} ${surface}`}
-      >
-        {parent ? (
-          <span
-            aria-hidden="true"
-            className={`absolute bottom-1 h-3 w-3 rotate-45 ${
-              own
-                ? "bg-moto-blue-soft -right-1"
-                : "-left-1 border-b border-l border-gray-200 bg-white"
-            }`}
+      {attachments?.length && attachmentUrl ? (
+        <div
+          className={`w-full max-w-[84%] sm:max-w-[72%] lg:max-w-[38rem] ${
+            pending === "pending" ? "opacity-70" : ""
+          } ${body ? "mb-1" : ""}`}
+        >
+          <MessageAttachments
+            attachments={attachments}
+            downloadUrl={attachmentUrl}
+            align={own ? "end" : "start"}
+            labels={attachmentLabels}
           />
-        ) : null}
-        <span className="relative">{body}</span>
-      </div>
+        </div>
+      ) : null}
+      {body ? (
+        /* oxlint-disable-next-line ui-kit/no-hand-rolled-surface, ui-kit/no-hand-rolled-notice -- Nachrichtensprechblase, keine Kartenfläche und kein Hinweis */
+        <div
+          className={`relative max-w-[84%] rounded-xl px-3 py-2 break-words whitespace-pre-wrap sm:max-w-[72%] lg:max-w-[38rem] ${
+            pending === "pending" ? "opacity-70" : ""
+          } ${
+            parent
+              ? "text-[15px] leading-5 sm:text-base sm:leading-6"
+              : "text-sm leading-5"
+          } ${parent ? (own ? "rounded-br-md" : "rounded-bl-md") : ""} ${surface}`}
+        >
+          {parent ? (
+            <span
+              aria-hidden="true"
+              className={`absolute bottom-1 h-3 w-3 rotate-45 ${
+                own
+                  ? "bg-moto-blue-soft -right-1"
+                  : "-left-1 border-b border-l border-gray-200 bg-white"
+              }`}
+            />
+          ) : null}
+          <span className="relative">{body}</span>
+        </div>
+      ) : null}
       {parent ? (
         <div className="mt-0.5 flex items-center gap-1 px-1 text-xs text-gray-500">
           {pendingText !== null ? (

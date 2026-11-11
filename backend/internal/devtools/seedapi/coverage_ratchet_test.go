@@ -125,6 +125,7 @@ var seedCoverageExemptions = map[string]string{
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
 	"users.class_list_entries":          "not in prod yet (migration newer than the deployed image)",
+	"users.message_attachment_cleanup":  "holds the file removal of a deleted message attachment (#6685); the seed deletes no message",
 	"users.parent_request_rss_feeds":    "user-created capability credential; seeding only its hash would create an unusable subscription",
 	"users.profiles":                    "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup": "empty in prod too",

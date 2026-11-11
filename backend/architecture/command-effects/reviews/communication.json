@@ -1152,6 +1152,39 @@
       "target_owner": "settings-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.messageAttachmentUnits.DiscardMessageAttachment",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments.Units.DiscardMessageAttachment",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinCurrentTenant (tenant-runtime) through api.messageAttachmentUnits.DiscardMessageAttachment, which removes the row of an upload whose bytes could not be written (#6685). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.messageAttachmentUnits.OpenMessageAttachment",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments.Units.OpenMessageAttachment",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinCurrentTenant (tenant-runtime) through api.messageAttachmentUnits.OpenMessageAttachment, which authorizes the reader of a file before the route streams it (#6685). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.messageAttachmentUnits.PrepareMessageAttachment",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments.Units.PrepareMessageAttachment",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinCurrentTenant (tenant-runtime) through api.messageAttachmentUnits.PrepareMessageAttachment, which commits the row of an upload before the route writes its bytes (#6685). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.classLetterCaller.MySchoolClasses",
       "classification": "query",
       "effect": "query",

@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.staff_batch.preview_update_110",
-  "max": 9,
+  "max": 8,
   "exact": true,
   "description": "Preview of the 110-row staff update of staff_batch.update_110. Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
 }

@@ -47,7 +47,7 @@ func CloseParentGroupThreadForTest(ctx context.Context, db transactionruntime.Da
 
 func parentGroupThreadsForTest(db transactionruntime.Database, staffAccountID int64) communication.ParentGroupThreadCapability {
 	messages := NewParentMessagingSuiteRepositories(db)
-	_, groups := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
+	_, groups, _ := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: messages.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db.Pool()),
 		ReadRepo: messages.ParentMessageRead, UserContext: owners.StaffStudentReads{}, Session: groupThreadTestSession(staffAccountID),
 		Settings: groupThreadTestSettings{}, DB: db.Pool(), Logger: slog.Default(),

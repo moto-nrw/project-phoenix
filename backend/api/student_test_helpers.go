@@ -271,7 +271,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(students.CarePlan),
 		Notifications:  owners.NewEnrollmentNotifications(repos.Enrollment(), settingsService, owners.OutboxEnqueuer{Outbox: emailOutboxService}, owners.EnrollmentSchoolDirectory{Schools: reposSchools.School}),
 		Bookings:       careBookings,
-		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian, GuardianHold: owners.NewEnrollmentGuardianHold(db, repos.StudentGuardian, repos.Student, repos.GuardianProfile, nil),
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, persons,
 		),
@@ -377,7 +377,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Persons: owners.NewEducationPersonQuery(persons), Teachers: owners.NewEducationCaregivers(repos.Teacher),
 		Staff: owners.NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
-		ActiveSupervisorCreator: activeService, SupervisionRelease: activeService,
+		ActiveSupervisorCreator: activeService, SupervisionRelease: activeService, StaffBalance: owners.MustNewWorkforce(db).LockStaffBalanceWrites,
 		Audit:   NewEducationSubstitutionAudit(studentAudits.SubstitutionChange),
 		Runtime: schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
 		Logger: logger.With("service", "substitution"),

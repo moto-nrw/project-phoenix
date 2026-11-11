@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  attachmentIdArgs,
+  PARENT_MESSAGE_ATTACHMENTS,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 
 import { messageKeys } from "~/lib/swr/portal-keys";
@@ -361,16 +366,26 @@ function MessageThreadContent() {
   }, [thread, sendError.error]);
 
   const attempt = useMessageSendAttempt(messageKeys.messageThread(threadId));
-  const handleSend = async () => {
+  // Die Dateien des letzten Versuchs: „Wiederholen“ sendet sie erneut.
+  const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  // Ob der letzte Versuch ankam: sonst behält das Eingabefeld die Dateien.
+  const sendArrived = useRef(true);
+  const handleSend = async (picked?: readonly MessageAttachment[]) => {
+    const attachments = picked ?? sentFiles.current;
     const body = draft.trim();
-    if (!body || isSending || !messagingEnabled) return;
+    if ((!body && attachments.length === 0) || isSending || !messagingEnabled)
+      return;
     if (snapshotUnavailable) {
       sendError.invalid(
         "Bitte warten Sie, bis der Nachrichtenverlauf geladen ist.",
       );
       return;
     }
-    const clientMessageId = attempt.begin(body);
+    sentFiles.current = attachments;
+    sendArrived.current = true;
+    const clientMessageId = attempt.begin(
+      [body, ...attachments.map((attachment) => attachment.id)].join("\u0000"),
+    );
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     send.dismiss();
@@ -405,11 +420,18 @@ function MessageThreadContent() {
             sender_name: "",
             body,
             created_at: "",
+            attachments,
           },
         ],
       }),
       request: () =>
-        postMessage(threadId, body, lastConfirmedId, clientMessageId),
+        postMessage(
+          threadId,
+          body,
+          lastConfirmedId,
+          clientMessageId,
+          ...attachmentIdArgs(attachments),
+        ),
       // The postMessage response carries the rebuilt "current → requested"
       // diff inline on every still-open request (like the GET path), so the
       // review card keeps its comparison before the revalidate lands.
@@ -426,7 +448,11 @@ function MessageThreadContent() {
           key.startsWith(messageKeys.messagesInboxFamily()),
       },
     });
-    if (outcome.status === "done") attempt.complete(clientMessageId);
+    sendArrived.current = outcome.status !== "failed";
+    if (outcome.status === "done") {
+      attempt.complete(clientMessageId);
+      sentFiles.current = [];
+    }
     if (
       outcome.status !== "failed" ||
       (!outcome.refused && !attempt.isActive(clientMessageId))
@@ -624,6 +650,8 @@ function MessageThreadContent() {
                         senderName={message.sender_name}
                         createdAt={message.created_at}
                         pending={send.stateOf(message.id)}
+                        attachments={message.attachments}
+                        attachmentUrl={PARENT_MESSAGE_ATTACHMENTS.downloadUrl}
                         readReceiptLabel={
                           message.sender_kind === "staff" &&
                           message.read_by_guardian
@@ -669,9 +697,15 @@ function MessageThreadContent() {
                   draftRevision.current += 1;
                   setDraft(value);
                 }}
-                onSend={() => void handleSend()}
+                onSend={async (files) => {
+                  await handleSend(files);
+                  return sendArrived.current;
+                }}
                 sending={isSending}
                 disabled={snapshotUnavailable}
+                attachments={{
+                  uploadUrl: PARENT_MESSAGE_ATTACHMENTS.uploadUrl,
+                }}
                 placeholder="Nachricht an die Eltern schreiben…"
               />
             ) : (

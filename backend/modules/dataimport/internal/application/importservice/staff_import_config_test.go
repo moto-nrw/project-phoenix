@@ -68,7 +68,10 @@ func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t
 	require.NoError(t, config.PreloadReferenceData(ctx))
 
 	assert.Equal(t, []string{"Betreuung", "koordination"}, config.roleDisplayNames)
-	assert.Equal(t, "OGS Phoenix", config.schoolName)
+	// The school's name is read with the first invitation (#6702), once.
+	assert.False(t, config.schoolNameRead, "the preload reads no school name")
+	assert.Equal(t, "OGS Phoenix", config.invitationSchoolName(ctx))
+	assert.True(t, config.schoolNameRead)
 }
 
 func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {

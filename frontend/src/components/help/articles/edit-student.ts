@@ -38,6 +38,20 @@ export function editStudentTopic(): HelpTopic {
         ],
       },
       {
+        // #6650: Widerruf über die Schule für Eltern ohne Elternportal.
+        // Der Haken bleibt auch bei ausgeschalteten Kinderfotos sichtbar,
+        // solange eine Einwilligung hinterlegt ist (student-photo-section.tsx).
+        title: "Foto-Einwilligung für Eltern widerrufen",
+        description:
+          "Für Eltern ohne Elternportal. Prüfen Sie vorher, ob die Person für das Kind sprechen darf.",
+        steps: [
+          "Öffnen Sie das Kind und wählen Sie `Stammdaten`.",
+          "Wählen Sie `Bearbeiten`.",
+          "Entfernen Sie beim Foto den Haken bei `Einwilligung der Eltern liegt vor`.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
         // Live geprueft: jede Tageskarte hat oben rechts den Knopf
         // `Ausnahme`. Ankunft und Abholung haben je drei Auswahlfelder.
         title: "Nur einen Tag ändern",
@@ -69,6 +83,7 @@ export function editStudentTopic(): HelpTopic {
       "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt ab sofort für diesen Wochentag in jeder Woche, auch vor dem gewählten Tag. Braucht ein früherer Tag die eingetragene Zeit noch, nennt moto den Tag, ab dem das Übernehmen geht.",
     ],
     notes: [
+      "Nach einem Widerruf löscht moto das Foto des Kindes. Nach dem letzten Betreuungstag löscht moto Foto und Foto-Einwilligung in der Nacht danach von selbst.",
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
       // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).

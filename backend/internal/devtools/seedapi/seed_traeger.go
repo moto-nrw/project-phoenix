@@ -203,7 +203,7 @@ func seedHolidayParticipantList(rt *Runtime) (int64, error) {
 // emergency contact and its pickup person. The sibling of the hosting school
 // stays in its own group. The step fails when no guest joins.
 func seedHolidayGuests(rt *Runtime, weekID int64) error {
-	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/groups", map[string]any{"name": "Feriengruppe", "teacher_ids": []int64{}})
+	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/groups", map[string]any{"name": seedHolidayGroupName, "teacher_ids": []int64{}})
 	if err != nil {
 		return fmt.Errorf("create the holiday group: %w", err)
 	}
@@ -211,6 +211,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 	if err != nil {
 		return fmt.Errorf("read the holiday group: %w", err)
 	}
+	rt.Values[seedHolidayGroupKey] = groupID
 	raw, err = rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-weeks/%d/guest-group", weekID),
 		map[string]any{"group_id": fmt.Sprint(groupID)})
 	if err != nil {

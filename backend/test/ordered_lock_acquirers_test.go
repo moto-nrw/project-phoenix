@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// The locks of the cross-owner lock order (#6232) are taken in one place
+// The locks of the cross-owner lock order (#6232, #6702) are taken in one place
 // each, and that place admits the lock through tenant.OrderLock before it
 // waits: Timetable's day locks and recurrence gate, the grade-transition gate
 // (taken by Timetable and by School Structure), Workforce's staff-shift gate
@@ -50,6 +50,31 @@ var orderedLockKeyBuilders = map[string]struct {
 	// passes findStaffRow, which admits the lock before it waits.
 	"store.FindStaff(": {
 		acquirers: []string{"modules/schoolmembership/internal/application/staff_row_lock.go"},
+	},
+	// Workforce's work-time gates (#6702): the balance gate is also taken by
+	// Student Presence before a supervision write and by the Settings
+	// Platform, which builds the key in its application and admits it in
+	// its runtime binding.
+	`"staff-balance:`: {
+		definition: "modules/settings/internal/application/composition_setting_transaction_present.go",
+		acquirers: []string{
+			"modules/workforce/internal/adapters/postgres/composition_lockstaffbalancegate.go",
+			"modules/studentpresence/internal/application/presence/presence_guards.go",
+			"test/tenant_runtime.go",
+		},
+	},
+	"app.LockSettingStaffBalance(": {
+		acquirers: []string{"modules/settings/compose/tenant_settings_runtime.go"},
+	},
+	`"staff-absence:`: {
+		acquirers: []string{"modules/workforce/internal/adapters/postgres/composition_lockstaffabsencegate.go"},
+	},
+	`"staff-qualifications:`: {
+		acquirers: []string{"modules/workforce/internal/adapters/postgres/composition_lockstaffqualificationsgate.go"},
+	},
+	// Timetable's spontaneous start gates (#6702).
+	`"timetable:spontaneous-`: {
+		acquirers: []string{"modules/timetable/internal/application/timetable_data_spontaneous.go"},
 	},
 	`"staff-shift:`: {
 		acquirers: []string{
@@ -114,7 +139,7 @@ func TestOrderedLocksHaveOneAcquirer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(source), "tenant.OrderLock(") {
+			if !strings.Contains(string(source), "tenant.OrderLock(") && !strings.Contains(string(source), "tenant.AdmitBefore(") {
 				t.Errorf("%s takes %s without tenant.OrderLock", acquirer, builder)
 			}
 		}

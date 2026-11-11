@@ -204,7 +204,7 @@ func (a *recordingGuardianAuthorizer) GuardianEmailHasStudentPermission(_ contex
 }
 
 // The renewal asks the held variants (#6638); the stub records them alike.
-func (a *recordingGuardianAuthorizer) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
+func (a *recordingGuardianAuthorizer) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
 	grants := map[int64]bool{}
 	for _, id := range studentIDs {
 		granted, err := a.AccountHasStudentPermission(ctx, accountID, id, tenantID, permission)
@@ -216,7 +216,7 @@ func (a *recordingGuardianAuthorizer) HoldAccountStudentsPermission(ctx context.
 	return grants, nil
 }
 
-func (a *recordingGuardianAuthorizer) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
+func (a *recordingGuardianAuthorizer) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
 	grants := map[int64]bool{}
 	for _, id := range studentIDs {
 		granted, err := a.GuardianEmailHasStudentPermission(ctx, email, id, tenantID, permission)
@@ -427,7 +427,6 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 	authorizer := &recordingGuardianAuthorizer{grantedEmail: "submitted@example.test"}
 	config := env.config
 	config.StudentRepo = repos.Student
-	config.GuardianAuthorizer = authorizer
 	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
@@ -492,7 +491,6 @@ func withLateInviteRenewalFixture(
 	authorizer := &recordingGuardianAuthorizer{grantedEmail: inviteEmail}
 	config := env.config
 	config.StudentRepo = repos.Student
-	config.GuardianAuthorizer = authorizer
 	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{

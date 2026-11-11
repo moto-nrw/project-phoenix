@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The holiday guests of the hosting school (#4666, ADR 0120): the school
@@ -16,8 +17,11 @@ import (
 // which copies the week's confirmed guests into it, and the staff read the
 // sheet of a guest (Betreuung, Notfall, Abholung) at
 // GET /api/holiday-guests/{studentId}. GET /api/holiday-guests lists the hint
-// „Gast aus …“ of the guests the school cares for today (#5630). The school
-// and the person come from the session.
+// „Gast aus …“ of the guests the school cares for today (#5630), and
+// GET /api/holiday-guests/groups the current and upcoming holiday groups
+// (#6680, ADR 0120). What a registration says about a child of the school itself
+// (#6678) stands at GET /api/holiday-weeks/students/{studentId}/registration.
+// The school and the person come from the session.
 
 // NewHolidayHostGuestResource adds to the participant routes the group
 // choice of a hosted week; requireAssign is the school permission that
@@ -54,6 +58,9 @@ func (rs *HolidayHostResource) assignGuestGroup(w http.ResponseWriter, r *http.R
 	}
 	transfer, err := rs.guests.AssignHolidayGuestGroup(r.Context(), host, weekID, request.GroupID)
 	if err != nil {
+		// The group and guest rows may already have been written. A 409
+		// must roll them back just like a server error.
+		tenant.MarkRollback(r.Context())
 		renderHolidayGuestError(w, r, err)
 		return
 	}
@@ -119,6 +126,41 @@ func (rs *HolidayGuestResource) listGroups(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	common.Respond(w, r, http.StatusOK, groups, "Holiday guest groups retrieved successfully")
+}
+
+// getStudentRegistration returns what the confirmed registrations say about
+// a child of the hosting school itself (#6678); the read is recorded.
+func (rs *HolidayHostResource) getStudentRegistration(w http.ResponseWriter, r *http.Request) {
+	host, ok := hostOf(w, r)
+	if !ok {
+		return
+	}
+	studentID, err := common.ParseIDParam(r, "studentId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	entries, err := rs.guests.HolidayStudentRegistrations(r.Context(), host, studentID)
+	if err != nil {
+		renderHolidayGuestError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, entries, "Holiday registration of the student retrieved successfully")
+}
+
+// listOwnChildAssignments says for each child of the school itself in a
+// hosted week which student its registration was assigned to (#6678).
+func (rs *HolidayHostResource) listOwnChildAssignments(w http.ResponseWriter, r *http.Request) {
+	host, weekID, ok := hostedWeekKey(w, r)
+	if !ok {
+		return
+	}
+	assignments, err := rs.guests.HolidayOwnChildAssignments(r.Context(), host, weekID)
+	if err != nil {
+		renderHolidayGuestError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, assignments, "Own children of the holiday week retrieved successfully")
 }
 
 func (rs *HolidayGuestResource) getSheet(w http.ResponseWriter, r *http.Request) {

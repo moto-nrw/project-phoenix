@@ -10,6 +10,7 @@
  * compile until both are updated.
  */
 
+import type { MessageAttachment } from "~/lib/message-attachments";
 import { formatDate } from "~/lib/date-helpers";
 
 /** Who sent a message: the guardian, the OGS staff, or a system event. */
@@ -99,6 +100,8 @@ export interface ChatMessage {
   // side has read.
   readonly read_by_staff?: boolean;
   readonly read_by_guardian?: boolean;
+  /** Fotos und Dateien der Nachricht (#6685). */
+  readonly attachments?: readonly MessageAttachment[];
 }
 
 /**

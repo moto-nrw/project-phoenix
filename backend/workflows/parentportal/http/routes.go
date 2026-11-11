@@ -170,6 +170,10 @@ func (rs *Resource) mountCommunicationRoutes(r chi.Router, authRateLimiter func(
 	r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 	r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 	r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+	// Photos and files of the messages (#6685): upload before sending, read
+	// through a conversation of the guardian about this child.
+	r.Post("/me/messages/children/{studentId}/attachments", rs.uploadChildMessageAttachment)
+	r.Get("/me/messages/children/{studentId}/attachments/{attachmentId}/download", rs.downloadChildMessageAttachment)
 	// Group threads (#4784): what the OGS wrote to a group, class or AG of
 	// the guardian's children. Answers go to the child's conversation above.
 	r.Get("/me/messages/group-threads", rs.listGroupThreads)

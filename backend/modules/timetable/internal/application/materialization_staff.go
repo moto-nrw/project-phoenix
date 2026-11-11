@@ -2,9 +2,11 @@ package application
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -65,6 +67,80 @@ func (w *materializationWorld) templateStaff(tmpl *activityContract.Group, sched
 					staff = append(staff, supervisor.StaffID)
 				}
 			}
+		}
+	}
+	return staff
+}
+
+// lockMaterializationStaff takes the staff row of every supervisor the run
+// copies, ascending and before its first occurrence row (#6702). It plans
+// the candidates the run creates with the run's own rules (kept slot, not
+// yet existing) and their valid supervisors; the copy itself then only
+// re-reads held rows. Two runs, or a run and a writer that locks the same
+// people, never hold one person each while they wait for the other's.
+func (s *materializationService) lockMaterializationStaff(
+	ctx context.Context,
+	templates []*activityContract.Group,
+	schedules map[int64][]*activityContract.Schedule,
+	people map[int64]templateRoster,
+	world *materializationWorld,
+) error {
+	var staff []int64
+	planned := make(map[existingKey]struct{})
+	for _, tmpl := range templates {
+		staff = world.plannedSupervisorStaff(staff, planned, tmpl, schedules[tmpl.ID], people[tmpl.ID].supervisors)
+	}
+	if err := lockStaffRows(ctx, s.staffRepo, staff); err != nil {
+		return &ports.ScheduleError{Op: "materialize for tenant: lock supervisor staff", Err: err}
+	}
+	return nil
+}
+
+// plannedSupervisorStaff appends the supervisors of every occurrence of the
+// template the run creates: the same walk, slot rules and existing-slot
+// index as materializeTemplate, without writing. planned collects the slots
+// the walk already counted, as the run marks them in its index.
+func (w *materializationWorld) plannedSupervisorStaff(staff []int64, planned map[existingKey]struct{}, tmpl *activityContract.Group, schedules []*activityContract.Schedule, supervisors []*activityContract.SupervisorPlanned) []int64 {
+	for date := w.from; !date.After(w.to); date = date.AddDays(1) {
+		if isWeekend(date) && !w.weekendFollowsFriday {
+			continue
+		}
+		weekday := planWeekday(date, w.weekendFollowsFriday)
+		for _, sch := range schedules {
+			if sch.Weekday != weekday {
+				continue
+			}
+			if period, ok := w.plannedSlot(planned, tmpl, sch, date); ok {
+				staff = appendValidSupervisors(staff, supervisors, date, period.ID, weekday)
+			}
+		}
+	}
+	return staff
+}
+
+// plannedSlot reports whether the run creates the candidate: its slot is
+// kept, does not exist yet and was not counted before.
+func (w *materializationWorld) plannedSlot(planned map[existingKey]struct{}, tmpl *activityContract.Group, sch *activityContract.Schedule, date calendar.Date) (*schedule.CalendarPeriod, bool) {
+	exc := w.exceptionIdx[exceptionKey{tmpl.ID, date}]
+	effective, period, skip := candidateSlot(tmpl, sch, date, w.periods, w.days, exc, w.timeframeByID, slog.New(slog.DiscardHandler))
+	if skip != candidateKept {
+		return nil, false
+	}
+	key := existingKey{ActivityGroupID: tmpl.ID, Date: date, StartTime: FormatTimeOfDay(effective.StartTime)}
+	if _, exists := w.existingIdx[key]; exists {
+		return nil, false
+	}
+	if _, counted := planned[key]; counted {
+		return nil, false
+	}
+	planned[key] = struct{}{}
+	return period, true
+}
+
+func appendValidSupervisors(staff []int64, supervisors []*activityContract.SupervisorPlanned, date calendar.Date, periodID int64, weekday int) []int64 {
+	for _, supervisor := range supervisors {
+		if isSupervisorValidOn(supervisor, date, periodID, weekday) {
+			staff = append(staff, supervisor.StaffID)
 		}
 	}
 	return staff

@@ -199,6 +199,8 @@ func newParentResource(
 		PWAUsage:              devices.PWAUsage,
 		Reports:               newDeclarationReports(),
 		SupportedLocale:       bindParentLocale(notifications.Preferences),
+		// Fotos und Dateien in den Nachrichten der Eltern (#6685).
+		MessageAttachmentFiles: NewMessageAttachmentStorage(logger.With("handler", "parent-message-attachments")),
 	})
 }
 

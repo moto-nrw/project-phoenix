@@ -39,10 +39,10 @@ Im eingecheckten Stand geprüft:
 - Die Compose-Dateien für Produktion, Staging und Demo unter `environments/`
   mounten das Upload-Volume nur im Backend. `backend/Dockerfile` verwendet UID
   `1001`. Ein Frontend-Nutzer mit anderer UID muss die Dateien nicht öffnen.
-- Die dokumentierten Caddy-Beispiele in `environments/maintenance/README.md`
-  verwenden Reverse-Proxys. Ihr `file_server` bedient nur die Wartungsseite,
-  nicht das Upload-Volume. Die tatsächliche Server-Konfiguration ist damit
-  **nicht** nachgewiesen.
+- `deploy/caddy/Caddyfile` leitet App und API per Reverse-Proxy weiter. Seine
+  `file_server` bedienen nur PyrePortal aus `/var/www/pyreportal` und
+  `/var/www/pyreportal-staging`, nicht das Upload-Volume. Die tatsächliche
+  Server-Konfiguration ist damit **nicht** nachgewiesen.
 
 ## Produktiv durch einen Menschen nachzuweisen
 

@@ -412,7 +412,7 @@ describe("getParentHelpTopicForPath", () => {
     }
   });
 
-  it("documents all three ways to change child information", () => {
+  it("documents all four ways to change child information", () => {
     const article = getHelpTopics("detailed").find(
       (topic) => topic.id === HELP_TOPICS.editStudent,
     );
@@ -420,6 +420,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(article?.instructionGroups?.map((group) => group.title)).toEqual([
       "Persönliche Angaben ändern",
       "Regelmäßige Betreuungszeiten ändern",
+      "Foto-Einwilligung für Eltern widerrufen",
       "Nur einen Tag ändern",
     ]);
   });

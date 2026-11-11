@@ -12,6 +12,22 @@ describe("ListGroupHeader", () => {
     expect(screen.getByText("3 Einträge")).toBeInTheDocument();
   });
 
+  it("states one sentence for the whole group outside the heading", () => {
+    render(
+      <ListGroupHeader
+        title="Debitorennummer fehlt"
+        meta={2}
+        description="Tragen Sie die Nummer in der Anmeldung ein."
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Debitorennummer fehlt" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Tragen Sie die Nummer in der Anmeldung ein."),
+    ).toBeInTheDocument();
+  });
+
   it("keeps an addon outside the heading's name", () => {
     render(
       <ListGroupHeader title="Di 10.11." addon={<span>Schließtag</span>} />,

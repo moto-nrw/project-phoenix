@@ -1830,7 +1830,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
       "target_owner": "audit-platform"
@@ -1841,7 +1841,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
       "target_owner": "audit-platform"
@@ -1852,7 +1852,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
       "target_owner": "audit-platform"
@@ -1863,7 +1863,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -2207,6 +2207,37 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "reason": "Guarded leaf bulk command in the hosting school's tenant transaction (ADR 0067, ADR 0120 addendum #6678). Enrollment selects its obsolete exceptions and missing booked days; the root only translates values. Care Plan validates the complete batch before deleting or creating exceptions, retaining tenant scoping and single-write validation. Each exception table uses at most one DELETE and one INSERT, without independent commit or a cross-owner lock protocol.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ExceptionBatchCommands.ApplyExceptionBatch",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.HolidayOwnChildArrivals",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.HolidayOwnChildArrivals",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.HolidayOwnChildPickups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.HolidayOwnChildPickups",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
+      "target_owner": "care-plan"
     },
     {
       "adr": "0098",
@@ -6564,7 +6595,29 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Owner-provided locking read/gate, never labelled query: Identity \u0026 Access's membership lock: the live account FOR KEY SHARE, then its active school mapping FOR SHARE. The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/identityaccess/compose.NewSchoolMembershipLock.",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CompanionLocks.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCompanions.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: Identity \u0026 Access's membership lock: the live account FOR KEY SHARE, then its active school mapping FOR SHARE. The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/identityaccess/compose.NewSchoolMembershipLock. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewSchoolMembershipLock",
       "target_owner": "identity-access"
@@ -6574,7 +6627,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Read on the supplied interface: the account's guardian profile at the school in context, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByAccount.",
+      "reason": "Read on the supplied interface: the account's guardian profile at the school in context, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByAccount. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByAccount",
       "target_owner": "people-directory"
@@ -6584,7 +6637,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByID.",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByID",
       "target_owner": "people-directory"
@@ -6595,7 +6648,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory.GuardianProfileReads.LockGuardianProfile.",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory.GuardianProfileReads.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.LockGuardianProfile",
       "target_owner": "people-directory"
@@ -6606,7 +6659,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianRelationshipReads.GuardianRelationshipsForUpdate",
       "target_owner": "people-directory"
@@ -6617,7 +6670,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "People Directory's guardian hold (#6638): the one lock and check protocol of the parent guard, run in the submission's school transaction over the membership, child, profile and relationship locks reviewed for this binding; it locks in the order Konto, Schule, Kind, Profil, Beziehung and writes nothing. Target modules/peopledirectory/guardianhold.HoldMany; modules/peopledirectory/guardianhold/hold.go.",
+      "reason": "People Directory's guardian hold (#6638): the one lock and check protocol of the parent guard, run in the submission's school transaction over the membership, child, profile and relationship locks reviewed for this binding; it locks in the order Konto, Schule, Kind, Profil, Beziehung and writes nothing. Target modules/peopledirectory/guardianhold.HoldMany; modules/peopledirectory/guardianhold/hold.go. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold.HoldMany",
       "target_owner": "people-directory"
@@ -6627,7 +6680,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Read on the supplied interface: the account's guardian profile at the school in context, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByAccount.",
+      "reason": "Read on the supplied interface: the account's guardian profile at the school in context, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByAccount. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByAccount",
       "target_owner": "people-directory"
@@ -6637,7 +6690,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID.",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID",
       "target_owner": "people-directory"
@@ -6648,7 +6701,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile.",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile",
       "target_owner": "people-directory"
@@ -6659,7 +6712,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.GuardianRelationshipsForUpdate",
       "target_owner": "people-directory"
@@ -6670,7 +6723,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
-      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
       "target_owner": "people-directory"
@@ -6681,7 +6734,29 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Owner-provided locking read/gate, never labelled query: Identity \u0026 Access's membership lock: the live account FOR KEY SHARE, then its active school mapping FOR SHARE. The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/identityaccess/compose.NewSchoolMembershipLock.",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CompanionLocks.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCompanions.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: Identity \u0026 Access's membership lock: the live account FOR KEY SHARE, then its active school mapping FOR SHARE. The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/identityaccess/compose.NewSchoolMembershipLock. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewSchoolMembershipLock",
       "target_owner": "identity-access"
@@ -6691,7 +6766,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Read on the supplied interface: the guardian profile the late invite's address names, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByEmail.",
+      "reason": "Read on the supplied interface: the guardian profile the late invite's address names, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByEmail. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByEmail",
       "target_owner": "people-directory"
@@ -6701,7 +6776,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByID.",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByID",
       "target_owner": "people-directory"
@@ -6712,7 +6787,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory.GuardianProfileReads.LockGuardianProfile.",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory.GuardianProfileReads.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.LockGuardianProfile",
       "target_owner": "people-directory"
@@ -6723,7 +6798,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianRelationshipReads.GuardianRelationshipsForUpdate",
       "target_owner": "people-directory"
@@ -6734,7 +6809,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "People Directory's guardian hold (#6638): the one lock and check protocol of the parent guard, run in the submission's school transaction over the membership, child, profile and relationship locks reviewed for this binding; it locks in the order Konto, Schule, Kind, Profil, Beziehung and writes nothing. Target modules/peopledirectory/guardianhold.HoldMany; modules/peopledirectory/guardianhold/hold.go.",
+      "reason": "People Directory's guardian hold (#6638): the one lock and check protocol of the parent guard, run in the submission's school transaction over the membership, child, profile and relationship locks reviewed for this binding; it locks in the order Konto, Schule, Kind, Profil, Beziehung and writes nothing. Target modules/peopledirectory/guardianhold.HoldMany; modules/peopledirectory/guardianhold/hold.go. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold.HoldMany",
       "target_owner": "people-directory"
@@ -6744,7 +6819,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Read on the supplied interface: the guardian profile the late invite's address names, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByEmail.",
+      "reason": "Read on the supplied interface: the guardian profile the late invite's address names, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByEmail. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByEmail",
       "target_owner": "people-directory"
@@ -6754,7 +6829,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID.",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID",
       "target_owner": "people-directory"
@@ -6765,7 +6840,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile.",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile",
       "target_owner": "people-directory"
@@ -6776,7 +6851,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.GuardianRelationshipsForUpdate",
       "target_owner": "people-directory"
@@ -6787,7 +6862,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
-      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
       "target_owner": "people-directory"

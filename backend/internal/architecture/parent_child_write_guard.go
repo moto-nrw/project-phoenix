@@ -244,6 +244,8 @@ var portClasses = map[string]string{
 	"messaging.DeclarationReads":                                "read",
 	"messaging.PermissionValues":                                "read",
 	"messaging.AttachmentAudience":                              "read",
+	"messaging.MessageAttachments":                              "write",
+	"messaging.MessageAttachments.OpenGuardianAttachment":       "read",
 	"messaging.AttachmentFiles":                                 "read",
 	"messaging.CareRequestReads":                                "read",
 	"messaging.ChildResolver":                                   "read",
