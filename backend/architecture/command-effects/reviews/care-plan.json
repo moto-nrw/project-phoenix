@@ -18417,12 +18417,12 @@
     },
     {
       "adr": "0067",
-      "approval_adr": "0207",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careExitEnrollment.RestoreCareExitOfferingLinks",
       "classification": "workflow",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareExitEnrollment.RestoreCareExitOfferingLinks",
-      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. E2 named care confirm/cancel/due-effects protocol: class(shared), recurrence, sorted children, locked preview/removal ledger and conditional membership command; preserve current transaction and failures. Hand row 6 and ADR 0067 E2. Target workflows/careexit.Bookings.RestoreCareExitOfferingLinks; workflows/careexit/bookings.go:138.  The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0207.",
+      "reason": "Workflow-backed ADR 0071/PR #4753 finite E2 callback: careexit Roster or Bookings snapshot/restore only; hand row 6, not a general domain-to-workflow permission. E2 named care confirm/cancel/due-effects protocol: class(shared), recurrence, sorted children, locked preview/removal ledger and conditional membership command; preserve current transaction and failures. Hand row 6 and ADR 0067 E2. Target workflows/careexit.Bookings.RestoreCareExitOfferingLinks; workflows/careexit/bookings.go:138.  The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/workflows/careexit.Bookings.RestoreCareExitOfferingLinks",
       "target_owner": "care-exit"

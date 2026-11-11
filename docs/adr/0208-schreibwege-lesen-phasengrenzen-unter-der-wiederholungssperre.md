@@ -75,7 +75,7 @@ keine Migration.
 
 Diese Entscheidung gibt die neuen und geänderten Sperr-Effekte der
 Schreibwege auf `RecurrenceWriteLock.LockRecurrenceWrites` frei
-(`approval_adr` 0207 in `command-effects/reviews/enrollment.json`).
+(`approval_adr` 0208 in `command-effects/reviews/enrollment.json`).
 
 ## Folgen
 

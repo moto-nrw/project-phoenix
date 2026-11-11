@@ -92,7 +92,7 @@ Root-Adapter im Pass-through-Register und genau diese Compose-Zeilen frei:
   unterscheiden; sie folgt mit.
 - Hebt die Schule ein Betreuungsende nach einer Phasenänderung wieder auf,
   folgt die Wiederherstellung seit
-  [ADR 0207](0207-schreibwege-lesen-phasengrenzen-unter-der-wiederholungssperre.md)
+  [ADR 0208](0208-schreibwege-lesen-phasengrenzen-unter-der-wiederholungssperre.md)
   der aktuellen Phase.
   Betreuungsenden, die vor dem Nachtrag geplant wurden, tragen keine
   Phasengrenzen im Protokoll und stellen die damaligen Grenzen her.
@@ -100,7 +100,7 @@ Root-Adapter im Pass-through-Register und genau diese Compose-Zeilen frei:
   die beendeten Buchungen nicht.
 - Eine Einreichung oder ein Änderungsantrag, der die Phase vor der Änderung
   gelesen hat, liest sie seit
-  [ADR 0207](0207-schreibwege-lesen-phasengrenzen-unter-der-wiederholungssperre.md)
+  [ADR 0208](0208-schreibwege-lesen-phasengrenzen-unter-der-wiederholungssperre.md)
   unter der Sperre neu.
 - Abgelehnt: Die Grenzen beim Lesen aus der Phase ableiten. Das ändert das
   Zeitmodell aller Leser der Buchungen und unterscheidet keine Handänderung
