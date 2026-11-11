@@ -215,12 +215,12 @@ export interface OverflowMenuItem {
 }
 
 /** Non-interactive thin divider between item groups. */
-export interface OverflowMenuSeparator {
+interface OverflowMenuSeparator {
   readonly kind: "separator";
 }
 
 /** Non-interactive uppercase label grouping the entries below it. */
-export interface OverflowMenuHeader {
+interface OverflowMenuHeader {
   readonly kind: "header";
   readonly label: string;
 }
