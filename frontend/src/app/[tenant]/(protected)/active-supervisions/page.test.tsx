@@ -1271,7 +1271,9 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     vi.clearAllMocks();
     global.fetch = vi.fn();
 
-    // Override TenantPageSearchRow to render action buttons and interactive controls
+    // Override TenantPageSearchRow. The row never receives `actionButton`
+    // (TenantPage renders actions itself), so that read stays empty; the
+    // override only replaces the search row.
     const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
       mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
@@ -4601,7 +4603,9 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
     setViewportWidth(500);
 
-    // Override TenantPageSearchRow to render tabs with onTabChange
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
     const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
       mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
@@ -5171,7 +5175,9 @@ describe("ID-based selection coverage: localStorage room restore", () => {
     localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
 
-    // Override TenantPageSearchRow to render tabs
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
     const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
       mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
@@ -5707,7 +5713,9 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
     setViewportWidth(500);
 
-    // Override TenantPageSearchRow to render tabs
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
     const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
       mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,

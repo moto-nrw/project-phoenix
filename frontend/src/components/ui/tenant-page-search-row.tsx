@@ -22,6 +22,7 @@ import type {
   ActiveFilter,
   FilterConfig,
   FilterPanelAnchor,
+  FilterSection,
   OverflowMenuItem,
   PageHeaderBadge,
   PageHeaderFilterPanel,
@@ -42,7 +43,11 @@ export interface TenantPageSearchRowProps {
    * — feste Kennzahlen gehoeren in `stats`.
    */
   readonly badge?: PageHeaderBadge;
-  /** Siehe {@link PageHeaderFilterPanel}. Ohne Angabe stehen die Filter in der Zeile. */
+  /**
+   * Siehe {@link PageHeaderFilterPanel}: `filterPanel` allein für eine flache
+   * Filterfläche, `filterPanel={{ sections }}` mit Überschriften. Ohne Angabe
+   * stehen die Filter in der Zeile.
+   */
   readonly filterPanel?: PageHeaderFilterPanel;
   /**
    * Hauptaktion IN der Such- und Filterzeile statt in der Titelzeile. Nur fuer
@@ -70,6 +75,10 @@ export function TenantPageSearchRow({
   // Die Filterfläche ist eine Option für sich: Schaltfläche mit Zahl statt
   // Chips, Desktop-Anordnung erst ab `xl`.
   const usesFilterPanel = filterPanel !== undefined;
+  const filterSections =
+    filterPanel === undefined || filterPanel === true
+      ? undefined
+      : filterPanel.sections;
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false);
   const isDesktopFilterLayout = useViewportAtLeast(
@@ -147,7 +156,8 @@ export function TenantPageSearchRow({
           onClearAllFilters={onClearAllFilters}
           activeFilterCount={activeFilterCount}
           showChipsRow={showChipsRow}
-          filterPanel={filterPanel}
+          usesFilterPanel={usesFilterPanel}
+          filterSections={filterSections}
           hideClass={usesFilterPanel ? "xl:hidden" : "lg:hidden"}
           overflowMenu={overflowMenu}
         />
@@ -166,7 +176,8 @@ export function TenantPageSearchRow({
           primaryAction={primaryAction}
           activeFilterCount={activeFilterCount}
           showChipsRow={showChipsRow}
-          filterPanel={filterPanel}
+          usesFilterPanel={usesFilterPanel}
+          filterSections={filterSections}
           showClass={usesFilterPanel ? "hidden xl:block" : "hidden lg:block"}
         />
       </div>
@@ -248,7 +259,8 @@ interface MobileSearchSectionProps {
   /** Zahl auf der Filter-Schaltfläche; nur mit Filterfläche gesetzt. */
   readonly activeFilterCount?: number;
   readonly showChipsRow: boolean;
-  readonly filterPanel?: PageHeaderFilterPanel;
+  readonly usesFilterPanel: boolean;
+  readonly filterSections?: readonly FilterSection[];
   /** Tailwind class that hides this section at the desktop breakpoint. */
   readonly hideClass: "lg:hidden" | "xl:hidden";
   /**
@@ -269,7 +281,8 @@ function MobileSearchSection({
   onClearAllFilters,
   activeFilterCount,
   showChipsRow,
-  filterPanel,
+  usesFilterPanel,
+  filterSections,
   hideClass,
   overflowMenu,
 }: MobileSearchSectionProps) {
@@ -321,8 +334,8 @@ function MobileSearchSection({
           onReset={onClearAllFilters}
           anchorRect={filterPanelAnchor}
           anchorRef={filterButtonRef}
-          variant={filterPanel ? "quiet" : "default"}
-          sections={filterPanel?.sections}
+          variant={usesFilterPanel ? "quiet" : "default"}
+          sections={filterSections}
           testId="mobile-filter-panel"
         />
       )}
@@ -351,7 +364,8 @@ interface DesktopSearchSectionProps {
   readonly primaryAction?: React.ReactNode;
   readonly activeFilterCount?: number;
   readonly showChipsRow: boolean;
-  readonly filterPanel?: PageHeaderFilterPanel;
+  readonly usesFilterPanel: boolean;
+  readonly filterSections?: readonly FilterSection[];
   /** Tailwind class that shows this section at the desktop breakpoint. */
   readonly showClass: "hidden lg:block" | "hidden xl:block";
 }
@@ -368,7 +382,8 @@ function DesktopSearchSection({
   primaryAction,
   activeFilterCount,
   showChipsRow,
-  filterPanel,
+  usesFilterPanel,
+  filterSections,
   showClass,
 }: DesktopSearchSectionProps) {
   const {
@@ -380,7 +395,7 @@ function DesktopSearchSection({
   const hasOverflowMenu = overflowMenu !== undefined && overflowMenu.length > 0;
   const hasPrimaryAction = primaryAction != null;
   const hasBadge = badge !== undefined;
-  const showFilterPopover = filterPanel !== undefined;
+  const showFilterPopover = usesFilterPanel;
   const hasInlineFilters = hasFilters && !showFilterPopover;
 
   // With a primaryAction the header splits into two rows. On a page whose
@@ -423,7 +438,7 @@ function DesktopSearchSection({
           anchorRect={desktopFilterPanelAnchor}
           anchorRef={desktopFilterButtonRef}
           variant="quiet"
-          sections={filterPanel.sections}
+          sections={filterSections}
           testId="desktop-filter-panel"
         />
       </>

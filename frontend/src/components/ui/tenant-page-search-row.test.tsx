@@ -363,7 +363,7 @@ describe("TenantPageSearchRow", () => {
   describe("primaryAction + kebab row placement", () => {
     const quietWithFilters: TenantPageSearchRowProps = {
       ...baseProps,
-      filterPanel: {},
+      filterPanel: true,
       filters: [
         {
           id: "status",
@@ -443,7 +443,7 @@ describe("TenantPageSearchRow", () => {
     });
 
     it("suppresses chips with the filter panel", () => {
-      render(<TenantPageSearchRow {...filtersWithActive} filterPanel={{}} />);
+      render(<TenantPageSearchRow {...filtersWithActive} filterPanel />);
       // Anker: die Filter selbst sind geladen, nur die Chips fehlen.
       expect(screen.getByTestId("desktop-filter-button")).toBeInTheDocument();
       expect(screen.queryByTestId("active-filter-chips")).toBeNull();
@@ -472,7 +472,7 @@ describe("TenantPageSearchRow", () => {
     });
 
     it("uses the shared filter panel when set to popover", () => {
-      render(<TenantPageSearchRow {...propsWithFilters} filterPanel={{}} />);
+      render(<TenantPageSearchRow {...propsWithFilters} filterPanel />);
 
       expect(screen.queryByTestId("desktop-filters")).not.toBeInTheDocument();
 
@@ -484,7 +484,7 @@ describe("TenantPageSearchRow", () => {
     // The filter panel moves to its desktop layout at `xl` (1280 px).
     it("transfers an open mobile filter panel to the desktop popover on breakpoint resize", async () => {
       setViewportWidth(500);
-      render(<TenantPageSearchRow {...propsWithFilters} filterPanel={{}} />);
+      render(<TenantPageSearchRow {...propsWithFilters} filterPanel />);
 
       fireEvent.click(screen.getByTestId("mobile-filter-button"));
       expect(screen.getByTestId("mobile-filter-panel")).toBeInTheDocument();
@@ -518,7 +518,7 @@ describe("TenantPageSearchRow", () => {
 
     it("transfers an open desktop popover back to the mobile panel on breakpoint resize", async () => {
       setViewportWidth(1300);
-      render(<TenantPageSearchRow {...propsWithFilters} filterPanel={{}} />);
+      render(<TenantPageSearchRow {...propsWithFilters} filterPanel />);
       // Happy DOM startet einen `change`-Listener bei `matches === false`;
       // ein Resize auf der Desktop-Seite gleicht ihn an den echten Wert an,
       // damit das Verlassen der Grenze wie im Browser ein `change` meldet.

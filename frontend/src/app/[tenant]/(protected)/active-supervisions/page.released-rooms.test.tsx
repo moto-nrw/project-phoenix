@@ -499,7 +499,9 @@ describe("Action button click handlers", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
 
-    // Override TenantPageSearchRow to render action buttons as clickable elements
+    // Override TenantPageSearchRow. The row never receives `actionButton`
+    // (TenantPage renders actions itself), so that read stays empty; the
+    // override only replaces the search row.
     const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
       mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,
@@ -824,7 +826,9 @@ describe("open-room tab onTabChange callback", () => {
     // Simulate mobile viewport for tabs to appear
     setViewportWidth(500);
 
-    // Override TenantPageSearchRow to render tabs with onTabChange
+    // Override TenantPageSearchRow. The row never receives `tabs` or
+    // `actionButton` (TenantPage renders tabs and actions itself), so those
+    // reads stay empty; the override only replaces the search row.
     const mod = await import("~/components/ui/tenant-page-search-row");
     vi.mocked(
       mod.TenantPageSearchRow as React.FC<Record<string, unknown>>,

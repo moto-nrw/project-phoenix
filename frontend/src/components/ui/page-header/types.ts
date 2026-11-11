@@ -33,14 +33,16 @@ export interface PageHeaderSearch {
  * Desktop-Anordnung beginnt erst ab `xl` (1280 px). Ab etwa drei Filtern die
  * richtige Wahl — eine Zeile, die umbricht, ist keine Zeile mehr.
  */
-export interface PageHeaderFilterPanel {
-  /**
-   * Überschriften der Filterfläche. Jede Gruppe nimmt die Filter, deren `id`
-   * sie nennt; was keine Gruppe nimmt, steht unter „Weitere“. Ohne Angabe eine
-   * flache Liste.
-   */
-  readonly sections?: readonly FilterSection[];
-}
+export type PageHeaderFilterPanel =
+  /** Filterfläche als flache Liste. */
+  | true
+  | {
+      /**
+       * Überschriften der Filterfläche. Jede Gruppe nimmt die Filter, deren
+       * `id` sie nennt; was keine Gruppe nimmt, steht unter „Weitere“.
+       */
+      readonly sections: readonly FilterSection[];
+    };
 
 /**
  * A titled group of filters for the quiet panel. `icon` is rendered in the
