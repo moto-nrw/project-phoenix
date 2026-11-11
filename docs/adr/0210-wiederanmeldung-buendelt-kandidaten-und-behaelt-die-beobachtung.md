@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: proposed
 ---
 
 # Wiederanmeldung bündelt Kandidaten und behält die Beobachtung
