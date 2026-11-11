@@ -124,7 +124,13 @@ jobs:
               - 'backend/**/testdata/**'
               # Shrink-only ratchet registers, read by ./test.
               - 'backend/test/*.json'
+              # Read by path from tests in ./test, ./cmd and identityaccess.
+              - 'backend/architecture/composition.json'
+              - 'backend/auth/authorize/permissions/catalog.json'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
+              # Embedded into the backend build (go:embed).
+              - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
               - 'scripts/backend-architecture.sh'
@@ -138,6 +144,9 @@ jobs:
               - 'backend/internal/architecture/**'
               - 'backend/tools/go.mod'
               - 'backend/tools/go.sum'
+              # Embedded into the backend build (go:embed).
+              - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               # Notes such as backend/architecture/WORKPLAN.md feed no check.
               # Without a Go change they would select a full ./... lint.
               - '!backend/**/*.md'
@@ -169,6 +178,8 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
+              - 'backend/modules/organizationtenancy/return_register.json'
+              - 'backend/modules/organizationtenancy/data_lifecycle_catalog.json'
               - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
             seed-smoke-infra:
