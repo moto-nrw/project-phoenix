@@ -14,8 +14,9 @@ func init() {
 		Version:     dataReturnErasureOrderLockVersion,
 		Description: "Datenrückgabe: Freigabe eines Trägerpakets und Start der Trägerlöschung sperren sich gegenseitig (#6665, ADR 0203)",
 		DependsOn: []string{
-			dataReturnGrantsVersion,       // data_return_issue and data_return_open_for; the newest on development (1.15.917)
-			traegerRecordsHandoverVersion, // begin_organization_erasure as it stands
+			dataReturnGrantsVersion,                     // data_return_issue and data_return_open_for
+			traegerRecordsHandoverVersion,               // begin_organization_erasure as it stands
+			parentBillingDiscardEmptyHolidayRunsVersion, // the newest on development (1.15.918)
 		},
 	})
 	Migrations.MustRegister(dataReturnErasureOrderLockUp, dataReturnErasureOrderLockDown)
