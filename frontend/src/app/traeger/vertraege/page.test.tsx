@@ -99,6 +99,7 @@ const CANDIDATE: ContractCandidate = {
   templateIssue: null,
   modulesText: "Kurzbetreuung und Ganztag",
   acceptanceIssue: null,
+  renewal: false,
   mailBlock: null,
 };
 
@@ -296,6 +297,13 @@ describe("TraegerVertraegePage", () => {
         childFirstName: "Eva",
         guardianEmail: "  ",
       },
+      {
+        ...CANDIDATE,
+        requestChildId: "47",
+        childFirstName: "Jona",
+        acceptanceIssue: "acceptance_missing",
+        renewal: true,
+      },
     ]);
     renderPage();
     await screen.findAllByText("Lina Muster");
@@ -304,6 +312,16 @@ describe("TraegerVertraegePage", () => {
     expect(screen.getByLabelText("Ben Kern auswählen")).toBeDisabled();
     expect(screen.getByLabelText("Ole Kern auswählen")).toBeDisabled();
     expect(screen.getByLabelText("Eva Kern auswählen")).toBeDisabled();
+    expect(screen.getByLabelText("Jona Kern auswählen")).toBeDisabled();
+    // A renewal names the missing acceptance of the new phase (#6456).
+    expect(
+      screen.getByText("Zustimmung zur neuen Phase fehlt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Die Eltern haben den Bedingungen für den neuen Zeitraum nicht zugestimmt, bevor die Schule angenommen hat\./,
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("E-Mail-Adresse der Eltern fehlt"),
     ).toBeInTheDocument();
@@ -335,7 +353,7 @@ describe("TraegerVertraegePage", () => {
       screen.getAllByText(
         /Zum Senden stellen Sie die Schule auf „Später verschicken“\./,
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     expect(
       screen.getByText(/sind hier keine Entwürfe nötig/),
     ).toBeInTheDocument();

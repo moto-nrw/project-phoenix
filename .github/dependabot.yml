@@ -94,5 +94,11 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Berlin"
+    # A Node major moves Devbox, CI and both frontend images together
+    # (TestToolchainPinsRatchet); Node 25 dropped Corepack (#6483, #6590).
+    ignore:
+      - dependency-name: "node"
+        update-types:
+          - "version-update:semver-major"
     commit-message:
       prefix: "chore(deps)"

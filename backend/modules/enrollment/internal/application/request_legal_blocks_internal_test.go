@@ -272,3 +272,25 @@ func TestLegalSnapshotChecksumsTheExactShownText(t *testing.T) {
 	assert.Equal(t, int64(81), entry.FormSchemaID, "the version in force")
 	assert.Equal(t, int64(80), entry.DisplayedFormSchemaID, "the version the form showed, kept apart (#4680)")
 }
+
+func TestAwaitsRenewalOnlyUntilSchoolDecision(t *testing.T) {
+	t.Parallel()
+	sourceID := int64(17)
+	for _, tc := range []struct {
+		name   string
+		status string
+		source *int64
+		want   bool
+	}{
+		{"opt in", enrollmentNative.ChildStatusPendingRenewal, &sourceID, true},
+		{"opt out", enrollmentNative.ChildStatusAutoRenewed, &sourceID, true},
+		{"submitted renewal", enrollmentNative.ChildStatusSubmitted, &sourceID, true},
+		{"new submission", enrollmentNative.ChildStatusSubmitted, nil, false},
+		{"approved renewal", enrollmentNative.ChildStatusApproved, &sourceID, false},
+		{"withdrawn renewal", enrollmentNative.ChildStatusWithdrawn, &sourceID, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, awaitsRenewal([]*enrollmentNative.RequestChild{{Status: tc.status, RolloverSourceChildID: tc.source}}))
+		})
+	}
+}

@@ -137,6 +137,12 @@ func (s *Intake) legalTexts(ctx context.Context) (enrollmentNative.LegalTexts, e
 	if err != nil {
 		return enrollmentNative.LegalTexts{}, err
 	}
+	return tenantLegalTexts(settings), nil
+}
+
+// tenantLegalTexts are the tenant-wide legal texts and the blocks they
+// produce.
+func tenantLegalTexts(settings LegalSettings) enrollmentNative.LegalTexts {
 	texts := enrollmentNative.LegalTexts{
 		AGB:                 strings.TrimSpace(settings.AGB),
 		AGBDocumentURL:      strings.TrimSpace(settings.AGBDocumentURL),
@@ -150,7 +156,7 @@ func (s *Intake) legalTexts(ctx context.Context) (enrollmentNative.LegalTexts, e
 		PhotoEnabled:        settings.PhotoEnabled,
 	}
 	texts.Blocks = buildLegalBlocks(texts)
-	return texts, nil
+	return texts
 }
 
 // LegalTextsForPhaseWithLateInvite returns the legal contract of a phase

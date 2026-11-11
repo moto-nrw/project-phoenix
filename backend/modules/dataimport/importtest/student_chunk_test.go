@@ -71,15 +71,26 @@ var studentOwnerTables = map[string]string{
 	"users.student_profiles":                    `SELECT x, p.first_name || ' ' || p.last_name FROM users.student_profiles x JOIN users.persons p ON p.id = x.person_id`,
 	"users.student_school_memberships":          `SELECT x, p.first_name || ' ' || p.last_name FROM users.student_school_memberships x JOIN users.student_profiles s ON s.id = x.student_profile_id JOIN users.persons p ON p.id = s.person_id`,
 	"users.student_care_profiles":               `SELECT x, p.first_name || ' ' || p.last_name FROM users.student_care_profiles x JOIN users.student_school_memberships m ON m.id = x.membership_id JOIN users.student_profiles s ON s.id = m.student_profile_id JOIN users.persons p ON p.id = s.person_id`,
-	"users.guardian_profiles":                   `SELECT x, x.email FROM users.guardian_profiles x`,
-	"users.guardian_phone_numbers":              `SELECT x, g.email FROM users.guardian_phone_numbers x JOIN users.guardian_profiles g ON g.id = x.guardian_profile_id`,
-	"users.student_guardian_relationships":      `SELECT x, p.first_name || ' ' || p.last_name || ' > ' || g.email FROM users.student_guardian_relationships x JOIN users.guardian_profiles g ON g.id = x.guardian_profile_id JOIN users.student_profiles s ON s.id = x.student_id JOIN users.persons p ON p.id = s.person_id`,
-	"users.student_guardian_pickup_permissions": `SELECT x, p.first_name || ' ' || p.last_name || ' > ' || g.email FROM users.student_guardian_pickup_permissions x JOIN users.student_guardian_relationships r ON r.id = x.relationship_id JOIN users.guardian_profiles g ON g.id = r.guardian_profile_id JOIN users.student_profiles s ON s.id = r.student_id JOIN users.persons p ON p.id = s.person_id`,
-	"auth.guardian_student_access":              `SELECT x, p.first_name || ' ' || p.last_name || ' > ' || g.email FROM auth.guardian_student_access x JOIN users.student_guardian_relationships r ON r.id = x.relationship_id JOIN users.guardian_profiles g ON g.id = r.guardian_profile_id JOIN users.student_profiles s ON s.id = r.student_id JOIN users.persons p ON p.id = s.person_id`,
+	"users.guardian_profiles":                   `SELECT x, ` + guardianLabel("x") + ` FROM users.guardian_profiles x`,
+	"users.guardian_phone_numbers":              `SELECT x, ` + guardianLabel("g") + ` FROM users.guardian_phone_numbers x JOIN users.guardian_profiles g ON g.id = x.guardian_profile_id`,
+	"users.student_guardian_relationships":      `SELECT x, p.first_name || ' ' || p.last_name || ' > ' || ` + guardianLabel("g") + ` FROM users.student_guardian_relationships x JOIN users.guardian_profiles g ON g.id = x.guardian_profile_id JOIN users.student_profiles s ON s.id = x.student_id JOIN users.persons p ON p.id = s.person_id`,
+	"users.student_guardian_pickup_permissions": `SELECT x, p.first_name || ' ' || p.last_name || ' > ' || ` + guardianLabel("g") + ` FROM users.student_guardian_pickup_permissions x JOIN users.student_guardian_relationships r ON r.id = x.relationship_id JOIN users.guardian_profiles g ON g.id = r.guardian_profile_id JOIN users.student_profiles s ON s.id = r.student_id JOIN users.persons p ON p.id = s.person_id`,
+	"auth.guardian_student_access":              `SELECT x, p.first_name || ' ' || p.last_name || ' > ' || ` + guardianLabel("g") + ` FROM auth.guardian_student_access x JOIN users.student_guardian_relationships r ON r.id = x.relationship_id JOIN users.guardian_profiles g ON g.id = r.guardian_profile_id JOIN users.student_profiles s ON s.id = r.student_id JOIN users.persons p ON p.id = s.person_id`,
 	"users.privacy_consents":                    `SELECT x, p.first_name || ' ' || p.last_name FROM users.privacy_consents x JOIN users.student_profiles s ON s.id = x.student_id JOIN users.persons p ON p.id = s.person_id`,
 	"schedule.student_pickup_schedules":         `SELECT x, p.first_name || ' ' || p.last_name FROM schedule.student_pickup_schedules x JOIN users.student_profiles s ON s.id = x.student_id JOIN users.persons p ON p.id = s.person_id`,
 	"schedule.student_arrival_schedules":        `SELECT x, p.first_name || ' ' || p.last_name FROM schedule.student_arrival_schedules x JOIN users.student_profiles s ON s.id = x.student_id JOIN users.persons p ON p.id = s.person_id`,
 	"audit.student_consent_changes":             `SELECT x, p.first_name || ' ' || p.last_name FROM audit.student_consent_changes x JOIN users.student_profiles s ON s.id = x.student_id JOIN users.persons p ON p.id = s.person_id`,
+}
+
+// guardianLabel names a guardian profile without its ID and NULL-safe (a
+// guardian without e-mail, #5552 step 5c): its name, its e-mail or "-", and
+// the children it is linked to, so a guardian written for the wrong child
+// shows.
+func guardianLabel(alias string) string {
+	return alias + `.first_name || ' ' || ` + alias + `.last_name || ' <' || COALESCE(lower(` + alias + `.email), '-') || '> [' || COALESCE((
+		SELECT string_agg(lp.first_name || ' ' || lp.last_name, ', ' ORDER BY lp.first_name, lp.last_name)
+		FROM users.student_guardian_relationships lr JOIN users.student_profiles ls ON ls.id = lr.student_id JOIN users.persons lp ON lp.id = ls.person_id
+		WHERE lr.guardian_profile_id = ` + alias + `.id), '') || ']'`
 }
 
 func studentOutcomeOf(t *testing.T, db *bun.DB, result *importModels.ImportResult[importModels.StudentImportRow]) studentOutcome {
@@ -102,6 +113,9 @@ func studentOutcomeOf(t *testing.T, db *bun.DB, result *importModels.ImportResul
 				FROM jsonb_each(to_jsonb(x))
 				WHERE key <> 'id' AND key NOT LIKE '%\_id' AND key NOT IN ('created_at', 'updated_at')
 			)::text FROM (`+query+` WHERE x.tenant_id = ?) AS t(x, owner) ORDER BY 1`, testpkg.Tenant(t)).Scan(context.Background(), &rows), table)
+		for _, row := range rows {
+			require.NotEmpty(t, row, "every %s row has a label", table)
+		}
 		outcome.Rows[table] = rows
 	}
 	sort.Strings(outcome.RowErrors)

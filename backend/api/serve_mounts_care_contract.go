@@ -188,7 +188,7 @@ func (a careContractApplications) AcceptedApplications(ctx context.Context, requ
 			ChildBirthDate: application.ChildBirthDate, GuardianFirstName: application.GuardianFirstName,
 			GuardianLastName: application.GuardianLastName, GuardianEmail: application.GuardianEmail,
 			GuardianAccountID: application.GuardianAccountID, PhaseName: application.PhaseName,
-			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn,
+			ServiceStartDate: application.ServiceStartDate, ActivateOn: application.ActivateOn, Renewal: application.Renewal,
 		}
 		if application.FamilyChildren != nil && application.FamilyChildrenStatedAt != nil {
 			result[i].FamilyChildren = &carecontract.FamilyStatement{Children: *application.FamilyChildren, StatedAt: *application.FamilyChildrenStatedAt}

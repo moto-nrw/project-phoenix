@@ -7979,6 +7979,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.CreateNewStudentGuardians",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.NewGuardianBatches.CreateNewStudentGuardians",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.Service.CreateNewStudentGuardians. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). The batch form of CreateGuardian, AddGuardianPhone and LinkGuardianToStudent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5c) joins the caller's unit and opens none.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.AddGuardianPhone",
@@ -17217,6 +17228,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.CreateGuardianPickupPermissions",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.GuardianLinkOwners.CreateGuardianPickupPermissions",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Batch form of CreateGuardianPickupPermission for new links of the data import (#5552, ADR 0067 addendum of 2026-11-08, point 3: LinkGuardiansToStudents with Care Plan CreateGuardianPickupPermissions); every row names the caller's school. Target modules/careplan.GuardianPickupPermissionBatches.CreateGuardianPickupPermissions; modules/careplan/guardian_pickup.go. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.GuardianPickupPermissionBatches.CreateGuardianPickupPermissions",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.GrantGuardianStudentAccess",
       "classification": "leaf",
       "effect": "mutation",
@@ -17224,6 +17246,17 @@
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/identityaccess.GuardianStudentAccess.GrantGuardianStudentAccess; modules/identityaccess/guardian_student_access.go:38. ",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianStudentAccess.GrantGuardianStudentAccess",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.GrantGuardianStudentAccesses",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.GuardianLinkOwners.GrantGuardianStudentAccesses",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Batch form of GrantGuardianStudentAccess for new links of the data import (#5552, ADR 0067 addendum of 2026-11-08, point 3: LinkGuardiansToStudents with Identity \u0026 Access GrantGuardianStudentAccesses); every row names the caller's school. Target modules/identityaccess.GuardianStudentAccessBatches.GrantGuardianStudentAccesses; modules/identityaccess/guardian_student_access.go. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianStudentAccessBatches.GrantGuardianStudentAccesses",
       "target_owner": "identity-access"
     },
     {

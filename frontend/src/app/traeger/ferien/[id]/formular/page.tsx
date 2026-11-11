@@ -89,7 +89,12 @@ export default function TraegerHolidayFormPage() {
         ) : null
       }
       statsLoading={!(period && form) && !loadError}
-      tabs={holidayPeriodTabs(id, "formular", period?.registrationCount)}
+      tabs={holidayPeriodTabs(
+        id,
+        "formular",
+        period?.registrationCount,
+        period?.allocationMode,
+      )}
       actions={
         billingHref ? (
           <ButtonLink href={billingHref} variant="outline" size="md">

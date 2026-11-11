@@ -50,6 +50,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		},
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:            parentMemberships(t, db),
 		GuardianChanges:        owners.ParentGuardianChanges(),
 		DeparturePolicy:        owners.ParentDeparturePolicy(),
 		GuardianPolicy:         owners.NewParentGuardianPolicy(),

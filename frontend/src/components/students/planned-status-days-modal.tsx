@@ -32,6 +32,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
@@ -87,6 +88,10 @@ interface PlannedStatusDaysModalProps {
     from: string,
     to: string,
   ) => Promise<StudentPartialAbsence[]>;
+  /**
+   * Saves the days and resolves once they are saved; the panel then closes
+   * itself through `onClose`, only while it is still the same session.
+   */
   readonly onSubmit: (
     dates: string[],
     reason?: string,
@@ -141,6 +146,10 @@ export function PlannedStatusDaysModal({
   const [selectionMode, setSelectionMode] =
     useState<SelectionMode>("individual");
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  // Eine Sitzung je Öffnen und Statusart. Bewusst `isOpen`: die
+  // Lösch-Bestätigungen blenden das Panel aus, ihr Entfernen gehört aber zu
+  // derselben Sitzung.
+  const save = useFormModalPending(isOpen, status);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   // Save error of the form (Bauart 2 Regel 5): shown in the body's error
@@ -690,6 +699,8 @@ export function PlannedStatusDaysModal({
     }
   };
 
+  // `isSubmitting` meldet ein Speichern des Aufrufers; die eigene Sperre
+  // des Panels (`save`) deckt nur Läufe ab, die hier starten.
   const handleClose = () => {
     if (!isSubmitting) {
       resetForm(false);
@@ -703,46 +714,57 @@ export function PlannedStatusDaysModal({
   // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109).
   const handleDeleteStatusDay = async (statusDayId: string) => {
     if (!onDeleteStatusDay) return;
-    statusDayDeleteErrors.clear();
-    try {
-      await onDeleteStatusDay(statusDayId);
-    } catch (error) {
-      // The dialog stays open and says why; no „Wiederholen“, removing runs
-      // only through the confirmation.
-      await statusDayDeleteErrors.show(error, {
-        object: "die geplante Abwesenheit",
-      });
-      return;
-    }
-    setStatusDayPendingDeletion(null);
-    setCheckedExistingDays((current) =>
-      current.filter((day) => day.id !== statusDayId),
-    );
+    await save.run(async (op) => {
+      statusDayDeleteErrors.clear();
+      try {
+        await onDeleteStatusDay(statusDayId);
+      } catch (error) {
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        // The dialog stays open and says why; no „Wiederholen“, removing runs
+        // only through the confirmation.
+        await statusDayDeleteErrors.show(error, {
+          object: "die geplante Abwesenheit",
+        });
+        return;
+      }
+      if (!op.isCurrent()) return;
+      setStatusDayPendingDeletion(null);
+      setCheckedExistingDays((current) =>
+        current.filter((day) => day.id !== statusDayId),
+      );
+    });
   };
 
   const handleDeletePartialAbsence = async () => {
     if (!onDeletePartialAbsence || !partialAbsencePendingDeletion) return;
     const partialAbsenceId = partialAbsencePendingDeletion.id;
-    clearPartialDeleteError();
-    try {
-      await onDeletePartialAbsence(partialAbsenceId);
-    } catch (error) {
-      // Kein „Wiederholen“: Entfernen läuft nur über die Rückfrage.
-      await partialDeleteErrors.show(error, {
-        object: "die Teilentschuldigung",
-      });
-      return;
-    }
-    setPartialAbsencePendingDeletion(null);
-    setCheckedPartialAbsences((current) =>
-      current.filter((absence) => absence.id !== partialAbsenceId),
-    );
-    if (editingPartialAbsenceId === partialAbsenceId) {
-      setSelectedDates([]);
-      setEditingPartialAbsenceId(null);
-      setFromTime("");
-      setReason("");
-    }
+    await save.run(async (op) => {
+      clearPartialDeleteError();
+      try {
+        await onDeletePartialAbsence(partialAbsenceId);
+      } catch (error) {
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        // Kein „Wiederholen“: Entfernen läuft nur über die Rückfrage.
+        await partialDeleteErrors.show(error, {
+          object: "die Teilentschuldigung",
+        });
+        return;
+      }
+      // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+      if (!op.isCurrent()) return;
+      setPartialAbsencePendingDeletion(null);
+      setCheckedPartialAbsences((current) =>
+        current.filter((absence) => absence.id !== partialAbsenceId),
+      );
+      if (editingPartialAbsenceId === partialAbsenceId) {
+        setSelectedDates([]);
+        setEditingPartialAbsenceId(null);
+        setFromTime("");
+        setReason("");
+      }
+    });
   };
 
   const handleSubmit = async () => {
@@ -767,23 +789,32 @@ export function PlannedStatusDaysModal({
       ) {
         return;
       }
-      try {
-        await onSubmitPartialAbsence(
-          editingPartialAbsenceId,
-          dateKeys[0]!,
-          fromTime,
-          trimmedReason || undefined,
-        );
-      } catch (error) {
-        // The caller logs the failure; the person reads it here, at the form.
-        await submitErrors.show(error, {
-          object: "die Entschuldigung",
-          retry: () => void latestSubmitRef.current(),
-        });
-        setConflictCheckRevision((current) => current + 1);
-        return;
-      }
-      resetForm(false);
+      const submitPartialAbsence = onSubmitPartialAbsence;
+      await save.run(async (op) => {
+        try {
+          await submitPartialAbsence(
+            editingPartialAbsenceId,
+            dateKeys[0]!,
+            fromTime,
+            trimmedReason || undefined,
+          );
+        } catch (error) {
+          // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+          if (!op.isCurrent()) return;
+          // The caller logs the failure; the person reads it here, at the form.
+          await submitErrors.show(error, {
+            object: "die Entschuldigung",
+            retry: () => void latestSubmitRef.current(),
+          });
+          setConflictCheckRevision((current) => current + 1);
+          return;
+        }
+        // Closing belongs to this session: a late answer must not close a
+        // panel opened in between (#6593).
+        if (!op.isCurrent()) return;
+        resetForm(false);
+        onClose();
+      });
       return;
     }
     // Pass the reason as a second arg only when present, so callers/tests
@@ -793,36 +824,42 @@ export function PlannedStatusDaysModal({
           .map((absence) => absence.date)
           .filter((date) => dateKeys.includes(date))
       : [];
-    try {
-      if (replaceDates.length > 0) {
-        await onSubmit(dateKeys, trimmedReason || undefined, {
-          replacePartialAbsenceDates: replaceDates,
-        });
-      } else if (trimmedReason) {
-        await onSubmit(dateKeys, trimmedReason);
-      } else {
-        await onSubmit(dateKeys);
+    await save.run(async (op) => {
+      try {
+        if (replaceDates.length > 0) {
+          await onSubmit(dateKeys, trimmedReason || undefined, {
+            replacePartialAbsenceDates: replaceDates,
+          });
+        } else if (trimmedReason) {
+          await onSubmit(dateKeys, trimmedReason);
+        } else {
+          await onSubmit(dateKeys);
+        }
+      } catch (err) {
+        // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+        if (!op.isCurrent()) return;
+        if (err instanceof StudentStatusDayConflictError) {
+          // Names the days from the structured conflict list of the answer.
+          submitErrors.invalid(getSaveConflictMessage(err.conflicts));
+        } else {
+          await submitErrors.show(err, {
+            object: isSick
+              ? "die Krankmeldung"
+              : isClassTrip
+                ? "die Klassenfahrt"
+                : "die Entschuldigung",
+            retry: () => void latestSubmitRef.current(),
+          });
+        }
+        // Keep every input intact and refresh conflicts in case the write lost
+        // a concurrent race.
+        setConflictCheckRevision((current) => current + 1);
+        return;
       }
-    } catch (err) {
-      if (err instanceof StudentStatusDayConflictError) {
-        // Names the days from the structured conflict list of the answer.
-        submitErrors.invalid(getSaveConflictMessage(err.conflicts));
-      } else {
-        await submitErrors.show(err, {
-          object: isSick
-            ? "die Krankmeldung"
-            : isClassTrip
-              ? "die Klassenfahrt"
-              : "die Entschuldigung",
-          retry: () => void latestSubmitRef.current(),
-        });
-      }
-      // Keep every input intact and refresh conflicts in case the write lost
-      // a concurrent race.
-      setConflictCheckRevision((current) => current + 1);
-      return;
-    }
-    resetForm(false);
+      if (!op.isCurrent()) return;
+      resetForm(false);
+      onClose();
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = handleSubmit;
@@ -884,6 +921,7 @@ export function PlannedStatusDaysModal({
         onOpenChange={(open) => {
           if (!open) handleClose();
         }}
+        pending={save}
       >
         <SlideOverContent size="md">
           <SlideOverHeader
@@ -1235,6 +1273,7 @@ export function PlannedStatusDaysModal({
                                 destructive: true,
                                 disabled:
                                   isSubmitting ||
+                                  save.pending ||
                                   deletingStatusDayId === day.id,
                                 // Entfernen läuft erst nach der Rückfrage
                                 // (Bauart 2 Regel 6, #3109).
@@ -1307,7 +1346,7 @@ export function PlannedStatusDaysModal({
                                           aria-hidden
                                         />
                                       ),
-                                      disabled: isSubmitting,
+                                      disabled: isSubmitting || save.pending,
                                       onClick: () =>
                                         handleEditPartialAbsence(absence),
                                     },
@@ -1327,7 +1366,7 @@ export function PlannedStatusDaysModal({
                                         />
                                       ),
                                       destructive: true,
-                                      disabled: isSubmitting,
+                                      disabled: isSubmitting || save.pending,
                                       onClick: () => {
                                         clearPartialDeleteError();
                                         setPartialAbsencePendingDeletion(
@@ -1392,6 +1431,7 @@ export function PlannedStatusDaysModal({
         }}
         loading={
           isSubmitting ||
+          save.pending ||
           (deletingStatusDayId !== null &&
             deletingStatusDayId === statusDayPendingDeletion?.id)
         }
@@ -1421,7 +1461,7 @@ export function PlannedStatusDaysModal({
           setPartialAbsencePendingDeletion(null);
           clearPartialDeleteError();
         }}
-        loading={isSubmitting}
+        loading={isSubmitting || save.pending}
         error={partialDeleteErrors.error}
         confirmLabel="Teilentschuldigung entfernen"
         loadingLabel="Wird entfernt…"

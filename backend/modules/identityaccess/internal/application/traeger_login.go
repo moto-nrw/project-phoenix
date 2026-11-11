@@ -211,13 +211,18 @@ func (s *AccountAuthentication) AssignTraegerRole(ctx context.Context, organizat
 		return identityaccess.ErrTraegerTransactionRequired
 	}
 	// The membership and this grant commit together; an account the erasure
-	// of unused accounts already anonymized gets no Träger access.
-	live, _, err := s.store.LockLiveTraegerAccount(ctx, accountID)
+	// of unused accounts already anonymized gets no Träger access, and a
+	// deactivated one is not reactivated by it (#6535). Both are read under
+	// the account lock, so an offboarding that committed first is seen.
+	live, active, _, err := s.store.LockLiveTraegerAccount(ctx, accountID)
 	if err != nil {
 		return err
 	}
 	if !live {
 		return identityaccess.ErrAccountNotFound
+	}
+	if !active {
+		return identityaccess.ErrAccountInactive
 	}
 	_, err = s.store.InsertTraegerRole(ctx, organizationID, accountID, role)
 	return err

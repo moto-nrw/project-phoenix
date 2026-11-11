@@ -82,6 +82,9 @@ const sourceTestExceptions = [
     'TestHermeticSetupScanIgnoresProseButRequiresRealSetup',
     'TestIgnoredCleanupDeletesFindsDiscardedDeletesInCleanupCode',
   ]),
+  ...fixtureExceptions('isolated_subtest_scanner_test.go', [
+    'TestIsolatedParallelSubtestScanner',
+  ]),
   ...fixtureExceptions('http_error_identity_ratchet_test.go', [
     'TestHTTPErrorTextComparisons',
   ]),
@@ -189,6 +192,8 @@ test('source ratchets follow filesystem inputs, not imports or test-name substri
 
 test('source ratchets include data, policy, manifests and configuration read outside Go imports', () => {
   const cases = [
+    ['backend/test/database_slots.go', 'TestIsolatedDatabaseSlotsBreakParallelSubtestSaturation'],
+    ['backend/test/database_scope.go', 'TestIsolatedDatabaseSlotsBoundWaitAndRelease'],
     ['backend/architecture/policy/new-owner.json', 'TestTransactionBoundaryRatchet'],
     ['backend/architecture/composition.json', 'TestCompositionInventory'],
     ['backend/architecture/passthrough/reviews/owner.json', 'TestMethodPassthroughRatchet'],

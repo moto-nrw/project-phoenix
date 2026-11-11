@@ -406,6 +406,60 @@ describe("FormModal", () => {
     expect(screen.getByText("Content")).toBeInTheDocument();
   });
 
+  // A link (ButtonLink) ignores the disabled fieldset; leaving the page
+  // mid-save would look like a cancel too (#6594, as SlideOver in #6593).
+  it("keeps a footer link from leaving while a save is pending", async () => {
+    const save = deferred();
+    const onNavigate = vi.fn();
+    function DialogWithLink() {
+      const pending = useFormModalPending(true);
+      return (
+        <FormModal
+          isOpen
+          onClose={vi.fn()}
+          title="Test"
+          pending={pending}
+          footer={
+            <>
+              <a href="#weiter" onClick={onNavigate}>
+                Weiter
+              </a>
+              <button
+                type="button"
+                onClick={() => void pending.run(() => save.promise)}
+              >
+                Speichern
+              </button>
+            </>
+          }
+        >
+          <p>Content</p>
+        </FormModal>
+      );
+    }
+    render(
+      <TestWrapper>
+        <DialogWithLink />
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    const notBlocked = fireEvent.click(
+      screen.getByRole("link", { name: "Weiter" }),
+    );
+
+    expect(notBlocked).toBe(false);
+    expect(onNavigate).not.toHaveBeenCalled();
+    await act(async () => {
+      save.resolve();
+    });
+    fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
   it("unlocks every path after a failed save and keeps the input", async () => {
     const onClose = vi.fn();
     const save = deferred();

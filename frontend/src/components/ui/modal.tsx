@@ -16,16 +16,9 @@ import {
 import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
+import { useBusyFocus } from "./hooks/useBusyFocus";
 
 const visibleModals: string[] = [];
-
-/** Disabled itself or inside a disabled fieldset (the busy footer). */
-function isDisabledControl(element: HTMLElement): boolean {
-  return (
-    element.matches(":disabled") ||
-    element.closest("fieldset:disabled") !== null
-  );
-}
 
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
@@ -206,37 +199,8 @@ export function Modal({
     };
   }, []);
 
-  // A busy dialog disables the control that started the operation (Speichern)
-  // and the footer around it; browsers then drop focus to the page. Keep it in
-  // the dialog while busy and hand it back once the control is usable again,
-  // unless the dialog moved it on meanwhile (first invalid field, #6533).
-  const busyFocusRef = React.useRef<HTMLElement | null>(null);
-  React.useLayoutEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-    if (busy) {
-      const active = document.activeElement;
-      if (
-        active instanceof HTMLElement &&
-        panel.contains(active) &&
-        isDisabledControl(active)
-      ) {
-        busyFocusRef.current = active;
-        panel.focus({ preventScroll: true });
-      }
-      return;
-    }
-    const previous = busyFocusRef.current;
-    busyFocusRef.current = null;
-    if (
-      previous &&
-      document.activeElement === panel &&
-      previous.isConnected &&
-      !isDisabledControl(previous)
-    ) {
-      previous.focus({ preventScroll: true });
-    }
-  }, [busy]);
+  // Keeps focus in the dialog while a busy footer is disabled (#6533).
+  useBusyFocus(panelRef, busy);
 
   // Handle modal context state for blur overlay
   useEffect(() => {
@@ -493,15 +457,24 @@ interface ConfirmationModalProps {
   readonly children: React.ReactNode;
   readonly confirmText?: string;
   readonly cancelText?: string;
+  /**
+   * True while the confirmed operation runs. It also locks every dismissal
+   * path (X, Escape, backdrop, Abbrechen) and marks the dialog `aria-busy`:
+   * closing would look like a cancel while the request still commits, and
+   * its answer would have no surface left (#6594).
+   */
   readonly isConfirmLoading?: boolean;
   readonly isConfirmDisabled?: boolean;
-  /**
-   * Lock every dismissal path (Escape, backdrop, X, Abbrechen) while the
-   * confirm operation runs — opt-in, off by default so a stalled request can
-   * still be cancelled. Use only when abandoning mid-flight would leave
-   * inconsistent state (e.g. a multi-request operation).
-   */
+  /** Lock every dismissal path regardless of `isConfirmLoading`. */
   readonly isDismissDisabled?: boolean;
+  /**
+   * Opt-out of the loading lock: the reason why leaving while the operation
+   * runs is harmless (it only reads, or abandoning it is intended). A late
+   * answer must then be bound to the dialog session (`useFormModalPending`'s
+   * `op.isCurrent()`). `ui-kit/confirmation-dismiss-lock` requires a written
+   * reason.
+   */
+  readonly dismissibleWhileLoading?: string;
   /** Forwarded to Modal — backdrop taps do not close the confirmation. */
   readonly isBackdropDismissDisabled?: boolean;
   /**
@@ -534,6 +507,7 @@ export function ConfirmationModal({
   isConfirmLoading = false,
   isConfirmDisabled = false,
   isDismissDisabled = false,
+  dismissibleWhileLoading,
   isBackdropDismissDisabled = false,
   confirmVariant = "primary",
   loadingText = "Wird geladen...",
@@ -541,6 +515,8 @@ export function ConfirmationModal({
   backdropLabel,
   mobileSheet = false,
 }: ConfirmationModalProps) {
+  const dismissLocked =
+    isDismissDisabled || (isConfirmLoading && !dismissibleWhileLoading);
   const modalFooter = (
     <>
       <Button
@@ -548,7 +524,7 @@ export function ConfirmationModal({
         variant="outline"
         size="md"
         onClick={onClose}
-        disabled={isDismissDisabled}
+        disabled={dismissLocked}
         className={`flex-1 whitespace-nowrap disabled:cursor-not-allowed ${
           mobileSheet ? "hidden sm:inline-flex" : ""
         }`}
@@ -582,7 +558,8 @@ export function ConfirmationModal({
       onClose={onClose}
       title={title}
       footer={modalFooter}
-      isDismissDisabled={isDismissDisabled}
+      isDismissDisabled={dismissLocked}
+      busy={isConfirmLoading}
       isBackdropDismissDisabled={isBackdropDismissDisabled}
       closeLabel={closeLabel}
       backdropLabel={backdropLabel}

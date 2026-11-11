@@ -303,6 +303,8 @@ func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizatio
 		return organizationtenancy.ErrInvalidTraegerRole
 	case errors.Is(err, identityaccess.ErrAccountNotFound):
 		return organizationtenancy.ErrTraegerAccountNotFound
+	case errors.Is(err, identityaccess.ErrAccountInactive):
+		return organizationtenancy.ErrTraegerAccountInactive
 	}
 	return err
 }

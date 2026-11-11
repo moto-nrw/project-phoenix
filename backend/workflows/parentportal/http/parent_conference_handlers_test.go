@@ -22,6 +22,17 @@ func (f *fakeParentService) ParentConferenceChild(_ context.Context, _, _ int64,
 	return f.conferenceChild, f.conferenceChildErr
 }
 
+// WithParentConferenceBooking resolves the child like ParentConferenceChild
+// with the booking permission and runs write in the test's context, as the
+// workflow runs it in the child's guarded school unit.
+func (f *fakeParentService) WithParentConferenceBooking(ctx context.Context, accountID, studentID int64, write func(context.Context, *parentService.Child) error) error {
+	child, err := f.ParentConferenceChild(ctx, accountID, studentID, true)
+	if err != nil {
+		return err
+	}
+	return write(ctx, child)
+}
+
 // fakeConferences records what the Elternsprechtag routes handed to the
 // calendar (#4801).
 type fakeConferences struct {

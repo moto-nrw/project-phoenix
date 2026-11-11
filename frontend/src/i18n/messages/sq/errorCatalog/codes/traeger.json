@@ -1,5 +1,6 @@
 {
   "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+  "account_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "bank_account_label_taken": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "bank_account_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

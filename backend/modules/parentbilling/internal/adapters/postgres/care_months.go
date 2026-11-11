@@ -197,6 +197,7 @@ type careInvoicePositionRow struct {
 	AmountCents           int64           `bun:"amount_cents"`
 	NetCents              int64           `bun:"net_cents"`
 	PayableCents          int64           `bun:"payable_cents"`
+	positionAccountsColumns
 }
 
 // CareTariffs reads every price of the Träger.
@@ -578,6 +579,7 @@ func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []pa
 				ModuleName: position.ModuleName, ContractVersionNumber: position.VersionNumber, ServiceFrom: position.ServiceFrom,
 				ServiceUntil: position.ServiceUntil, Weekdays: weekdays, AmountCents: position.AmountCents, NetCents: position.AmountCents, PayableCents: position.PayableCents,
 				DaysPerWeek: position.DaysPerWeek, TierMonthlyCents: position.TierMonthlyCents, MealExtra: position.MealExtra,
+				positionAccountsColumns: positionAccountsOf(position.Accounts),
 			})
 		}
 	}

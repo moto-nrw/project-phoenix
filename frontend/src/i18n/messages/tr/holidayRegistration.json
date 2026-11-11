@@ -104,6 +104,13 @@
   "placementHeading": "Yerler",
   "placementPlaced": "Yer ayrıldı",
   "placementWaitlisted": "Bekleme listesi",
+  "placementPending": "Yer açık",
+  "pendingNote": "Yerleri ofis dağıtır. Size bir e-posta gelecek.",
+  "criteriaTitle": "Yer dağıtımı için sorular",
+  "criteriaText": "Ofis yerleri belirli kurallara göre dağıtır. Cevaplarınız buna yardımcı olur. Ofis bir belge isteyebilir.",
+  "criteriaFamily": "Aileniz için",
+  "criteriaChild": "{name} için",
+  "criteriaChildNumber": "{number}. çocuk için",
   "waitlistNote": "Bazı haftalar dolu. Bu haftalarda çocuğunuz bekleme listesinde. Bir yer boşalırsa çocuğunuz onu otomatik olarak alır. O zaman size e-posta göndeririz.",
   "errors": {
     "phone": "Lütfen geçerli bir telefon numarası girin.",

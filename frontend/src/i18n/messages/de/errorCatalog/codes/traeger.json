@@ -1,5 +1,6 @@
 {
   "access_log_export_too_large": "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
+  "account_inactive": "Das Konto dieser Person ist ausgeschaltet. Deshalb können Sie die Person nicht dem Träger-Büro zuordnen.",
   "already_member": "Diese Person gehört schon zum Träger-Büro.",
   "bank_account_label_taken": "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
   "bank_account_not_found": "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
