@@ -175,6 +175,10 @@ export function LateInviteModal({
                   url={generatedUrl}
                   componentId={`LateInvite:${phase.id}:${generatedUrl}`}
                   label="Nachzügler-Link kopieren"
+                  qrCode={{
+                    title: "QR-Code für den Nachzügler-Link",
+                    fileName: "qr-code-nachzuegler-anmeldung",
+                  }}
                 />
               </div>
             }
@@ -419,6 +423,10 @@ export function ManualApprovedEnrollmentModal({
                     url={statusUrl}
                     componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
                     label="Statuslink kopieren"
+                    qrCode={{
+                      title: "QR-Code für den Statuslink",
+                      fileName: "qr-code-anmeldung-status",
+                    }}
                   />
                 </div>
               }

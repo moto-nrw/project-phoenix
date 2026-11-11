@@ -503,7 +503,7 @@ func seedHolidayRegistrationPrefill(ctx context.Context, rt *Runtime, token stri
 		return fmt.Errorf("the seeded parent has no child to prefill the holiday registration with")
 	}
 	fmt.Printf("  Ferienanmeldung: prefill offers %d known child(ren) of a parent account\n", len(envelope.Data.Children))
-	return nil
+	return seedHolidayRegistrationOffer(rt, auth, token)
 }
 
 // seedContributionRules keeps the contribution rules of the Abrechnung

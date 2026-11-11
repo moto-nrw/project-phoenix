@@ -252,13 +252,17 @@ func (r *exportRun) finish(complete func(organizationtenancy.TenantExportRecord)
 	return "complete_marker", privateExportFile(filepath.Join(r.options.Output, "COMPLETE"), []byte(checksum+"\n"))
 }
 
+// syncFile makes an artifact durable before the export records it: a
+// package is complete only once every file it names survives a crash.
+var syncFile = (*os.File).Sync
+
 func privateExportFile(path string, data []byte) error {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return errors.New("tenant export: cannot create artifact")
 	}
 	_, writeErr := f.Write(data)
-	syncErr := f.Sync()
+	syncErr := syncFile(f)
 	closeErr := f.Close()
 	if writeErr != nil || syncErr != nil || closeErr != nil {
 		return errors.New("tenant export: cannot persist artifact")

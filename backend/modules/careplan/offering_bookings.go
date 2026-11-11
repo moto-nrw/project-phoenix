@@ -65,6 +65,11 @@ type OfferingBookingCommands interface {
 type CareOfferingBookingRestore struct {
 	Booking    CareOfferingBooking
 	WasDeleted bool
+	// PhaseBounds is the move of the application's phase since the care end
+	// took the booking: the bounds the snapshot recorded and the bounds the
+	// phase bounds reader read now (#6657). Nil restores the snapshot's
+	// bounds as they are.
+	PhaseBounds *PhaseBoundsMove
 }
 
 // LockCareOfferingBookings requires the workflow's ambient transaction so the
@@ -103,7 +108,11 @@ func (m *OfferingBookings) RestoreCareOfferingBookings(ctx context.Context, rest
 		}
 	}
 	err = m.transactions.RunInTx(ctx, func(ctx context.Context) error {
-		restored, err = m.engine.RestoreCareOfferingBookings(ctx, restores)
+		followed, err := m.followPhaseOnRestore(ctx, restores)
+		if err != nil {
+			return err
+		}
+		restored, err = m.engine.RestoreCareOfferingBookings(ctx, followed)
 		return err
 	})
 	return restored, err

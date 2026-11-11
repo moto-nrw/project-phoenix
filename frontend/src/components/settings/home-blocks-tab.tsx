@@ -262,6 +262,7 @@ export function HomeBlocksTab() {
           size="md"
           disabled={busy || !dirty}
           onClick={() => void save()}
+          tooltip="Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden."
         >
           {busy ? "Wird gespeichert …" : "Speichern"}
         </Button>

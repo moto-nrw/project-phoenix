@@ -538,6 +538,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
+      "binding_digest": "50ebc2a194b1ae8cbdba9362ec2a0aac",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Approve",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
       "binding_digest": "26c1cc62566ca47a4efd6abcabdb8735",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Approve",
       "source_owner": "enrollment",
@@ -617,6 +625,14 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Propose",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Propose",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
       "binding_digest": "00d7859c9248db5c01d79a01e1e72470",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Reject",
@@ -690,6 +706,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
+      "binding_digest": "50ebc2a194b1ae8cbdba9362ec2a0aac",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Reject",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
       "binding_digest": "26c1cc62566ca47a4efd6abcabdb8735",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Reject",
       "source_owner": "enrollment",
@@ -746,7 +770,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -802,7 +826,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -858,7 +882,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -914,7 +938,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -970,7 +994,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -1994,7 +2018,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.CreateManualApprovedEnrollment",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -2065,6 +2089,14 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.ReplaceEditable",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.ReplaceEditable",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.Submit",
       "binding_digest": "4b96727a1aa402889e0419a628090ce2",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.Submit",
@@ -2111,6 +2143,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.Submit",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.Submit",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.Submit",
@@ -2258,7 +2298,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Phases.UpdatePhase",
-      "binding_digest": "eec0982861818647f14f1c2206dea2a7",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseAdministration.UpdatePhase",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -2546,7 +2586,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Rollovers.RunDeadlineWorker",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -2858,6 +2898,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
+      "binding_digest": "50ebc2a194b1ae8cbdba9362ec2a0aac",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Approve",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
       "binding_digest": "26c1cc62566ca47a4efd6abcabdb8735",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Approve",
       "source_owner": "enrollment",
@@ -2937,6 +2985,14 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Create",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Create",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
       "binding_digest": "00d7859c9248db5c01d79a01e1e72470",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
@@ -3010,6 +3066,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
+      "binding_digest": "50ebc2a194b1ae8cbdba9362ec2a0aac",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
       "binding_digest": "26c1cc62566ca47a4efd6abcabdb8735",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
       "source_owner": "enrollment",
@@ -3066,7 +3130,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.Decide",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.Decide",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -3122,7 +3186,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -3209,12 +3273,12 @@
       "target_owner": "student-presence"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "binding_digest": "529e813e6c8f8d91391fda5276145db7",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationBilling.AllocateHolidayPlaces",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "binding_digest": "2d1d75aca2e4ba054396bedd6dec2992",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationDecision.DecideHolidayAllocation",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayAllocationBilling.AllocateHolidayPlaces",
-      "target_owner": "parent-billing"
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "target_owner": "holiday-allocation"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
@@ -3322,7 +3386,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.CreateManualApprovedEnrollment",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -3393,6 +3457,14 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.ReplaceEditable",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.ReplaceEditable",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
       "binding_digest": "4b96727a1aa402889e0419a628090ce2",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.Submit",
@@ -3439,6 +3511,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.Submit",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
@@ -3538,7 +3618,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -3609,6 +3689,14 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.ReplaceEditable",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.ReplaceEditable",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.Submit",
       "binding_digest": "4b96727a1aa402889e0419a628090ce2",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.Submit",
@@ -3655,6 +3743,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.Submit",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.Submit",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.Submit",
@@ -3714,7 +3810,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.rolloverService.RunDeadlineWorker",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RolloverService.RunDeadlineWorker",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -3970,7 +4066,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -4874,7 +4970,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
@@ -4895,6 +4991,14 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.LockApprovalGates",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.LockApprovalGates",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
@@ -5378,7 +5482,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
-      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "binding_digest": "d677f9fa32514f3eadb04a07c3b9e956",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.Decide",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",

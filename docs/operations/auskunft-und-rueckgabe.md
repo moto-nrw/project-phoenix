@@ -65,9 +65,7 @@ als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
 tragen dort Link oder Code); der Inhalt einer Mail ist der verknüpfte
 Datensatz. Die anwaltliche Bestätigung, dass Register und Abrufweg Art. 26 und
 Art. 30 Abs. 2 Data Act genügen (Abschnitt 7), und die menschlichen Nachweise
-unten. Die Beschäftigtenauskunft
-nimmt weiter mehr Kontextzeilen auf als nötig; Pflicht-Redigierung und
-Zweitprüfung fangen das ab.
+unten.
 
 **Produktiv nachzuweisen:** benannte Zuständigkeit, Migration und wirksame
 Berechtigungen, vollständiger DB-/Upload-Bestand, Schreibpause, Probelauf,
@@ -419,6 +417,14 @@ Nur Schlüssel/Beziehungen bleiben im Arbeitsspeicher, Inhalte werden gestreamt.
    die Startpunkte. Davon abhängige Schulzeilen sind personenbezogene Treffer.
    Bei zusammengesetzten FKs ist `tenant_id` keine Personenkante. Die
    vorhandene Exportauswahl hat die Schulgrenze bereits angewandt.
+   Eine Zeile, die die Person nur bearbeitet hat (Spalten `…_by…` und
+   `actor_…`, etwa `created_by`, `reviewed_by`, `checked_in_by`), bleibt als
+   einzelne Zeile mit `handled-by-subject-not-about-subject` im Paket. Ihre
+   abhängigen Zeilen und die dort genannten Kinder folgen nicht: Eine von
+   einer Fachkraft angelegte AG bringt nicht die Anmeldungen der Kinder mit.
+   Eigene Äußerungen (Verfasser, Absender, Unterzeichner) bleiben Treffer,
+   ebenso selbst angelegte Elternbriefe, Gesprächsverläufe, Aushänge und
+   Umfragen. Die Ausnahmen stehen in `personActorColumn`.
 2. Benötigte Elternzeilen liefern Kontext, begründen aber **keinen** weiteren
    Personenexport. Gemeinsame Erziehungsberechtigte führen deshalb nicht zu
    Geschwisterakten. Ein Beschäftigtenkonto an zwei Schulen führt nicht zum
@@ -445,6 +451,7 @@ im gefilterten JSONL) mit `third-party-review`. Zusätzlich gelten:
 | Regel | Verbindliche Prüfung |
 |---|---|
 | `context-not-subject` | Gehört der Kontext zur Anfrage? Andere Erziehungsberechtigte, Geschwister, Beschäftigte und deren Kennungen entfernen oder begründet freigeben. |
+| `handled-by-subject-not-about-subject` | Die Person hat diese Zeile nur bearbeitet (angelegt, geprüft, erfasst); sie handelt von jemand anderem. Nur weitergeben, was die Bearbeitung durch die Person zeigt; Angaben zu Kindern, Erziehungsberechtigten und anderen Beschäftigten entfernen. |
 | `free-text-snapshots-and-embedded-persons` | Freitexte, Nachrichten, frühere/neue Werte, JSON und Formulare auf eingebettete Drittpersonen und Geheimnisse prüfen. Keine bloße Suche nach Spaltennamen. |
 | `audit-actors-and-historical-values` | Akteure und historische Werte prüfen; den erforderlichen Auskunftskontext nicht pauschal als „intern“ zurückhalten. |
 | `special-category-health-data` | Geöffnete Gesundheitsangaben (Art. 9 DSGVO): nur die der betroffenen Person und nur an den von der Schule bestätigten Empfänger. Zeilen von Geschwistern oder anderen Gästen entfernen. |

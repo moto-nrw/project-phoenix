@@ -91,7 +91,10 @@ import {
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import {
+  ENROLLMENT_QR_CODE,
+  PublicLinkCopyButton,
+} from "~/components/enrollment/public-link-copy-button";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { fetchSchoolClasses } from "~/lib/student-api";
@@ -924,6 +927,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               <PublicLinkCopyButton
                 url={phaseUrl}
                 componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
+                qrCode={ENROLLMENT_QR_CODE}
               />
             ) : null}
           </div>

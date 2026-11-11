@@ -83,7 +83,7 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if err != nil {
 		return 0, err
 	}
-	if f.Sync() != nil || f.Close() != nil {
+	if syncFile(f) != nil || f.Close() != nil {
 		return 0, errors.New("tenant export: cannot persist table artifact")
 	}
 	if err := r.recordArtifact(name); err != nil {

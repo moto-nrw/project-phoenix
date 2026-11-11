@@ -18,17 +18,23 @@ import (
 // Only sparse keys/edges stay in memory; row contents are streamed twice.
 type personKey struct{ table, column, value string }
 type personNode struct {
-	table    string
-	keys     []personKey
-	links    []personKey
-	own      []personKey
+	table string
+	keys  []personKey
+	links []personKey
+	own   []personKey
+	// handled holds the keys of people who only handled this row (created_by,
+	// reviewed_by): the row names them, it is not about them.
+	handled  []personKey
 	selected bool
 	related  bool
+	// actor marks a row selected only because the subject handled it.
+	actor bool
 }
 type personSelection struct {
 	rows              map[string][]*personNode
 	byKey             map[personKey][]*personNode
 	dependents        map[personKey][]*personNode
+	handled           map[personKey][]*personNode
 	unassignedObjects int64
 }
 
@@ -43,7 +49,7 @@ func parseExportPerson(value string) (string, string, error) {
 }
 
 func (r *exportRun) selectPerson(ctx context.Context) error {
-	p := &personSelection{rows: make(map[string][]*personNode), byKey: make(map[personKey][]*personNode), dependents: make(map[personKey][]*personNode)}
+	p := &personSelection{rows: make(map[string][]*personNode), byKey: make(map[personKey][]*personNode), dependents: make(map[personKey][]*personNode), handled: make(map[personKey][]*personNode)}
 	if err := p.index(ctx, r); err != nil {
 		return err
 	}
@@ -87,6 +93,9 @@ func (p *personSelection) index(ctx context.Context, r *exportRun) error {
 			for _, key := range node.links {
 				p.dependents[key] = append(p.dependents[key], node)
 			}
+			for _, key := range node.handled {
+				p.handled[key] = append(p.handled[key], node)
+			}
 			return nil
 		})
 		if err != nil {
@@ -123,6 +132,10 @@ func newPersonNode(table string, fields map[string]json.RawMessage, columns map[
 		}
 	}
 	for _, rel := range relations {
+		if personActorColumn(table, rel.Column) && personIdentity(rel.TargetTable) {
+			node.handled = appendPersonKey(node.handled, rel.TargetTable, rel.TargetColumn, fields[rel.Column])
+			continue
+		}
 		node.links = appendPersonKey(node.links, rel.TargetTable, rel.TargetColumn, fields[rel.Column])
 	}
 	node.links = append(node.links, personMetadataLinks(table, fields)...)
@@ -174,7 +187,23 @@ func (p *personSelection) choose(root *personNode) {
 			}
 		}
 	}
+	p.addHandled(queue)
 	p.addContext(queue)
+}
+
+// addHandled selects the rows the subject only handled, each as a single row:
+// a group somebody created or a check-in somebody recorded is about the
+// children in it. Its dependent rows and the people it names do not follow.
+func (p *personSelection) addHandled(subject []*personNode) {
+	for _, node := range subject {
+		for _, key := range node.keys {
+			for _, row := range p.handled[key] {
+				if !row.selected && !personIdentity(row.table) {
+					row.selected, row.actor = true, true
+				}
+			}
+		}
+	}
 }
 
 func (p *personSelection) addContext(queue []*personNode) {
@@ -184,7 +213,8 @@ func (p *personSelection) addContext(queue []*personNode) {
 		if !node.related && personIdentity(node.table) {
 			continue
 		}
-		for _, parent := range p.targets(node.links) {
+		// The people who handled a selected row stay its context, as before.
+		for _, parent := range append(p.targets(node.links), p.targets(node.handled)...) {
 			if !parent.selected {
 				parent.selected = true
 				queue = append(queue, parent)
@@ -290,7 +320,7 @@ func (r *exportRun) filterPersonTable(ctx context.Context, table string) (int64,
 	if err != nil {
 		return 0, err
 	}
-	if f.Sync() != nil || f.Close() != nil || os.Rename(path+".person", path) != nil {
+	if syncFile(f) != nil || f.Close() != nil || os.Rename(path+".person", path) != nil {
 		return 0, errors.New("tenant export: cannot persist person artifact")
 	}
 	if err := r.recordArtifact(name); err != nil {

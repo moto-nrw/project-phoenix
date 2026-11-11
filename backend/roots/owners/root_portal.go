@@ -100,7 +100,7 @@ func BuildParentPortal(
 		Memberships: NewParentSchoolMembershipLock(db), InvitationAccounts: NewParentInvitationAccountLock(db), GuardianInvites: NewParentGuardianAccess(identity), GuardianInvitations: NewGuardianInvitationReads(identity), InvalidateInvites: NewGuardianInvitationInvalidation(db),
 		StudentGuardianRepo: NewParentStudentGuardianReads(people.StudentGuardians), GuardianPhoneRepo: NewParentGuardianPhoneReads(peopleCompose.NewGuardianPhoneNumberRepository(db.Pool())),
 		StudentConsents: NewParentStudentConsents(services.StudentConsents), StudentPhotos: photos, ChildDataAccess: NewParentChildDataAccess(audit.Persistence.DataAccessLog),
-		HolidayWishes:   NewParentHolidayWishes(wishProofs),
+		HolidayWishes: NewParentHolidayWishes(wishProofs), HolidayAnnouncements: NewParentHolidayAnnouncements(),
 		AbsenceNotifier: bindParentAbsenceNotifier(notifications.AbsenceNotifier), CarePeriods: parentportal.NewCarePeriodReads(enrollment.ParentCarePeriods.CarePeriods),
 		OfferingHistory: parentportal.NewOfferingHistoryReads(enrollment.ParentOfferingHistory.OfferingHistory), CareOfferingRepo: NewParentCareOfferingReads(notices.CareOfferings),
 		OfferingChanges: NewParentOfferingChangeRequests(requests.OfferingChanges), Logger: env.Logger.With("service", "parent"), Now: env.Now,

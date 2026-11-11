@@ -361,10 +361,14 @@ func TestSeedTraegerHolidayPeriodStepReadsTheParentPrefill(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		children string
-		wantErr  bool
+		// offers is what the start page of the parents app answers (#6671).
+		offers  string
+		wantErr bool
 	}{
-		{name: "known child", children: `[{"student_id":"7"}]`},
-		{name: "no known child", children: `[]`, wantErr: true},
+		{name: "known child", children: `[{"student_id":"7"}]`, offers: `[{"token":"link-key","open":true,"children":[{"student_id":"7"}]}]`},
+		{name: "no known child", children: `[]`, offers: `[]`, wantErr: true},
+		{name: "period missing on the start page", children: `[{"student_id":"7"}]`, offers: `[{"token":"another-key","open":true,"children":[{"student_id":"7"}]}]`, wantErr: true},
+		{name: "period not open on the start page", children: `[{"student_id":"7"}]`, offers: `[{"token":"link-key","open":false,"children":[{"student_id":"7"}]}]`, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -390,6 +394,8 @@ func TestSeedTraegerHolidayPeriodStepReadsTheParentPrefill(t *testing.T) {
 				case "/parent/holiday-registrations/link-key/family":
 					prefill = r.Method + " " + r.Header.Get("Authorization")
 					_, _ = w.Write([]byte(`{"status":"success","data":{"guardian":{},"children":` + tc.children + `}}`))
+				case "/parent/me/holiday-registrations":
+					_, _ = w.Write([]byte(`{"status":"success","data":` + tc.offers + `}`))
 				case "/traeger/billing-runs/9", "/traeger/billing-runs/9/corrections":
 					_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"documents":[{"registration_id":9,"children":[{"child_id":91}]}]}}`))
 				default:
