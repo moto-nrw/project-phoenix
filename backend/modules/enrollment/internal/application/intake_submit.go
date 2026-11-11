@@ -227,29 +227,9 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 
 // writeSubmission is the write transaction of a submission.
 func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan, outcome *submitOutcome) error {
-	if err := s.lockSubmissionPhase(ctx, req, plan); err != nil {
-		return err
-	}
-	emailLC := guardianEmailKey(req.GuardianEmail)
-	lateInvite, err := s.submissionLateInvite(ctx, req, plan)
+	lateInvite, submitter, err := s.lockSubmission(ctx, req, plan)
 	if err != nil {
 		return err
-	}
-	// A late-invite holder may correct the contact address, but an
-	// accountless renewal stays authorized as the invited guardian (#1663,
-	// #2164).
-	reEnrollEmail := emailLC
-	if lateInvite != nil && req.GuardianAccountID == nil {
-		reEnrollEmail = lateInvite.GuardianEmail
-	}
-	submitter := reEnrollmentSubmitterFor(plan.submissionSource, req.GuardianAccountID, reEnrollEmail)
-	if err := s.holdRenewalCandidates(ctx, req.TenantID, plan.phase, req.Children, nil, func() (reEnrollmentSubmitter, error) { return submitter, nil }); err != nil {
-		return err
-	}
-	// Serialize concurrent submits of one (phase, guardian email), so two
-	// parallel requests cannot both pass the duplicate check.
-	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
-		return fmt.Errorf("submit: acquire dedup lock: %w", err)
 	}
 	if outcome.Warnings, err = s.checkSubmissionDuplicates(ctx, plan.phase.ID, req.GuardianEmail, plan.dupKeys, plan.duplicatePolicy, "submit"); err != nil {
 		return err
@@ -278,6 +258,39 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 		}
 	}
 	return s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0)
+}
+
+// lockSubmission takes the write's locks in the order every renewal and
+// staff decision of the phase follows: the phase bounds gate (#6657), the
+// late invite, the children a parent may renew behind the parent guard
+// (#6638), then the duplicate lock of (phase, guardian email). It returns the
+// late invite and the identity the renewal is authorized against.
+func (s *Intake) lockSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan) (*enrollmentNative.LateInvite, reEnrollmentSubmitter, error) {
+	if err := s.lockSubmissionPhase(ctx, req, plan); err != nil {
+		return nil, reEnrollmentSubmitter{}, err
+	}
+	emailLC := guardianEmailKey(req.GuardianEmail)
+	lateInvite, err := s.submissionLateInvite(ctx, req, plan)
+	if err != nil {
+		return nil, reEnrollmentSubmitter{}, err
+	}
+	// A late-invite holder may correct the contact address, but an
+	// accountless renewal stays authorized as the invited guardian (#1663,
+	// #2164).
+	reEnrollEmail := emailLC
+	if lateInvite != nil && req.GuardianAccountID == nil {
+		reEnrollEmail = lateInvite.GuardianEmail
+	}
+	submitter := reEnrollmentSubmitterFor(plan.submissionSource, req.GuardianAccountID, reEnrollEmail)
+	if err := s.holdRenewalCandidates(ctx, req.TenantID, plan.phase, req.Children, nil, func() (reEnrollmentSubmitter, error) { return submitter, nil }); err != nil {
+		return nil, reEnrollmentSubmitter{}, err
+	}
+	// Serialize concurrent submits of one (phase, guardian email), so two
+	// parallel requests cannot both pass the duplicate check.
+	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
+		return nil, reEnrollmentSubmitter{}, fmt.Errorf("submit: acquire dedup lock: %w", err)
+	}
+	return lateInvite, submitter, nil
 }
 
 // lockSubmissionPhase reads the phase again with the phase bounds reader,
