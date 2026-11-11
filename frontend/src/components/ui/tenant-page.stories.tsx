@@ -2,7 +2,12 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Plus } from "lucide-react";
 import { expect, screen, userEvent, within } from "storybook/test";
 
+import { STORY_NOT_BOOKED_SLOTS } from "~storybook/fixtures/not-booked-slots";
+import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
+import type { TenantInfo } from "~/lib/tenant-api";
+import { TenantProvider } from "~/lib/tenant-context";
 import { Button, ButtonLink } from "./button";
+import { NotBookedSlotProvider } from "./not-booked-slot";
 import { SectionCard } from "./section-card";
 import { TenantPage } from "./tenant-page";
 
@@ -67,4 +72,109 @@ export const InfoOpened: Story = {
       await screen.findByRole("dialog", { name: "Erklärung zu Kinder" }),
     ).toBeVisible();
   },
+};
+
+const pageContent = (
+  <SectionCard title="Liste">
+    <p className="text-sm text-gray-600">Inhalt der Seite</p>
+  </SectionCard>
+);
+
+/**
+ * Unterseite mit Rückweg über dem Titel. Im Tenant-Bereich führt der Link
+ * auf die Seite der Schule.
+ */
+export const WithBackLink: Story = {
+  args: {
+    title: "Raum 101",
+    back: true,
+    backHref: "/rooms",
+    backLabel: "Zurück zu den Räumen",
+    children: pageContent,
+  },
+};
+
+/** Ohne eigenes Ziel führt der Rückweg zur Datenverwaltung. */
+export const WithDefaultBackLink: Story = {
+  args: {
+    title: "Räume",
+    back: true,
+    children: pageContent,
+  },
+};
+
+const tenantWithoutDienstplan: TenantInfo = {
+  tenantId: 1,
+  slug: "storybook",
+  name: "Storybook Schule",
+  subdomain: "storybook",
+  organizationId: 1,
+  organizationName: "Storybook Org",
+  settings: {},
+  presenceMode: "detailed",
+  studentPhotosEnabled: true,
+  nfcEnabled: true,
+  bookedModules: ["nfc_anwesenheit"],
+  messagingEnabled: true,
+  staffMessagingEnabled: false,
+  displayEnabled: false,
+  gradeLevelMax: 4,
+};
+
+/**
+ * Seite eines Moduls, das die Schule nicht gebucht hat (#4894): unter dem
+ * Titel steht die Erklärung statt des Inhalts; Statuszeile und Aktionen
+ * entfallen.
+ */
+export const ModuleNotBookedPage: Story = {
+  args: {
+    title: "Dienstplan",
+    stats: "12 Dienste diese Woche",
+    actions: (
+      <Button type="button" size="md">
+        Dienst anlegen
+      </Button>
+    ),
+    children: pageContent,
+  },
+  parameters: {
+    nextjs: {
+      appDirectory: true,
+      navigation: { pathname: "/dienstplan", query: {} },
+    },
+  },
+  decorators: [
+    (Story) => (
+      <TenantProvider tenantSlug="storybook" tenant={tenantWithoutDienstplan}>
+        <NotBookedSlotProvider slots={STORY_NOT_BOOKED_SLOTS}>
+          <NotBookedPageProvider>
+            <Story />
+          </NotBookedPageProvider>
+        </NotBookedSlotProvider>
+      </TenantProvider>
+    ),
+  ],
+};
+
+/**
+ * Eine Anfrage der Seite wird mit `module.not_booked` abgelehnt: der Rumpf
+ * zeigt die Erklärung, der Kopf bleibt.
+ */
+export const ModuleNotBookedLoadError: Story = {
+  args: {
+    title: "Kinder",
+    stats: "116 Kinder · 107 zuhause · 9 krank",
+    error: {
+      message: "Das Modul ist nicht gebucht.",
+      notBookedModule: "zeiterfassung",
+    },
+    children: pageContent,
+  },
+  decorators: [
+    (Story) => (
+      <NotBookedSlotProvider slots={STORY_NOT_BOOKED_SLOTS}>
+        <Story />
+      </NotBookedSlotProvider>
+    ),
+  ],
 };
