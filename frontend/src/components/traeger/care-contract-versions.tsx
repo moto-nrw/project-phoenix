@@ -239,7 +239,9 @@ export function CareContractVersions({
             <ResponsiveActionRow
               key={version.number}
               align="start"
-              className="block gap-[normal] py-4"
+              layout="block"
+              gap="none"
+              spacing="roomy"
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">

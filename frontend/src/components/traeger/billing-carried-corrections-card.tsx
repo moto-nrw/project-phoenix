@@ -109,7 +109,9 @@ export function BillingCarriedCorrectionsCard({
               <ResponsiveActionRow
                 key={row.carried.positionId}
                 align="start"
-                className="flex-row items-start justify-between gap-3 first:pt-3 last:pb-3"
+                layout="inline"
+                gap="wide"
+                insetEdges
               >
                 <div className="min-w-0 text-sm wrap-anywhere">
                   <p className="font-medium text-gray-900">

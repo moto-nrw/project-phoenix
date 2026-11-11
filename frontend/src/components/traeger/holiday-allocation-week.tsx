@@ -103,7 +103,7 @@ function AllocationRow({
   const name = `${entry.childFirstName} ${entry.childLastName}`;
   const proposedPlace = entry.proposal === "placed";
   return (
-    <ResponsiveActionRow className="gap-3">
+    <ResponsiveActionRow gap="wide">
       <div className="flex min-w-0 gap-3">
         <IconTile
           icon={

@@ -294,7 +294,10 @@ export function CarePriceListCard({
         )}
         {gaps.length > 0 ? (
           <ResponsiveActionList>
-            <ResponsiveActionRow className="bg-moto-orange/10 rounded-xl px-4 first:pt-3 last:pb-3">
+            <ResponsiveActionRow
+              insetEdges
+              className="bg-moto-orange/10 rounded-xl px-4"
+            >
               <p className="text-sm text-gray-900">
                 {gaps.length === 1
                   ? `„${gaps[0]?.moduleName}“ hat gebuchte Tage ohne Preis.`
