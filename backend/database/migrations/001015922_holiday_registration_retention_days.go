@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayRegistrationRetentionDaysVersion = "1.15.921"
+const holidayRegistrationRetentionDaysVersion = "1.15.922"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
