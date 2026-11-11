@@ -936,9 +936,15 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "UPDATE platform.schools SET deleted_at = NOW() - INTERVAL '2 hours'
              WHERE id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%')"
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once
-          orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
-          echo "demo orders left after the erasure: ${orders}"
+          # The erasure starts no order after 250 ms and leaves the rest to its
+          # next run; with their own contracts and invoices (#6621) three
+          # schools can take two runs.
+          for run in 1 2 3; do
+            "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once
+            orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
+            echo "demo orders left after erasure run ${run}: ${orders}"
+            test "${orders}" = 0 && break
+          done
           test "${orders}" = 0
           for school in ${schools}; do
             left=$(find public/uploads \( -name "${school}" -o -name "${school}_*" \) | wc -l)
