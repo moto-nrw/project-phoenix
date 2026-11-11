@@ -3,7 +3,9 @@
 import { Z_INDEX } from "./overlay-styles";
 import { ChevronDown } from "lucide-react";
 import {
+  createContext,
   useCallback,
+  useContext,
   type CSSProperties,
   useEffect,
   useId,
@@ -188,10 +190,10 @@ interface ListboxDropdownProps<K extends string> {
   /** Horizontal anchor of the portaled menu relative to the trigger. */
   readonly menuAlign?: "start" | "end";
   /**
-   * Stacking level of the portaled menu. The default (`Z_INDEX.menu`) clears
-   * modal overlays; a caller that itself portals higher — the kit calendar
-   * and `AnchoredPopover` sit at `Z_INDEX.popover` — has to lift the menu
-   * above its own surface (`Z_INDEX.popoverMenu`), or the menu opens behind it.
+   * Stacking level of the portaled menu. Without it the menu takes the level
+   * of the surface around it (`MenuLayerProvider`): `Z_INDEX.menu` above
+   * dialogs, `Z_INDEX.popoverMenu` inside an `AnchoredPopover`. A caller that
+   * portals higher on its own, like the kit calendar, sets it explicitly.
    */
   readonly menuZIndex?: number;
   readonly disabled?: boolean;
@@ -340,6 +342,22 @@ function consumeEscape(event: KeyboardEvent<HTMLButtonElement>): void {
   event.nativeEvent.stopImmediatePropagation();
 }
 
+// The level of select menus portaled from inside a surface that itself lies
+// above `Z_INDEX.menu`, such as an `AnchoredPopover` (#6569).
+const MenuLayerContext = createContext<number>(Z_INDEX.menu);
+
+/** Lifts the menus of all selects inside `children` to `zIndex`. */
+export function MenuLayerProvider({
+  zIndex,
+  children,
+}: Readonly<{ zIndex: number; children: ReactNode }>) {
+  return (
+    <MenuLayerContext.Provider value={zIndex}>
+      {children}
+    </MenuLayerContext.Provider>
+  );
+}
+
 export function ListboxDropdown<K extends string>({
   value,
   options,
@@ -358,7 +376,7 @@ export function ListboxDropdown<K extends string>({
   unstyledTrigger = false,
   menuClassName = "",
   menuAlign = "start",
-  menuZIndex = Z_INDEX.menu,
+  menuZIndex: menuZIndexProp,
   disabled = false,
   required = false,
   invalid = false,
@@ -378,6 +396,8 @@ export function ListboxDropdown<K extends string>({
   renderOptionActions,
   renderOption,
 }: ListboxDropdownProps<K>) {
+  const menuLayer = useContext(MenuLayerContext);
+  const menuZIndex = menuZIndexProp ?? menuLayer;
   const generatedListboxId = useId();
   const listboxId = id ? `${id}-listbox` : generatedListboxId;
   const containerRef = useRef<HTMLDivElement>(null);

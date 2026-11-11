@@ -17,6 +17,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "~/lib/utils";
+import { MenuLayerProvider } from "./listbox-dropdown";
 import { SHEET_SCOPE_SELECTOR, useOverlay } from "./overlay-stack";
 
 const VIEWPORT_MARGIN = 8;
@@ -155,9 +156,8 @@ export function AnchoredPopover<
 
     const style: CSSProperties = {
       position: scope ? "absolute" : "fixed",
-      // Above `Z_INDEX.menu`: a select inside the panel needs
-      // `menuZIndex={Z_INDEX.popoverMenu}` (documented at `menuZIndex`, a known
-      // risk of #6569 with no current user).
+      // Above `Z_INDEX.menu`; selects inside the panel open their menus on
+      // `Z_INDEX.popoverMenu` through `MenuLayerProvider` below.
       zIndex: Z_INDEX.popover,
       left: coordinateLeft,
       width,
@@ -387,7 +387,14 @@ export function AnchoredPopover<
         panelId,
         toggle: () => onOpenChange(!open),
       })}
-      {panel && portalContainer ? createPortal(panel, portalContainer) : null}
+      {panel && portalContainer
+        ? createPortal(
+            <MenuLayerProvider zIndex={Z_INDEX.popoverMenu}>
+              {panel}
+            </MenuLayerProvider>,
+            portalContainer,
+          )
+        : null}
     </>
   );
 }

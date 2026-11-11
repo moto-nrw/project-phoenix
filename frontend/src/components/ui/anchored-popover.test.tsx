@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { OverflowMenu } from "./page-header/OverflowMenu";
+import { CustomSelect } from "./custom-select";
+import { MultiSelect } from "./multi-select";
 
 function TestPopover({
   scoped = false,
@@ -389,5 +391,51 @@ describe("AnchoredPopover", () => {
     fireEvent.touchStart(behind);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens a nested select's menu above the popover", () => {
+    render(
+      <AnchoredPopover
+        open
+        onOpenChange={vi.fn()}
+        ariaLabel="Filter"
+        renderTrigger={({ ref }) => (
+          <button ref={ref} type="button">
+            Filter
+          </button>
+        )}
+      >
+        {() => (
+          <>
+            <CustomSelect
+              ariaLabel="Gruppe"
+              value=""
+              options={[{ value: "a", label: "Sterne" }]}
+              onChange={vi.fn()}
+            />
+            <MultiSelect
+              ariaLabel="Klassen"
+              value={[]}
+              options={[{ value: "1a", label: "1a" }]}
+              onChange={vi.fn()}
+            />
+          </>
+        )}
+      </AnchoredPopover>,
+    );
+    const panel = screen.getByRole("dialog", { name: "Filter" });
+    const panelZ = Number(panel.style.zIndex);
+
+    for (const trigger of [
+      screen.getByRole("combobox", { name: "Gruppe" }),
+      screen.getByRole("button", { name: /Klassen/ }),
+    ]) {
+      fireEvent.click(trigger);
+      const menu = screen
+        .getByRole("listbox")
+        .closest<HTMLElement>('[style*="z-index"]');
+      expect(Number(menu?.style.zIndex)).toBeGreaterThan(panelZ);
+      fireEvent.click(trigger);
+    }
   });
 });
