@@ -55,7 +55,13 @@ const OPTION_IDLE_CLASS = "text-gray-700 hover:bg-gray-50";
 const OPTION_ACTIVE_CLASS = "bg-gray-50 font-medium text-gray-900";
 const OPTION_DISABLED_CLASS = "cursor-not-allowed text-gray-400";
 
-export type ListboxDropdownSize = SelectTriggerSize;
+/**
+ * The size a caller may pick for a select. Without one it is `compact`
+ * (40 px, `ControlSize` in control-geometry.ts). `compact` is not accepted
+ * explicitly: until #6579 it meant 36 px on a select, and a branch written
+ * before would otherwise grow its select silently. It fails to compile now.
+ */
+export type ListboxDropdownSize = Extract<SelectTriggerSize, "dense">;
 
 /**
  * Label and chevron of the kit trigger. `CustomSelect` and `MultiSelect`
@@ -181,7 +187,7 @@ interface ListboxDropdownProps<K extends string> {
    * height and radius come from the kit; pick `size` instead.
    */
   readonly className?: string;
-  /** Field height: `compact` 40 px (default), `dense` 36 px for dense rows. */
+  /** Field height: 40 px (`compact`) by default, `dense` 36 px for dense rows. */
   readonly size?: ListboxDropdownSize;
   /**
    * Kit-internal only: the caller draws the whole trigger itself (the filter
@@ -358,7 +364,7 @@ export function ListboxDropdown<K extends string>({
   portalScopeSelector,
   containerNodeRef,
   className = "",
-  size = "compact",
+  size,
   unstyledTrigger = false,
   menuClassName = "",
   menuAlign = "start",
@@ -1056,7 +1062,12 @@ export function ListboxDropdown<K extends string>({
         className={
           unstyledTrigger
             ? className
-            : selectTriggerClassName({ size, invalid, disabled, className })
+            : selectTriggerClassName({
+                size: size ?? "compact",
+                invalid,
+                disabled,
+                className,
+              })
         }
         data-testid={testId}
       >

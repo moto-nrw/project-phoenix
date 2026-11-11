@@ -53,7 +53,7 @@ interface CustomSelectProps {
    */
   readonly searchable?: boolean;
   readonly searchPlaceholder?: string;
-  /** Field height: `compact` 40 px (default), `dense` 36 px for dense rows. */
+  /** Field height: 40 px (`compact`) by default, `dense` 36 px for dense rows. */
   readonly controlSize?: ListboxDropdownSize;
   /** Layout classes for the trigger (width, flex). The look is the kit's. */
   readonly className?: string;
@@ -105,7 +105,7 @@ export function CustomSelect({
   hint,
   searchable = false,
   searchPlaceholder = "Suchen",
-  controlSize = "compact",
+  controlSize,
   className = "",
   menuClassName = "",
   wrapLabels = false,

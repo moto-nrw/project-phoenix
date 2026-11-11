@@ -1,6 +1,6 @@
 "use client";
 
-import { iconOnlyMarker } from "../control-geometry";
+import { CONTROL_HEIGHT_CLASS, iconOnlyMarker } from "../control-geometry";
 import { Z_LAYER } from "../overlay-styles";
 import {
   useEffect,
@@ -126,14 +126,14 @@ export function OverflowMenu({
   // coarse), 16px icon, and a muted gray-400 (splitting color from the string
   // avoids a Tailwind text-* conflict that class-string order would not resolve).
   const triggerSizeClass =
-    // Default-Kebab: Breite folgt der Höhe (`aspect-square`), damit der
-    // runde Hover-Kreis rund bleibt, wenn die Kopfkarte ihre Bedienhöhe
-    // (40/44 px) per Nachfahren-Selektor erzwingt.
+    // Default-Kebab: Höhe `dense` (control-geometry.ts). Die Breite folgt der
+    // Höhe (`aspect-square`), damit der runde Hover-Kreis rund bleibt, wenn
+    // die Kopfkarte ihre Bedienhöhe (`HEAD_CONTROL_HEIGHT`) erzwingt.
     triggerContent != null
       ? ""
       : triggerSize === "sm"
         ? "size-6 pointer-coarse:size-11"
-        : "aspect-square h-9";
+        : `aspect-square ${CONTROL_HEIGHT_CLASS.dense}`;
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
   const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";

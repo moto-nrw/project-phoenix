@@ -3887,7 +3887,7 @@ const noSelectOverride = {
     },
     messages: {
       override:
-        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize="compact" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. Ohne Angabe 40 px, controlSize="dense" (ListboxDropdown: size) für dichte Zeilen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
       unstyled:
         "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
     },
@@ -3992,7 +3992,7 @@ const noControlHeightOverride = {
     },
     messages: {
       override:
-        'Keine eigene Bedienhöhe ({{tokens}}): Input und Auswahlfelder nehmen controlSize="compact" (40 px), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Bedienhöhe ({{tokens}}): Input nimmt controlSize="compact" (40 px), Auswahlfelder haben 40 px ohne Angabe (ControlSize, control-geometry.ts), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
     },
     schema: [],
   },

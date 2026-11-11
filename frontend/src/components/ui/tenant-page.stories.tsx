@@ -5,6 +5,7 @@ import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { withNotBookedSlots } from "~storybook/fixtures/not-booked-slots";
 import { Button, ButtonLink } from "./button";
 import { CollectionViewSwitch } from "./collection-view-switch";
+import { ICON_ONLY } from "./control-geometry";
 import { CustomSelect } from "./custom-select";
 import { ISODatePicker } from "./date-picker";
 import { Input } from "./input";
@@ -328,17 +329,17 @@ export const SymbolActionsWithTourAndPreload: Story = {
     stats: "116 Kinder · 107 zuhause · 9 krank",
     actions: (
       <>
-        <Button
-          onPointerEnter={fn()}
-          onFocus={fn()}
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="Anpassen"
-          tooltip="Anpassen"
-        >
-          <SlidersHorizontal className="h-4 w-4" aria-hidden />
-        </Button>
+        <div {...ICON_ONLY} onPointerEnter={fn()} onFocus={fn()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label="Anpassen"
+            tooltip="Anpassen"
+          >
+            <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          </Button>
+        </div>
         <Button type="button" size="md">
           Kind anlegen
         </Button>

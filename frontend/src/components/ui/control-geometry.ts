@@ -1,9 +1,9 @@
 /**
  * Die Maße, die Seitenkopf und Bedienelemente des Kits miteinander teilen
- * (#6579). Was hier steht, darf es an keiner anderen Stelle als Zahl geben:
- * `TenantPage`, `TenantPageHeaderSkeleton`, `SegmentedControl`,
- * `OverflowMenu`, `CollectionViewSwitch`, die Felder und
- * `TENANT-PAGE-SPEC.md` beziehen sich darauf.
+ * (#6579). Was hier steht, nimmt das Kit von hier, statt es als Zahl zu
+ * wiederholen: `TenantPage`, `TenantPageHeaderSkeleton`, `SegmentedControl`,
+ * `OverflowMenu`, `CollectionViewSwitch`, `PlanningContextBar`, die Felder
+ * und `TENANT-PAGE-SPEC.md` beziehen sich darauf.
  *
  * Die Werte sind ganze Tailwind-Klassen, keine Bausteine: Tailwind findet
  * eine Klasse nur, wenn sie wörtlich im Quelltext steht.
