@@ -1342,3 +1342,51 @@ describe("StudentHistorySection", () => {
     expect(onNavigate).toHaveBeenCalledWith("/students/456/feedback-history");
   });
 });
+
+// #6663: the header counts a sick child as "not coming" from the arrival
+// schedule. With a location text that has no status prefix it shows the
+// contradiction hint, while the lists show "Krank". Kept until decided.
+describe("StudentHeaderLocation, Sonderfall #6663", () => {
+  const sickChild: Student = {
+    id: "1",
+    name: "Max Mustermann",
+    first_name: "Max",
+    second_name: "Mustermann",
+    school_class: "3a",
+    sick: true,
+    current_location: "Klassenraum",
+  };
+
+  it("shows Ungeplant anwesend for a sick child the schedule marks absent", () => {
+    render(
+      <StudentHeaderLocation
+        student={sickChild}
+        myGroups={[]}
+        myGroupRooms={[]}
+        mySupervisedRooms={[]}
+        isArrivalAbsent
+        todayArrivalNote="Krank"
+      />,
+    );
+
+    expect(screen.getByText("Ungeplant anwesend")).toHaveAttribute(
+      "title",
+      "Krank",
+    );
+    expect(screen.queryByText("Krank")).not.toBeInTheDocument();
+  });
+
+  it("shows the Krank hint without the schedule's absence", () => {
+    render(
+      <StudentHeaderLocation
+        student={sickChild}
+        myGroups={[]}
+        myGroupRooms={[]}
+        mySupervisedRooms={[]}
+      />,
+    );
+
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.queryByText("Ungeplant anwesend")).not.toBeInTheDocument();
+  });
+});

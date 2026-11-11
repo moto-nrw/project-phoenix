@@ -242,6 +242,7 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
       EXCUSED: "#7C3AED",
     },
     LOCATION_STATUSES: {
+      ...actual.LOCATION_STATUSES,
       PRESENT: "Anwesend",
       HOME: "Zuhause",
       SCHOOLYARD: "Schulhof",

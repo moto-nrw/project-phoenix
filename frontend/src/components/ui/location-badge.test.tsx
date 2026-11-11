@@ -6,15 +6,15 @@ import {
   LOCATION_COLORS,
   getLocationBadgeTone,
 } from "@/lib/location-helper";
-import type { StudentLocationContext } from "@/lib/location-helper";
+import type { PresenceStudent } from "@/lib/presence-status";
 
 // =============================================================================
 // TEST HELPERS
 // =============================================================================
 
 function createStudent(
-  overrides: Partial<StudentLocationContext> = {},
-): StudentLocationContext {
+  overrides: Partial<PresenceStudent> = {},
+): PresenceStudent {
   return {
     current_location: "Anwesend - Raum 101",
     location_since: "2024-01-15T10:00:00Z",
@@ -102,7 +102,7 @@ describe("LocationBadge", () => {
     it("lets not coming today replace Schule", () => {
       const student = createStudent({
         current_location: "Schule",
-        not_arrival_today: true,
+        arrival_is_exception: true,
       });
       render(<LocationBadge student={student} displayMode="contextAware" />);
 
@@ -744,7 +744,7 @@ describe("LocationBadge", () => {
       // payload at all — TypeScript represents that as `undefined`. The
       // badge must fall back to OTHER_ROOM blue without crashing or
       // rendering an empty backgroundColor.
-      const student: StudentLocationContext = {
+      const student: PresenceStudent = {
         current_location: "Anwesend - Bibliothek",
         location_since: "2024-01-15T10:00:00Z",
         // current_room_color intentionally omitted

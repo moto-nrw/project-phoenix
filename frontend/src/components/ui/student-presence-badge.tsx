@@ -3,10 +3,8 @@
 import * as React from "react";
 
 import { usePresenceMode } from "~/lib/tenant-context";
-import type {
-  DisplayMode,
-  StudentLocationContext,
-} from "@/lib/location-helper";
+import type { DisplayMode } from "@/lib/location-helper";
+import type { PresenceStudent } from "@/lib/presence-status";
 import { LocationBadge } from "./location-badge";
 import { PresenceBadge } from "./presence-badge";
 
@@ -24,7 +22,7 @@ import { PresenceBadge } from "./presence-badge";
  * wanting to change.
  */
 interface StudentPresenceBadgeProps {
-  readonly student: StudentLocationContext;
+  readonly student: PresenceStudent;
   /** Used by LocationBadge in detailed mode; ignored in binary mode. */
   readonly displayMode: DisplayMode;
   readonly userGroups?: string[];
