@@ -212,8 +212,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		return
 	}
 
-	generalLimit := parsePositiveInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 60)
-	generalBurst := parsePositiveInt(os.Getenv("RATE_LIMIT_BURST"), 10)
+	generalLimit, generalBurst := generalRateLimitFromEnv()
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
 	generalRateLimiter.ExemptPathPrefix(emailWebhookPath + "/")
@@ -236,6 +235,13 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		generalRateLimiter.SetLogger(securityLogger)
 	}
 	router.Use(generalRateLimiter.Middleware())
+}
+
+// generalRateLimitFromEnv is the configured budget of one caller of the
+// general limiter per minute and its burst.
+func generalRateLimitFromEnv() (requestsPerMinute, burst int) {
+	return parsePositiveInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 60),
+		parsePositiveInt(os.Getenv("RATE_LIMIT_BURST"), 10)
 }
 
 // parsePositiveInt parses a positive integer from environment variable with a default value
@@ -338,17 +344,27 @@ const (
 // The link has its own limit for that, per address and split into reads and
 // writes like the general one. Turnstile and the stored-registration limits
 // of Enrollment stay in front of every write.
+//
+// These values are a floor. The link is exempt from the general limiter, so
+// its own limit must never be tighter than the general one an environment
+// configures: holidayRegistrationLimits takes the larger of both.
 const (
-	holidayRegistrationRequestsPerMinute = 300
-	holidayRegistrationBurst             = 100
+	holidayRegistrationRequestsPerMinute = 1200
+	holidayRegistrationBurst             = 300
 )
+
+// holidayRegistrationLimits is the budget of the public holiday link beside
+// a general limiter of generalLimit and generalBurst.
+func holidayRegistrationLimits(generalLimit, generalBurst int) (requestsPerMinute, burst int) {
+	return max(holidayRegistrationRequestsPerMinute, generalLimit), max(holidayRegistrationBurst, generalBurst)
+}
 
 // holidayRegistrationRateLimit is nil when rate limiting is disabled.
 func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handler) http.Handler {
 	if !enabled {
 		return nil
 	}
-	limiter := customMiddleware.NewRateLimiter(holidayRegistrationRequestsPerMinute, holidayRegistrationBurst)
+	limiter := customMiddleware.NewRateLimiter(holidayRegistrationLimits(generalRateLimitFromEnv()))
 	limiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
