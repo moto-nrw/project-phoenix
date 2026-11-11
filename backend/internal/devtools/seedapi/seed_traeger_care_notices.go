@@ -32,6 +32,10 @@ const (
 	seedBillingRunEmpty   = "parent_billing.billing_run_empty"
 	// The originals of the run are stored already (#6347).
 	seedBillingLettersExist = "parent_billing.billing_letters_exist"
+	// A run whose preview holds something to settle, and one another seed
+	// discarded a moment earlier (#6626).
+	seedBillingRunNotEmpty  = "parent_billing.billing_run_not_empty"
+	seedBillingRunDiscarded = "parent_billing.billing_run_discarded"
 )
 
 type seedCareNoticeRun struct {
@@ -69,14 +73,20 @@ func seedCareNotices(client *Client, auth AuthRef, school int64, current calenda
 		return 0, fmt.Errorf("check the notice run: %w", err)
 	}
 	run := envelope.Data
-	if run.Status != "calculated" || run.PreviewCount == 0 {
+	if run.Status != "calculated" {
 		return 0, nil
+	}
+	if run.PreviewCount == 0 {
+		return 0, seedDiscardNoticeRun(client, auth, runID)
 	}
 	_, err = client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/release", runID), map[string]any{
 		"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
 	})
-	if seedConflictCode(err, seedCareRunReleased) || seedConflictCode(err, seedBillingRunEmpty) {
+	if seedConflictCode(err, seedCareRunReleased) {
 		return 0, nil
+	}
+	if seedConflictCode(err, seedBillingRunEmpty) {
+		return 0, seedDiscardNoticeRun(client, auth, runID)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("release the notice run: %w", err)
@@ -85,6 +95,21 @@ func seedCareNotices(client *Client, auth AuthRef, school int64, current calenda
 		return 0, err
 	}
 	return run.PreviewCount, nil
+}
+
+// seedDiscardNoticeRun discards the seed's notice run that has nothing to
+// issue, so it does not hold the year for the demo schools ordered later
+// (#6641). A run with a booking without a price stays open for the office.
+func seedDiscardNoticeRun(client *Client, auth AuthRef, runID int64) error {
+	_, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/discard", runID), nil)
+	if seedConflictCode(err, seedBillingRunNotEmpty) {
+		fmt.Printf("  Träger fee notices: the notice run %d has nothing to issue but something to settle; left open\n", runID)
+		return nil
+	}
+	if err != nil && !seedConflictCode(err, seedBillingRunDiscarded) {
+		return fmt.Errorf("discard the empty notice run: %w", err)
+	}
+	return nil
 }
 
 // seedCareNoticeLetters stores the originals of the issued notices and sends
