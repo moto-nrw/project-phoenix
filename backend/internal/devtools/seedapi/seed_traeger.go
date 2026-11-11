@@ -228,7 +228,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 		return fmt.Errorf("no holiday guest joined the holiday group")
 	}
 	fmt.Printf("  Ausrichtende OGS: %d holiday guest(s) in the Feriengruppe\n", envelope.Data.Guests)
-	return nil
+	return seedHolidayGuestGroupHint(rt, groupID)
 }
 
 // seedHolidayAddressForm saves the next version of the period's form with
