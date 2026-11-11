@@ -46,11 +46,11 @@ func (summaryGuard) hold(ctx context.Context, locks HoldLocks, req HoldRequest) 
 		return err
 	}
 	if granted == nil || !granted(req.Access) {
-		return ErrChildNotLinked
+		return req.NotLinked
 	}
 	for _, permission := range req.Permissions {
 		if permission != "" && !granted(permission) {
-			return ErrGuardianPermissionDenied
+			return req.Denied
 		}
 	}
 	return nil

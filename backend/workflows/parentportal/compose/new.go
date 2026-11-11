@@ -51,41 +51,36 @@ type Dependencies struct {
 	// CarePlan supplies native day locks, absence reports and pickup commands.
 	CarePlan parentportal.CarePlanCommands
 	// CareExceptions overrides the day-exception reads and locks (nil: CarePlan).
-	CareExceptions care.CareExceptions
-
+	CareExceptions   care.CareExceptions
 	CarePeriods      care.CarePeriodReads
 	OfferingHistory  care.OfferingHistoryReads
 	CareOfferingRepo care.CareOfferingReads
 	OfferingChanges  care.OfferingChangeRequests
-
 	// CareProfiles writes the child's care profile (health information, live absence flags).
 	CareProfiles careplan.StudentProfileCommands
 	// People writes guardian rows and the child's photo consent.
-	People PeopleDirectory
-
+	People              PeopleDirectory
 	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       care.StudentPhotoUnlinker
 	ChildDataAccess     care.ChildDataAccessLog
 	HolidayWishes       care.HolidayWishStatements
 	ParentRequestEvents messaging.RequestEvents
-
 	// Document inbox (#4671, ADR 0126).
-	BillingDocuments    care.BillingDocuments
-	ContractDocuments   care.ContractDocuments
-	ContractNotices     care.ContractNotices
-	SharedDocuments     care.TraegerSharedDocuments
-	SEPAMandates        care.SEPAMandates
-	TraegerRuntime      care.TraegerRuntime
-	SchoolTraeger       care.SchoolTraeger
-	ParentAccounts      care.ParentAccounts
-	DocumentNotifier    care.BillingDocumentNotifier
-	Memberships         care.SchoolMembershipLock
-	InvitationAccounts  care.InvitationAccountLock
-	GuardianInvites     care.GuardianAccess
-	GuardianInvitations care.GuardianInvitationReads
-	InvalidateInvites   func(context.Context, int64) error
-
+	BillingDocuments          care.BillingDocuments
+	ContractDocuments         care.ContractDocuments
+	ContractNotices           care.ContractNotices
+	SharedDocuments           care.TraegerSharedDocuments
+	SEPAMandates              care.SEPAMandates
+	TraegerRuntime            care.TraegerRuntime
+	SchoolTraeger             care.SchoolTraeger
+	ParentAccounts            care.ParentAccounts
+	DocumentNotifier          care.BillingDocumentNotifier
+	Memberships               care.SchoolMembershipLock
+	InvitationAccounts        care.InvitationAccountLock
+	GuardianInvites           care.GuardianAccess
+	GuardianInvitations       care.GuardianInvitationReads
+	InvalidateInvites         func(context.Context, int64) error
 	MessageThreadRepo         messaging.MessageThreadAccess
 	MessageRepo               messaging.MessageReads
 	MessageReadRepo           messaging.MessageInboxReads
@@ -99,7 +94,6 @@ type Dependencies struct {
 	OfferingChangeRequestRepo messaging.OfferingChangeRequestReads
 	FamilyProtectionEvents    messaging.FamilyProtectionReads
 	ParentRequestShares       messaging.RequestShareRecords
-
 	// Platform: the meal plan, live events and notifiers.
 	MealPlan              MealPlanProvider
 	StudentUpdates        care.StudentUpdates

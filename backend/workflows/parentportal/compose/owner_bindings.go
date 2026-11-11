@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
@@ -12,21 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
 
-// GuardianHold binds the child write guard to People Directory's guardian
-// hold (#6638), the one lock and check protocol of the parent guard that
-// Enrollment's renewals run as well. The guard keeps its own locks; the
-// refusals come back as the guard's errors.
+// GuardianHold runs People Directory's guardian hold for the child write guard (#6638).
 func GuardianHold(ctx context.Context, locks care.HoldLocks, req care.HoldRequest) error {
-	err := guardianhold.Hold(ctx, guardianhold.Locks(locks), guardianhold.Request(req))
-	switch {
-	case errors.Is(err, guardianhold.ErrNotLinked):
-		return care.ErrChildNotLinked
-	case errors.Is(err, guardianhold.ErrPermissionDenied):
-		return care.ErrGuardianPermissionDenied
-	case errors.Is(err, guardianhold.ErrUnavailable):
-		return care.ErrChildWriteGuardUnavailable
-	}
-	return err
+	return guardianhold.Hold(ctx, guardianhold.Locks(locks), guardianhold.Request(req))
 }
 
 // PeopleDirectory is the People Directory surface the portal writes and reads

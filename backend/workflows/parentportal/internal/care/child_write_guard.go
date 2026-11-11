@@ -84,9 +84,7 @@ type InvitationAccountLock func(ctx context.Context, accountID int64, email stri
 // GuardianHold is the port to People Directory's guardian hold
 // (guardianhold.Hold, #6638): the one lock and check protocol of the parent
 // guard, run over the guard's own locks. The composition binds it; it
-// answers ErrChildNotLinked, ErrGuardianPermissionDenied or
-// ErrChildWriteGuardUnavailable for its refusals and passes lock errors
-// through.
+// refuses with the request's own errors and passes lock errors through.
 type GuardianHold func(ctx context.Context, locks HoldLocks, req HoldRequest) error
 
 // HoldLocks are the guard's locks in the shape of guardianhold.Locks.
@@ -108,6 +106,8 @@ type HoldRequest struct {
 	Profiles    []int64
 	Access      string
 	Permissions []string
+	// NotLinked, Denied and Unavailable are the guard's own refusals.
+	NotLinked, Denied, Unavailable error
 }
 
 // ErrChildWriteGuardUnavailable reports a service composed without the
@@ -165,6 +165,7 @@ func (s *Service) guardChildWrite(ctx context.Context, accountID, studentID int6
 		AccountID: accountID, StudentID: studentID, ProfileID: child.GuardianProfileID,
 		OwnProfile: access.OwnProfile, Profiles: access.Profiles,
 		Access: GuardianPermissionPortalAccess, Permissions: access.Permissions,
+		NotLinked: ErrChildNotLinked, Denied: ErrGuardianPermissionDenied, Unavailable: ErrChildWriteGuardUnavailable,
 	})
 }
 
@@ -186,13 +187,7 @@ func (s *Service) childWriteGuardable(accountID, studentID int64, child *Child) 
 // own terms when it names them (ChildMissing).
 func (s *Service) childWriteLocks(access ChildWriteAccess) HoldLocks {
 	return HoldLocks{
-		Membership: func(ctx context.Context, accountID int64) (bool, error) {
-			active, err := s.Memberships(ctx, accountID)
-			if err != nil {
-				return false, fmt.Errorf("parent: lock school membership: %w", err)
-			}
-			return active, nil
-		},
+		Membership: s.holdMembership,
 		Child: func(ctx context.Context, studentID int64) error {
 			_, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 			if err != nil && access.ChildMissing != nil {
@@ -200,36 +195,50 @@ func (s *Service) childWriteLocks(access ChildWriteAccess) HoldLocks {
 			}
 			return err
 		},
-		Profile: func(ctx context.Context, profileID int64) (bool, error) {
-			err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, profileID)
-			if errors.Is(err, ErrGuardianProfileNotFound) {
-				return false, nil
-			}
-			return err == nil, err
-		},
-		Relationship: func(ctx context.Context, studentID, profileID int64) (func(string) bool, error) {
-			link, err := s.findChildGuardianLinkForUpdate(ctx, studentID, profileID)
-			if errors.Is(err, ErrGuardianNotLinked) {
-				return nil, nil
-			}
-			if err != nil {
-				return nil, err
-			}
-			return func(permission string) bool { return s.guardianHasPermission(link, permission) }, nil
-		},
-		Owner: func(ctx context.Context, profileID int64) (*int64, string, bool, error) {
-			profile, err := s.GuardianProfileRepo.FindByID(ctx, profileID)
-			if errors.Is(err, ErrGuardianProfileNotFound) || (err == nil && profile == nil) {
-				return nil, "", false, nil
-			}
-			if err != nil {
-				return nil, "", false, err
-			}
-			email := ""
-			if profile.Email != nil {
-				email = *profile.Email
-			}
-			return profile.AccountID, email, true, nil
-		},
+		Profile:      s.holdProfile,
+		Relationship: s.holdRelationship,
+		Owner:        s.holdOwner,
 	}
+}
+
+func (s *Service) holdMembership(ctx context.Context, accountID int64) (bool, error) {
+	active, err := s.Memberships(ctx, accountID)
+	if err != nil {
+		return false, fmt.Errorf("parent: lock school membership: %w", err)
+	}
+	return active, nil
+}
+
+func (s *Service) holdProfile(ctx context.Context, profileID int64) (bool, error) {
+	err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, profileID)
+	if errors.Is(err, ErrGuardianProfileNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (s *Service) holdRelationship(ctx context.Context, studentID, profileID int64) (func(string) bool, error) {
+	link, err := s.findChildGuardianLinkForUpdate(ctx, studentID, profileID)
+	if errors.Is(err, ErrGuardianNotLinked) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return func(permission string) bool { return s.guardianHasPermission(link, permission) }, nil
+}
+
+func (s *Service) holdOwner(ctx context.Context, profileID int64) (*int64, string, bool, error) {
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, profileID)
+	if errors.Is(err, ErrGuardianProfileNotFound) || (err == nil && profile == nil) {
+		return nil, "", false, nil
+	}
+	if err != nil {
+		return nil, "", false, err
+	}
+	email := ""
+	if profile.Email != nil {
+		email = *profile.Email
+	}
+	return profile.AccountID, email, true, nil
 }

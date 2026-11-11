@@ -212,7 +212,7 @@ func flowRepositories(t testing.TB, db *bun.DB) (*owners.EnrollmentFlowTestRepos
 
 // testGuardianHold binds the parent guard's hold of a renewal (#6638) to the
 // suite's People Directory rows, as the production root binds it.
-func testGuardianHold(db *bun.DB, repos *owners.EnrollmentFlowTestRepositories) enrollmentCompose.GuardianStudentHold {
+func testGuardianHold(db *bun.DB, repos *owners.EnrollmentFlowTestRepositories) owners.EnrollmentGuardianHold {
 	return owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(db), repos.StudentGuardian, repos.Student, repos.GuardianProfile)
 }
 

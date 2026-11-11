@@ -145,7 +145,7 @@ type EnrollmentIntakeSources struct {
 	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
 	// GuardianHold holds a parent's renewal permission in the submission's
 	// transaction (#6638); nil refuses parent renewals of existing children.
-	GuardianHold   enrollmentCompose.GuardianStudentHold
+	GuardianHold   EnrollmentGuardianHold
 	RateLimitRepo  enrollmentCompose.SubmissionRateLimiter
 	OutboxEnqueuer enrollmentCompose.MailOutbox
 	Settings       EnrollmentIntakeSettings

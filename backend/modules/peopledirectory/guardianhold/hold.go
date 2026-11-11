@@ -86,12 +86,29 @@ type Request struct {
 	Access string
 	// Permissions are the action permissions of the write.
 	Permissions []string
+	// NotLinked, Denied and Unavailable replace ErrNotLinked,
+	// ErrPermissionDenied and ErrUnavailable with the caller's own refusals
+	// when set.
+	NotLinked, Denied, Unavailable error
 }
 
 // Hold locks and re-checks the request's authority in the caller's school
 // transaction; see the package comment for the order. Errors of the locks
 // pass through unchanged.
 func Hold(ctx context.Context, locks Locks, req Request) error {
+	err := hold(ctx, locks, req)
+	switch {
+	case req.NotLinked != nil && errors.Is(err, ErrNotLinked):
+		return req.NotLinked
+	case req.Denied != nil && errors.Is(err, ErrPermissionDenied):
+		return req.Denied
+	case req.Unavailable != nil && errors.Is(err, ErrUnavailable):
+		return req.Unavailable
+	}
+	return err
+}
+
+func hold(ctx context.Context, locks Locks, req Request) error {
 	if req.StudentID <= 0 || req.ProfileID <= 0 || (req.AccountID <= 0 && strings.TrimSpace(req.Email) == "") {
 		return ErrNotLinked
 	}
