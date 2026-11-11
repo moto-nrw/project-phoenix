@@ -76,7 +76,9 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
         {BERLIN_TIME.format(new Date(entry.occurredAt))} Uhr
       </span>
     ),
-    stacked: "meta",
+    // On a phone the time leads the line under the name, so the name keeps
+    // the full width.
+    stacked: "hidden",
   },
   {
     key: "person",
@@ -89,6 +91,8 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
       </span>
     ),
     stacked: "title",
+    // The log has no detail page: the whole address stays visible.
+    stackedClamp: false,
   },
   {
     key: "school",
@@ -111,7 +115,32 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
     key: "data",
     header: "Daten",
     render: (entry) => entry.dataLabel,
-    stacked: "field",
+    // On a phone one line under the name carries time and kind, then school and
+    // data with their names in front (not in a right-aligned column), as the
+    // OGS lists compose a record.
+    stackedLabel: false,
+    stackedRender: (entry) => (
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-gray-600">
+        <span className="whitespace-nowrap text-gray-900">
+          {formatBerlinDate(entry.occurredAt)},{" "}
+          {BERLIN_TIME.format(new Date(entry.occurredAt))} Uhr
+        </span>
+        <StatusBadge
+          tone={entry.kind === "change" ? "orange" : "blue"}
+          label={KIND_LABELS[entry.kind]}
+        />
+        {entry.schoolName ? (
+          <span className="basis-full">
+            <span className="text-gray-500">Schule </span>
+            <span className="text-gray-900">{entry.schoolName}</span>
+          </span>
+        ) : null}
+        <span className="basis-full">
+          <span className="text-gray-500">Daten </span>
+          <span className="text-gray-900">{entry.dataLabel}</span>
+        </span>
+      </span>
+    ),
   },
 ];
 
@@ -387,6 +416,8 @@ export default function TraegerAccessLogPage() {
         isLoading={loading}
         loadingRowCount={5}
         stackedOnMobile
+        stackedLayout="row"
+        stackedDetailKey="data"
         // Older entries load inside the list's surface, like every list.
         moreAction={
           hasMore

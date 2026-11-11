@@ -58,6 +58,10 @@ export interface DataTableColumn<T> {
   // Extra classes for the cell in the "row" phone line, e.g. to lay a
   // stacked badge out side by side.
   stackedClassName?: string;
+  // "row" phone line only: false lets a title wrap without the two-line
+  // clamp, for a title that must stay whole (an e-mail address in a log,
+  // without a detail page that would show it). Defaults to true.
+  stackedClamp?: boolean;
   // What the "row" phone line shows for this column, when it needs a
   // shorter form than the table cell ("15:30" instead of "🕒 15:30 Uhr").
   stackedRender?: (row: T) => ReactNode;
@@ -522,7 +526,13 @@ function RowStackedRow<T>({
           taking the name's room, and the name may use that second line too
           rather than being cut. */}
       <div className="min-w-20 flex-1">
-        <span className="line-clamp-2 break-words">
+        <span
+          className={
+            title?.stackedClamp === false
+              ? "break-words"
+              : "line-clamp-2 break-words"
+          }
+        >
           {title ? (title.stackedRender ?? title.render)(row) : null}
         </span>
         {/* A detail without a value for this row (null) drops its line, as
