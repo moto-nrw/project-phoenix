@@ -11,7 +11,7 @@ import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 import { LOCATION_COLORS, LOCATION_STATUSES } from "~/lib/location-helper";
-import { getPillTone } from "~/components/ui/kit-palette";
+import { getPillTone } from "~/lib/kit-palette";
 
 // #2476: a status pill is text on a tinted surface, nothing else. The leading
 // dot repeated what tint and label already said, so every kit pill renders its

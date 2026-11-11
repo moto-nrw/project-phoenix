@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 // Segmented single-choice control: a small, fixed set of mutually exclusive
 // options rendered as one control.

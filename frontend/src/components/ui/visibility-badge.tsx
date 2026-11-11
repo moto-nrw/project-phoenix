@@ -4,7 +4,7 @@ import { Eye } from "lucide-react";
 
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
-import { TINT_CLASSES } from "~/components/ui/kit-palette";
+import { TINT_CLASSES } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 import { PARENT_VISIBLE_DEFAULT_HINT } from "~/lib/parent-visible-fields";
 

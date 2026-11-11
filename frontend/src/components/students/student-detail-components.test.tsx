@@ -41,7 +41,7 @@ import { ApiError } from "~/lib/api-error";
 import { fetchStudentCompanions } from "~/lib/student-companion-api";
 import type { Student } from "~/lib/student-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { getPillTone } from "~/components/ui/kit-palette";
+import { getPillTone } from "~/lib/kit-palette";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import type { AttendanceActor } from "~/lib/attendance-actor";
 

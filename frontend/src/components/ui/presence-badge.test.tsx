@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { PresenceBadge } from "./presence-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { getPillTone } from "~/components/ui/kit-palette";
+import { getPillTone } from "~/lib/kit-palette";
 
 // Helper to fetch the rendered pill so assertions can interrogate both
 // the label (visible text) and the inline color style. The render tree has

@@ -1,4 +1,4 @@
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 /**
  * The colours of the planning surfaces (#6573): one entry per meaning, so a

@@ -19,7 +19,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
   berlinClockFromISO,

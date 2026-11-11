@@ -1895,9 +1895,11 @@ function findShortHexColor(text) {
 }
 
 // Files that define or must emit raw hex by construction. Not a baseline:
-// these do not shrink. The palette itself (components/ui/kit-palette.ts) is
+// these do not shrink. The palette itself (lib/kit-palette.ts) is
 // exempt with the whole kit.
 const HEX_TOKEN_SOURCES = new Set([
+  // The dependency-neutral source of UI colour tokens.
+  "src/lib/kit-palette.ts",
   // Fachliche Farbwerte, die das Kit nicht kennt: Legacy-Raumfarben (#6573).
   "src/lib/location-helper.ts",
   // Web-App-Manifest: theme_color/background_color sind Hex per Spezifikation.
@@ -1912,7 +1914,7 @@ const noRawStatusHex = {
     type: "problem",
     docs: {
       description:
-        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/components/ui/kit-palette.ts and src/lib/location-helper.ts.",
+        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/lib/kit-palette.ts and src/lib/location-helper.ts.",
     },
     messages: {
       rawHex:

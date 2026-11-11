@@ -49,7 +49,7 @@ import {
   transportFetch,
 } from "~/lib/api-error";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { getAccessibleTextColor } from "~/components/ui/kit-palette";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 import {
   berlinTodayISO,
   formatDate,

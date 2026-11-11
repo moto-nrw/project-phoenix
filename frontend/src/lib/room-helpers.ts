@@ -1,7 +1,7 @@
 // lib/room-helpers.ts
 // Type definitions and helper functions for rooms
 
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RoomHelpers" });

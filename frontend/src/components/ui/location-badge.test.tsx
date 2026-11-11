@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { LocationBadge } from "./location-badge";
 import { LOCATION_STATUSES, LOCATION_COLORS } from "@/lib/location-helper";
-import { getPillTone } from "~/components/ui/kit-palette";
+import { getPillTone } from "~/lib/kit-palette";
 import type { StudentLocationContext } from "@/lib/location-helper";
 
 // =============================================================================

@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 /**
  * The brand palette exists twice: as `--color-moto-*` custom properties in
  * globals.css (which every `bg-moto-*` / `text-moto-*` utility compiles from)
- * and as MOTO_COLOR_PALETTE in components/ui/kit-palette.ts (which every
+ * and as MOTO_COLOR_PALETTE in lib/kit-palette.ts (which every
  * inline style and every pill tone reads). Nothing forced the two to
  * agree.
  *

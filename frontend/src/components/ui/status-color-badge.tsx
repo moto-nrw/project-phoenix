@@ -4,7 +4,7 @@ import {
   type StatusBadgeSize,
   type StatusPillDataAttributes,
 } from "./status-badge";
-import { MOTO_COLOR_PALETTE, getPillTone } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE, getPillTone } from "~/lib/kit-palette";
 
 // The kit pill (StatusPillBase, #5584) for a data-driven colour from
 // LOCATION_COLORS, e.g. an amber status: color={LOCATION_COLORS.WARNING}. Use

@@ -1,4 +1,4 @@
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 const SIZE_CLASS = {
   xs: "h-3 w-0.5",

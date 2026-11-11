@@ -3,7 +3,7 @@
 // third consumer, so the copies were consolidated here.
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 export const ABSENCE_TYPE_LABEL: Record<string, string> = {
   vacation: "Urlaub",

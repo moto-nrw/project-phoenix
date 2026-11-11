@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import type { MotoDuotoneTone } from "~/components/ui/kit-palette";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
 
 interface MotoConceptIconProps extends Omit<
   ComponentProps<typeof MotoDuotoneIcon>,

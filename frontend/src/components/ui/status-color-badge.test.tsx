@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { StatusBadge } from "./status-badge";
 import { StatusColorBadge } from "./status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { getPillTone } from "~/components/ui/kit-palette";
+import { getPillTone } from "~/lib/kit-palette";
 
 describe("StatusColorBadge", () => {
   it("rendert die Beschriftung", () => {

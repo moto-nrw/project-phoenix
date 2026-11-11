@@ -5,7 +5,7 @@ import {
   PILL_TONES,
   getAccessibleTextColor,
   getPillTone,
-} from "./kit-palette";
+} from "~/lib/kit-palette";
 
 describe("kit palette", () => {
   it("finds every pill tone by its hue's base hex, in any case", () => {

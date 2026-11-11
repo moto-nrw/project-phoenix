@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import type { HomeGroupSnapshot, HomePickup } from "~/lib/hooks/use-home-group";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { getPillTone } from "~/components/ui/kit-palette";
+import { getPillTone } from "~/lib/kit-palette";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { catalogText } from "~/test/error-catalog-text";
 

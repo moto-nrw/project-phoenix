@@ -29,7 +29,7 @@ func TestReservedRoomColors_MatchesFrontendLOCATION_COLORS(t *testing.T) {
 	t.Parallel()
 
 	frontendPath := findFrontendFile(t, "src", "lib", "location-helper.ts")
-	palettePath := findFrontendFile(t, "src", "components", "ui", "kit-palette.ts")
+	palettePath := findFrontendFile(t, "src", "lib", "kit-palette.ts")
 
 	bytes, err := os.ReadFile(frontendPath) // #nosec G304 — path computed inside repo
 	require.NoError(t, err, "could not read %s", frontendPath)
@@ -92,7 +92,7 @@ func findFrontendFile(t *testing.T, parts ...string) string {
 // scope the search to that block so unrelated values elsewhere in the file
 // (e.g. GROUP_ROOM_SHADES) don't pollute the comparison set. Palette
 // references resolve against MOTO_COLOR_PALETTE in paletteSource
-// (frontend/src/components/ui/kit-palette.ts, #6573).
+// (frontend/src/lib/kit-palette.ts, #6573).
 func extractLocationColorsHexes(t *testing.T, source, paletteSource string) map[string]struct{} {
 	t.Helper()
 

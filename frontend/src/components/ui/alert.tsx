@@ -4,7 +4,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { CloseIcon } from "~/components/ui/close-icon";
-import { TINT_CLASSES, getPillTone } from "~/components/ui/kit-palette";
+import { TINT_CLASSES, getPillTone } from "~/lib/kit-palette";
 
 /** Tinted surface of each type: the palette tint, with its strong text for
  *  WCAG AA on the soft surface. */

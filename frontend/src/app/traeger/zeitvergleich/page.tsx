@@ -35,7 +35,7 @@ import { childrenConcept } from "~/lib/concepts/children";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { getAccessibleTextColor } from "~/components/ui/kit-palette";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import {

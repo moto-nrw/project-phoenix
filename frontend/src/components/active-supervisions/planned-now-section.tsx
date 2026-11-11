@@ -21,7 +21,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { LOCATION_COLORS } from "~/lib/location-helper";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { blockTimeRange } from "~/lib/block-children";
 import { isCareDayExpected } from "~/lib/timetable-types";

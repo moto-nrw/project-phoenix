@@ -23,7 +23,7 @@ import {
   staffMonthSummaryService,
 } from "~/lib/staff-api";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import {
   endOfWeek,
   getDeltaStatus,

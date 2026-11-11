@@ -2,7 +2,7 @@
  * Centralized helpers for parsing, styling, and rendering student location data.
  */
 
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 interface ParsedLocation {
   status: string;

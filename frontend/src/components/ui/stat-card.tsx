@@ -43,7 +43,7 @@ import Link from "~/components/ui/navigation-link";
 import {
   MOTO_COLOR_PALETTE,
   getAccessibleTextColor,
-} from "~/components/ui/kit-palette";
+} from "~/lib/kit-palette";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { Skeleton } from "~/components/ui/skeleton";

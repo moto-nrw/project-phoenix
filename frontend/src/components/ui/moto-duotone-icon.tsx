@@ -1,9 +1,9 @@
 import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
-import type { MotoDuotoneTone } from "~/components/ui/kit-palette";
-import { MOTO_DUOTONE_TONES } from "~/components/ui/kit-palette";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
+import { MOTO_DUOTONE_TONES } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
-export { MOTO_DUOTONE_TONES } from "~/components/ui/kit-palette";
+export { MOTO_DUOTONE_TONES } from "~/lib/kit-palette";
 
 export interface MotoDuotoneIconProps {
   readonly icon: PhosphorIcon;

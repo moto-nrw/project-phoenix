@@ -17,7 +17,7 @@ This kit is the MOTO design system.
 |---|---|
 | UI components | `frontend/src/components/ui/` |
 | Header / list-page kit | `frontend/src/components/ui/page-header/` |
-| Brand colors | meaning: `lib/location-helper.ts` `LOCATION_COLORS` (sole source); hex: `ui/kit-palette.ts` |
+| Brand colors | meaning: `lib/location-helper.ts` `LOCATION_COLORS` (sole source); hex: `lib/kit-palette.ts` |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
 Use direct file imports: `import { Button } from "~/components/ui/button"`. No `ui/index.ts` barrel.

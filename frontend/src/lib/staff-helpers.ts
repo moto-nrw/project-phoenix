@@ -3,7 +3,7 @@
 import { EXTERNAL_CAREGIVER_LABEL, getRoleDisplayName } from "./auth-helpers";
 import type { ExternalAccountStatus, Staff } from "./staff-api";
 import { LOCATION_COLORS } from "./location-helper";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 // Location status type matching the pattern from OGS groups
 interface LocationStatus {

@@ -1,6 +1,6 @@
 "use client";
 
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 interface WizardStepperProps {
   readonly steps: readonly string[];

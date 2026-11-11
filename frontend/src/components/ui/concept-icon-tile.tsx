@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { IconTile } from "~/components/ui/icon-tile";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import type { MotoDuotoneTone } from "~/components/ui/kit-palette";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
 
 interface ConceptIconTileProps extends Omit<
   ComponentProps<typeof IconTile>,

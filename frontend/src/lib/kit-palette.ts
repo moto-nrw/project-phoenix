@@ -1,5 +1,5 @@
 /**
- * The kit's colour source, free of domain meaning (#6573). Every tint table in
+ * The shared colour source, free of domain meaning (#6573). Every tint table in
  * `components/ui/` derives from the palette below: the duotone pairs, the pill
  * tones, the tinted surface classes and the text-safe shades. What a colour
  * MEANS (Schulhof, Krank, Warnung) lives in `LOCATION_COLORS`

@@ -17,7 +17,7 @@ import {
   AT_LEAST_MD,
   useResolvedMediaQuery,
 } from "~/lib/hooks/use-media-query";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";

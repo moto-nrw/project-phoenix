@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
-import { TINT_CLASSES } from "~/components/ui/kit-palette";
+import { TINT_CLASSES } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 
 type IconTileSize = "xs" | "sm" | "section" | "page" | "hero" | "display";

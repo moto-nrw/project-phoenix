@@ -23,7 +23,7 @@ import {
   MOTO_COLOR_PALETTE,
   getPillTone,
   getAccessibleTextColor,
-} from "~/components/ui/kit-palette";
+} from "~/lib/kit-palette";
 
 // =============================================================================
 // CONSTANTS TESTS

@@ -10,7 +10,7 @@ import { isValidElement, type ComponentType, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { WarningIcon } from "@phosphor-icons/react/ssr";
 
-import { PILL_TONES, type PillTone } from "~/components/ui/kit-palette";
+import { PILL_TONES, type PillTone } from "~/lib/kit-palette";
 
 export type StatusBadgeTone =
   | "blue"

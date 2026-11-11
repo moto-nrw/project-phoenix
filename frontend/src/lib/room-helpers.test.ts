@@ -9,7 +9,7 @@ import {
   isSystemRoom,
   formatFloor,
 } from "./room-helpers";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { suppressConsole } from "~/test/helpers/console";
 import { buildBackendRoom } from "~/test/fixtures/rooms";
 

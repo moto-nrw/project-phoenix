@@ -11,7 +11,7 @@ import {
   groupInstancesByDate,
   toISODate,
 } from "~/lib/timetable-helpers";
-import { MOTO_COLOR_PALETTE } from "~/components/ui/kit-palette";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "./timetable-colors";
