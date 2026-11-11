@@ -93,6 +93,8 @@ export interface CustomFieldInputProps {
   /** A surrounding card already names the boolean question. */
   readonly labelHidden?: boolean;
   readonly fieldsetRef?: Ref<HTMLFieldSetElement>;
+  /** Additional explanation for a boolean answer. */
+  readonly children?: ReactNode;
   /**
    * Renders a date or a structured type (phone list, weekdays, contacts,
    * file) the shared renderer does not know. Without it such a field
@@ -119,6 +121,7 @@ export function CustomFieldInput({
   controlId: suppliedControlId,
   labelHidden = false,
   fieldsetRef,
+  children,
   renderStructured,
 }: CustomFieldInputProps) {
   if (!SIMPLE_TYPES.has(field.type)) return renderStructured?.() ?? null;
@@ -168,6 +171,7 @@ export function CustomFieldInput({
           ))}
         </div>
         <FieldErrorHint id={errorId} message={error} />
+        {children}
       </fieldset>
     );
   }

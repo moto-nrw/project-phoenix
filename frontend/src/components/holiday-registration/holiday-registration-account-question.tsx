@@ -56,16 +56,17 @@ export function HolidayRegistrationAccountQuestion({
             t(key === "structured.yes" ? "account.yes" : "account.no")
           }
           onChange={(requested) => onChange(requested === true)}
-        />
-      </div>
-      {value === true ? (
-        <p
-          className="mt-3 text-sm leading-6 [overflow-wrap:anywhere] text-gray-700"
-          aria-live="polite"
         >
-          {t("account.mailNote", { email: email.trim() })}
-        </p>
-      ) : null}
+          {value === true ? (
+            <p
+              className="mt-3 text-sm leading-6 [overflow-wrap:anywhere] text-gray-700"
+              aria-live="polite"
+            >
+              {t("account.mailNote", { email: email.trim() })}
+            </p>
+          ) : null}
+        </CustomFieldInput>
+      </div>
     </SectionCard>
   );
 }
