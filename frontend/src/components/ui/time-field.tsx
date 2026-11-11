@@ -216,6 +216,10 @@ export function TimeField({
             onChange(nextValue);
           }}
           onKeyDown={onKeyDown}
+          // Marked on the first event of a press: the picker closes on it.
+          onPointerDown={() => {
+            pressedInput.current = true;
+          }}
           onMouseDown={() => {
             pressedInput.current = true;
           }}

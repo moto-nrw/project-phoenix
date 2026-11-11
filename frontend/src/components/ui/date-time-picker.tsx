@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { atLeastClockTime, CLOCK_TIME_RE } from "~/lib/date-helpers";
 import { TimeField } from "~/components/ui/time-field";
-import { COMPLETE_TIME } from "~/components/ui/time-picker-panel";
 
 // Wire shape of `<input type="datetime-local">`: "YYYY-MM-DDTHH:mm" in local
 // time, "" when unset. Keeping it means the callers' existing conversion
@@ -31,8 +31,8 @@ export function clampTimeToMin(
   time: string,
   minParts: { day: string; time: string },
 ): string {
-  if (day !== minParts.day || !minParts.time) return time;
-  return time < minParts.time ? minParts.time : time;
+  if (day !== minParts.day) return time;
+  return atLeastClockTime(time, minParts.time);
 }
 
 /**
@@ -107,7 +107,7 @@ export function DateTimePicker({
   // Text the value could not take yet: a complete time is raised to the
   // minimum, anything else falls back to the saved time.
   const settleTypedTime = () => {
-    if (pendingTime && COMPLETE_TIME.test(pendingTime)) {
+    if (pendingTime && CLOCK_TIME_RE.test(pendingTime)) {
       emitChange(`${day}T${clampTimeToMin(day, pendingTime, minParts)}`);
     }
     setTypedTime(null);
@@ -170,7 +170,7 @@ export function DateTimePicker({
               emitChange("");
               return;
             }
-            if (!COMPLETE_TIME.test(nextTime)) {
+            if (!CLOCK_TIME_RE.test(nextTime)) {
               setTypedTime(nextTime);
               return;
             }
