@@ -459,11 +459,11 @@ while IFS= read -r path; do
   esac
   covered=false
   while IFS= read -r pattern; do
-    # In [[ ]] a single * already crosses slashes, as ** does in the filter,
-    # where **/ also matches no directory at all.
-    pattern=${pattern//\*\*\//*}
-    # shellcheck disable=SC2053
-    if [[ "$path" == ${pattern//\*\*/*} ]]; then
+    # As in the filter: * stays inside one path segment, ** crosses them,
+    # and **/ also matches no directory at all.
+    regex=$(printf '%s' "$pattern" | sed -e 's/[.%]/\\&/g' -e 's|\*\*/|(.@/)?|g' \
+      -e 's|\*\*|.@|g' -e 's|\*|[^/]*|g' -e 's|@|*|g')
+    if [[ "$path" =~ ^${regex}$ ]]; then
       covered=true
       break
     fi
