@@ -153,8 +153,7 @@ func (s *Service) holidayRegistrationChildren(children []*ChildSummary, schoolID
 	var tenantIDs []int64
 	byTenant := map[int64][]*ChildSummary{}
 	for _, child := range children {
-		if child == nil || !traegerSchools[child.TenantID] || child.CareEnded(today) ||
-			!childHasPermission(child, GuardianPermissionEnrollmentSubmit) {
+		if !registrableChild(child, today) || !traegerSchools[child.TenantID] {
 			continue
 		}
 		if _, seen := byTenant[child.TenantID]; !seen {

@@ -1,1 +1,4 @@
+GET /public/data-return/openapi.json
+GET /public/data-return/package
+GET /public/data-return/package/archive
 GET /public/data-return/register

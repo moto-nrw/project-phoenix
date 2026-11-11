@@ -41,8 +41,16 @@ type declarationSetup struct {
 
 func newDeclarationSetup(t *testing.T, settings communication.ParentDeclarationSettings, deadline *time.Time) *declarationSetup {
 	t.Helper()
+	return newDeclarationSetupWith(t, settings, deadline, nil)
+}
+
+func newDeclarationSetupWith(
+	t *testing.T, settings communication.ParentDeclarationSettings, deadline *time.Time,
+	wrap func(parentportal.AnnouncementAccess) parentportal.AnnouncementAccess,
+) *declarationSetup {
+	t.Helper()
 	testpkg.OwnTenant(t)
-	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), true)
+	svc, db, repos := buildAnnouncementServiceWithAccess(t, testpkg.SetupIsolatedTestDB(t), true, nil, wrap)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	setup := &declarationSetup{
 		svc: svc, db: db, repo: api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain: chain,

@@ -121,8 +121,10 @@ export function declarationErrorOutcome(err: unknown): {
   if (err instanceof ApiError) {
     if (err.status === 429) return { ...keep, clearPassword: false };
     switch (err.code) {
+      // The school may have switched the password on since the card was
+      // loaded (#6494): reload, so the open confirmation shows the field.
       case "care.declaration_password_required":
-        return { ...keep, clearPassword: false };
+        return { ...keep, reload: true, clearPassword: false };
       case "care.declaration_password_incorrect":
         return { ...keep, clearPassword: true };
       case "care.declaration_signature_required":

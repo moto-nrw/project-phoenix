@@ -27,7 +27,8 @@ LOGIN_PASSWORDS = {'postgres': 'POSTGRES_PASSWORD', 'phoenix_auth': 'PHOENIX_AUT
                    'phoenix_demo': 'PHOENIX_DEMO_PASSWORD'}
 QUARANTINE_GROUPS = {'phoenix_diagnostics': 'diagnostics',
                      'phoenix_school_erasure': 'school_erasure',
-                     'phoenix_billing_retention': 'billing_retention'}
+                     'phoenix_billing_retention': 'billing_retention',
+                     'phoenix_data_return': 'data_return'}
 BUNDLE_NAME = r'daily-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{16}\.tar\.age'
 step = 'configuration'
 
@@ -318,6 +319,28 @@ class Recovery:
         """)
         return quarantined
 
+    def revoke_data_return(self):
+        # ADR 0203: the store of released return packages is no part of the
+        # backup and survives an in-place restore, while the database brings
+        # back revoked tokens and spent downloads. Revoke every grant that
+        # still has an archive before any app can start and record on the row
+        # that a restore did it (there is no operator to audit); the operator
+        # issues new tokens. Older backups without the table need nothing.
+        global step
+        step = 'data_return_revoke'
+        if self.sql("SELECT to_regclass('platform.data_return_grants') IS NOT NULL;") != 't':
+            return
+        revoked = self.sql("""
+            WITH revoked AS (
+                UPDATE platform.data_return_grants SET revoked_at = COALESCE(revoked_at, now()),
+                    revoked_by = COALESCE(revoked_by, 'restore'), wrapped_key = NULL
+                WHERE purged_at IS NULL AND (revoked_at IS NULL OR wrapped_key IS NOT NULL)
+                RETURNING 1)
+            SELECT count(*) FROM revoked;
+        """)
+        require(re.fullmatch(r'[0-9]+', revoked))
+        print(f'restore_data_return_revoked={int(revoked)}', flush=True)
+
     def verify_quarantined_logins(self, quarantined):
         global step
         if not quarantined:
@@ -406,6 +429,7 @@ class Recovery:
             self.dc('exec', '-T', 'postgres', 'pg_restore', '-U', 'postgres', '-d', 'postgres',
                     '--exit-on-error', stdin=file)
         self.verify_quarantined_logins(quarantined)
+        self.revoke_data_return()
         step = 'uploads_restore'
         command(['docker', 'volume', 'create', self.volume])
         with (work / 'uploads.tar.gz').open('rb') as file:

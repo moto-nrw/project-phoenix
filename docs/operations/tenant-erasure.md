@@ -160,6 +160,12 @@ Löschweg für Test-Träger gibt es nicht.
    Data-Act-Abruffrist und gesetzliche Aufbewahrung getrennt prüfen.
    Keine pauschale zusätzliche 30-Tage-Wartefrist; kein vorheriges Soft Delete.
    Offene Rückgabe, Abruffrist oder Aufbewahrungsentscheidung sperrt den Lauf.
+   Ein zum Abruf freigegebenes Rückgabepaket (ADR 0203) liegt außerhalb der
+   Upload-Wurzel, die diese Löschung bearbeitet. `tenant erase` verweigert
+   deshalb Schule oder Träger, solange ein Paket davon nicht bereinigt ist,
+   und löscht dann nichts. Nach Ende der Abruffrist mit dem Freigabezugang
+   `tenant return revoke --archive` und `tenant return purge` ausführen
+   ([Runbook](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act)).
 2. Gesperrte Abrechnungsreferenzen bleiben nach dem
    [DB-Vertrag](../reference/mandantenloeschung-datenbank.md) erhalten.
    Weitere Ausnahmen vorab klären, nicht durch manuelle Kopien umgehen.
@@ -174,8 +180,8 @@ Löschweg für Test-Träger gibt es nicht.
    Shell-History, Ausgabe oder dieses Runbook schreiben. Kein neues Env-Schema.
    **Nach einem Restore ist dieser Zugang zunächst NOLOGIN.** Der Restore
    akzeptiert nur eine ausschließliche Mitgliedschaft in genau einer der
-   Gruppen `phoenix_school_erasure`, `phoenix_billing_retention` oder
-   `phoenix_diagnostics`, ohne ADMIN-/INHERIT-Option, mit SET-Option und ohne
+   Gruppen `phoenix_school_erasure`, `phoenix_billing_retention`,
+   `phoenix_data_return` oder `phoenix_diagnostics`, ohne ADMIN-/INHERIT-Option, mit SET-Option und ohne
    erhöhte Attribute, Einstellungen, zusätzliche Mitglieder/Mitgliedschaften,
    direkte Rechte oder Objektbesitz. Für `tenant erase` den Löschzugang bewusst
    einzeln neu freischalten: Auftrag und Rechte erneut prüfen, neues Passwort

@@ -1,0 +1,19 @@
+{
+  "sites": [
+    {
+      "decision": "0206",
+      "id": "workflows/holidayallocation/Workflow.DecideHolidayAllocation",
+      "reason": "ADR 0206 (#6555): the workflow command runs the shared protocol (Träger unit, B, P, Enrollment's decision, refreeze of every directly placed and moved-up registration) and hides a failed unit's board."
+    },
+    {
+      "decision": "0206",
+      "id": "workflows/holidayallocation/Workflow.RebookHolidayChild",
+      "reason": "ADR 0206 (#6555): the workflow command runs the shared protocol (Träger unit, B, P, Enrollment's rebooking, refreeze of the moved-up registrations) and hides a failed unit's registration."
+    },
+    {
+      "decision": "0206",
+      "id": "workflows/holidayallocation/Workflow.SetHolidayWeekCapacity",
+      "reason": "ADR 0206 (#6555): the workflow command runs the shared protocol (Träger unit, B, P, Enrollment's capacity change, refreeze of the moved-up registrations) and hides a failed unit's change."
+    }
+  ]
+}

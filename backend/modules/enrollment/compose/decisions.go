@@ -129,8 +129,7 @@ func NewRejectedCleanup(deps RejectedCleanupDependencies) enrollment.RejectedEnr
 	return application.NewRejectedCleanup(deps)
 }
 
-// NewOfferingCapacity composes the capacity gate a submission shares with the restore.
-// A nil waitlistEnabled fails a waitlist-mode phase with a configuration error.
+// NewOfferingCapacity composes the capacity gate a submission shares with the restore; a nil waitlistEnabled fails a waitlist-mode phase with a configuration error.
 func NewOfferingCapacity(offerings CapacityOfferings, peaks CapacityPeaks, waitlistEnabled func(context.Context) (bool, error)) enrollment.OfferingCapacity {
 	return application.NewOfferingCapacity(offerings, peaks, waitlistEnabled)
 }

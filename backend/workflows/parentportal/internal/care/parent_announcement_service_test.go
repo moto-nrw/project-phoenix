@@ -46,9 +46,23 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 
 func buildAnnouncementServiceOnWithSurveys(t *testing.T, db *bun.DB, newsEnabled bool, surveys parentportal.Surveys) (*parentportal.Portal, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
+	return buildAnnouncementServiceWithAccess(t, db, newsEnabled, surveys, nil)
+}
+
+// buildAnnouncementServiceWithAccess lets a test wrap Communication's
+// announcement access, e.g. to park a declaration around its lock.
+func buildAnnouncementServiceWithAccess(
+	t *testing.T, db *bun.DB, newsEnabled bool, surveys parentportal.Surveys,
+	wrap func(parentportal.AnnouncementAccess) parentportal.AnnouncementAccess,
+) (*parentportal.Portal, *bun.DB, *api.ParentMessagingSuiteRepositories) {
+	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposMessages := api.NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db))
+	access := owners.BindParentAnnouncementAccess(reposMessages.ParentAnnouncement)
+	if wrap != nil {
+		access = wrap(access)
+	}
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		SharePolicy:           parentportalcompose.NewRequestSharePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
@@ -59,7 +73,7 @@ func buildAnnouncementServiceOnWithSurveys(t *testing.T, db *bun.DB, newsEnabled
 		Children:              childResolver(db, repos, reposPeople),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
-		AnnouncementRepo:      owners.BindParentAnnouncementAccess(reposMessages.ParentAnnouncement),
+		AnnouncementRepo:      access,
 		StudentRepo:           owners.NewParentStudentReads(reposPeople.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{parentportal.KeyParentNewsEnabled: newsEnabled},

@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.student_batch.import_without_guardian_email_110",
-  "max": 1041,
+  "max": 607,
   "exact": false,
-  "description": "110-row create import whose guardians carry no e-mail, in two write transactions. Measured by TestStudentImportWithoutGuardianEmailQueryBudget. The chunk executor writes the new guardians of each segment with one statement per table instead of eight statements per row (#5552 step 5c, PR #6514); 1911 on development before."
+  "description": "110-row create import whose guardians carry no e-mail, in two write transactions. Measured by TestStudentImportWithoutGuardianEmailQueryBudget. The chunk executor writes the new guardians of each segment with one statement per table instead of eight statements per row (#5552 step 5c, PR #6514); 1911 on development before. Step 7 takes the class gate and creates the student profiles of a segment in one statement each before the rows and their care profiles in one statement after them; memberships stay per row (#5552, PR #6558)."
 }

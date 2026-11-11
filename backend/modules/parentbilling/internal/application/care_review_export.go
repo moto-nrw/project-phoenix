@@ -58,7 +58,7 @@ func (c *CareBilling) ExportCareRunReview(ctx context.Context, reviewer parentbi
 		return parentbilling.ExportFile{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.ExportFile{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.ExportFile{}, closedRunError(run.Status)
 	}
 	detail := parentbilling.CareRunDetail{CareRun: run}
 	if err := c.reviewDetail(ctx, reviewer, &detail); err != nil {

@@ -63,9 +63,26 @@ func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork, options .
 	return &traegerPortalHandler{Handler: traegerPortalRouter(t, db, auth.Auth, unit), mail: mail}, auth.Auth
 }
 
+// traegerPortalWithDays is traegerPortalOn whose host schools give no care
+// on days (#6447).
+func traegerPortalWithDays(t *testing.T, db *bun.DB, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) *traegerPortalHandler {
+	t.Helper()
+	mail := testpkg.NewCapturingMailer()
+	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, WithAuthTestMailer(mail))
+	require.NoError(t, err)
+	return &traegerPortalHandler{Handler: traegerPortalRouterWithDays(t, db, auth.Auth, unit, days), mail: mail}
+}
+
 // traegerPortalRouter builds the /traeger router over identity, with the
 // Elternabrechnung's routes the serving root mounts beside it (#4664).
 func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork) http.Handler {
+	t.Helper()
+	return traegerPortalRouterWithDays(t, db, identity, unit, owners.HolidayTestSchoolCalendar{})
+}
+
+// traegerPortalRouterWithDays builds the /traeger router whose host schools
+// give no care on days.
+func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) http.Handler {
 	t.Helper()
 	database := testpkg.NewDatabase(t, db)
 	organizations, err := owners.NewOrganizationTenancy(database)
@@ -81,7 +98,7 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	})
 	require.NoError(t, err)
 	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
-		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher(), owners.HolidayTestSchoolCalendar{},
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher(), days,
 		holidayTraegerMail{delivery: delivery.Module}, newHolidayOfficeTraeger(organizations))
 	require.NoError(t, err)
 	router := chi.NewRouter()
@@ -97,8 +114,8 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	require.NoError(t, err)
 	bankCipher, err := BankDataCipher(testpkg.TestBankDataKeys, "")
 	require.NoError(t, err)
-	mountParentBillingRoutes(router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), bankCipher, owners.HolidayTestSchoolCalendar{}, slog.Default())
-	mountTraegerClosingDayRoutes(router, owners.NewTraegerCalendarSchools(organizations, schoolSettings.Settings), organizations, delivery.Module, owners.HolidayTestSchoolCalendar{})
+	mountParentBillingRoutes(router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), bankCipher, days, slog.Default())
+	mountTraegerClosingDayRoutes(router, owners.NewTraegerCalendarSchools(organizations, schoolSettings.Settings), organizations, delivery.Module, days)
 	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog,
 		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), owners.CareContractTestHolidays{}, "http://parents.localhost:3000")
 	return testpkg.SessionVerifier(router)

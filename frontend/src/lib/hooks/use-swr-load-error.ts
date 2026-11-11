@@ -16,6 +16,8 @@ export function useSwrLoadError(
   error: unknown,
   object: string,
   retry: () => unknown,
+  /** Context sentence after the catalog text, e.g. that shown data is old. */
+  messageSuffix?: string,
 ) {
   const { error: shown, show, clear } = useApiLoadError();
   // The retry closes over the latest mutate, not the one of the failed load.
@@ -31,12 +33,16 @@ export function useSwrLoadError(
   useEffect(() => {
     if (error) {
       shownRef.current = true;
-      void show(error, { object, retry: () => void retryRef.current() });
+      void show(error, {
+        object,
+        messageSuffix,
+        retry: () => void retryRef.current(),
+      });
     } else if (shownRef.current) {
       shownRef.current = false;
       clear();
     }
-  }, [error, object, show, clear]);
+  }, [error, object, messageSuffix, show, clear]);
 
   return shown;
 }

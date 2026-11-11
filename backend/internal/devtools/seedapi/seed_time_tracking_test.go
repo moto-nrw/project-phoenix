@@ -152,8 +152,15 @@ func TestBreakSessionDaySkipsHolidays(t *testing.T) {
 func TestFullDemoWorkflowDeferHistoryLeavesOutDeferredSteps(t *testing.T) {
 	t.Parallel()
 
+	// The Träger lock wraps its steps; compare the wrapped step.
+	unwrap := func(step Step) Step {
+		if serial, ok := step.(traegerSerialStep); ok {
+			return serial.Step
+		}
+		return step
+	}
 	contains := func(steps []Step, want Step) bool {
-		return slices.ContainsFunc(steps, func(step Step) bool { return reflect.TypeOf(step) == reflect.TypeOf(want) })
+		return slices.ContainsFunc(steps, func(step Step) bool { return reflect.TypeOf(unwrap(step)) == reflect.TypeOf(unwrap(want)) })
 	}
 	full := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey}}).Steps
 	deferred := fullDemoWorkflow(&Seeder{options: SeedOptions{OnlyProfile: DefaultProfileKey, DeferHistory: true}}).Steps

@@ -5,6 +5,7 @@ import { formatDate } from "~/lib/date-helpers";
 import type {
   CareNotice,
   CareNoticeKind,
+  CareNoticeRunDetail,
   CareNoticeRunStatus,
 } from "~/lib/traeger-care-notices-api";
 import { formatEuro } from "./contribution-format";
@@ -12,6 +13,7 @@ import { formatEuro } from "./contribution-format";
 export const NOTICE_RUN_STATUS_LABELS: Record<CareNoticeRunStatus, string> = {
   calculated: "Vorschau",
   released: "Ausgestellt",
+  discarded: "Verworfen",
 };
 
 export const NOTICE_RUN_STATUS_TONES: Record<
@@ -20,6 +22,7 @@ export const NOTICE_RUN_STATUS_TONES: Record<
 > = {
   calculated: "orange",
   released: "green",
+  discarded: "gray",
 };
 
 export const NOTICE_KIND_LABELS: Record<CareNoticeKind, string> = {
@@ -70,4 +73,23 @@ export function noticeRateLabel(notice: CareNotice): string {
 /** "4 Raten" or "1 Rate". */
 export function rateCountLabel(count: number): string {
   return count === 1 ? "1 Rate" : `${count} Raten`;
+}
+
+/**
+ * An open notice run that concerns no contract at all (#6626): no notice, no
+ * booking without a price, no child held back, no notice that still holds and
+ * no month a monthly invoice bills. Such a run is discarded. A run whose
+ * contracts all keep their notice is closed instead, as before: closing it
+ * records that nothing changed. The server decides again under the lock of
+ * the release.
+ */
+export function isEmptyNoticeRun(run: CareNoticeRunDetail): boolean {
+  return (
+    run.status === "calculated" &&
+    run.previewCount === 0 &&
+    run.unpricedCount === 0 &&
+    run.duplicateCount === 0 &&
+    run.unchanged === 0 &&
+    run.billed === 0
+  );
 }

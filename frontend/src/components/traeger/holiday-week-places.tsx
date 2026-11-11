@@ -37,6 +37,7 @@ import {
   holidayWeekdayLong,
   holidayWeekdayShort,
 } from "~/lib/holiday-days";
+import type { HolidayNoCareDay } from "~/lib/traeger-api";
 import {
   type HolidayWeekPlaces,
   setHolidayWeekCapacity,
@@ -44,11 +45,17 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 import { holidayPlacementStatus } from "./holiday-placement";
 
+const NO_DAYS: readonly HolidayNoCareDay[] = [];
+
 /** Höchste Zahl an Plätzen einer Woche, wie im Backend. */
 const HOLIDAY_WEEK_CAPACITY_MAX = 10000;
 
-/** Wie voll eine Woche ist, in Worten und als Plakette. */
-export function holidayWeekFill(week: HolidayWeekPlaces): {
+/** Wie voll eine Woche ist, in Worten und als Plakette. Tage ohne
+ * Betreuung (#6447) zählen dabei nicht mit. */
+export function holidayWeekFill(
+  week: HolidayWeekPlaces,
+  noCareDays: readonly HolidayNoCareDay[] = [],
+): {
   readonly label: string;
   readonly tone: "green" | "warning" | "gray";
 } {
@@ -57,7 +64,9 @@ export function holidayWeekFill(week: HolidayWeekPlaces): {
   }
   if (week.bookingUnit === "day") {
     const capacity = week.capacity;
-    const days = week.days ?? [];
+    const days = (week.days ?? []).filter(
+      (day) => !noCareDays.some((none) => none.date === day.date),
+    );
     const full = days.filter((day) => day.placed >= capacity).length;
     if (days.length > 0 && full === days.length) {
       return { label: "Alle Tage voll", tone: "warning" };
@@ -91,6 +100,7 @@ function waitingLabel(count: number): string {
 export function HolidayWeekPlacesCard({
   periodId,
   week,
+  noCareDays = NO_DAYS,
   hostSchoolName,
   editing,
   onEdit,
@@ -104,8 +114,10 @@ export function HolidayWeekPlacesCard({
   onEdit: () => void;
   onCancel: () => void;
   onSaved: (movedUp: number) => void;
+  /** Tage ohne Betreuung an der ausrichtenden OGS (#6447). */
+  noCareDays?: readonly HolidayNoCareDay[];
 }>) {
-  const fill = holidayWeekFill(week);
+  const fill = holidayWeekFill(week, noCareDays);
   const title = formatHolidayWeek(week.startsOn, week.endsOn);
   return (
     <SectionCard
@@ -134,7 +146,11 @@ export function HolidayWeekPlacesCard({
           onSaved={onSaved}
         />
       ) : (
-        <HolidayWeekPlacesReadout periodId={periodId} week={week} />
+        <HolidayWeekPlacesReadout
+          periodId={periodId}
+          week={week}
+          noCareDays={noCareDays}
+        />
       )}
     </SectionCard>
   );
@@ -142,19 +158,70 @@ export function HolidayWeekPlacesCard({
 
 /**
  * Die Belegung jedes Tages einer tageweise gebuchten Woche: ein Feld je Tag
- * mit vergebenen Plätzen und Balken. Ein voller Tag ist orange.
+ * mit vergebenen Plätzen und Balken. Ein voller Tag ist orange. Ein Tag ohne
+ * Betreuung (#6447) ist grau und nennt den Grund statt einer Belegung.
  */
-function HolidayDayPlacesGrid({ week }: Readonly<{ week: HolidayWeekPlaces }>) {
-  const capacity = week.capacity;
+export function HolidayDayPlacesGrid({
+  week,
+  dates,
+  noCareDays,
+  labelId,
+}: Readonly<
+  { noCareDays: readonly HolidayNoCareDay[] } & (
+    | { week: HolidayWeekPlaces; dates?: never; labelId?: never }
+    | { week?: never; dates: readonly string[]; labelId: string }
+  )
+>) {
+  const capacity = week?.capacity ?? null;
+  const days = week?.days ?? dates?.map((date) => ({ date, placed: 0 })) ?? [];
+  if (!week && days.length === 0) return null;
+  const heading = week
+    ? capacity === null
+      ? "Angemeldete Kinder je Tag"
+      : `Plätze je Tag · ${capacity} ${capacity === 1 ? "Platz" : "Plätze"} an jedem Tag`
+    : `Buchbare Tage · ${days.filter((day) => !noCareDays.some((none) => none.date === day.date)).length} von ${days.length}`;
   return (
     <div className="space-y-2">
-      <SectionLabel as="h3">
-        {capacity === null
-          ? "Angemeldete Kinder je Tag"
-          : `Plätze je Tag · ${capacity} ${capacity === 1 ? "Platz" : "Plätze"} an jedem Tag`}
+      <SectionLabel as={week ? "h3" : "p"} id={labelId}>
+        {heading}
       </SectionLabel>
-      <ul className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-5">
-        {(week.days ?? []).map((day) => {
+      <ul
+        aria-labelledby={labelId}
+        className="grid grid-cols-2 gap-2 min-[420px]:grid-cols-3 sm:grid-cols-5"
+      >
+        {days.map((day) => {
+          const none = noCareDays.find((d) => d.date === day.date);
+          if (none && day.placed === 0) {
+            const reason = none.kind === "holiday" ? "Feiertag" : "Schließtag";
+            return (
+              <li
+                key={day.date}
+                aria-label={`${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}: keine Betreuung, ${reason} (${none.name})`}
+              >
+                <StatCard
+                  label={`${holidayWeekdayShort(day.date)} ${holidayDayDate(day.date)}`}
+                  value="–"
+                  hint={`${reason}: ${none.name}`}
+                  tone="gray"
+                />
+              </li>
+            );
+          }
+          if (!week) {
+            return (
+              <li
+                key={day.date}
+                aria-label={`${holidayWeekdayLong(day.date)}, ${holidayDayDate(day.date)}: buchbar`}
+              >
+                <StatCard
+                  label={`${holidayWeekdayShort(day.date)} ${holidayDayDate(day.date)}`}
+                  value="✓"
+                  hint="buchbar"
+                  tone="green"
+                />
+              </li>
+            );
+          }
           const full = capacity !== null && day.placed >= capacity;
           const label =
             capacity === null
@@ -194,11 +261,16 @@ function HolidayDayPlacesGrid({ week }: Readonly<{ week: HolidayWeekPlaces }>) {
 function HolidayWeekPlacesReadout({
   periodId,
   week,
-}: Readonly<{ periodId: string; week: HolidayWeekPlaces }>) {
+  noCareDays,
+}: Readonly<{
+  periodId: string;
+  week: HolidayWeekPlaces;
+  noCareDays: readonly HolidayNoCareDay[];
+}>) {
   return (
     <div className="space-y-5">
       {week.bookingUnit === "day" ? (
-        <HolidayDayPlacesGrid week={week} />
+        <HolidayDayPlacesGrid week={week} noCareDays={noCareDays} />
       ) : week.capacity === null ? (
         <p className="text-sm text-gray-700">
           <span className="font-semibold text-gray-900">{week.placed}</span>{" "}

@@ -165,6 +165,28 @@ create() {
   echo "Complete backup verified: $(basename "$bundle")"
 }
 
+# ADR 0203: the store of released return packages is no part of the
+# snapshot and keeps its archives through a rollback, while the restored
+# database brings back revoked tokens and spent downloads. Revoke every
+# grant that still has an archive and record that a restore did it; a
+# snapshot from before the data-return tables needs nothing. Any failure
+# stops the restore with the application stopped.
+revoke_data_return() {
+  local present revoked=0
+  present=$(compose exec -T postgres psql -X -U postgres -d postgres -At -v ON_ERROR_STOP=1 \
+    -c "SELECT to_regclass('platform.data_return_grants') IS NOT NULL;") ||
+    fail 'Data return revocation failed; application remains stopped'
+  if [[ "$present" == t ]]; then
+    revoked=$(compose exec -T postgres psql -X -U postgres -d postgres -At -v ON_ERROR_STOP=1 \
+      -c "WITH revoked AS (UPDATE platform.data_return_grants SET revoked_at = COALESCE(revoked_at, now()), revoked_by = COALESCE(revoked_by, 'restore'), wrapped_key = NULL WHERE purged_at IS NULL AND (revoked_at IS NULL OR wrapped_key IS NOT NULL) RETURNING 1) SELECT count(*) FROM revoked;") ||
+      fail 'Data return revocation failed; application remains stopped'
+    [[ "$revoked" =~ ^[0-9]+$ ]] || fail 'Data return revocation failed; application remains stopped'
+  elif [[ "$present" != f ]]; then
+    fail 'Data return revocation failed; application remains stopped'
+  fi
+  echo "restore_data_return_revoked=$revoked"
+}
+
 restore() {
   verify
   dedicated_cluster
@@ -207,6 +229,7 @@ SQL
   if ! compose exec -T postgres pg_restore -U postgres -d postgres --exit-on-error < "$bundle/database.dump" >"$roles_log" 2>&1; then
     fail 'Database restore failed; application remains stopped'
   fi
+  revoke_data_return
   # ACL assertions cover the login connection and both SET ROLE paths.
   compose exec -T postgres psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 DO $$ BEGIN

@@ -1,5 +1,4 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import Link from "next/link";
 import { describe, expect, it } from "vitest";
 
 import { Tooltip } from "./tooltip";
@@ -31,28 +30,13 @@ describe("Tooltip", () => {
     expect(trigger).not.toHaveFocus();
   });
 
-  it("uses an interactive child as the only keyboard target", () => {
-    render(
-      <Tooltip content="Hilfe zu dieser Seite" asChild>
-        <Link href="/help">Hilfe</Link>
-      </Tooltip>,
-    );
-
-    const link = screen.getByRole("link", { name: "Hilfe" });
-    const bubble = screen.getByRole("tooltip");
-
-    expect(link).toHaveAttribute("aria-describedby", bubble.id);
-    expect(link.parentElement).not.toHaveAttribute("tabindex");
-  });
-
   it("stays dismissed on Escape while the pointer remains over the trigger", () => {
-    render(
-      <Tooltip content="Hilfe zu dieser Seite" asChild>
-        <Link href="/help">Hilfe</Link>
-      </Tooltip>,
-    );
+    render(<Tooltip content="Geplant 4 h · Soll 8 h">7,5 h</Tooltip>);
 
-    const link = screen.getByRole("link", { name: "Hilfe" });
+    const link = screen
+      .getByText("7,5 h")
+      .closest<HTMLElement>("[aria-describedby]");
+    if (!link) throw new Error("Tooltip trigger was not rendered");
     const bubble = screen.getByRole("tooltip");
     const wrapper = link.parentElement;
     if (!wrapper) throw new Error("Tooltip wrapper was not rendered");

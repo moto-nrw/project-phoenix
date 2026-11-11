@@ -66,6 +66,9 @@ func (c *CareBilling) ExportCareCostShares(ctx context.Context, reviewer parentb
 	if err != nil {
 		return parentbilling.ExportFile{}, err
 	}
+	if detail.Status == parentbilling.RunDiscarded {
+		return parentbilling.ExportFile{}, parentbilling.ErrBillingRunDiscarded
+	}
 	cancelled := map[int64]bool{}
 	if detail.Status == parentbilling.RunReleased {
 		cancellations, err := c.store.CareRunCancellations(ctx, reviewer.OrganizationID, detail.ID)

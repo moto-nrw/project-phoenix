@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -22,6 +23,7 @@ type personExportFixture struct {
 	school, otherSchool          int64
 	child, sibling, foreignChild int64
 	guardian, staff, otherStaff  int64
+	staffAccount                 int64
 	uploads                      string
 }
 
@@ -84,7 +86,7 @@ func newPersonExportFixture(t *testing.T) personExportFixture {
 		_, err := db.NewRaw("UPDATE users.student_profiles SET photo_path = ? WHERE id = ?", "/uploads/"+key, student.id).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	return personExportFixture{db: db, school: a, otherSchool: b, child: x.ID, sibling: y.ID, foreignChild: z.ID, guardian: g.ID, staff: s.ID, otherStaff: sb.ID, uploads: root}
+	return personExportFixture{db: db, school: a, otherSchool: b, child: x.ID, sibling: y.ID, foreignChild: z.ID, guardian: g.ID, staff: s.ID, staffAccount: account.ID, otherStaff: sb.ID, uploads: root}
 }
 
 func personExport(t *testing.T, fixture personExportFixture, subject string) string {
@@ -281,4 +283,66 @@ func TestPersonExportIncludesDocumentsAndOnlySelectedEnrollmentChild(t *testing.
 	require.JSONEq(t, strconv.Quote(fmt.Sprintf("synthetic-change-%d", f.child)), string(messages[0]["body"]))
 	require.Len(t, personTable(t, out, "objects"), 2, "only the selected child's photo and document")
 	assertPersonReview(t, out, true)
+}
+
+// A record the staff member only handled (created_by, checked_in_by) stays in
+// the package as one marked row. It is not the staff member's own data, so
+// neither its dependent rows nor the children it names follow (#3838).
+func TestPersonExportStaffHandledRecordsBringNoForeignChildren(t *testing.T) {
+	t.Parallel()
+	f := newPersonExportFixture(t)
+	// A child the staff member never wrote about: only handled records name it.
+	other := testpkg.CreateTestStudent(t, f.db, "SyntheticHandled", "Fixture", "X").ID
+	group := testpkg.CreateTestActivityGroup(t, f.db, "SyntheticHandled")
+	_, err := f.db.NewRaw("UPDATE activities.groups SET created_by = ? WHERE id = ?", f.staff, group.ID).Exec(t.Context())
+	require.NoError(t, err)
+	_, err = f.db.NewRaw(`INSERT INTO activities.student_enrollments (tenant_id, student_id, activity_group_id, valid_from)
+		VALUES (?, ?, ?, '2026-01-12')`, f.school, other, group.ID).Exec(t.Context())
+	require.NoError(t, err)
+	day := calendar.NewDate(2026, time.January, 12)
+	device := testpkg.CreateTestDevice(t, f.db, fmt.Sprintf("synthetic-handled-%d", f.school))
+	testpkg.CreateTestAttendanceForDate(t, f.db, other, f.staff, device.ID, day, day.BerlinMidnight().Add(8*time.Hour), nil)
+	letter := testpkg.CreateTestParentAnnouncement(t, f.db, f.staffAccount, "SyntheticLetter")
+	_, err = f.db.NewRaw(`INSERT INTO users.parent_announcement_options (tenant_id, announcement_id, label, position)
+		VALUES (?, ?, 'synthetic-option', 1)`, f.school, letter.ID).Exec(t.Context())
+	require.NoError(t, err)
+
+	out := personExport(t, f, "staff:"+strconv.FormatInt(f.staff, 10))
+	require.Len(t, personTable(t, out, "activities.groups"), 1, "the group the staff member created")
+	require.Len(t, personTable(t, out, "active.attendance"), 1, "the check-in the staff member recorded")
+	require.Empty(t, personTable(t, out, "activities.student_enrollments"), "children of a created group are not the creator's data")
+	for _, profile := range personTable(t, out, "users.student_profiles") {
+		require.NotEqual(t, strconv.FormatInt(other, 10), string(profile["id"]), "a handled record names a child, it does not bring the child's profile")
+	}
+	// Notes the staff member wrote are their own statements and stay.
+	require.Len(t, personTable(t, out, "users.student_notes"), 2)
+	require.Len(t, personTable(t, out, "users.parent_announcements"), 1)
+	require.Len(t, personTable(t, out, "users.parent_announcement_options"), 1, "a letter the staff member wrote keeps its content")
+
+	rules := personReviewRulesByTable(t, out)
+	for _, table := range []string{"activities.groups", "active.attendance"} {
+		require.Contains(t, rules[table], "handled-by-subject-not-about-subject", table)
+	}
+	require.NotContains(t, rules["users.staff_school_memberships"], "handled-by-subject-not-about-subject")
+	require.NotContains(t, rules["audit.staff_master_data_changes"], "handled-by-subject-not-about-subject",
+		"a row about the staff member stays theirs even when they also handled it")
+	assertPersonReview(t, out, false)
+}
+
+func personReviewRulesByTable(t *testing.T, out string) map[string][]string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(out, "review.json"))
+	require.NoError(t, err)
+	var review struct {
+		Items []struct {
+			Table string   `json:"table"`
+			Rules []string `json:"rules"`
+		} `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal(data, &review))
+	rules := map[string][]string{}
+	for _, item := range review.Items {
+		rules[item.Table] = append(rules[item.Table], item.Rules...)
+	}
+	return rules
 }

@@ -73,6 +73,9 @@ type Config struct {
 	// HolidayWishes states the holiday care wish of a prefilled child
 	// (#4703) in the school's tenant transaction.
 	HolidayWishes HolidayWishStatements
+	// HolidayAnnouncements lists the published holiday periods the start
+	// page announces (#6671), in the administrative transaction.
+	HolidayAnnouncements HolidayRegistrationAnnouncements
 
 	// Document inbox (#4671, ADR 0126): the documents of the Elternabrechnung
 	// in the Träger transaction, the Träger of a school, the address of an
