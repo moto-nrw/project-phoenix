@@ -1,8 +1,9 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
@@ -46,7 +47,7 @@ export default function OperatorOrganizationsPage() {
   const [createTestOpen, setCreateTestOpen] = useState(false);
 
   const {
-    data: organizations,
+    data: cachedOrganizations,
     error: orgsError,
     isLoading: orgsLoading,
     mutate: mutateOrgs,
@@ -59,9 +60,15 @@ export default function OperatorOrganizationsPage() {
       dedupingInterval: 5000,
     },
   );
+  const { data: organizations, accessRefused: organizationsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
+      cachedOrganizations,
+      orgsError,
+    );
 
   const {
-    data: stats,
+    data: cachedStats,
     error: statsError,
     mutate: mutateStats,
   } = useSWRAuth(
@@ -72,6 +79,11 @@ export default function OperatorOrganizationsPage() {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  const { data: stats } = useAccessControlledData(
+    isAuthenticated ? operatorProvisioningKeys.provisioningStats() : null,
+    cachedStats,
+    statsError,
   );
   const orgsLoadError = useSwrLoadError(
     orgsError,
@@ -122,6 +134,18 @@ export default function OperatorOrganizationsPage() {
     if (!target) return false;
     return target.schulenCount > 0;
   }, [orgDelete.deleteTarget]);
+
+  const {
+    setDeleteTarget: setOrgDeleteTarget,
+    setRestoreTarget: setOrgRestoreTarget,
+  } = orgDelete;
+  useLayoutEffect(() => {
+    if (!organizationsAccessRefused) return;
+    setCreateOrgOpen(false);
+    setCreateTestOpen(false);
+    setOrgDeleteTarget(null);
+    setOrgRestoreTarget(null);
+  }, [organizationsAccessRefused, setOrgDeleteTarget, setOrgRestoreTarget]);
 
   const count = organizations?.length;
 
@@ -217,7 +241,7 @@ export default function OperatorOrganizationsPage() {
           <TenantPageStats items={[{ value: count, label: "Träger" }]} />
         )
       }
-      actions={actionButton}
+      actions={organizationsAccessRefused ? undefined : actionButton}
       overlays={
         <>
           {orgDelete.deleteTarget && (

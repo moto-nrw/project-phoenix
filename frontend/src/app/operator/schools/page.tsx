@@ -1,9 +1,10 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
@@ -44,7 +45,7 @@ export default function OperatorSchoolsPage() {
   const [createSchoolOpen, setCreateSchoolOpen] = useState(false);
 
   const {
-    data: organizations,
+    data: cachedOrganizations,
     error: organizationsError,
     mutate: mutateOrganizations,
   } = useSWRAuth(
@@ -56,9 +57,14 @@ export default function OperatorSchoolsPage() {
       dedupingInterval: 5000,
     },
   );
+  const { data: organizations } = useAccessControlledData(
+    isAuthenticated ? operatorProvisioningKeys.organizations() : null,
+    cachedOrganizations,
+    organizationsError,
+  );
 
   const {
-    data: schoolSummaries,
+    data: cachedSchoolSummaries,
     error: summariesError,
     isLoading: summariesLoading,
     mutate: mutateSummaries,
@@ -71,6 +77,12 @@ export default function OperatorSchoolsPage() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolSummaries, accessRefused: schoolSummariesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+      cachedSchoolSummaries,
+      summariesError,
+    );
   const summariesLoadError = useSwrLoadError(
     summariesError,
     "die Liste der Schulen",
@@ -190,6 +202,21 @@ export default function OperatorSchoolsPage() {
     [],
   );
 
+  const {
+    setDeleteTarget: setSchoolDeleteTarget,
+    setRestoreTarget: setSchoolRestoreTarget,
+  } = schoolDelete;
+  useLayoutEffect(() => {
+    if (!schoolSummariesAccessRefused) return;
+    setCreateSchoolOpen(false);
+    setSchoolDeleteTarget(null);
+    setSchoolRestoreTarget(null);
+  }, [
+    schoolSummariesAccessRefused,
+    setSchoolDeleteTarget,
+    setSchoolRestoreTarget,
+  ]);
+
   return (
     <TenantPage
       title="Schulen"
@@ -202,7 +229,7 @@ export default function OperatorSchoolsPage() {
           />
         )
       }
-      actions={actionButton}
+      actions={schoolSummariesAccessRefused ? undefined : actionButton}
       overlays={
         <>
           <CreateSchoolModal

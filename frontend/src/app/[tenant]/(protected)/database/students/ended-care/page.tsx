@@ -11,6 +11,7 @@
 // Design follows the Anmeldungen/Planung surface language: calm content
 // section without a kicker, gray-50 stats, no colored dashboards.
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { useEffect, useMemo, useState } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -28,7 +29,6 @@ import { formatCount } from "~/lib/format-utils";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { useToast } from "~/contexts/ToastContext";
-import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import {
   CARE_EXIT_REASON_LABELS,
@@ -86,7 +86,7 @@ export default function EndedCarePage() {
   }, [debouncedSearch]);
 
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
@@ -100,9 +100,12 @@ export default function EndedCarePage() {
       }),
     { keepPreviousData: true },
   );
-  const accessRefused =
-    swrError instanceof ApiError &&
-    (swrError.status === 401 || swrError.status === 403);
+  const { data, accessRefused: dataAccessRefused } = useAccessControlledData(
+    canManage ? `${SWR_KEY}:${page}:${debouncedSearch}` : null,
+    cachedData,
+    swrError,
+  );
+  const accessRefused = dataAccessRefused;
   // Ladefehler mit Katalogtext und Wiederholen (#2517).
   const loadError = useSwrLoadError(
     canManage ? swrError : undefined,

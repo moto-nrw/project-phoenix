@@ -63,6 +63,7 @@ import {
 } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { ApiError } from "~/lib/api-error";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   SIBLING_HINT_LABELS,
@@ -408,9 +409,21 @@ export default function TraegerHolidayRegistrationsPage() {
   // failure. An answer for an older generation is dropped.
   const readRegistrations = useCallback(
     async (current: number) => {
+      const discardRefusal = (error: unknown): never => {
+        if (
+          current === generation.current &&
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403)
+        ) {
+          setList(null);
+          setGroups([]);
+          setSelected(new Set());
+        }
+        throw error;
+      };
       const [loaded, loadedGroups] = await Promise.all([
-        fetchHolidayRegistrations(periodId, filter),
-        fetchHolidaySiblingGroups(periodId),
+        fetchHolidayRegistrations(periodId, filter).catch(discardRefusal),
+        fetchHolidaySiblingGroups(periodId).catch(discardRefusal),
       ]);
       if (current !== generation.current) return;
       setList(loaded);

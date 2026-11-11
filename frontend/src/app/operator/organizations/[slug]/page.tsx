@@ -1,8 +1,16 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, use, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -164,7 +172,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
 
   const {
-    data: organizations,
+    data: cachedOrganizations,
     error: organizationsError,
     isLoading,
     mutate: mutateOrganizations,
@@ -177,6 +185,12 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: organizations, accessRefused: organizationsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
+      cachedOrganizations,
+      organizationsError,
+    );
 
   const organization: OrganizationSummary | undefined = useMemo(
     () => organizations?.find((item) => item.slug === slug),
@@ -196,7 +210,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   useSetBreadcrumb({ pageTitle: organization?.name ?? "Träger" });
 
   const {
-    data: organizationSchoolSummaries,
+    data: cachedOrganizationSchoolSummaries,
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchoolSummaries,
@@ -215,6 +229,16 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  const {
+    data: organizationSchoolSummaries,
+    accessRefused: organizationSchoolSummariesAccessRefused,
+  } = useAccessControlledData(
+    isAuthenticated && organizationId
+      ? operatorProvisioningKeys.organizationSchoolSummaries(organizationId)
+      : null,
+    cachedOrganizationSchoolSummaries,
+    schoolsError,
   );
 
   const activeSchools = useMemo(
@@ -252,7 +276,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const accountsActive =
     activeTab === "konten" && isAuthenticated && organization != null;
   const {
-    data: orgAccounts,
+    data: cachedOrgAccounts,
     error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateOrgAccounts,
@@ -270,11 +294,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: orgAccounts, accessRefused: orgAccountsAccessRefused } =
+    useAccessControlledData(
+      accountsActive
+        ? operatorProvisioningKeys.orgAccounts(organization?.id)
+        : null,
+      cachedOrgAccounts,
+      accountsError,
+    );
 
   const devicesActive =
     activeTab === "geraete" && isAuthenticated && organization != null;
   const {
-    data: orgDevices,
+    data: cachedOrgDevices,
     error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateOrgDevices,
@@ -292,11 +324,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: orgDevices, accessRefused: orgDevicesAccessRefused } =
+    useAccessControlledData(
+      devicesActive
+        ? operatorProvisioningKeys.orgDevices(organization?.id)
+        : null,
+      cachedOrgDevices,
+      devicesError,
+    );
 
   const personsActive =
     activeTab === "personen" && isAuthenticated && organization != null;
   const {
-    data: orgPersons,
+    data: cachedOrgPersons,
     error: personsError,
     isLoading: personsLoading,
     mutate: mutateOrgPersons,
@@ -314,11 +354,18 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: orgPersons } = useAccessControlledData(
+    personsActive
+      ? operatorProvisioningKeys.orgPersons(organization?.id)
+      : null,
+    cachedOrgPersons,
+    personsError,
+  );
 
   const traegerMembersActive =
     activeTab === "traeger-buero" && isAuthenticated && organization != null;
   const {
-    data: traegerMembers,
+    data: cachedTraegerMembers,
     error: traegerMembersError,
     isLoading: traegerMembersLoading,
     mutate: mutateTraegerMembers,
@@ -334,8 +381,16 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: traegerMembers, accessRefused: traegerMembersAccessRefused } =
+    useAccessControlledData(
+      traegerMembersActive
+        ? operatorProvisioningKeys.orgTraegerMembers(organization?.id)
+        : null,
+      cachedTraegerMembers,
+      traegerMembersError,
+    );
   const {
-    data: traegerInvitations,
+    data: cachedTraegerInvitations,
     error: traegerInvitationsError,
     isLoading: traegerInvitationsLoading,
     mutate: mutateTraegerInvitations,
@@ -352,6 +407,16 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  const {
+    data: traegerInvitations,
+    accessRefused: traegerInvitationsAccessRefused,
+  } = useAccessControlledData(
+    traegerMembersActive
+      ? operatorProvisioningKeys.orgTraegerInvitations(organization?.id)
+      : null,
+    cachedTraegerInvitations,
+    traegerInvitationsError,
   );
   const reloadTraegerBuero = useCallback(
     () => Promise.all([mutateTraegerMembers(), mutateTraegerInvitations()]),
@@ -680,7 +745,58 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     return null;
   }, [activeTab, deletedSchools.length, schoolDelete]);
 
-  if (isLoading && !organization) {
+  const { setDeleteTarget: setOrgDeleteTarget } = orgDelete;
+  const {
+    setDeleteTarget: setSchoolDeleteTarget,
+    setRestoreTarget: setSchoolRestoreTarget,
+  } = schoolDelete;
+  const headRefused = organizationsAccessRefused;
+  useLayoutEffect(() => {
+    if (headRefused) {
+      setEditOrgOpen(false);
+      setDeactivateOpen(false);
+      setOrgDeleteTarget(null);
+    }
+    if (headRefused || organizationSchoolSummariesAccessRefused) {
+      setCreateSchoolOpen(false);
+      setSchoolDeleteTarget(null);
+      setSchoolRestoreTarget(null);
+    }
+    if (headRefused || orgAccountsAccessRefused) {
+      setCaregiverAccount(null);
+      setCaregiverSchoolContext(null);
+    }
+    if (headRefused || orgDevicesAccessRefused) {
+      setCreateDeviceOpen(false);
+      setSetKeyDevice(null);
+      setTransferDevice(null);
+      setDeleteDevice(null);
+    }
+    if (
+      headRefused ||
+      traegerMembersAccessRefused ||
+      traegerInvitationsAccessRefused
+    ) {
+      setAssignTraegerOpen(false);
+      setInviteTraegerOpen(false);
+      setMfaResetMember(null);
+    }
+  }, [
+    headRefused,
+    organizationSchoolSummariesAccessRefused,
+    orgAccountsAccessRefused,
+    orgDevicesAccessRefused,
+    traegerMembersAccessRefused,
+    traegerInvitationsAccessRefused,
+    setOrgDeleteTarget,
+    setSchoolDeleteTarget,
+    setSchoolRestoreTarget,
+  ]);
+
+  if (
+    !organization &&
+    (isLoading || (organizationsError && !organizationsLoadError))
+  ) {
     return (
       <TenantPage
         title="Träger"

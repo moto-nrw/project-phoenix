@@ -123,6 +123,7 @@ export function LetterStatusPanel({
 }) {
   const [status, setStatus] = useState<LetterStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const latestRequest = useRef(0);
   const loadError = useApiLoadError();
   const showLoadError = loadError.show;
   const clearLoadError = loadError.clear;
@@ -139,15 +140,29 @@ export function LetterStatusPanel({
   // Rejects on failure: after an action the caller shows it as a reload of a
   // saved change (#6652).
   const readStatus = useCallback(async () => {
-    setStatus(await withApiBase(fetchLetterStatus, announcementId, apiBase));
-    setLoadFailed(false);
-    clearLoadError();
+    const request = ++latestRequest.current;
+    try {
+      const next = await withApiBase(
+        fetchLetterStatus,
+        announcementId,
+        apiBase,
+      );
+      if (request !== latestRequest.current) return;
+      setStatus(next);
+      setLoadFailed(false);
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    }
   }, [announcementId, apiBase, clearLoadError]);
   // Never rejects: a failed load shows its error in place.
   const load = useCallback(async () => {
+    const request = latestRequest.current + 1;
     try {
       await readStatus();
     } catch (error) {
+      if (request !== latestRequest.current) return;
       logger.error("letter_status_load_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
@@ -166,9 +181,13 @@ export function LetterStatusPanel({
     latestLoadRef.current = () => void load();
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   const children = useMemo(() => {
     const all = status?.children ?? [];
@@ -180,6 +199,7 @@ export function LetterStatusPanel({
   }, [status, childFilter]);
 
   const runAction = async (action: "remind" | "resend") => {
+    if (busy !== null) return;
     setBusy(action);
     let count: number;
     try {
@@ -202,7 +222,6 @@ export function LetterStatusPanel({
       setBusy(null);
       return;
     }
-    setBusy(null);
     toastSuccess(
       action === "remind"
         ? count === 0
@@ -213,6 +232,7 @@ export function LetterStatusPanel({
           : `${count} ${count === 1 ? "E-Mail wird" : "E-Mails werden"} erneut gesendet.`,
     );
     await afterAction.refresh();
+    setBusy(null);
   };
   useLayoutEffect(() => {
     latestActionRef.current = (action) => void runAction(action);

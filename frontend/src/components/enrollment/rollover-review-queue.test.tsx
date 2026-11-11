@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 // ============================================================================
@@ -33,6 +39,7 @@ vi.mock("~/components/ui/back-link", () => ({
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { RolloverReviewQueue as Queue } from "./rollover-review-queue";
@@ -315,6 +322,45 @@ describe("RolloverReviewQueue", () => {
   describe("reload after a write (#6652)", () => {
     const reloadText = `${catalogText("general.unavailable", "die Anzeige der Prüfliste")} ${SAVED_BUT_STALE_SUFFIX}`;
 
+    it("locks a confirmed decision when its reload fails", async () => {
+      mockListReview
+        .mockResolvedValueOnce([makeItem()])
+        .mockRejectedValueOnce(new ApiError("down", 503));
+      mockDecideReview.mockResolvedValue(undefined);
+      render(<RolloverReviewQueue phaseID="77" />);
+      fireEvent.click(await screen.findByRole("button", { name: /Behalten/ }));
+      expect(await screen.findByText(reloadText)).toBeVisible();
+      expect(
+        screen.queryByRole("button", { name: /Behalten/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Abschließen/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("ignores queue responses that precede confirmed decisions", async () => {
+      const older = deferred<ReturnType<typeof makeItem>[]>();
+      mockListReview
+        .mockResolvedValueOnce([
+          makeItem(),
+          makeItem({ child_id: "998", first_name: "Ben" }),
+        ])
+        .mockReturnValueOnce(older.promise)
+        .mockResolvedValueOnce([]);
+      mockDecideReview.mockResolvedValue(undefined);
+      render(<RolloverReviewQueue phaseID="77" />);
+      const keep = await screen.findAllByRole("button", { name: /Behalten/ });
+      fireEvent.click(keep[0]!);
+      await waitFor(() => expect(mockListReview).toHaveBeenCalledTimes(2));
+      fireEvent.click(
+        (await screen.findAllByRole("button", { name: /Behalten/ }))[0]!,
+      );
+      expect(await screen.findByText(/Keine offenen Einträge/)).toBeVisible();
+      await act(async () => older.resolve([makeItem()]));
+      expect(screen.getByText(/Keine offenen Einträge/)).toBeVisible();
+      expect(screen.queryByText("Lina Beispiel")).not.toBeInTheDocument();
+    });
+
     it("keeps a decided entry decided when the reload fails", async () => {
       mockListReview
         .mockResolvedValueOnce([makeItem()])
@@ -329,8 +375,8 @@ describe("RolloverReviewQueue", () => {
       fireEvent.click(screen.getByRole("button", { name: /Behalten/ }));
 
       expect(await screen.findByText(reloadText)).toBeInTheDocument();
-      // Anker: der bisher gezeigte Eintrag steht noch da.
-      expect(screen.getByText(/Lina Beispiel/)).toBeInTheDocument();
+      // Die Entscheidung ist bestätigt, der Eintrag ist nicht mehr offen.
+      expect(screen.queryByText(/Lina Beispiel/)).not.toBeInTheDocument();
       expect(
         screen.queryByText(
           catalogText("general.unavailable", "die Entscheidung"),

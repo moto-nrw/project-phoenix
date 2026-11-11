@@ -1,5 +1,6 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -25,7 +26,6 @@ import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { AccountTenantAccessModal } from "~/components/operator/account-tenant-access-modal";
-import { ApiError } from "~/lib/api-error";
 import { StatusBadge } from "~/components/ui/status-badge";
 
 function OperatorAccountsPageContent() {
@@ -68,7 +68,7 @@ function OperatorAccountsPageContent() {
   );
 
   const {
-    data: schoolAccounts,
+    data: cachedSchoolAccounts,
     error: schoolAccountsError,
     isLoading: schoolAccountsLoading,
   } = useSWRAuth(
@@ -82,9 +82,17 @@ function OperatorAccountsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolAccounts, accessRefused: schoolAccountsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && urlSchoolId
+        ? operatorProvisioningKeys.schoolAccounts(urlSchoolId)
+        : null,
+      cachedSchoolAccounts,
+      schoolAccountsError,
+    );
 
   const {
-    data: orgAccounts,
+    data: cachedOrgAccounts,
     error: orgAccountsError,
     isLoading: orgAccountsLoading,
   } = useSWRAuth(
@@ -98,9 +106,17 @@ function OperatorAccountsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: orgAccounts, accessRefused: orgAccountsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.orgAccounts(filterOrgId)
+        : null,
+      cachedOrgAccounts,
+      orgAccountsError,
+    );
 
   const {
-    data: allAccounts,
+    data: cachedAllAccounts,
     error: allAccountsError,
     isLoading: allAccountsLoading,
   } = useSWRAuth(
@@ -114,15 +130,25 @@ function OperatorAccountsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: allAccounts, accessRefused: allAccountsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && !filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.allAccounts()
+        : null,
+      cachedAllAccounts,
+      allAccountsError,
+    );
 
   const activeError = urlSchoolId
     ? schoolAccountsError
     : filterOrgId
       ? orgAccountsError
       : allAccountsError;
-  const accessRefused =
-    activeError instanceof ApiError &&
-    (activeError.status === 401 || activeError.status === 403);
+  const accessRefused = urlSchoolId
+    ? schoolAccountsAccessRefused
+    : filterOrgId
+      ? orgAccountsAccessRefused
+      : allAccountsAccessRefused;
 
   useEffect(() => {
     if (!accessRefused) return;

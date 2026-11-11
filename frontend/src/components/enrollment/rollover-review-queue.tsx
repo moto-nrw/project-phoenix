@@ -52,6 +52,8 @@ export function RolloverReviewQueue({ phaseID }: Props) {
   const toast = useToast();
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const latestRequest = useRef(0);
+  const completed = useRef(new Set<string>());
   const listLoad = useApiLoadError();
   const showLoadError = listLoad.show;
   const clearLoadError = listLoad.clear;
@@ -66,16 +68,25 @@ export function RolloverReviewQueue({ phaseID }: Props) {
   // Rejects on failure: after a decision the caller shows it as a reload of
   // a saved change and keeps the shown list (#6652).
   const readQueue = useCallback(async () => {
-    const list = await listRolloverReview(phaseID);
-    setItems(list);
-    clearLoadError();
+    const request = ++latestRequest.current;
+    try {
+      const list = await listRolloverReview(phaseID);
+      if (request !== latestRequest.current) return;
+      setItems(list.filter((item) => !completed.current.has(item.child_id)));
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    }
   }, [phaseID, clearLoadError]);
   // Never rejects: a failed load shows its error in place of the list.
   const load = useCallback(async () => {
+    const request = latestRequest.current + 1;
     setLoading(true);
     try {
       await readQueue();
     } catch (err) {
+      if (request !== latestRequest.current) return;
       logger.error("review_queue_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -84,7 +95,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
         retry: () => void latestLoad.current(),
       });
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
   }, [readQueue, showLoadError]);
   const afterDecide = useRefreshAfterWrite(
@@ -96,14 +107,20 @@ export function RolloverReviewQueue({ phaseID }: Props) {
     latestLoad.current = load;
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
+    completed.current.clear();
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   const decide = async (
     item: ReviewQueueItem,
     choice: "keep" | "drop" | "defer",
   ) => {
+    if (completed.current.has(item.child_id)) return;
     decision.clearFieldErrors();
     const overrideRaw = classOverrides[item.child_id]?.trim() ?? "";
     const overrideNumber =
@@ -137,6 +154,10 @@ export function RolloverReviewQueue({ phaseID }: Props) {
       setBusyChild(null);
       return;
     }
+    if (choice !== "defer") completed.current.add(item.child_id);
+    setItems((current) =>
+      current.filter((entry) => entry.child_id !== item.child_id),
+    );
     setBusyChild(null);
     toast.success(
       choice === "keep"
@@ -182,7 +203,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
       // Ein Ladefehler steht an Stelle der Liste, nie ein Leerzustand.
       error={listLoad.error}
       empty={
-        items.length === 0
+        items.length === 0 && !afterDecide.error
           ? {
               title: "Keine offenen Einträge",
               description:

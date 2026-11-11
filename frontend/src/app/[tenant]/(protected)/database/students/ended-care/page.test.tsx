@@ -292,6 +292,27 @@ describe("Beendete Betreuungen", () => {
     },
   );
 
+  it("keeps access refusal effective after a subsequent server failure", async () => {
+    const { rerender } = render(<Page />);
+    expect(await screen.findByText("Muster, Mia")).toBeVisible();
+    for (const status of [403, 500]) {
+      swrState.error = new ApiError("failed", status);
+      rerender(<Page />);
+      expect(
+        await screen.findByText(
+          catalogText(
+            status === 403 ? "general.permission" : "general.server",
+            "die Liste der beendeten Betreuungen",
+          ),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Muster, Mia")).not.toBeInTheDocument();
+    }
+    swrState.error = null;
+    rerender(<Page />);
+    expect(await screen.findByText("Muster, Mia")).toBeVisible();
+  });
+
   it("is closed to anybody without the delete permission", () => {
     mockHasPermission.mockReturnValue(false);
     render(<Page />);

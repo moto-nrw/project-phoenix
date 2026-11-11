@@ -136,6 +136,7 @@ function EnrollmentStatusViewContent({
   >([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const latestRequest = useRef(0);
   // One display path for every failure (#2515): loads stay where the data
   // is missing, the two forms report in their own alert, the buttons
   // without a form (confirm, withdraw) in a toast.
@@ -192,6 +193,7 @@ function EnrollmentStatusViewContent({
   );
 
   const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     setLoading(true);
     clearLoadError();
     clearRequestsLoadError();
@@ -202,6 +204,7 @@ function EnrollmentStatusViewContent({
         // A failed list must not read as "no change requests yet": the
         // panel shows the load error instead of its empty text.
         listEnrollmentChangeRequests(token).catch((err: unknown) => {
+          if (request !== latestRequest.current) return null;
           logger.warn("change_requests_load_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
@@ -212,6 +215,7 @@ function EnrollmentStatusViewContent({
           return null;
         }),
       ]);
+      if (request !== latestRequest.current) return;
       if (!result) {
         setNotFound(true);
         setChangeRequests([]);
@@ -219,6 +223,7 @@ function EnrollmentStatusViewContent({
       }
       applyStatus(result, requestChanges ?? []);
     } catch (err) {
+      if (request !== latestRequest.current) return;
       logger.error("status_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -227,7 +232,7 @@ function EnrollmentStatusViewContent({
         retry: () => void loadRef.current(),
       });
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
   }, [
     token,
@@ -245,26 +250,38 @@ function EnrollmentStatusViewContent({
     loadRef.current = load;
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   // The reload after a confirmed write (#6652) only reads and sets: the shown
   // status stays while it runs, and a failure rejects, so the hook reports it
   // as a load error that says the change is saved.
   const readStatus = useCallback(async () => {
-    const [result, requestChanges] = await Promise.all([
-      fetchStatus(token),
-      listEnrollmentChangeRequests(token),
-    ]);
-    if (!result) {
-      setNotFound(true);
-      setChangeRequests([]);
-      return;
+    const request = ++latestRequest.current;
+    try {
+      const [result, requestChanges] = await Promise.all([
+        fetchStatus(token),
+        listEnrollmentChangeRequests(token),
+      ]);
+      if (request !== latestRequest.current) return;
+      setLoading(false);
+      if (!result) {
+        setNotFound(true);
+        setChangeRequests([]);
+        return;
+      }
+      clearLoadError();
+      clearRequestsLoadError();
+      applyStatus(result, requestChanges);
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
     }
-    clearLoadError();
-    clearRequestsLoadError();
-    applyStatus(result, requestChanges);
   }, [token, applyStatus, clearLoadError, clearRequestsLoadError]);
   const afterWrite = useRefreshAfterWrite(t("reloadObject"), readStatus, {
     savedSuffix: t("savedButStale"),

@@ -1,8 +1,16 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, use, useCallback, useMemo, useState } from "react";
+import {
+  Suspense,
+  use,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -146,7 +154,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   );
 
   const {
-    data: organizations,
+    data: cachedOrganizations,
     error: organizationsError,
     mutate: mutateOrganizations,
   } = useSWRAuth(
@@ -158,6 +166,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: organizations, accessRefused: organizationsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
+      cachedOrganizations,
+      organizationsError,
+    );
 
   const organization: OrganizationSummary | undefined = useMemo(
     () => organizations?.find((item) => item.slug === slug),
@@ -173,7 +187,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   );
 
   const {
-    data: schools,
+    data: cachedSchools,
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchools,
@@ -186,6 +200,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schools, accessRefused: schoolsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+      cachedSchools,
+      schoolsError,
+    );
 
   const school: SchoolSummary | undefined = useMemo(
     () =>
@@ -214,7 +234,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const accountsActive =
     activeTab === "konten" && isAuthenticated && school != null;
   const {
-    data: schoolAccounts,
+    data: cachedSchoolAccounts,
     error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateSchoolAccounts,
@@ -227,11 +247,19 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolAccounts, accessRefused: schoolAccountsAccessRefused } =
+    useAccessControlledData(
+      accountsActive
+        ? operatorProvisioningKeys.schoolAccounts(school?.id)
+        : null,
+      cachedSchoolAccounts,
+      accountsError,
+    );
 
   const devicesActive =
     activeTab === "geraete" && isAuthenticated && school != null;
   const {
-    data: schoolDevices,
+    data: cachedSchoolDevices,
     error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateSchoolDevices,
@@ -244,11 +272,17 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolDevices, accessRefused: schoolDevicesAccessRefused } =
+    useAccessControlledData(
+      devicesActive ? operatorProvisioningKeys.schoolDevices(school?.id) : null,
+      cachedSchoolDevices,
+      devicesError,
+    );
 
   const personsActive =
     activeTab === "personen" && isAuthenticated && school != null;
   const {
-    data: schoolPersons,
+    data: cachedSchoolPersons,
     error: personsError,
     isLoading: personsLoading,
     mutate: mutateSchoolPersons,
@@ -261,10 +295,16 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolPersons, accessRefused: schoolPersonsAccessRefused } =
+    useAccessControlledData(
+      personsActive ? operatorProvisioningKeys.schoolPersons(school?.id) : null,
+      cachedSchoolPersons,
+      personsError,
+    );
 
   // PWA standalone usage (#2189): one of the figures on the overview tab.
   const {
-    data: pwaUsage,
+    data: cachedPwaUsage,
     error: pwaUsageError,
     mutate: mutatePwaUsage,
   } = useSWRAuth(
@@ -277,6 +317,13 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+  const { data: pwaUsage } = useAccessControlledData(
+    activeTab === "uebersicht" && isAuthenticated && school != null
+      ? operatorProvisioningKeys.schoolPwaUsage(school.id)
+      : null,
+    cachedPwaUsage,
+    pwaUsageError,
   );
 
   // One alert for the page head: the provider and school lists it is built
@@ -624,6 +671,42 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     label: "Zurück zum Träger",
   };
 
+  const {
+    setDeleteTarget: setSchoolDeleteTarget,
+    setRestoreTarget: setSchoolRestoreTarget,
+  } = schoolDelete;
+  const headRefused = organizationsAccessRefused || schoolsAccessRefused;
+  useLayoutEffect(() => {
+    if (headRefused) {
+      setEditSchoolOpen(false);
+      setChildQuotaOpen(false);
+      setSchoolDeleteTarget(null);
+      setSchoolRestoreTarget(null);
+    }
+    if (headRefused || schoolAccountsAccessRefused) {
+      setInviteOpen(false);
+      setCreateAccountOpen(false);
+      setCaregiverAccount(null);
+      setCaregiverSchoolContext(null);
+      setMfaAccount(null);
+      setMfaSchoolContext(null);
+    }
+    if (headRefused || schoolDevicesAccessRefused) {
+      setCreateDeviceOpen(false);
+      setSetKeyDevice(null);
+      setTransferDevice(null);
+      setDeleteDevice(null);
+    }
+    if (headRefused || schoolPersonsAccessRefused) setDeletePersonTarget(null);
+  }, [
+    headRefused,
+    schoolAccountsAccessRefused,
+    schoolDevicesAccessRefused,
+    schoolPersonsAccessRefused,
+    setSchoolDeleteTarget,
+    setSchoolRestoreTarget,
+  ]);
+
   if (!school && headLoadError) {
     return (
       <TenantPage
@@ -636,7 +719,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     );
   }
 
-  if ((!organizations || schoolsLoading) && !school) {
+  if (
+    !school &&
+    (!organizations ||
+      schoolsLoading ||
+      ((organizationsError || schoolsError) && !headLoadError))
+  ) {
     return (
       <TenantPage
         title="Schule"

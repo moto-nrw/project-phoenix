@@ -558,6 +558,39 @@ describe("OperatorOrganizationsPage", () => {
     });
   });
 
+  it("closes overlays and keeps refused cached organizations hidden", async () => {
+    withDefaultSWR();
+    const view = render(<OperatorOrganizationsPage />);
+    expect(screen.getByText("Test Org")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Test-Träger anlegen" }),
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "Test-Träger anlegen" }),
+    ).toBeVisible();
+    for (const status of [403, 500]) {
+      withDefaultSWR({
+        orgsError: new ApiError("failed", status),
+        staleData: true,
+      });
+      view.rerender(<OperatorOrganizationsPage />);
+      expect(
+        await screen.findByText(
+          catalogText(
+            status === 403 ? "general.permission" : "general.server",
+            "die Liste der Träger",
+          ),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Test Org")).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    }
+    withDefaultSWR();
+    view.rerender(<OperatorOrganizationsPage />);
+    expect(await screen.findByText("Test Org")).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   // #2519: a failed load is not an empty list.
   it("shows a failed list load without claiming the list is empty", async () => {
     withDefaultSWR({

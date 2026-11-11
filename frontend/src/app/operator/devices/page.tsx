@@ -1,8 +1,9 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useLayoutEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
@@ -55,7 +56,7 @@ function OperatorDevicesPageContent() {
   );
 
   const {
-    data: schoolDevices,
+    data: cachedSchoolDevices,
     error: schoolDevicesError,
     isLoading: schoolDevicesLoading,
   } = useSWRAuth(
@@ -69,9 +70,17 @@ function OperatorDevicesPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolDevices, accessRefused: schoolDevicesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && urlSchoolId
+        ? operatorProvisioningKeys.schoolDevices(urlSchoolId)
+        : null,
+      cachedSchoolDevices,
+      schoolDevicesError,
+    );
 
   const {
-    data: orgDevices,
+    data: cachedOrgDevices,
     error: orgDevicesError,
     isLoading: orgDevicesLoading,
   } = useSWRAuth(
@@ -85,9 +94,17 @@ function OperatorDevicesPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: orgDevices, accessRefused: orgDevicesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.orgDevices(filterOrgId)
+        : null,
+      cachedOrgDevices,
+      orgDevicesError,
+    );
 
   const {
-    data: allDevices,
+    data: cachedAllDevices,
     error: allDevicesError,
     isLoading: allDevicesLoading,
   } = useSWRAuth(
@@ -101,6 +118,14 @@ function OperatorDevicesPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: allDevices, accessRefused: allDevicesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && !filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.allDevices()
+        : null,
+      cachedAllDevices,
+      allDevicesError,
+    );
 
   const refreshDevices = useCallback(() => refreshFamily(), [refreshFamily]);
 
@@ -124,6 +149,19 @@ function OperatorDevicesPageContent() {
     "die Anzeige der Geräte",
     refreshDevices,
   );
+
+  const accessRefused = urlSchoolId
+    ? schoolDevicesAccessRefused
+    : filterOrgId
+      ? orgDevicesAccessRefused
+      : allDevicesAccessRefused;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    setCreateDeviceOpen(false);
+    setSetKeyDevice(null);
+    setTransferDevice(null);
+    setDeleteDevice(null);
+  }, [accessRefused]);
 
   const count = selectedSchool
     ? schoolDevices?.length
@@ -152,7 +190,7 @@ function OperatorDevicesPageContent() {
           />
         )
       }
-      actions={actionButton}
+      actions={accessRefused ? undefined : actionButton}
       searchSlot={
         <OrgSchoolFilter
           idPrefix="device"

@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -10,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { DeclarationStatus } from "~/lib/parent-announcements-api";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
@@ -498,6 +500,25 @@ describe("reload after a write (#6652)", () => {
         }),
       );
     remindMock.mockReset().mockResolvedValue(3);
+  });
+
+  it("keeps reminder requests locked through the reload", async () => {
+    const reload = deferred<ReturnType<typeof status>>();
+    statusMock
+      .mockReset()
+      .mockResolvedValueOnce(status())
+      .mockReturnValueOnce(reload.promise);
+    remindMock.mockResolvedValueOnce(1);
+    render(<DeclarationStatusPanel announcementId="42" canAct />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Offene erinnern/ }),
+    );
+    await waitFor(() => expect(statusMock).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getByRole("button", { name: /Wird gesendet/ }),
+    ).toBeDisabled();
+    await act(async () => reload.resolve(status()));
+    expect(remindMock).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a sent reminder sent when the reload fails", async () => {

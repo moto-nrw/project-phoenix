@@ -161,6 +161,7 @@ export function DeclarationStatusPanel({
 }) {
   const [status, setStatus] = useState<DeclarationStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const latestRequest = useRef(0);
   const loadError = useApiLoadError();
   const showLoadError = loadError.show;
   const clearLoadError = loadError.clear;
@@ -178,17 +179,29 @@ export function DeclarationStatusPanel({
   // Rejects on failure: after a reminder the caller shows it as a reload of
   // a saved change (#6652).
   const readStatus = useCallback(async () => {
-    setStatus(
-      await withApiBase(fetchDeclarationStatus, announcementId, apiBase),
-    );
-    setLoadFailed(false);
-    clearLoadError();
+    const request = ++latestRequest.current;
+    try {
+      const next = await withApiBase(
+        fetchDeclarationStatus,
+        announcementId,
+        apiBase,
+      );
+      if (request !== latestRequest.current) return;
+      setStatus(next);
+      setLoadFailed(false);
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    }
   }, [announcementId, apiBase, clearLoadError]);
   // Never rejects: a failed load shows its error in place.
   const load = useCallback(async () => {
+    const request = latestRequest.current + 1;
     try {
       await readStatus();
     } catch (error) {
+      if (request !== latestRequest.current) return;
       logger.error("declaration_status_load_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
@@ -207,9 +220,13 @@ export function DeclarationStatusPanel({
     latestLoadRef.current = () => void load();
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   const children = useMemo(() => {
     const all = sortDeclarationChildren(status?.children ?? []);
@@ -220,6 +237,7 @@ export function DeclarationStatusPanel({
   }, [status, childFilter]);
 
   const remind = async () => {
+    if (busy !== null) return;
     setBusy("remind");
     let count: number;
     try {
@@ -235,13 +253,13 @@ export function DeclarationStatusPanel({
       setBusy(null);
       return;
     }
-    setBusy(null);
     toastSuccess(
       count === 0
         ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
         : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} erinnert.`,
     );
     await afterRemind.refresh();
+    setBusy(null);
   };
 
   const download = async (format: "pdf" | "csv") => {

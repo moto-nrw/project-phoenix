@@ -1,8 +1,9 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useLayoutEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { Trash2 } from "lucide-react";
@@ -50,7 +51,7 @@ function OperatorPersonsPageContent() {
     useState<OperatorPerson | null>(null);
 
   const {
-    data: schoolPersons,
+    data: cachedSchoolPersons,
     error: schoolPersonsError,
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
@@ -65,6 +66,14 @@ function OperatorPersonsPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolPersons, accessRefused: schoolPersonsAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && urlSchoolId
+        ? operatorProvisioningKeys.schoolPersons(urlSchoolId)
+        : null,
+      cachedSchoolPersons,
+      schoolPersonsError,
+    );
 
   const personsLoadError = useSwrLoadError(
     schoolPersonsError,
@@ -85,6 +94,10 @@ function OperatorPersonsPageContent() {
       await refreshPersons();
     },
   );
+
+  useLayoutEffect(() => {
+    if (schoolPersonsAccessRefused) setDeletePersonTarget(null);
+  }, [schoolPersonsAccessRefused]);
 
   const count = selectedSchool ? schoolPersons?.length : undefined;
 
@@ -184,7 +197,7 @@ function OperatorPersonsPageContent() {
         </>
       )}
 
-      {selectedSchool && (
+      {selectedSchool && !schoolPersonsAccessRefused && (
         <StaffPersonMerge
           key={selectedSchool.id}
           schoolId={selectedSchool.id}

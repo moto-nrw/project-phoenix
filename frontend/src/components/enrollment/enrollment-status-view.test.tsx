@@ -1168,6 +1168,34 @@ describe("EnrollmentStatusView", () => {
       },
     );
 
+    it("does not restore contact details from an older post-save reload", async () => {
+      const older = deferred<StatusResponse>();
+      mockFetchStatus
+        .mockResolvedValueOnce(status())
+        .mockReturnValueOnce(older.promise)
+        .mockResolvedValueOnce(status({ guardian_first_name: "Maria" }));
+      mockPatchStatus.mockResolvedValue(undefined);
+      render(<EnrollmentStatusView token="tok" />);
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Bearbeiten" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Bearbeiten" }),
+      );
+      fireEvent.change(screen.getByLabelText("Vorname"), {
+        target: { value: "Maria" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+      expect(await screen.findByText("Maria Muster")).toBeVisible();
+      await act(async () =>
+        older.resolve(status({ guardian_first_name: "Veraltet" })),
+      );
+      expect(screen.getByText("Maria Muster")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+      expect(screen.getByLabelText("Vorname")).toHaveValue("Maria");
+    });
+
     it("keeps a confirmed renewal confirmed when the reload fails", async () => {
       const renewal = status({
         children: [

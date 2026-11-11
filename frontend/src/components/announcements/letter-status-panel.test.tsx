@@ -1,10 +1,17 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LetterStatusPanel } from "./letter-status-panel";
 import type { LetterStatus } from "~/lib/parent-announcements-api";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 
 const { fetchLetterStatus, remindUnanswered, showError } = vi.hoisted(() => ({
@@ -278,6 +285,37 @@ describe("reload after a write (#6652)", () => {
     fetchLetterStatus.mockReset();
     remindUnanswered.mockReset();
     showError.mockReset();
+  });
+
+  it("keeps reminder requests locked through the reload", async () => {
+    const reload = deferred<ReturnType<typeof status>>();
+    fetchLetterStatus
+      .mockReset()
+      .mockResolvedValueOnce(
+        status(
+          { children_confirmable: 2, children_fulfilled: 1, children_open: 1 },
+          [recipient({})],
+        ),
+      )
+      .mockReturnValueOnce(reload.promise);
+    remindUnanswered.mockResolvedValueOnce(1);
+    renderPanel();
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Offene erinnern/ }),
+    );
+    await waitFor(() => expect(fetchLetterStatus).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getByRole("button", { name: /Wird gesendet/ }),
+    ).toBeDisabled();
+    await act(async () =>
+      reload.resolve(
+        status(
+          { children_confirmable: 2, children_fulfilled: 1, children_open: 1 },
+          [recipient({})],
+        ),
+      ),
+    );
+    expect(remindUnanswered).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a sent reminder sent when the reload fails", async () => {

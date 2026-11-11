@@ -231,6 +231,7 @@ const mockSchool = {
 interface SetupOpts {
   orgs?: (typeof mockOrg)[];
   schools?: (typeof mockSchool)[];
+  schoolsError?: Error;
   accountsError?: Error;
   devicesError?: Error;
   personsError?: Error;
@@ -249,6 +250,7 @@ function setupSWR(opts: SetupOpts = {}) {
   const {
     orgs = [mockOrg],
     schools = [mockSchool],
+    schoolsError,
     accountsError,
     devicesError,
     personsError,
@@ -265,6 +267,7 @@ function setupSWR(opts: SetupOpts = {}) {
       case operatorProvisioningKeys.schoolSummaries():
         return {
           data: schools,
+          error: schoolsError,
           isLoading: false,
           mutate: mockMutateSchools,
         };
@@ -695,6 +698,36 @@ describe("OperatorSchoolDetailPage", () => {
       "/operator/organizations/test-org/schools/test-school?tab=konten",
     )}`;
     expect(settings.closest("a")?.getAttribute("href")).toBe(expected);
+  });
+
+  it("discards a refused school overview until a successful fetch", async () => {
+    setupSWR();
+    const view = await renderPage();
+    expect(screen.getByText("Kontingentzahl")).toBeVisible();
+    for (const status of [403, 500]) {
+      setupSWR({ schoolsError: new ApiError("failed", status) });
+      view.rerender(
+        <Suspense fallback={null}>
+          <OperatorSchoolDetailPage {...schoolPageProps} />
+        </Suspense>,
+      );
+      expect(
+        await screen.findByText(
+          catalogText(
+            status === 403 ? "general.permission" : "general.server",
+            "die Übersicht der Schule",
+          ),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Kontingentzahl")).not.toBeInTheDocument();
+    }
+    setupSWR();
+    view.rerender(
+      <Suspense fallback={null}>
+        <OperatorSchoolDetailPage {...schoolPageProps} />
+      </Suspense>,
+    );
+    expect(await screen.findByText("Kontingentzahl")).toBeVisible();
   });
 
   // --- Tab flows ---
