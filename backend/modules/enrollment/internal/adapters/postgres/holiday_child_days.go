@@ -23,10 +23,11 @@ import (
 // holidayChildKeyBookingsQuery reads every booking of the asked children in
 // the registrations of the period that count, placed, waiting or waiting for
 // the office alike, except those of the child row exceptChildID. The keys
-// come lowercased and trimmed (enrollment.NewHolidayChildKey).
+// come lowercased and trimmed (enrollment.NewHolidayChildKey). Deduplicate
+// lookup keys before joining so each stored booking is returned once.
 const holidayChildKeyBookingsQuery = `SELECT wanted.guardian_email, wanted.first_name, wanted.last_name, wanted.birth_date,
 		booking.holiday_period_week_id, booking.holiday_week_time_model_id, booking.days::text AS days
-	FROM unnest(?::text[], ?::text[], ?::text[], ?::date[]) AS wanted(guardian_email, first_name, last_name, birth_date)
+	FROM (SELECT DISTINCT * FROM unnest(?::text[], ?::text[], ?::text[], ?::date[])) AS wanted(guardian_email, first_name, last_name, birth_date)
 	JOIN enrollment.holiday_registration_children AS child
 		ON lower(child.first_name) = lower(wanted.first_name) AND lower(child.last_name) = lower(wanted.last_name)
 			AND child.birth_date = wanted.birth_date

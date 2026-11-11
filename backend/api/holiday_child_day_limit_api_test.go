@@ -153,6 +153,52 @@ func TestHolidayChildDayLimitHoldsAgainstAConcurrentRegistrationOfTheSameChild(t
 		publicDayLimitRefusal(t, done.code, done.body), "the second registration counts the days the first committed")
 }
 
+func TestHolidayChildDayLimitWithRepeatedSubmissionKeys(t *testing.T) {
+	t.Parallel()
+	d := newDayFixture(t, "Träger Tage Wiederholte Einträge")
+	email := "eva.wiederholt@example.org"
+	d.submit(t, d.registration(email, "Ole", d.days(dayMonday)))
+	body := d.registration(email, "Ole", d.days(dayTuesday))
+	sameChild := d.registration(email, "ole", d.days(dayWednesday, dayThursday))
+	body["children"] = append(body["children"].([]map[string]any), sameChild["children"].([]map[string]any)...)
+
+	rec := publicJSON(t, d.public, http.MethodPost, registrationPath(d.period.PublicToken), body)
+	assert.Equal(t, map[string]any{"limit": float64(3), "child": float64(2)},
+		publicDayLimitRefusal(t, rec.Code, rec.Body.Bytes()), "all entries still count toward the limit")
+
+	body["children"].([]map[string]any)[1]["bookings"] = []map[string]any{d.days(dayWednesday)}
+	registration := d.submit(t, body)
+	assert.Len(t, registration.Placements, 2, "one existing day plus two new entries fits the three-day limit")
+}
+
+func TestHolidayChildDayLimitWithRepeatedIdentityEditKeys(t *testing.T) {
+	t.Parallel()
+	d := newDayFixture(t, "Träger Tage Wiederholte Identitätsänderung")
+	email := "eva.zusammen@example.org"
+	d.submit(t, d.registration(email, "Ole", d.days(dayMonday)))
+	body := d.registration(email, "Ada", d.days(dayTuesday, dayThursday))
+	sibling := d.registration(email, "Bea", d.days(dayWednesday))
+	body["children"] = append(body["children"].([]map[string]any), sibling["children"].([]map[string]any)...)
+	registration := d.submit(t, body)
+	path := holidayPeriodPath(d.period.ID) + fmt.Sprintf("/registrations/%d", registration.ID)
+	rec := traegerJSON(t, d.traeger, d.office.token, http.MethodGet, path, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	detail := decodeSchoolPortalData[editedRegistration](t, rec.Body.Bytes())
+	edit := map[string]any{"children": []map[string]any{
+		{"id": detail.Children[0].ID, "first_name": "Ole", "last_name": "Tag", "birth_date": "2017-05-04", "home_school_id": d.offer.Schools[0].ID},
+		{"id": detail.Children[1].ID, "first_name": "ole", "last_name": "Tag", "birth_date": "2017-05-04", "home_school_id": d.offer.Schools[0].ID},
+	}}
+	rec = traegerJSON(t, d.traeger, d.office.token, http.MethodPut, path+"/details", edit)
+	assert.Equal(t, map[string]any{"limit": float64(3), "days": float64(4), "elsewhere": float64(2), "child": float64(1)},
+		dayLimitRefusal(t, rec.Code, rec.Body.Bytes()), "merging identities still counts every child's bookings")
+
+	rec = traegerJSON(t, d.traeger, d.office.token, http.MethodPut, holidayRebookPath(d.period.ID, registration.ID, detail.Children[0].ID),
+		map[string]any{"bookings": []map[string]any{d.days(dayTuesday)}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, d.traeger, d.office.token, http.MethodPut, path+"/details", edit)
+	require.Equal(t, http.StatusOK, rec.Code, "one existing day plus two merged entries fits the three-day limit: %s", rec.Body.String())
+}
+
 // TestHolidayWeekChangeCountsTheChildsOtherRegistrations: the check of a
 // changed period (#6506) counts the same child over its registrations
 // (#6446). Two one-day weeks booked as a whole in two registrations of one

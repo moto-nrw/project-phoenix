@@ -101,7 +101,7 @@ func TestHolidayChildBookingsCountTheSameChildOverItsRegistrations(t *testing.T)
 
 	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
 	require.NoError(t, testpkg.WithinTraeger(ctx, p.organization, func(ctx context.Context) error {
-		all, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, []enrollment.HolidayChildKey{oleTag, inaTag}, 0)
+		all, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, []enrollment.HolidayChildKey{oleTag, inaTag, oleTag, inaTag}, 0)
 		require.NoError(t, err)
 		assert.Equal(t, []enrollment.HolidayBookingInput{
 			{WeekID: p.week, TimeModelID: p.model, Days: []calendar.Date{calendar.NewDate(2027, 7, 5), calendar.NewDate(2027, 7, 6)}},
@@ -109,10 +109,14 @@ func TestHolidayChildBookingsCountTheSameChildOverItsRegistrations(t *testing.T)
 			{WeekID: p.week, TimeModelID: p.model, Days: []calendar.Date{calendar.NewDate(2027, 7, 8)}},
 		}, all[oleTag], "placed, pending and waiting bookings of the same family and child count")
 		assert.Len(t, all[inaTag], 1, "one statement reads every asked child apart")
+		p.insert(t, db, childDaysBooking{"eva.tag@example.org", "Ole", "Tag", "2018-03-04", "received", "pending", "{2027-07-07}"})
+		repeated, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, []enrollment.HolidayChildKey{oleTag, oleTag}, 0)
+		require.NoError(t, err)
+		assert.Equal(t, append(all[oleTag], all[oleTag][1]), repeated[oleTag], "distinct stored bookings count even when their week, model and days match")
 
 		others, err := store.ReadHolidayChildBookings(ctx, p.organization, p.period, []enrollment.HolidayChildKey{oleTag}, p.first)
 		require.NoError(t, err)
-		assert.Len(t, others[oleTag], 2, "the child row being rebooked is left out")
+		assert.Len(t, others[oleTag], 3, "the child row being rebooked is left out")
 		return nil
 	}))
 }
