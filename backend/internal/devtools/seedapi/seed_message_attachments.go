@@ -7,6 +7,7 @@ import (
 	"image/color"
 	"image/png"
 	"math"
+	"strconv"
 )
 
 // Photos and files in the seeded conversations (#6685). Without them every
@@ -28,15 +29,11 @@ func uploadMessageFiles(rt *Runtime, auth AuthRef, path string, files ...seedMes
 		if err != nil {
 			return nil, fmt.Errorf("upload message attachment %q: %w", file.name, err)
 		}
-		var resp struct {
-			Data struct {
-				ID string `json:"id"`
-			} `json:"data"`
-		}
-		if err := parseJSON(raw, &resp); err != nil || resp.Data.ID == "" {
+		id, err := parseEnvelopeStringID(raw)
+		if err != nil {
 			return nil, fmt.Errorf("parse message attachment %q: %w", file.name, err)
 		}
-		ids = append(ids, resp.Data.ID)
+		ids = append(ids, strconv.FormatInt(id, 10))
 	}
 	return ids, nil
 }

@@ -30,10 +30,6 @@ export const MESSAGE_ATTACHMENT_ACCEPT =
   ".png,.jpg,.jpeg,.pdf,.docx,.xlsx,.pptx";
 const ACCEPTED_EXTENSIONS = MESSAGE_ATTACHMENT_ACCEPT.split(",");
 
-export function isImageAttachment(contentType: string): boolean {
-  return contentType === "image/png" || contentType === "image/jpeg";
-}
-
 /** Warum eine gewählte Datei nicht angehängt wird. */
 export type AttachmentRefusal =
   | { readonly kind: "too_many" }
@@ -74,7 +70,7 @@ export interface MessageAttachmentRoutes {
 }
 
 /** Routen unter einer Basis mit `/attachments` und `/…/download`. */
-export function messageAttachmentRoutes(base: string): MessageAttachmentRoutes {
+function messageAttachmentRoutes(base: string): MessageAttachmentRoutes {
   return {
     uploadUrl: `${base}/attachments`,
     downloadUrl: (attachmentId) =>
@@ -97,11 +93,6 @@ export function guardianMessageAttachments(
   return messageAttachmentRoutes(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
   );
-}
-
-/** Adresse, unter der der Browser ein Bild oder PDF anzeigt statt speichert. */
-export function inlineAttachmentUrl(downloadUrl: string): string {
-  return `${downloadUrl}?inline=1`;
 }
 
 /** Lädt eine Datei hoch und liefert den Anhang für die nächste Nachricht. */
