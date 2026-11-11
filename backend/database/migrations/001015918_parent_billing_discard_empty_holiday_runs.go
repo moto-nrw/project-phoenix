@@ -14,7 +14,8 @@ func init() {
 		Version:     parentBillingDiscardEmptyHolidayRunsVersion,
 		Description: "Elternabrechnung: leere offene Ferienläufe verwerfen (#6628), Demo-Löschung nimmt geleerte Läufe mit (#6627)",
 		DependsOn: []string{
-			parentBillingDiscardEmptyRunsVersion, // the newest migration on development and the discard of #6626
+			dataReturnGrantsVersion,              // the newest migration on development
+			parentBillingDiscardEmptyRunsVersion, // the discard of #6626
 			holidayClosureNoticesVersion,         // the erasure this one extends
 		},
 	})
