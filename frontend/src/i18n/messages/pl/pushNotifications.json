@@ -44,7 +44,7 @@
   "errorObjectEnable": "włączanie powiadomień",
   "errorObjectDisable": "wyłączanie powiadomień",
   "errorObjectTest": "powiadomienie testowe",
-  "enableTooltip": "Prosi urządzenie o zgodę, a potem włącza tu powiadomienia.",
+  "enableTooltip": "Włącza tu powiadomienia, gdy urządzenie zapyta o Twoją zgodę.",
   "disableTooltip": "Od razu wyłącza powiadomienia, tylko na tym urządzeniu.",
   "installTooltip": "Rozpoczyna instalację moto jako aplikacji na tym urządzeniu.",
   "checkAgainTooltip": "Sprawdza ponownie, czy moto może wysyłać powiadomienia na to urządzenie."

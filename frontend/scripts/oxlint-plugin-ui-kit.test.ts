@@ -4631,6 +4631,21 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
       `<label className={look}>Datei</label>`,
       "in `ActionHint text=",
     ],
+    [
+      "a noTooltip set to undefined",
+      `<Button noTooltip={undefined}>Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "title next to a tooltip",
+      `<Button tooltip="Öffnet die Akte." title="Akte">Akte</Button>`,
+      "`title` ersetzt keine Erklärung",
+    ],
+    [
+      "title on a button-looking anchor inside ActionHint",
+      `<ActionHint text="Lädt die PDF herunter."><a href="/x" title="PDF" className={look}>PDF</a></ActionHint>`,
+      "`title` ersetzt keine Erklärung",
+    ],
   ])("rejects %s", async (_name, jsx, message) => {
     const { output } = await lintSource(
       probe(
@@ -4641,6 +4656,18 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     );
     expect(output).toContain(RULE);
     expect(output).toContain(message);
+  });
+
+  it("follows a class constant declared below the component", async () => {
+    const { output } = await lintSource(
+      `import { buttonClassName } from "~/components/ui/button";
+      export function Probe() {
+        return <a href="/x" className={look}>PDF</a>;
+      }
+      const look = buttonClassName({ variant: "outline", size: "md", className: "" });`,
+      IN_SCOPE,
+    );
+    expect(output).toContain(RULE);
   });
 
   it("covers listed folders and files, and nothing outside the list", async () => {

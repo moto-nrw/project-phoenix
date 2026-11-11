@@ -44,8 +44,8 @@
   "errorObjectEnable": "turning on notifications",
   "errorObjectDisable": "turning off notifications",
   "errorObjectTest": "the test notification",
-  "enableTooltip": "Asks your device for permission, then turns on notifications here.",
-  "disableTooltip": "Turns off notifications at once, only on this device.",
+  "enableTooltip": "Turns on notifications here after your device asks for your permission.",
+  "disableTooltip": "Turns off notifications immediately, only on this device.",
   "installTooltip": "Starts installing moto as an app on this device.",
   "checkAgainTooltip": "Checks again whether moto may notify you on this device."
 }

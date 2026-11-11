@@ -318,7 +318,7 @@ export function PasskeySettingsSection({
                 type="button"
                 variant="primary"
                 size="md"
-                tooltip="Ihr Gerät fragt nach PIN oder Fingerabdruck und speichert dann den Passkey."
+                tooltip="Speichert den Passkey, nachdem Ihr Gerät nach PIN oder Fingerabdruck fragt."
                 disabled={busy || code.trim().length === 0}
                 onClick={() => void finishEnrollment()}
               >

@@ -295,7 +295,7 @@ function TemplateEditorPage({
                       type="button"
                       variant="outline"
                       size="md"
-                      tooltip="Ersetzt den Text im Formular durch den Standardtext, noch ohne Speichern."
+                      tooltip="Setzt den Standardtext ins Formular, gespeichert wird erst mit „Speichern“."
                       disabled={saving}
                       onClick={() => {
                         setDraft(templateTextOf(standard));

@@ -5851,11 +5851,12 @@ const noHandRolledCopyField = {
 //
 // Jeder Knopf sagt in einem Satz, was ein Klick tut. Gemeldet wird ein
 // `Button` oder `ButtonLink` ohne `tooltip` und ohne begründetes
-// `noTooltip="<Grund>"`, und jedes andere Element mit `buttonClassName(…)` im
-// `className` (in der Praxis `a` und `label`), das nicht direkt in einem
-// `ActionHint` steht. Ein leerer oder nur aus Leerzeichen bestehender Grund ist
-// ein Fehler, ebenso ein leerer `tooltip`. Ein `title` ersetzt den `tooltip`
-// nicht und bekommt eine eigene Meldung.
+// `noTooltip="<Grund>"`, und ein `a` oder `label` mit `buttonClassName(…)` im
+// `className`, das nicht das eine Kind eines `ActionHint` ist (`ActionHint`
+// klont genau dieses Kind, ein Fragment oder eine Hülle dazwischen bekäme die
+// Blase also nicht). Ein leerer, nur aus Leerzeichen bestehender oder
+// `undefined` gesetzter Grund ist ein Fehler, ebenso ein leerer `tooltip`. Ein
+// `title` an diesen Knöpfen wird immer gemeldet: Er ersetzt den `tooltip` nicht.
 //
 // Gespreizte Props (`{...props}`) gelten als erfüllt: ob der Typ hinter
 // `props` einen `tooltip` durchreicht, ist ohne Typinformation nicht
@@ -5914,6 +5915,10 @@ function staticAttributeText(attribute) {
 
 function isBlankAttribute(attribute) {
   if (!attribute.value) return true;
+  const expression = attribute.value.expression;
+  if (expression?.type === "Identifier" && expression.name === "undefined") {
+    return true;
+  }
   const text = staticAttributeText(attribute);
   return text !== null && text.trim() === "";
 }
@@ -6006,6 +6011,9 @@ const buttonNeedsTooltip = {
       navigationRows: new Set(NAVIGATION_ROWS),
     };
     const actionHints = new Set(["ActionHint"]);
+    // Elemente mit Knopf-Optik werden erst am Dateiende geprüft: Eine
+    // Klassen-Konstante darf unter der Komponente stehen.
+    const styledElements = [];
     return {
       Program(node) {
         for (const statement of node.body) {
@@ -6030,7 +6038,12 @@ const buttonNeedsTooltip = {
       JSXOpeningElement(node) {
         const name = jsxName(node.name);
         if (name === null || actionHints.has(name)) return;
+        const title = jsxAttribute(node, "title");
         if (bindings.kitButtons.has(name)) {
+          if (title) {
+            context.report({ node: title, messageId: "title" });
+            return;
+          }
           const tooltip = jsxAttribute(node, "tooltip");
           const noTooltip = jsxAttribute(node, "noTooltip");
           if (tooltip) {
@@ -6046,21 +6059,27 @@ const buttonNeedsTooltip = {
             return;
           }
           if (hasSpreadThatMaySetTooltip(node)) return;
-          context.report({
-            node,
-            messageId: jsxAttribute(node, "title") ? "title" : "missing",
-          });
+          context.report({ node, messageId: "missing" });
           return;
         }
-        const className = jsxAttribute(node, "className");
-        if (
-          !className?.value ||
-          !usesButtonClassName(className.value, bindings, constants) ||
-          isActionHintChild(node, actionHints)
-        ) {
-          return;
+        if (name === "a" || name === "label") styledElements.push(node);
+      },
+      "Program:exit"() {
+        for (const node of styledElements) {
+          const className = jsxAttribute(node, "className");
+          if (
+            !className?.value ||
+            !usesButtonClassName(className.value, bindings, constants)
+          ) {
+            continue;
+          }
+          const title = jsxAttribute(node, "title");
+          if (title) {
+            context.report({ node: title, messageId: "title" });
+          } else if (!isActionHintChild(node, actionHints)) {
+            context.report({ node, messageId: "missingHint" });
+          }
         }
-        context.report({ node, messageId: "missingHint" });
       },
     };
   },

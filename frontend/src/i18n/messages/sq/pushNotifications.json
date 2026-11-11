@@ -44,7 +44,7 @@
   "errorObjectEnable": "aktivizimi i njoftimeve",
   "errorObjectDisable": "çaktivizimi i njoftimeve",
   "errorObjectTest": "njoftimi provë",
-  "enableTooltip": "Kërkon leje nga pajisja juaj dhe pastaj aktivizon njoftimet këtu.",
+  "enableTooltip": "Aktivizon njoftimet këtu, pasi pajisja t'ju kërkojë leje.",
   "disableTooltip": "Çaktivizon menjëherë njoftimet, vetëm në këtë pajisje.",
   "installTooltip": "Nis instalimin e moto si aplikacion në këtë pajisje.",
   "checkAgainTooltip": "Kontrollon përsëri nëse moto mund t'ju njoftojë në këtë pajisje."

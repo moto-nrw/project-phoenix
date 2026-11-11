@@ -642,12 +642,14 @@ describe("noTooltip", () => {
   });
 
   it("rejects tooltip and noTooltip together at type level", () => {
-    render(
+    // Der Nachweis ist `@ts-expect-error`: tsc schlägt fehl, wenn die
+    // Kombination erlaubt wäre.
+    const invalid = (
       // @ts-expect-error: a button either explains itself or names a reason
       <Button type="button" tooltip="Schließt den Dialog." noTooltip={reason}>
         Abbrechen
-      </Button>,
+      </Button>
     );
-    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeVisible();
+    expect(invalid.props).toMatchObject({ noTooltip: reason });
   });
 });
