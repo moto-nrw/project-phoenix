@@ -33,6 +33,25 @@
     "loading": "Wczytywanie zadań",
     "errorObject": "zestawienie wszystkich zadań"
   },
+  "holiday": {
+    "listTitle": "Opieka w ferie",
+    "badgeOpen": "Zgłoszenia otwarte",
+    "badgeUpcoming": "Zgłoszenia od {date}",
+    "care": "Opieka",
+    "registration": "Zgłoszenia",
+    "range": "{from} do {to}",
+    "until": "do {date}",
+    "lastDay": "Dziś jest ostatni dzień",
+    "daysLeft": "{days, plural, one {został # dzień} few {zostały # dni} other {zostało # dni}}",
+    "for": "Dla",
+    "register": "Zgłoś teraz",
+    "registerLabel": "{name}: Zgłoś teraz",
+    "forChildren": "Dla: {names}",
+    "offeredByTraeger": "Organizator: {traeger}",
+    "careLine": "Opieka {from} do {to}",
+    "registrationLine": "Zgłoszenia do {date}",
+    "registrationRangeLine": "Zgłoszenia {from} do {to}"
+  },
   "childrenLoading": "Wczytywanie dzieci",
   "noChildren": "Z Państwa kontem nie jest jeszcze powiązane żadne dziecko. {careTerm} Państwa szkoły może to ustawić.",
   "errorObject": "zestawienie Twoich dzieci"

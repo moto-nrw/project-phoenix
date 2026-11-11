@@ -53,6 +53,7 @@ func TestDemoErasureIncludesAConcurrentMonthlyRelease(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	release, invoiceID := pendingCareRelease(t, order)
+	order.waitForLocks(t)
 	type outcome struct {
 		erased int
 		err    error
@@ -85,7 +86,7 @@ func TestDemoErasureDefersAMonthlyReleaseThatKeepsItsLock(t *testing.T) {
 	before := order.snapshot(t)
 	release, invoiceID := pendingCareRelease(t, order)
 
-	_, erased := retireNow(t, order.queue, nil)
+	_, erased := retireNow(t, order.db, order.queue, nil)
 	assert.Zero(t, erased)
 	assert.Equal(t, before, order.snapshot(t), "the deferred order is unchanged")
 	require.NoError(t, release.Commit(), "erasure does not abort the release")

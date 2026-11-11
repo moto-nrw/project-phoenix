@@ -73,7 +73,7 @@ func (r *exportRun) exportFiles(ctx context.Context) error {
 			return errors.New("tenant export: referenced original is missing")
 		}
 	}
-	if mapping.Sync() != nil || mapping.Close() != nil {
+	if syncFile(mapping) != nil || mapping.Close() != nil {
 		return errors.New("tenant export: cannot persist object mapping")
 	}
 	return r.recordArtifact("objects.jsonl")
@@ -208,7 +208,7 @@ func (r *exportRun) copyObject(ctx context.Context, root *os.Root, key string, m
 	if err != nil || size != before.Size() || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
 		return errors.New("tenant export: original changed during copy")
 	}
-	if dst.Sync() != nil || dst.Close() != nil {
+	if syncFile(dst) != nil || dst.Close() != nil {
 		return errors.New("tenant export: cannot persist original")
 	}
 	r.manifest.Artifacts = append(r.manifest.Artifacts, organizationtenancy.ExportArtifact{Path: name, SHA256: digest, Bytes: size})
