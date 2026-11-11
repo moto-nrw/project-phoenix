@@ -47,8 +47,7 @@ func NewBillingFamilies(post parentbilling.InvoiceHistoryPost, datev parentbilli
 	return application.NewBillingFamilies(postgres.NewStore()), application.NewFinanceExports(postgres.NewStore(), post, datev, calendar.TodayDate, calendar.Now), application.NewBookingAccounts(postgres.NewStore(), datev, schools)
 }
 
-// MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686)
-// and the discard of an empty open run (#6626).
+// MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686) and the discard of an empty open run (#6626).
 type MonthlyBilling interface {
 	parentbilling.CareBilling
 	parentbilling.CareMealBilling
@@ -114,8 +113,7 @@ func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbi
 	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now, fingerprint)
 }
 
-// NewBelegRetention builds the retention of the Belege of every Träger
-// (#4720, ADR 0184) over the contracts the root binds; nil today: Berlin day.
+// NewBelegRetention builds the retention of the Belege of every Träger (#4720, ADR 0184) over the contracts the root binds; nil today: Berlin day.
 func NewBelegRetention(contracts parentbilling.RetainedContracts, today func() calendar.Date) parentbilling.BelegRetention {
 	return application.NewBelegRetention(postgres.NewStore(), contracts, today)
 }
