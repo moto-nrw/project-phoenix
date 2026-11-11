@@ -76,6 +76,7 @@ import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
@@ -569,7 +570,7 @@ export function CareOfferingsEditor({
   }, []);
 
   const loadAll = useCallback(
-    async (preferredPhaseId?: string) => {
+    async (preferredPhaseId?: string, options: { rethrow?: boolean } = {}) => {
       const requestSeq = ++catalogLoadSeq.current;
       setLoading(true);
       clearCatalogError();
@@ -598,6 +599,9 @@ export function CareOfferingsEditor({
         logger.error("care_offerings_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Nach einem Schreiben bleibt die bestätigte Liste stehen; der
+        // Aufrufer zeigt den Fehler als Nachladefehler (#6652).
+        if (options.rethrow) throw err;
         setOfferings([]);
         setCatalogFailed(true);
         await showCatalogError(err, {
@@ -620,6 +624,12 @@ export function CareOfferingsEditor({
     void loadAll();
     return invalidateLoads;
   }, [invalidateLoads, loadAll]);
+  // Nachladen nach Speichern, Löschen oder Duplizieren: ein Fehler dabei ist
+  // ein Ladefehler über der Liste, kein Fehler der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Betreuungsangebote",
+    () => loadAll(undefined, { rethrow: true }),
+  );
 
   useEffect(() => {
     if (!selectedPhaseId) {
@@ -743,7 +753,7 @@ export function CareOfferingsEditor({
           );
         }
         if (op.isCurrent()) cancelFocusMode();
-        await loadAll();
+        await afterWrite.refresh();
       } catch (err) {
         logger.error("care_offering_save_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -776,7 +786,7 @@ export function CareOfferingsEditor({
       await deleteCareOffering(offering.id);
       toast.success(`Das Betreuungsangebot „${offering.name}“ ist gelöscht.`);
       setDeleteTarget(null);
-      await loadAll();
+      await afterWrite.refresh();
     } catch (err) {
       logger.error("care_offering_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -787,7 +797,7 @@ export function CareOfferingsEditor({
     } finally {
       setDeletingId(null);
     }
-  }, [deleteTarget, loadAll, clearDeleteErrors, showDeleteError, toast]);
+  }, [deleteTarget, afterWrite, clearDeleteErrors, showDeleteError, toast]);
 
   const clone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
@@ -799,7 +809,7 @@ export function CareOfferingsEditor({
         });
         toast.success(`Das Betreuungsangebot „${cloned.name}“ ist dupliziert.`);
         if (op.isCurrent()) setCloneSource(null);
-        await loadAll();
+        await afterWrite.refresh();
       } catch (err) {
         logger.error("care_offering_clone_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -945,6 +955,7 @@ export function CareOfferingsEditor({
       ) : catalogLoad.error ? (
         // Ein Ladefehler steht an Stelle des Katalogs, nie ein Leerzustand.
         <LoadErrorAlert error={catalogLoad.error} />
+        <LoadErrorAlert error={afterWrite.error} />
       ) : hasNoPhases ? (
         <NoPhaseState />
       ) : (

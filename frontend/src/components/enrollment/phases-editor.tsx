@@ -61,6 +61,8 @@ import {
   listSchemas,
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenant } from "~/lib/tenant-context";
@@ -328,43 +330,49 @@ export function PhasesEditor() {
 
   // „Wiederholen“ lädt mit der aktuellen Fassung neu.
   const latestLoadAll = useRef<() => Promise<void>>(async () => undefined);
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [phasesData, schemasData, periodsData] = await Promise.all([
-        listPhases(),
-        // Without the templates the form column and the template picker
-        // would claim „Eigene Vorlage“ / none; the load fails as a whole.
-        listSchemas(),
-        // Calendar periods are optional context for the phase form —
-        // a load failure must not block phase management. Deliberately
-        // silent beyond the log: the form then offers no period to link.
-        calendarPeriodService.list().catch((periodError: unknown) => {
-          logger.warn("phase_calendar_periods_load_failed", {
-            error:
-              periodError instanceof Error
-                ? periodError.message
-                : String(periodError),
-          });
-          return [] as CalendarPeriod[];
-        }),
-      ]);
-      setPhases(phasesData);
-      setSchemas(schemasData);
-      setPeriods(periodsData);
-      clearLoadError();
-    } catch (err) {
-      logger.error("phases_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "die Liste der Anmeldephasen",
-        retry: () => void latestLoadAll.current(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [showLoadError, clearLoadError]);
+  const loadAll = useCallback(
+    async (options: { rethrow?: boolean } = {}) => {
+      setLoading(true);
+      try {
+        const [phasesData, schemasData, periodsData] = await Promise.all([
+          listPhases(),
+          // Without the templates the form column and the template picker
+          // would claim „Eigene Vorlage“ / none; the load fails as a whole.
+          listSchemas(),
+          // Calendar periods are optional context for the phase form —
+          // a load failure must not block phase management. Deliberately
+          // silent beyond the log: the form then offers no period to link.
+          calendarPeriodService.list().catch((periodError: unknown) => {
+            logger.warn("phase_calendar_periods_load_failed", {
+              error:
+                periodError instanceof Error
+                  ? periodError.message
+                  : String(periodError),
+            });
+            return [] as CalendarPeriod[];
+          }),
+        ]);
+        setPhases(phasesData);
+        setSchemas(schemasData);
+        setPeriods(periodsData);
+        clearLoadError();
+      } catch (err) {
+        logger.error("phases_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Nach einem Schreiben zeigt der Aufrufer den Fehler als Nachladefehler
+        // über der stehenden Liste (#6652).
+        if (options.rethrow) throw err;
+        await showLoadError(err, {
+          object: "die Liste der Anmeldephasen",
+          retry: () => void latestLoadAll.current(),
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showLoadError, clearLoadError],
+  );
   useLayoutEffect(() => {
     latestLoadAll.current = loadAll;
   });
@@ -372,6 +380,11 @@ export function PhasesEditor() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+  // Nachladen nach Speichern, Löschen oder Umschalten: ein Fehler dabei ist
+  // ein Ladefehler, kein Fehler der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite("die Anzeige der Anmeldephasen", () =>
+    loadAll({ rethrow: true }),
+  );
 
   useEffect(() => {
     if (!highlightFormSection) return;
@@ -528,7 +541,7 @@ export function PhasesEditor() {
           toast.success(`Die Anmeldephase „${updated.name}“ ist gespeichert.`);
         }
         if (op.isCurrent()) cancelEdit();
-        await loadAll();
+        await afterWrite.refresh();
         refreshPhaseExpiryWarnings();
       } catch (err) {
         logger.error("phase_save_failed", {
@@ -613,7 +626,7 @@ export function PhasesEditor() {
       await deletePhase(phase.id);
       toast.success(`Die Anmeldephase „${phase.name}“ ist gelöscht.`);
       closeDelete();
-      await loadAll();
+      await afterWrite.refresh();
       refreshPhaseExpiryWarnings();
     } catch (err) {
       logger.error("phase_delete_failed", {
@@ -727,7 +740,7 @@ export function PhasesEditor() {
             ? `Die Anmeldephase „${updated.name}“ ist jetzt aktiv.`
             : `Die Anmeldephase „${updated.name}“ ist jetzt nicht mehr aktiv.`,
         );
-        await loadAll();
+        await afterWrite.refresh();
         refreshPhaseExpiryWarnings();
       } catch (err) {
         logger.error("phase_toggle_active_failed", {
@@ -1024,6 +1037,7 @@ export function PhasesEditor() {
         </>
       }
     >
+      <LoadErrorAlert error={afterWrite.error} />
       <DesktopOnlyNotice />
       {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}

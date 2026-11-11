@@ -101,6 +101,7 @@ import {
 } from "~/lib/enrollment-legal-blocks";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import type { Translations } from "~/lib/enrollment-translations";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   copyStableObjectKey,
@@ -187,39 +188,47 @@ export function EnrollmentFormEditor({
 
   // The retry of a failed load closes over the latest loadAll.
   const loadAllRef = useRef<() => Promise<FormSchema[]>>(async () => []);
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    clearLoadError();
-    try {
-      // Legal texts are NOT best-effort: silently swallowing a fetch
-      // failure would seed the builder with all-disabled standard blocks
-      // and nudge admins into saving a template without the tenant's
-      // consent contract. A failure fails the whole load instead. The
-      // phases fail it too: without them every template would read as
-      // "not used by any phase".
-      const [list, phaseList, legalTexts] = await Promise.all([
-        listSchemas(),
-        listPhases(),
-        tenantSlug ? fetchPublicLegalTexts(tenantSlug) : Promise.resolve(null),
-      ]);
-      const legalDefaults = mergeStandardLegalBlocks(legalTexts);
-      setStandardLegalBlocks(legalDefaults);
-      setAllSchemas(list);
-      setPhases(phaseList);
-      return list;
-    } catch (err) {
-      logger.error("schema_list_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showLoadError(err, {
-        object: "die Übersicht der Anmeldeformulare",
-        retry: () => void loadAllRef.current(),
-      });
-      return [];
-    } finally {
-      setLoading(false);
-    }
-  }, [clearLoadError, showLoadError, tenantSlug]);
+  const loadAll = useCallback(
+    async (options: { rethrow?: boolean } = {}) => {
+      setLoading(true);
+      if (!options.rethrow) clearLoadError();
+      try {
+        // Legal texts are NOT best-effort: silently swallowing a fetch
+        // failure would seed the builder with all-disabled standard blocks
+        // and nudge admins into saving a template without the tenant's
+        // consent contract. A failure fails the whole load instead. The
+        // phases fail it too: without them every template would read as
+        // "not used by any phase".
+        const [list, phaseList, legalTexts] = await Promise.all([
+          listSchemas(),
+          listPhases(),
+          tenantSlug
+            ? fetchPublicLegalTexts(tenantSlug)
+            : Promise.resolve(null),
+        ]);
+        const legalDefaults = mergeStandardLegalBlocks(legalTexts);
+        setStandardLegalBlocks(legalDefaults);
+        setAllSchemas(list);
+        setPhases(phaseList);
+        return list;
+      } catch (err) {
+        logger.error("schema_list_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Nach einem Schreiben zeigt der Aufrufer den Fehler als Nachladefehler
+        // über den stehenden Vorlagen (#6652).
+        if (options.rethrow) throw err;
+        void showLoadError(err, {
+          object: "die Übersicht der Anmeldeformulare",
+          retry: () => void loadAllRef.current(),
+        });
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clearLoadError, showLoadError, tenantSlug],
+  );
   useLayoutEffect(() => {
     loadAllRef.current = loadAll;
   });
@@ -227,6 +236,17 @@ export function EnrollmentFormEditor({
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+  // Nachladen nach Speichern, Löschen oder Umbenennen: ein Fehler dabei ist
+  // ein Ladefehler, kein Fehler der Aktion (#6652). Die geladene Liste liest
+  // das Speichern danach aus `reloadedSchemas`.
+  const reloadedSchemas = useRef<FormSchema[]>([]);
+  const schemasAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Anmeldeformulare",
+    async () => {
+      reloadedSchemas.current = [];
+      reloadedSchemas.current = await loadAll({ rethrow: true });
+    },
+  );
 
   const selectSchema = (schema: FormSchema, nextMode: EditorMode) => {
     setSelectedKey(schema.id);
@@ -274,7 +294,7 @@ export function EnrollmentFormEditor({
       backToOverview();
     }
     closeDeleteDialog();
-    await loadAll();
+    await schemasAfterWrite.refresh();
   };
 
   const requestRenameSchema = (schema: FormSchema) => {
@@ -287,7 +307,7 @@ export function EnrollmentFormEditor({
   const confirmRenameSchema = async (newName: string) => {
     if (!renameTarget) return;
     const updated = await renameSchema(renameTarget.id, newName);
-    await loadAll();
+    await schemasAfterWrite.refresh();
     // Keep the builder's name field in sync if this template is open.
     if (selectedKey === renameTarget.id) {
       setName(updated.name);
@@ -559,7 +579,8 @@ export function EnrollmentFormEditor({
         draftSave.commit();
         return result;
       }
-      const refreshed = await loadAll();
+      await schemasAfterWrite.refresh();
+      const refreshed = reloadedSchemas.current;
       const stillThere = refreshed.find((s) => s.id === result.id);
       const savedSchema = stillThere ?? result;
       draftSave.commit();
@@ -709,6 +730,7 @@ export function EnrollmentFormEditor({
   if (mode === "overview") {
     return (
       <>
+        <LoadErrorAlert error={schemasAfterWrite.error} />
         <EnrollmentFormsOverview
           templates={latestByName}
           phases={phases}
@@ -767,6 +789,7 @@ export function EnrollmentFormEditor({
                 {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
                 bleibt dann stehen. */}
                 <LoadErrorAlert error={loadError} />
+                <LoadErrorAlert error={schemasAfterWrite.error} />
                 {/* Speicher- und Prüffehler stehen oben im Bearbeiten-Bereich
                 (Bauart 2 Regel 5); der Alert holt sich selbst ins Bild. */}
                 <FormErrorAlert message={saveError} />
