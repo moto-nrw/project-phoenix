@@ -211,6 +211,27 @@ describe("a crash shown to the user reaches Sentry", () => {
     ]);
   });
 
+  it("reports a crash of a retried load whose first failure was an API answer", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const load = renderHook(() => useApiLoadError(), { wrapper });
+    const crash = new RangeError("Invalid time value");
+
+    await act(async () => {
+      await load.result.current.show(
+        new ApiError("boom", 500, { instance: "r" }),
+        { object: "die Liste" },
+      );
+      await load.result.current.show(crash, { object: "die Liste" });
+      await load.result.current.show(new RangeError("Invalid time value"), {
+        object: "die Liste",
+      });
+    });
+
+    expect(vi.mocked(Sentry.captureException).mock.calls).toEqual([
+      [crash, { tags: { surface: "load" } }],
+    ]);
+  });
+
   it("creates no event for an API failure, a dropped connection or a check of the screen", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const toast = renderHook(() => useApiErrorDisplay(), { wrapper });
