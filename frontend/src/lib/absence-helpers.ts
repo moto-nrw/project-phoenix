@@ -2,7 +2,8 @@
 // abwesenheiten-tab.tsx and leave-requests-card.tsx; the /staff inbox is the
 // third consumer, so the copies were consolidated here.
 
-import { MOTO_COLOR_PALETTE, LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 export const ABSENCE_TYPE_LABEL: Record<string, string> = {
   vacation: "Urlaub",

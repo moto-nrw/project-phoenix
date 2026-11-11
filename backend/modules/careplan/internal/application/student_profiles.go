@@ -54,6 +54,26 @@ func (p studentProfiles) SaveStudentCareProfile(ctx context.Context, input carep
 	})
 }
 
+// SaveStudentCareProfiles is the batch slice of the data import (#5552).
+func (p studentProfiles) SaveStudentCareProfiles(ctx context.Context, inputs []careplan.StudentCareProfileSave) error {
+	saves := make([]domain.StudentCareProfileSave, len(inputs))
+	for i, input := range inputs {
+		if input.Profile.MembershipID <= 0 {
+			return errors.New("care plan: membership ID is required")
+		}
+		saves[i].Profile = domain.StudentCareProfile(input.Profile)
+		if input.Plan != nil {
+			plan := domain.StudentDeparturePlan(*input.Plan)
+			saves[i].Plan = &plan
+		}
+	}
+	return p.run(ctx, "save_student_care_profiles", func(txCtx context.Context) (domain.OperationStats, error) {
+		return p.store.InsertStudentCareProfiles(txCtx, saves)
+	})
+}
+
+var _ careplan.StudentCareProfileBatches = studentProfiles{}
+
 func (p studentProfiles) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (changed int64, err error) {
 	if status != "sick" && status != "excused" {
 		return 0, errors.New("care plan: unsupported absence flag")

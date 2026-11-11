@@ -6,7 +6,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { HandPointingIcon } from "@phosphor-icons/react";
 import { Button } from "~/components/ui/button";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 
 /**
  * Hebt eine Stelle der Seite hervor und erklärt sie in einer Sprechblase
@@ -373,7 +372,7 @@ export function CoachMark({
                 size={18}
                 weight="fill"
                 aria-hidden
-                style={{ color: LOCATION_COLORS.GROUP_ROOM }}
+                className="text-moto-green"
               />
               {action}
             </p>

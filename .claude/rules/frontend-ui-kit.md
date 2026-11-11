@@ -17,7 +17,7 @@ This kit is the MOTO design system.
 |---|---|
 | UI components | `frontend/src/components/ui/` |
 | Header / list-page kit | `frontend/src/components/ui/page-header/` |
-| Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
+| Brand colors | meaning: `lib/location-helper.ts` `LOCATION_COLORS` (sole source); hex: `lib/kit-palette.ts` |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
 Use direct file imports: `import { Button } from "~/components/ui/button"`. No `ui/index.ts` barrel.
@@ -96,6 +96,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | You need… | Use | Import from |
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
+| What a click does (hover, key focus, never tap) | `tooltip` on `Button`/`ButtonLink`, else `ActionHint`; no `title`. `Tooltip`: text only | `~/components/ui/button` |
 | Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px below `lg`), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
 | Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
@@ -147,7 +148,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Progress bar | `ProgressBar` — `label`, `tone` or hex `color`, `size` | `~/components/ui/progress-bar` |
 | Legend, also with counts | `PlanLegend` — entries with `value`, `variant="dot"`, `size="md"` | `~/components/ui/planning/plan-legend` |
 | Empty / no-results state, result of a step | `EmptyState` — `variant` `compact`/`dashed`, `tone` (result medallion), `progress`, `action` | `~/components/ui/empty-state` |
-| Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (Tenant) oder `BackLink` (anderes Portal, fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
+| Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (über `PagePathProvider`) oder `BackLink` (fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
 | Portal sidebar, bottom bar | `PortalSidebar(Frame)`; `PortalBottomNav`; rows `ui/sidebar-*`. Lint `no-hand-rolled-portal-nav` | `~/components/ui/portal-sidebar`, `~/components/ui/portal-bottom-nav` |
 | Icon in a sidebar row (any portal) | `MotoNavIcon` with `scene` / `NavSceneIcon`: the glyph's animated scene; a glyph new to a sidebar needs a scene: `.claude/rules/sidebar-icon-scenes.md` | `~/components/ui/moto-nav-icon`, `~/components/ui/nav-scene-icon/nav-scene-icon` |
 | Interner Link (Seitenleiste, untere Leiste, Brotkrumen, Kopfmenüs, Seiteninhalt) | `NavigationLink` (#6570): lädt erst bei Hover, Fokus oder Touch-Beginn vor (#2976); meldet den Wechsel beim Klick an die Portalhülle, verwirft die Meldung bei abgebrochenem Klick. In Button-Optik: `ButtonLink`, gebaut darauf. Plain `next/link` für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. Ziel, aktuelle Adresse, „Pfad dieser Seite“: `~/components/ui/navigation-url`. | `~/components/ui/navigation-link` |

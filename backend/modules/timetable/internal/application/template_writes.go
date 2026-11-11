@@ -237,12 +237,16 @@ func (s *TemplateService) getLogger() *slog.Logger {
 	return OrDefaultLogger(s.deps.Logger)
 }
 
-// lockRecurrence takes the tenant recurrence gate for a template write.
+// lockRecurrence takes the tenant recurrence gate and then the
+// grade-transition gate for a template write. The write's supervisor rows
+// take staff rows, and the materialization or roster pass after them needs
+// the grade-transition gate; no gate may follow a staff row (#6583,
+// tenant.LockStaffRows), so both gates come first.
 func (s *TemplateService) lockRecurrence(ctx context.Context, op string) error {
 	if s.deps.RecurrenceLock == nil {
 		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: errors.New("template recurrence lock is not configured")}
 	}
-	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
+	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
 		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
 	}
 	return nil

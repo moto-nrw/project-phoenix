@@ -220,3 +220,194 @@ Paketlauf allein ausführen. Dann nur für die langsamen Testkörper Pool-Stats,
 Server-Statementzeiten und CPU-/I/O-Profil vergleichen. Die direkten Läufe
 reproduzieren weder 500–535 s noch einen 10-min-Pakettimeout. Timeout-Erhöhung,
 mehr Clone-Slots oder weniger Testisolation wären damit nicht begründet.
+
+## Runde 5: Messung unter Last und Behebung (11.11.2026)
+
+Messstand: `origin/development` @ `919799847b`, Linux/amd64, 32 logische CPUs,
+62 GiB RAM, Go aus Devbox, `GOFLAGS=-p=4 -trimpath`, `GOMAXPROCS=4`. Geteilter
+Testserver auf Port 5433 (tmpfs, `fsync=off`), 129 Datenbanken und 45
+Verbindungen fremder Sessions bei der Stichprobe. Fremde Last nicht
+kontrolliert: Load-1 zwischen 33 und 420, je Lauf vor und nach dem Lauf
+notiert. Aufruf wie `scripts/test-changed.sh`:
+
+```sh
+scripts/run-go-toolchain.sh go test -C backend -p 4 -parallel 8 \
+  -tags=testhooks -count=1 -json ./modules/organizationtenancy/compose
+```
+
+Phasen wie in Runde 4, über ein temporäres Go-Overlay von
+`backend/test/database_scope.go`; der Checkout bleibt unverändert.
+
+### Vorher: unverändertes development
+
+| Lauf | Load-1 vor/nach | Paket | Clones | Create Σ | Bootstrap Σ | Testkörper Σ | Drop Σ | Σ Lifecycles |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| ohne Overlay | 63 / 41 | 401,2 s | – | – | – | – | – | – |
+| mit Overlay | 33 / 305 | 340,3 s | 152 | 146,6 s | 9,4 s | 108,2 s | 73,3 s | 337,5 s |
+
+Beide Läufe grün, 199 Ergebnisse. Die Paketzeit ist die Summe der
+Clone-Lifecycles: Explizite Clones teilen sich einen Slot je Paket
+(`maxConcurrentIsolatedTestDatabases = 1`), also laufen 152 Lifecycles
+nacheinander, während sieben weitere Tests auf den Slot warten (Slot-Warten
+Σ 1936 s, überlappend). Die Testkörper sind unter Last nicht langsamer als in
+Runde 4 (108 s gegenüber 116 bis 118 s). Create und Drop wachsen von zusammen
+etwa 0,1 s auf 1,45 s je Clone und stellen 220 der 340 s.
+`TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone` erzeugt je Subtest einen
+eigenen Clone (40 Stück) und stellt sich dafür jedes Mal hinten an: 233 bis
+385 s Laufzeit bei 17 s Testkörper.
+
+Nicht bestätigt:
+
+- `STRATEGY FILE_COPY` gegenüber `WAL_LOG`, je sechs Clones des 43-MB-Templates
+  im Wechsel bei Load 420: 65 bis 721 ms gegenüber 226 bis 810 ms. Kein
+  belastbarer Unterschied, keine Änderung.
+- fsync des Exports mit `TMPDIR` auf btrfs im direkten Aufruf: zunächst kein
+  Unterschied (34,3/54,6 s auf tmpfs gegenüber 48,6/52,8 s, nur
+  `TestTenantExport*`). Der Befund kippte in der Umgebung des Gates, siehe
+  „fsync im Gate“.
+
+### Zeitabhängige Erwartungen
+
+Mit acht gleichzeitigen Clones bei Load 300 scheiterten sieben Tests an
+`retireNow`: Der Lauf brauchte 1,1 bis 2,1 s statt unter 1 s. Die Grenze maß
+die Wanduhr des ganzen Laufs, also auch seine Arbeit und jede Verzögerung der
+Datenbank. Ein weiterer Test erwartete zwei gelöschte Aufträge in einem Lauf;
+die Löschung beginnt nach 250 ms Budget keinen Auftrag mehr.
+
+### Änderung
+
+1. `retireNow` zählt die Lock-Wartefälle des Laufs wie `retireCounted` seit
+   #6338, statt die Wanduhr zu messen. Die 5-s-Wache gegen ein Warten auf den
+   Halter bleibt; `lock_timeout` bleibt in
+   `TestDemoVisitorErasureNeverWaitsForALock` festgelegt.
+2. Zwei Tests wiederholen den Lauf, bis beide Aufträge gelöscht sind, höchstens
+   einen Lauf je Auftrag (`eraseTheRest`).
+3. Verworfen: das Paket mit `testpkg.PerTestDatabases()` laufen lassen, also
+   acht Clones gleichzeitig ohne Slot. Die Messungen unten zeigen den Gewinn,
+   die CI den Grund für die Rücknahme, siehe „Per-Test-Datenbanken in der CI“.
+4. `TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone` nutzt einen Clone für
+   seine 40 Subtests.
+5. Sechs Tests, die zeigen, was die Löschung tut, sobald ein Lock frei wird,
+   stellen den `lock_timeout` des Laufs in ihrem eigenen Clone auf 1 min
+   (`waitForLocks`). Mit den 100 ms der Produktion musste der Test das Warten
+   sehen und den Halter committen, bevor der Lauf aufgab; im Gate nach dem
+   Rebase scheiterte daran `TestDemoErasureIncludesASendOfAConcurrentRelease`
+   (Paket 499 s).
+6. Der Export ruft das `fsync` seiner Artefakte über eine Paketvariable auf.
+   Eine Datei mit Build-Tag `testhooks` ersetzt sie in Testbinaries durch
+   einen Leerlauf, also auch in den Export-Tests unter `backend/cmd`.
+   Produktions-Builds tragen das Tag nicht und sichern wie bisher. Kein Test
+   führt damit das echte `fsync` aus; keiner prüft Dateien nach einem Absturz.
+   Zwei engere Wege scheiterten an den Architektur-Gates: Ein Aufruf aus dem
+   Compose-Test ist ein verbotener Import des Adapters, eine Weiterleitung im
+   Compose-Paket hebt dessen LOC-Budget (374), und eine Datei mit
+   `!testhooks` schließt Produktionsquelle aus der Analyse aus.
+
+### Nachher
+
+Slot-Modus und Per-Test-Datenbanken im Wechsel, beide mit den Änderungen 1, 2
+und 4, alle Läufe grün mit 199 Ergebnissen:
+
+| Lauf | Load-1 vor/nach | Paket | Clones | Create Σ | Testkörper Σ | Drop Σ | Σ Lifecycles |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Slot 1 | 106 / 296 | 434,4 s | 113 | 238,4 s | 116,7 s | 68,8 s | 431,4 s |
+| Per-Test 1 | 296 / 318 | 108,0 s | 145 | 385,4 s | 223,5 s | 201,9 s | 823,3 s |
+| Slot 2 | 318 / 300 | 227,4 s | 113 | 108,2 s | 66,0 s | 42,9 s | 223,3 s |
+| Per-Test 2 | 300 / 305 | 70,0 s | 145 | 242,8 s | 167,8 s | 130,8 s | 548,3 s |
+
+Endstand ohne Overlay, `-count=3` in einem Binary bei Load 56 / 39: 295,6 s
+für drei Durchläufe (98,5 s je Durchlauf), 597 Ergebnisse grün.
+
+Der geteilte Server streut stark: `scripts/check-changed.mjs` auf dem Endstand
+war zweimal grün, mit 179,7 s (Load 56 / 49) und 346,6 s (Load 45 / 43) für
+das Paket. Die Load-1 des Rechners erklärt das nicht. Deshalb derselbe Wechsel
+auf einem eigenen Testserver (Port 46452, sonst gleiche Konfiguration, nur
+dieses Paket), Load-1 43 bis 56:
+
+| Lauf | Paket | Clones | Create Σ | Testkörper Σ | Drop Σ |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Slot 1 | 85,5 s | 113 | 8,6 s | 53,8 s | 1,8 s |
+| Per-Test 1 | 13,3 s | 145 | 12,6 s | 65,4 s | 3,6 s |
+| Slot 2 | 70,2 s | 113 | 9,3 s | 55,2 s | 2,0 s |
+| Per-Test 2 | 15,4 s | 145 | 13,0 s | 75,8 s | 4,0 s |
+| Slot 3 | 64,7 s | 113 | 8,5 s | 50,8 s | 1,9 s |
+| Per-Test 3 | 19,4 s | 145 | 15,1 s | 125,0 s | 5,2 s |
+
+Auf dem eigenen Server kosten Create und Drop zusammen 0,09 bis 0,14 s je
+Clone, auf dem geteilten 1,3 bis 6 s. Was die Lifecycles aufbläht, ist also
+die Belegung des geteilten Testservers durch andere Sessions (129 Datenbanken
+bei der Stichprobe), nicht die CPU-Last des Rechners. Der Slot machte daraus
+die Paketzeit, weil er alle Lifecycles hintereinander legte.
+
+### fsync im Gate
+
+Das Gate blieb trotzdem langsam: 179,7 bis 346,6 s für das Paket, nach dem
+Rebase 296,7 s und einmal 499,3 s. Der Unterschied zum direkten Aufruf:
+`scripts/go-test-workspace.sh` legt `TMPDIR` in den Go-Build-Cache, hier auf
+btrfs, während `/tmp` tmpfs ist. Der Export sichert jedes Artefakt mit
+`fsync`, mehrere hundert Dateien je Paket. Derselbe Stand mit `TMPDIR` im
+Cache-Verzeichnis, geteilter Server, Per-Test-Datenbanken, im Wechsel mit und
+ohne `fsync`, Load-1 28 bis 43:
+
+| Lauf | Paket | Testkörper Σ | davon `TestTenantExport*`/`TestPersonExport*` (Laufzeit Σ) |
+| --- | ---: | ---: | ---: |
+| ohne fsync 1 | 95,4 s | 191,3 s | 294,2 s |
+| mit fsync 1 | 562,8 s | 3921,3 s | 3953,8 s |
+| ohne fsync 2 | 86,2 s | 172,5 s | 188,8 s |
+| mit fsync 2 | 394,6 s | 1698,8 s | 1768,3 s |
+
+Einzelne Export-Tests brauchten mit `fsync` bis 399 s. Im Slot-Modus liefen
+diese Testkörper zusätzlich nacheinander und kamen zu den Clone-Lifecycles
+hinzu. Das passt zu den 500 bis 535 s und den Paket-Timeouts des
+Ausgangsbefunds; im Slot-Modus mit `fsync` ist es hier nicht eigens gemessen.
+Testbinaries überspringen das `fsync` der Artefakte deshalb. Ein Lauf mit
+`fsync` zeigte außerdem einen Durchgang, der keinen Auftrag löschte
+(`TestDemoSchoolQueueErasesTheMonthlyLettersOfTheRetiredSchool`): Das Budget
+von 250 ms läuft ab Funktionsbeginn, bei stockender Datenbank also schon vor
+dem ersten Auftrag. Ohne die fsync-Last trat das in keinem Lauf auf; nicht
+geändert.
+
+### Per-Test-Datenbanken in der CI
+
+Der erste CI-Lauf mit Per-Test-Datenbanken
+([Run 43010242879](https://github.com/moto-nrw/project-phoenix/actions/runs/43010242879))
+war rot: `ERROR: out of shared memory (SQLSTATE=53200)` in zwei Export-Tests
+dieses Pakets und in `modules/identityaccess/behavior`, einem fremden Paket.
+Der CI-Server läuft mit `max_connections=100` und
+`max_locks_per_transaction=64`. Ein Export liest alle Katalogtabellen in einer
+Transaktion und hält so lange ein Lock je Tabelle; das Export-Fixture löscht
+zusätzlich alle Katalog-Schemas. Acht davon gleichzeitig erschöpfen die
+Lock-Tabelle des ganzen Servers.
+
+Nachgestellt auf einem eigenen `postgres:17-alpine` mit Standardwerten: das
+Paket allein blieb grün (203 Ergebnisse, 20,3 s). Mit
+`max_locks_per_transaction=32` scheiterten von 34 Export-Tests 21 bis 23.
+Ein Mutex nur um das Löschen der Schemas senkte das auf 3 bis 7, beseitigte
+es also nicht. Der Slot begrenzt genau diese Last auf einen Export-Test je
+Paket. Das Paket bleibt deshalb auf der Paket-Datenbank mit einem Slot; die
+Messwerte der Per-Test-Läufe stehen oben nur als Vergleich.
+
+### Endstand im Gate
+
+`scripts/run-go-toolchain.sh scripts/check-changed.mjs`, Load-1 21 bis 40.
+Zuerst mit Per-Test-Datenbanken, dann auf dem Endstand mit einem Slot:
+
+| Stand | Testserver | Paket | Ergebnis |
+| --- | --- | ---: | --- |
+| Per-Test | geteilt, Port 5433 | 61,0 s | grün |
+| Per-Test | geteilt, Port 5433 | 188,2 s | rot: ein Durchgang löschte keinen Auftrag (#6698) |
+| Per-Test | eigener, aktuelle Konfiguration | 12,3 s / 13,6 s | grün / grün |
+| Endstand (Slot) | geteilt, Port 5433 | 447,7 s | rot: 23 Tests warteten bis zur Frist auf den Slot |
+| Endstand (Slot) | eigener, aktuelle Konfiguration | 65,3 s / 61,4 s | grün / grün |
+
+Der geteilte Server auf Port 5433 ist auf diesem Rechner ein Alt-Container
+vom 10.11.2026: Daten auf einem Volume statt im tmpfs, Speicherlimit 1,5 GiB
+statt 3584 MB. Die langsamen Create/Drop-Zeiten und die Streuung oben stammen
+von ihm; im Slot-Modus reichen sie für den Paket-Timeout des Ausgangsbefunds,
+auch ohne `fsync`. Offen bleibt die Umstellung des Alt-Containers nach
+`docs/agents/operations.md` („Test database“). Sie betrifft andere Sessions
+und ist hier nicht geschehen. Auf einem Server in aktueller Konfiguration
+läuft das Paket im Gate in gut einer Minute.
+
+Nicht gemessen: macOS (`F_FULLFSYNC`) und ein Rechner ohne fremde Last. Die
+CI-Paketzeit dient als Gegenprobe.

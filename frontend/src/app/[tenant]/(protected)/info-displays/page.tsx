@@ -2,8 +2,8 @@
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { QRCodeSVG } from "qrcode.react";
 
+import { BrandedQrCode } from "~/components/qr-code/branded-qr-code";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
@@ -558,7 +558,7 @@ function TokenModal({
           }
         />
         <SectionCard className="flex justify-center">
-          <QRCodeSVG value={state.url} size={192} />
+          <BrandedQrCode url={state.url} brand="school" className="h-52 w-52" />
         </SectionCard>
         <p className="text-sm text-gray-500">
           Öffnen Sie den Link im Browser des Fernsehers oder Smartboards. Das

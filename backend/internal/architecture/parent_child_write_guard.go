@@ -114,7 +114,6 @@ var childWriteGuardExemptions = map[string]string{
 	"messaging.Service.AcknowledgeAnnouncement":        "the account's acknowledgement of an announcement of its audience",
 	"messaging.Service.SubmitAnnouncementSurvey":       "one survey answer per account of the announcement's audience",
 	"messaging.Service.RespondToAnnouncement":          "poll answer for a child: HoldAnswerPermission share-locks relationship, profile and membership in the answer's own transaction",
-	"messaging.Service.SubmitDeclaration":              "declaration for a child: HoldDeclarationSigner share-locks relationship, profile and membership in the declaration's own transaction; a revocation stays possible without the submit permission",
 	"messaging.Service.ShareRequestInTx":               "delegated: care calls it through RequestSharer, a write sink of care, only inside its guarded units",
 }
 
@@ -204,6 +203,7 @@ var portClasses = map[string]string{
 	"care.SEPAMandates":                                         "read",
 	"care.SEPAMandates.GrantSEPAMandate":                        "write",
 	"care.SEPAMandates.RevokeSEPAMandate":                       "write",
+	"care.HolidayRegistrationAnnouncements":                     "read",
 	"care.SchoolTraeger":                                        "read",
 	"care.SelfServiceEvents.EmitSelfServicePill":                "write",
 	"care.SelfServiceEvents.WakeChildGuardians":                 "notice",

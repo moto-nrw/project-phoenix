@@ -51,7 +51,7 @@ func TestDemoRetirementEndsTheSessionsOfTheSchoolItHides(t *testing.T) {
 	defer func() { _ = holder.Rollback() }()
 	require.NoError(t, stateRow(order.slug)(ctx, holder))
 
-	hidden, erased := retireNow(t, order.queue, nil)
+	hidden, erased := retireAtLeast(t, order.db, order.queue, nil, 1, 0)
 
 	require.Equal(t, 1, hidden)
 	assert.Zero(t, erased, "the visitor erasure waits for the state row")
@@ -77,7 +77,7 @@ func TestDemoRetirementDefersASchoolWhoseSessionIsInUse(t *testing.T) {
 	require.NoError(t, statement(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, colleague)(ctx, holder))
 	require.NoError(t, statement(`SELECT id FROM auth.tokens WHERE account_id = ? AND tenant_id = ? FOR UPDATE`, colleague, order.schoolID)(ctx, holder))
 
-	hidden, erased := retireNow(t, order.queue, []string{order.slug})
+	hidden, erased := retireUntilDeferred(t, order.db, order.queue, []string{order.slug}, order.slug, 1)
 
 	assert.Zero(t, hidden, "the school waits for the next run")
 	assert.Zero(t, erased)
@@ -88,7 +88,7 @@ func TestDemoRetirementDefersASchoolWhoseSessionIsInUse(t *testing.T) {
 	assert.Equal(t, 1, deferrals, "one deferral, one log line")
 
 	require.NoError(t, holder.Rollback())
-	hidden, _ = retireNow(t, order.queue, nil)
+	hidden, _ = retireAtLeast(t, order.db, order.queue, nil, 1, 0)
 	assert.Equal(t, 1, hidden, "the next run finds the order without being told")
 	assert.Equal(t, "[]", schoolSessions(t, order.db, order.schoolID))
 }
@@ -162,9 +162,12 @@ func TestDemoRoleEndsTheSessionsWithoutAGrant(t *testing.T) {
 	defer func() { _ = tx.Rollback() }()
 	_, err = tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_demo`)
 	require.NoError(t, err)
-	var result struct{ Hidden, Erased int }
-	require.NoError(t, tx.NewRaw(`SELECT hidden, erased FROM platform.retire_expired_demo_schools(ARRAY[?]::text[])`, order.slug).Scan(ctx, &result))
-	require.Equal(t, 1, result.Hidden)
+	hidden, _ := repeatRun(func() (int, int, map[string]int) {
+		var result struct{ Hidden, Erased int }
+		require.NoError(t, tx.NewRaw(`SELECT hidden, erased FROM platform.retire_expired_demo_schools(ARRAY[?]::text[])`, order.slug).Scan(ctx, &result))
+		return result.Hidden, result.Erased, nil
+	}, func(hidden, _ int, _ map[string]int) bool { return hidden >= 1 })
+	require.Equal(t, 1, hidden)
 	_, err = tx.ExecContext(ctx, `RESET ROLE`)
 	require.NoError(t, err)
 	var left int

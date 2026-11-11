@@ -12,7 +12,7 @@ import {
   SectionCardSurface,
 } from "~/components/ui/section-card-surface";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 
 // Mit `flush` oder `footer` liegt das Polster auf den Zonen statt auf der

@@ -400,14 +400,29 @@ func submissionValues(rows []declarationSubmissionRow) []*domain.DeclarationSubm
 // LockDeclarationChild serializes submissions for one (announcement, child)
 // pair until the caller's transaction ends, so a double click or two guardians
 // declaring at once are decided one after the other against the same history.
+// It also share-locks the announcement row: the rules a declaration is
+// decided under (publication, wording, signers, password, deadline) cannot
+// change until it commits (#6494). A staff retraction, publication or edit
+// updates that row and waits; one committed before is read by the
+// declaration. A missing announcement locks nothing; the caller's re-read
+// reports it.
 func (s *AnnouncementStore) LockDeclarationChild(ctx context.Context, announcementID, studentID int64) error {
-	db, _, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	key := fmt.Sprintf("parent-declaration:%d:%d", announcementID, studentID)
 	if _, err := db.NewRaw("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key).Exec(ctx); err != nil {
 		return fmt.Errorf("lock parent declaration: %w", err)
+	}
+	var ids []int64
+	query := db.NewSelect().
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Column("parent_announcement.id").
+		Where(`"parent_announcement".id = ?`, announcementID).
+		For("SHARE")
+	if err := withTenant(query, parentAnnouncementAlias, scope).Scan(ctx, &ids); err != nil {
+		return fmt.Errorf("lock parent declaration rules: %w", err)
 	}
 	return nil
 }

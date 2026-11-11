@@ -53,6 +53,7 @@ type TemplateSplitDependencies struct {
 	SupervisorRepo       timetable.PlannedSupervisorCapability
 	Directories          ports.RepositoryDirectories
 	InstanceRepo         ports.InstanceRows
+	InstanceStaff        timetable.InstanceStaffCapability
 	TimeframeRepo        timetable.TimeframeCapability
 	Materialization      timetable.MaterializationCapability
 	Deviations           ports.SeriesDeviations
@@ -77,7 +78,7 @@ type TemplateSplitService struct {
 // no sensible degraded mode, so every required dependency must be wired.
 func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitService, error) {
 	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
-		deps.SupervisorRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.TimeframeRepo == nil ||
+		deps.SupervisorRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.InstanceStaff == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.Deviations == nil || deps.RecurrenceLock == nil ||
 		deps.CareOfferings.ValidateSeries == nil || deps.CareOfferings.ValidateOfferingSource == nil || deps.Transactions == nil {
 		return nil, errors.New("timetable template split: required dependency is nil")
@@ -577,6 +578,9 @@ func (s *TemplateSplitService) prepareSplitSource(
 	// Load before capping: the active-row predicates no longer match after it.
 	enrollments, supervisors, err := s.loadSegmentRosterCandidates(ctx, old.ID, in.EffectiveDate, sourceValidUntil)
 	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if err := s.lockSplitStaff(ctx, *in, supervisors, sourceValidUntil); err != nil {
 		return nil, nil, nil, nil, err
 	}
 	if err := s.capSplitSource(ctx, old.ID, in.EffectiveDate, enrollments, supervisors, sourceValidUntil); err != nil {

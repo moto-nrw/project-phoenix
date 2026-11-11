@@ -14,7 +14,7 @@ var (
 	goDirectivePattern = regexp.MustCompile(`(?m)^go ([0-9]+\.[0-9]+\.[0-9]+)$`)
 	goImagePattern     = regexp.MustCompile(`(?m)^FROM golang:([^[:space:]]+)`)
 	alpineImagePattern = regexp.MustCompile(`(?m)^FROM alpine:([^[:space:]]+)`)
-	pnpmInstallPattern = regexp.MustCompile(`corepack prepare pnpm@([^[:space:]]+) --activate`)
+	pnpmInstallPattern = regexp.MustCompile(`npm install -g pnpm@([^[:space:]]+)`)
 	nodeImagePattern   = regexp.MustCompile(`(?m)^FROM node:([^[:space:]]+)`)
 	nodeCIPattern      = regexp.MustCompile(`(?m)^\s+node-version:\s*"?([^"[:space:]]+)"?`)
 	airInstallPattern  = regexp.MustCompile(`go install github\.com/air-verse/air@v([0-9]+\.[0-9]+\.[0-9]+)`)
@@ -336,7 +336,8 @@ func assertDockerPnpmVersion(t *testing.T, path, want string) {
 // requireDevboxNodeMajor is the Node major of the one nodejs_<major>
 // package in devbox.json. The frontend images and CI run the same major:
 // a major the images alone move to can break the image build only on
-// development (Node 25 dropped Corepack, #6483).
+// development (Node 25 dropped Corepack, #6483). The images therefore
+// install pnpm through npm.
 func requireDevboxNodeMajor(t *testing.T, packages map[string]string) string {
 	t.Helper()
 	var majors []string

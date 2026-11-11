@@ -30,7 +30,16 @@ if printf '%s\n' "$backend_changes" | grep -qxE 'backend/go\.(mod|sum)'; then
   exit 0
 fi
 
-changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
+# backend/testdata holds fixtures shared across packages. Tests read them by
+# relative path, so select every test package that names the changed file.
+shared_fixture_dirs=$(
+  printf '%s\n' "$backend_changes" | sed -n 's|^backend/testdata/||p' |
+    while IFS= read -r fixture_name; do
+      git grep -lF -e "testdata/$fixture_name" -- 'backend/*_test.go' || true
+    done | sed -e 's|^backend/||' -e 's|/[^/]*$||' -e 's|^|test |'
+)
+
+changed_dirs=$({ printf '%s\n' "$shared_fixture_dirs"; printf '%s\n' "$backend_changes" | awk '
   /^backend\/.*\/testdata\// {
     path = $0
     sub(/^backend\//, "", path)
@@ -39,6 +48,11 @@ changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
     next
   }
   /^backend\/architecture\/policy(\.json|\/)/ { print "test internal/architecture"; next }
+  # Read by path from tests; no import edge leads to these files. Their
+  # readers in ./test come with every selection, or in --direct mode with the
+  # source ratchets of test-changed.sh.
+  /^backend\/architecture\/composition\.json$/ { print "test cmd"; next }
+  /^backend\/auth\/authorize\/permissions\/catalog\.json$/ { print "test modules/identityaccess/internal/domain"; next }
   /^backend\/architecture\/(command-effects|passthrough)(\.json|\/)/ { print "test internal/architecture"; print "test internal/passthrough"; print "test test"; next }
   /^backend\/test\/query-budgets\// { print "production test/query-budgets"; print "test internal/architecture"; next }
   /\.go$/ {
@@ -59,10 +73,22 @@ changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
     print "production modules/delivery/internal/adapters/localization"
     next
   }
+  # Embedded registers are production data of their package. The migration
+  # coverage test also reads the lifecycle catalog by path.
+  /^backend\/modules\/organizationtenancy\/(return_register|data_lifecycle_catalog)\.json$/ {
+    print "production modules/organizationtenancy"
+    if ($0 ~ /data_lifecycle_catalog/) print "test database/migrations"
+    next
+  }
+  # The OpenAPI description of the data return is embedded by its route.
+  /^backend\/modules\/organizationtenancy\/inbound\/datareturn\/openapi\.json$/ {
+    print "production modules/organizationtenancy/inbound/datareturn"
+    next
+  }
   /^backend\/modules\/documentrendering\/internal\/application\/listrenderer\/assets\// {
     print "production modules/documentrendering/internal/application/listrenderer"
   }
-' | sort -u)
+'; } | sed '/^$/d' | sort -u)
 
 if [ -z "$changed_dirs" ]; then
   exit 0

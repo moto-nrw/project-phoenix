@@ -1,5 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
+import { TINT_CLASSES } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 
 type IconTileSize = "xs" | "sm" | "section" | "page" | "hero" | "display";
@@ -46,11 +47,13 @@ const SIZES: Record<
 const TONES: Record<IconTileTone, string> = {
   neutral: "bg-gray-100 text-gray-600",
   inverse: "bg-gray-900 text-white",
-  blue: "bg-moto-blue-soft text-moto-blue-strong",
-  green: "bg-moto-green-soft text-moto-green-strong",
+  blue: `${TINT_CLASSES.blue.surface} ${TINT_CLASSES.blue.text}`,
+  green: `${TINT_CLASSES.green.surface} ${TINT_CLASSES.green.text}`,
   greenFill: "bg-moto-green-fill text-white",
-  orange: "bg-moto-orange-soft text-moto-orange-strong",
-  red: "bg-moto-red-soft text-moto-red",
+  orange: `${TINT_CLASSES.orange.surface} ${TINT_CLASSES.orange.text}`,
+  // Symbol im Grundton, nicht in der -strong-Stufe der übrigen Töne: so
+  // bisher, eine Angleichung wäre sichtbar und gehört nicht in den Umbau.
+  red: `${TINT_CLASSES.red.surface} text-moto-red`,
 };
 
 interface IconTileProps extends Omit<

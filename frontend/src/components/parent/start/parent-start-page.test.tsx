@@ -49,6 +49,8 @@ vi.mock("~/lib/parent-api", () => ({
   getChildFeatures: vi.fn(),
   getChildToday: vi.fn(),
   fetchParentProfile: vi.fn(),
+  // The holiday card has its own tests (#6671); here no period is announced.
+  listHolidayOffers: vi.fn(async () => []),
   UNKNOWN_CHILD_TODAY: { at_ogs: null, state: "unknown" },
 }));
 

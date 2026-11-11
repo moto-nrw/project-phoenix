@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 
 import { StatCard } from "./stat-card";
 import { TileCard } from "./tile-card";

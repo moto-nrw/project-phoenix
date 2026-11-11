@@ -26,6 +26,11 @@ import (
 //     without one is refused and names the documents.
 //  4. The values saved here pass the same rules the DATEV file checks
 //     (one case list, backend/testdata/finance-booking-accounts-cases.json).
+//  5. A holiday position books on the KOST1 of the school that hosts its
+//     week, valid on the first day of the week (#6624). Without a host
+//     school, or without a KOST1 of it on that day, it books on the KOST1
+//     of the holiday care and keeps the reason (CostCenterFallback); every
+//     file that holds it names it in the protocol.
 
 // Scopes of a revenue account: a Leistung, or an Angebot of the monthly
 // contributions (its care offering).
@@ -54,6 +59,15 @@ var (
 	// ErrCostCenterDateTaken reports a second cost center of a scope on the
 	// same day.
 	ErrCostCenterDateTaken = errors.New("the scope has a cost center from this day")
+)
+
+// Why a holiday position books on the KOST1 of the holiday care instead of
+// its host school (#6624): its week is not one of the period (or a line
+// without a week of a child without one), or the host school has no KOST1
+// on the first day of the week.
+const (
+	CostCenterFallbackNoHostSchool       = "no_host_school"
+	CostCenterFallbackNoSchoolCostCenter = "no_school_cost_center"
 )
 
 // PositionAccounts is where one position books. Frozen says the release

@@ -28,7 +28,6 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { Tooltip } from "~/components/ui/tooltip";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { leadsSchool } from "~/lib/auth-utils";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
@@ -499,22 +498,17 @@ function HomeContent() {
             onPointerDown={preloadHomeBoardEditor}
             onFocus={preloadHomeBoardEditor}
           >
-            <Tooltip
-              content="Anpassen"
-              asChild
-              bubbleClassName="left-auto right-0"
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Anpassen"
+              tooltip="Anpassen"
+              disabled={!homeLayoutReady}
+              onClick={startEditing}
             >
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Anpassen"
-                disabled={!homeLayoutReady}
-                onClick={startEditing}
-              >
-                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </Tooltip>
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            </Button>
           </div>
         )
       }

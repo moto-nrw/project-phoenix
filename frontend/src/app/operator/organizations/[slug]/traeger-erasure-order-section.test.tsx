@@ -10,7 +10,16 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
   }),
 }));
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { ApiError } from "~/lib/api-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TraegerErasureOrder } from "~/lib/operator/provisioning-helpers";
@@ -385,6 +394,103 @@ describe("TraegerErasureOrderSection", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Der Löschauftrag ist zurückgenommen.",
     );
+  });
+
+  // #6636: the withdrawal succeeded, only the reload failed. The confirmed
+  // order stays with the load error above it; the retry only reloads.
+  it("keeps the order when the reload after the withdrawal fails", async () => {
+    mockGetOrder
+      .mockResolvedValueOnce(openOrder)
+      .mockRejectedValue(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+    mockWithdrawOrder.mockResolvedValue(undefined);
+
+    renderSection(false);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Löschauftrag zurücknehmen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "Löschauftrag zurücknehmen?",
+        }),
+      ).getByRole("button", { name: "Zurücknehmen" }),
+    );
+
+    const loadText = catalogText("general.unavailable", "den Löschauftrag");
+    expect(
+      await screen.findByText((text) => text.startsWith(loadText)),
+    ).toBeInTheDocument();
+    // Anker: der bestätigte Auftrag bleibt stehen.
+    expect(screen.getByText("LOESCH-4657")).toBeInTheDocument();
+    expect(screen.getByText(`${loadText} ${STALE_DATA_SUFFIX}`)).toBeVisible();
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Löschauftrag ist zurückgenommen.",
+    );
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "die Rücknahme des Löschauftrags"),
+      ),
+    ).not.toBeInTheDocument();
+
+    mockGetOrder.mockResolvedValue(null);
+    const alert = screen
+      .getByText(`${loadText} ${STALE_DATA_SUFFIX}`)
+      .closest('[role="alert"]');
+    expect(alert).not.toBeNull();
+    fireEvent.click(
+      within(alert as HTMLElement).getByRole("button", {
+        name: "Wiederholen",
+      }),
+    );
+    expect(
+      await screen.findByTestId("traeger-erasure-order-confirmed-on"),
+    ).toBeInTheDocument();
+    // Wiederholen lädt nur nach; zurückgenommen wird nicht noch einmal.
+    expect(mockWithdrawOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a failed withdrawal as its error and keeps the order", async () => {
+    mockGetOrder.mockResolvedValue(openOrder);
+    mockWithdrawOrder.mockRejectedValue(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    renderSection(false);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Löschauftrag zurücknehmen" }),
+    );
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "Löschauftrag zurücknehmen?",
+        }),
+      ).getByRole("button", { name: "Zurücknehmen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Rücknahme des Löschauftrags"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("LOESCH-4657")).toBeInTheDocument();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("replaces the section with the error while no order has loaded", async () => {
+    mockGetOrder.mockRejectedValue(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    renderSection(false);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "den Löschauftrag"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Löschauftrag erfasst")).not.toBeInTheDocument();
   });
 
   it("offers no withdrawal once the erasure has started", async () => {

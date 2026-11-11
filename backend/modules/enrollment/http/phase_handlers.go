@@ -511,6 +511,8 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, common.CodeEnrollmentPhaseCareOfferingConflict)
 	case errors.Is(err, enrollmentOwner.ErrPhasePendingChildWindowConflict):
 		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhasePendingChildWindowConflict, common.CodeEnrollmentPhasePendingChildWindowConflict)
+	case errors.Is(err, enrollmentOwner.ErrPhaseBookingBoundsConflict):
+		return bookingBoundsConflict(err)
 	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
 		return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound)
 	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):
@@ -614,4 +616,16 @@ func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request)
 		CareOfferings: impact.CareOfferings,
 		StudentsKept:  impact.StudentsKept,
 	}, "Phase delete impact")
+}
+
+// bookingBoundsConflict answers a phase edit that would leave a booking
+// empty with the child's name, so the form says whose offerings to adjust
+// (#6597).
+func bookingBoundsConflict(err error) render.Renderer {
+	var conflict *enrollmentOwner.PhaseBookingBoundsConflictError
+	if !errors.As(err, &conflict) || conflict.ChildName == "" {
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseBookingBoundsConflict, common.CodeEnrollmentPhaseBookingBoundsConflict)
+	}
+	return common.ErrorConflictWithDetails(enrollmentOwner.ErrPhaseBookingBoundsConflict, common.CodeEnrollmentPhaseBookingBoundsConflict,
+		map[string]any{"child": conflict.ChildName})
 }

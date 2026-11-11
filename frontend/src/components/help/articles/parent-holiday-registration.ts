@@ -1,22 +1,28 @@
 import type { HelpTopic } from "../help-types";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
-/** `/ferienanmeldung/<link>` (#4661): der Link eines Trägers, ohne Konto. */
+/**
+ * `/ferienanmeldung/<link>` (#4661): der Link eines Trägers, ohne Konto, oder
+ * die Karte `Ferienbetreuung` auf der Startseite der Eltern-App (#6671).
+ */
 export function parentHolidayRegistrationTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentHolidayRegistration,
     title: "Für die Ferienbetreuung anmelden",
     question: "Wie melde ich mein Kind für die Ferien an?",
     summary:
-      "Der Träger gibt Ihnen einen Link. Dort melden Sie bis zu drei Kinder an.",
+      "Sie starten in der Eltern-App oder mit dem Link vom Träger. Sie melden bis zu drei Kinder an.",
     image: "/help/screens/ferienanmeldung-zweite-person.webp",
     imageAlt: "Die freiwillige Karte für die zweite sorgeberechtigte Person.",
     group: "anmeldung",
     audience: "parent",
     icon: "SunHorizon",
-    requirements: ["Sie haben den Link zur Ferienanmeldung vom Träger."],
+    requirements: [
+      "Sie haben die Eltern-App oder den Link zur Ferienanmeldung vom Träger.",
+    ],
     steps: [
-      "Öffnen Sie den Link.",
+      "Öffnen Sie die Eltern-App. Auf der Startseite steht `Ferienbetreuung`. Wählen Sie `Jetzt anmelden`.",
+      "Ohne Eltern-App öffnen Sie den Link vom Träger.",
       "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
       "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
       "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche. Gibt es eine Woche an mehreren Schulen, wählen Sie auch die Schule.",
@@ -46,18 +52,23 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
       "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
       "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. Gesundheitsangaben sieht sie nur bis zum letzten Tag der Woche.",
       "Ein Kind von einer anderen Schule kommt als Feriengast.",
-      "Manche Ferien haben eine Grenze, zum Beispiel höchstens 5 Tage je Kind. Dann steht sie über den Wochen. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag.",
+      "Manche Ferien haben eine Grenze, zum Beispiel höchstens 5 Tage je Kind. Dann steht sie über den Wochen. Eine ganze Woche zählt mit allen Tagen von Montag bis Freitag. Melden Sie Ihr Kind ein zweites Mal an, zählen die Tage beider Anmeldungen zusammen.",
+      "Ein Feiertag oder Schließtag ist bei den Tagen durchgestrichen. An diesem Tag ist keine Betreuung, Sie können ihn nicht wählen.",
       "Steht unter den Tagen `Schon voll`? An diesen Tagen sind alle Plätze vergeben. Wählen Sie einen davon, kommt Ihr Kind für diese Woche auf die Warteliste.",
       "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
       "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
       "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
     ],
     differences: [
+      "Steht in der Eltern-App `Anmeldung ab` mit einem Datum? Dann beginnt die Anmeldung an diesem Tag. Ab dann sehen Sie den Knopf `Jetzt anmelden`.",
+      "Sie haben den Link geöffnet und sind nicht angemeldet? Oben steht `Sie haben schon die Eltern-App?`. Wählen Sie `Anmelden`. Danach kommen Sie zurück zum Formular.",
       "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
       "Sind Sie mit Ihrem Elternkonto in moto angemeldet? Dann steht unter `Kinder` der Abschnitt `Ihre Kinder aus dem Elternkonto`. Setzen Sie den Haken bei Ihrem Kind. Name, Geburtsdatum und Schule stehen dann schon im Formular, Ihre Angaben auch.",
       "Sie können diese Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
     ],
     troubleshootingDetails: [
+      "Sie sehen in der Eltern-App keine `Ferienbetreuung`? Dann läuft gerade keine Anmeldung für die Schule Ihres Kindes. Oder die Frist ist vorbei. Haben Sie einen Link vom Träger, nutzen Sie den Link.",
+      "moto meldet zu viele Tage je Kind? Die Grenze gilt für alle Anmeldungen des Kindes zusammen. Bitte wählen Sie weniger Tage oder fragen Sie das Träger-Büro. Der Hinweis zeigt keine Tage aus anderen Anmeldungen.",
       "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",
       "moto sagt, den Anmeldelink gebe es nicht? Fragen Sie den Träger nach dem richtigen Link.",
     ],

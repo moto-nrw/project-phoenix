@@ -31,6 +31,7 @@ import { LOGIN_RATE_LIMITED } from "~/lib/login-refusal";
 import { createLogger } from "~/lib/logger";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
+import { holidayRegistrationReturnPath } from "~/lib/parent-holiday-registration";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { normalizeLocale } from "~/i18n/locales";
 import { clientEnv } from "~/env.client";
@@ -113,6 +114,9 @@ function ParentLoginForm() {
   const searchParams = useSearchParams();
   const cameFromStaffLogin = searchParams.get("from") === "staff";
   const sessionExpired = searchParams.get("error") === "SessionExpired";
+  // Die Ferienanmeldung schickt Eltern mit Konto hierher und will sie nach
+  // dem Login wieder im Formular haben (#6671). Nur dieses eine Ziel gilt.
+  const returnPath = holidayRegistrationReturnPath(searchParams.get("next"));
   // Erst nach dem Mount, weil die URL window.location.port braucht und die
   // Seite serverseitig vorgerendert wird.
   const [staffUrl, setStaffUrl] = useState<string | null>(null);
@@ -208,7 +212,7 @@ function ParentLoginForm() {
   // unterschiedliche Anzahl Hooks ("Rendered more hooks than during the
   // previous render", Seite bricht ab, erst ein Reload heilt es).
   if (isRedirectingToParent) {
-    redirect(parentPath("/parents"));
+    redirect(returnPath ?? parentPath("/parents"));
   }
 
   const submit = async () => {

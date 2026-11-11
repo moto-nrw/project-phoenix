@@ -197,3 +197,80 @@ func TestSeedCareCostSharesLeaveTheContractsOfOtherSchools(t *testing.T) {
 	require.NoError(t, seedCareCostShares(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 65, calendar.NewDate(2026, 10, 1)))
 	assert.Equal(t, []float64{13, 14}, shared)
 }
+
+// A notice run the seed cannot release would hold the year for every demo
+// school ordered later (demo notice run 4 of 2026, #6641): the seed discards
+// it, whether its preview is empty or the release refuses it as empty.
+func TestSeedCareNoticesDiscardTheOwnRunTheyCannotRelease(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		preview int
+		release int
+	}{
+		{name: "empty preview, no release", preview: 0, release: 0},
+		{name: "release refused as empty", preview: 3, release: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var released, discarded int
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.Method + " " + r.URL.Path {
+				case "GET /traeger/master-data/document-templates/bescheid":
+					_, _ = fmt.Fprint(w, `{"data":{"current":{"standard":false}}}`)
+				case "POST /traeger/care-notice-runs/":
+					_, _ = fmt.Fprint(w, `{"data":{"id":4}}`)
+				case "GET /traeger/care-notice-runs/4":
+					_, _ = fmt.Fprintf(w, `{"data":{"id":4,"year":2026,"status":"calculated","school_ids":[65],"preview_count":%d,"preview_cents":9100,"fingerprint":"f"}}`, tc.preview)
+				case "POST /traeger/care-notice-runs/4/release":
+					released++
+					w.WriteHeader(http.StatusConflict)
+					_, _ = fmt.Fprint(w, `{"status":409,"code":"parent_billing.billing_run_empty","detail":"empty"}`)
+				case "POST /traeger/care-notice-runs/4/discard":
+					discarded++
+					_, _ = fmt.Fprint(w, `{"data":{"id":4,"status":"discarded"}}`)
+				default:
+					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+			})
+			defer srv.Close()
+
+			issued, err := seedCareNotices(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 65, calendar.NewDate(2026, 10, 1))
+			require.NoError(t, err)
+			assert.Zero(t, issued)
+			assert.Equal(t, tc.release, released)
+			assert.Equal(t, 1, discarded, "the run frees the year for later demo schools")
+		})
+	}
+}
+
+// A run without notices but with a booking without a price stays open for
+// the office; the order still succeeds.
+func TestSeedCareNoticesLeaveARunWithSomethingToSettleOpen(t *testing.T) {
+	t.Parallel()
+
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case "GET /traeger/master-data/document-templates/bescheid":
+			_, _ = fmt.Fprint(w, `{"data":{"current":{"standard":false}}}`)
+		case "POST /traeger/care-notice-runs/":
+			_, _ = fmt.Fprint(w, `{"data":{"id":4}}`)
+		case "GET /traeger/care-notice-runs/4":
+			_, _ = fmt.Fprint(w, `{"data":{"id":4,"year":2026,"status":"calculated","school_ids":[65],"preview_count":0}}`)
+		case "POST /traeger/care-notice-runs/4/discard":
+			w.WriteHeader(http.StatusConflict)
+			_, _ = fmt.Fprint(w, `{"status":409,"code":"parent_billing.billing_run_not_empty","detail":"not empty"}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	})
+	defer srv.Close()
+
+	issued, err := seedCareNotices(newTestClient(srv.URL, false), AuthRef{Kind: AuthBearer, Token: "traeger"}, 65, calendar.NewDate(2026, 10, 1))
+	require.NoError(t, err)
+	assert.Zero(t, issued)
+}

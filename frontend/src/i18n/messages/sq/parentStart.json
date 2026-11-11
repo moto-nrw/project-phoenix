@@ -33,6 +33,25 @@
     "loading": "Po ngarkohen detyrat",
     "errorObject": "lista e plotë e detyrave"
   },
+  "holiday": {
+    "listTitle": "Kujdesi gjatë pushimeve",
+    "badgeOpen": "Regjistrimi është i hapur",
+    "badgeUpcoming": "Regjistrimi nga {date}",
+    "care": "Kujdesi",
+    "registration": "Regjistrimi",
+    "range": "{from} deri më {to}",
+    "until": "deri më {date}",
+    "lastDay": "Sot është dita e fundit",
+    "daysLeft": "{days, plural, one {edhe # ditë} other {edhe # ditë}}",
+    "for": "Për",
+    "register": "Regjistro tani",
+    "registerLabel": "{name}: Regjistro tani",
+    "forChildren": "Për: {names}",
+    "offeredByTraeger": "Ofruar nga {traeger}",
+    "careLine": "Kujdesi {from} deri më {to}",
+    "registrationLine": "Regjistrimi deri më {date}",
+    "registrationRangeLine": "Regjistrimi {from} deri më {to}"
+  },
   "childrenLoading": "Po ngarkohen të dhënat e fëmijëve",
   "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. {careTerm}-ja e shkollës suaj mund ta rregullojë këtë.",
   "errorObject": "përmbledhja e fëmijëve tuaj"

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { HELP_TOPICS } from "~/lib/help-topics";
 
@@ -32,7 +32,7 @@ vi.mock("~/lib/tenant-context", () => ({
 import { buildContextHelpHref, ContextHelpLink } from "./context-help-link";
 
 describe("ContextHelpLink", () => {
-  it("adds the page context and the exact return path to the help URL", () => {
+  it("adds the page context and the exact return path to the help URL", async () => {
     render(<ContextHelpLink topic={HELP_TOPICS.studentSearch} />);
 
     const link = screen.getByRole("link", { name: "Hilfe zu dieser Seite" });
@@ -50,8 +50,11 @@ describe("ContextHelpLink", () => {
       return_to: "/testschule/students/search?status=anwesend",
     });
     expect(link).not.toHaveAttribute("target");
-    expect(screen.getByRole("tooltip")).toHaveTextContent(
-      "Hilfe zu dieser Seite",
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(
+        document.body.querySelector("[data-action-hint]"),
+      ).toHaveTextContent("Hilfe zu dieser Seite"),
     );
   });
 
