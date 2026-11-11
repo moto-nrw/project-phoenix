@@ -48,6 +48,7 @@ func setupExistingChildTest(t *testing.T, audience string) *existingChildEnv {
 		LateInviteRepo:     env.repos.Enrollment(),
 		StudentRepo:        env.repos.Student,
 		GuardianAuthorizer: env.repos.StudentGuardian,
+		GuardianHold:       testGuardianHold(env.db, env.repos),
 		OutboxEnqueuer:     env.outbox,
 		Settings:           env.settings,
 		FrontendURL:        "http://localhost:3000",

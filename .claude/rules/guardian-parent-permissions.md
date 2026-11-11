@@ -65,12 +65,13 @@ relationship permission-value and role decisions use the workflow's
 including Security Runtime's public helpers. Do not import `securityruntime`
 into the workflow: the policy grants it no such dependency.
 
-An owner command a flow calls (Care Plan, People Directory, Audit Platform)
-does not repeat the relationship check: the flow keeps it. Parent writes for
-an existing child open their unit via `WithChildWrite` or
-`WithPermittedChildForWrite`; `guardChildWrite` (#6529) locks membership,
-child, profile and relationship and re-checks every permission until commit.
-`TestParentChildWritesRunBehindTheGuard` enforces it.
+Owner commands keep no relationship check: the flow does. Parent
+writes for an existing child (poll answers too) open their unit via
+`WithChildWrite`/`WithPermittedChildForWrite`; `guardChildWrite` (#6529)
+locks and re-checks membership, child, relationship and permissions until
+commit via People Directory's `guardianhold`, as Enrollment's renewals of
+existing children do (#6638). `TestParentChildWritesRunBehindTheGuard` and
+`TestParentRenewalsRunBehindTheGuard` enforce it.
 
 Use action-specific permissions:
 

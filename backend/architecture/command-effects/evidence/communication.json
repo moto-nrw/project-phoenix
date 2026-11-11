@@ -1905,14 +1905,6 @@
       "target_owner": "parent-announcement-audience"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.HoldAnswerPermission",
-      "binding_digest": "3e188a2718d2e695467a9e4106625024",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.HoldAnswerPermission",
-      "source_owner": "communication",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.HoldAnswerPermission",
-      "target_owner": "parent-announcement-audience"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.HoldDeclarationSigner",
       "binding_digest": "def15cff08ebe13bb335189931896248",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.HoldDeclarationSigner",

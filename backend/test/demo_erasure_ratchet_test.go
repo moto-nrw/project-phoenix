@@ -28,7 +28,7 @@ const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed ass
 // demoErasureExceptions are the tables in scope the erasure leaves on
 // purpose, each with its reason. A new table with personal data gets an
 // erasure path, not an entry. ADR 0187 adds parent_billing.sepa_debit_files,
-// which drops by trigger with its debits. ADR 0210 adds
+// which drops by trigger with its debits. ADR 0212 adds
 // users.message_attachments and users.message_attachment_cleanup, which stay
 // with the messages of the school.
 var demoErasureExceptions = map[string]string{
@@ -226,7 +226,7 @@ var demoErasureExceptions = map[string]string{
 // demoErasureExceptionBudget is the recorded size of demoErasureExceptions.
 // It only falls: lower it when an entry leaves.
 // ADR 0187: the stored PAIN.008 files of the Träger-Rückgabe (+1).
-// ADR 0210: the photos and files of chat messages and their cleanup intents
+// ADR 0212: the photos and files of chat messages and their cleanup intents
 // stay with the messages they belong to (+2).
 const demoErasureExceptionBudget = 189
 

@@ -625,6 +625,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *StudentStore) ListEnrolledIDsByIdentities(ctx context.Context, tenantID int64, identities []directory.StudentIdentity) ([][]int64, domain.OperationStats, error) {\n\tids, stats, err := s.reads.ListEnrolledIDsByIdentities(ctx, tenantID, identities)\n\treturn ids, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolledIDsByIdentities",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *StudentStore) ListEnrolledIDsByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName, birthday string) ([]int64, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListEnrolledIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)\n\treturn records, domain.OperationStats(stats), projectionError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolledIDsByNameAndBirthday",

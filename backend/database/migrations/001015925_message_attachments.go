@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const messageAttachmentsVersion = "1.15.920"
+const messageAttachmentsVersion = "1.15.925"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

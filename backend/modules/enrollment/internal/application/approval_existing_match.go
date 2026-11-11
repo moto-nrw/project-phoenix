@@ -218,6 +218,11 @@ func (d *Decisions) applyEnrolledChildChoice(ctx context.Context, target *decisi
 // phase-wide guard proves no other active request renews it.
 func (d *Decisions) pinChosenStudent(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, studentID int64) error {
 	child := target.child
+	// Renewals hold the student before the phase lock. Take the same order
+	// before the pin's foreign-key check needs a lock on that student.
+	if _, err := d.readEnrollmentStudent(ctx, studentID, "update"); err != nil {
+		return fmt.Errorf("decision: lock chosen student %d: %w", studentID, err)
+	}
 	if err := d.deps.Requests.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
 		return fmt.Errorf("decision: acquire existing-student match lock: %w", err)
 	}

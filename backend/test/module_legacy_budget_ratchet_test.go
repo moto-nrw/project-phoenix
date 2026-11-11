@@ -280,7 +280,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+5) and their port of
 // workflows/parentportal/compose (+1) add exactly 6 LOC.
 // ADR 0209: the new composition of workflows/holidayallocation (+13).
-// ADR 0210: the message attachments of modules/communication/composition
+// ADR 0212: the message attachments of modules/communication/composition
 // (+25) and their port of workflows/parentportal/compose (+2).
 const moduleComposeBudgetTotal = 13326
 
@@ -311,7 +311,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
 	// Raised by ADR 0073: the parent announcement retention.
-	// ADR 0210: the message attachments (+25).
+	// ADR 0212: the message attachments (+25).
 	"modules/communication/composition":  376,
 	"modules/dataimport/compose":         85,
 	"modules/dataimport/compose/imports": 29,
@@ -448,7 +448,7 @@ var moduleComposeBudgets = map[string]int{
 	// by ADR 0157: the shared document port (+1).
 	// ADR 0159: the notice port (+1).
 	// ADR 0207: the port of the announced holiday periods (+1).
-	// ADR 0210: the port of the message attachments (+2).
+	// ADR 0212: the port of the message attachments (+2).
 	"workflows/parentportal/compose":     335,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,

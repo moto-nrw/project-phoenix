@@ -306,6 +306,44 @@ func (r *guardRig) declaration(t *testing.T, f childReadFamily) guardDeclaration
 	return guardDeclaration{announcementID: a.ID, versionID: version.ID}
 }
 
+// guardPoll is a published single-choice poll addressed to one child.
+type guardPoll struct {
+	announcementID, optionID int64
+	publishedAt              time.Time
+}
+
+// poll publishes a single-choice poll addressed to the family's child.
+func (r *guardRig) poll(t *testing.T, f childReadFamily) guardPoll {
+	t.Helper()
+	r.set(t, map[string]any{"operations.parent_news_enabled": true})
+	fixtures := NewParentAnnouncementFixtures(NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, r.db)).ParentAnnouncement)
+	ctx := tenant.WithTenantID(testpkg.WithTenantRuntime(t, context.Background(), r.db), f.TenantID)
+	a := &ParentAnnouncementFixture{
+		Title: "Murmelparty", Body: "Kommt Ihr Kind zur Murmelparty?", Priority: "info",
+		ResponseType: "single_choice", Active: true, CreatedBy: f.AccountID,
+	}
+	a.TenantID = f.TenantID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, r.db, fixtures.Create, a))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, r.db, fixtures.ReplaceTargets, f.TenantID, a.ID,
+		[]*ParentAnnouncementTargetFixture{{TargetType: "student", TargetRefID: &f.StudentID}}))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, r.db, fixtures.ReplaceOptions, f.TenantID, a.ID,
+		[]*ParentAnnouncementOptionFixture{{Label: "Ja", Position: 0}, {Label: "Nein", Position: 1}}))
+	published := time.Now().Add(-time.Minute)
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, r.db, fixtures.SetPublished, a.ID, &published))
+	stored, err := testpkg.TenantQuery1(t, ctx, r.db, fixtures.FindByID, a.ID)
+	require.NoError(t, err)
+	options, err := testpkg.TenantQuery1(t, ctx, r.db, fixtures.ListOptions, a.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, options)
+	return guardPoll{announcementID: a.ID, optionID: options[0].ID, publishedAt: *stored.PublishedAt}
+}
+
+func pollAnswer(f childReadFamily, p guardPoll) childWrite {
+	return childWrite{http.MethodPost, fmt.Sprintf("/parent/me/news/%d/respond", p.announcementID), map[string]any{
+		"student_id": fmt.Sprint(f.StudentID), "option_ids": []string{fmt.Sprint(p.optionID)}, "published_at": p.publishedAt,
+	}}
+}
+
 func declarationAnswer(f childReadFamily, d guardDeclaration, action string) childWrite {
 	return childWrite{http.MethodPost, fmt.Sprintf("/parent/me/news/%d/declaration", d.announcementID), map[string]any{
 		"student_id": fmt.Sprint(f.StudentID), "version_id": fmt.Sprint(d.versionID), "action": action,
@@ -706,6 +744,7 @@ const (
 	// A revocation needs portal access only: the guardian withdraws the own
 	// consent also after losing this permission.
 	permDeclarationSubmit = "parent_portal.declarations.submit"
+	permPollResponse      = "parent_portal.poll.response"
 )
 
 // guardedWrites are the parent write routes for an existing child.
@@ -937,6 +976,14 @@ func guardedWrites() []guardedWrite {
 				declaration := r.declaration(t, f)
 				r.do(t, declarationAnswer(f, declaration, "agreed"), f.token)
 				return declarationAnswer(f, declaration, "revoked")
+			},
+		},
+		{
+			name:        "Umfrage beantworten",
+			permissions: []string{permPollResponse},
+			compose:     composeParentDeclarations,
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				return pollAnswer(f, r.poll(t, f))
 			},
 		},
 		{
