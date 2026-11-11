@@ -4826,7 +4826,23 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "186f5d82646fecb127b7a3f24fdb0296",
+      "binding_digest": "c10dcc1c6195d65d61df8dcd02fdd966",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CompanionLocks.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "binding_digest": "96040a7241481d92d6f90012d4c520f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCompanions.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "binding_digest": "3eb6d177398e013b2aca886efc23ec87",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewSchoolMembershipLock",
@@ -4834,7 +4850,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "1ce41c02658230b4e0eb6f35e5df278b",
+      "binding_digest": "b924a328d835f71102dea373bd3b17d4",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByAccount",
@@ -4842,7 +4858,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "3725a7ed1071dc21e7f38d530b8ba3e8",
+      "binding_digest": "fb3012ab1b04f99c856da74c9848513f",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByID",
@@ -4850,7 +4866,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "9ef77c1e1caad8aa1e520e1cfdf7d161",
+      "binding_digest": "b48e95b3286a6c50bba1f8a586e55b54",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.LockGuardianProfile",
@@ -4858,7 +4874,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "552cc52a9ffe0ec604c5a0091803383c",
+      "binding_digest": "9f576172fb6e8255ae204aa2436e86e7",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianRelationshipReads.GuardianRelationshipsForUpdate",
@@ -4866,7 +4882,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "2baac8ebbe74fd101f777442c469c2fb",
+      "binding_digest": "2a0818db44cd92e06e98fdcb75c8ef5c",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold.HoldMany",
@@ -4874,7 +4890,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "bf073dc28ae01d29cec84cbecb6007bd",
+      "binding_digest": "76db661991e16a8ee5696c696785343a",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByAccount",
@@ -4882,7 +4898,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "7af9505735b1abdb31d32f949f15b2d2",
+      "binding_digest": "b57377bebb1ff635b015726245f010b1",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID",
@@ -4890,7 +4906,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "98dbd03b719581cbfdcff769dc0f30f3",
+      "binding_digest": "65abbfae08e5a85adcc1c6dfa734283e",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile",
@@ -4898,7 +4914,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "33d4c5c0e820787a02879d6099da16ab",
+      "binding_digest": "aef67c8673c4dbda55793dd1042b42fc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.GuardianRelationshipsForUpdate",
@@ -4906,7 +4922,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
-      "binding_digest": "f20c4f906fd806bcb18b31f2b65f8b75",
+      "binding_digest": "f276e26645f89d93a8767dcfbe5e1daf",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
@@ -4914,7 +4930,23 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "effb626728a6a2e385d5f04a37188e5f",
+      "binding_digest": "3d12a0c1e34eca14cb561723bc6a2baf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CompanionLocks.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "binding_digest": "95229e8e9853120af93e7f089b9ddf31",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCompanions.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "binding_digest": "caab53ed10049e0540a616deb2524e92",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewSchoolMembershipLock",
@@ -4922,7 +4954,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "e7269cf1dc5fa511341d18a1a9d60099",
+      "binding_digest": "4a66dec5256a2245f5dc90ecd13f74b6",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByEmail",
@@ -4930,7 +4962,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "eabc84ad09db7bdc2959e151eb916543",
+      "binding_digest": "a8b267f3938aaa82438c62bf27fe37a8",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByID",
@@ -4938,7 +4970,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "5580d8c5d14ea16d46a809ca67576d1c",
+      "binding_digest": "1d59488fe588a64dbe9838445a4569bd",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.LockGuardianProfile",
@@ -4946,7 +4978,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "631707cce77b13f274621e6aab1fab3f",
+      "binding_digest": "6dbf6269489b44a279845478b38e4de8",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianRelationshipReads.GuardianRelationshipsForUpdate",
@@ -4954,7 +4986,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "534d0d3f1667c64e4da8f6e099bfb408",
+      "binding_digest": "7386d02ea2c9c76226fa0bb301d41b83",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold.HoldMany",
@@ -4962,7 +4994,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "51325ec2c7c09987706dd9a44cacc61b",
+      "binding_digest": "ed76ed641e5bc8c8146e0b5e1792b4f4",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByEmail",
@@ -4970,7 +5002,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "adb73703c7b2343aa0e169b71f78ece1",
+      "binding_digest": "91302f26791f492c6c66d0192368d0c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID",
@@ -4978,7 +5010,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "570bfb43596481b479c790a3921a5822",
+      "binding_digest": "acd87e5ebca37914d69d9c0a0170a1a3",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile",
@@ -4986,7 +5018,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "100d635e9cbd0347cb605615e18d760c",
+      "binding_digest": "5a7ac95c67de345e589c5a4d8698f8b7",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.GuardianRelationshipsForUpdate",
@@ -4994,7 +5026,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
-      "binding_digest": "f526b47b157d52418984ab72afc0e7ca",
+      "binding_digest": "125b5bdee21e8b2ef6adfa02af0550aa",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",

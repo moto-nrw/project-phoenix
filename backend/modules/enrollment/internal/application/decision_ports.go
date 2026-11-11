@@ -245,10 +245,12 @@ type DecisionDependencies struct {
 	// approval rewrites an existing student's class, the same gate Care
 	// Plan's booking materialization serializes its roster writes with.
 	LockTemplateRecurrence func(context.Context) error
-	// GuardianAuthorizer re-checks a parent's pin against the current
-	// relationship before an approval or a later edit acts on it (#6053).
-	// Without it such a pin authorizes nothing.
+	// GuardianAuthorizer re-checks a parent's pin for the office's detail
+	// read (#6053). GuardianHold re-checks it behind the parent guard before
+	// an approval or a later edit acts on it (#6638). Without them such a pin
+	// authorizes nothing.
 	GuardianAuthorizer GuardianStudentAuthorizer
+	GuardianHold       GuardianStudentHold
 	Pickups            WeeklyPickupHooks
 	Runtime            Runtime
 	// IsTransient reports a database failure worth one more attempt of a

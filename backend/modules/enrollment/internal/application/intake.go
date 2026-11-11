@@ -134,9 +134,13 @@ type GuardianStudentAuthorizer interface {
 // GuardianStudentHold holds one identity's authority over all candidates in
 // the caller's school transaction, in account, school, children (ascending),
 // profile, relationships order. Missing or refused children have no grant.
+// The children slot also locks the "läuft mit" graph of the graph students
+// in the same ascending pass, for the change-request approval that writes
+// them (#6638); Care Plan reports a companion held elsewhere as
+// careplan.ErrCompanionLockBusy.
 type GuardianStudentHold interface {
-	HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
-	HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
+	HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error)
+	HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error)
 }
 
 // IntakeSettings resolves tenant overrides or registry defaults. Permission
@@ -203,23 +207,22 @@ type ManualEnrollmentDecider interface {
 }
 
 // IntakeDependencies bind the intake to its owners. Guardians, LateInvites,
-// RateLimits, Students, GuardianAuthorizer and Outbox are optional where the
+// RateLimits, Students and Outbox are optional where the
 // intake degrades without them; the intake reports every other missing
 // dependency when it needs it.
 type IntakeDependencies struct {
-	Requests           IntakeRequests
-	Children           IntakeChildren
-	Guardians          IntakeGuardians
-	LateInvites        IntakeLateInvites
-	Catalog            IntakeCatalog
-	RateLimits         SubmissionRateLimiter
-	Offerings          IntakeOfferings
-	Bookings           enrollmentNative.CareBookingCommands
-	Capacity           enrollmentNative.OfferingCapacity
-	Schools            enrollmentNative.SchoolDirectory
-	Notifications      enrollmentNative.Notifications
-	Students           StudentMatches
-	GuardianAuthorizer GuardianStudentAuthorizer
+	Requests      IntakeRequests
+	Children      IntakeChildren
+	Guardians     IntakeGuardians
+	LateInvites   IntakeLateInvites
+	Catalog       IntakeCatalog
+	RateLimits    SubmissionRateLimiter
+	Offerings     IntakeOfferings
+	Bookings      enrollmentNative.CareBookingCommands
+	Capacity      enrollmentNative.OfferingCapacity
+	Schools       enrollmentNative.SchoolDirectory
+	Notifications enrollmentNative.Notifications
+	Students      StudentMatches
 	// GuardianHold holds a parent's renewal permission in the submission's
 	// own transaction (#6638). Nil refuses every parent renewal of an
 	// existing child.

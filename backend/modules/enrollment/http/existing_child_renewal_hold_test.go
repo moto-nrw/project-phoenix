@@ -129,9 +129,8 @@ func setupRenewalRigFor(t *testing.T, audience string) *renewalRig {
 		Guardians: env.repos.Enrollment(), CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		Catalog: env.repos.Enrollment(), SchoolRepo: factorySchools{repos: env.reposSchools}, RateLimitRepo: env.repos.Enrollment(),
 		LateInviteRepo: env.repos.Enrollment(), StudentRepo: checkedMatches{EnrollmentStudentMatches: env.repos.Student, gate: rig.checked},
-		GuardianAuthorizer: env.repos.StudentGuardian,
-		GuardianHold:       testGuardianHold(env.db, env.repos),
-		OutboxEnqueuer:     env.outbox, Settings: env.settings, FrontendURL: "http://localhost:3000", Logger: slog.Default(),
+		GuardianHold:   testGuardianHold(env.db, env.repos),
+		OutboxEnqueuer: env.outbox, Settings: env.settings, FrontendURL: "http://localhost:3000", Logger: slog.Default(),
 	})
 	return rig
 }
@@ -591,7 +590,7 @@ func TestRenewalHoldQueryCountDoesNotGrowWithSiblings(t *testing.T) {
 			counter.Reset()
 			counter.Start()
 			defer counter.Stop()
-			grants, err := hold.HoldAccountStudentsPermission(ctx, first.accountID, ids, testpkg.Tenant(t), securityruntime.GuardianPermissionEnrollmentSubmit)
+			grants, err := hold.HoldAccountStudentsPermission(ctx, first.accountID, ids, nil, testpkg.Tenant(t), securityruntime.GuardianPermissionEnrollmentSubmit)
 			require.NoError(t, err)
 			for _, id := range ids {
 				require.True(t, grants[id])

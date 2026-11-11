@@ -45,6 +45,32 @@ func (s *stubReEnrollAuthorizer) GuardianEmailHasStudentPermission(_ context.Con
 	return s.granted, s.err
 }
 
+// The approval holds the identity's authority behind the parent guard
+// (#6638); the stub answers the held variants like the probes.
+func (s *stubReEnrollAuthorizer) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := s.AccountHasStudentPermission(ctx, accountID, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
+}
+
+func (s *stubReEnrollAuthorizer) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := s.GuardianEmailHasStudentPermission(ctx, email, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
+}
+
 type matchedStudentFixture struct {
 	svc      *ChangeRequests
 	children *stubMatchedStudentChildRepo
@@ -60,11 +86,11 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 	requests := &stubMatchLockRequestRepo{has: collision}
 	auth := &stubReEnrollAuthorizer{granted: true}
 	svc := NewChangeRequests(ChangeRequestDependencies{Settings: intakeSettingsFake{},
-		Requests:           requests,
-		Children:           children,
-		Students:           &stubMatchStudentRepo{matchID: resolved, exists: resolved != nil},
-		GuardianAuthorizer: auth,
-		ParentsURL:         "https://parents.example.test",
+		Requests:     requests,
+		Children:     children,
+		Students:     &stubMatchStudentRepo{matchID: resolved, exists: resolved != nil},
+		GuardianHold: auth,
+		ParentsURL:   "https://parents.example.test",
 	})
 
 	accountID := int64(4242)
@@ -87,8 +113,12 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 // child index 0.
 func (f *matchedStudentFixture) reconcile(child *enrollmentNative.RequestChild, next SubmitChild) error {
 	run := &approval{
-		row: f.row, req: f.req, prepared: &proposal{phase: f.phase},
+		row: f.row, req: f.req, children: []*enrollmentNative.RequestChild{child},
+		prepared:  &proposal{phase: f.phase, request: SubmitRequest{Children: []SubmitChild{next}}},
 		overrides: map[int]string{}, eligibilityEnforced: true,
+	}
+	if err := f.svc.holdApprovalAuthority(context.Background(), run); err != nil {
+		return err
 	}
 	return f.svc.reconcileMatchedStudent(context.Background(), run, child, next, 0)
 }

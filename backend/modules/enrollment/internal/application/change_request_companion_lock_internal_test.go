@@ -39,13 +39,13 @@ func TestLockApprovedStudentsKeepsTheRetriableLockConflict(t *testing.T) {
 	children := []*enrollment.RequestChild{{CreatedStudentID: &studentID}}
 
 	s := companionLockChangeRequests(busyCompanionGraph{err: careplan.ErrCompanionLockBusy})
-	err := s.lockApprovedStudents(context.Background(), children)
+	err := s.lockApprovedStudents(context.Background(), children, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errStudentCompanionLockBusy)
 
 	other := errors.New("database unavailable")
 	s = companionLockChangeRequests(busyCompanionGraph{err: other})
-	err = s.lockApprovedStudents(context.Background(), children)
+	err = s.lockApprovedStudents(context.Background(), children, nil)
 	require.ErrorIs(t, err, other)
 	assert.NotErrorIs(t, err, errStudentCompanionLockBusy)
 }

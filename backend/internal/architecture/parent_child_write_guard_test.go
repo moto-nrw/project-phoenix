@@ -138,7 +138,7 @@ func TestParentRenewalGuardRuleReportsTheUnlockedCheck(t *testing.T) {
 	if !strings.Contains(source, guarded) {
 		t.Fatal("the submission no longer holds the renewal as this test expects; update the bypass")
 	}
-	bypass := strings.Replace(source, guarded, "if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {", 1)
+	bypass := strings.Replace(source, guarded, "if _, err := submitterMayRenewStudent(ctx, nil, submitter, *matchedStudentID, req.TenantID); err != nil {", 1)
 	violations := checkRenewal(t, map[string][]byte{file: []byte(bypass)})
 	rules := map[string]string{}
 	for _, v := range violations {
@@ -146,7 +146,7 @@ func TestParentRenewalGuardRuleReportsTheUnlockedCheck(t *testing.T) {
 			rules[v.Rule] = v.Target
 		}
 	}
-	if !strings.Contains(rules["parent-renewal.unlocked-check"], "application.Intake.assertGuardianMayReEnrollStudent") {
+	if !strings.Contains(rules["parent-renewal.unlocked-check"], "application.submitterMayRenewStudent") {
 		t.Fatalf("want the unlocked renewal check of the submission, got %+v", violations)
 	}
 }
@@ -156,7 +156,7 @@ func TestParentRenewalGuardRuleReportsTheUnlockedCheck(t *testing.T) {
 func TestParentRenewalGuardRuleReportsARemovedHold(t *testing.T) {
 	t.Parallel()
 	file, source := renewalSource(t, "intake_eligibility.go")
-	guarded := "grants, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, ids, tenantID)"
+	guarded := "grants, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, ids, nil, tenantID)"
 	if !strings.Contains(source, guarded) {
 		t.Fatal("the renewal no longer asks the hold as this test expects; update the bypass")
 	}
@@ -171,4 +171,50 @@ func TestParentRenewalGuardRuleReportsARemovedHold(t *testing.T) {
 	if !unguarded["application.Intake.Submit"] || !unguarded["application.Intake.ReplaceEditable"] {
 		t.Fatalf("want submission and edit reported as unguarded, got %+v", violations)
 	}
+}
+
+// A staff path that asks a parent's pin without locks is reported (#6638):
+// the approval and the sync of an approved child share the decision flow's
+// check.
+func TestParentPinGuardRuleReportsAnUnlockedApproval(t *testing.T) {
+	t.Parallel()
+	file, source := renewalSource(t, "approval_existing_match.go")
+	guarded := "grants, err := submitterHoldsRenewal(ctx, d.deps.GuardianHold, submitter, append([]int64{studentID}, others...), nil, request.TenantID)"
+	if !strings.Contains(source, guarded) {
+		t.Fatal("the approval no longer holds the pin as this test expects; update the bypass")
+	}
+	bypass := strings.Replace(source, guarded, "granted, err := submitterMayRenewStudent(ctx, d.deps.GuardianAuthorizer, submitter, studentID, request.TenantID)\n\tgrants := map[int64]bool{studentID: granted}", 1)
+	reported := staffPinRules(checkRenewal(t, map[string][]byte{file: []byte(bypass)}))
+	for _, entry := range []string{"application.Decisions.Decide", "application.Decisions.SyncApprovedChildData"} {
+		if !reported[entry]["parent-pin.unguarded"] || !reported[entry]["parent-pin.unlocked-check"] {
+			t.Fatalf("want %s reported as unguarded and unlocked, got %+v", entry, reported)
+		}
+	}
+}
+
+// The change-request approval holds its pins and approved students before
+// its phase locks; asking the hold is what the rule requires.
+func TestParentPinGuardRuleReportsAnUnheldChangeRequestApproval(t *testing.T) {
+	t.Parallel()
+	file, source := renewalSource(t, "change_request_apply.go")
+	guarded := "if run.holds, err = s.intake.holdReEnrollment(ctx, submitter, authority, graph, run.req.TenantID); err != nil {"
+	if !strings.Contains(source, guarded) {
+		t.Fatal("the change-request approval no longer holds the pins as this test expects; update the bypass")
+	}
+	bypass := strings.Replace(source, guarded, "_ = submitter\n\t\tif run.holds, err = (renewalHolds{}), error(nil); err != nil {", 1)
+	reported := staffPinRules(checkRenewal(t, map[string][]byte{file: []byte(bypass)}))
+	if !reported["application.ChangeRequests.Approve"]["parent-pin.unguarded"] {
+		t.Fatalf("want the change-request approval reported as unguarded, got %+v", reported)
+	}
+}
+
+func staffPinRules(violations []Violation) map[string]map[string]bool {
+	reported := map[string]map[string]bool{}
+	for _, v := range violations {
+		if reported[v.Source] == nil {
+			reported[v.Source] = map[string]bool{}
+		}
+		reported[v.Source][v.Rule] = true
+	}
+	return reported
 }

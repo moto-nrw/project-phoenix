@@ -20,7 +20,7 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
 		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
 		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: enrollmentMatches(src.StudentRepo),
-		GuardianAuthorizer: src.GuardianAuthorizer, GuardianHold: src.GuardianHold, Outbox: src.OutboxEnqueuer,
+		GuardianHold: src.GuardianHold, Outbox: src.OutboxEnqueuer,
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
 		ParentChanges: src.ParentChanges, Uploads: src.Uploads, Signatures: EnrollmentSignatures{Ledger: SignatureLedger()},
 		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
@@ -57,8 +57,8 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 	deps := enrollmentCompose.ChangeRequestDependencies{
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
 		Catalog: src.Catalog, Offerings: src.CareOfferingRepo, Bookings: src.Bookings, Capacity: src.Capacity,
-		Notifications: src.Notifications, Students: enrollmentMatches(src.StudentRepo), GuardianAuthorizer: src.GuardianAuthorizer,
-		Decisions: src.Decisions, BookingGates: src.BookingGates, Companions: src.CompanionGraphLocker,
+		Notifications: src.Notifications, Students: enrollmentMatches(src.StudentRepo),
+		GuardianHold: src.GuardianHold, Decisions: src.Decisions, BookingGates: src.BookingGates, Companions: src.CompanionGraphLocker,
 		CompanionLockBusy: peopledirectory.TranslateStudentWriteError(peopledirectory.ErrCompanionLockBusy), People: people,
 		GuardianInvitations: src.GuardianInvitations,
 		Settings:            intakeSettings(src.Settings), Outbox: src.OutboxEnqueuer,
@@ -133,18 +133,17 @@ type EnrollmentIntakeSettings interface {
 // binds the intake to. A nil source skips the work that needs it, the way
 // the intake always treated an unwired repository.
 type EnrollmentIntakeSources struct {
-	Requests           enrollmentCompose.IntakeRequests
-	Children           enrollmentCompose.IntakeChildren
-	Bookings           enrollmentOwner.CareBookingCommands
-	Guardians          enrollmentCompose.IntakeGuardians
-	LateInviteRepo     enrollmentCompose.IntakeLateInvites
-	CareOfferingRepo   enrollmentCompose.IntakeOfferings
-	Capacity           enrollmentOwner.OfferingCapacity
-	Catalog            enrollmentCompose.IntakeCatalog
-	SchoolRepo         enrollmentOwner.SchoolDirectory
-	Notifications      enrollmentOwner.Notifications
-	StudentRepo        EnrollmentStudentMatches
-	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
+	Requests         enrollmentCompose.IntakeRequests
+	Children         enrollmentCompose.IntakeChildren
+	Bookings         enrollmentOwner.CareBookingCommands
+	Guardians        enrollmentCompose.IntakeGuardians
+	LateInviteRepo   enrollmentCompose.IntakeLateInvites
+	CareOfferingRepo enrollmentCompose.IntakeOfferings
+	Capacity         enrollmentOwner.OfferingCapacity
+	Catalog          enrollmentCompose.IntakeCatalog
+	SchoolRepo       enrollmentOwner.SchoolDirectory
+	Notifications    enrollmentOwner.Notifications
+	StudentRepo      EnrollmentStudentMatches
 	// GuardianHold holds a parent's renewal permission in the submission's
 	// transaction (#6638); nil refuses parent renewals of existing children.
 	GuardianHold   EnrollmentGuardianHold
@@ -189,7 +188,9 @@ type EnrollmentChangeRequestSources struct {
 	GuardianInvitations enrollmentCompose.GuardianInvitationAvailability
 	PersonRepo          EnrollmentReviewerPersons
 	StudentRepo         EnrollmentStudentMatches
-	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
+	// GuardianHold holds the request identity's authority behind the parent
+	// guard while an approval reuses a pin or syncs family data (#6638).
+	GuardianHold EnrollmentGuardianHold
 	// Decisions applies an approved change to a child the decision flow
 	// already approved; BookingGates wrap those writes. A nil Decisions
 	// leaves every child to the booking replacement.

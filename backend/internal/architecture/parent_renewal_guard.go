@@ -16,9 +16,9 @@ import (
 // the call graph of Enrollment's intake: every exported Intake method that
 // resolves a pin and writes request children must reach the renewal's own
 // check (holdGuardianReEnrollment), the entry must reach both batched held
-// variants; no such method may reach the unlocked renewal check, which
-// only the staff's later approvals ask (approvals and change-request
-// decisions, outside this rule). A rule that finds no such entry, or no
+// variants; no such method may reach the unlocked renewal check, which only
+// the office's detail read asks. The staff writes that reuse the pin hold it
+// as well (staffPinViolations). A rule that finds no such entry, or no
 // intake package while Enrollment is loaded, is reported as stale, so a
 // renamed port or a moved package cannot switch it off.
 func parentRenewalGuardViolations(project, modulePath string, loaded []*packages.Package) []Violation {
@@ -43,7 +43,63 @@ func parentRenewalGuardViolations(project, modulePath string, loaded []*packages
 	if renewing == 0 {
 		violations = append(violations, parentRenewalViolation("parent-renewal.stale", renewalPackage, renewalPinPort+"+"+renewalChildWrite, nil))
 	}
+	return append(violations, graph.staffPinViolations()...)
+}
+
+// staffPinViolations covers the staff writes that reuse a parent's pin
+// (#6638): the approval of a parent's pin, the sync of an approved child's
+// family data and the change-request approval re-check the parent's
+// authority and must hold it behind the parent guard until they commit. No
+// exported method of the decision flow or the change requests may reach the
+// unlocked check, except the read that writes nothing. A missing entry and an
+// exemption that reaches no unlocked check are reported as stale.
+func (g *flowGraph) staffPinViolations() []Violation {
+	var violations []Violation
+	found := map[string]bool{}
+	for _, typeName := range []string{"Decisions", "ChangeRequests"} {
+		for _, root := range g.methodsOf(typeName) {
+			name := g.name(root)
+			found[name] = true
+			locals, ports := g.reach(root)
+			if staffPinEntries[name] {
+				if missing := missingKeys(ports, renewalHolds); len(missing) > 0 {
+					violations = append(violations, parentRenewalViolation("parent-pin.unguarded", name, strings.Join(missing, ","), g.location(root)))
+				}
+			}
+			reached := append(presentKeys(locals, renewalUnlockedChecks), presentKeys(ports, staffPinUnlockedPorts)...)
+			_, read := staffPinReads[name]
+			switch {
+			case len(reached) > 0 && !read:
+				violations = append(violations, parentRenewalViolation("parent-pin.unlocked-check", name, strings.Join(reached, ","), g.location(root)))
+			case len(reached) == 0 && read:
+				violations = append(violations, parentRenewalViolation("parent-pin.stale", name, "no unlocked check reached", g.location(root)))
+			}
+		}
+	}
+	for _, name := range append(sortedKeys(staffPinEntries), sortedKeys(staffPinReads)...) {
+		if !found[name] {
+			violations = append(violations, parentRenewalViolation("parent-pin.stale", name, "method not found", nil))
+		}
+	}
 	return violations
+}
+
+// staffPinEntries are the staff writes that re-check a parent's pin.
+var staffPinEntries = map[string]bool{
+	"application.Decisions.Decide":                true,
+	"application.Decisions.SyncApprovedChildData": true,
+	"application.ChangeRequests.Approve":          true,
+}
+
+// staffPinReads may ask the unlocked check: they write nothing.
+var staffPinReads = map[string]string{
+	"application.Decisions.DecisionRequest": "the office's detail read shows the candidates of a lapsed pin; it writes nothing",
+}
+
+// staffPinUnlockedPorts are the unlocked probes behind the unlocked check.
+var staffPinUnlockedPorts = []string{
+	"application.GuardianStudentAuthorizer.AccountHasStudentPermission",
+	"application.GuardianStudentAuthorizer.GuardianEmailHasStudentPermission",
 }
 
 // renewalIntakePackage finds Enrollment's intake among the loaded packages
@@ -96,7 +152,6 @@ var renewalHolds = []string{
 
 // renewalUnlockedChecks ask the renewal permission without locks.
 var renewalUnlockedChecks = []string{
-	"application.Intake.assertGuardianMayReEnrollStudent",
 	"application.submitterMayRenewStudent",
 }
 

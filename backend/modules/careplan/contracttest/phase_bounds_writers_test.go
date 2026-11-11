@@ -125,7 +125,7 @@ func gatedChangeRequests(t *testing.T, env *decisionTestEnv) enrollmentTest.Chan
 		GuardianProfileRepo:    env.reposPeople.GuardianProfile,
 		GuardianPhoneRepo:      env.reposPeople.GuardianPhoneNumber,
 		StudentRepo:            env.reposPeople.Student,
-		GuardianAuthorizer:     env.reposPeople.StudentGuardian,
+		GuardianHold:           owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(env.db), env.reposPeople.StudentGuardian, env.reposPeople.Student, env.reposPeople.GuardianProfile, nil),
 		Decisions:              decisions,
 		BookingGates:           bookings,
 		Settings:               env.settings,
