@@ -92,6 +92,9 @@ describe("CareScheduleRequestModal", () => {
     fireEvent.change(screen.getByRole("textbox", { name: /^Abholzeit/ }), {
       target: { value: "16:30" },
     });
+    expect(screen.getByRole("button", { name: "Abbrechen" })).not.toHaveClass(
+      "hidden",
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Anfrage an OGS senden" }),
     );

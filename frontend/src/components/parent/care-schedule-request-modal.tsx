@@ -420,6 +420,7 @@ export function CareScheduleRequestModal({
   return (
     <Modal
       mobileSheet
+      sheetFooter="row"
       isOpen
       onClose={onClose}
       title={t("requestTitle")}
