@@ -19,6 +19,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  SAVED_BUT_STALE_SUFFIX,
+  STALE_DATA_SUFFIX,
+} from "~/lib/hooks/use-refresh-after-write";
 
 function render(ui: React.ReactElement) {
   return renderPlain(ui, { wrapper: ToastProvider });
@@ -61,6 +65,7 @@ const {
   mockMutateTraegerInvitations,
   mockResendTraegerInvitation,
   mockRevokeTraegerInvitation,
+  mockCreateSampleChildren,
   mockPush,
   mockReplace,
 } = vi.hoisted(() => ({
@@ -89,6 +94,7 @@ const {
   mockMutateTraegerInvitations: vi.fn(),
   mockResendTraegerInvitation: vi.fn(),
   mockRevokeTraegerInvitation: vi.fn(),
+  mockCreateSampleChildren: vi.fn(),
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
 }));
@@ -154,6 +160,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
       inviteTraegerMember: mockInviteTraegerMember,
       resendTraegerInvitation: mockResendTraegerInvitation,
       revokeTraegerInvitation: mockRevokeTraegerInvitation,
+      createSampleChildren: mockCreateSampleChildren,
     },
   };
 });
@@ -1623,5 +1630,276 @@ describe("OperatorOrganizationDetailPage", () => {
     await renderPage();
 
     expect(await screen.findByText("anna@example.com")).toBeInTheDocument();
+  });
+
+  // #6652: a confirmed write whose reload fails is no failed action. The
+  // reload error stands above the data, says the change is saved, and its
+  // „Wiederholen“ only reloads; the write runs exactly once.
+  describe("reload after a confirmed write (#6652)", () => {
+    const down = () =>
+      new ApiError("down", 503, { code: "general.unavailable" });
+    const reloadText = (object: string) =>
+      `${catalogText("general.unavailable", object)} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    it("keeps a created school successful when the portal cache reload fails", async () => {
+      currentSearchParams = new URLSearchParams("tab=schulen");
+      setupSWR();
+      mockCreateSchool.mockResolvedValue(mockSchool);
+      vi.mocked(revalidateTenantCache).mockRejectedValueOnce(down());
+
+      await renderPage();
+      fireEvent.click(await screen.findByText("Neue Schule"));
+      fireEvent.change(await screen.findByLabelText(/Name/), {
+        target: { value: "New School" },
+      });
+      fireEvent.change(screen.getByLabelText(/E-Mail/), {
+        target: { value: "info@new-school.example" },
+      });
+      fireEvent.click(screen.getByText("Erstellen"));
+
+      expect(
+        await screen.findByText(reloadText("die Anzeige der Schulen")),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("modal")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(revalidateTenantCache).toHaveBeenCalledTimes(2),
+      );
+      expect(mockCreateSchool).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a status change successful when the portal cache reload fails", async () => {
+      setupSWR();
+      mockUpdateOrganization.mockResolvedValue({ ...mockOrg, active: false });
+      vi.mocked(revalidateTenantCache).mockRejectedValueOnce(down());
+
+      await renderPage();
+      fireEvent.click(await screen.findByLabelText("Deaktivieren"));
+      fireEvent.click(await screen.findByTestId("confirm-btn"));
+
+      expect(
+        await screen.findByText(reloadText("die Anzeige des Trägers")),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Änderung des Status"),
+        ),
+      ).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(revalidateTenantCache).toHaveBeenCalledTimes(2),
+      );
+      expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps an edited Träger saved when its reload fails", async () => {
+      setupSWR();
+      mockUpdateOrganization.mockResolvedValue(mockOrg);
+      mockMutateOrgs.mockRejectedValueOnce(down());
+
+      await renderPage();
+      fireEvent.click(await screen.findByText("Bearbeiten"));
+      const modal = await screen.findByTestId("modal");
+      fireEvent.click(within(modal).getByRole("button", { name: "Speichern" }));
+
+      expect(
+        await screen.findByText(reloadText("die Anzeige des Trägers")),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("modal")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockMutateOrgs).toHaveBeenCalledTimes(2));
+      expect(mockUpdateOrganization).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps created sample children successful when the reload fails", async () => {
+      setupSWR({ orgs: [{ ...mockOrg, testSystem: true }] });
+      mockCreateSampleChildren.mockResolvedValue({ createdCount: 3 });
+      mockMutateOrgs.mockRejectedValueOnce(down());
+
+      await renderPage();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Beispielkinder anlegen" }),
+      );
+
+      expect(
+        await screen.findByText(reloadText("die Anzeige des Trägers")),
+      ).toBeInTheDocument();
+      expect(
+        await screen.findByText("3 Beispielkinder sind angelegt."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "das Anlegen der Beispielkinder"),
+        ),
+      ).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockMutateOrgs).toHaveBeenCalledTimes(2));
+      expect(mockCreateSampleChildren).toHaveBeenCalledTimes(1);
+    });
+
+    describe("in the Träger-Büro", () => {
+      const invitation = {
+        id: "7",
+        email: "offen@traeger.example",
+        roles: ["administration"],
+        expiresAt: "2026-09-16T10:00:00Z",
+        expired: true,
+      };
+
+      async function expectBueroReloadError(write: ReturnType<typeof vi.fn>) {
+        expect(
+          await screen.findByText(reloadText("die Anzeige des Träger-Büros")),
+        ).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        await waitFor(() =>
+          expect(mockMutateTraegerMembers).toHaveBeenCalledTimes(2),
+        );
+        expect(write).toHaveBeenCalledTimes(1);
+      }
+
+      beforeEach(() => {
+        currentSearchParams = new URLSearchParams("tab=traeger-buero");
+        mockMutateTraegerInvitations.mockResolvedValue([]);
+        mockMutateTraegerMembers.mockRejectedValueOnce(down());
+      });
+
+      it("keeps a resent invitation sent when the reload fails", async () => {
+        setupSWR({ traegerInvitations: [invitation] });
+        mockResendTraegerInvitation.mockResolvedValue({
+          ...invitation,
+          expired: false,
+        });
+        await renderPage();
+
+        const [menu] = await screen.findAllByRole("button", {
+          name: "Aktionen für die Einladung an offen@traeger.example",
+        });
+        fireEvent.click(menu!);
+        fireEvent.click(
+          await screen.findByRole("menuitem", {
+            name: "Einladung erneut senden",
+          }),
+        );
+
+        await expectBueroReloadError(mockResendTraegerInvitation);
+        expect(
+          screen.queryByText(
+            catalogText("general.unavailable", "die Einladung"),
+          ),
+        ).toBeNull();
+      });
+
+      it("keeps a revoked invitation revoked when the reload fails", async () => {
+        setupSWR({ traegerInvitations: [{ ...invitation, expired: false }] });
+        mockRevokeTraegerInvitation.mockResolvedValue(undefined);
+        await renderPage();
+
+        const [menu] = await screen.findAllByRole("button", {
+          name: "Aktionen für die Einladung an offen@traeger.example",
+        });
+        fireEvent.click(menu!);
+        fireEvent.click(
+          await screen.findByRole("menuitem", {
+            name: "Einladung zurücknehmen",
+          }),
+        );
+        const footer = await screen.findByTestId("modal-footer");
+        fireEvent.click(
+          within(footer).getByRole("button", { name: "Ja, zurücknehmen" }),
+        );
+        fireEvent.click(
+          await within(footer).findByRole("button", { name: "Zurücknehmen" }),
+        );
+
+        await expectBueroReloadError(mockRevokeTraegerInvitation);
+        expect(screen.queryByTestId("modal")).toBeNull();
+      });
+
+      it("keeps an assigned person assigned when the reload fails", async () => {
+        setupSWR({ traegerMembers: [] });
+        mockAssignTraegerMember.mockResolvedValue({});
+        await renderPage();
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "Person zuordnen" }),
+        );
+        const modal = await screen.findByTestId("modal");
+        fireEvent.change(within(modal).getByLabelText(/E-Mail des Kontos/), {
+          target: { value: "buero@traeger.example" },
+        });
+        fireEvent.click(
+          within(modal).getByRole("checkbox", { name: /Verwaltung/ }),
+        );
+        fireEvent.click(
+          within(screen.getByTestId("modal-footer")).getByRole("button", {
+            name: "Zuordnen",
+          }),
+        );
+
+        await expectBueroReloadError(mockAssignTraegerMember);
+        expect(screen.queryByTestId("modal")).toBeNull();
+      });
+
+      it("keeps an invitation sent when the reload fails", async () => {
+        setupSWR({ traegerMembers: [] });
+        mockInviteTraegerMember.mockResolvedValue(undefined);
+        await renderPage();
+
+        fireEvent.click(
+          screen.getByRole("button", { name: "Person einladen" }),
+        );
+        const dialog = await screen.findByRole("dialog");
+        fireEvent.change(within(dialog).getByLabelText(/E-Mail-Adresse/), {
+          target: { value: "neu@traeger.example" },
+        });
+        fireEvent.click(
+          within(dialog).getByRole("checkbox", { name: /Verwaltung/ }),
+        );
+        fireEvent.click(
+          within(dialog).getByRole("button", { name: "Einladung senden" }),
+        );
+
+        await expectBueroReloadError(mockInviteTraegerMember);
+        expect(screen.queryByRole("dialog")).toBeNull();
+      });
+    });
+
+    // Confirmed rows stay when a later load fails; the error stands above
+    // them and says they may be old. Without rows the error replaces them.
+    it.each([
+      [
+        "konten",
+        {
+          accounts: [
+            {
+              accountId: "5",
+              firstName: "Ada",
+              lastName: "Lovelace",
+              email: "ada@example.org",
+              roles: [],
+              schools: [],
+            },
+          ],
+          accountsError: down(),
+        },
+        "die Liste der Konten",
+        "ada@example.org",
+      ],
+    ] as const)(
+      "keeps the confirmed rows of %s when their reload fails",
+      async (tab, opts, object, row) => {
+        currentSearchParams = new URLSearchParams(`tab=${tab}`);
+        setupSWR(opts as SetupOpts);
+
+        await renderPage();
+
+        expect(
+          await screen.findByText(
+            `${catalogText("general.unavailable", object)} ${STALE_DATA_SUFFIX}`,
+          ),
+        ).toBeInTheDocument();
+        expect(screen.getAllByText(row).length).toBeGreaterThan(0);
+      },
+    );
   });
 });
