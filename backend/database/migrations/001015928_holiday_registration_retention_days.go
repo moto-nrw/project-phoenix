@@ -7,16 +7,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayRegistrationRetentionDaysVersion = "1.15.922"
+const holidayRegistrationRetentionDaysVersion = "1.15.928"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayRegistrationRetentionDaysVersion,
 		Description: "Ferienanmeldung: zugesagte Aufbewahrungsfrist je Anmeldung, Gesundheitsangaben im Löschprotokoll (#6691, ADR 0118)",
 		DependsOn: []string{
-			holidayRegistrationDeletionsVersion, // the deletion log this extends
-			holidayHealthDataVersion,            // the sealed health information the log counts
-			dataReturnErasureOrderLockVersion,   // the newest on development (1.15.919)
+			holidayRegistrationDeletionsVersion,  // the deletion log this extends
+			holidayHealthDataVersion,             // the sealed health information the log counts
+			holidayBookingExceptionSourceVersion, // the newest on development (1.15.923)
 		},
 	})
 	Migrations.MustRegister(holidayRegistrationRetentionDaysUp, holidayRegistrationRetentionDaysDown)
