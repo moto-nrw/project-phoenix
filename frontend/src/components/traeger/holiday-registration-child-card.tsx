@@ -1,7 +1,8 @@
 "use client";
 
 // Ein Kind einer Ferienanmeldung (#4663): Schule, gebuchte Wochen,
-// Gesundheitsangaben und der Hinweis auf eine mögliche Doppelanmeldung. Hier
+// Gesundheitsangaben, der Hinweis auf eine mögliche Doppelanmeldung und auf
+// eine Schule des Trägers, die das Kind kennt (#6683). Hier
 // bucht das Träger-Büro das Kind um und ändert seine Angaben (#5629).
 
 import { type ReactNode, useState } from "react";
@@ -49,6 +50,7 @@ import {
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "./holiday-placement";
 import { HolidayWishSection } from "./holiday-wish";
+import { KnownChildNotice, knownChildView } from "./holiday-known-child";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -73,6 +75,7 @@ export function HolidayRegistrationChildCard({
   health,
   healthHidden = false,
   names,
+  knownSchoolId,
   onChanged,
   onEdit,
   editor,
@@ -87,6 +90,8 @@ export function HolidayRegistrationChildCard({
    */
   healthHidden?: boolean;
   names: ReadonlyMap<string, string>;
+  /** The school of the Träger that knows the child (#6683), if one does. */
+  knownSchoolId?: string;
   onChanged: (registration: HolidayRegistrationDetail) => void;
   /** Opens the edit of the child's details; absent, the card offers none. */
   onEdit?: () => void;
@@ -152,6 +157,8 @@ export function HolidayRegistrationChildCard({
     );
 
   if (editor) return editor;
+  // A cancelled registration needs no check of the school.
+  const known = cancelled ? null : knownChildView(child, knownSchoolId, names);
 
   return (
     <SectionCard
@@ -185,6 +192,14 @@ export function HolidayRegistrationChildCard({
       }
     >
       <div className="space-y-4">
+        {known ? (
+          <KnownChildNotice
+            child={child}
+            view={known}
+            names={names}
+            onEdit={draft ? undefined : onEdit}
+          />
+        ) : null}
         {child.duplicateRegistrationIds.length > 0 ? (
           <Alert
             type="warning"

@@ -2,7 +2,8 @@
 
 // Ferienanmeldungen eines Zeitraums prüfen (#4663): alle Anmeldungen mit
 // Status, Schule, Woche und Zeitmodell, mit Filtern, Hinweis auf mögliche
-// Doppelanmeldungen und Export als CSV oder Excel. Anmeldungen derselben
+// Doppelanmeldungen, Hinweis auf an einer Schule bekannte Kinder (#6683) und
+// Export als CSV oder Excel. Anmeldungen derselben
 // Familie führt das Büro hier als Geschwister zusammen (#5628); gleiche
 // E-Mail oder gleicher Nachname sind nur ein Hinweis. Ausgewählte
 // Anmeldungen bestätigt das Büro hier auch gesammelt (#6674).
@@ -35,6 +36,11 @@ import {
   HOLIDAY_WISH_FILTER_OPTIONS,
   holidayWishView,
 } from "~/components/traeger/holiday-wish";
+import {
+  KnownChildBadge,
+  knownChildView,
+  useHolidayKnownChildren,
+} from "~/components/traeger/holiday-known-child";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -211,6 +217,7 @@ function columns(
   debtorNumber: boolean,
   siblings: SiblingView,
   wishRule: boolean,
+  known: ReadonlyMap<string, string>,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
   return [
     {
@@ -259,6 +266,11 @@ function columns(
         <ul className="space-y-2">
           {registration.children.map((child) => {
             const wish = holidayWishView(child, wishRule);
+            // A cancelled registration needs no check of the school.
+            const knownChild =
+              registration.status === "cancelled"
+                ? null
+                : knownChildView(child, known.get(child.id), names);
             return (
               <li key={child.id}>
                 <div className="flex flex-wrap items-center gap-2">
@@ -275,6 +287,7 @@ function columns(
                       icon={wish.icon}
                     />
                   ) : null}
+                  {knownChild ? <KnownChildBadge view={knownChild} /> : null}
                   {child.duplicateRegistrationIds.length > 0 ? (
                     <StatusBadge
                       tone="warning"
@@ -545,6 +558,7 @@ export default function TraegerHolidayRegistrationsPage() {
   };
 
   const names = schoolNames(schools);
+  const known = useHolidayKnownChildren(periodId);
   const registrationsShown = list?.registrations ?? [];
 
   const openBulkConfirmation = () => {
@@ -819,6 +833,7 @@ export default function TraegerHolidayRegistrationsPage() {
           debtorNumberColumn,
           siblings,
           wishRule,
+          known,
         )}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}

@@ -20,6 +20,7 @@ import {
 const { mockConfirmationSettings } = vi.hoisted(() => ({
   mockConfirmationSettings: vi.fn(),
 }));
+const { mockFetchKnown } = vi.hoisted(() => ({ mockFetchKnown: vi.fn() }));
 const {
   mockPush,
   mockFetchList,
@@ -63,6 +64,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
     withHealth: boolean,
   ) => mockDownloadPdfs(periodId, filter, withHealth),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
+  fetchHolidayKnownChildren: (periodId: string, registrationId?: string) =>
+    mockFetchKnown(periodId, registrationId),
 }));
 const { mockFetchGroups, mockMerge } = vi.hoisted(() => ({
   mockFetchGroups: vi.fn(),
@@ -102,6 +105,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
     mockDownload.mockReset();
     mockDownloadBlob.mockReset();
     mockFetchList.mockResolvedValue(HOLIDAY_REGISTRATION_LIST);
+    mockFetchKnown.mockReset();
+    mockFetchKnown.mockResolvedValue(new Map());
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockFetchGroups.mockReset();
     mockMerge.mockReset();
@@ -152,6 +157,42 @@ describe("TraegerHolidayRegistrationsPage", () => {
       timeModel: "",
       wish: "",
     });
+  });
+
+  it("names the school that knows a registered child (#6683)", async () => {
+    // Lia is registered at OGS Nord and known there; Ben came as a holiday
+    // guest, but OGS Süd knows him.
+    mockFetchKnown.mockResolvedValue(
+      new Map([
+        ["9", "31"],
+        ["10", "32"],
+      ]),
+    );
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    expect(await table.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+    expect(table.getByText("An der Schule bekannt")).toBeInTheDocument();
+    // The whole period is compared once, not per filter.
+    expect(mockFetchKnown).toHaveBeenCalledTimes(1);
+    expect(mockFetchKnown).toHaveBeenCalledWith("5", undefined);
+  });
+
+  it("shows no school hint on a cancelled registration (#6683)", async () => {
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+        (registration) => ({ ...registration, status: "cancelled" as const }),
+      ),
+    });
+    mockFetchKnown.mockResolvedValue(new Map([["10", "32"]]));
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    // Anker: die stornierte Zeile ist geladen, und der Abgleich ist da.
+    expect(await table.findByText("Storniert")).toBeInTheDocument();
+    await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(1));
+    expect(table.queryByText("Bekannt an OGS Süd")).not.toBeInTheDocument();
   });
 
   it("shows the debtor number column only while the Träger asks for it (#5621)", async () => {

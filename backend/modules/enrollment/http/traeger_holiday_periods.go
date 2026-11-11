@@ -30,6 +30,8 @@ type HolidayPeriodResource struct {
 	allocation    HolidayAllocationReads
 	decide        HolidayAllocationDecision
 	schoolNames   capability.HolidaySchoolNames
+	known         capability.HolidayKnownChildren
+	knownTrail    capability.HolidayKnownChildTrail
 	requireManage common.Middleware
 	requireHealth common.Middleware
 }
@@ -43,12 +45,14 @@ type HolidayPeriodResource struct {
 // information of a registration (#4722).
 // places lists the places of the weeks (#4699), allocation names the
 // criteria and the proposal, decide decides on the places by them (#4700).
-// records reads the registrations for their files (#6691).
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, records capability.HolidayRegistrationRecords, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation HolidayAllocationReads, decide HolidayAllocationDecision, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
-	if periods == nil || review == nil || records == nil || wishes == nil || places == nil || allocation == nil || decide == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
-		panic("enrollment http: the holiday periods, the registration review, the registration records, the wish review, the places, the allocation, the decision, the school names and the right checks are required")
+// records reads the registrations for their files (#6691). known finds the
+// registered children a school of the Träger knows and knownTrail records that
+// comparison (#6683, ADR 0214).
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, records capability.HolidayRegistrationRecords, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation HolidayAllocationReads, decide HolidayAllocationDecision, schoolNames capability.HolidaySchoolNames, known capability.HolidayKnownChildren, knownTrail capability.HolidayKnownChildTrail, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
+	if periods == nil || review == nil || records == nil || wishes == nil || places == nil || allocation == nil || decide == nil || schoolNames == nil || known == nil || knownTrail == nil || requireManage == nil || requireHealth == nil {
+		panic("enrollment http: the holiday periods, the registration review, the registration records, the wish review, the places, the allocation, the decision, the school names, the known children with their trail and the right checks are required")
 	}
-	return &HolidayPeriodResource{periods: periods, review: review, records: records, wishes: wishes, places: places, allocation: allocation, decide: decide, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+	return &HolidayPeriodResource{periods: periods, review: review, records: records, wishes: wishes, places: places, allocation: allocation, decide: decide, schoolNames: schoolNames, known: known, knownTrail: knownTrail, requireManage: requireManage, requireHealth: requireHealth}
 }
 
 // HolidayAllocationReads names the Träger's criteria, shows the proposal of
