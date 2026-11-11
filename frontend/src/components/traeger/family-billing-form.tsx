@@ -433,7 +433,7 @@ export function FamilyBillingForm({
         value={draft.debtorNumber}
         maxLength={35}
         autoComplete="off"
-        hint="Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Rechnung und in der Sollstellung."
+        hint="Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Monats- und Ferienrechnung und in der Sollstellung. Hat eine Ferienanmeldung eine eigene Nummer, gilt diese."
         error={fieldError("debtor_number")}
         onChange={(event) => set({ debtorNumber: event.target.value })}
       />

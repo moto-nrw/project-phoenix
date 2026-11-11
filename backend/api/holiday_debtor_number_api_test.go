@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func holidayDebtorNumberPath(periodID, registrationID int64) string {
@@ -309,4 +310,42 @@ func decodeSchoolPortalRaw(t *testing.T, body []byte) json.RawMessage {
 func jsonInt(value int64) string {
 	raw, _ := json.Marshal(value)
 	return string(raw)
+}
+
+// A holiday invoice without a number of its registration takes the debtor
+// number of the family, as the monthly invoice does (#6677): the warning
+// before the release counts it, and the release copies it into the invoice
+// and so into the overview for the Kämmerei.
+func TestHolidayInvoiceTakesTheDebtorNumberOfTheFamily(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Debitor Familie")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	testpkg.OwnTraegerCareContracts(t, f.db, f.office.organization)
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", careMonth, sjrServices()...)
+	_, err := f.db.ExecContext(t.Context(), `UPDATE care_contract.contract_parties SET email = 'EVA.Muster@example.org'
+		WHERE contract_id = ?`, contract)
+	require.NoError(t, err)
+	rec := traegerJSON(t, f.traeger, billing, http.MethodPut, familyBillingPath,
+		map[string]any{"contract_id": contract, "recipient_kind": "applicant", "debtor_number": "20 815"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.siblings, nil).Code)
+	require.Equal(t, http.StatusOK, f.confirmWith(t, f.again, nil).Code)
+	askForDebtorNumber(t, f, true)
+	setNumberRange(t, f, billing, "FE-{NNNN}")
+	run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
+	assert.Equal(t, 1, run.MissingDebtorNumbers, "the number of the family counts; only the family without one is missing")
+
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), releaseBody(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	numbers := map[int64]string{}
+	for _, document := range decodeSchoolPortalData[billingDebtorBody](t, rec.Body.Bytes()).Documents {
+		numbers[document.RegistrationID] = document.DebtorNumber
+	}
+	assert.Equal(t, map[int64]string{f.siblings: "20 815", f.again: ""}, numbers, "the release copies the number of the family")
+	assert.Empty(t, f.debtorNumberDetail(t, f.siblings).DebtorNumber, "the registration keeps its own, empty number")
+
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, "/export?format=csv"), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), ";Muster, Eva;20 815;", "the overview for the Kämmerei names the number of the family")
 }

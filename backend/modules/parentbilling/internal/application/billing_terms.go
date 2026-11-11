@@ -522,11 +522,18 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 	invoice.Payment = &payment
 }
 
-// holidayDocument sets the recipient and the payment of a holiday invoice;
-// the registration's address stays for both parents.
+// holidayDocument sets the recipient, the debtor number and the payment of
+// a holiday invoice; the registration's address stays for both parents.
+// The registration's debtor number wins; without one the invoice takes the
+// family's, as the monthly invoice does (#6677). Every later reader (letter,
+// overview for the Kämmerei, Sollstellung, DATEV) reads the copy the release
+// stores, so this is the one place that falls back.
 func (p invoicePayments) holidayDocument(document *parentbilling.BillingDocument, issuedOn calendar.Date) {
 	document.FamilyEmail = parentbilling.FamilyKey(document.RecipientEmail)
 	family := p.family(document.FamilyEmail)
+	if document.DebtorNumber == "" && family != nil {
+		document.DebtorNumber = family.DebtorNumber
+	}
 	recipient := parentbilling.ResolveRecipient(parentbilling.BillingRecipient{FirstName: document.RecipientFirstName,
 		LastName: document.RecipientLastName, Email: document.RecipientEmail, Address: document.RecipientAddress}, family)
 	document.RecipientFirstName, document.RecipientLastName, document.RecipientEmail = recipient.FirstName, recipient.LastName, recipient.Email
