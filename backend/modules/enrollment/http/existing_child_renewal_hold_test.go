@@ -95,10 +95,22 @@ func (c writingChildren) InsertChild(ctx context.Context, row *enrollmentNative.
 	return c.IntakeChildren.InsertChild(ctx, row)
 }
 
+// waitingRenewalRequests parks after the parent guard and before either
+// phase lock, so an approval can contend for the held student.
+type waitingRenewalRequests struct {
+	enrollmentCompose.IntakeRequests
+	gate *renewalGate
+}
+
+func (r waitingRenewalRequests) AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, key uint64) error {
+	r.gate.park(ctx)
+	return r.IntakeRequests.AcquireSubmissionDedupLock(ctx, phaseID, key)
+}
+
 type renewalRig struct {
 	*existingChildEnv
-	svc              enrollmentAPI.RequestService
-	checked, writing *renewalGate
+	svc                     enrollmentAPI.RequestService
+	checked, writing, dedup *renewalGate
 }
 
 func setupRenewalRig(t *testing.T) *renewalRig {
@@ -109,10 +121,10 @@ func setupRenewalRig(t *testing.T) *renewalRig {
 func setupRenewalRigFor(t *testing.T, audience string) *renewalRig {
 	t.Helper()
 	env := setupExistingChildTest(t, audience)
-	rig := &renewalRig{existingChildEnv: env, checked: newRenewalGate(), writing: newRenewalGate()}
-	t.Cleanup(func() { rig.checked.open(); rig.writing.open() })
+	rig := &renewalRig{existingChildEnv: env, checked: newRenewalGate(), writing: newRenewalGate(), dedup: newRenewalGate()}
+	t.Cleanup(func() { rig.checked.open(); rig.writing.open(); rig.dedup.open() })
 	rig.svc = newTestRequestService(owners.EnrollmentIntakeSources{
-		Bookings: requestTestBookingCommands(), Requests: env.repos.Enrollment(),
+		Bookings: requestTestBookingCommands(), Requests: waitingRenewalRequests{IntakeRequests: env.repos.Enrollment(), gate: rig.dedup},
 		Children:  writingChildren{IntakeChildren: env.repos.Enrollment(), gate: rig.writing},
 		Guardians: env.repos.Enrollment(), CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
 		Catalog: env.repos.Enrollment(), SchoolRepo: factorySchools{repos: env.reposSchools}, RateLimitRepo: env.repos.Enrollment(),

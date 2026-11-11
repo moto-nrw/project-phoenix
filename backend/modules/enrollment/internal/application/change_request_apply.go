@@ -58,9 +58,6 @@ func (s *ChangeRequests) applyApprovedProposal(ctx context.Context, row *ChangeR
 	if err := s.writeApprovedRequest(ctx, run); err != nil {
 		return nil, err
 	}
-	if err := s.lockApprovedStudents(ctx, run.children); err != nil {
-		return nil, err
-	}
 	// One approval is one edit of the whole family, applied child by child.
 	// Defer the companion stranding verdicts and decide them once against
 	// every child's final plan (#1694).
@@ -96,6 +93,11 @@ func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, i
 		return nil, err
 	}
 	if run.prepared, err = s.prepareProposed(ctx, req, children, proposed, run.capabilities, true, false); err != nil {
+		return nil, err
+	}
+	// Renewals hold their students before the email-scoped dedup lock.
+	// Lock the entire approved graph in that order before taking it too.
+	if err := s.lockApprovedStudents(ctx, children); err != nil {
 		return nil, err
 	}
 	if err := s.ensureNoActiveDuplicateForApproval(ctx, req, run.prepared.request); err != nil {

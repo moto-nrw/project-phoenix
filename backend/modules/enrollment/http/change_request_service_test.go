@@ -102,9 +102,10 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 	t *testing.T,
 	env *decisionTestEnv,
 	requests enrollmentCompose.ChangeRequestRecords,
+	companions ...enrollmentCompose.CompanionGraphCoordinator,
 ) enrollmentAPI.ChangeRequestService {
 	t.Helper()
-	return newTestChangeRequestService(owners.EnrollmentChangeRequestSources{
+	cfg := owners.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            requests,
 		Children:            env.repos.Enrollment(),
@@ -124,7 +125,11 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		FrontendURL:         "http://localhost:3000",
 		ParentsURL:          "http://parents.localhost:3000",
 		Logger:              slog.Default(),
-	})
+	}
+	if len(companions) > 0 {
+		cfg.CompanionGraphLocker = companions[0]
+	}
+	return newTestChangeRequestService(cfg)
 }
 
 type failAdminAuditChangeRequestIntake struct {
@@ -147,7 +152,7 @@ func (r failAdminAuditChangeRequestIntake) InsertChangeRequest(ctx context.Conte
 // then the stamp goes back on before the decision runs.
 func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func() {
 	t.Helper()
-	ctx := testpkg.TenantContext(env.sourcePhase.TenantID)
+	ctx := testpkg.Ctx(t)
 	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), requestID)
 	require.NoError(t, err)
 	stamps := make(map[int64]int64, len(children))
