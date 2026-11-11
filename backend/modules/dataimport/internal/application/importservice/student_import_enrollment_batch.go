@@ -36,22 +36,27 @@ func enrollmentBatchRow(row importModels.StudentImportRow) bool {
 
 // createEnrollmentProfiles creates the profiles of the segment's enrollment
 // batch rows in one statement and returns them by row, if the segment has
-// at least ChunkMinRows of them; otherwise every row creates its child in
-// place. The status of the first segment row is taken here, even if it is
-// not a batch row, before the statement waits for the class gate. The row
-// path takes the first child's status before its profile insert waits
-// there; every later row takes its status in the loop, after the gate
-// (#5552 step 7, finding 1).
+// at least ChunkMinRows of them; otherwise it prepares nothing and every row
+// creates its child in place, in CreateChunk's row-path order.
+//
+// Invariant (#5552 step 7, finding 1): every row takes its status and its
+// calendar day at exactly the position where the row path takes them, in
+// the row loop. The one documented exception is the first segment row of a
+// batch segment: it takes its status here, before the class gate the
+// profile batch waits for, as the row path's first child takes it before
+// its profile insert waits there.
 func (c *StudentImportConfig) createEnrollmentProfiles(ctx context.Context, rows []importModels.StudentImportRow, persons []ports.Person) ([]*preparedEnrollment, error) {
 	prepared := make([]*preparedEnrollment, len(rows))
 	if c.EnrollmentBatches == nil {
 		return prepared, nil
 	}
-	batch := countEnrollmentBatchRows(rows) >= c.ChunkMinRows()
+	if countEnrollmentBatchRows(rows) < c.ChunkMinRows() {
+		return prepared, nil
+	}
 	var indices []int
 	var inputs []ports.EnrollmentStudent
 	for i, row := range rows {
-		inBatch := batch && enrollmentBatchRow(row)
+		inBatch := enrollmentBatchRow(row)
 		if i != 0 && !inBatch {
 			continue
 		}

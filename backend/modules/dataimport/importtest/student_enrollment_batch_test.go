@@ -295,6 +295,58 @@ func TestStudentEnrollmentBatchNeedsTheMinimumOfBatchRows(t *testing.T) {
 	}
 }
 
+// TestStudentEnrollmentBelowTheMinimumTakesEachStatusInTheRowLoop: a
+// segment of eight children with seven permanent hints stays below
+// ChunkMinRows, so every child takes its status where the row path does,
+// in the row loop after the reset of the first bound. The clock turns from
+// D to D+1 exactly when that reset runs; the first two children start on
+// D+1 and are therefore active.
+func TestStudentEnrollmentBelowTheMinimumTakesEachStatusInTheRowLoop(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	testpkg.OwnTenant(t)
+	day := calendar.NewDate(2026, time.November, 10)
+	var armed, turned atomic.Bool
+	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(sql.OpenDB(faultConnector{
+		Connector: pgdriver.NewConnector(pgdriver.WithDSN(testpkg.PackageTestDSN(t))),
+		decide: func(query string) error {
+			if armed.Load() && strings.HasPrefix(query, boundReset) {
+				turned.Store(true)
+			}
+			return nil
+		},
+	})))
+	t.Cleanup(func() { _ = pool.Close() })
+	options := api.ImportTestOptions{Today: func() calendar.Date {
+		if turned.Load() {
+			return day.AddDays(1)
+		}
+		return day
+	}}
+	module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool), options)
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	rows := namedStudentBatch("Grenze", 8)
+	for i := 0; i < 7; i++ {
+		rows[i].SupervisorNotes = "Dauerhinweis"
+	}
+	rows[0].EnrolledFrom = day.AddDays(1).String()
+	rows[1].EnrolledFrom = day.AddDays(1).String()
+	armed.Store(true)
+	upload := awaitStudents(t, uploadStudents(t, module, pool, actor, rows, "grenze.csv"))
+	require.NoError(t, upload.err)
+	require.True(t, turned.Load(), "the first bound was reset")
+	require.Equal(t, 8, upload.result.CreatedCount)
+	observation := (*module.Observations)[0]
+	require.Zero(t, observation.BatchFallbacks)
+	require.Equal(t, 1, commandCount(observation, "create_persons"), "the segment took the batch path")
+	require.Zero(t, commandCount(observation, enrollmentProfilesCommand))
+	require.Equal(t, 8, commandCount(observation, "create_enrollment_student"))
+	statuses := membershipStatuses(t, db)
+	require.Equal(t, "active", statuses["Grenze0"], "the first child took its status after the bound reset, on day D+1")
+	require.Equal(t, "active", statuses["Grenze1"])
+}
+
 func TestStudentEnrollmentBatchKeepsGroupAndHintRowsInPlace(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
