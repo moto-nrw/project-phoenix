@@ -37,7 +37,6 @@ func NewParentStudentGuardianReads(source peopledirectory.GuardianRelationshipRe
 			}
 			return result, err
 		},
-		Permission: source.AccountHasStudentPermission,
 	})
 }
 

@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -54,6 +56,9 @@ type ImportTestOptions struct {
 	// WrapPersonBatches decorates People Directory's person batch slice, so
 	// a suite can fail or delay the student batch command.
 	WrapPersonBatches func(importPorts.PersonBatches) importPorts.PersonBatches
+	// Today is the calendar day a new child's status is taken against
+	// (#5552 step 7); nil is the real day.
+	Today func() timezone.Date
 }
 
 // NewImportTestRuntime is the import runtime NewImportTestModule composes,
@@ -173,7 +178,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	dataImports := imports{
 		Student: newStudentImport(
 			runtime, rfid, groups, rooms, persons, wrapPersonBatches(personBatches(persons), options.WrapPersonBatches),
-			studentGuardians, students.CarePlan, NewStudentPresenceForTests(db), auditCompose.NewConsentRecorder(command),
+			studentGuardians, students.CarePlan, NewStudentPresenceForTests(db), auditCompose.NewConsentRecorder(command), options.Today,
 		),
 		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons, wrapClassListBatches(classListBatches(membership), options.WrapClassListBatches)),

@@ -25,6 +25,10 @@ import (
 const (
 	RunCalculated = "calculated"
 	RunReleased   = "released"
+	// RunDiscarded is a monthly or notice run the Abrechnung discarded
+	// while it was open and had nothing to issue (#6626). It issued nothing
+	// and never changes.
+	RunDiscarded = "discarded"
 )
 
 // LineCorrection is the kind of a position a correction of the run adds.
@@ -51,6 +55,11 @@ var (
 	ErrBillingRunChanged = errors.New("the billing run changed since it was checked")
 	// ErrBillingRunEmpty reports a release without any invoice.
 	ErrBillingRunEmpty = errors.New("the billing run has no invoice to issue")
+	// ErrBillingRunDiscarded reports a change of a discarded run (#6626).
+	ErrBillingRunDiscarded = errors.New("the billing run is discarded and does not change")
+	// ErrBillingRunNotEmpty reports the discard of an open run whose preview
+	// has something to issue or to settle (#6626).
+	ErrBillingRunNotEmpty = errors.New("the billing run is not empty and cannot be discarded")
 	// ErrBillingFamilyNotFound reports a correction of a child the preview
 	// of the run does not bill.
 	ErrBillingFamilyNotFound = errors.New("the child is not billed in this run")

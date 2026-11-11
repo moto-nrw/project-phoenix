@@ -82,6 +82,7 @@ func buildPickupPermissionService(t *testing.T) pickupPermissionFixture {
 		owners.WithPickupPermissionApprovals(pickupPermissionApprovals),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		Signatures:          owners.ParentDeclarationSignatures{Ledger: owners.SignatureLedger()},
 		DeparturePolicy:     owners.ParentDeparturePolicy(),

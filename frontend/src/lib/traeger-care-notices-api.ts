@@ -11,7 +11,7 @@ import { traegerRequest } from "./traeger-api";
 
 const RUNS_PATH = "/api/traeger/care-notice-runs";
 
-export type CareNoticeRunStatus = "calculated" | "released";
+export type CareNoticeRunStatus = "calculated" | "released" | "discarded";
 export type CareNoticeKind = "initial" | "change";
 type CareNoticeLineKind = "module" | "reduction" | "cost_share";
 
@@ -23,9 +23,12 @@ export interface CareNoticeRun {
   readonly status: CareNoticeRunStatus;
   readonly schoolIds: readonly string[];
   readonly noticeDate: string | null;
+  readonly createdAt: string;
   readonly issuedOn: string | null;
   readonly noticeCount: number | null;
   readonly totalCents: number | null;
+  /** When the Abrechnung discarded the empty open run (#6626). */
+  readonly discardedAt: string | null;
 }
 
 export interface CareNoticeRunList {
@@ -143,9 +146,11 @@ interface BackendRun {
   status: CareNoticeRunStatus;
   school_ids: number[] | null;
   notice_date: string | null;
+  created_at: string;
   issued_on: string | null;
   notice_count: number | null;
   total_cents: number | null;
+  discarded_at?: string | null;
 }
 
 interface BackendLine {
@@ -250,9 +255,11 @@ function runFromBackend(run: BackendRun): CareNoticeRun {
     status: run.status,
     schoolIds: (run.school_ids ?? []).map(String),
     noticeDate: run.notice_date,
+    createdAt: run.created_at,
     issuedOn: run.issued_on,
     noticeCount: run.notice_count,
     totalCents: run.total_cents,
+    discardedAt: run.discarded_at ?? null,
   };
 }
 
@@ -413,6 +420,21 @@ export async function releaseCareNoticeRun(
           fingerprint: run.fingerprint,
         },
       },
+    ),
+  );
+}
+
+/**
+ * Discards an open run that has nothing to issue (#6626). The server checks
+ * under the lock of the release; a run with content is refused (409).
+ */
+export async function discardCareNoticeRun(
+  runId: string,
+): Promise<CareNoticeRunDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendRunDetail>(
+      `${RUNS_PATH}/${encodeURIComponent(runId)}/discard`,
+      { method: "POST" },
     ),
   );
 }

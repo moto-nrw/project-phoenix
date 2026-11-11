@@ -337,7 +337,7 @@ func (c *CareBilling) openRun(ctx context.Context, reviewer parentbilling.Holida
 		return parentbilling.CareRun{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.CareRun{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.CareRun{}, closedRunError(run.Status)
 	}
 	return run, nil
 }
@@ -476,17 +476,23 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 		detail.ExcludedCount++
 		detail.ExcludedCents += invoice.TotalCents
 	}
+	detail.Schools, err = c.runSchoolNames(ctx, organizationID, detail.SchoolIDs)
+	return err
+}
+
+// runSchoolNames names the schools of a run that are not deleted.
+func (c *CareBilling) runSchoolNames(ctx context.Context, organizationID int64, schoolIDs []int64) ([]parentbilling.CareSchool, error) {
 	schools, err := c.schools.TraegerSchools(ctx, organizationID)
 	if err != nil {
-		return fmt.Errorf("parent billing: read the schools: %w", err)
+		return nil, fmt.Errorf("parent billing: read the schools: %w", err)
 	}
-	detail.Schools = []parentbilling.CareSchool{}
+	named := []parentbilling.CareSchool{}
 	for _, school := range schools {
-		if slices.Contains(detail.SchoolIDs, school.ID) {
-			detail.Schools = append(detail.Schools, school)
+		if slices.Contains(schoolIDs, school.ID) {
+			named = append(named, school)
 		}
 	}
-	return nil
+	return named, nil
 }
 
 // excludedContracts names the contracts of the excluded invoices, each once.

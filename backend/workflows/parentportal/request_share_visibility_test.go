@@ -36,7 +36,11 @@ func TestRequestShareVisibilityAnswersLikeThePortal(t *testing.T) {
 	shares := repos.ParentRequestShare
 	protection := repos.FamilyProtection
 	portal := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		StudentRepo:         guardStudents(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
 		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(),
 		Runtime: owners.ParentPortalRuntime{}, CarePlanPolicy: owners.NewParentCarePlanPolicy(),

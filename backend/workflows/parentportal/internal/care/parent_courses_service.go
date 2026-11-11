@@ -76,7 +76,7 @@ func (s *Service) RequestChildCourse(
 	if s.OfferingChanges == nil {
 		return nil, s.CarePlanPolicy.Error(CarePlanCourseRequestsDisabled)
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, courseWriteAccess, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -118,7 +118,7 @@ func (s *Service) WithdrawChildCourseRequest(
 	if s.OfferingChanges == nil {
 		return nil, s.CarePlanPolicy.Error(CarePlanCourseRequestsDisabled)
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, courseWriteAccess, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -129,6 +129,10 @@ func (s *Service) WithdrawChildCourseRequest(
 	}
 	return s.GetChildCourses(ctx, accountID, studentID)
 }
+
+// courseWriteAccess holds both permissions of a course write until it
+// commits.
+var courseWriteAccess = childWriteNeeds(GuardianPermissionEnrollmentSubmit, GuardianPermissionEnrollmentsView)
 
 // resolveCourseWriteChild checks both permissions needed by a course write:
 // submit authorizes the mutation and enrollments.view authorizes the catalog

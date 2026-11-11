@@ -57,7 +57,7 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		return nil, errors.New("parent: guardian records are not configured")
 	}
 	var result *ChildGuardian
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, edit.access(), func(txCtx context.Context) error {
 		updated, err := s.updateGuardianRelationshipInTx(txCtx, child, edit)
 		result = updated
 		return err
@@ -75,6 +75,20 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		slog.Bool("emergency_changed", input.IsEmergencyContact != nil),
 	)
 	return result, nil
+}
+
+// access is what the edit holds until it commits: portal access, the
+// permission of each field group it changes, and the edited guardian's
+// profile locked before the relationship.
+func (e relationshipEdit) access() ChildWriteAccess {
+	access := ChildWriteAccess{Profiles: []int64{e.guardianProfileID}}
+	if e.editsFlags {
+		access.Permissions = append(access.Permissions, GuardianPermissionPickupManage)
+	}
+	if e.editsDetails {
+		access.Permissions = append(access.Permissions, GuardianPermissionGuardianEdit)
+	}
+	return access
 }
 
 // relationshipEdit is one per-child pickup/relationship edit of a guardian.

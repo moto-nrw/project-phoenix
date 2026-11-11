@@ -184,7 +184,22 @@ func (s *ChangeRequests) validateProposal(ctx context.Context, req *enrollmentNa
 	if err := normalizeAdditionalGuardians(editReq); err != nil {
 		return err
 	}
-	if err := s.intake.validateSubmission(ctx, changeRequestValidationSubmission(*editReq, children, opts.lockTakenOverChildren), legalBlocks, capabilities); err != nil {
+	consentBlocks := legalBlocks
+	if renewalRequest(children) {
+		// A renewal's acceptance of the new phase comes only with its
+		// evidence (ConfirmRenewal, #6456), so a change request on it, such
+		// as the offerings adjustment whose form shows no consent, demands
+		// no tick. Its answers go over the stored ones and never drop an
+		// acceptance recorded in between.
+		consentBlocks = requiredFreeLegalBlocks(legalBlocks)
+		merged := formMap(req.ConsentFlags)
+		if merged == nil {
+			merged = map[string]any{}
+		}
+		maps.Copy(merged, editReq.ConsentFlags)
+		editReq.ConsentFlags = merged
+	}
+	if err := s.intake.validateSubmission(ctx, changeRequestValidationSubmission(*editReq, children, opts.lockTakenOverChildren), consentBlocks, capabilities); err != nil {
 		return err
 	}
 	// The class rules hang off the tenant setting and the phase (#1833),
@@ -400,6 +415,21 @@ func (s *ChangeRequests) normalizeChangeRequestSchoolClasses(ctx context.Context
 		req.Children[i] = child[0]
 	}
 	return nil
+}
+
+// renewalRequest reports whether the request was carried over by a rollover.
+func renewalRequest(children []*enrollmentNative.RequestChild) bool {
+	return slices.ContainsFunc(children, func(child *enrollmentNative.RequestChild) bool { return child.RolloverSourceChildID != nil })
+}
+
+// requiredFreeLegalBlocks keeps the blocks as optional ones.
+func requiredFreeLegalBlocks(blocks []enrollmentNative.LegalBlock) []enrollmentNative.LegalBlock {
+	out := make([]enrollmentNative.LegalBlock, len(blocks))
+	for i, block := range blocks {
+		block.Required = false
+		out[i] = block
+	}
+	return out
 }
 
 func changeRequestValidationSubmission(req SubmitRequest, existing []*enrollmentNative.RequestChild, skipTakenOver bool) SubmitRequest {

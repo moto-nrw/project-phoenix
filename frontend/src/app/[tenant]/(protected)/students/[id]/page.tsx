@@ -1644,6 +1644,9 @@ function StudentDetailPageContent() {
               variant="outline"
               size="md"
               className="mt-4"
+              // Wechselt den Dialog; während des Aufhebens hätte dessen
+              // Antwort sonst keine Fläche (#6594).
+              disabled={sickLoading}
               onClick={() => openPlannedStatusFromLift("sick")}
             >
               Alle Kranktage ansehen
@@ -1689,6 +1692,7 @@ function StudentDetailPageContent() {
                 variant="outline"
                 size="md"
                 className="mt-4"
+                disabled={excusedLoading}
                 onClick={() => openPlannedStatusFromLift("excused")}
               >
                 Alle entschuldigten Tage ansehen

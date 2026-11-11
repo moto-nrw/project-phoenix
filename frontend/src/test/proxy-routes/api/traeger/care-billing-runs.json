@@ -9,6 +9,9 @@
   "api/traeger/care-billing-runs/[id]/amendments": [
     "POST traeger /traeger/care-billing-runs/id%2F1/amendments"
   ],
+  "api/traeger/care-billing-runs/[id]/discard": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/discard"
+  ],
   "api/traeger/care-billing-runs/[id]/exclusions": [
     "POST traeger /traeger/care-billing-runs/id%2F1/exclusions"
   ],
