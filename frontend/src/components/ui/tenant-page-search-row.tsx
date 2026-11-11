@@ -93,20 +93,17 @@ export function TenantPageSearchRow({
   // state. A custom control owns its own rendering and reports its state
   // through `activeFilters` like any other filter.
   const hasActiveFilters = useMemo(() => {
-    return (
-      activeFilters.length > 0 ||
-      filters.some((filter) => {
-        if (filter.type === "custom") return false;
-        // A multi-select reports its value as an array and treats the empty
-        // selection as its default ("alle"), so the first-option comparison
-        // below would mark it active in every default state — an array is never
-        // equal to an option string.
-        if (Array.isArray(filter.value)) return filter.value.length > 0;
-        const defaultValue = filter.options[0]?.value;
-        return filter.value !== defaultValue;
-      })
-    );
-  }, [activeFilters, filters]);
+    return filters.some((filter) => {
+      if (filter.type === "custom") return false;
+      // A multi-select reports its value as an array and treats the empty
+      // selection as its default ("alle"), so the first-option comparison
+      // below would mark it active in every default state — an array is never
+      // equal to an option string.
+      if (Array.isArray(filter.value)) return filter.value.length > 0;
+      const defaultValue = filter.options[0]?.value;
+      return filter.value !== defaultValue;
+    });
+  }, [filters]);
 
   const activeFilterCount =
     usesFilterPanel && activeFilters.length > 0
