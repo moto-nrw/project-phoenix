@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { HouseIcon } from "@phosphor-icons/react/ssr";
 
-import { MOTO_DUOTONE_TONES, MotoDuotoneIcon } from "./moto-duotone-icon";
+import { MOTO_DUOTONE_PALETTE as MOTO_DUOTONE_TONES } from "~/lib/kit-palette";
+
+import { MotoDuotoneIcon } from "./moto-duotone-icon";
 
 const meta = {
   title: "components/ui/MotoDuotoneIcon",

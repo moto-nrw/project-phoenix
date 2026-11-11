@@ -28,13 +28,15 @@ const dialogAriaProps = {
 };
 
 /** Maximum dialog width: `md` is the default confirmation/form width. */
-export type ModalSize = "sm" | "md" | "lg" | "xl";
+export type ModalSize = "sm" | "md" | "md-wide" | "lg" | "lg-wide" | "xl";
 
 // Literal class strings so Tailwind finds them.
 const MODAL_MAX_WIDTH: Record<ModalSize, string> = {
   sm: "max-w-md",
   md: "max-w-lg",
+  "md-wide": "max-w-xl",
   lg: "max-w-2xl",
+  "lg-wide": "max-w-3xl",
   xl: "max-w-4xl",
 };
 
@@ -50,10 +52,6 @@ function getModalAnimationClass(
 interface ModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  /** Runs when an animated dismissal starts, before the delayed close callback. */
-  readonly onDismissStart?: () => void;
-  /** Resets the dialog animation without remounting its children. */
-  readonly animationKey?: string;
   readonly title: string;
   /** Leading icon in the header, left of the title (e.g. a `ConceptIconTile`). */
   readonly icon?: React.ReactNode;
@@ -63,11 +61,6 @@ interface ModalProps {
   readonly footer?: React.ReactNode;
   /** Maximum dialog width; `md` (`max-w-lg`) by default. */
   readonly size?: ModalSize;
-  /**
-   * Tailwind width utilities for the dialog container. Overrides `size` on
-   * the centered dialog; ignored with `mobileSheet`, which takes `size`.
-   */
-  readonly widthClass?: string;
   /**
    * Accessible label for the close button. Defaults to German; pass a
    * translated string on localized surfaces (e.g. the parents portal).
@@ -110,15 +103,12 @@ interface ModalProps {
 export function Modal({
   isOpen,
   onClose,
-  onDismissStart,
-  animationKey,
   title,
   icon,
   description,
   children,
   footer,
   size = "md",
-  widthClass,
   closeLabel = "Modal schließen",
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
@@ -143,7 +133,6 @@ export function Modal({
 
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useLatest(onClose);
-  const onDismissStartRef = useLatest(onDismissStart);
   const isDismissDisabledRef = useLatest(isDismissDisabled);
 
   // Pending dismissal (exit-animation delay before onClose). Tracked so a
@@ -158,7 +147,6 @@ export function Modal({
   const handleClose = useCallback(() => {
     if (isDismissDisabledRef.current) return;
     if (dismissTimerRef.current !== null) return;
-    onDismissStartRef.current?.();
     setIsExiting(true);
     setIsAnimating(false);
 
@@ -174,7 +162,7 @@ export function Modal({
       }
       onCloseRef.current();
     }, 250);
-  }, [isDismissDisabledRef, onCloseRef, onDismissStartRef]);
+  }, [isDismissDisabledRef, onCloseRef]);
 
   // Cancel an in-flight dismissal as soon as dismissal gets locked, and bring
   // the dialog back from its exit animation.
@@ -236,7 +224,7 @@ export function Modal({
       document.removeEventListener("keydown", handleEscKey);
       clearTimeout(animationTimer);
     };
-  }, [visible, handleClose, animationKey, isTopmost]);
+  }, [visible, handleClose, isTopmost]);
 
   if (!isOpen) return null;
 
@@ -319,7 +307,7 @@ export function Modal({
           className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl outline-none ${
             mobileSheet
               ? `max-h-[calc(100dvh-3rem-env(safe-area-inset-top))] w-full rounded-t-2xl max-sm:max-w-none sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-2xl ${MODAL_MAX_WIDTH[size]}`
-              : `${widthClass ?? `mx-4 w-[calc(100%-2rem)] ${MODAL_MAX_WIDTH[size]}`} max-h-[calc(100dvh-2rem)] rounded-2xl`
+              : `mx-4 w-[calc(100%-2rem)] ${MODAL_MAX_WIDTH[size]} max-h-[calc(100dvh-2rem)] rounded-2xl`
           } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
           ref={panelRef}
