@@ -87,9 +87,10 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   pull request could read and the repository sat above its 10 GB limit.
   Check a slow job's "Restore backend build cache" line first.
 - Package wall times under that load are 2–3 times a local run: `importtest`
-  136 s locally, 245–389 s in the full suite. Long packages start first
-  (`scripts/backend-package-budgets.mjs order`); a long one started late ran
-  alone for the last minutes of the job.
+  136 s locally, 245–389 s in the full suite. Starting the long packages first
+  gained nothing (305 s against 311 s) and slowed them, because they then ran
+  at the same time; `scripts/backend-package-budgets.json` holds each
+  package's budget.
 - A pull request run with the full suites cost about $0.18–0.27 after #5770
   (check "CI cost"); the backend tests alone, warm, about $0.05.
 
