@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/attachmentpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -67,7 +66,7 @@ func (s *MessageStore) CreateStaffMessage(ctx context.Context, input *communicat
 	if message.TenantID == 0 {
 		message.TenantID = tenantID
 	}
-	attachmentIDs, snapshot, err := attachmentpostgres.Reserve(ctx, db, message.TenantID, communication.MessageAttachmentScopeStaff, message.SenderAccountID)
+	attachmentIDs, snapshot, err := reserveMessageAttachments(ctx, db, message.TenantID, message.SenderAccountID)
 	if err != nil {
 		return err
 	}
@@ -100,7 +99,7 @@ func (s *MessageStore) CreateStaffMessage(ctx context.Context, input *communicat
 	if row.SendReplayed {
 		return nil
 	}
-	return attachmentpostgres.Bind(ctx, db, row.TenantID, attachmentpostgres.ColumnStaffMessage, row.ID, attachmentIDs)
+	return claimMessageAttachments(ctx, db, db.NewUpdate().TableExpr("users.message_attachments AS attachment").Set("staff_message_id = ?", row.ID), row.TenantID, attachmentIDs)
 }
 
 // ListByThread returns the thread's messages oldest-first, which is the order

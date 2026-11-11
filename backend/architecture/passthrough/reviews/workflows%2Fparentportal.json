@@ -11,6 +11,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0210",
+      "id": "workflows/parentportal/Portal.DiscardChildMessageAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "workflows/parentportal/Portal.EditExcusedRequest",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -81,6 +86,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0210",
+      "id": "workflows/parentportal/Portal.OpenChildMessageAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0132",
       "id": "workflows/parentportal/Portal.PostChildMessage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -88,6 +98,11 @@
     {
       "decision": "0132",
       "id": "workflows/parentportal/Portal.PostChildReply",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0210",
+      "id": "workflows/parentportal/Portal.PrepareChildMessageAttachment",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

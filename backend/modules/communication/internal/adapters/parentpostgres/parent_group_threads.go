@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/attachmentpostgres"
 	"github.com/uptrace/bun"
 )
 
@@ -168,7 +167,7 @@ func (s *GroupThreadStore) AppendMessage(ctx context.Context, threadID int64, se
 		value := row.value()
 		return &value, nil
 	}
-	if err := attachmentpostgres.Bind(ctx, db, tenantID, attachmentpostgres.ColumnParentGroupMessage, row.ID, attachmentIDs); err != nil {
+	if err := claimMessageAttachments(ctx, db, db.NewUpdate().TableExpr("users.message_attachments AS attachment").Set("parent_group_message_id = ?", row.ID), tenantID, attachmentIDs); err != nil {
 		return nil, err
 	}
 	if len(recipients) > 0 {
@@ -203,7 +202,7 @@ func reserveGroupAttachments(ctx context.Context, db bun.IDB, tenantID int64, se
 	if sender == nil {
 		return nil, nil, nil
 	}
-	return attachmentpostgres.Reserve(ctx, db, tenantID, communication.MessageAttachmentScopeParent, *sender)
+	return reserveMessageAttachments(ctx, db, tenantID, *sender)
 }
 
 // CloseThread closes an open thread. It reports false when the thread was

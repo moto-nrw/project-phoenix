@@ -2,29 +2,20 @@
 // photos and files of chat messages (#6685): users.message_attachments and
 // its cleanup intents in users.message_attachment_cleanup.
 //
-// The three message stores claim uploads through Reserve and Bind inside
-// their own insert, so a message and its files commit together.
+// The message stores claim the uploads a send names inside their own insert
+// (claimable rows in parentpostgres and staffpostgres), so a message and its
+// files commit together.
 package attachmentpostgres
 
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
-)
-
-// Claim columns: the message table an attachment belongs to.
-const (
-	ColumnParentMessage      = "parent_message_id"
-	ColumnParentGroupMessage = "parent_group_message_id"
-	ColumnStaffMessage       = "staff_message_id"
 )
 
 // Database resolves the caller's transaction and school.
@@ -211,81 +202,6 @@ func (s *Store) FindForGuardian(ctx context.Context, accountID, studentID, attac
 		return nil, fmt.Errorf("find guardian message attachment: %w", err)
 	}
 	return row.record(), nil
-}
-
-// Reserve locks the uploads the send in ctx names and returns their ids and
-// the snapshot the message row stores. The uploads must belong to the sender
-// and the chat family; whether they are still free is Bind's check, so a
-// replayed send finds the files its first attempt claimed.
-func Reserve(ctx context.Context, db bun.IDB, tenantID int64, scope string, senderAccountID int64) ([]int64, json.RawMessage, error) {
-	ids := communication.MessageAttachmentIDs(ctx)
-	if len(ids) == 0 {
-		return nil, nil, nil
-	}
-	if len(ids) > communication.MaxMessageAttachments {
-		return nil, nil, communication.ErrMessageAttachmentLimit
-	}
-	var rows []attachmentRow
-	if err := db.NewSelect().Model(&rows).
-		Where("attachment.tenant_id = ? AND attachment.scope = ? AND attachment.uploaded_by_account_id = ?", tenantID, scope, senderAccountID).
-		Where("attachment.id = ANY(?)", pgdialect.Array(ids)).
-		For("UPDATE OF attachment").Scan(ctx); err != nil {
-		return nil, nil, fmt.Errorf("reserve message attachments: %w", err)
-	}
-	byID := make(map[int64]*attachmentRow, len(rows))
-	for i := range rows {
-		byID[rows[i].ID] = &rows[i]
-	}
-	// The snapshot keeps the order the sender chose.
-	snapshot := make([]communication.MessageAttachment, 0, len(ids))
-	seen := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		row, ok := byID[id]
-		if !ok || seen[id] {
-			return nil, nil, communication.ErrMessageAttachmentUnavailable
-		}
-		seen[id] = true
-		snapshot = append(snapshot, row.attachment())
-	}
-	raw, err := json.Marshal(snapshot)
-	if err != nil {
-		return nil, nil, fmt.Errorf("encode message attachments: %w", err)
-	}
-	return slices.Clone(ids), raw, nil
-}
-
-// Bind claims the reserved uploads for the message just inserted. An upload
-// another message already carries refuses the send.
-func Bind(ctx context.Context, db bun.IDB, tenantID int64, column string, messageID int64, ids []int64) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	query := db.NewUpdate().TableExpr("users.message_attachments AS attachment").
-		Set("claimed_at = clock_timestamp()").
-		Where("attachment.tenant_id = ? AND attachment.claimed_at IS NULL", tenantID).
-		Where("attachment.id = ANY(?)", pgdialect.Array(ids))
-	switch column {
-	case ColumnParentMessage:
-		query = query.Set("parent_message_id = ?", messageID)
-	case ColumnParentGroupMessage:
-		query = query.Set("parent_group_message_id = ?", messageID)
-	case ColumnStaffMessage:
-		query = query.Set("staff_message_id = ?", messageID)
-	default:
-		return fmt.Errorf("bind message attachments: unknown column %q", column)
-	}
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("bind message attachments: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("bind message attachments: %w", err)
-	}
-	if affected != int64(len(ids)) {
-		return communication.ErrMessageAttachmentUnavailable
-	}
-	return nil
 }
 
 type cleanupRow struct {

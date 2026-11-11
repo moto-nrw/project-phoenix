@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/attachmentpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -133,7 +132,7 @@ func (s *MessageStore) Create(ctx context.Context, message *domain.ParentMessage
 	if row.SendReplayed {
 		return nil
 	}
-	return attachmentpostgres.Bind(ctx, db, message.TenantID, attachmentpostgres.ColumnParentMessage, row.ID, attachmentIDs)
+	return claimMessageAttachments(ctx, db, db.NewUpdate().TableExpr("users.message_attachments AS attachment").Set("parent_message_id = ?", row.ID), message.TenantID, attachmentIDs)
 }
 
 // reserveAttachments locks the uploads a plain message names. Events and
@@ -142,7 +141,7 @@ func (s *MessageStore) reserveAttachments(ctx context.Context, db bun.IDB, messa
 	if message.Kind != "" && message.Kind != "message" {
 		return nil, nil, nil
 	}
-	return attachmentpostgres.Reserve(ctx, db, message.TenantID, communication.MessageAttachmentScopeParent, message.SenderAccountID)
+	return reserveMessageAttachments(ctx, db, message.TenantID, message.SenderAccountID)
 }
 
 // Update rewrites one message row by primary key. Only the decision fields of a

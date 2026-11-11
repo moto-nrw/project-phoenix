@@ -163,6 +163,27 @@ func HasMessageAttachments(ctx context.Context) bool {
 	return len(MessageAttachmentIDs(ctx)) > 0
 }
 
+// ReservedMessageAttachments builds the snapshot a message stores from the
+// uploads its sender named and the rows the store could lock for it, in the
+// order the sender chose. Every named upload must be there exactly once: a
+// missing one belongs to somebody else or to another chat family.
+func ReservedMessageAttachments(ids []int64, locked []MessageAttachment) (json.RawMessage, error) {
+	byID := make(map[int64]MessageAttachment, len(locked))
+	for _, attachment := range locked {
+		byID[attachment.ID] = attachment
+	}
+	snapshot := make([]MessageAttachment, 0, len(ids))
+	for _, id := range ids {
+		attachment, ok := byID[id]
+		if !ok {
+			return nil, ErrMessageAttachmentUnavailable
+		}
+		delete(byID, id)
+		snapshot = append(snapshot, attachment)
+	}
+	return json.Marshal(snapshot)
+}
+
 // MessageAttachmentSnapshot returns the stored snapshot for the wire: nil
 // for a message without attachments, so its JSON omits the member.
 func MessageAttachmentSnapshot(raw json.RawMessage) json.RawMessage {

@@ -261,7 +261,16 @@ func (c staffChat) seed(conversation staffChatConversation) error {
 				return fmt.Errorf("read staff conversation %s: %w", threadID, err)
 			}
 		}
-		if _, err := c.rt.Client.PostWithAuth(sender, "/api/staff-messages/threads/"+threadID, map[string]any{"body": body}); err != nil {
+		message := map[string]any{"body": body}
+		// The first message of every conversation carries a photo (#6685).
+		if i == 0 {
+			photos, err := uploadMessageFiles(c.rt, sender, "/api/staff-messages/attachments", seedMeadowPhoto("Schulhof heute.png"))
+			if err != nil {
+				return err
+			}
+			message["attachment_ids"] = photos
+		}
+		if _, err := c.rt.Client.PostWithAuth(sender, "/api/staff-messages/threads/"+threadID, message); err != nil {
 			return fmt.Errorf("send staff message to thread %s: %w", threadID, err)
 		}
 	}

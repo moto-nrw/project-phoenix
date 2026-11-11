@@ -577,18 +577,6 @@
       "source_role": "application",
       "target_owner": "organization-tenancy",
       "target_role": "public"
-    },
-    {
-      "id": "communication.postgres.message-attachment-claims",
-      "description": "The three message stores claim the uploads a send names inside their own insert, so a message and its files commit together (ADR 0208, #6685).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "postgres",
-      "target_owner": "communication",
-      "target_role": "postgres",
-      "target_package": "modules/communication/internal/adapters/attachmentpostgres"
     }
   ]
 }
