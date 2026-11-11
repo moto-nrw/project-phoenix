@@ -12,6 +12,7 @@
 import type React from "react";
 
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { MobilePageHelpTarget } from "~/components/ui/mobile-page-help-target";
 import { Skeleton } from "~/components/ui/skeleton";
 
 // Deterministic width cycle — varied line lengths read as real text without
@@ -58,6 +59,13 @@ export function SkeletonRegion({
 // anderen Kopf (`ParentPageHeader`) und behält bis #6613 die Maße von vor
 // #6568: 20 px Rand, ein 28-px-Titelbalken, 8 px darunter die Statuszeile.
 // Der Layouttest `page-header-skeleton.spec.ts` misst beide Varianten nach.
+//
+// Unter `lg` setzt die Portalhülle die Seitenhilfe als Knopf in den Kopf von
+// `TenantPage` (`MobilePageHelpTarget`): 40 px hoch, auf dem Telefon 44 px.
+// Der Ladekopf bietet ihr denselben Platz an. Sonst wächst der Kopf einer
+// Seite ohne Statuszeile beim Wechsel um diesen Knopf.
+const HELP_CONTROL_HEIGHT =
+  "[&_a[data-button-link]]:h-10 max-sm:[&_a[data-button-link]]:h-11";
 const HEAD_GEOMETRY = {
   "tenant-page": {
     surface: "compact:p-4 p-5 max-sm:p-4",
@@ -109,32 +117,41 @@ export function TenantPageHeaderSkeleton({
   const geometry = HEAD_GEOMETRY[matches];
   // Bedienelemente mit 40 px, auf dem Telefon 44 px; `leading` hängt an der
   // Größe, die die Seite für Avatar oder Symbol wählt.
+  const titleRow = (
+    <div className="flex min-w-0 items-center gap-3">
+      {leading && <Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          <div
+            className={`flex w-52 max-w-3/4 items-center ${geometry.titleLine}`}
+          >
+            <Skeleton shape="round" className={`w-full ${geometry.titleBar}`} />
+          </div>
+          {info && <Skeleton className="h-8 w-8 shrink-0" />}
+        </div>
+        {stats && (
+          <div className={`flex items-center ${geometry.statusLine}`}>
+            <Skeleton shape="round" className="h-4 w-64 max-w-full" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
   return (
     <header
       className={`moto-content-surface rounded-2xl border ${geometry.surface}`}
     >
       {back}
-      <div className="flex min-w-0 items-center gap-3">
-        {leading && <Skeleton shape="inner" className="h-12 w-12 shrink-0" />}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1">
-            <div
-              className={`flex w-52 max-w-3/4 items-center ${geometry.titleLine}`}
-            >
-              <Skeleton
-                shape="round"
-                className={`w-full ${geometry.titleBar}`}
-              />
-            </div>
-            {info && <Skeleton className="h-8 w-8 shrink-0" />}
+      {matches === "tenant-page" ? (
+        <div className="flex items-start gap-x-4 max-sm:gap-x-2">
+          <div className="min-w-0 flex-1">{titleRow}</div>
+          <div className={`contents ${HELP_CONTROL_HEIGHT}`}>
+            <MobilePageHelpTarget />
           </div>
-          {stats && (
-            <div className={`flex items-center ${geometry.statusLine}`}>
-              <Skeleton shape="round" className="h-4 w-64 max-w-full" />
-            </div>
-          )}
         </div>
-      </div>
+      ) : (
+        titleRow
+      )}
       {controls && (
         <div className="compact:mt-3 mt-4 flex items-center gap-3 max-sm:mt-3">
           <Skeleton shape="control" className="h-10 w-48 min-w-0 max-sm:h-11" />
