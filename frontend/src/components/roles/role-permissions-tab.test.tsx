@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import type { Permission, Role } from "~/lib/auth-helpers";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { RolePermissionsTab } from "./role-permissions-tab";
 
 const {
@@ -207,6 +208,41 @@ describe("RolePermissionsTab", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Die Berechtigungen der Rolle sind gespeichert.",
     );
+  });
+
+  // #6652: the permissions hold once the write is through; a failed reload is
+  // a load error that says the change is saved, and its retry only reloads.
+  it("keeps saved permissions saved when the reload fails", async () => {
+    mockGetRolePermissions
+      .mockReset()
+      .mockResolvedValueOnce([allPermissions[0]!])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([allPermissions[2]!]);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+    await screen.findByText("1 von 3 Berechtigungen ausgewählt.");
+    fireEvent.click(screen.getByLabelText("students:read"));
+    fireEvent.click(screen.getByLabelText("rooms:read"));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Berechtigungen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mockGetRolePermissions).toHaveBeenCalledTimes(3),
+    );
+    expect(mockReplaceRolePermissions).toHaveBeenCalledTimes(1);
   });
 
   it("toggles a whole resource group and filters by search", async () => {
