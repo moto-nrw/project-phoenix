@@ -5,11 +5,6 @@
  * and filters count by `countedDayStatus`. A new status is one more row in
  * `DAY_STATUSES`; nothing else needs to know it.
  */
-import type { MotoConcept } from "~/lib/moto-concepts";
-import { classTripConcept } from "~/lib/concepts/classTrip";
-import { excusedConcept } from "~/lib/concepts/excused";
-import { notArrivalConcept } from "~/lib/concepts/notArrival";
-import { sickConcept } from "~/lib/concepts/sick";
 import { formatTime } from "~/lib/date-helpers";
 import {
   getStudentPresenceBadgePlanning,
@@ -48,6 +43,10 @@ interface DayStatusFlags {
   readonly excused?: boolean | null;
 }
 
+/** The hint's glyph; the rendering boundary resolves it to a concept module. */
+export type PresenceHintConcept =
+  "sick" | "classTrip" | "excused" | "notArrival";
+
 interface DayStatusRow {
   readonly key: string;
   /** Whether the child carries the status today. */
@@ -60,7 +59,7 @@ interface DayStatusRow {
   /** The neutral line below the location while the child is checked in (#4371). */
   readonly hint: {
     readonly label: string;
-    readonly concept: MotoConcept;
+    readonly concept: PresenceHintConcept;
     readonly dataAttr: string;
   };
   /** Tooltip for pill and hint. */
@@ -91,7 +90,7 @@ const DAY_STATUS_TABLE = {
     pill: { label: LOCATION_STATUSES.SICK, color: LOCATION_COLORS.SICK },
     hint: {
       label: LOCATION_STATUSES.SICK,
-      concept: sickConcept,
+      concept: "sick",
       dataAttr: "data-sick-indicator",
     },
     since: (student) => student.sick_since,
@@ -108,7 +107,7 @@ const DAY_STATUS_TABLE = {
     },
     hint: {
       label: LOCATION_STATUSES.CLASS_TRIP,
-      concept: classTripConcept,
+      concept: "classTrip",
       dataAttr: "data-class-trip-indicator",
     },
     since: (student) => student.class_trip_since,
@@ -122,7 +121,7 @@ const DAY_STATUS_TABLE = {
     pill: { label: LOCATION_STATUSES.EXCUSED, color: LOCATION_COLORS.EXCUSED },
     hint: {
       label: LOCATION_STATUSES.EXCUSED,
-      concept: excusedConcept,
+      concept: "excused",
       dataAttr: "data-excused-indicator",
     },
     since: (student) => student.excused_since,
@@ -142,7 +141,7 @@ const DAY_STATUS_TABLE = {
     },
     hint: {
       label: LOCATION_STATUSES.UNPLANNED_PRESENT,
-      concept: notArrivalConcept,
+      concept: "notArrival",
       dataAttr: "data-not-arrival-indicator",
     },
     title: (planning) => planning.notArrivalReason,
