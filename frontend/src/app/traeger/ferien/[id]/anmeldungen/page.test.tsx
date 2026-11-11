@@ -682,9 +682,13 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
     expect(
       await screen.findByText("Alle ausgewählten Anmeldungen sind bestätigt."),
     ).toBeInTheDocument();
-    expect(
+    const result = within(
       screen.getByRole("dialog", { name: "1 Anmeldung bestätigt" }),
-    ).toBeInTheDocument();
+    );
+    expect(result.getByRole("link", { name: /Anna Muster/ })).toHaveAttribute(
+      "href",
+      "/traeger/ferien/5/anmeldungen/21",
+    );
   });
 
   it("stops when no further confirmation can succeed", async () => {

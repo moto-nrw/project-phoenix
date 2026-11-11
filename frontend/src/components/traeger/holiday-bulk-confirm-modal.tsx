@@ -352,28 +352,28 @@ export function HolidayBulkConfirmModal({
           </Button>
         }
       >
-        {phase.open.length === 0 ? (
-          <EmptyState
-            tone="success"
-            icon={<Check />}
-            description="Alle ausgewählten Anmeldungen sind bestätigt."
-            className="py-6"
-          />
-        ) : (
-          <div className="space-y-3">
+        <div className="space-y-3">
+          {phase.open.length === 0 ? (
+            <EmptyState
+              tone="success"
+              icon={<Check />}
+              description="Alle ausgewählten Anmeldungen sind bestätigt."
+              className="py-4"
+            />
+          ) : (
             <p className="text-sm text-gray-700">
               {phase.open.length === 1
                 ? "1 Anmeldung bleibt offen. Bestätigen Sie sie einzeln."
                 : `${registrationCount(phase.open.length)} bleiben offen. Bestätigen Sie sie einzeln.`}
             </p>
-            <RegistrationGroups
-              periodId={periodId}
-              confirmedTitle="Bestätigt"
-              confirmed={phase.confirmed}
-              open={phase.open}
-            />
-          </div>
-        )}
+          )}
+          <RegistrationGroups
+            periodId={periodId}
+            confirmedTitle="Bestätigt"
+            confirmed={phase.confirmed}
+            open={phase.open}
+          />
+        </div>
       </Modal>
     );
   }
