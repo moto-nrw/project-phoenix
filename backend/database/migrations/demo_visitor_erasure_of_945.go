@@ -7,13 +7,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// demoVisitorErasureParentAccountOfferSQL is platform.erase_closed_demo_visitors
-// of 1.15.927 whose statement for the mails of a registration also deletes
-// the offer of a parent account (ADR 0216): a mail of the Träger to the
-// guardian's address, named by the registration like the receipt. Nothing
-// else changes; TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer
-// keeps it so. It is a literal so the architecture check can read the
-// migration's SQL.
+// demoVisitorErasureParentAccountOfferSQL extends the erasure of 1.15.927
+// with the parent account offer mail and the Träger access of anonymized
+// accounts (ADR 0216). TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer
+// pins these additions. Literal SQL keeps the writes visible to the
+// architecture check.
 const demoVisitorErasureParentAccountOfferSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
@@ -695,6 +693,7 @@ const demoVisitorErasureParentAccountOfferSQL = `
 						WHERE files.avatar LIKE '/uploads/avatars/%'
 						ON CONFLICT (avatar) DO NOTHING;
 						DELETE FROM auth.tokens WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.traeger_parent_access WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM auth.password_reset_tokens WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM auth.account_roles WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM auth.account_tenants WHERE account_id = ANY (erased_account_ids);

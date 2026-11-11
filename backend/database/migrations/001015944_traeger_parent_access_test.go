@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -115,4 +116,13 @@ func TestTraegerParentAccessMigrationRollsBack(t *testing.T) {
 	assert.NoError(t, insertParentSession(ctx, db, account.ID, nil, organization.ID))
 	_, err = db.ExecContext(ctx, `DELETE FROM auth.tokens WHERE account_id = ?`, account.ID)
 	require.NoError(t, err)
+}
+
+// The new erasure differs only by the deletion of the new access records.
+func TestTraegerParentAccessErasureExtendsAccountErasure(t *testing.T) {
+	t.Parallel()
+	before := "DELETE FROM auth.tokens AS target WHERE target.account_id = ANY (erased_ids);"
+	after := before + "\n\t\t\tDELETE FROM auth.traeger_parent_access AS target WHERE target.account_id = ANY (erased_ids);"
+	require.Equal(t, 1, strings.Count(directPermissionAccountErasureUpSQL, before))
+	assert.Equal(t, strings.Replace(directPermissionAccountErasureUpSQL, before, after, 1), traegerParentAccessAccountErasureSQL)
 }

@@ -54,6 +54,8 @@ import { HolidayRegistrationDeclaration } from "./holiday-registration-declarati
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 import { HolidayRegistrationAccountQuestion } from "./holiday-registration-account-question";
 import { parentPath } from "~/lib/parent-url";
+import { useInvalidateMatching } from "~/lib/swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
 
 /** The code of a refusal because the Träger changed the form (#5198). */
 const FORM_CHANGED = "enrollment.holiday_registration_form_changed";
@@ -109,6 +111,7 @@ export function HolidayRegistrationForm({
   const accountFieldsetRef = useRef<HTMLFieldSetElement>(null);
   const [accountError, setAccountError] = useState<string | undefined>();
   const asksForAccount = parentAccount === "ask";
+  const invalidate = useInvalidateMatching();
 
   useEffect(() => {
     onStepChange?.(step);
@@ -151,6 +154,12 @@ export function HolidayRegistrationForm({
         token,
         payloadFromDraft(draft, offer, captchaToken),
       );
+      if (parentAccount === "signed-in") {
+        await invalidate(
+          (key) => key === parentKeys.holidayRegistrationEntries(),
+          { clear: true },
+        );
+      }
       setPlacements(placed ?? []);
       setStep("done");
       window.scrollTo({ top: 0 });

@@ -14,7 +14,7 @@ import (
 
 // The erasure of 1.15.945 is the erasure of 1.15.927 whose statement for the
 // mails of a registration also deletes the offer of a parent account (ADR
-// 0216), and nothing else changed.
+// 0216), and deletes Träger parent access when it anonymizes an account.
 func TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer(t *testing.T) {
 	t.Parallel()
 	before := `'holiday_closure_notice', 'holiday_registration_accepted')`
@@ -25,6 +25,10 @@ func TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer(t *testing.T) {
 	require.Equal(t, 1, strings.Count(demoVisitorErasureHolidayAcceptanceSQL, before), "the statement for the mails of a registration is in the erasure of 1.15.927 exactly once")
 	require.Equal(t, 1, strings.Count(demoVisitorErasureHolidayAcceptanceSQL, commentBefore))
 	want := strings.Replace(strings.Replace(demoVisitorErasureHolidayAcceptanceSQL, before, after, 1), commentBefore, commentAfter, 1)
+	accessBefore := "DELETE FROM auth.tokens WHERE account_id = ANY (erased_account_ids);"
+	accessAfter := accessBefore + "\n\t\t\t\t\t\tDELETE FROM auth.traeger_parent_access WHERE account_id = ANY (erased_account_ids);"
+	require.Equal(t, 1, strings.Count(want, accessBefore))
+	want = strings.Replace(want, accessBefore, accessAfter, 1)
 	assert.Equal(t, want, demoVisitorErasureParentAccountOfferSQL)
 }
 

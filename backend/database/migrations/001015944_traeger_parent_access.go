@@ -168,6 +168,9 @@ func traegerParentAccessUp(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, traegerParentAccessUpSQL); err != nil {
 			return fmt.Errorf("add the parents-portal access at a Träger: %w", err)
 		}
+		if _, err := tx.ExecContext(ctx, traegerParentAccessAccountErasureSQL); err != nil {
+			return fmt.Errorf("erase Träger parent access with unused accounts: %w", err)
+		}
 		return installTraegerParentAccessAccountUnused(ctx, tx)
 	})
 }
@@ -185,6 +188,9 @@ func traegerParentAccessDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := installDirectPermissionAccountUnusedUp(ctx, tx); err != nil {
 			return fmt.Errorf("restore auth.account_is_unused of 1.15.646: %w", err)
+		}
+		if err := installDirectPermissionAccountErasureUp(ctx, tx); err != nil {
+			return fmt.Errorf("restore account erasure of 1.15.646: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, traegerParentAccessDownSQL); err != nil {
 			return fmt.Errorf("remove the parents-portal access at a Träger: %w", err)

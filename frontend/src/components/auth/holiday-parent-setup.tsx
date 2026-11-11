@@ -191,7 +191,13 @@ export function HolidayParentSetupView({ token }: Readonly<{ token: string }>) {
     <NewAccountForm
       token={token}
       email={setup.email}
-      onDone={() => setDone(true)}
+      onDone={(accountExists) => {
+        if (accountExists) {
+          setState({ kind: "ready", setup: { ...setup, accountExists: true } });
+        } else {
+          setDone(true);
+        }
+      }}
     />,
   );
 }
@@ -258,7 +264,11 @@ function NewAccountForm({
   token,
   email,
   onDone,
-}: Readonly<{ token: string; email: string; onDone: () => void }>) {
+}: Readonly<{
+  token: string;
+  email: string;
+  onDone: (accountExists: boolean) => void;
+}>) {
   const t = useTranslations("holidayParentSetup");
   // Labels, rules and hints of the guardian invitation: one password form
   // for every way into the parents app.
@@ -295,8 +305,11 @@ function NewAccountForm({
     }
     setSending(true);
     try {
-      await completeHolidayParentSetup(token, { password, confirmPassword });
-      onDone();
+      const result = await completeHolidayParentSetup(token, {
+        password,
+        confirmPassword,
+      });
+      onDone(result.accountExists);
     } catch (err) {
       logger.error("holiday_parent_setup_failed", {
         error: err instanceof Error ? err.message : String(err),

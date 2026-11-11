@@ -16,10 +16,18 @@ import type {
 } from "~/lib/holiday-registration-api";
 import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
-const { mockSubmit, mockQuote, mockUpload } = vi.hoisted(() => ({
-  mockSubmit: vi.fn(),
-  mockQuote: vi.fn(),
-  mockUpload: vi.fn(),
+const { mockSubmit, mockQuote, mockUpload, mockInvalidate } = vi.hoisted(
+  () => ({
+    mockSubmit: vi.fn(),
+    mockQuote: vi.fn(),
+    mockUpload: vi.fn(),
+    mockInvalidate: vi.fn().mockResolvedValue([]),
+  }),
+);
+
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
+  useInvalidateMatching: () => mockInvalidate,
 }));
 
 vi.mock("~/lib/holiday-registration-api", () => ({
@@ -1714,6 +1722,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
 
 describe("HolidayRegistrationForm parent account (#6673)", () => {
   beforeEach(() => {
+    mockInvalidate.mockReset().mockResolvedValue([]);
     mockSubmit.mockReset();
     mockQuote.mockReset();
     mockQuote.mockResolvedValue(quoted(false));
@@ -1800,6 +1809,7 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     expect(
       screen.queryByText("Nächster Schritt: Ihr Elternkonto"),
     ).not.toBeInTheDocument();
+    expect(mockInvalidate).not.toHaveBeenCalled();
   });
 
   it("keeps the answer over Zurück, names the address and announces the second mail", async () => {
@@ -1871,5 +1881,14 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     expect(
       await screen.findByRole("link", { name: "Zu Ihren Ferienanmeldungen" }),
     ).toHaveAttribute("href", "/ferienanmeldungen");
+    expect(mockInvalidate).toHaveBeenCalledTimes(1);
+    expect(mockInvalidate).toHaveBeenCalledWith(expect.any(Function), {
+      clear: true,
+    });
+    const matches = mockInvalidate.mock.calls[0]![0] as (
+      key: string,
+    ) => boolean;
+    expect(matches("parent-holiday-registration-entries")).toBe(true);
+    expect(matches("parent-profile")).toBe(false);
   });
 });

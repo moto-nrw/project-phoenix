@@ -113,6 +113,33 @@ describe("HolidayParentSetupView (#6673)", () => {
     );
   });
 
+  it("shows the existing-account sign-in state when another tab created the account", async () => {
+    setup();
+    mocks.complete.mockResolvedValue({ accountExists: true });
+    renderView();
+    await screen.findByRole("heading", { name: "Elternkonto anlegen" });
+
+    fillPasswords(newPassword());
+    fireEvent.click(screen.getByRole("button", { name: "Konto anlegen" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sie haben schon ein Elternkonto",
+      }),
+    ).toBeInTheDocument();
+    // Anker: the existing-account state asks the parent to sign in.
+    expect(
+      screen.getByText(
+        /Melden Sie sich an. Dann sehen Sie auch Ihre Ferienanmeldungen/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Passwort", { selector: "input" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    await waitFor(() => expect(mocks.assign).toHaveBeenCalledWith(LOGIN));
+  });
+
   it("shows a refused password in the form and keeps the fields", async () => {
     setup();
     mocks.complete.mockRejectedValue(
