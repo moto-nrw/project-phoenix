@@ -41,7 +41,7 @@ func (r bookingResolver) documentLines(invoice parentbilling.ExportInvoice) ([]b
 		return nil, 0
 	}
 	parts := bookingPartsAfterFunding(invoice)
-	keys, weights, resolved := r.groupParts(parts)
+	keys, weights, resolved := r.groupParts(invoice.TotalCents, parts)
 	if len(keys) == 0 {
 		// No position with an amount: the first position names where the
 		// document books, the standard without one.
@@ -65,13 +65,16 @@ func (r bookingResolver) documentLines(invoice parentbilling.ExportInvoice) ([]b
 }
 
 // groupParts groups the parts by where they book, in the order they come.
-// The weight of a group is the sum of its charges; a document of only
-// credits (a holiday Storno) weighs by the credits.
-func (r bookingResolver) groupParts(parts []parentbilling.ExportBookingPart) ([]lineKey, []int64, int) {
-	charges := false
+// The weight of a group is the sum of its charges; a negative document with
+// credits (a holiday Storno or credit) weighs by its credits, so a Storno
+// relieves where the invoice's charges booked and not where its negated
+// discounts did (#6624). A monthly Storno carries its invoice's charges.
+func (r bookingResolver) groupParts(total int64, parts []parentbilling.ExportBookingPart) ([]lineKey, []int64, int) {
+	credits := false
 	for _, part := range parts {
-		charges = charges || part.AmountCents > 0
+		credits = credits || part.AmountCents < 0
 	}
+	charges := total >= 0 || !credits
 	var keys []lineKey
 	var weights []int64
 	index := map[lineKey]int{}
@@ -120,6 +123,21 @@ func (r bookingResolver) partAccounts(part parentbilling.ExportBookingPart) (par
 		return r.meal(part.SchoolID, part.Day), true
 	}
 	return r.holiday(part.Day), true
+}
+
+// costCenterFallbacks names the holiday positions of the document with an
+// amount that book on the KOST1 of the holiday care (#6624), for the
+// protocol of the file.
+func costCenterFallbacks(invoice parentbilling.ExportInvoice) []parentbilling.CostCenterFallback {
+	var fallbacks []parentbilling.CostCenterFallback
+	for _, part := range invoice.Parts {
+		if part.CostCenterFallback == "" || part.AmountCents == 0 {
+			continue
+		}
+		fallbacks = append(fallbacks, parentbilling.CostCenterFallback{Number: invoice.Number, WeekStartsOn: part.WeekStartsOn,
+			WeekEndsOn: part.WeekEndsOn, Reason: part.CostCenterFallback, CostCenter: part.Accounts.CostCenter})
+	}
+	return fallbacks
 }
 
 func boolCount(value bool) int {

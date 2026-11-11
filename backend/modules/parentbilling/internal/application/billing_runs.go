@@ -307,7 +307,11 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 		documents[i].IssuedOn = &issuedOn
 		documents[i].DocumentKind = documentKind
 	}
-	if err := freezeHolidayAccounts(ctx, b.store, b.settings, reviewer.OrganizationID, documents); err != nil {
+	weeks, err := b.registrations.HolidayWeekHosts(ctx, reviewer, run.HolidayPeriodID)
+	if err != nil {
+		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read the host schools of the weeks: %w", err)
+	}
+	if err := freezeHolidayAccounts(ctx, b.store, b.settings, reviewer.OrganizationID, weeks, documents); err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
 	if err := b.store.IssueDocuments(ctx, reviewer.OrganizationID, run, year, first, documents); err != nil {

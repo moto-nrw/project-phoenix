@@ -87,7 +87,7 @@ func (f *FinanceExports) DatevFile(ctx context.Context, reviewer parentbilling.H
 	file := exportFile{format: parentbilling.ExportFormatDatev, runKind: runKind, runID: runID,
 		totalCents: batch.totalCents, careInvoices: batch.careInvoices, documents: batch.documents,
 		documentCount: len(batch.refs), bookingContent: bookingContent,
-		datevAll: options.All, datevBookings: batch.refs, resolvedPositions: batch.resolved,
+		datevAll: options.All, datevBookings: batch.refs, resolvedPositions: batch.resolved, costCenterFallbacks: batch.fallbacks,
 		fileName: datevFileName,
 		render: func(number int64) ([]byte, error) {
 			numbered := header
@@ -134,6 +134,9 @@ type datevBatch struct {
 	// resolved counts the positions booked on the values of the day of the
 	// export (#4821).
 	resolved int
+	// fallbacks are the holiday positions booked on the KOST1 of the
+	// holiday care (#6624).
+	fallbacks []parentbilling.CostCenterFallback
 }
 
 // datevRunBatch books the documents the selection of the options takes
@@ -165,6 +168,7 @@ func datevRunBatch(invoices []parentbilling.ExportInvoice, settings parentbillin
 func (b *datevBatch) add(invoice parentbilling.ExportInvoice, resolver bookingResolver) {
 	lines, resolved := resolver.documentLines(invoice)
 	b.resolved += resolved
+	b.fallbacks = append(b.fallbacks, costCenterFallbacks(invoice)...)
 	for _, line := range lines {
 		booking := DatevBooking{AmountCents: line.amountCents, Side: DatevDebit, Account: invoice.DebtorNumber,
 			CounterAccount: line.accounts.RevenueAccount, CostCenter1: line.accounts.CostCenter, CostCenter2: line.accounts.CostCenter2,

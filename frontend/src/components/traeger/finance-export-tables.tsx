@@ -6,6 +6,7 @@
 // frühere Datei wiederholt.
 
 import { Download, RotateCcw } from "lucide-react";
+import { useState } from "react";
 import { DATEV_READINESS_ID } from "~/components/traeger/finance-export-datev";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
@@ -20,6 +21,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import {
+  type CostCenterFallback,
   type DatevRunState,
   type DatevRunStates,
   type ExportProtocolEntry,
@@ -327,6 +329,17 @@ function entryNotes(entry: ExportProtocolEntry) {
       />,
     );
   }
+  if (entry.costCenterFallbacks.length > 0) {
+    const count = entry.costCenterFallbacks.length;
+    notes.push(
+      <StatusBadge
+        key="fallback"
+        wrap
+        label={`${count} ${count === 1 ? "Ferienposition" : "Ferienpositionen"} auf Ersatz-Kostenstelle`}
+        tone="orange"
+      />,
+    );
+  }
   if (entry.repeatOf !== null) {
     notes.push(
       <StatusBadge
@@ -348,6 +361,65 @@ function entryNotes(entry: ExportProtocolEntry) {
   return notes.length > 0 ? (
     <span className="flex flex-wrap gap-1.5">{notes}</span>
   ) : null;
+}
+
+const FALLBACK_REASONS: Record<CostCenterFallback["reason"], string> = {
+  no_school_cost_center:
+    "Die Schule der Woche hat an dem Tag keine Kostenstelle.",
+  no_host_school: "Zur Woche gibt es keine Schule.",
+};
+
+const FALLBACKS_SHOWN = 5;
+
+/**
+ * The holiday positions of a file that booked on the cost center of the
+ * holiday care instead of the school of their week (#6624): document, week,
+ * reason and the cost center used.
+ */
+function CostCenterFallbackList({
+  fallbacks,
+}: Readonly<{ fallbacks: readonly CostCenterFallback[] }>) {
+  const [open, setOpen] = useState(false);
+  if (fallbacks.length === 0) return null;
+  const shown = open ? fallbacks : fallbacks.slice(0, FALLBACKS_SHOWN);
+  return (
+    <span className="mt-1.5 block text-sm text-gray-600">
+      <ul className="space-y-1">
+        {shown.map((fallback, index) => (
+          <li
+            key={`${fallback.number}-${fallback.weekStartsOn ?? ""}-${index}`}
+          >
+            <span className="font-medium text-gray-900">{fallback.number}</span>
+            {fallback.weekStartsOn
+              ? `, Woche ab ${formatDate(fallback.weekStartsOn)}`
+              : null}
+            {": "}
+            {FALLBACK_REASONS[fallback.reason]}{" "}
+            {fallback.costCenter
+              ? `Gebucht auf ${fallback.costCenter}.`
+              : "Gebucht ohne Kostenstelle."}
+          </li>
+        ))}
+      </ul>
+      {fallbacks.length > FALLBACKS_SHOWN ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {open
+            ? "Weniger anzeigen"
+            : `${fallbacks.length - FALLBACKS_SHOWN} weitere anzeigen`}
+        </Button>
+      ) : null}
+      <span className="mt-1 block">
+        Für neue Rechnungen: Kostenstelle der Schule unter „Konten und
+        Kostenstellen“ eintragen.
+      </span>
+    </span>
+  );
 }
 
 const FILE_KIND_TONES = {
@@ -376,6 +448,7 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
         {entryNotes(entry) ? (
           <span className="mt-1.5 block">{entryNotes(entry)}</span>
         ) : null}
+        <CostCenterFallbackList fallbacks={entry.costCenterFallbacks} />
       </span>
     ),
     stacked: "title",

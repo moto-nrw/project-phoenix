@@ -125,6 +125,38 @@ const (
 		ORDER BY model.starts_at, model.ends_at, model.id`
 )
 
+// holidayWeekHostsQuery reads the weeks of one period of the Träger with
+// their host school (#6624).
+const holidayWeekHostsQuery = `SELECT id, starts_on, ends_on, host_school_id
+	FROM enrollment.holiday_period_weeks
+	WHERE organization_id = ? AND holiday_period_id = ?
+	ORDER BY starts_on, id`
+
+type holidayWeekHostRow struct {
+	ID           int64         `bun:"id"`
+	StartsOn     calendar.Date `bun:"starts_on,type:date"`
+	EndsOn       calendar.Date `bun:"ends_on,type:date"`
+	HostSchoolID int64         `bun:"host_school_id"`
+}
+
+// HolidayWeekHosts reads the host school of each week of a period of the
+// Träger in one statement; a period of another Träger has none.
+func (s *HolidayPeriodStore) HolidayWeekHosts(ctx context.Context, organizationID, periodID int64) ([]enrollment.HolidayWeekHost, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []holidayWeekHostRow
+	if err := db.NewRaw(holidayWeekHostsQuery, organizationID, periodID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read the host schools of the holiday weeks: %w", err)
+	}
+	hosts := make([]enrollment.HolidayWeekHost, len(rows))
+	for i, row := range rows {
+		hosts[i] = enrollment.HolidayWeekHost{WeekID: row.ID, StartsOn: row.StartsOn, EndsOn: row.EndsOn, HostSchoolID: row.HostSchoolID}
+	}
+	return hosts, nil
+}
+
 // ListHolidayPeriods reads every period of the Träger in three statements.
 func (s *HolidayPeriodStore) ListHolidayPeriods(ctx context.Context, organizationID int64) ([]enrollment.HolidayPeriod, error) {
 	db, err := traegerDB(ctx, organizationID)
