@@ -4,7 +4,6 @@ import { Check, Copy } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
-import { useSchoolQrLogo } from "~/components/qr-code/qr-brand-logo";
 import { QrCodeButton } from "~/components/qr-code/qr-code-button";
 
 // Kein API-Fehler: der Browser hat das Kopieren verweigert. Der Link steht
@@ -32,7 +31,6 @@ export function PublicLinkCopyButton({
   label = "Elternlink kopieren",
   qrCode,
 }: PublicLinkCopyButtonProps) {
-  const brandLogo = useSchoolQrLogo();
   const { copied, copy } = useClipboardCopy(componentId, 2000);
   const { showMessage } = useApiErrorDisplay();
   const Icon = copied ? Check : Copy;
@@ -61,7 +59,7 @@ export function PublicLinkCopyButton({
         url={url}
         title={qrCode.title}
         fileName={qrCode.fileName}
-        brandLogo={brandLogo}
+        brand="school"
       />
     </>
   );

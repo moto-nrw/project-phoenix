@@ -9,7 +9,6 @@ import { CopyField } from "~/components/ui/copy-field";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
-import { useSchoolQrLogo } from "~/components/qr-code/qr-brand-logo";
 import { QrCodeButton } from "~/components/qr-code/qr-code-button";
 
 interface Props {
@@ -37,7 +36,6 @@ export function EnrollmentLinkPanel({ tab }: Props) {
   }, [tab]);
 
   const enrollUrl = useEnrollmentPublicUrl({ tenantSlug });
-  const brandLogo = useSchoolQrLogo();
 
   if (!enabled || !enrollUrl) {
     return null;
@@ -69,7 +67,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
               url={enrollUrl}
               title="QR-Code für die Anmeldung"
               fileName="qr-code-anmeldung"
-              brandLogo={brandLogo}
+              brand="school"
             />
           }
         />

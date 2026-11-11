@@ -20,6 +20,7 @@ import { createLogger } from "~/lib/logger";
 import { brandedQrLayout, brandedQrSvg } from "~/lib/qr-code/branded-qr";
 import { brandedQrPng } from "~/lib/qr-code/qr-image";
 import { MOTO_QR_LOGO, QrCodeImage } from "./branded-qr-code";
+import { useQrBrandLogo, type QrBrand } from "./qr-brand-logo";
 import { useQrLogo, type QrLogoSource } from "./use-qr-logo";
 
 const logger = createLogger({ component: "QrCodeDialog" });
@@ -28,14 +29,6 @@ const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 /** 2048 px prints sharply up to about 17 cm at 300 dpi. */
 const PNG_SIZE = 2048;
-
-/** The logo a school or Träger has stored in moto. */
-export interface QrBrandLogo {
-  /** Same-origin address of the picture. */
-  readonly src: string;
-  /** Who it belongs to, as the choice names it: „Schule“, „Träger“. */
-  readonly label: string;
-}
 
 export interface QrCodeDialogProps {
   readonly isOpen: boolean;
@@ -46,8 +39,8 @@ export interface QrCodeDialogProps {
   readonly title: string;
   /** Name of the downloaded file, without ending. */
   readonly fileName: string;
-  /** Stored logo; the default when it exists, otherwise the moto logo. */
-  readonly brandLogo?: QrBrandLogo;
+  /** Whose stored logo is the default; without one it is the moto logo. */
+  readonly brand: QrBrand;
 }
 
 type LogoChoice = "brand" | "moto" | "custom";
@@ -63,8 +56,9 @@ export function QrCodeDialog({
   url,
   title,
   fileName,
-  brandLogo,
+  brand: brandOwner,
 }: QrCodeDialogProps) {
+  const brandLogo = useQrBrandLogo(brandOwner);
   const [choice, setChoice] = useState<LogoChoice | null>(null);
   const [customImage, setCustomImage] = useState<File | null>(null);
   const [removeBackground, setRemoveBackground] = useState(true);

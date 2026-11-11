@@ -17,7 +17,7 @@ export const LazyQrCodeDialog = dynamic(
 
 export type QrCodeTarget = Pick<
   QrCodeDialogProps,
-  "url" | "title" | "fileName" | "brandLogo"
+  "url" | "title" | "fileName" | "brand"
 >;
 
 interface QrCodeButtonProps extends QrCodeTarget {

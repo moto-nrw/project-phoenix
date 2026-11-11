@@ -1606,7 +1606,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@981",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@949",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@948",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@149",

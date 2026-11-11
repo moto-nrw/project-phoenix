@@ -11,6 +11,10 @@ const { useQrLogo, brandedQrPng, downloadBlob } = vi.hoisted(() => ({
 
 // The canvas work runs in a real browser only; the dialog is tested around it.
 vi.mock("./use-qr-logo", () => ({ useQrLogo }));
+vi.mock("./qr-brand-logo", () => ({
+  useQrBrandLogo: (brand: string) =>
+    brand === "school" ? { src: SCHOOL_LOGO, label: "Schule" } : undefined,
+}));
 vi.mock("~/lib/qr-code/qr-image", () => ({ brandedQrPng }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 
@@ -49,9 +53,7 @@ function renderDialog(withSchoolLogo: boolean) {
       url={URL_VALUE}
       title="QR-Code für die Anmeldung"
       fileName="qr-code-anmeldung"
-      brandLogo={
-        withSchoolLogo ? { src: SCHOOL_LOGO, label: "Schule" } : undefined
-      }
+      brand={withSchoolLogo ? "school" : "traeger"}
     />,
   );
 }

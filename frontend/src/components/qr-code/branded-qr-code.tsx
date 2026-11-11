@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { brandedQrLayout, brandedQrSvg } from "~/lib/qr-code/branded-qr";
 import type { QrLogo } from "~/lib/qr-code/qr-image";
-import type { QrBrandLogo } from "./qr-code-dialog";
+import { useQrBrandLogo, type QrBrand } from "./qr-brand-logo";
 import { useQrLogo } from "./use-qr-logo";
 
 /** The moto mark without its word: at this size the figures stay readable. */
@@ -39,9 +39,10 @@ export function QrCodeImage({
  */
 export function BrandedQrCode({
   url,
-  brandLogo,
+  brand: brandOwner,
   className,
-}: Readonly<{ url: string; brandLogo?: QrBrandLogo; className?: string }>) {
+}: Readonly<{ url: string; brand: QrBrand; className?: string }>) {
+  const brandLogo = useQrBrandLogo(brandOwner);
   const brand = useQrLogo(brandLogo?.src ?? null, true);
   const useMoto = brandLogo === undefined || brand.status === "failed";
   const moto = useQrLogo(useMoto ? MOTO_QR_LOGO : null, true);

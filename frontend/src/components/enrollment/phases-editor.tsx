@@ -75,7 +75,6 @@ import {
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
-import { useSchoolQrLogo } from "~/components/qr-code/qr-brand-logo";
 import { LazyQrCodeDialog } from "~/components/qr-code/qr-code-button";
 import { ENROLLMENT_QR_CODE } from "~/components/enrollment/public-link-copy-button";
 import { schoolClassLabel } from "~/lib/school-class-label";
@@ -1219,7 +1218,6 @@ function PhaseActions({
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [qrCodeOpen, setQrCodeOpen] = useState(false);
-  const brandLogo = useSchoolQrLogo();
   const toast = useToast();
   const { showMessage } = useApiErrorDisplay();
   const { copy } = useClipboardCopy(`PhaseActions:${phase.id}`);
@@ -1376,7 +1374,7 @@ function PhaseActions({
           onClose={() => setQrCodeOpen(false)}
           url={phaseUrl}
           {...ENROLLMENT_QR_CODE}
-          brandLogo={brandLogo}
+          brand="school"
         />
       ) : null}
     </>
