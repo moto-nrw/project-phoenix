@@ -16,15 +16,17 @@ import (
 // week takes every care day of the week. The care days of a week are its
 // days from Monday to Friday. A period may bound the care days one child
 // books in it, over all its weeks, time models and host schools; days spread
-// over several weeks are allowed. The child is the child of its
-// registration: a second registration is a child of its own.
+// over several weeks are allowed. The child is a HolidayChildKey: the same
+// family and the same child over all registrations of the period (#6446).
 //
-// The bound counts every booking of the child, placed or waiting: a waiting
-// booking that moves up never takes the child over the bound. A lower bound
-// later takes no booking away; a rebooking may then keep or lower the days,
-// not raise them. Each change of a child's bookings after its submission
-// runs under the lock of the period, so two changes of one child never both
-// read the old number of days.
+// The bound counts every booking of the child in every registration that is
+// not cancelled, placed, waiting or waiting for the office: a booking that
+// moves up or gets its place from the office never takes the child over the
+// bound. A lower bound later takes no booking away; a rebooking may then
+// keep or lower the days, not raise them. Each submission and each change of
+// a child's bookings runs under the lock of the period and counts after it
+// holds the lock, so two registrations of one child never both read the old
+// number of days.
 //
 // The capacity of a week by days holds for each of its days: a booking gets
 // its place only when every one of its days has a free place, otherwise all
@@ -52,11 +54,40 @@ var (
 
 // HolidayChildDayLimitRefusal names the child, by its position in the
 // written registration (0 for the first), the bound of its period and the
-// days it would book. It unwraps to ErrHolidayChildDayLimit.
+// days it would book in all. Elsewhere are the days of these that other
+// registrations of the same child hold (#6446). It unwraps to
+// ErrHolidayChildDayLimit.
 type HolidayChildDayLimitRefusal struct {
-	Child int
-	Limit int
-	Days  int
+	Child     int
+	Limit     int
+	Days      int
+	Elsewhere int
+}
+
+// HolidayChildKey is the child the bound of care days counts across the
+// registrations of a period (#6446, decision of 09.11.2026: the child is
+// known by the existing assignment of the child). A public registration has
+// no confirmed link to a student, and a holiday guest none at all, so the
+// key is defined explicitly: the family, that is the e-mail address of the
+// parent who registered (as for the closing day notice, #6434), together
+// with the child's first name, last name and date of birth. Case and outer
+// spaces do not count. The same name and date of birth in another family is
+// another child: nothing merges on name and date of birth alone.
+type HolidayChildKey struct {
+	GuardianEmail string
+	FirstName     string
+	LastName      string
+	BirthDate     calendar.Date
+}
+
+// NewHolidayChildKey builds the key of a child of a registration.
+func NewHolidayChildKey(guardianEmail, firstName, lastName string, birthDate calendar.Date) HolidayChildKey {
+	return HolidayChildKey{
+		GuardianEmail: strings.ToLower(strings.TrimSpace(guardianEmail)),
+		FirstName:     strings.ToLower(strings.TrimSpace(firstName)),
+		LastName:      strings.ToLower(strings.TrimSpace(lastName)),
+		BirthDate:     birthDate,
+	}
 }
 
 func (r *HolidayChildDayLimitRefusal) Error() string {

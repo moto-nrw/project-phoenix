@@ -77,19 +77,74 @@ func holidayBookedDayCount(bookings []enrollment.HolidayBookingInput, period enr
 }
 
 // refuseHolidayDayLimit refuses the bookings of the child at position child
-// that take more care days than the period allows (#4701). before is the
-// number of days the child booked so far: a rebooking of a child already
-// over a lowered bound may keep or lower its days, not raise them.
-func refuseHolidayDayLimit(child int, bookings []enrollment.HolidayBookingInput, period enrollment.HolidayPeriod, before int) error {
+// that take more care days than the period allows (#4701). elsewhere are the
+// days the same child holds in other registrations of the period (#6446);
+// they count with the bookings. before is the number of days the child
+// booked so far in this registration: a rebooking of a child already over a
+// lowered bound may keep or lower its days, not raise them.
+func refuseHolidayDayLimit(child int, bookings []enrollment.HolidayBookingInput, period enrollment.HolidayPeriod, before, elsewhere int) error {
 	if period.MaxDaysPerChild == nil {
 		return nil
 	}
 	limit := *period.MaxDaysPerChild
-	days := holidayBookedDayCount(bookings, period)
-	if days <= limit || (before > limit && days <= before) {
+	days := holidayBookedDayCount(bookings, period) + elsewhere
+	if days <= limit || (before+elsewhere > limit && days <= before+elsewhere) {
 		return nil
 	}
-	return &enrollment.HolidayChildDayLimitRefusal{Child: child, Limit: limit, Days: days}
+	return &enrollment.HolidayChildDayLimitRefusal{Child: child, Limit: limit, Days: days, Elsewhere: elsewhere}
+}
+
+// holidayDaysElsewhere counts the care days the child key names holds in
+// the period outside the child row exceptChildID (#6446). The caller holds
+// the period, so the count includes every registration committed before.
+// Without a bound it reads nothing.
+func holidayDaysElsewhere(ctx context.Context, store HolidayPlaceStore, organizationID int64, period enrollment.HolidayPeriod,
+	key enrollment.HolidayChildKey, exceptChildID int64) (int, error) {
+	if period.MaxDaysPerChild == nil {
+		return 0, nil
+	}
+	bookings, err := store.ReadHolidayChildBookings(ctx, organizationID, period.ID, key, exceptChildID)
+	if err != nil {
+		return 0, fmt.Errorf("enrollment: read the child's other holiday bookings: %w", err)
+	}
+	return holidayBookedDayCount(bookings, period), nil
+}
+
+// refuseSubmittedDayLimits refuses a child of the sent registration whose
+// days, together with those the same child holds in other registrations of
+// the period and those of an earlier entry of the same child in this one,
+// pass the bound of the period (#4701, #6446).
+func (h *HolidayRegistrations) refuseSubmittedDayLimits(ctx context.Context, organizationID int64, period enrollment.HolidayPeriod, input enrollment.HolidayRegistrationInput) error {
+	keys := make([]enrollment.HolidayChildKey, len(input.Children))
+	for i, child := range input.Children {
+		keys[i] = enrollment.NewHolidayChildKey(input.Guardian.Email, child.FirstName, child.LastName, child.BirthDate)
+		elsewhere, err := holidayDaysElsewhere(ctx, h.deps.Places, organizationID, period, keys[i], 0)
+		if err != nil {
+			return err
+		}
+		for j := range i {
+			if keys[j] == keys[i] {
+				elsewhere += holidayBookedDayCount(input.Children[j].Bookings, period)
+			}
+		}
+		if err := refuseHolidayDayLimit(i, child.Bookings, period, 0, elsewhere); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// holidayChildWithKey finds a child among the read registrations with the
+// key the bound of care days knows it by (#6446).
+func holidayChildWithKey(read []enrollment.HolidayRegistrationDetail, childID int64) (enrollment.HolidayRegistrationChild, enrollment.HolidayChildKey, bool) {
+	for _, registration := range read {
+		for _, child := range registration.Children {
+			if child.ID == childID {
+				return child, enrollment.NewHolidayChildKey(registration.GuardianEmail, child.FirstName, child.LastName, child.BirthDate), true
+			}
+		}
+	}
+	return enrollment.HolidayRegistrationChild{}, enrollment.HolidayChildKey{}, false
 }
 
 // fullHolidayDays names the days of each week by days whose places are all

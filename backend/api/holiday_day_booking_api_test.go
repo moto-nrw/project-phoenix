@@ -237,7 +237,7 @@ func TestHolidayChildDayLimitRefusesMoreDaysThanThePeriodAllows(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &refusal), rec.Body.String())
 	assert.Equal(t, "enrollment.holiday_child_day_limit", refusal.Code)
-	assert.Equal(t, map[string]any{"limit": float64(3), "days": float64(5), "child": float64(1)}, refusal.Details)
+	assert.Equal(t, map[string]any{"limit": float64(3), "days": float64(5), "elsewhere": float64(0), "child": float64(1)}, refusal.Details)
 
 	rec = publicJSON(t, d.public, http.MethodPost, registrationPath(d.period.PublicToken),
 		d.registration("ole.samstag@example.org", "Ole", d.days("2027-01-09")))

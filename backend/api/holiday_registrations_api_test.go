@@ -41,9 +41,16 @@ type holidayRegistrationFixture struct {
 // as the serving root does, with a local Turnstile.
 func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 	t.Helper()
+	return newHolidayRegistrationFixtureWithDays(t, owners.HolidayTestSchoolCalendar{})
+}
+
+// newHolidayRegistrationFixtureWithDays is newHolidayRegistrationFixture
+// whose host schools give no care on days (#6447).
+func newHolidayRegistrationFixtureWithDays(t *testing.T, days owners.HolidayTestSchoolCalendar) holidayRegistrationFixture {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	unit := testpkg.TenantRuntime(t, db)
-	traeger, _ := traegerPortalOn(t, db, unit)
+	traeger := traegerPortalWithDays(t, db, unit, days)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
@@ -58,7 +65,7 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 	settings, err := owners.BuildTraegerSettings(testpkg.NewDatabase(t, db), unit, slog.Default(), organizations, nil)
 	require.NoError(t, err)
 	resource := NewHolidayRegistrationHTTP(organizations, delivery.Module, TurnstileKeys{SiteKey: "site-key", SecretKey: "secret-key"},
-		turnstile.URL, testHealthCipher(), owners.HolidayTestSchoolCalendar{}, settings, slog.Default())
+		turnstile.URL, testHealthCipher(), days, settings, slog.Default())
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
