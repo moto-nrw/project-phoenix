@@ -6,6 +6,9 @@
   "api/traeger/care-notice-runs/[id]": [
     "GET traeger /traeger/care-notice-runs/id%2F1"
   ],
+  "api/traeger/care-notice-runs/[id]/discard": [
+    "POST traeger /traeger/care-notice-runs/id%2F1/discard"
+  ],
   "api/traeger/care-notice-runs/[id]/letters": [
     "GET traeger /traeger/care-notice-runs/id%2F1/letters",
     "POST traeger /traeger/care-notice-runs/id%2F1/letters"

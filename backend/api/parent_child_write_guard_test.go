@@ -24,6 +24,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -271,6 +272,44 @@ var composeParentMessaging = func(t *testing.T, db *bun.DB, deps *portalCompose.
 	deps.MessageReadRepo = owners.BindParentMessageInboxReads(threads.ParentMessageRead)
 	deps.Conversations = NewParentConversationCore(threads.ParentMessageThread, stores.Message, threads.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default())
 	deps.MessagingEnabled = owners.BindParentMessagingGate(settings.Settings, slog.Default())
+}
+
+// composeParentDeclarations binds Communication's announcements for the
+// Erklärungen of the parent feed.
+var composeParentDeclarations = func(t *testing.T, db *bun.DB, deps *portalCompose.Dependencies) {
+	deps.AnnouncementRepo = owners.BindParentAnnouncementAccess(NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, db)).ParentAnnouncement)
+}
+
+// guardDeclaration is a published Erklärung for one child with its frozen
+// first version.
+type guardDeclaration struct{ announcementID, versionID int64 }
+
+// declaration publishes a consent declaration addressed to the family's child.
+func (r *guardRig) declaration(t *testing.T, f childReadFamily) guardDeclaration {
+	t.Helper()
+	r.set(t, map[string]any{"operations.parent_news_enabled": true})
+	fixtures := NewParentAnnouncementFixtures(NewParentMessagingSuiteRepositories(testpkg.NewDatabase(t, r.db)).ParentAnnouncement)
+	ctx := tenant.WithTenantID(testpkg.WithTenantRuntime(t, context.Background(), r.db), f.TenantID)
+	a := &ParentAnnouncementFixture{
+		Title: "Ausflug in den Zoo", Body: "Wir fahren am Freitag in den Zoo.", Priority: "info",
+		DeliveryMode: "declaration", Active: true, CreatedBy: f.AccountID,
+		Declaration: communication.ParentDeclarationSettings{Kind: "consent", Signers: "any"},
+	}
+	a.TenantID = f.TenantID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, r.db, fixtures.Create, a))
+	require.NoError(t, testpkg.TenantCommand3(t, ctx, r.db, fixtures.ReplaceTargets, f.TenantID, a.ID,
+		[]*ParentAnnouncementTargetFixture{{TargetType: "student", TargetRefID: &f.StudentID}}))
+	version := NewParentDeclarationVersionFixture(a)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, r.db, fixtures.InsertDeclarationVersion, version))
+	published := time.Now().Add(-time.Minute)
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, r.db, fixtures.SetPublished, a.ID, &published))
+	return guardDeclaration{announcementID: a.ID, versionID: version.ID}
+}
+
+func declarationAnswer(f childReadFamily, d guardDeclaration, action string) childWrite {
+	return childWrite{http.MethodPost, fmt.Sprintf("/parent/me/news/%d/declaration", d.announcementID), map[string]any{
+		"student_id": fmt.Sprint(f.StudentID), "version_id": fmt.Sprint(d.versionID), "action": action,
+	}}
 }
 
 // markOwnerWrite is the row an owner-command double writes in the request's
@@ -664,6 +703,9 @@ const (
 	permRelatedManage  = "parent_portal.related_accounts.manage"
 	permEnrollSubmit   = "parent_portal.enrollment.submit"
 	permEnrollmentView = "parent_portal.enrollments.view"
+	// A revocation needs portal access only: the guardian withdraws the own
+	// consent also after losing this permission.
+	permDeclarationSubmit = "parent_portal.declarations.submit"
 )
 
 // guardedWrites are the parent write routes for an existing child.
@@ -878,6 +920,23 @@ func guardedWrites() []guardedWrite {
 			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
 				r.set(t, map[string]any{"operations.parent_notes_enabled": true})
 				return childWrite{http.MethodPost, fmt.Sprintf("/parent/me/messages/children/%d", f.StudentID), map[string]any{"body": "Felix wird heute abgeholt."}}
+			},
+		},
+		{
+			name:        "Erklärung zustimmen",
+			permissions: []string{permDeclarationSubmit},
+			compose:     composeParentDeclarations,
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				return declarationAnswer(f, r.declaration(t, f), "agreed")
+			},
+		},
+		{
+			name:    "Erklärung widerrufen",
+			compose: composeParentDeclarations,
+			prepare: func(t *testing.T, r *guardRig, f childReadFamily) childWrite {
+				declaration := r.declaration(t, f)
+				r.do(t, declarationAnswer(f, declaration, "agreed"), f.token)
+				return declarationAnswer(f, declaration, "revoked")
 			},
 		},
 		{

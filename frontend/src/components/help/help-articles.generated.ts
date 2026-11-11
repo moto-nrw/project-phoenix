@@ -5607,7 +5607,8 @@ export const parentCareChangeTopic =
 /**
  * Bereich `Angaben zum Kind` (i18n `parentMasterData`). Drei Arten von
  * Feldern: direkt aenderbar, nur auf Anfrage, und Gesundheitshinweise, die
- * sofort gespeichert werden.
+ * sofort gespeichert werden. Dazu der Widerruf der Foto-Einwilligung
+ * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494).
  */
 export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
   return {
@@ -5644,12 +5645,22 @@ export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
           "Die Eingabe wird automatisch gespeichert.",
         ],
       },
+      {
+        title: "Foto-Einwilligung widerrufen",
+        steps: [
+          "Gehen Sie zum Abschnitt `Einwilligungen und Bestätigungen`.",
+          "Tippen Sie bei `Foto-Einwilligung` auf `Widerrufen`.",
+          "Tippen Sie auf `Jetzt widerrufen`.",
+        ],
+      },
     ],
     result:
       "Unter dem Feld steht dann `Beantragte Änderung` mit dem neuen Wert und `In Prüfung`. Bis zur Bestätigung gilt der Wert darüber.",
     notes: [
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
       "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
+      "Nach dem Widerruf löscht moto ein gespeichertes Foto Ihres Kindes.",
+      "Ist die Betreuung beendet, können Sie die Foto-Einwilligung weiter widerrufen. Neu geben können Sie sie dann nicht mehr.",
     ],
     differences: [
       "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",
@@ -10904,6 +10915,17 @@ export const traegerCareMonthsTopic =
           ],
         },
         {
+          title: "Leeren Monatslauf verwerfen",
+          description:
+            "Hat ein offener Lauf nichts abzurechnen, lässt er sich nicht freigeben. Das passiert zum Beispiel, wenn alle Verträge des Monats geendet haben. Dann verwerfen Sie ihn.",
+          steps: [
+            "Öffnen Sie den Lauf. Steht dort `Dieser Lauf hat nichts abzurechnen`, wählen Sie oben `Leeren Lauf verwerfen`.",
+            "Wählen Sie im Fenster `Verwerfen`.",
+            "Der Lauf steht jetzt als `Verworfen` in der Liste. Er hat nichts ausgestellt. Wer ihn wann verworfen hat, steht im Verlauf.",
+            "Der Monat ist danach frei. Starten Sie bei Bedarf einen neuen Monatslauf.",
+          ],
+        },
+        {
           title: "Eine Rechnung vor der Freigabe ändern",
           description:
             "Sie ändern nur diese eine Rechnung in diesem Lauf. Die Familie und andere Rechnungen bleiben, wie sie sind. Jede Änderung braucht einen Grund und steht im Verlauf der Rechnung.",
@@ -10984,7 +11006,8 @@ export const traegerCareMonthsTopic =
         "In einem beitragsfreien Monat steht im Monatslauf bei `Beitragsfreier Monat`, wie viele Verträge keine Rechnung bekommen.",
       ],
       troubleshootingDetails: [
-        "Eine Schule lässt sich beim Start nicht wählen: Sie ist schon in einem offenen Lauf dieses Monats. Öffnen Sie diesen Lauf in der Liste und geben Sie ihn frei.",
+        "Eine Schule lässt sich beim Start nicht wählen: Sie ist schon in einem offenen Lauf dieses Monats. Öffnen Sie diesen Lauf in der Liste und geben Sie ihn frei. Hat er nichts abzurechnen, wählen Sie `Leeren Lauf verwerfen`.",
+        "`Leeren Lauf verwerfen` meldet, dass der Lauf etwas abzurechnen hat: Seit dem Öffnen ist ein Vertrag oder Preis dazugekommen. Prüfen Sie die Vorschau und geben Sie den Lauf frei.",
         "`Schreiben erstellen` geht nicht: Es fehlt eine Bankverbindung. Tragen Sie sie unter `Einstellungen`, `Abrechnungsvorgaben` ein.",
         "Ein Schreiben geht nicht raus, weil die Person nicht mehr im Vertrag steht: Stornieren Sie die Rechnung. Wählen Sie dann `Neu ausstellen`. Die neue Rechnung geht an die Person im Vertrag.",
         "`Erneut senden` fehlt: Die Mail ist noch unterwegs, oder die Adresse ist gesperrt. Der Hinweis bei der Rechnung sagt, was zu tun ist. Drucken Sie das Schreiben, wenn die Adresse gesperrt ist.",
@@ -11091,8 +11114,9 @@ export const traegerCareNoticesTopic =
         "Ein Bescheid geht nicht raus und es steht `Die Person zahlt nicht mehr für diesen Vertrag`: Empfänger oder Zahler haben sich nach dem Ausstellen geändert. Der Bescheid geht nur an die Adresse, die er nennt. Drucken Sie den Bescheid und geben Sie ihn der Familie auf Papier.",
         "Ein Bescheid steht nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz, oder das Konto der Familie hat eine andere E-Mail-Adresse. Die Familie bekommt ihn per E-Mail oder auf Papier.",
         "`Bescheide ausstellen` geht nicht und oben steht `Rechtsbehelfsbelehrung fehlt`: Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Dafür brauchen Sie das Recht `Einstellungen`.",
-        "Ein Jahreslauf lässt sich nicht starten: Für dieses Jahr gibt es schon einen offenen Lauf. Öffnen Sie ihn in der Liste. Stellen Sie die Bescheide aus oder schließen Sie den leeren Lauf ab.",
-        "Die Vorschau ist leer: Es gibt nichts Neues auszustellen. Wählen Sie `Jahreslauf abschließen` und dann `Abschließen`. Danach können Sie einen neuen Jahreslauf für andere Schulen starten.",
+        "Ein Jahreslauf lässt sich nicht starten: Für dieses Jahr gibt es schon einen offenen Lauf. Öffnen Sie ihn in der Liste. Stellen Sie die Bescheide aus, oder schließen oder verwerfen Sie den leeren Lauf.",
+        "Die Vorschau ist leer, weil alle Bescheide noch gelten: Es gibt nichts Neues auszustellen. Wählen Sie `Jahreslauf abschließen` und dann `Abschließen`. Danach können Sie einen neuen Jahreslauf für andere Schulen starten.",
+        "Der Lauf zeigt `Dieser Lauf hat nichts abzurechnen`: Seine Schulen haben in diesem Jahr keinen Vertrag. Wählen Sie `Leeren Lauf verwerfen` und dann `Verwerfen`. Der Lauf steht danach als `Verworfen` in der Liste, und das Jahr ist frei für einen neuen Jahreslauf.",
         "Im Monatslauf steht `Durch aufgehobenen Bescheid gesperrt`: Ein Änderungsbescheid hat den Monat auf 0,00 € gesetzt. Der Monat bleibt gesperrt, damit ihn niemand doppelt abrechnet. Wollen Sie ihn abrechnen, stellen Sie mit `Neuen Bescheid ausstellen` einen neuen Bescheid aus.",
       ],
       related: [

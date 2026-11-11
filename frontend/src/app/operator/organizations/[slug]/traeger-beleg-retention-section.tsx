@@ -22,6 +22,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -72,10 +76,13 @@ export function TraegerBelegRetentionSection({
     () => belegRetentionService.getOverview(organizationId),
     { keepPreviousData: false },
   );
+  // A failed reload keeps the confirmed tables and stands above them; only
+  // without data does the error replace the section (#6636).
   const loadError = useSwrLoadError(
     error,
     "die Belegaufbewahrung",
     () => void mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const [instructionOpen, setInstructionOpen] = useState(false);
   const [suspensionOpen, setSuspensionOpen] = useState(false);
@@ -85,12 +92,14 @@ export function TraegerBelegRetentionSection({
   const [reviewing, setReviewing] = useState<BelegClarification | null>(null);
   const reload = useCallback(() => mutate(), [mutate]);
 
-  if (loadError) return <LoadErrorAlert error={loadError} />;
+  if (loadError && data === undefined)
+    return <LoadErrorAlert error={loadError} />;
   const loading = isLoading || data === undefined;
   const today = berlinTodayISO();
 
   return (
     <>
+      <LoadErrorAlert error={loadError} />
       <SectionCard
         title="Klärungsliste"
         description="Belege ohne Weisung oder ohne berechenbares Datum. moto löscht sie nicht. Klären Sie sie bis zum Prüfdatum mit dem Träger und erfassen Sie jede Prüfung."
@@ -399,24 +408,32 @@ function SuspensionsCard({
   const [busy, setBusy] = useState(false);
   const { show: showError } = useApiErrorDisplay();
   const { success } = useToast();
+  // Only a failed lift is an error of the lift; a failed reload afterwards
+  // is a load error with a retry that only reloads (#6636).
+  const liftRefresh = useRefreshAfterWrite(
+    "die Anzeige der Aussetzungen",
+    onChanged,
+  );
+  const { refresh: refreshAfterLift } = liftRefresh;
 
   const lift = useCallback(async () => {
     if (!lifting) return;
     setBusy(true);
     try {
       await belegRetentionService.liftSuspension(organizationId, lifting.id);
-      setLifting(null);
-      success("Die Aussetzung ist aufgehoben.");
-      await onChanged();
     } catch (liftError) {
       logger.warn("beleg_suspension_lift_failed", {
         error: errorMessage(liftError),
       });
       void showError(liftError, { object: "die Aufhebung der Aussetzung" });
-    } finally {
       setBusy(false);
+      return;
     }
-  }, [lifting, onChanged, organizationId, showError, success]);
+    setLifting(null);
+    setBusy(false);
+    success("Die Aussetzung ist aufgehoben.");
+    await refreshAfterLift();
+  }, [lifting, organizationId, refreshAfterLift, showError, success]);
 
   const columns: DataTableColumn<RetentionSuspension>[] = [
     {
@@ -470,6 +487,7 @@ function SuspensionsCard({
           </Button>
         }
       >
+        <LoadErrorAlert error={liftRefresh.error} className="mb-4" />
         <DataTable
           columns={columns}
           rows={[...suspensions]}

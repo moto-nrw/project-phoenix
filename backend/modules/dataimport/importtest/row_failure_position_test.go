@@ -42,10 +42,15 @@ var refusedMarkers = map[string][2]string{
 	"users.student_guardian_relationships":      {"emergency_priority", "7"},
 	"users.student_guardian_pickup_permissions": {"pickup_notes", "Refusednotiz"},
 	"auth.guardian_student_access":              {"permissions", "{}"}, // pickup_only grants no permission
-	"users.staff_master_data":                   {"address_city", "Refusedstadt"},
-	"users.staff_qualifications":                {"name", "Refusedkurs"},
-	"users.class_list_entries":                  {"last_name", "Refused"},
-	"active.staff_balance_adjustments":          {"minutes_delta", "-150"},
+	// The enrollment batch of step 7: the profiles in one statement before the
+	// rows (marked by the profile row's address above), each membership in
+	// the row loop, the care profiles in one statement after the rows.
+	"users.student_school_memberships": {"school_class", "9Z"},
+	"users.student_care_profiles":      {"departure_days", `{"fri": "bus"}`},
+	"users.staff_master_data":          {"address_city", "Refusedstadt"},
+	"users.staff_qualifications":       {"name", "Refusedkurs"},
+	"users.class_list_entries":         {"last_name", "Refused"},
+	"active.staff_balance_adjustments": {"minutes_delta", "-150"},
 }
 
 func installRefusedMarkers(t *testing.T, db *bun.DB) {
@@ -117,6 +122,9 @@ func TestImportBatchesRefusedRowKeepsTheRowPathOutcome(t *testing.T) {
 		{"student create", "users.student_guardian_relationships", "creation_failed", studentCreateGuardianBundledAt(db, func(g *importModels.GuardianImportData) { g.EmergencyPriority = 7 })},
 		{"student create", "users.student_guardian_pickup_permissions", "creation_failed", studentCreateGuardianBundledAt(db, func(g *importModels.GuardianImportData) { g.PickupNotes = "Refusednotiz" })},
 		{"student create", "auth.guardian_student_access", "creation_failed", studentCreateGuardianBundledAt(db, func(g *importModels.GuardianImportData) { g.GuardianRole = "pickup_only" })},
+		{"enrollment batch", "users.student_profiles", "creation_failed", studentCreateEnrollmentAt(db, func(row *importModels.StudentImportRow) { row.AddressStreet = "Refusedweg 1" })},
+		{"enrollment batch", "users.student_school_memberships", "creation_failed", studentCreateEnrollmentAt(db, func(row *importModels.StudentImportRow) { row.SchoolClass = "9Z" })},
+		{"enrollment batch", "users.student_care_profiles", "creation_failed", studentCreateEnrollmentAt(db, func(row *importModels.StudentImportRow) { row.DepartureDays = map[string]string{"fri": "bus"} })},
 		{"student update", "users.student_profiles", "update_failed", studentUpdateAt(db)},
 		{"staff create", "users.persons", "creation_failed", staffCreateAt(db, func(row *importModels.StaffImportRow) { row.FirstName = "Refused" })},
 		{"staff create", "users.staff_master_data", "creation_failed", staffCreateAt(db, func(row *importModels.StaffImportRow) { row.AddressCity = "Refusedstadt" })},
@@ -247,6 +255,41 @@ func studentCreateGuardianBundledAt(db *bun.DB, mark func(*importModels.Guardian
 			"users.student_guardian_pickup_permissions", "auth.guardian_student_access"} {
 			// The tables come from the fixed list above, never input.
 			require.Equal(t, persisted, countIn(t, db, `SELECT count(*) FROM `+table+` WHERE tenant_id = ?`), "%s keeps the committed chunks' guardians only", table)
+		}
+		return positionOutcome{
+			created: result.CreatedCount, updated: result.UpdatedCount, failures: blockingFailures(result), persisted: persisted,
+		}
+	}
+}
+
+// studentCreateEnrollmentAt is studentCreateBundledAt for the enrollment
+// batch (#5552 step 7): row k fails in the profile statement, in its
+// membership or in the care statement; the chunk replays row by row and the
+// replay names row k. The three enrollment tables keep exactly the children
+// of the committed chunks, each once.
+func studentCreateEnrollmentAt(db *bun.DB, mark func(*importModels.StudentImportRow)) func(*testing.T, int, int) positionOutcome {
+	return func(t *testing.T, n, k int) positionOutcome {
+		module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+		require.NoError(t, err)
+		actor := newImporter(t, db)
+		rows := studentBatch(0, n)
+		mark(&rows[k-1])
+		result, err := module.Import.ImportBatches(uploadContext(t, db), importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true,
+		}, importModels.BatchAudit{EntityType: "student", Filename: "position.csv", AccountID: actor.accountID})
+		require.Error(t, err)
+		observation := (*module.Observations)[0]
+		require.Equal(t, 1, observation.BatchFallbacks, "the enrollment batch failed and the chunk replayed")
+		require.Zero(t, observation.BatchesRetried)
+		persisted := countIn(t, db, `SELECT count(*) FROM users.student_profiles WHERE tenant_id = ?`)
+		for _, query := range []string{
+			`SELECT count(DISTINCT person_id) FROM users.student_profiles WHERE tenant_id = ?`,
+			`SELECT count(*) FROM users.student_school_memberships WHERE tenant_id = ?`,
+			`SELECT count(DISTINCT student_profile_id) FROM users.student_school_memberships WHERE tenant_id = ?`,
+			`SELECT count(*) FROM users.student_care_profiles WHERE tenant_id = ?`,
+			`SELECT count(DISTINCT membership_id) FROM users.student_care_profiles WHERE tenant_id = ?`,
+		} {
+			require.Equal(t, persisted, countIn(t, db, query), "%s: the committed chunks' children, each once", query)
 		}
 		return positionOutcome{
 			created: result.CreatedCount, updated: result.UpdatedCount, failures: blockingFailures(result), persisted: persisted,
