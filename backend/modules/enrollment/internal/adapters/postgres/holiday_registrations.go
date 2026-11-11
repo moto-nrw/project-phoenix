@@ -164,13 +164,13 @@ const (
 			 privacy_consent_at, health_consent_at, binding_confirmed_at, custody_confirmed_at, declaration_name, benefits_declared,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
 			form_version, custom_data, legal_acceptances, consent_version,
-			guardian_address_street, guardian_address_postal_code, guardian_address_city)
+			guardian_address_street, guardian_address_postal_code, guardian_address_city, retention_days)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
 			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END,
 			CASE WHEN ? THEN statement_timestamp() END, NULLIF(?, ''), ?,
 			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb,
 			(SELECT COALESCE(jsonb_object_agg(key, statement_timestamp()), '{}'::jsonb) FROM unnest(?::text[]) AS accepted(key)),
-			NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))
+			NULLIF(?, 0), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?)
 		RETURNING id, submitted_at`
 	setHolidayFamilyHealthQuery = `UPDATE enrollment.holiday_registrations SET health_data = ?
 		WHERE organization_id = ? AND id = ?`
@@ -260,7 +260,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
 		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.CustodyConfirmed, input.DeclarationName, input.BenefitsDeclared,
 		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers, pgdialect.Array(acceptedHolidayKeys(input.LegalAcceptances)),
-		input.ConsentVersion, address.Street, address.PostalCode, address.City).Scan(ctx, &receipt); err != nil {
+		input.ConsentVersion, address.Street, address.PostalCode, address.City, input.RetentionDays).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
 	sealed, err := storeHolidayFamilyHealth(ctx, db, organizationID, receipt.ID, len(input.Children), seal)
@@ -364,32 +364,65 @@ func insertHolidayContacts(ctx context.Context, db bun.IDB, organizationID, regi
 }
 
 const (
-	// deleteEndedHolidayRegistrationsQuery deletes, in one statement, the
-	// registrations of every period whose last week ended before the cutoff
-	// with their children, contacts and bookings (cascade), and the audit
-	// trail of those periods: the entries of a list or an export, which name
-	// no registration, and with them those of the deleted registrations
-	// (#4663). The same statement writes one row per period into the deletion
-	// log with the counts of what went (#4667, ADR 0118). All parts read the
-	// same snapshot, so the counted children are the ones the cascade
-	// deletes. A period with nothing left to delete writes no row.
-	deleteEndedHolidayRegistrationsQuery = `WITH ended AS (
+	// deleteEndedHolidayRegistrationsQuery deletes, in one statement, every
+	// registration whose period ended more days before the given day than
+	// the registration keeps (#6691), with its children, contacts and
+	// bookings (cascade) and its entries of the audit trail (#4663). The
+	// entries of a list or an export name no registration: they go once the
+	// period ended more than the health retention ago and none of its
+	// registrations stays. In the registrations that stay, the statement
+	// deletes the sealed health information of the periods that ended more
+	// than the health retention ago. It writes one row per period into the
+	// deletion log with the counts of what went (#4667, ADR 0118). All parts
+	// read the same snapshot, so the counted children are the ones the
+	// cascade deletes. A period with nothing to delete writes no row.
+	// Parameters: today, health retention in days.
+	deleteEndedHolidayRegistrationsQuery = `WITH run AS (
+			SELECT ?::date AS today, ?::int AS health_days
+		), ended AS (
 			SELECT week.organization_id, week.holiday_period_id, max(week.ends_on) AS ended_on
 			FROM enrollment.holiday_period_weeks AS week
 			GROUP BY week.organization_id, week.holiday_period_id
-			HAVING max(week.ends_on) < ?
+			HAVING max(week.ends_on) + (SELECT health_days FROM run) < (SELECT today FROM run)
+		), expired AS (
+			SELECT registration.organization_id, registration.holiday_period_id, registration.id
+			FROM enrollment.holiday_registrations AS registration
+			JOIN ended ON ended.organization_id = registration.organization_id
+				AND ended.holiday_period_id = registration.holiday_period_id
+			WHERE ended.ended_on + registration.retention_days < (SELECT today FROM run)
 		), registrations AS (
 			DELETE FROM enrollment.holiday_registrations AS registration
-			USING ended
-			WHERE registration.organization_id = ended.organization_id
-				AND registration.holiday_period_id = ended.holiday_period_id
+			USING expired
+			WHERE registration.organization_id = expired.organization_id AND registration.id = expired.id
 			RETURNING registration.organization_id, registration.holiday_period_id, registration.id
 		), audit AS (
 			DELETE FROM enrollment.holiday_registration_audit AS entry
 			USING ended
 			WHERE entry.organization_id = ended.organization_id
 				AND entry.holiday_period_id = ended.holiday_period_id
+				AND (entry.holiday_registration_id IN (SELECT id FROM expired WHERE expired.organization_id = entry.organization_id)
+					OR (entry.holiday_registration_id IS NULL AND NOT EXISTS (
+						SELECT 1 FROM enrollment.holiday_registrations AS kept
+						WHERE kept.organization_id = ended.organization_id
+							AND kept.holiday_period_id = ended.holiday_period_id
+							AND kept.id NOT IN (SELECT id FROM expired WHERE expired.organization_id = kept.organization_id))))
 			RETURNING entry.organization_id, entry.holiday_period_id
+		), family_health AS (
+			UPDATE enrollment.holiday_registrations AS registration SET health_data = NULL
+			FROM ended
+			WHERE registration.organization_id = ended.organization_id
+				AND registration.holiday_period_id = ended.holiday_period_id
+				AND registration.health_data IS NOT NULL
+				AND registration.id NOT IN (SELECT id FROM expired WHERE expired.organization_id = registration.organization_id)
+			RETURNING registration.organization_id, registration.holiday_period_id
+		), child_health AS (
+			UPDATE enrollment.holiday_registration_children AS child SET health_data = NULL
+			FROM ended
+			WHERE child.organization_id = ended.organization_id
+				AND child.holiday_period_id = ended.holiday_period_id
+				AND child.health_data IS NOT NULL
+				AND child.holiday_registration_id NOT IN (SELECT id FROM expired WHERE expired.organization_id = child.organization_id)
+			RETURNING child.organization_id, child.holiday_period_id
 		), counts AS (
 			SELECT ended.organization_id, ended.holiday_period_id, ended.ended_on,
 				(SELECT count(*) FROM registrations
@@ -402,15 +435,21 @@ const (
 						AND registrations.holiday_period_id = ended.holiday_period_id) AS children,
 				(SELECT count(*) FROM audit
 					WHERE audit.organization_id = ended.organization_id
-						AND audit.holiday_period_id = ended.holiday_period_id) AS audit_entries
+						AND audit.holiday_period_id = ended.holiday_period_id) AS audit_entries,
+				(SELECT count(*) FROM family_health
+					WHERE family_health.organization_id = ended.organization_id
+						AND family_health.holiday_period_id = ended.holiday_period_id)
+				+ (SELECT count(*) FROM child_health
+					WHERE child_health.organization_id = ended.organization_id
+						AND child_health.holiday_period_id = ended.holiday_period_id) AS health_records
 			FROM ended
 		)
 		INSERT INTO enrollment.holiday_registration_deletions
-			(organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries)
-		SELECT organization_id, holiday_period_id, ended_on, registrations, children, audit_entries
+			(organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries, health_records)
+		SELECT organization_id, holiday_period_id, ended_on, registrations, children, audit_entries, health_records
 		FROM counts
-		WHERE registrations + audit_entries > 0
-		RETURNING id, organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries, deleted_at`
+		WHERE registrations + audit_entries + health_records > 0
+		RETURNING id, organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries, health_records, deleted_at`
 	deleteAllExpiredHolidayRateLimitsQuery = `DELETE FROM enrollment.holiday_registration_rate_limits
 		WHERE window_start < statement_timestamp() - (? * INTERVAL '1 second')`
 	deleteExpiredHolidayRegistrationDeletionsQuery = `DELETE FROM enrollment.holiday_registration_deletions
@@ -429,15 +468,18 @@ type holidayRegistrationDeletionRow struct {
 	Registrations   int           `bun:"registrations"`
 	Children        int           `bun:"children"`
 	AuditEntries    int           `bun:"audit_entries"`
+	HealthRecords   int           `bun:"health_records"`
 	DeletedAt       time.Time     `bun:"deleted_at"`
 }
 
-// DeleteHolidayRegistrationsEndedBefore deletes, across every Träger, the
-// registrations and the audit trail of the periods whose last week ended
-// before cutoff, logs each period in the deletion log of its Träger, and
-// deletes the expired abuse counters. Only the administrative transaction of
-// the hourly cleanup may delete across Träger.
-func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date, counterRetention time.Duration) (int, error) {
+// DeleteExpiredHolidayRegistrations deletes, across every Träger, the
+// registrations whose period ended more days before today than they keep
+// with their audit trail, and the health information of the periods that
+// ended more than healthDays before today. It logs each period in the
+// deletion log of its Träger and deletes the expired abuse counters. Only
+// the administrative transaction of the hourly cleanup may delete across
+// Träger.
+func (s *HolidayRegistrationStore) DeleteExpiredHolidayRegistrations(ctx context.Context, today calendar.Date, healthDays int, counterRetention time.Duration) (int, error) {
 	if !tenant.IsAdminTx(ctx) {
 		return 0, errors.New("enrollment postgres: the holiday registration retention requires the administrative transaction")
 	}
@@ -450,12 +492,12 @@ func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx con
 		return 0, err
 	}
 	var logged []holidayRegistrationDeletionRow
-	if err := db.NewRaw(deleteEndedHolidayRegistrationsQuery, cutoff).Scan(ctx, &logged); err != nil {
+	if err := db.NewRaw(deleteEndedHolidayRegistrationsQuery, today, healthDays).Scan(ctx, &logged); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: delete ended holiday registrations: %w", err)
 	}
 	deleted := 0
 	for _, period := range logged {
-		deleted += period.Registrations + period.AuditEntries
+		deleted += period.Registrations + period.AuditEntries + period.HealthRecords
 	}
 	counters, err := affectedRows(db.NewRaw(deleteAllExpiredHolidayRateLimitsQuery, retentionSeconds).Exec(ctx))
 	if err != nil {

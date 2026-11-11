@@ -1,6 +1,38 @@
+import { wireErrorCode } from "~/lib/api-error";
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { PORTAL_KEYS, portalLogPath } from "~/lib/portal-paths";
 
 const FALLBACK_RETRY_SECONDS = 60;
+
+// The request limiter of the API answers with this class code. A 429 with a
+// code of its own (too many registrations from one address, too many uploads)
+// refuses one action for its own, much longer window.
+const REQUEST_LIMIT_CODE: ErrorCode = "general.unavailable";
+
+/**
+ * Whether a 429 body comes from the request limiter and so locks the bucket.
+ * A refusal with its own code concerns one action: locking every write of
+ * the tab for its Retry-After would keep a parent from sending the form an
+ * hour or a day long (#6726). A body without a code locks as before.
+ */
+export function isRequestLimitRefusal(body: unknown): boolean {
+  const code =
+    typeof body === "object" && body !== null && "code" in body
+      ? wireErrorCode(body.code)
+      : undefined;
+  return code === undefined || code === REQUEST_LIMIT_CODE;
+}
+
+async function responseIsRequestLimitRefusal(
+  response: Response,
+): Promise<boolean> {
+  try {
+    return isRequestLimitRefusal(await response.clone().json());
+  } catch {
+    // No JSON body: nothing names another limit, so the bucket locks.
+    return true;
+  }
+}
 
 // Client log shipping has its own quota and pauses itself on 429 (logger.ts).
 // A log 429 says nothing about the user's own requests, so it must neither
@@ -179,7 +211,11 @@ export function installRateLimitFetchGuard(): () => void {
     }
 
     const response = await originalFetch(input, init);
-    if (guardedApiRequest(input) && response.status === 429) {
+    if (
+      guardedApiRequest(input) &&
+      response.status === 429 &&
+      (await responseIsRequestLimitRefusal(response))
+    ) {
       rateLimitSeconds(response.headers.get("Retry-After"), method);
     }
     return response;

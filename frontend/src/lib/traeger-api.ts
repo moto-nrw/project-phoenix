@@ -522,6 +522,11 @@ export interface HolidayPeriodInput {
   readonly binding: boolean;
   readonly notes: string;
   /**
+   * The Träger's text in the mail parents get when the office confirms
+   * their registration (#6672); empty sends the fixed part only.
+   */
+  readonly acceptanceMailText?: string;
+  /**
    * Children with a holiday care wish from the OGS registration come first
    * (#4703); the Träger setting decides what happens without one.
    */
@@ -581,6 +586,7 @@ interface BackendHolidayPeriod {
   registration_closes_on: string;
   binding: boolean;
   notes: string;
+  acceptance_mail_text?: string;
   holiday_wish_rule?: boolean;
   status: "draft" | "published";
   published_at: string | null;
@@ -600,6 +606,7 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
     registrationClosesOn: period.registration_closes_on,
     binding: period.binding,
     notes: period.notes,
+    acceptanceMailText: period.acceptance_mail_text ?? "",
     holidayWishRule: period.holiday_wish_rule ?? false,
     status: period.status,
     publishedAt: period.published_at,
@@ -635,6 +642,7 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
     registration_closes_on: input.registrationClosesOn,
     binding: input.binding,
     notes: input.notes,
+    acceptance_mail_text: input.acceptanceMailText ?? "",
     holiday_wish_rule: input.holidayWishRule,
     max_days_per_child: input.maxDaysPerChild ?? null,
     allocation_mode: input.allocationMode ?? "arrival",

@@ -23,6 +23,10 @@ type (
 	// reads through PhaseOfferings.
 	PhaseBooking     = enrollment.OfferingBooking
 	PhaseBookingDate = enrollment.Date
+	// PhaseUpdateReport and CareBeyondPhaseEnd are what a phase edit reports
+	// about children in care past a shortened end (#6598).
+	PhaseUpdateReport  = enrollment.PhaseUpdateReport
+	CareBeyondPhaseEnd = enrollment.CareBeyondPhaseEnd
 )
 
 // NewApprovedOfferingProjection composes the approved-offering projection.

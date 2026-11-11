@@ -29,9 +29,10 @@ import type {
  * Version of the consent texts the translations of this form belong to
  * (#4722, #5626). The German texts come with the offer and bind; a
  * translation is shown below them only while the offer has this version.
- * Version 3 adds the custody and the name as the declaration.
+ * Version 3 adds the custody and the name as the declaration. Version 4
+ * names the retention of the Träger in days instead of three months (#6691).
  */
-export const HOLIDAY_CONSENT_VERSION = 3;
+export const HOLIDAY_CONSENT_VERSION = 4;
 
 /** Bounds the typed name like the name of the parent. */
 export const DECLARATION_NAME_MAX_LENGTH = 100;
@@ -852,6 +853,8 @@ export function payloadFromDraft(
     form_version: offer.form.version,
     // The version of the texts the form showed, as the offer named them.
     consent_version: offer.consentTexts.version,
+    // The retention its privacy text named; the server refuses another one.
+    retention_days: offer.consentTexts.retentionDays,
     custom_data: familyAnswersToSend(draft, offer.form),
     ...(offer.allocationMode === "criteria"
       ? {

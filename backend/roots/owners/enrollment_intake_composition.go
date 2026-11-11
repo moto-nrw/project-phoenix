@@ -10,6 +10,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/observability"
 
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
@@ -18,7 +19,7 @@ import (
 func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake {
 	return enrollmentCompose.NewIntake(enrollmentCompose.IntakeDependencies{
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
-		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
+		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, RateLimitRefusals: observability.RecordRateLimitRejection, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
 		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: enrollmentMatches(src.StudentRepo),
 		GuardianHold: src.GuardianHold, Outbox: src.OutboxEnqueuer,
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,

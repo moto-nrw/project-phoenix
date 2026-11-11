@@ -220,6 +220,8 @@ export interface HolidayRegistrationPayload {
    * hosting OGS reads the health information, 3 adds the declaration (#5626).
    */
   readonly consent_version: number;
+  /** Days of retention the privacy text the parent agreed to names (#6691). */
+  readonly retention_days: number;
   /** Answers to the questions per family, by key (#5198). */
   readonly custom_data: Readonly<Record<string, unknown>>;
   /** Answers to the criteria of the family, by criterion ID (#4700). */

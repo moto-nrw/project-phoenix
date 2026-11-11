@@ -319,6 +319,60 @@ describe("CareExitModal", () => {
     );
   });
 
+  // Nach dem Kürzen einer Anmeldephase schlägt moto deren neues Ende vor
+  // (#6598). Es bleibt ein neues Ende, keine Korrektur eines geplanten.
+  it("suggests the shortened phase end as the last care day", async () => {
+    render(
+      <ModalProvider>
+        <CareExitModal
+          isOpen
+          studentIds={["1", "2"]}
+          suggestedLastCareDay="2026-12-18"
+          onClose={vi.fn()}
+          onFinished={vi.fn()}
+        />
+      </ModalProvider>,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Betreuung von 2 Kindern beenden" }),
+    ).toBeVisible();
+    expect(screen.getByText("18.12.2026")).toBeVisible();
+    pickReason("Umzug");
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith(
+        expect.objectContaining({
+          studentIds: ["1", "2"],
+          lastCareDay: "2026-12-18",
+        }),
+      ),
+    );
+  });
+
+  // Ein vorgeschlagener Tag in der Vergangenheit ist nicht wählbar.
+  it("starts on today when the suggested day has passed", async () => {
+    render(
+      <ModalProvider>
+        <CareExitModal
+          isOpen
+          studentIds={["1"]}
+          suggestedLastCareDay="2026-08-20"
+          onClose={vi.fn()}
+          onFinished={vi.fn()}
+        />
+      </ModalProvider>,
+    );
+
+    pickReason("Umzug");
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith(
+        expect.objectContaining({ lastCareDay: "2026-08-30" }),
+      ),
+    );
+  });
+
   it("starts a fresh exit on today, not on some earlier plan", () => {
     renderModal();
     expect(

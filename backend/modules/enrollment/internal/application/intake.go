@@ -213,18 +213,21 @@ type ManualEnrollmentDecider interface {
 // intake degrades without them; the intake reports every other missing
 // dependency when it needs it.
 type IntakeDependencies struct {
-	Requests      IntakeRequests
-	Children      IntakeChildren
-	Guardians     IntakeGuardians
-	LateInvites   IntakeLateInvites
-	Catalog       IntakeCatalog
-	RateLimits    SubmissionRateLimiter
-	Offerings     IntakeOfferings
-	Bookings      enrollmentNative.CareBookingCommands
-	Capacity      enrollmentNative.OfferingCapacity
-	Schools       enrollmentNative.SchoolDirectory
-	Notifications enrollmentNative.Notifications
-	Students      StudentMatches
+	Requests    IntakeRequests
+	Children    IntakeChildren
+	Guardians   IntakeGuardians
+	LateInvites IntakeLateInvites
+	Catalog     IntakeCatalog
+	RateLimits  SubmissionRateLimiter
+	// RateLimitRefusals reports a refused submission or upload to the
+	// monitoring (#6726). Nil reports nowhere.
+	RateLimitRefusals RateLimitRefusals
+	Offerings         IntakeOfferings
+	Bookings          enrollmentNative.CareBookingCommands
+	Capacity          enrollmentNative.OfferingCapacity
+	Schools           enrollmentNative.SchoolDirectory
+	Notifications     enrollmentNative.Notifications
+	Students          StudentMatches
 	// GuardianHold holds a parent's renewal permission in the submission's
 	// own transaction (#6638). Nil refuses every parent renewal of an
 	// existing child.

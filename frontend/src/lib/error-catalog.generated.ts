@@ -612,6 +612,8 @@ export const ERROR_CATALOG = {
         "Dieser Link ist ungültig oder abgelaufen. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
       "enrollment.student_exists":
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+      "enrollment.submission_email_rate_limited":
+        "Mit dieser E-Mail-Adresse wurden heute schon viele Anmeldungen gesendet. Bitte versuchen Sie es morgen noch einmal.",
       "enrollment.submission_rate_limited":
         "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
       "enrollment.upload_content_mismatch":
@@ -2299,6 +2301,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Please sign the enrollment.",
       "enrollment.status_link_invalid":
         "This link is invalid or has expired. Please use the link from your email.",
+      "enrollment.submission_email_rate_limited":
+        "Many enrollments were already sent with this email address today. Please try again tomorrow.",
       "enrollment.submission_rate_limited":
         "Too many enrollments were sent. Please try again in an hour.",
       "enrollment.upload_content_mismatch":
@@ -2930,6 +2934,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Пожалуйста, подпишите заявку.",
       "enrollment.status_link_invalid":
         "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
+      "enrollment.submission_email_rate_limited":
+        "С этого адреса электронной почты сегодня уже отправлено много заявок. Попробуйте снова завтра.",
       "enrollment.submission_rate_limited":
         "Отправлено слишком много заявок. Попробуйте снова через час.",
       "enrollment.upload_content_mismatch":
@@ -3504,6 +3510,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Ju lutemi nënshkruani regjistrimin.",
       "enrollment.status_link_invalid":
         "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
+      "enrollment.submission_email_rate_limited":
+        "Me këtë adresë e-mail sot janë dërguar tashmë shumë regjistrime. Ju lutemi provoni përsëri nesër.",
       "enrollment.submission_rate_limited":
         "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
       "enrollment.upload_content_mismatch":
@@ -4067,6 +4075,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Prosimy podpisać zgłoszenie.",
       "enrollment.status_link_invalid":
         "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
+      "enrollment.submission_email_rate_limited":
+        "Z tego adresu e-mail wysłano dziś już wiele zapisów. Spróbuj ponownie jutro.",
       "enrollment.submission_rate_limited":
         "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
       "enrollment.upload_content_mismatch":
@@ -4636,6 +4646,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Lütfen kaydı imzalayın.",
       "enrollment.status_link_invalid":
         "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
+      "enrollment.submission_email_rate_limited":
+        "Bu e-posta adresiyle bugün zaten çok sayıda kayıt gönderildi. Lütfen yarın tekrar deneyin.",
       "enrollment.submission_rate_limited":
         "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
       "enrollment.upload_content_mismatch":
@@ -5197,6 +5209,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Будь ласка, підпишіть заявку.",
       "enrollment.status_link_invalid":
         "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
+      "enrollment.submission_email_rate_limited":
+        "З цієї адреси електронної пошти сьогодні вже надіслано багато заявок. Спробуйте ще раз завтра.",
       "enrollment.submission_rate_limited":
         "Надіслано забагато заявок. Спробуйте ще раз через годину.",
       "enrollment.upload_content_mismatch":
