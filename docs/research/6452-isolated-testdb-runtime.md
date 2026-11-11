@@ -293,9 +293,15 @@ die Löschung beginnt nach 250 ms Budget keinen Auftrag mehr.
    sehen und den Halter committen, bevor der Lauf aufgab; im Gate nach dem
    Rebase scheiterte daran `TestDemoErasureIncludesASendOfAConcurrentRelease`
    (Paket 499 s).
-6. Der Export ruft das `fsync` seiner Artefakte über eine Paketvariable auf;
-   `tenantexport.SkipFileSyncForTests` (Build-Tag `testhooks`) schaltet es für
-   die Tests dieses Pakets ab. Produktionsverhalten unverändert.
+6. Der Export ruft das `fsync` seiner Artefakte über eine Paketvariable auf.
+   Eine Datei mit Build-Tag `testhooks` ersetzt sie in Testbinaries durch
+   einen Leerlauf, also auch in den Export-Tests unter `backend/cmd`.
+   Produktions-Builds tragen das Tag nicht und sichern wie bisher. Kein Test
+   führt damit das echte `fsync` aus; keiner prüft Dateien nach einem Absturz.
+   Zwei engere Wege scheiterten an den Architektur-Gates: Ein Aufruf aus dem
+   Compose-Test ist ein verbotener Import des Adapters, eine Weiterleitung im
+   Compose-Paket hebt dessen LOC-Budget (374), und eine Datei mit
+   `!testhooks` schließt Produktionsquelle aus der Analyse aus.
 
 ### Nachher
 
@@ -341,7 +347,7 @@ Rebase 296,7 s und einmal 499,3 s. Der Unterschied zum direkten Aufruf:
 btrfs, während `/tmp` tmpfs ist. Der Export sichert jedes Artefakt mit
 `fsync`, mehrere hundert Dateien je Paket. Derselbe Stand mit `TMPDIR` im
 Cache-Verzeichnis, geteilter Server, Per-Test-Datenbanken, im Wechsel mit und
-ohne `fsync` (`tenantexport.SkipFileSyncForTests`), Load-1 28 bis 43:
+ohne `fsync`, Load-1 28 bis 43:
 
 | Lauf | Paket | Testkörper Σ | davon `TestTenantExport*`/`TestPersonExport*` (Laufzeit Σ) |
 | --- | ---: | ---: | ---: |
@@ -354,8 +360,7 @@ Einzelne Export-Tests brauchten mit `fsync` bis 399 s. Im Slot-Modus liefen
 diese Testkörper zusätzlich nacheinander und kamen zu den Clone-Lifecycles
 hinzu. Das passt zu den 500 bis 535 s und den Paket-Timeouts des
 Ausgangsbefunds; im Slot-Modus mit `fsync` ist es hier nicht eigens gemessen.
-Die Tests dieses Pakets schalten das `fsync` der Artefakte deshalb
-ab; die Tests des Rückgabe-Befehls in `backend/cmd` behalten es. Ein Lauf mit
+Testbinaries überspringen das `fsync` der Artefakte deshalb. Ein Lauf mit
 `fsync` zeigte außerdem einen Durchgang, der keinen Auftrag löschte
 (`TestDemoSchoolQueueErasesTheMonthlyLettersOfTheRetiredSchool`): Das Budget
 von 250 ms läuft ab Funktionsbeginn, bei stockender Datenbank also schon vor
