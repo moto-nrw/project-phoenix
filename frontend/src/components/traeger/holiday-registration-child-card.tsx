@@ -1,9 +1,11 @@
 "use client";
 
 // Ein Kind einer Ferienanmeldung (#4663): Schule, gebuchte Wochen,
-// Gesundheitsangaben und der Hinweis auf eine mögliche Doppelanmeldung. Hier
+// Gesundheitsangaben, der Hinweis auf eine mögliche Doppelanmeldung und auf
+// eine Schule des Trägers, die das Kind kennt (#6683). Hier
 // bucht das Träger-Büro das Kind um und ändert seine Angaben (#5629).
 
+import { School } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
@@ -49,6 +51,7 @@ import {
 import { StatusBadge } from "~/components/ui/status-badge";
 import { holidayPlacementStatus } from "./holiday-placement";
 import { HolidayWishSection } from "./holiday-wish";
+import { knownChildView } from "./holiday-known-child";
 import {
   bookedWeeksOverlap,
   groupParallelWeeks,
@@ -73,6 +76,7 @@ export function HolidayRegistrationChildCard({
   health,
   healthHidden = false,
   names,
+  knownSchoolId,
   onChanged,
   onEdit,
   editor,
@@ -87,6 +91,8 @@ export function HolidayRegistrationChildCard({
    */
   healthHidden?: boolean;
   names: ReadonlyMap<string, string>;
+  /** The school of the Träger that knows the child (#6683), if one does. */
+  knownSchoolId?: string;
   onChanged: (registration: HolidayRegistrationDetail) => void;
   /** Opens the edit of the child's details; absent, the card offers none. */
   onEdit?: () => void;
@@ -152,6 +158,12 @@ export function HolidayRegistrationChildCard({
     );
 
   if (editor) return editor;
+  // A cancelled registration needs no check of the school.
+  const known = cancelled ? null : knownChildView(child, knownSchoolId, names);
+  const namedSchool =
+    child.homeSchoolId === null
+      ? `Angemeldet ist ${child.firstName} als Feriengast.`
+      : `In der Anmeldung steht die Schule „${names.get(child.homeSchoolId) ?? "nicht mehr vorhanden"}“.`;
 
   return (
     <SectionCard
@@ -185,6 +197,35 @@ export function HolidayRegistrationChildCard({
       }
     >
       <div className="space-y-4">
+        {known?.sameSchool ? (
+          <StatusBadge
+            tone={known.tone}
+            label={known.label}
+            icon={School}
+            title={known.title}
+            wrap
+          />
+        ) : known ? (
+          <Alert
+            type="info"
+            icon={<School aria-hidden className="size-5" />}
+            message={`Die Schule „${known.schoolName}“ führt ein Kind mit gleichem Namen und Geburtsdatum. ${namedSchool} Bitte prüfen Sie die Schule.`}
+            actionLayout="responsive"
+            action={
+              !draft && onEdit ? (
+                <Button
+                  type="button"
+                  variant="ghost_tone"
+                  size="compact"
+                  aria-label={`Schule von ${child.firstName} ${child.lastName} ändern`}
+                  onClick={onEdit}
+                >
+                  Schule ändern
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : null}
         {child.duplicateRegistrationIds.length > 0 ? (
           <Alert
             type="warning"

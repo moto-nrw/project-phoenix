@@ -15,6 +15,7 @@ type Store interface {
 	ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRole, domain.OperationStats, error)
 	FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error)
 	FindRolePermissionsByRoleIDs(context.Context, []int64, int64) (map[int64][]string, domain.OperationStats, error)
+	FindSchoolEmailIdentities(context.Context, []string, int64) (map[string]int64, map[string][]int64, domain.OperationStats, error)
 	FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error)
 	CountStudentGuardianInvitations(ctx context.Context, studentID, tenantID int64) (int, domain.OperationStats, error)
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
@@ -357,4 +358,9 @@ type SchoolMembershipLockStore interface {
 // GuardianInvitationLockStore pins the accounts an invitation participates in.
 type GuardianInvitationLockStore interface {
 	LockGuardianInvitationAccounts(ctx context.Context, inviterID int64, email string) error
+}
+
+// StaffOffboardingAccountLocks is the account-only prelock of a planned exit.
+type StaffOffboardingAccountLocks interface {
+	LockLoginAccounts(context.Context, []int64) ([]int64, domain.OperationStats, error)
 }

@@ -487,7 +487,7 @@ func runMatrix(t *testing.T, group string) {
 	cells := 0
 	for _, sc := range mealWriteScenarios()[group] {
 		t.Run(sc.route+" "+sc.name, func(t *testing.T) {
-			// The school of the scenario lives in the rig's own database.
+			// Each scenario runs in a school of its own.
 			testpkg.EnsureTestTenant(t, rig.super, testpkg.OwnTenant(t))
 			cells += rig.runScenario(t, group, sc)
 		})

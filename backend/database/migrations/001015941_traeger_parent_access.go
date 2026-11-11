@@ -14,7 +14,7 @@ func init() {
 		Version:     traegerParentAccessVersion,
 		Description: "Ferienanmeldung: Elternkonto am Träger ohne Schule (#6673, ADR 0216)",
 		DependsOn: []string{
-			messageAttachmentsVersion,      // the newest on development (1.15.936)
+			holidayKnownChildrenVersion,    // the newest on development (1.15.940)
 			traegerSchoolSessionsVersion,   // chk_tokens_session_owner as it stands
 			retireDirectPermissionsVersion, // auth.account_is_unused as it stands
 		},

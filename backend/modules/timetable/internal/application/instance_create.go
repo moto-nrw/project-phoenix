@@ -67,6 +67,9 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "create instance: validate references", Err: err}
 	}
+	if err := s.lockCreatedInstanceDayAndStaff(ctx, req); err != nil {
+		return nil, err
+	}
 	inst := newActivityInstance(tenantID, req, idempotencyFingerprint)
 	inst.TemplateType = templateType
 	result, inserted, err := s.insertCreatedInstance(ctx, inst)
@@ -78,6 +81,24 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 	}
 	s.logCreatedInstance(ctx, inst, req)
 	return inst, nil
+}
+
+// lockCreatedInstanceDayAndStaff takes the block's day and then every
+// submitted person, ascending, before the block row and its first
+// assignment (#6702). A spontaneous start takes the day again right after
+// the create, and a day after a staff row is against the lock order; two
+// creates naming the same people in another order would otherwise hold one
+// each and wait for the other.
+func (s *InstanceLifecycleService) lockCreatedInstanceDayAndStaff(ctx context.Context, req timetable.CreateInstanceInput) error {
+	if s.deps.Database != nil {
+		if err := s.acquireSubstituteDayLock(ctx, req.Date); err != nil {
+			return &ports.ScheduleError{Op: "create instance: lock day", Err: err}
+		}
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, domain.UniquePositiveIDs(req.StaffIDs)); err != nil {
+		return &ports.ScheduleError{Op: "create instance: lock staff", Err: err}
+	}
+	return nil
 }
 
 // replayIdempotentCreate returns the block an earlier request with the same

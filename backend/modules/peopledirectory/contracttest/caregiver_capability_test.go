@@ -331,6 +331,38 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, true, after["has_teacher"])
 }
 
+func TestCaregiverCapability_EnableCreatesProfileForExistingStaff(t *testing.T) {
+	t.Parallel()
+
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.Ctx(t)
+	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Ada", "Lovelace")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+
+	before, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
+	require.NoError(t, err)
+	require.True(t, before.HasStaff)
+	require.False(t, before.HasCaregiverProfile)
+
+	state, err := factory.CaregiverCapability.EnableCaregiverCapability(ctx, account.ID,
+		peopleValues.EnableCaregiverCapabilityInput{Position: "Betreuungskraft"})
+	require.NoError(t, err)
+	require.NotNil(t, state.StaffID)
+	assert.Equal(t, staff.ID, *state.StaffID)
+	assert.True(t, state.HasCaregiverProfile)
+	assert.True(t, state.IsActiveCaregiver)
+	assert.True(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "user"))
+
+	teacher, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Teacher.FindByStaffID(ctx, staff.ID)
+	require.NoError(t, err)
+	require.NotNil(t, teacher)
+	assert.Equal(t, "Betreuungskraft", teacher.Role)
+
+	event := loadLatestAuthEvent(t, db, account.ID, testpkg.AuditEventTypeCaregiverCapabilityEnabled)
+	assert.Equal(t, true, event.Metadata["teacher_created"])
+	assert.NotContains(t, event.Metadata, "staff_created")
+}
+
 func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)

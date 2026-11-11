@@ -60,7 +60,12 @@ func (s *service) lockSupervisorsForAssignment(ctx context.Context, supervisorID
 	ids := slices.Collect(maps.Keys(deduplicateSupervisorIDs(supervisorIDs)))
 	slices.Sort(ids)
 	for _, id := range ids {
-		if err := s.lockStaffForSupervision(ctx, id); err != nil {
+		if err := lockSupervisionBalance(ctx, id); err != nil {
+			return err
+		}
+	}
+	for _, id := range ids {
+		if err := s.validateStaffExists(ctx, id); err != nil {
 			return err
 		}
 	}

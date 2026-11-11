@@ -123,6 +123,9 @@ func (s *ActivityService) CreateGroup(ctx context.Context, group *activityContra
 	}
 	validatedCategory := group.Category
 	group.SetTenantID(group.Category.GetTenantID())
+	if err := s.lockActivitySupervisorStaff(ctx, 0, supervisorIDs...); err != nil {
+		return nil, &activityContract.ActivityError{Op: "create group", Err: err}
+	}
 
 	if err := createLegacyGroup(ctx, s.timetable, group); err != nil {
 		return nil, &activityContract.ActivityError{Op: "create group", Err: err}

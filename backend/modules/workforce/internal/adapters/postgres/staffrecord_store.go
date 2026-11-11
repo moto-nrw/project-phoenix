@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -485,6 +486,9 @@ func (s *Store) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID
 		query = query.Where(`NOT EXISTS (SELECT 1 FROM users.staff_offboarding_cleanup AS offboarding
 			WHERE offboarding.tenant_id = "staff_document_file_cleanup".tenant_id
 			AND offboarding.staff_id = "staff_document_file_cleanup".staff_id AND offboarding.completed_at IS NULL)`)
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.staff_document_file_cleanup"); err != nil {
+		return nil, domain.OperationStats{}, err
 	}
 	query = query.OrderExpr(`"staff_document_file_cleanup".id ASC`).For("UPDATE SKIP LOCKED")
 	stats, err := scanAll(ctx, query, "list queued staff document file cleanups")

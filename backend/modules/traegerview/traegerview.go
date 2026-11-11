@@ -273,6 +273,9 @@ type Ports struct {
 	Alerts      AlertSettings
 	// Occupancy are the reads behind the occupancy of the schools (#4676).
 	Occupancy OccupancyPorts
+	// Known are the reads behind the hint on a known child of a holiday
+	// registration (#6683, ADR 0214).
+	Known KnownChildrenPorts
 }
 
 // Overview answers the Träger-Portal reads.
@@ -294,6 +297,11 @@ type Overview interface {
 	// Occupancy returns the children of every school of the Träger by OGS
 	// group and care form, today (#4676).
 	Occupancy(ctx context.Context, organizationID int64) (Occupancy, error)
+	// KnownHolidayChildren returns the registered children of one holiday
+	// period of the Träger that a school of the Träger knows, or of the one
+	// registration registrationID names (#6683, ADR 0214). It writes no
+	// entry: Enrollment records the comparison in the registrations' trail.
+	KnownHolidayChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]KnownChild, error)
 	// AccessLog lists one page of the access log, newest first.
 	AccessLog(ctx context.Context, viewer Viewer, filter AccessLogFilter, page int) (AccessLogPage, error)
 	// AccessLogExport lists every entry of the filter, newest first, up to

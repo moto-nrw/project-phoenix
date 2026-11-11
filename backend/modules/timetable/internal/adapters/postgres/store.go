@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -62,6 +63,9 @@ func (s *Store) FindCategory(ctx context.Context, id int64, lock string) (timeta
 		Where(`"category".tenant_id = ?`, tenantID).
 		Where(`"category".id = ?`, id)
 	if lock != "" {
+		if err := tenant.OrderLock(ctx, tenant.LockReference, "activities.categories"); err != nil {
+			return timetable.Category{}, false, domain.OperationStats{}, err
+		}
 		query = query.For(lock)
 	}
 	found, stats, err := scanOne(ctx, query, "find category")
@@ -79,6 +83,9 @@ func (s *Store) FindCategoryByName(ctx context.Context, name string, includeArch
 		Where(`LOWER("category".name) = LOWER(?)`, name)
 	query = categoryNameScope(query, includeArchived)
 	if lock != "" {
+		if err := tenant.OrderLock(ctx, tenant.LockReference, "activities.categories"); err != nil {
+			return timetable.Category{}, false, domain.OperationStats{}, err
+		}
 		query = query.For(lock)
 	}
 	found, stats, err := scanOne(ctx, query, "find category by name")
@@ -246,6 +253,9 @@ func (s *Store) DeleteCategory(ctx context.Context, id int64) (domain.OperationS
 func (s *Store) LockStudentEnrollmentsForCareExit(ctx context.Context, studentIDs []int64, validUntil string) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "activities.student_enrollments"); err != nil {
 		return domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{Queries: 1}

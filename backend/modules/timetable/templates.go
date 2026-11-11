@@ -166,6 +166,11 @@ type CreateTemplateCommand struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
+	// MaterializeFrom and MaterializeTo name the window the caller
+	// materializes in the same unit after the create; the create locks the
+	// people that run plans together with its roster (#6702).
+	MaterializeFrom *calendar.Date
+	MaterializeTo   *calendar.Date
 }
 
 // CreateTemplateResult reports the new template, its (possibly reused)
@@ -353,10 +358,12 @@ type TemplateAdministration interface {
 	// AlignPlannedInstanceStaff aligns the still-planned occurrences from
 	// date on with the template's supervisors for the given staff.
 	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error
-	// LockSeriesSeedDays takes the day locks of a one-off block's current
-	// and new day, ascending, before a series conversion writes the
-	// template's supervisor rows, whose staff rows follow the days (#6583).
-	LockSeriesSeedDays(ctx context.Context, days ...calendar.Date) error
+	// LockSeriesSeed takes, before a series conversion writes anything, the
+	// locks the conversion needs in the lock order (#6583, #6702): the
+	// template's category and planning track, the day locks of the one-off
+	// block's current and new day, then the staff rows of the template's
+	// roster and of the block's current people in one ascending batch.
+	LockSeriesSeed(ctx context.Context, cmd CreateTemplateCommand, seedInstanceID int64, days ...calendar.Date) error
 }
 
 // OfferingRosterResyncInput describes one template's offering-source rule

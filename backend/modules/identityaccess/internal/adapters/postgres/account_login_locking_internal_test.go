@@ -121,6 +121,10 @@ func TestLoginAccountLookupsIgnoreErasedAccounts(t *testing.T) {
 	_, found, _, err = store.FindLoginAccount(ctx, account.ID, true)
 	require.NoError(t, err)
 	assert.False(t, found, "an erased account must not be locked by ID")
+	locked, lockStats, err := store.LockLoginAccounts(ctx, []int64{account.ID})
+	require.NoError(t, err)
+	assert.Empty(t, locked, "an erased account must not be locked by a batch")
+	assert.EqualValues(t, 1, lockStats.Queries)
 }
 
 func TestAccountDirectoryLookupsIgnoreErasedAccounts(t *testing.T) {

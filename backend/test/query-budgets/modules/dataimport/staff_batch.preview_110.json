@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.staff_batch.preview_110",
-  "max": 12,
+  "max": 11,
   "exact": true,
   "description": "110-row staff preview like staff_batch.preview; constant in the row count. The validation reads the school's roles once with the reference preload and the permissions of the roles the file names once (SAVEPOINT, read, RELEASE) at the first row that checks its role (#5887). Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
 }

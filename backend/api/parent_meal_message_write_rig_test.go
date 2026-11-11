@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
@@ -316,10 +317,14 @@ type mealWriteRig struct {
 
 func newMealWriteRig(t *testing.T) mealWriteRig {
 	t.Helper()
-	super := testpkg.SetupIsolatedTestDB(t)
+	// The faults need a pool of their own, not a database of their own: every
+	// scenario writes and reads only its own school (OwnTenant). The package
+	// clone keeps the matrix off the one isolated-clone slot, on which every
+	// SetupIsolatedTestDB test of the package waits for the one before it.
+	super := testpkg.SetupTestDB(t)
 	faults := &writeFaults{}
 	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(sql.OpenDB(writeFaultConnector{
-		Connector: pgdriver.NewConnector(pgdriver.WithDSN(testpkg.IsolatedTestDSN(t))), faults: faults,
+		Connector: pgdriver.NewConnector(pgdriver.WithDSN(testpkg.PackageTestDSN(t))), faults: faults,
 	})))
 	t.Cleanup(func() { _ = pool.Close() })
 	database := testpkg.NewDatabase(t, pool)

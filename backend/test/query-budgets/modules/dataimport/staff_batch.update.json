@@ -1,6 +1,6 @@
 {
   "scenario": "modules.dataimport.staff_batch.update",
-  "max": 100,
+  "max": 98,
   "exact": false,
   "description": "Ten-row staff update matched by personnel number that changes the city and the weekly hours. Measured by TestStaffImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). The batch path writes each row without a row savepoint, because a failed row aborts its whole chunk (#5552, ADR 0067 addendum step 3)."
 }

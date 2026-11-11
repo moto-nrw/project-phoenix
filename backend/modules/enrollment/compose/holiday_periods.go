@@ -86,6 +86,16 @@ func NewHolidayAccessTrail() enrollment.HolidayAccessTrail {
 	return postgres.NewHolidayRegistrationStore()
 }
 
+// NewHolidayRegisteredChildren reads the children of the hint on a known child (#6683), in the Träger projection's transaction (ADR 0214).
+func NewHolidayRegisteredChildren() enrollment.HolidayRegisteredChildren {
+	return postgres.NewHolidayRegistrationStore()
+}
+
+// NewHolidayKnownChildTrail records the comparison of the hint on a known child (#6683, ADR 0214) in the Träger transaction.
+func NewHolidayKnownChildTrail() enrollment.HolidayKnownChildTrail {
+	return applicationNative.NewHolidayKnownChildTrail(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore())
+}
+
 // NewOpenEnrollments counts the children waiting for a decision at each school, for the Träger dashboard (#4675).
 func NewOpenEnrollments() enrollment.OpenEnrollments {
 	return postgres.NewOpenEnrollmentStore()

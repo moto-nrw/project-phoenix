@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -432,6 +433,9 @@ func (s *Store) FindStaffAbsenceType(ctx context.Context, id int64, lock bool) (
 		ModelTableExpr(tableStaffAbsenceTypes+` AS "staff_absence_type"`).
 		Where(`"staff_absence_type".id = ?`, id), aliasStaffAbsenceType, scope)
 	if lock {
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "active.staff_absence_types"); err != nil {
+			return domain.StaffAbsenceType{}, false, domain.OperationStats{}, err
+		}
 		query = query.For("UPDATE")
 	}
 	found, stats, err := scanOne(ctx, query, "find staff absence type")

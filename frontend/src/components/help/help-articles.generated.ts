@@ -2124,6 +2124,20 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
         ],
       },
       {
+        // #6650: Widerruf über die Schule für Eltern ohne Elternportal.
+        // Der Haken bleibt auch bei ausgeschalteten Kinderfotos sichtbar,
+        // solange eine Einwilligung hinterlegt ist (student-photo-section.tsx).
+        title: "Foto-Einwilligung für Eltern widerrufen",
+        description:
+          "Für Eltern ohne Elternportal. Prüfen Sie vorher, ob die Person für das Kind sprechen darf.",
+        steps: [
+          "Öffnen Sie das Kind und wählen Sie `Stammdaten`.",
+          "Wählen Sie `Bearbeiten`.",
+          "Entfernen Sie beim Foto den Haken bei `Einwilligung der Eltern liegt vor`.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
         // Live geprueft: jede Tageskarte hat oben rechts den Knopf
         // `Ausnahme`. Ankunft und Abholung haben je drei Auswahlfelder.
         title: "Nur einen Tag ändern",
@@ -2155,6 +2169,7 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
       "Steht bei `Abholung` zum Beispiel `Gebucht 16:00 Uhr`? Dann gilt eine von Hand eingetragene Zeit statt der gebuchten. Wählen Sie den Tag und dann `Gebuchte Abholzeit übernehmen`. Das gilt ab sofort für diesen Wochentag in jeder Woche, auch vor dem gewählten Tag. Braucht ein früherer Tag die eingetragene Zeit noch, nennt moto den Tag, ab dem das Übernehmen geht.",
     ],
     notes: [
+      "Nach einem Widerruf löscht moto das Foto des Kindes. Nach dem letzten Betreuungstag löscht moto Foto und Foto-Einwilligung in der Nacht danach von selbst.",
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
       // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
@@ -5639,7 +5654,8 @@ export const parentCareChangeTopic =
  * Bereich `Angaben zum Kind` (i18n `parentMasterData`). Drei Arten von
  * Feldern: direkt aenderbar, nur auf Anfrage, und Gesundheitshinweise, die
  * sofort gespeichert werden. Dazu der Widerruf der Foto-Einwilligung
- * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494).
+ * (i18n `parentChild.consents`), auch nach Betreuungsende (#6494), und der
+ * Weg über die OGS ohne Widerrufsrecht im Portal (#6650).
  */
 export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
   return {
@@ -5691,12 +5707,13 @@ export const parentChildDataTopic = function parentChildDataTopic(): HelpTopic {
       "Gesundheitshinweise gehen sofort an das Team, ohne Prüfung.",
       "Sie möchten eine offene Anfrage ändern? Tippen Sie unter `Beantragte Änderung` auf `Anfrage bearbeiten`.",
       "Nach dem Widerruf löscht moto ein gespeichertes Foto Ihres Kindes.",
-      "Ist die Betreuung beendet, können Sie die Foto-Einwilligung weiter widerrufen. Neu geben können Sie sie dann nicht mehr.",
+      "Nach dem letzten Betreuungstag löscht moto das Foto und die Foto-Einwilligung in der Nacht danach von selbst. Bis dahin können Sie weiter widerrufen. Neu geben können Sie die Einwilligung dann nicht mehr.",
     ],
     differences: [
       "Unter einem Feld steht schon `Beantragte Änderung`? Dann wartet diese Änderung noch auf die OGS.",
     ],
     troubleshootingDetails: [
+      "Sie sehen bei `Foto-Einwilligung` kein `Widerrufen` oder haben kein Elternportal? Sagen Sie der OGS Bescheid. Die OGS trägt den Widerruf für Sie ein.",
       "moto sagt, das Bearbeiten sei deaktiviert? Dann nimmt Ihre OGS keine Änderungen über die App an. Schreiben Sie ihr eine Nachricht.",
     ],
     related: [
@@ -12411,7 +12428,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
         "Fragt das Formular die Anschrift ab, steht sie in der Einzelansicht bei `Eltern` und im Export. In der Liste und bei der ausrichtenden OGS steht sie nicht.",
         "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
-        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export und jedes PDF steht dort.",
+        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export und jedes PDF steht dort, und jeder Abgleich der Kinder mit den Kindern Ihrer Schulen.",
         "Das PDF enthält alle Angaben der Eltern, die gebuchten Wochen, den Status und die Erklärung der Eltern mit dem genauen Text, Namen und Zeitpunkt. Nachweise und der Verlauf stehen nicht darin.",
         "Gesundheitsangaben stehen nur im PDF, wenn Sie `PDF mit Gesundheitsangaben` wählen. Diesen Eintrag sieht nur die Rolle Verwaltung. Nach 92 Tagen sind die Gesundheitsangaben gelöscht. Dann enthält auch das PDF keine mehr.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen. Nur wenn ein Kind von der Warteliste nachrückt, rechnet moto den Beitrag mit der neuen Woche neu.",
@@ -12427,6 +12444,8 @@ export const traegerHolidayRegistrationReviewTopic =
         "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
       ],
       differences: [
+        "In der Liste steht beim Kind `Bekannt an` mit einer Schule? Diese Schule Ihres Trägers führt ein Kind mit gleichem Namen und Geburtsdatum. Die Eltern haben es aber als Feriengast oder an einer anderen Schule angemeldet. In der Anmeldung steht dazu ein Hinweis beim Kind. Prüfen Sie die Schule und wählen Sie dort `Schule ändern`. moto verknüpft nichts von selbst und zeigt keine Daten der Schule.",
+        "Beim Kind steht `An der Schule bekannt`? Die Schule aus der Anmeldung führt ein Kind mit gleichem Namen und Geburtsdatum. Sie müssen nichts tun.",
         "Auf dem Handy fehlt der Haken für alle Anmeldungen? Setzen Sie die Haken dort einzeln.",
         "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
         "Beim Bestätigen fehlt `Kosten übernimmt ein Kostenträger`? Ihr Träger hat noch keinen aktiven Kostenträger. Die Abrechnung legt ihn in den Einstellungen unter `Abrechnungsvorgaben` an.",

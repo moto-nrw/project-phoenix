@@ -189,13 +189,23 @@ func (w *Workflow) closeAccess(ctx context.Context, staffID int64, authorize fun
 		if err != nil {
 			return Result{}, err
 		}
-		person, err := w.deps.People.FindPersonForMutation(txCtx, staff.PersonID)
-		if err != nil || person.AccountID == nil {
+		// The account comes before the person (Konto → Schule → Profil,
+		// #6702): the unlocked read only chooses which account to lock, the
+		// person is checked again under its lock.
+		linked, err := w.deps.People.FindPerson(txCtx, staff.PersonID)
+		if err != nil || linked.AccountID == nil {
 			return Result{}, err
 		}
-		preview, err := w.deps.PreviewAccess(txCtx, *person.AccountID)
+		preview, err := w.deps.PreviewAccess(txCtx, *linked.AccountID)
 		if err != nil {
 			return Result{}, err
+		}
+		person, err := w.deps.People.FindPersonForMutation(txCtx, staff.PersonID)
+		if err != nil {
+			return Result{}, err
+		}
+		if person.AccountID == nil || *person.AccountID != *linked.AccountID {
+			return Result{}, ErrConflict
 		}
 		_, err = w.deps.ExecuteAccess(txCtx, *person.AccountID, preview.Revision)
 		return Result{}, err
