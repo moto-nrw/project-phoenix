@@ -250,6 +250,7 @@ jobs:
           CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
           CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_data_return NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_tenant_export NOLOGIN BYPASSRLS;
           GRANT pg_read_all_data TO phoenix_tenant_export;
           GRANT phoenix_tenant TO phoenix_auth;
