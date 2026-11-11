@@ -37,6 +37,8 @@ import {
 } from "~/contexts/ToastContext";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { rolesConcept } from "~/lib/concepts/roles";
 
@@ -103,14 +105,20 @@ function RolesPageContent() {
 
   const service = useMemo(() => createCrudService(rolesConfig), []);
 
+  // Rejects on failure: after a write the caller shows it as the reload of a
+  // saved change and keeps the confirmed list (#6652).
+  const readRoles = useCallback(async () => {
+    const data = await service.getList({ page: 1, pageSize: 500 });
+    const arr = Array.isArray(data.data) ? data.data : [];
+    // Eltern vergibt die Einladung zur Eltern-App, nicht diese Seite (#4574).
+    setRoles(arr.filter((role) => !isHiddenSystemRole(role)));
+    clearRolesLoadError();
+  }, [service, clearRolesLoadError]);
+
   const fetchRoles = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await service.getList({ page: 1, pageSize: 500 });
-      const arr = Array.isArray(data.data) ? data.data : [];
-      // Eltern vergibt die Einladung zur Eltern-App, nicht diese Seite (#4574).
-      setRoles(arr.filter((role) => !isHiddenSystemRole(role)));
-      clearRolesLoadError();
+      await readRoles();
     } catch (err) {
       logger.error("failed to fetch roles", {
         error: err instanceof Error ? err.message : String(err),
@@ -124,11 +132,16 @@ function RolesPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [service, clearRolesLoadError, showRolesLoadError]);
+  }, [readRoles, showRolesLoadError]);
 
   useEffect(() => {
     void fetchRoles();
   }, [fetchRoles]);
+  const rolesAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Rollen",
+    readRoles,
+  );
+  const refreshRoles = rolesAfterWrite.refresh;
 
   const filters: FilterConfig[] = useMemo(() => [], []);
 
@@ -253,8 +266,8 @@ function RolesPageContent() {
   const handlePermissionsSaved = useCallback(async () => {
     if (!selectedRole) return;
     setDetailReload((value) => value + 1);
-    await fetchRoles();
-  }, [fetchRoles, selectedRole]);
+    await refreshRoles();
+  }, [refreshRoles, selectedRole]);
 
   const handleCreateRole = useCallback(
     async (data: Partial<Role>) => {
@@ -265,9 +278,9 @@ function RolesPageContent() {
         `Die Rolle „${getRoleDisplayName(created.name)}“ ist angelegt.`,
       );
       setShowCreateModal(false);
-      await fetchRoles();
+      await refreshRoles();
     },
-    [service, fetchRoles, toastSuccess],
+    [service, refreshRoles, toastSuccess],
   );
 
   const handleUpdateRole = useCallback(
@@ -280,41 +293,43 @@ function RolesPageContent() {
       );
       // Liste und Detail neu laden.
       setDetailReload((value) => value + 1);
-      await fetchRoles();
+      await refreshRoles();
     },
-    [selectedRole, service, fetchRoles, toastSuccess],
+    [selectedRole, service, refreshRoles, toastSuccess],
   );
 
   const handleDeleteRole = useCallback(async () => {
     if (!selectedRole) return;
     setDeletePending(true);
     deleteErrors.clear();
+    let deleted: boolean;
     try {
-      const deleted = await service.remove(selectedRole.id);
-      if (!deleted) return;
-      toastSuccess(
-        `Die Rolle „${getRoleDisplayName(selectedRole.name)}“ ist gelöscht.`,
-      );
-      handleDeleteCancel();
-      setSelectedRoleDetail(null);
-      handleSelectRole(null);
-      await fetchRoles();
+      deleted = await service.remove(selectedRole.id);
     } catch (err) {
       // Der Bestätigungsdialog bleibt offen und nennt den Grund.
       void deleteErrors.show(err, {
         object: "das Löschen der Rolle",
         retry: () => latestDeleteRef.current(),
       });
+      return;
     } finally {
       setDeletePending(false);
     }
+    if (!deleted) return;
+    toastSuccess(
+      `Die Rolle „${getRoleDisplayName(selectedRole.name)}“ ist gelöscht.`,
+    );
+    handleDeleteCancel();
+    setSelectedRoleDetail(null);
+    handleSelectRole(null);
+    await refreshRoles();
   }, [
     selectedRole,
     service,
     toastSuccess,
     handleDeleteCancel,
     handleSelectRole,
-    fetchRoles,
+    refreshRoles,
     deleteErrors,
   ]);
 
@@ -423,6 +438,8 @@ function RolesPageContent() {
         />
       }
     >
+      <LoadErrorAlert error={rolesAfterWrite.error} className="mb-4" />
+
       {unclassifiedCount > 0 && (
         <div className="mb-6">
           <Alert

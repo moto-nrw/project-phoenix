@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RolesPage from "./page";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 
 /** Text of a FormErrorInput, as the shared kit components render it. */
@@ -799,6 +800,75 @@ describe("RolesPage", () => {
     );
     expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
+  });
+
+  // #6652: after a confirmed write a failed reload of the list is a load
+  // error above the confirmed roles, not a page that replaces them.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText(
+      "general.unavailable",
+      "die Anzeige der Rollen",
+    )} ${SAVED_BUT_STALE_SUFFIX}`;
+    const down = () =>
+      new ApiError("down", 503, { code: "general.unavailable" });
+
+    it("keeps the roles listed when the reload after saved permissions fails", async () => {
+      setSelectedRole("1");
+      render(<RolesPage />);
+      await screen.findByTestId("role-detail-panel");
+      mockGetList.mockClear();
+      mockGetList.mockRejectedValueOnce(down());
+
+      fireEvent.click(screen.getByTestId("trigger-permissions-saved"));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.getByTestId("role-row-1")).toBeInTheDocument();
+      expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mockGetList).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
+        expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+      );
+      expect(screen.getByTestId("role-row-1")).toBeInTheDocument();
+    });
+
+    it("keeps a deleted role deleted when the reload fails", async () => {
+      setSelectedRole("1");
+      mockRemove.mockResolvedValueOnce(true);
+      render(<RolesPage />);
+      await screen.findByTestId("role-detail-panel");
+      mockGetList.mockClear();
+      mockGetList.mockRejectedValueOnce(down());
+
+      fireEvent.click(screen.getByTestId("trigger-delete"));
+      fireEvent.click(await screen.findByTestId("confirm-delete"));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(mockRemove).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("delete-error")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("confirmation-modal")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
+      expect(screen.getByTestId("role-row-2")).toBeInTheDocument();
+    });
+
+    it("keeps an updated role when the reload fails", async () => {
+      setSelectedRole("1");
+      mockUpdate.mockResolvedValueOnce(undefined);
+      render(<RolesPage />);
+      await screen.findByTestId("role-detail-panel");
+      mockGetList.mockClear();
+      mockGetList.mockRejectedValueOnce(down());
+
+      fireEvent.click(screen.getByTestId("trigger-edit"));
+      fireEvent.click(await screen.findByTestId("submit-edit"));
+
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("edit-error")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
+      expect(screen.getByTestId("role-row-1")).toBeInTheDocument();
+    });
   });
 
   it("renders the unclassified-roles warning banner", async () => {

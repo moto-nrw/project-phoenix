@@ -964,7 +964,7 @@ const noErrorTextMatch = {
 // After a confirmed write the reload is a load, not part of the action
 // (#6636, #6652). A `try` that awaits a write and then a reload that can
 // reject (a callback `onX`, `refresh…`, `reload…`, `refetch…`,
-// `revalidate…`, `load…`), or both in one `Promise.all`, sends a failed
+// `revalidate…`, `load`, `load…`), or both in one `Promise.all`, sends a failed
 // reload into the catch of the action: the user reads „konnte nicht
 // gespeichert werden“ although the change is saved, and a retry writes again.
 // The write keeps its own `try`; the reload runs afterwards through
@@ -973,7 +973,7 @@ const noErrorTextMatch = {
 // when a `try` with catch awaits it.
 
 const RELOAD_CALLEE_RE =
-  /^(?:on(?:[A-Z]\w*(?:ed|Done)|Done|Refresh\w*|Reload\w*)|refresh\w*|reload\w*|refetch\w*|revalidate\w*|load[A-Z]\w*)$/;
+  /^(?:on(?:[A-Z]\w*(?:ed|Done)|Done|Refresh\w*|Reload\w*)|refresh\w*|reload\w*|refetch\w*|revalidate\w*|load(?:[A-Z]\w*)?)$/;
 const PROMISE_COMBINATORS = new Set(["all", "race", "any"]);
 
 function calleeName(callee) {

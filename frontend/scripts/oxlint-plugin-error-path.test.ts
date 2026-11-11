@@ -465,6 +465,11 @@ describe.concurrent("error-path rules", () => {
         "try { await api.save(); await Promise.all([reload(), props.onSaved()]); } catch (e) { report(e); }",
       ],
       [
+        "a loader named load after the write",
+        "try { await api.save(); await load(); } catch (e) { report(e); }",
+        "declare function load(): Promise<void>;",
+      ],
+      [
         "a same-file helper that writes and reloads",
         "try { await saveAndReload(); } catch (e) { report(e); }",
         "async function saveAndReload() { await api.save(); await loadAll(); } declare function loadAll(): Promise<void>;",
@@ -505,6 +510,10 @@ describe.concurrent("error-path rules", () => {
       [
         "write and reload in a try without catch",
         "try { await api.save(); await reload(); } finally { report(null); }",
+      ],
+      [
+        "a write whose name only contains load",
+        "try { await api.save(); await download(); } catch (e) { report(e); }",
       ],
       [
         "a reload in a nested callback",
