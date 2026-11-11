@@ -59,6 +59,16 @@ func (h *allocationLockHolder) commit(t *testing.T) {
 	require.NoError(t, h.tx.Commit())
 }
 
+// lockActors is the private pool of a test's lock actors: a holder, its
+// probes and the polling, never more than three connections, because the
+// subtests of a lock test run one after the other.
+func lockActors(t *testing.T) *bun.DB {
+	t.Helper()
+	db := testpkg.SetupClosableTestDB(t)
+	db.SetMaxOpenConns(3)
+	return db
+}
+
 // waitBlocked waits until n backends wait for the holder and returns them.
 func (h *allocationLockHolder) waitBlocked(t *testing.T, n int) []int {
 	t.Helper()
@@ -179,10 +189,9 @@ func holidayWays() []holidayWay {
 // it already holds B.
 func TestHolidayAllocationWorkflowTakesTheBillingLockBeforeThePeriod(t *testing.T) {
 	t.Parallel()
-	actors := testpkg.SetupClosableTestDB(t)
+	actors := lockActors(t)
 	for _, way := range holidayWays() {
 		t.Run(way.name+"/waits for B without P", func(t *testing.T) {
-			t.Parallel()
 			f, request := way.setup(t)
 			holder := holdAllocationLock(t, actors, holdAdvisoryLock, billingLockKey(f.office.organization, f.period.ID))
 			done := asyncRequest(request)
@@ -193,7 +202,6 @@ func TestHolidayAllocationWorkflowTakesTheBillingLockBeforeThePeriod(t *testing.
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		})
 		t.Run(way.name+"/waits for P holding B", func(t *testing.T) {
-			t.Parallel()
 			f, request := way.setup(t)
 			holder := holdAllocationLock(t, actors, `SELECT id FROM enrollment.holiday_periods WHERE id = ? FOR UPDATE`, f.period.ID)
 			done := asyncRequest(request)
@@ -272,10 +280,9 @@ func releaseWays() []releaseWay {
 // one shows the correction needed.
 func TestHolidayAllocationWorkflowMeetsARunRelease(t *testing.T) {
 	t.Parallel()
-	actors := testpkg.SetupClosableTestDB(t)
+	actors := lockActors(t)
 	for _, way := range releaseWays() {
 		t.Run(way.name, func(t *testing.T) {
-			t.Parallel()
 			f, billing, affected, request := way.setup(t)
 			before := f.cancelledContribution(t, affected).TotalCents
 			run := billingRun(t, f, billing, startBillingRun(t, f, billing, f.period.ID).ID)
@@ -318,9 +325,8 @@ func TestHolidayAllocationWorkflowMeetsARunRelease(t *testing.T) {
 // deadlock and the waiting child moves up once.
 func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 	t.Parallel()
-	actors := testpkg.SetupClosableTestDB(t)
+	actors := lockActors(t)
 	t.Run("rebooking and capacity", func(t *testing.T) {
-		t.Parallel()
 		f := newReviewFixture(t, "Träger Wege Gleichzeitig")
 		first, second := f.offer.Weeks[0], f.offer.Weeks[1]
 		f.setCapacity(t, first.ID, 2)
@@ -345,7 +351,6 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 		assert.Equal(t, 1, f.mails(t, "holiday_place_granted", tom.ID), "Tom moves up once")
 	})
 	t.Run("decision and capacity", func(t *testing.T) {
-		t.Parallel()
 		a := newAllocationFixture(t, "Träger Entscheidung Gleichzeitig")
 		registration := a.submitCriteria(t, "tom.gleichzeitig@example.org", true, false)
 		candidate := a.board(t).Weeks[0].Pending[0]
@@ -373,7 +378,7 @@ func TestHolidayAllocationWorkflowWaysSerializeInOnePeriod(t *testing.T) {
 // period, and succeeds.
 func TestHolidayAllocationWorkflowDecisionMeetsTheCatalogAndAnotherPeriod(t *testing.T) {
 	t.Parallel()
-	actors := testpkg.SetupClosableTestDB(t)
+	actors := lockActors(t)
 	a := newAllocationFixture(t, "Träger Katalog Gleichzeitig")
 	working := a.submitCriteria(t, "berufstaetig.katalog@example.org", true, false)
 	a.submitCriteria(t, "geschwister.katalog@example.org", false, true)
