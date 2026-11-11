@@ -964,6 +964,7 @@ function MeinRaumPageContent() {
           Einzelaktionen melden sich als Toast oder in ihrem Dialog (#2517). */}
       {!hasNoAccess ? <LoadErrorAlert error={loadError} /> : null}
       <LoadErrorAlert error={supervisorAfterWrite.error} />
+      <LoadErrorAlert error={actions.reloadError} />
       <LoadErrorAlert error={handOverAfterWrite.error} />
       {showUnclaimedOnly ? (
         <>
