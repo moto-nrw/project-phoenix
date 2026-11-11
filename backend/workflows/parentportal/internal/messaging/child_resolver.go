@@ -17,6 +17,10 @@ func (c children) WithPermittedChild(ctx context.Context, accountID, studentID i
 	return (*c.flows).WithPermittedChild(ctx, accountID, studentID, permission, between, read)
 }
 
-func (c children) WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*care.Child) error, write func(context.Context, *care.Child) error) error {
-	return (*c.flows).WithPermittedChildForWrite(ctx, accountID, studentID, permission, between, write)
+func (c children) WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*care.Child) error, write func(context.Context, *care.Child) error, adjust ...func(*care.ChildWriteAccess)) error {
+	return (*c.flows).WithPermittedChildForWrite(ctx, accountID, studentID, permission, between, write, adjust...)
+}
+
+func (c children) WithChildWrite(ctx context.Context, accountID, studentID int64, child *care.Child, access care.ChildWriteAccess, write func(context.Context) error) error {
+	return (*c.flows).WithChildWrite(ctx, accountID, studentID, child, access, write)
 }

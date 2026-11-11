@@ -42,6 +42,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Runtime:         owners.ParentPortalRuntime{},
 		ChildRepo:       parents.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(repos.Student), PersonRepo: owners.NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: owners.NewParentStudentGuardianReads(members.StudentGuardian), GuardianProfileRepo: owners.NewParentGuardianProfileReads(members.GuardianProfile),
+		Memberships:      owners.NewParentSchoolMembershipLock(db),
 		Settings:         owners.BindParentSettings(liveSettings.Settings),
 		ArrivalSchedules: owners.NewParentArrivalSchedules(live.ArrivalSchedule),
 		PickupSchedules:  owners.NewParentPickupSchedules(live.PickupSchedule),

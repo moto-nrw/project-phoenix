@@ -6651,6 +6651,13 @@
       "owner": "roots"
     },
     {
+      "build": "testhooks",
+      "evidence": "func (r parkedParentChildReads) FindForAccount(ctx context.Context, accountID, studentID int64) (*parentportal.ChildSummary, error) {\n\tchild, err := r.ChildReads.FindForAccount(ctx, accountID, studentID)\n\tr.park()\n\treturn child, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parkedParentChildReads.FindForAccount",
+      "owner": "roots"
+    },
+    {
       "build": "production",
       "evidence": "func (p partialAbsenceBlocks) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {\n\trows, err := p.preview.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tblocks := make([]carerequests.Block, 0, len(rows))\n\tfor _, row := range rows {\n\t\tblocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})\n\t}\n\treturn blocks, nil\n}",
       "form": "unclassified-evidence",

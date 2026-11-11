@@ -74,6 +74,10 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
 		StudentRepo:    owners.NewParentStudentReads(reposPeople.Student),
+		// The child write guard locks through these ports (#6529).
+		Memberships:         owners.NewParentSchoolMembershipLock(testpkg.MustDatabase(db)),
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		Settings: parentSettingsStub{
 			boolValues: boolValues,
 			stringValues: map[string]string{
