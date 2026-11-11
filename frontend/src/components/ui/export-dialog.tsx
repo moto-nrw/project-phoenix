@@ -18,6 +18,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCancelButton,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
@@ -173,15 +174,7 @@ export function ExportDialog<F extends ExportFileFormat>({
           ) : null}
         </SlideOverBody>
         <SlideOverFooter>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            disabled={busy !== null || isDismissDisabled}
-          >
-            Abbrechen
-          </Button>
+          <SlideOverCancelButton>Abbrechen</SlideOverCancelButton>
           {run.print ? (
             <Button
               type="button"

@@ -105,6 +105,10 @@ const SlideOverDirectionContext = React.createContext<"right" | "bottom">(
 const SlideOverBusyContext = React.createContext(false);
 /** True while every way to close the panel is locked (busy or `isDismissDisabled`). */
 const SlideOverDismissLockedContext = React.createContext(false);
+/** Whether the surrounding panel currently locks dismissal actions. */
+function useSlideOverDismissDisabled(): boolean {
+  return React.useContext(SlideOverDismissLockedContext);
+}
 /**
  * False once the panel is closed. Vaul keeps it on screen while it slides
  * out; its footer must not start a save then that the next opening would
@@ -386,7 +390,7 @@ const SlideOverCloseButton = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Close>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
 >(({ className, children, disabled = false, ...props }, ref) => {
-  const dismissLocked = React.useContext(SlideOverDismissLockedContext);
+  const dismissLocked = useSlideOverDismissDisabled();
 
   return (
     <DrawerPrimitive.Close
@@ -409,6 +413,34 @@ const SlideOverCloseButton = React.forwardRef<
   );
 });
 SlideOverCloseButton.displayName = "SlideOverCloseButton";
+
+/**
+ * The textual dismissal control for a `SlideOverFooter`. It closes through
+ * Vaul and reads the same dismissal lock as the header X; save actions in the
+ * footer remain independent. Compound footer controls use
+ * `useSlideOverDismissDisabled` for their cancel action.
+ */
+const SlideOverCancelButton = React.forwardRef<
+  React.ComponentRef<typeof DrawerPrimitive.Close>,
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
+>(({ className, disabled = false, ...props }, ref) => {
+  const dismissLocked = useSlideOverDismissDisabled();
+
+  return (
+    <DrawerPrimitive.Close
+      ref={ref}
+      type="button"
+      disabled={disabled || dismissLocked}
+      className={buttonClassName({
+        variant: "outline",
+        size: "md",
+        className: cn(className),
+      })}
+      {...props}
+    />
+  );
+});
+SlideOverCancelButton.displayName = "SlideOverCancelButton";
 
 const DEFAULT_CLOSE = <SlideOverCloseButton />;
 
@@ -471,6 +503,9 @@ SlideOverBody.displayName = "SlideOverBody";
 /**
  * The panel's action row (`DialogActions`). It locks every action in it
  * while the panel's save runs and while a closed panel slides out (#6593).
+ * A dismissal action uses `SlideOverCancelButton` (or reads
+ * `useSlideOverDismissDisabled`); an external dismissal lock leaves save and
+ * submit actions usable.
  */
 const SlideOverFooter = ({
   className,
@@ -524,4 +559,6 @@ export {
   SlideOverTitle,
   SlideOverDescription,
   SlideOverCloseButton,
+  SlideOverCancelButton,
+  useSlideOverDismissDisabled,
 };

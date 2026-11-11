@@ -13,6 +13,7 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCancelButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -119,15 +120,7 @@ export function SurveyCreateSlideOver({
           </div>
         </SlideOverBody>
         <SlideOverFooter>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            disabled={saving}
-          >
-            Abbrechen
-          </Button>
+          <SlideOverCancelButton>Abbrechen</SlideOverCancelButton>
           <Button
             type="button"
             variant="primary"

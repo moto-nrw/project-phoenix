@@ -13,6 +13,7 @@ import { EditActions } from "./edit-actions";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCancelButton,
   SlideOverContent,
   SlideOverFooter,
   SlideOverHeader,
@@ -82,8 +83,9 @@ describe("isDismissDisabled", () => {
     );
   });
 
-  it("locks every way to close a SlideOver but not its footer", () => {
+  it("locks every way to close a SlideOver but not its save action", () => {
     const onOpenChange = vi.fn();
+    const onClose = vi.fn();
     const onSave = vi.fn();
     render(
       <SlideOver open onOpenChange={onOpenChange} isDismissDisabled>
@@ -93,6 +95,9 @@ describe("isDismissDisabled", () => {
           </SlideOverHeader>
           <SlideOverBody>Inhalt</SlideOverBody>
           <SlideOverFooter>
+            <SlideOverCancelButton onClick={() => onClose()}>
+              Abbrechen
+            </SlideOverCancelButton>
             <Button type="button" onClick={onSave}>
               Speichern
             </Button>
@@ -109,6 +114,11 @@ describe("isDismissDisabled", () => {
     );
     fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
     expect(onOpenChange).not.toHaveBeenCalled();
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    expect(cancel).toBeDisabled();
+    fireEvent.click(cancel);
+    expect(onClose).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(onSave).toHaveBeenCalledTimes(1);

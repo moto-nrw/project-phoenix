@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import {
   SlideOver,
   SlideOverBody,
+  SlideOverCancelButton,
   SlideOverContent,
   SlideOverDescription,
   SlideOverFooter,
@@ -35,11 +36,7 @@ export const Default: Story = {
           Inhalt des Panels.
         </div>
         <SlideOverFooter>
-          <DrawerPrimitive.Close asChild>
-            <Button type="button" variant="outline">
-              Schließen
-            </Button>
-          </DrawerPrimitive.Close>
+          <SlideOverCancelButton>Schließen</SlideOverCancelButton>
         </SlideOverFooter>
       </SlideOverContent>
     </SlideOver>
@@ -106,11 +103,7 @@ export const WithFooterActions: Story = {
           Inhalt des Panels.
         </SlideOverBody>
         <SlideOverFooter>
-          <DrawerPrimitive.Close asChild>
-            <Button type="button" variant="outline">
-              Abbrechen
-            </Button>
-          </DrawerPrimitive.Close>
+          <SlideOverCancelButton>Abbrechen</SlideOverCancelButton>
           <Button type="button">Speichern</Button>
         </SlideOverFooter>
       </SlideOverContent>
