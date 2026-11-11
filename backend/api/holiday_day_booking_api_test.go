@@ -117,7 +117,7 @@ func (d dayFixture) registration(email, name string, bookings ...map[string]any)
 		}},
 		"emergency_contacts": []map[string]any{{"name": "Oma Tag", "phone": "05402 1234", "relationship": "Großmutter"}},
 		"privacy_consent":    true, "binding_confirmed": true, "custody_confirmed": true, "declaration_name": "Eva Tag",
-		"consent_version": enrollment.HolidayConsentVersionCurrent, "captcha_token": "valid-token",
+		"consent_version": enrollment.HolidayConsentVersionCurrent, "retention_days": holidayDefaultRetentionDays, "captcha_token": "valid-token",
 	}
 }
 

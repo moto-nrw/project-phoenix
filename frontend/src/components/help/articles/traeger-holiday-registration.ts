@@ -33,7 +33,9 @@ export function traegerHolidayRegistrationTopic(): HelpTopic {
       "Eltern bestätigen bei jeder Anmeldung das Sorgerecht. Mit ihrem Vor- und Nachnamen geben sie die Erklärungen ab.",
       "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage. Sie enthält die Erklärung der Eltern mit dem genauen Text, auch Ihre bestätigten Hinweise.",
       "Gesundheitsangaben stehen nur in der Anmeldung. Die Bestätigung nennt sie nicht.",
-      "Drei Monate nach der letzten Woche löscht moto die Anmeldungen. Ausgestellte Rechnungen und Bestätigungsschreiben bleiben.",
+      "Ein Jahr nach der letzten Woche löscht moto die Anmeldungen. Die Frist ändern Sie in den Einstellungen unter `Ferienbetreuung`. Sie steht im Einwilligungstext für die Eltern.",
+      "Eine Anmeldung behält die Frist, die bei ihrer Abgabe im Einwilligungstext stand. Ältere Anmeldungen mit dem Text „drei Monate“ löscht moto nach drei Monaten.",
+      "Gesundheitsangaben löscht moto immer schon 92 Tage nach der letzten Woche. Ausgestellte Rechnungen und Bestätigungsschreiben bleiben.",
     ],
     differences: [
       "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",
