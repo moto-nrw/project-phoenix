@@ -276,7 +276,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+2).
 // ADR 0203: the constructors of the HTTPS retrieval and the release CLI of
 // the return package of modules/organizationtenancy/compose add exactly 18 LOC.
-const moduleComposeBudgetTotal = 13280
+// ADR 0207: the constructor of the announced holiday periods of
+// modules/enrollment/compose (+5) and their port of
+// workflows/parentportal/compose (+1) add exactly 6 LOC.
+const moduleComposeBudgetTotal = 13286
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -329,7 +332,7 @@ var moduleComposeBudgets = map[string]int{
 	// of the package by more than it added (-2).
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
-	"modules/enrollment/compose":                   608,
+	"modules/enrollment/compose":                   613, // ADR 0207: the announced holiday periods (+5)
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -435,7 +438,7 @@ var moduleComposeBudgets = map[string]int{
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21); by ADR 0153: the contract port (+1);
 	// by ADR 0157: the shared document port (+1).
-	"workflows/parentportal/compose":     332, // ADR 0159: the notice port (+1)
+	"workflows/parentportal/compose":     333, // ADR 0159: the notice port (+1); ADR 0207: the announcements port (+1)
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

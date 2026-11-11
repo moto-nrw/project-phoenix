@@ -199,6 +199,9 @@ func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, account
 	}
 	return &parentService.HolidayRegistrationFamily{}, nil
 }
+func (f *fakeParentService) HolidayRegistrationOffers(context.Context, int64) ([]parentService.HolidayRegistrationOffer, error) {
+	return nil, nil
+}
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	return nil, nil
 }

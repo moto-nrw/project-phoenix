@@ -119,6 +119,9 @@ func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {
 	// register, and the guardian's contact data. The Träger comes from the
 	// link only; the registration itself stays the public submit.
 	r.Get("/holiday-registrations/{token}/family", rs.getHolidayRegistrationFamily)
+	// The holiday periods of the Träger of the account's children a parent
+	// can register for or soon will (#6671): the entry on the start page.
+	r.Get("/me/holiday-registrations", rs.listHolidayRegistrationOffers)
 }
 
 func (rs *Resource) mountChildStatusRoutes(r chi.Router) {

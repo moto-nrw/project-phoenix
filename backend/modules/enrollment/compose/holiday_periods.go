@@ -25,6 +25,11 @@ func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail en
 	})
 }
 
+// NewHolidayRegistrationAnnouncements builds the read of the published periods the parents app announces (#6671, ADR 0207), in the administrative transaction.
+func NewHolidayRegistrationAnnouncements() enrollment.HolidayRegistrationAnnouncements {
+	return postgres.NewHolidayRegistrationStore()
+}
+
 // NewHolidayWishes builds the prefill's sealed statements of the holiday care wish (school tenant transaction) and the office's decision on it (#4703).
 func NewHolidayWishes(health enrollment.HolidayHealthCipher) (enrollment.HolidayWishProofs, enrollment.HolidayWishReview) {
 	review, _, _ := applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil, nil, nil, nil)
