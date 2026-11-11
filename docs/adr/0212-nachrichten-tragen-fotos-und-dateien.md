@@ -75,8 +75,8 @@ gemessenen Stellen:
 - `moduleComposeBudgets["modules/communication/composition"]` 351 → 376:
   der Anhang-Store der drei Messenger, die Elternseite der Anhänge und der
   Aufräumlauf der Objekte (+25).
-- `moduleComposeBudgets["workflows/parentportal/compose"]` 333 → 335: der
-  Port der Anhänge (+2). `moduleComposeBudgetTotal` + 27.
+- `moduleComposeBudgets["workflows/parentportal/compose"]` 333 → 334: der
+  Port der Anhänge (+1). `moduleComposeBudgetTotal` + 26.
 - `demoErasureExceptionBudget` 187 → 189: `users.message_attachments` und
   `users.message_attachment_cleanup` bleiben wie die Nachrichten, zu denen
   sie gehören, bei der stillgelegten Demo-Schule (bis #5559).
