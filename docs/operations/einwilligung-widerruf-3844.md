@@ -88,7 +88,7 @@ eine Neuerteilung stellt kein Foto wieder her. Rechte sind kindbezogen, nicht
 allein durch ein Elternkonto gegeben. Nach Betreuungsende bleibt der
 Portal-Widerruf möglich (#6494), eine Neuerteilung nicht.
 
-**Ende der Betreuung (#6650, [ADR 0212](../adr/0212-kinderfoto-endet-mit-der-betreuung.md)):**
+**Ende der Betreuung (#6650, [ADR 0213](../adr/0213-kinderfoto-endet-mit-der-betreuung.md)):**
 Im ersten nächtlichen Lauf nach dem letzten Betreuungstag oder dem Abgang
 entfernt moto Foto, Foto-Einwilligung und wer sie erfasst hat, ohne weitere
 Frist. Das Löschprotokoll erhält je Kind `student_photo_retention` mit Grund
