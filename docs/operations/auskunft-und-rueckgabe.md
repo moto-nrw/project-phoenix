@@ -32,6 +32,19 @@ automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
 Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
 Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
+**Register (Art. 26 Data Act, [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md)):**
+`GET /public/data-return/register` der API liefert ohne Anmeldung die
+Schemabeschreibung des Pakets: jede Tabelle mit Feldern, Typen, Nullbarkeit,
+Beziehungen und den Paketen, die sie tragen, die ausgeschlossenen Tabellen,
+Spalten und Dateiarten mit Grund, Formatversion, Standards und eine
+unverbindliche Zeitschätzung. Keine Kundendaten. Die Datei
+`backend/modules/organizationtenancy/return_register.json` ist im Binary
+eingebettet und entsteht mit demselben Code wie `model.json`;
+`TestReturnRegisterMatchesMigratedSchema` erzwingt, dass sie zum Schema passt.
+`formatVersion` und `catalogSHA256` im Manifest eines Pakets nennen den
+Registerstand, zu dem es gehört. Kunden und Zielanbieter auf diese Adresse
+verweisen, nicht auf eine Kopie.
+
 **Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten, der
 bestätigte Text eines Online-Mandats, IBAN und Kontoinhaber der Eltern sowie
 IBAN, Steuer-ID und Sozialversicherungsnummer des Personals (alle Bankring)
@@ -487,7 +500,9 @@ keine Vollständigkeit. `COMPLETE` bestätigt nur den technischen Lauf.
 
 Technisch steht das Verfahren dieses Runbooks bereit: vollständiger
 Schul- und Trägerbestand in offenem, dokumentiertem Format (JSON Lines,
-`model.json`, Originaldateien, Prüfsummen), ohne Wechselentgelt.
+`model.json`, Originaldateien, Prüfsummen), ohne Wechselentgelt. Das Register
+unter `/public/data-return/register` beschreibt das Paket schon vor dem
+Wechsel; bei der Wechselanfrage dem Kunden und dem Zielanbieter nennen.
 Die Fristen laufen ab dem Eingang der Wechselanfrage:
 
 | Schritt | Frist nach AGB | Wer |

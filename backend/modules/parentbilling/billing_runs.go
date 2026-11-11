@@ -213,6 +213,9 @@ type BillingRunDetail struct {
 	DueDates []RunDueDate `json:"due_dates"`
 	// DocumentKindState is the kind the run issues (#4688).
 	DocumentKindState
+	// Fingerprint names the content of the preview of a calculated run; the
+	// release sends it back (#6506). A released run has none.
+	Fingerprint string `json:"fingerprint"`
 }
 
 // BillingCorrectionInput changes the amount of one child of a family in a
@@ -225,14 +228,17 @@ type BillingCorrectionInput struct {
 }
 
 // BillingRelease names the preview the Abrechnung checked: the release
-// refuses when the run would issue a different number of invoices or a
-// different sum.
+// refuses when the run would issue a different number of invoices, a
+// different sum or other content than the fingerprint names (#6506).
 type BillingRelease struct {
 	DocumentCount int
 	TotalCents    int64
 	// DocumentKind is the kind of document the Abrechnung saw; a release
 	// of another kind refuses (#4688). Empty skips the check.
 	DocumentKind string
+	// Fingerprint is the fingerprint of the preview the Abrechnung checked;
+	// a missing or other one refuses (#6506).
+	Fingerprint string
 }
 
 // NumberRange is the pattern of the invoice numbers of a service. Example
