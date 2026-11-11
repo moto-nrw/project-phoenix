@@ -134,7 +134,7 @@ func TestParentRenewalsRunBehindTheGuard(t *testing.T) {
 func TestParentRenewalGuardRuleReportsTheUnlockedCheck(t *testing.T) {
 	t.Parallel()
 	file, source := renewalSource(t, "intake_submit.go")
-	guarded := "if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {"
+	guarded := "if err := s.holdGuardianReEnrollment(plan.renewalHolds, matchedStudentID, i); err != nil {"
 	if !strings.Contains(source, guarded) {
 		t.Fatal("the submission no longer holds the renewal as this test expects; update the bypass")
 	}
@@ -156,11 +156,11 @@ func TestParentRenewalGuardRuleReportsTheUnlockedCheck(t *testing.T) {
 func TestParentRenewalGuardRuleReportsARemovedHold(t *testing.T) {
 	t.Parallel()
 	file, source := renewalSource(t, "intake_eligibility.go")
-	guarded := "granted, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, submitter, *matchedStudentID, tenantID)"
+	guarded := "grants, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, ids, tenantID)"
 	if !strings.Contains(source, guarded) {
 		t.Fatal("the renewal no longer asks the hold as this test expects; update the bypass")
 	}
-	bypass := strings.Replace(source, guarded, "granted, err := true, error(nil)", 1)
+	bypass := strings.Replace(source, guarded, "grants, err := map[int64]bool{}, error(nil)", 1)
 	violations := checkRenewal(t, map[string][]byte{file: []byte(bypass)})
 	unguarded := map[string]bool{}
 	for _, v := range violations {

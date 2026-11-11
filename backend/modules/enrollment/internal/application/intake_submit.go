@@ -32,6 +32,7 @@ func (s *Intake) Submit(ctx context.Context, req enrollmentNative.SubmitRequest)
 // transaction. phase is the pre-check read; the write replaces it with the
 // phase read under the recurrence gate (locked) before it uses any bound.
 type submissionPlan struct {
+	renewalHolds     renewalHolds
 	phase            *enrollmentNative.Phase
 	locked           enrollmentNative.LockedPhase
 	now              time.Time
@@ -282,7 +283,8 @@ func (s *Intake) lockSubmission(ctx context.Context, req *SubmitRequest, plan *s
 		reEnrollEmail = lateInvite.GuardianEmail
 	}
 	submitter := reEnrollmentSubmitterFor(plan.submissionSource, req.GuardianAccountID, reEnrollEmail)
-	if err := s.holdRenewalCandidates(ctx, req.TenantID, plan.phase, req.Children, nil, func() (reEnrollmentSubmitter, error) { return submitter, nil }); err != nil {
+	plan.renewalHolds, err = s.holdRenewalCandidates(ctx, req.TenantID, plan.phase, req.Children, nil, func() (reEnrollmentSubmitter, error) { return submitter, nil })
+	if err != nil {
 		return nil, reEnrollmentSubmitter{}, err
 	}
 	// Serialize concurrent submits of one (phase, guardian email), so two
@@ -410,10 +412,14 @@ func createRequestGuardians(ctx context.Context, owner IntakeGuardians, requestI
 }
 
 func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *enrollmentNative.Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*enrollmentNative.RequestChild, error) {
+	matches, err := s.finalRenewalMatches(ctx, req.TenantID, plan.phase, req.Children)
+	if err != nil {
+		return nil, err
+	}
 	created := make([]*enrollmentNative.RequestChild, 0, len(req.Children))
 	for i, child := range req.Children {
 		row := newSubmittedChild(request.ID, i, child, overrides)
-		matchedStudentID, err := s.submittedChildPin(ctx, req.TenantID, plan.phase, i, child, submitter)
+		matchedStudentID, err := s.submittedChildPin(ctx, plan.phase, i, matches[i], submitter, plan.renewalHolds)
 		if err != nil {
 			return nil, err
 		}
@@ -422,7 +428,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, plan.eligibility != eligibilityNone, i); err != nil {
 			return nil, err
 		}
-		if err := s.holdGuardianReEnrollment(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {
+		if err := s.holdGuardianReEnrollment(plan.renewalHolds, matchedStudentID, i); err != nil {
 			return nil, err
 		}
 		if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, matchedStudentID, 0, i); err != nil {

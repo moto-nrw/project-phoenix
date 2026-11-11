@@ -550,3 +550,57 @@ func TestParentSiblingRenewalTakesAllChildrenBeforeGuardianProfiles(t *testing.T
 		})
 	}
 }
+
+func TestParentRenewalRefusesANewMatchAfterCandidateLookup(t *testing.T) {
+	t.Parallel()
+	rig := setupRenewalRig(t)
+	family := rig.family(t, "VorKorrektur")
+	family.last = "NachKorrektur"
+	rig.checked.armed.Store(true)
+	done := rig.submitAsync(t, family)
+	select {
+	case backend := <-rig.checked.reached:
+		require.NoError(t, backend.err)
+	case err := <-done:
+		t.Fatalf("submission returned before the candidate lookup: %v", err)
+	case <-time.After(renewalDeadline):
+		t.Fatal("candidate lookup was not reached")
+	}
+	_, err := rig.db.NewRaw(`UPDATE users.persons SET last_name = ?
+  WHERE id = (SELECT person_id FROM users.student_profiles WHERE id = ? AND tenant_id = ?)`, family.last, family.studentID, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	rig.checked.open()
+	require.ErrorIs(t, awaitRenewal(t, done), enrollmentNative.ErrChildEnrollmentNotPermitted)
+	require.Zero(t, rig.requestsOf(t, family), "a new match must abort without storing a request")
+}
+
+func TestRenewalHoldQueryCountDoesNotGrowWithSiblings(t *testing.T) {
+	t.Parallel()
+	rig := setupRenewalRig(t)
+	first := rig.family(t, "Gebündelt")
+	second := enrolledChild(t, rig.db, "Mila", first.last, existingChildBirthday)
+	links, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), rig.db, rig.repos.StudentGuardian.FindByStudentID, first.studentID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	testpkg.CreateTestStudentGuardianLink(t, rig.db, second.ID, links[0].GuardianProfileID, securityruntime.GuardianRolePrimaryGuardian)
+	hold := testGuardianHold(rig.db, rig.repos)
+	counter := testpkg.CaptureQueriesForContext(t, rig.db)
+	counts := make([]int, 0, 2)
+	for _, ids := range [][]int64{{first.studentID}, {second.ID, first.studentID}} {
+		require.NoError(t, testpkg.WithTenantTx(t, counter.Context(testpkg.Ctx(t)), rig.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+			counter.Reset()
+			counter.Start()
+			defer counter.Stop()
+			grants, err := hold.HoldAccountStudentsPermission(ctx, first.accountID, ids, testpkg.Tenant(t), securityruntime.GuardianPermissionEnrollmentSubmit)
+			require.NoError(t, err)
+			for _, id := range ids {
+				require.True(t, grants[id])
+			}
+			counts = append(counts, counter.Total())
+			return nil
+		}))
+	}
+	require.Positive(t, counts[0])
+	require.Equal(t, counts[0], counts[1], "profile, membership, children and permissions must use a constant query count")
+	t.Logf("held authorization: %d statements for one child and for two siblings", counts[0])
+}

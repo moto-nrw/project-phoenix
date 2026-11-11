@@ -131,16 +131,12 @@ type GuardianStudentAuthorizer interface {
 	GuardianEmailHasStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string) (bool, error)
 }
 
-// GuardianStudentHold asks the same question behind the parent guard
-// (#6638): in the caller's school transaction it locks account and school
-// membership, child, guardian profile and relationship in the guard's order
-// and keeps them until commit, so a revocation committed before is seen and
-// a later one waits for the renewal. Other children, when supplied, are
-// locked in ascending order with the requested child before any profile or
-// relationship; their authority is checked by subsequent holds.
+// GuardianStudentHold holds one identity's authority over all candidates in
+// the caller's school transaction, in account, school, children (ascending),
+// profile, relationships order. Missing or refused children have no grant.
 type GuardianStudentHold interface {
-	HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error)
-	HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error)
+	HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
+	HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
 }
 
 // IntakeSettings resolves tenant overrides or registry defaults. Permission

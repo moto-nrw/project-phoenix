@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -53,8 +54,10 @@ func TestRenewalCandidatesBatchUniqueMatchesAndCarriedPins(t *testing.T) {
 		require.Equal(t, enrollment.StudentIdentity{FirstName: child.FirstName, LastName: child.LastName, Birthday: child.DateOfBirth}, repo.identities[i])
 	}
 
-	require.NoError(t, svc.holdRenewalCandidates(context.Background(), 7001, phase, children, carried,
-		func() (reEnrollmentSubmitter, error) { return reEnrollmentSubmitter{AdminManaged: true}, nil }))
+	holds, err := svc.holdRenewalCandidates(context.Background(), 7001, phase, children, carried,
+		func() (reEnrollmentSubmitter, error) { return reEnrollmentSubmitter{AdminManaged: true}, nil })
+	require.NoError(t, err)
+	require.True(t, holds[30])
 	require.Equal(t, ids, repo.locked, "staff lock the candidates without guardian authorization")
 }
 
@@ -70,5 +73,59 @@ func TestRenewalCandidatesFailClosedOnLookupErrors(t *testing.T) {
 		if repo.err != nil {
 			require.ErrorIs(t, err, lookupErr)
 		}
+	}
+}
+
+func TestRenewalCandidatesHoldSiblingsOnce(t *testing.T) {
+	t.Parallel()
+	hold := &countingRenewalHold{}
+	svc := NewIntake(IntakeDependencies{Students: &renewalCandidateMatches{matches: [][]int64{{30}, {10}}}, GuardianHold: hold, Settings: intakeSettingsFake{}})
+	account := int64(7)
+	holds, err := svc.holdRenewalCandidates(context.Background(), 7001, eligibilityTestPhase(enrollment.PhaseAudienceExistingStudents), []SubmitChild{{}, {}}, nil,
+		func() (reEnrollmentSubmitter, error) { return reEnrollmentSubmitter{GuardianAccountID: &account}, nil })
+	require.NoError(t, err)
+	require.True(t, holds[30])
+	require.Equal(t, 1, hold.calls, "one held authorization regardless of sibling count")
+}
+
+type countingRenewalHold struct{ calls int }
+
+func (h *countingRenewalHold) HoldAccountStudentsPermission(_ context.Context, _ int64, ids []int64, _ int64, _ string) (map[int64]bool, error) {
+	h.calls++
+	grants := map[int64]bool{}
+	for _, id := range ids {
+		grants[id] = true
+	}
+	return grants, nil
+}
+func (h *countingRenewalHold) HoldGuardianEmailStudentsPermission(ctx context.Context, _ string, ids []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	return h.HoldAccountStudentsPermission(ctx, 0, ids, tenantID, permission)
+}
+
+// The directory can gain a new match while the dedup lock is being acquired.
+// Neither submit nor replace may take that child's lock after the phase locks,
+// including the staff path, which bypasses guardian authorization.
+func TestIntakeRejectsMatchesOutsideItsHeldCandidates(t *testing.T) {
+	t.Parallel()
+	for _, staff := range []bool{false, true} {
+		t.Run(fmt.Sprintf("staff=%t", staff), func(t *testing.T) {
+			t.Parallel()
+			repo := &renewalCandidateMatches{matches: [][]int64{{10}}}
+			svc := NewIntake(IntakeDependencies{Students: repo, GuardianHold: &countingRenewalHold{}, Settings: intakeSettingsFake{}})
+			account := int64(7)
+			submitter := reEnrollmentSubmitter{GuardianAccountID: &account, AdminManaged: staff}
+			phase := eligibilityTestPhase(enrollment.PhaseAudienceExistingStudents)
+			children := []SubmitChild{{FirstName: "Lina"}}
+			holds, err := svc.holdRenewalCandidates(context.Background(), 7001, phase, children, nil, func() (reEnrollmentSubmitter, error) { return submitter, nil })
+			require.NoError(t, err)
+			repo.matches = [][]int64{{20}}
+			_, err = svc.createSubmittedChildren(context.Background(), &SubmitRequest{TenantID: 7001, Children: children}, &submissionPlan{phase: phase, renewalHolds: holds}, &enrollment.Request{}, nil, submitter)
+			require.ErrorIs(t, err, enrollment.ErrChildEnrollmentNotPermitted)
+			_, err = svc.replacementStudentPin(context.Background(), &replacePlan{
+				req: &enrollment.Request{TenantID: 7001, GuardianAccountID: &account}, phase: phase,
+				matchedExisting: []*enrollment.RequestChild{nil}, renewalHolds: holds, renewalMatches: repo.matches,
+			}, 0, children[0])
+			require.ErrorIs(t, err, enrollment.ErrChildEnrollmentNotPermitted)
+		})
 	}
 }

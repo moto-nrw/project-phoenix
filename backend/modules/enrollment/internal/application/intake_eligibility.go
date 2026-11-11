@@ -250,77 +250,62 @@ func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter
 	return nil
 }
 
-// holdGuardianReEnrollment is assertGuardianMayReEnrollStudent for the
-// parent's own submission and edit (#6638): the permission is asked behind
-// the parent guard, which keeps the identity's school membership,
-// relationship and permission locked until the request commits. The
-// candidates' locks are already held (holdRenewalCandidates); this call
-// decides.
-func (s *Intake) holdGuardianReEnrollment(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, tenantID int64, childIndex int) error {
-	if matchedStudentID == nil {
-		return nil
-	}
-	granted, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, submitter, *matchedStudentID, tenantID)
-	if err != nil {
-		return fmt.Errorf("submit: hold guardian re-enrollment permission for child %d: %w", childIndex, err)
-	}
-	if !granted {
+// renewalHolds retains the candidate set and its locked grants until commit.
+// An absent key can never acquire a child lock after the phase locks.
+type renewalHolds map[int64]bool
+
+func (s *Intake) holdGuardianReEnrollment(holds renewalHolds, matchedStudentID *int64, childIndex int) error {
+	if matchedStudentID != nil && !holds[*matchedStudentID] {
 		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
 	}
 	return nil
 }
 
-// holdRenewalCandidates takes the parent guard's locks of every enrolled
-// child a submission or edit may renew, in ascending id order and before the
-// intake's own phase locks (#6638). Approvals and change-request decisions
-// lock students before those phase locks; a renewal that took a phase lock
-// first and a child later could wait for them in a cycle, and two renewals
-// naming siblings in opposite order could wait for each other. All candidate
-// children precede the first profile or relationship lock, so a contact edit
-// holding a later sibling cannot wait for a profile held by this renewal.
-// A candidate is a carried pin or the one enrolled child name and birthday
-// match, the existing_students rule and, for a signed-in parent, the relationship rule
-// of open and linked_parents phases. A refusal here decides nothing: the
-// renewal asks again when it pins the child (holdGuardianReEnrollment).
-func (s *Intake) holdRenewalCandidates(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, children []SubmitChild, carried []*int64, submitter func() (reEnrollmentSubmitter, error)) error {
+// holdRenewalCandidates holds all candidates before the phase locks. Its
+// results stay valid until commit and are reused by the final pin checks.
+func (s *Intake) holdRenewalCandidates(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, children []SubmitChild, carried []*int64, submitter func() (reEnrollmentSubmitter, error)) (renewalHolds, error) {
 	ids, err := s.renewalCandidates(ctx, tenantID, phase, children, carried, true)
 	if err != nil || len(ids) == 0 {
-		return err
+		return renewalHolds{}, err
 	}
 	identity, err := submitter()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	switch {
-	case identity.AdminManaged:
-		// Staff bypass authorization, but take the same child-before-phase
-		// order: inserting the pin needs the student's foreign-key lock.
-		if s.deps.Students == nil {
-			return errors.New("submit: student locks are not configured")
-		}
-		if err := s.deps.Students.LockStudents(ctx, ids); err != nil {
-			return fmt.Errorf("submit: hold staff re-enrollment candidates: %w", err)
-		}
-		return nil
-	case s.deps.GuardianHold == nil:
-		return nil
-	case identity.GuardianAccountID == nil && phase.Audience != enrollmentNative.PhaseAudienceExistingStudents:
-		// Only a signed-in parent's relationship pins in these phases.
+	if identity.GuardianAccountID == nil && !identity.AdminManaged && phase.Audience != enrollmentNative.PhaseAudienceExistingStudents {
 		ids, _ = s.renewalCandidates(ctx, tenantID, phase, children, carried, false)
 	}
-	otherChildren := ids
-	for _, id := range ids {
-		granted, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, id, tenantID, otherChildren...)
-		if err != nil {
-			return fmt.Errorf("submit: hold re-enrollment candidate: %w", err)
-		}
-		if granted {
-			// A refusal can precede child locks (missing profile or membership).
-			// Only a successful hold proves every candidate is already locked.
-			otherChildren = nil
-		}
+	if len(ids) == 0 {
+		return renewalHolds{}, nil
 	}
-	return nil
+	if identity.AdminManaged {
+		return s.holdStaffRenewalCandidates(ctx, ids)
+	}
+	grants, err := submitterHoldsRenewal(ctx, s.deps.GuardianHold, identity, ids, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("submit: hold re-enrollment candidates: %w", err)
+	}
+	holds := make(renewalHolds, len(ids))
+	for _, id := range ids {
+		holds[id] = grants[id]
+	}
+	return holds, nil
+}
+
+// Staff bypass guardian authorization but still hold children before phase
+// locks: inserting a pin needs the student's foreign-key lock.
+func (s *Intake) holdStaffRenewalCandidates(ctx context.Context, ids []int64) (renewalHolds, error) {
+	if s.deps.Students == nil {
+		return nil, errors.New("submit: student locks are not configured")
+	}
+	if err := s.deps.Students.LockStudents(ctx, ids); err != nil {
+		return nil, fmt.Errorf("submit: hold staff re-enrollment candidates: %w", err)
+	}
+	holds := make(renewalHolds, len(ids))
+	for _, id := range ids {
+		holds[id] = true
+	}
+	return holds, nil
 }
 
 // renewalCandidates lists the candidates' student ids, ascending and unique.
@@ -367,22 +352,17 @@ func (s *Intake) matchRenewalCandidates(ctx context.Context, tenantID int64, chi
 // submitterHoldsRenewal is submitterMayRenewStudent behind the parent guard:
 // the same identities, the same permission and the same staff bypass, with
 // the facts locked until the caller's transaction ends.
-func submitterHoldsRenewal(ctx context.Context, authorizer GuardianStudentHold, submitter reEnrollmentSubmitter, studentID, tenantID int64, otherChildren ...int64) (bool, error) {
-	if submitter.AdminManaged {
-		return true, nil
-	}
+func submitterHoldsRenewal(ctx context.Context, authorizer GuardianStudentHold, submitter reEnrollmentSubmitter, studentIDs []int64, tenantID int64) (map[int64]bool, error) {
 	if authorizer == nil {
-		return false, nil
+		return nil, nil
 	}
 	switch {
 	case submitter.GuardianAccountID != nil:
-		return authorizer.HoldAccountStudentPermission(ctx, *submitter.GuardianAccountID,
-			studentID, tenantID, guardianPermissionEnrollmentSubmit, otherChildren...)
+		return authorizer.HoldAccountStudentsPermission(ctx, *submitter.GuardianAccountID, studentIDs, tenantID, guardianPermissionEnrollmentSubmit)
 	case submitter.GuardianEmail != "":
-		return authorizer.HoldGuardianEmailStudentPermission(ctx, submitter.GuardianEmail,
-			studentID, tenantID, guardianPermissionEnrollmentSubmit, otherChildren...)
+		return authorizer.HoldGuardianEmailStudentsPermission(ctx, submitter.GuardianEmail, studentIDs, tenantID, guardianPermissionEnrollmentSubmit)
 	default:
-		return false, nil
+		return nil, nil
 	}
 }
 
@@ -411,33 +391,36 @@ func submitterMayRenewStudent(ctx context.Context, authorizer GuardianStudentAut
 	}
 }
 
-// resolveEnrolledChildPin pins the enrolled student an open or
-// linked_parents child names (#6053) when the signed-in parent account's own
-// relationship to that student holds parent_portal.enrollment.submit: the
-// existing_students rule (name and birthday, one match only) finds the
-// child among the school's children, and the relationship authorizes the
-// renewal, which links the submitter to the child. Name and birthday alone
-// recognize a child but authorize nobody, so an anonymous form, a late
-// invite's email and staff entry never pin here; nor does a child another
-// active request of the phase already renews. Those children reach the
-// office as candidates.
-func (s *Intake) resolveEnrolledChildPin(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, child SubmitChild, submitter reEnrollmentSubmitter) (*int64, error) {
-	if s.deps.Students == nil || s.deps.GuardianAuthorizer == nil || !audienceChecksEnrolledChildren(phase) || submitter.GuardianAccountID == nil {
+// finalRenewalMatches rechecks identities in one read after the phase locks.
+// New matches may be observed, but only a pre-held candidate may be pinned.
+func (s *Intake) finalRenewalMatches(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, children []SubmitChild) ([][]int64, error) {
+	if s.deps.Students == nil || (phase.Audience != enrollmentNative.PhaseAudienceExistingStudents && !audienceChecksEnrolledChildren(phase)) {
+		return make([][]int64, len(children)), nil
+	}
+	return s.matchRenewalCandidates(ctx, tenantID, children)
+}
+
+func matchedRenewalStudent(phase *enrollmentNative.Phase, matches []int64, childIndex int) (*int64, error) {
+	if len(matches) == 1 {
+		id := matches[0]
+		return &id, nil
+	}
+	if len(matches) > 1 && phase.Audience == enrollmentNative.PhaseAudienceExistingStudents {
+		return nil, fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentAmbiguous, childIndex)
+	}
+	return nil, nil
+}
+
+// resolveEnrolledChildPin uses the held relationship grant for open and
+// linked-parent phases. A newly matching child aborts before any later lock.
+func (s *Intake) resolveEnrolledChildPin(ctx context.Context, phase *enrollmentNative.Phase, id *int64, submitter reEnrollmentSubmitter, holds renewalHolds, childIndex int) (*int64, error) {
+	if id == nil || !audienceChecksEnrolledChildren(phase) || submitter.GuardianAccountID == nil {
 		return nil, nil
 	}
-	id, err := s.deps.Students.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, child.FirstName, child.LastName, child.DateOfBirth)
-	if err != nil {
-		return nil, fmt.Errorf("submit: resolve enrolled child: %w", err)
+	if _, held := holds[*id]; !held {
+		return nil, fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
 	}
-	if id == nil {
-		return nil, nil
-	}
-	granted, err := s.deps.GuardianAuthorizer.AccountHasStudentPermission(ctx, *submitter.GuardianAccountID,
-		*id, tenantID, guardianPermissionEnrollmentSubmit)
-	if err != nil {
-		return nil, fmt.Errorf("submit: verify enrolled child relationship: %w", err)
-	}
-	if !granted {
+	if !holds[*id] {
 		return nil, nil
 	}
 	if err := s.deps.Requests.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
@@ -453,23 +436,12 @@ func (s *Intake) resolveEnrolledChildPin(ctx context.Context, tenantID int64, ph
 	return id, nil
 }
 
-// submittedChildPin is the pin of a submitted child: the existing_students
-// match, else the relationship match of an open or linked_parents phase.
-func (s *Intake) submittedChildPin(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, childIndex int, child SubmitChild, submitter reEnrollmentSubmitter) (*int64, error) {
-	pin, err := s.resolveMatchedStudentID(ctx, tenantID, phase, childIndex, child)
-	if err != nil || pin != nil {
+func (s *Intake) submittedChildPin(ctx context.Context, phase *enrollmentNative.Phase, childIndex int, matches []int64, submitter reEnrollmentSubmitter, holds renewalHolds) (*int64, error) {
+	pin, err := matchedRenewalStudent(phase, matches, childIndex)
+	if err != nil || phase.Audience == enrollmentNative.PhaseAudienceExistingStudents {
 		return pin, err
 	}
-	return s.resolveEnrolledChildPin(ctx, tenantID, phase, child, submitter)
-}
-
-// enrolledChildPinUnlessPinned keeps an edit's carried pin and otherwise
-// resolves the relationship match (#6053).
-func (s *Intake) enrolledChildPinUnlessPinned(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, child SubmitChild, submitter reEnrollmentSubmitter, pin *int64) (*int64, error) {
-	if pin != nil {
-		return pin, nil
-	}
-	return s.resolveEnrolledChildPin(ctx, tenantID, phase, child, submitter)
+	return s.resolveEnrolledChildPin(ctx, phase, pin, submitter, holds, childIndex)
 }
 
 // guardMatchedStudentUnique refuses a child pinned to a student another

@@ -117,27 +117,43 @@ func hold(ctx context.Context, locks Locks, req Request, otherChildren []int64) 
 	if locks.Membership == nil || locks.Child == nil || locks.Profile == nil || locks.Relationship == nil || locks.Owner == nil {
 		return ErrUnavailable
 	}
+	var granted func(string) bool
+	err := holdAuthority(ctx, locks, req, func(ctx context.Context) error {
+		return lockChildren(ctx, locks, req.StudentID, otherChildren)
+	}, func(ctx context.Context) error {
+		var err error
+		granted, err = locks.Relationship(ctx, req.StudentID, req.ProfileID)
+		if err != nil {
+			return err
+		}
+		if granted == nil {
+			return ErrNotLinked
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return requirePermissions(granted, req)
+}
+
+// holdAuthority is the shared lock-and-identity protocol for one child and
+// a candidate set. Callers provide set or single-row locks in the same slots.
+func holdAuthority(ctx context.Context, locks Locks, req Request, children, relationships func(context.Context) error) error {
 	account, err := holdAccount(ctx, locks, req)
 	if err != nil {
 		return err
 	}
-	if err := lockChildren(ctx, locks, req.StudentID, otherChildren); err != nil {
+	if err := children(ctx); err != nil {
 		return err
 	}
 	if err := lockProfiles(ctx, locks, req); err != nil {
 		return err
 	}
-	granted, err := locks.Relationship(ctx, req.StudentID, req.ProfileID)
-	if err != nil {
+	if err := relationships(ctx); err != nil {
 		return err
 	}
-	if granted == nil {
-		return ErrNotLinked
-	}
-	if err := requireOwner(ctx, locks, req, account); err != nil {
-		return err
-	}
-	return requirePermissions(granted, req)
+	return requireOwner(ctx, locks, req, account)
 }
 
 // lockChildren holds every candidate before the first profile or relationship.

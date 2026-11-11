@@ -3862,13 +3862,13 @@
     },
     {
       "decision": "0177",
-      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentPermission",
-      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.Hold) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
     },
     {
       "decision": "0177",
-      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentPermission",
-      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.Hold) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
+      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Binding, not a forward: resolves the guardian profile of the identity at the school in context and runs People Directory's guardian hold (guardianhold.HoldMany) over Identity \u0026 Access's membership lock and People Directory's row locks (#6638)."
     },
     {
       "decision": "0090",

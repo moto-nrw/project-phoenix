@@ -14,75 +14,82 @@ import (
 )
 
 // EnrollmentGuardianHold is Enrollment's held renewal permission (#6638).
-// Other children are locked with the requested child before guardian profiles
-// and relationships; each candidate still needs its own permission check.
+// Candidates are locked as one ordered set before guardian profiles and
+// relationships; grants are returned per child.
 type EnrollmentGuardianHold interface {
-	HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error)
-	HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error)
+	HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
+	HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error)
 }
 
 // enrollmentGuardianHold binds Enrollment's held renewal permission
-// (#6638) to the parent guard's protocol (guardianhold.Hold): Identity &
+// (#6638) to the parent guard's protocol (guardianhold.HoldMany): Identity &
 // Access's membership lock and People Directory's child, profile and
 // relationship rows, the same locks the Parent Portal's child write guard
 // takes.
 type enrollmentGuardianHold struct {
 	relationships peopledirectory.GuardianRelationshipReads
-	students      peopledirectory.StudentSnapshotReads
+	students      EnrollmentStudentMatches
 	profiles      peopledirectory.GuardianProfileReads
 	membership    func(context.Context, int64) (bool, error)
 }
 
 // NewEnrollmentGuardianHold binds the held renewal permission of
 // Enrollment to People Directory and Identity & Access.
-func NewEnrollmentGuardianHold(db transactionruntime.Database, relationships peopledirectory.GuardianRelationshipReads, students peopledirectory.StudentSnapshotReads, profiles peopledirectory.GuardianProfileReads) EnrollmentGuardianHold {
+func NewEnrollmentGuardianHold(db transactionruntime.Database, relationships peopledirectory.GuardianRelationshipReads, students EnrollmentStudentMatches, profiles peopledirectory.GuardianProfileReads) EnrollmentGuardianHold {
 	return enrollmentGuardianHold{
 		relationships: relationships, students: students, profiles: profiles,
 		membership: identityaccessCompose.NewSchoolMembershipLock(db.Pool()),
 	}
 }
 
-// HoldAccountStudentPermission holds the account's relationship to the
+// HoldAccountStudentsPermission holds the account's relationship to the
 // student with the permission until the caller's school transaction ends.
-func (a enrollmentGuardianHold) HoldAccountStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error) {
+func (a enrollmentGuardianHold) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
 	if err := enrollmentHoldTenant(ctx, tenantID); err != nil {
-		return false, err
+		return nil, err
 	}
 	profile, err := a.profiles.GuardianProfileByAccount(ctx, accountID)
 	if found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {
-		return false, err
+		return nil, err
 	}
-	return a.hold(ctx, guardianhold.Request{AccountID: accountID, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}}, otherChildren...)
+	return a.hold(ctx, guardianhold.Request{AccountID: accountID, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs)
 }
 
-// HoldGuardianEmailStudentPermission holds the relationship of the guardian
+// HoldGuardianEmailStudentsPermission holds the relationship of the guardian
 // the address names; a profile with an account needs its membership as well.
-func (a enrollmentGuardianHold) HoldGuardianEmailStudentPermission(ctx context.Context, email string, studentID, tenantID int64, permission string, otherChildren ...int64) (bool, error) {
+func (a enrollmentGuardianHold) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs []int64, tenantID int64, permission string) (map[int64]bool, error) {
 	if err := enrollmentHoldTenant(ctx, tenantID); err != nil {
-		return false, err
+		return nil, err
 	}
 	profile, err := a.profiles.GuardianProfileByEmail(ctx, email)
 	if found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {
-		return false, err
+		return nil, err
 	}
-	return a.hold(ctx, guardianhold.Request{Email: email, StudentID: studentID, ProfileID: profile.ID, Permissions: []string{permission}}, otherChildren...)
+	return a.hold(ctx, guardianhold.Request{Email: email, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs)
 }
 
-func (a enrollmentGuardianHold) hold(ctx context.Context, req guardianhold.Request, otherChildren ...int64) (bool, error) {
-	err := guardianhold.Hold(ctx, a.locks(), req, otherChildren...)
+func (a enrollmentGuardianHold) hold(ctx context.Context, req guardianhold.Request, studentIDs []int64) (map[int64]bool, error) {
+	grants, err := guardianhold.HoldMany(ctx, guardianhold.BatchLocks{
+		Locks:    guardianhold.Locks{Membership: a.membership, Profile: a.lockProfile, Owner: a.owner},
+		Children: a.lockChildren, Relationships: a.lockRelationships,
+	}, req, studentIDs)
 	if errors.Is(err, guardianhold.ErrNotLinked) || errors.Is(err, guardianhold.ErrPermissionDenied) {
-		return false, nil
+		return nil, nil
 	}
-	return err == nil, err
+	return grants, err
 }
 
-func (a enrollmentGuardianHold) locks() guardianhold.Locks {
-	return guardianhold.Locks{Membership: a.membership, Child: a.lockChild, Profile: a.lockProfile, Relationship: a.lockRelationship, Owner: a.owner}
-}
-
-func (a enrollmentGuardianHold) lockChild(ctx context.Context, studentID int64) error {
-	_, err := a.students.StudentSnapshotForUpdate(ctx, studentID)
-	return err
+func (a enrollmentGuardianHold) lockChildren(ctx context.Context, studentIDs []int64) error {
+	students, err := a.students.FindByIDsForUpdate(ctx, studentIDs)
+	if err != nil {
+		return err
+	}
+	for _, id := range studentIDs {
+		if students[id] == nil {
+			return guardianhold.ErrNotLinked
+		}
+	}
+	return nil
 }
 
 func (a enrollmentGuardianHold) lockProfile(ctx context.Context, profileID int64) (bool, error) {
@@ -93,17 +100,18 @@ func (a enrollmentGuardianHold) lockProfile(ctx context.Context, profileID int64
 	return err == nil, err
 }
 
-func (a enrollmentGuardianHold) lockRelationship(ctx context.Context, studentID, profileID int64) (func(string) bool, error) {
-	link, err := a.relationships.GuardianRelationshipForUpdate(ctx, studentID, profileID)
-	if errors.Is(err, peopledirectory.ErrStudentGuardianNotFound) || (err == nil && link == nil) {
-		return nil, nil
-	}
+func (a enrollmentGuardianHold) lockRelationships(ctx context.Context, studentIDs []int64, profileID int64) (map[int64]func(string) bool, error) {
+	links, err := a.relationships.GuardianRelationshipsForUpdate(ctx, studentIDs, profileID)
 	if err != nil {
 		return nil, err
 	}
-	return func(permission string) bool {
-		return securityruntime.GuardianPermissionGrantedJSON(link.Permissions, permission)
-	}, nil
+	grants := make(map[int64]func(string) bool, len(links))
+	for _, link := range links {
+		grants[link.StudentID] = func(permission string) bool {
+			return securityruntime.GuardianPermissionGrantedJSON(link.Permissions, permission)
+		}
+	}
+	return grants, nil
 }
 
 func (a enrollmentGuardianHold) owner(ctx context.Context, profileID int64) (*int64, string, bool, error) {
