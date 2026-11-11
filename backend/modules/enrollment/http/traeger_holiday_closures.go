@@ -12,11 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// HolidayClosureResource serves the closing days in booked holiday weeks
-// (#6434) at /traeger/holiday-closures: the preview of a closing day the
-// Träger-Büro plans and the closed days of booked weeks nobody told the
-// parents about yet. Every route runs in the Träger transaction of the
-// session's Träger and needs the right that plans closing days.
+// HolidayClosureResource serves the preview of a closing day the Träger-Büro
+// plans, changes or deletes (#6434, #6457) at /traeger/holiday-closures. It
+// runs in the Träger transaction of the session's Träger and needs the right
+// that plans closing days. The notices of school closing days nobody told
+// yet are the Holiday Closure Notification workflow's (ADR 0196).
 type HolidayClosureResource struct {
 	closures      capability.HolidayClosures
 	requireManage common.Middleware
@@ -38,31 +38,25 @@ func (rs *HolidayClosureResource) TraegerRouter(protectedTraegerRoutes func(chi.
 	protectedTraegerRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		manage := r.With(rs.requireManage, withTx)
 		manage.Post("/preview", rs.preview)
-		manage.Get("/pending", rs.pending)
-		manage.Post("/pending/notify", rs.notifyPending)
 	})
 	return r
 }
 
 // HolidayClosurePreviewRequest is the body of POST /preview: the closing day
-// as the Büro is about to save it.
+// as the Büro is about to save it, and for a change or a deletion the saved
+// closing day with its stored version, whose days may open again (#6457).
 type HolidayClosurePreviewRequest struct {
-	StartDate calendar.Date `json:"start_date"`
-	EndDate   calendar.Date `json:"end_date"`
-	Reason    string        `json:"reason"`
-	SchoolIDs []int64       `json:"school_ids"`
+	StartDate    calendar.Date                  `json:"start_date"`
+	EndDate      calendar.Date                  `json:"end_date"`
+	Reason       string                         `json:"reason"`
+	SchoolIDs    []int64                        `json:"school_ids"`
+	ClosingDayID int64                          `json:"closing_day_id"`
+	Previous     *capability.HolidayClosureSpan `json:"previous"`
+	Delete       bool                           `json:"delete"`
 }
 
 // Bind accepts the body; the dates are checked by the handler.
 func (req *HolidayClosurePreviewRequest) Bind(*http.Request) error { return nil }
-
-// HolidayClosureNotifyRequest confirms the pending list the Büro saw.
-type HolidayClosureNotifyRequest struct {
-	Token string `json:"token"`
-}
-
-// Bind accepts the body.
-func (req *HolidayClosureNotifyRequest) Bind(*http.Request) error { return nil }
 
 func (rs *HolidayClosureResource) preview(w http.ResponseWriter, r *http.Request) {
 	organizationID, ok := traegerOf(w, r)
@@ -74,49 +68,19 @@ func (rs *HolidayClosureResource) preview(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeTraegerClosingDayInvalid))
 		return
 	}
-	if req.StartDate.IsZero() || req.EndDate.IsZero() || req.EndDate.Before(req.StartDate) {
+	if !req.Delete && (req.StartDate.IsZero() || req.EndDate.IsZero() || req.EndDate.Before(req.StartDate)) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("start and end date are required, the end not before the start"), common.CodeTraegerClosingDayInvalid))
 		return
 	}
 	impact, err := rs.closures.HolidayClosureImpact(r.Context(), organizationID, capability.HolidayClosure{
 		SchoolIDs: req.SchoolIDs, StartsOn: req.StartDate, EndsOn: req.EndDate, Reason: req.Reason,
+		TraegerClosingDayID: req.ClosingDayID, Previous: req.Previous, Deleted: req.Delete,
 	})
 	if err != nil {
 		renderHolidayClosureError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, impact, "Holiday bookings of the closing day retrieved successfully")
-}
-
-func (rs *HolidayClosureResource) pending(w http.ResponseWriter, r *http.Request) {
-	organizationID, ok := traegerOf(w, r)
-	if !ok {
-		return
-	}
-	impact, err := rs.closures.PendingHolidayClosures(r.Context(), organizationID)
-	if err != nil {
-		renderHolidayClosureError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, impact, "Pending holiday closure notices retrieved successfully")
-}
-
-func (rs *HolidayClosureResource) notifyPending(w http.ResponseWriter, r *http.Request) {
-	organizationID, ok := traegerOf(w, r)
-	if !ok {
-		return
-	}
-	req := &HolidayClosureNotifyRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeTraegerClosingDayInvalid))
-		return
-	}
-	notice, err := rs.closures.NotifyPendingHolidayClosures(r.Context(), organizationID, req.Token)
-	if err != nil {
-		renderHolidayClosureError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, notice, "Parents told about the closing days")
 }
 
 // renderHolidayClosureError names a refusal; every refusal comes before a

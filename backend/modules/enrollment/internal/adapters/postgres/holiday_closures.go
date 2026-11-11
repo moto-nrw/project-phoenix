@@ -41,13 +41,23 @@ const (
 			AND week.ends_on >= ? AND week.starts_on <= ?
 			AND (cardinality(?::bigint[]) = 0 OR week.host_school_id = ANY(?::bigint[]))
 		ORDER BY week.starts_on, week.id, registration.id, child.position`
-	holidayClosureNoticesQuery = `SELECT holiday_registration_id, holiday_period_week_id, closed_on
+	holidayClosureNoticesQuery = `SELECT holiday_registration_id, holiday_period_week_id, closed_on, state
 		FROM enrollment.holiday_closure_notices
 		WHERE organization_id = ? AND holiday_registration_id = ANY(?::bigint[])`
-	recordHolidayClosureNoticesQuery = `INSERT INTO enrollment.holiday_closure_notices
-			(organization_id, holiday_registration_id, holiday_period_week_id, closed_on)
-		SELECT ?, unnest(?::bigint[]), unnest(?::bigint[]), unnest(?::date[])
+	setHolidayClosureNoticesQuery = `INSERT INTO enrollment.holiday_closure_notices
+			(organization_id, holiday_registration_id, holiday_period_week_id, closed_on, state, operation_id)
+		SELECT ?, unnest(?::bigint[]), unnest(?::bigint[]), unnest(?::date[]), unnest(?::text[]), ?::uuid
+		ON CONFLICT (organization_id, holiday_registration_id, holiday_period_week_id, closed_on) DO UPDATE
+			SET state = EXCLUDED.state, operation_id = EXCLUDED.operation_id, changed_at = CURRENT_TIMESTAMP`
+	insertHolidayClosureFamilyKeyQuery = `INSERT INTO enrollment.holiday_closure_family_keys (organization_id, secret)
+		VALUES (?, ?) ON CONFLICT (organization_id) DO NOTHING`
+	holidayClosureFamilyKeyQuery   = `SELECT secret FROM enrollment.holiday_closure_family_keys WHERE organization_id = ?`
+	recordHolidayClosureSendsQuery = `INSERT INTO enrollment.holiday_closure_sends
+			(organization_id, operation_id, family_key, holiday_registration_id, idempotency_key)
+		SELECT ?, unnest(?::uuid[]), unnest(?::text[]), unnest(?::bigint[]), unnest(?::text[])
 		ON CONFLICT DO NOTHING`
+	holidayClosureSendKeysQuery = `SELECT DISTINCT operation_id::text AS operation_id, idempotency_key, mail_erased FROM enrollment.holiday_closure_sends
+		WHERE organization_id = ? AND operation_id = ANY(?::uuid[]) ORDER BY operation_id, idempotency_key`
 )
 
 // LockHolidayClosureNotices serializes the notice read/enqueue/write sequence
@@ -123,6 +133,7 @@ type holidayClosureNoticeRow struct {
 	RegistrationID int64         `bun:"holiday_registration_id"`
 	WeekID         int64         `bun:"holiday_period_week_id"`
 	ClosedOn       calendar.Date `bun:"closed_on"`
+	State          string        `bun:"state"`
 }
 
 // HolidayClosureNotices reads the closed days the parents of the
@@ -141,14 +152,14 @@ func (s *HolidayRegistrationStore) HolidayClosureNotices(ctx context.Context, or
 	}
 	notices := make([]enrollment.HolidayClosureNoticeRecord, len(rows))
 	for i, row := range rows {
-		notices[i] = enrollment.HolidayClosureNoticeRecord{RegistrationID: row.RegistrationID, WeekID: row.WeekID, ClosedOn: row.ClosedOn}
+		notices[i] = enrollment.HolidayClosureNoticeRecord{RegistrationID: row.RegistrationID, WeekID: row.WeekID, ClosedOn: row.ClosedOn, State: row.State}
 	}
 	return notices, nil
 }
 
-// RecordHolidayClosureNotices records the closed days told; a day told
-// before stays as it is.
-func (s *HolidayRegistrationStore) RecordHolidayClosureNotices(ctx context.Context, organizationID int64, notices []enrollment.HolidayClosureNoticeRecord) error {
+// SetHolidayClosureNotices records what the parents were told now: each
+// day closed or open again, under the operation that told it.
+func (s *HolidayRegistrationStore) SetHolidayClosureNotices(ctx context.Context, organizationID int64, operationID string, notices []enrollment.HolidayClosureNoticeRecord) error {
 	if len(notices) == 0 {
 		return nil
 	}
@@ -159,12 +170,81 @@ func (s *HolidayRegistrationStore) RecordHolidayClosureNotices(ctx context.Conte
 	registrations := make([]int64, len(notices))
 	weeks := make([]int64, len(notices))
 	days := make([]string, len(notices))
+	states := make([]string, len(notices))
 	for i, notice := range notices {
-		registrations[i], weeks[i], days[i] = notice.RegistrationID, notice.WeekID, notice.ClosedOn.String()
+		registrations[i], weeks[i], days[i], states[i] = notice.RegistrationID, notice.WeekID, notice.ClosedOn.String(), notice.State
 	}
-	if _, err := db.NewRaw(recordHolidayClosureNoticesQuery, organizationID, pgdialect.Array(registrations), pgdialect.Array(weeks), pgdialect.Array(days)).
-		Exec(ctx); err != nil {
+	if _, err := db.NewRaw(setHolidayClosureNoticesQuery, organizationID, pgdialect.Array(registrations), pgdialect.Array(weeks),
+		pgdialect.Array(days), pgdialect.Array(states), operationID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: record holiday closure notices: %w", err)
 	}
 	return nil
+}
+
+// HolidayClosureFamilyKey returns the Träger's key of the family
+// fingerprints; candidate becomes it on first use.
+func (s *HolidayRegistrationStore) HolidayClosureFamilyKey(ctx context.Context, organizationID int64, candidate []byte) ([]byte, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := db.NewRaw(insertHolidayClosureFamilyKeyQuery, organizationID, candidate).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: store the family key: %w", err)
+	}
+	var stored []byte
+	if err := db.NewRaw(holidayClosureFamilyKeyQuery, organizationID).Scan(ctx, &stored); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read the family key: %w", err)
+	}
+	return stored, nil
+}
+
+// RecordHolidayClosureSends records the mails of an operation, one row per
+// registration a family's mail names.
+func (s *HolidayRegistrationStore) RecordHolidayClosureSends(ctx context.Context, organizationID int64, sends []enrollment.HolidayClosureSendRecord) error {
+	if len(sends) == 0 {
+		return nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	operations := make([]string, len(sends))
+	families := make([]string, len(sends))
+	registrations := make([]int64, len(sends))
+	keys := make([]string, len(sends))
+	for i, send := range sends {
+		operations[i], families[i], registrations[i], keys[i] = send.OperationID, send.FamilyKey, send.RegistrationID, send.IdempotencyKey
+	}
+	if _, err := db.NewRaw(recordHolidayClosureSendsQuery, organizationID, pgdialect.Array(operations), pgdialect.Array(families),
+		pgdialect.Array(registrations), pgdialect.Array(keys)).Exec(ctx); err != nil {
+		return fmt.Errorf("enrollment postgres: record holiday closure sends: %w", err)
+	}
+	return nil
+}
+
+// HolidayClosureSendKeys groups the operations' mail keys in one read.
+func (s *HolidayRegistrationStore) HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationIDs []string) (map[string]enrollment.HolidayClosureSendKeys, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		OperationID    string `bun:"operation_id"`
+		IdempotencyKey string `bun:"idempotency_key"`
+		MailErased     bool   `bun:"mail_erased"`
+	}
+	if err := db.NewRaw(holidayClosureSendKeysQuery, organizationID, pgdialect.Array(operationIDs)).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday closure sends: %w", err)
+	}
+	keys := make(map[string]enrollment.HolidayClosureSendKeys, len(operationIDs))
+	for _, row := range rows {
+		recorded := keys[row.OperationID]
+		if row.MailErased {
+			recorded.Erased++
+		} else {
+			recorded.Keys = append(recorded.Keys, row.IdempotencyKey)
+		}
+		keys[row.OperationID] = recorded
+	}
+	return keys, nil
 }

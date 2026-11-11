@@ -2,6 +2,9 @@
   "api/traeger/holiday-closures/pending": [
     "GET traeger /traeger/holiday-closures/pending"
   ],
+  "api/traeger/holiday-closures/pending/[id]/notify": [
+    "POST traeger /traeger/holiday-closures/pending/id%2F1/notify"
+  ],
   "api/traeger/holiday-closures/pending/notify": [
     "POST traeger /traeger/holiday-closures/pending/notify"
   ],

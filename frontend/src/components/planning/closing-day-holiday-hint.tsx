@@ -4,8 +4,9 @@
  * Hinweis im Schließtag-Dialog der Schule (#6434): Liegt der Schließtag in
  * einer Ferienwoche, die die Schule für ihren Träger ausrichtet, nennt der
  * Dialog die Woche und wie viele Kinder dort einen Platz haben. Die Eltern
- * kennt nur der Träger; er sieht den Schließtag danach unter „Schließtage“
- * und informiert sie. Die Zahlen kommen aus den Teilnehmerlisten (ADR 0116).
+ * kennt nur der Träger. Nach dem Speichern schlägt moto einen Elternhinweis
+ * vor, den die Schule oder das Träger-Büro mit einem Klick beauftragt
+ * (ADR 0196). Die Zahlen kommen aus den Teilnehmerlisten (ADR 0116).
  */
 
 import { useEffect, useState } from "react";

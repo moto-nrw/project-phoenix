@@ -2767,6 +2767,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m HolidayClosureMail) EnqueueTraegerMail(ctx context.Context, mail enrollment.TraegerMail) error {\n\t_, err := m.Delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{OrganizationID: mail.OrganizationID, Template: mail.Kind, Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient}, Payload: mail.Payload, IdempotencyKey: mail.IdempotencyKey, Related: deliveryContract.RelatedEntity{Type: mail.RelatedType, ID: mail.RelatedID}})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/HolidayClosureMail.EnqueueTraegerMail",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d IdentityAccountDirectory) AccountEmail(ctx context.Context, accountID int64) (string, error) {\n\taccount, err := d.Accounts.FindAccount(ctx, accountID)\n\tif errors.Is(err, identityaccess.ErrAccountNotFound) {\n\t\treturn \"\", nil\n\t}\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn account.Email, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/IdentityAccountDirectory.AccountEmail",
@@ -6123,6 +6130,13 @@
       "evidence": "func (a holidayParticipantAccessLog) RecordHolidayStudentHealthAccess(ctx context.Context, access enrollmentOwner.HolidayStudentHealthAccess) error {\n\tstudentID := access.StudentID\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole, ResourceType: auditModels.ResourceTypeHolidayStudentHealth, StudentID: \u0026studentID, RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(), Metadata: map[string]any{\"week_ids\": access.WeekIDs}})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m holidayRegistrationMailErasure) EraseHolidayRegistrationMails(ctx context.Context, registrations []enrollment.HolidayRegistrationReference) (int, error) {\n\torganizations, ids := make([]int64, len(registrations)), make([]int64, len(registrations))\n\tfor i, registration := range registrations {\n\t\torganizations[i], ids[i] = registration.OrganizationID, registration.RegistrationID\n\t}\n\treturn m.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails(ctx, organizations, ids)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
       "owner": "roots"
     },
     {

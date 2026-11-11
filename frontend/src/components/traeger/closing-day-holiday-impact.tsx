@@ -6,10 +6,11 @@
  * gewählten Tagen ohne Betreuung sind und wie viele Familien danach eine
  * E-Mail bekommen. Die Seite mit den offenen Hinweisen nutzt dieselbe Liste.
  * Die Liste nennt keine Kinder: Das Büro braucht den Umfang, die Eltern
- * bekommen die Einzelheiten per E-Mail.
+ * bekommen die Einzelheiten per E-Mail. Beim Ändern und Löschen nennt sie
+ * auch die Tage, die wieder öffnen (#6457).
  */
 
-import { CalendarX, Mail } from "lucide-react";
+import { CalendarCheck, CalendarX, Mail } from "lucide-react";
 
 import { formatDayWithWeekday } from "~/components/traeger/closing-day-format";
 import { Alert } from "~/components/ui/alert";
@@ -37,17 +38,49 @@ export function familiesLabel(count: number): string {
 }
 
 /**
- * Die geschlossenen Tage einer Woche mit Grund, wenn einer bekannt ist:
+ * Tage einer Woche mit Grund, wenn einer bekannt ist:
  * „Di, 07.07.2027 (Pädagogischer Tag) und Mi, 08.07.2027 (Pädagogischer Tag)“.
  */
-function closedDaysLabel(week: HolidayClosureWeek): string {
-  const days = week.closedDays.map((day) =>
+function daysLabel(list: HolidayClosureWeek["closedDays"]): string {
+  const days = list.map((day) =>
     day.reason
       ? `${formatDayWithWeekday(day.date)} (${day.reason})`
       : formatDayWithWeekday(day.date),
   );
   if (days.length <= 1) return days.join("");
   return `${days.slice(0, -1).join(", ")} und ${days.at(-1)}`;
+}
+
+/** Geschlossene und wieder geöffnete Tage einer Woche, je eine Zeile. */
+function HolidayClosureDayLines({
+  week,
+}: Readonly<{ week: HolidayClosureWeek }>) {
+  return (
+    <>
+      {week.closedDays.length > 0 ? (
+        <p className="flex items-start gap-1.5 text-sm text-gray-900">
+          <CalendarX
+            className="mt-0.5 h-4 w-4 shrink-0 text-gray-500"
+            aria-hidden="true"
+          />
+          <span className="min-w-0 wrap-anywhere">
+            {`Geschlossen: ${daysLabel(week.closedDays)}`}
+          </span>
+        </p>
+      ) : null}
+      {week.reopenedDays.length > 0 ? (
+        <p className="flex items-start gap-1.5 text-sm text-gray-900">
+          <CalendarCheck
+            className="mt-0.5 h-4 w-4 shrink-0 text-gray-500"
+            aria-hidden="true"
+          />
+          <span className="min-w-0 wrap-anywhere">
+            {`Wieder geöffnet: ${daysLabel(week.reopenedDays)}`}
+          </span>
+        </p>
+      ) : null}
+    </>
+  );
 }
 
 /** Die betroffenen Wochen als Liste: Zeitraum, Schule, Tage und Kinder. */
@@ -76,15 +109,7 @@ export function HolidayClosureWeekList({
                 {schoolName(week.hostSchoolId)}
               </span>
             </p>
-            <p className="flex items-start gap-1.5 text-sm text-gray-900">
-              <CalendarX
-                className="mt-0.5 h-4 w-4 shrink-0 text-gray-500"
-                aria-hidden="true"
-              />
-              <span className="min-w-0 wrap-anywhere">
-                Geschlossen: {closedDaysLabel(week)}
-              </span>
-            </p>
+            <HolidayClosureDayLines week={week} />
           </div>
           <div className="flex shrink-0 flex-wrap gap-1.5 sm:justify-end">
             <StatusBadge label={childrenLabel(week.children)} tone="blue" />
@@ -113,20 +138,35 @@ export function HolidayClosureConsequences({
   );
 }
 
+/** Was an den betroffenen Tagen gilt, je nachdem, ob sie schließen oder öffnen. */
+function impactMessage(impact: HolidayClosureImpact): string {
+  const booked = `${childrenLabel(impact.children)} ${impact.children === 1 ? "hat" : "haben"} an diesen Tagen Ferienbetreuung gebucht.`;
+  const closes = impact.weeks.some((week) => week.closedDays.length > 0);
+  const reopens = impact.weeks.some((week) => week.reopenedDays.length > 0);
+  const parts = [booked];
+  if (closes) parts.push("An den geschlossenen Tagen gibt es keine Betreuung.");
+  if (reopens)
+    parts.push("An den wieder geöffneten Tagen gibt es doch Betreuung.");
+  return parts.join(" ");
+}
+
 /**
  * Die Vorschau im Schließtag-Dialog: lädt, nichts betroffen oder die Liste mit
- * dem Hinweis, wer eine E-Mail bekommt.
+ * dem Hinweis, wer eine E-Mail bekommt. `action` nennt den Knopf, nach dem
+ * die E-Mail rausgeht: Speichern oder Löschen.
  */
 export function ClosingDayHolidayImpact({
   impact,
   loading,
   error,
   schoolName,
+  action = "Speichern",
 }: Readonly<{
   impact: HolidayClosureImpact | null;
   loading: boolean;
   error?: FormErrorInput;
   schoolName: (id: string) => string;
+  action?: "Speichern" | "Löschen";
 }>) {
   return (
     <section
@@ -155,8 +195,8 @@ export function ClosingDayHolidayImpact({
           <Alert
             type="warning"
             icon={<Mail className="h-5 w-5" aria-hidden="true" />}
-            title={`${familiesLabel(impact.families)} ${impact.families === 1 ? "bekommt" : "bekommen"} nach dem Speichern eine E-Mail`}
-            message={`${childrenLabel(impact.children)} ${impact.children === 1 ? "hat" : "haben"} an diesen Tagen Ferienbetreuung gebucht. An den geschlossenen Tagen gibt es keine Betreuung.`}
+            title={`${familiesLabel(impact.families)} ${impact.families === 1 ? "bekommt" : "bekommen"} nach dem ${action} eine E-Mail`}
+            message={impactMessage(impact)}
             announce="off"
           />
           <HolidayClosureWeekList

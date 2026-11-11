@@ -47,6 +47,7 @@ type Scheduler struct {
 	studentChangeLogCleanup     ports.StudentChangeLogCleanup
 	bookingConsistency          ports.BookingConsistencyAudit
 	holidayGuests               ports.HolidayGuestReconciliation
+	holidayClosureNotifications ports.HolidayClosureNotifications
 	plannedStaffExits           ports.PlannedStaffExits
 	careContractConclusion      ports.CareContractConclusion
 	staffQualificationReminders ports.StaffQualificationReminders
@@ -220,7 +221,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		autoCheckouter:     deps.AutoCheckouter,
 		materializer:       deps.Materializer,
 		bookingConsistency: deps.BookingConsistency,
-		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, careContractConclusion: deps.CareContractConclusion, careContractReminders: deps.CareContractReminders, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
+		holidayGuests:      deps.HolidayGuests, holidayClosureNotifications: deps.HolidayClosureNotifications, plannedStaffExits: deps.PlannedStaffExits, careContractConclusion: deps.CareContractConclusion, careContractReminders: deps.CareContractReminders, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
 		mealOrders:            deps.MealOrders,
 		autoStart:             deps.AutoStart,
 		autoEnd:               deps.AutoEnd,
