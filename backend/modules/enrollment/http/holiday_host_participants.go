@@ -57,6 +57,8 @@ func (rs *HolidayHostResource) Router(protectedTenantRoutes func(chi.Router, fun
 		read.Get("/{weekId}/participants/export", rs.exportParticipants)
 		r.With(rs.requireHealth, withTx).Get("/students/{studentId}/health", rs.getStudentHealth)
 		if rs.guests != nil {
+			r.With(rs.requireHealth, withTx).Get("/students/{studentId}/registration", rs.getStudentRegistration)
+			r.With(rs.requireRead, withTx).Get("/{weekId}/own-children", rs.listOwnChildAssignments)
 			r.With(rs.requireRead, rs.requireAssign, withTx).Put("/{weekId}/guest-group", rs.assignGuestGroup)
 		}
 	})

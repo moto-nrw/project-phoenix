@@ -34,10 +34,19 @@ type HolidayGuestDirectory interface {
 // their children to the People Directory, the names of their home schools
 // to Organisation & Tenancy (#5630) and every transfer and sheet read to the
 // school's access log at the Audit Platform; health opens and seals the
-// health information (#4722). A nil today uses the Berlin calendar day.
-func NewHolidayGuests(people HolidayGuestDirectory, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
-	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayHostSchoolNames(schools), NewHolidayGuestCareDays(care, staff), health,
-		NewHolidayGuestAccessLog(accessLog), today)
+// health information (#4722). The school's own children of a hosted week
+// (#6678) are found among students and planned in Care Plan. A nil today
+// uses the Berlin calendar day.
+func NewHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher, today func() calendar.Date) enrollmentOwner.HolidayGuests {
+	return enrollmentCompose.NewHolidayGuests(NewHolidayGuestPeople(people), NewHolidayHostSchoolNames(schools), NewHolidayGuestCareDays(care, staff),
+		StatisticsHolidayStudents{Students: students}, NewHolidayOwnChildCareDays(care, staff), health, NewHolidayGuestAccessLog(accessLog), today)
+}
+
+// HolidayOwnChildStudents reads the children of the school by date of birth
+// in its tenant transaction, also those whose care has ended: Enrollment
+// finds the student behind a holiday registration among them (#6678).
+type HolidayOwnChildStudents interface {
+	FindBornOn(context.Context, []calendar.Date) ([]peopledirectory.StudentBorn, error)
 }
 
 // HolidayHostSchools is the Organisation & Tenancy read that names the
@@ -80,8 +89,8 @@ func (n holidayHostSchoolNames) HolidayHostSchoolNames(ctx context.Context, scho
 
 // schedulerHolidayGuests binds the Worker's hourly reconciliation to the
 // holiday guests of the school whose tenant transaction the Worker opened.
-func schedulerHolidayGuests(people HolidayGuestDirectory, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher) schedulerPorts.HolidayGuestReconciliation {
-	guests := NewHolidayGuests(people, schools, care, staff, accessLog, health, nil)
+func schedulerHolidayGuests(people HolidayGuestDirectory, students HolidayOwnChildStudents, schools HolidayHostSchools, care HolidayGuestCarePlan, staff HolidayGuestStaff, accessLog DataAccessAppender, health enrollmentOwner.HolidayHealthCipher) schedulerPorts.HolidayGuestReconciliation {
+	guests := NewHolidayGuests(people, students, schools, care, staff, accessLog, health, nil)
 	return func(ctx context.Context) error {
 		return guests.ReconcileHolidayGuests(ctx, tenant.FromContext(ctx))
 	}
@@ -194,12 +203,18 @@ func optionalDate(value string) (calendar.Date, error) {
 }
 
 // HolidayGuestCarePlan is the Care Plan surface the booked days of a holiday
-// guest are written through: the dated arrival and pickup exceptions.
+// guest are written through: the dated arrival and pickup exceptions. The
+// days of the school's own children (#6678) are read and removed one by one,
+// because such a child keeps the plans the team and its parents wrote.
 type HolidayGuestCarePlan interface {
 	CreateArrivalException(context.Context, careplan.ArrivalException) (careplan.ArrivalException, error)
 	CreatePickupException(context.Context, careplan.PickupException) (careplan.PickupException, error)
 	DeleteArrivalExceptionsByStudent(context.Context, int64) error
 	DeletePickupExceptionsByStudent(context.Context, int64) error
+	ListArrivalExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.ArrivalException, error)
+	ListPickupExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.PickupException, error)
+	DeleteArrivalException(context.Context, int64) error
+	DeletePickupException(context.Context, int64) error
 }
 
 // HolidayGuestStaff resolves the staff member of the account a plan is

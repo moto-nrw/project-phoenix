@@ -1810,7 +1810,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
       "target_owner": "audit-platform"
@@ -1821,7 +1821,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
       "target_owner": "audit-platform"
@@ -1832,7 +1832,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
       "target_owner": "audit-platform"
@@ -1843,7 +1843,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -2177,6 +2177,80 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreateArrivalException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreateArrivalException",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreatePickupException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreatePickupException",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.DeleteArrivalException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeleteArrivalException",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.DeletePickupException (care-plan) through roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays. ADR 0120 addendum (#6678): each booked day of a child of the hosting school itself gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction; only exceptions whose reason Enrollment wrote are read back and removed, a plan of the team or the parents is never touched.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeletePickupException",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListArrivalExceptions. ADR 0120 addendum (#6678): the dated exceptions from the cleanup day on are read to tell the days Enrollment planned from the plans of the team and the parents.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListPickupExceptions. ADR 0120 addendum (#6678): the dated exceptions from the cleanup day on are read to tell the days Enrollment planned from the plans of the team and the parents.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID. ADR 0120 addendum (#6678): the planned days name the staff member of the account that picked the week's holiday group as their author, as Care Plan requires.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID",
+      "target_owner": "people-directory"
     },
     {
       "adr": "0098",

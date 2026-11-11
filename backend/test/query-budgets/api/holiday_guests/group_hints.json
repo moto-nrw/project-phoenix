@@ -1,0 +1,7 @@
+{
+  "scenario": "api.holiday_guests.group_hints",
+  "max": 2,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-guests/groups (#6680): the tenant\nbinding, then one statement over the holiday groups of weeks that have not\nbegun with their waiting guests counted. No personal data. Flat in the\nnumber of weeks and guests.",
+  "route": "GET /api/holiday-guests/groups"
+}

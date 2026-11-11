@@ -1330,7 +1330,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "d39cd75aea417360e3819014cc9944ba",
+      "binding_digest": "494428f750ce40b13a61be292e9c6815",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
@@ -1338,7 +1338,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "ba3c4b0c0a9e943407c914941eda28ef",
+      "binding_digest": "9252dfc789fdd817c98edf6f26a7eb1e",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
@@ -1346,7 +1346,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "165de1ed8e365e8386b2c2eddeaf6d6f",
+      "binding_digest": "93d54c1c7ea645afc73095284e62709e",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
@@ -1354,7 +1354,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "1e345724b9a603ca62c26a786c6af4d3",
+      "binding_digest": "9b81289ea9415d6cb5044f9ed1476422",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
@@ -1607,6 +1607,62 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding_digest": "04d2b6578f546e43f0a4b26d22f5d789",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreateArrivalException",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding_digest": "1cf58bb5e4fc611607548d80da278078",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreatePickupException",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding_digest": "6c7620a7479a4dae63ee6367de34bcfe",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeleteArrivalException",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding_digest": "41fd643e77f7e02aaf43e0c994fda1be",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeletePickupException",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding_digest": "be3e7bf4ae4c2f4c3d119a758d8d7c19",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding_digest": "b02fe261d048ec506f433680218e729f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "binding_digest": "4554aa39ecc30b795f9099df9a99fe88",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildCareDays.SyncHolidayOwnChildDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID",
+      "target_owner": "people-directory"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess",

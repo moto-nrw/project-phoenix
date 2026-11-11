@@ -54,6 +54,7 @@ type HolidayGuestStore interface {
 	// ListCurrentGuests lists the child and the school fields of every
 	// guest whose access has not ended early and whose week covers today.
 	ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error)
+	HolidayOwnChildStore
 }
 
 // HolidayGuests serves enrollment.HolidayGuests.
@@ -62,10 +63,13 @@ type HolidayGuests struct {
 	people  enrollment.HolidayGuestPeople
 	schools enrollment.HolidayHostSchoolNames
 	care    enrollment.HolidayGuestCareDays
-	health  enrollment.HolidayHealthCipher
-	log     enrollment.HolidayGuestAccessLog
-	today   func() calendar.Date
-	logger  *slog.Logger
+	// children finds and ownCare plans the school's own children (#6678).
+	children enrollment.HolidayStudentsByBirthDate
+	ownCare  enrollment.HolidayOwnChildCareDays
+	health   enrollment.HolidayHealthCipher
+	log      enrollment.HolidayGuestAccessLog
+	today    func() calendar.Date
+	logger   *slog.Logger
 	// HolidayGuestBadgeList serves the hints of the school's lists (#5630).
 	HolidayGuestBadgeList
 }
@@ -74,11 +78,15 @@ var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
 
 // NewHolidayGuests builds the holiday guests; schools names the home
 // schools the copies carry (#5630); health opens the health information of
-// the registrations and seals the guest copies (#4722). A nil today uses the
-// Berlin calendar day.
-func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
+// the registrations and seals the guest copies (#4722); children finds and
+// ownCare plans the school's own children of a hosted week (#6678). A nil
+// today uses the Berlin calendar day.
+func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, children enrollment.HolidayStudentsByBirthDate, ownCare enrollment.HolidayOwnChildCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
 	if store == nil || people == nil || schools == nil || care == nil || log == nil {
 		panic("enrollment: the holiday guest store, People Directory, the school names, Care Plan and the access log are required")
+	}
+	if children == nil || ownCare == nil {
+		panic("enrollment: the school's children and the care days of its own holiday children are required")
 	}
 	if health == nil {
 		panic(errHolidayHealthCipherRequired)
@@ -86,7 +94,7 @@ func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeo
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayGuests{store: store, people: people, schools: schools, care: care, health: health, log: log, today: today,
+	return &HolidayGuests{store: store, people: people, schools: schools, care: care, children: children, ownCare: ownCare, health: health, log: log, today: today,
 		logger: slog.Default().With("service", "holiday-guests"), HolidayGuestBadgeList: NewHolidayGuestBadgeList(store, today)}
 }
 
@@ -129,7 +137,13 @@ func (h *HolidayGuests) AssignHolidayGuestGroup(ctx context.Context, host enroll
 	}); err != nil {
 		return enrollment.HolidayGuestTransfer{}, fmt.Errorf("record holiday guest transfer: %w", err)
 	}
-	return enrollment.HolidayGuestTransfer{WeekID: week.ID, GroupID: groupID, Guests: guests}, nil
+	// The group choice names the account the days of the school's own
+	// children are planned for (#6678); they stay in their own groups.
+	planned, err := h.reconcileOwnChildren(ctx, host.SchoolID, today)
+	if err != nil {
+		return enrollment.HolidayGuestTransfer{}, err
+	}
+	return enrollment.HolidayGuestTransfer{WeekID: week.ID, GroupID: groupID, Guests: guests, OwnChildren: planned[week.ID]}, nil
 }
 
 // ReconcileHolidayGuests reconciles every week the school picked a group
@@ -156,6 +170,9 @@ func (h *HolidayGuests) ReconcileHolidayGuests(ctx context.Context, schoolID int
 		}
 	}
 	if err := h.reconcileWeeksWithoutGroup(ctx, schoolID, reconciled, today); err != nil {
+		return err
+	}
+	if _, err := h.reconcileOwnChildren(ctx, schoolID, today); err != nil {
 		return err
 	}
 	return h.purgeEndedGuests(ctx, schoolID, today)
