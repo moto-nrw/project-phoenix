@@ -237,6 +237,37 @@ describe("TenantPageSearchRow", () => {
     );
   });
 
+  it("detects an active custom filter through its chip", () => {
+    render(
+      <TenantPageSearchRow
+        {...baseProps}
+        filters={[
+          {
+            id: "zeitraum",
+            label: "Zeitraum",
+            type: "custom",
+            value: "",
+            onChange: vi.fn(),
+            options: [],
+            render: <div />,
+          },
+        ]}
+        activeFilters={[
+          {
+            id: "zeitraum",
+            label: "Zeitraum: Diese Woche",
+            onRemove: vi.fn(),
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
+      "data-has-active-filters",
+      "true",
+    );
+  });
+
   it("treats an empty multi-select selection as inactive", () => {
     const multiSelectFilters: TenantPageSearchRowProps["filters"] = [
       {
