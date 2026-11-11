@@ -21,6 +21,9 @@ const (
 const (
 	ExceptionSourceStaff    = "staff"
 	ExceptionSourceGuardian = "guardian"
+	// ExceptionSourceHolidayBooking marks a day planned from a holiday
+	// booking, without a staff or guardian author (ADR 0120 addendum).
+	ExceptionSourceHolidayBooking = "holiday_booking"
 )
 
 // errMsgGuardianAuthorRequired is returned when a guardian-sourced exception
@@ -41,6 +44,7 @@ func validateExceptionAuthor(source string, createdBy int64, createdByGuardian *
 		if createdByGuardian == nil || *createdByGuardian <= 0 {
 			return errors.New(errMsgGuardianAuthorRequired)
 		}
+	case ExceptionSourceHolidayBooking:
 	default:
 		return errors.New("invalid exception source")
 	}

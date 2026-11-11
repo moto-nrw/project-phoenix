@@ -423,7 +423,9 @@ Trägerbüro die Woche für die Schule ein, ist das der Normalfall.
    und gültiger Buchung keine einzige An- oder Abholausnahme, plant der
    Abgleich (`holiday-guest-reconciliation`) seine Tage, ohne dass jemand die
    Gruppe neu wählt. Die Gäste, die vor diesem Nachtrag ohne Tage kopiert
-   wurden, bekommen sie so beim nächsten Lauf. Ein Gast mit mindestens einem
+   wurden, bekommen sie so beim nächsten Lauf. Löscht das Team alle Tage
+   eines Gasts, plant der nächste Lauf sie ebenso neu; einen Tag ohne Gast
+   trägt das Team als Abwesenheit ein. Ein Gast mit mindestens einem
    geplanten Tag behält seinen Plan; neu geplant wird er weiter nur bei einer
    Gruppenwahl oder geänderter Buchung, und die Woche ohne Gruppe behält
    ihren Plan bis zur nächsten Wahl. Ein beendeter Gast verliert seine Tage

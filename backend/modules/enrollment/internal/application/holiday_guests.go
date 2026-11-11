@@ -298,7 +298,11 @@ func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enr
 	for _, guest := range existing {
 		byChild[guest.ChildID] = guest
 	}
-	changes, err := h.applySources(ctx, schoolID, sources, byChild, week, group, replanAll, today)
+	replan, err := h.guestsToReplan(ctx, sources, byChild, group.GroupID > 0, replanAll)
+	if err != nil {
+		return guestChanges{}, err
+	}
+	changes, err := h.applySources(ctx, schoolID, sources, byChild, week, group, replan, today)
 	if err != nil {
 		return guestChanges{}, err
 	}
@@ -316,14 +320,10 @@ func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enr
 
 // applySources refreshes the guests that still have a confirmed booking and
 // copies the new ones, removing each handled guest from byChild.
-func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, week enrollment.HolidayGuestWeek, group enrollment.HolidayHostGroup, replanAll bool, today calendar.Date) (guestChanges, error) {
+func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, week enrollment.HolidayGuestWeek, group enrollment.HolidayHostGroup, replan guestReplan, today calendar.Date) (guestChanges, error) {
 	var groupID *int64
 	if group.GroupID > 0 {
 		groupID = &group.GroupID
-	}
-	unplanned, err := h.unplannedGuests(ctx, sources, byChild, groupID != nil && !replanAll)
-	if err != nil {
-		return guestChanges{}, err
 	}
 	changes := guestChanges{}
 	for _, source := range sources {
@@ -331,7 +331,7 @@ func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, source
 		delete(byChild, source.ChildID)
 		switch {
 		case ok && guest.EndedOn == nil:
-			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, replanAll || unplanned[guest.StudentID], today); err != nil {
+			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, replan.has(guest.StudentID), today); err != nil {
 				return guestChanges{}, err
 			}
 		case groupID == nil:
@@ -352,13 +352,23 @@ func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, source
 	return changes, nil
 }
 
-// unplannedGuests reads in one go which guests that keep their booking have
+// guestReplan names the guests whose days a reconciliation plans anew: all
+// of them on a group choice, otherwise those without any planned day.
+type guestReplan struct {
+	all       bool
+	unplanned map[int64]bool
+}
+
+func (r guestReplan) has(studentID int64) bool { return r.all || r.unplanned[studentID] }
+
+// guestsToReplan reads in one go which guests that keep their booking have
 // no planned day at all, so a guest copied without its days (before the ADR
 // 0120 addendum of 2026-11-11 the days needed a staff author) gets them at the
-// next reconciliation. A guest with any planned day keeps its plan.
-func (h *HolidayGuests) unplannedGuests(ctx context.Context, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, check bool) (map[int64]bool, error) {
-	if !check {
-		return nil, nil
+// next reconciliation. A guest with any planned day keeps its plan; a week
+// without a group plans nothing.
+func (h *HolidayGuests) guestsToReplan(ctx context.Context, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, hasGroup, all bool) (guestReplan, error) {
+	if all || !hasGroup {
+		return guestReplan{all: all}, nil
 	}
 	var studentIDs []int64
 	for _, source := range sources {
@@ -367,15 +377,15 @@ func (h *HolidayGuests) unplannedGuests(ctx context.Context, sources []enrollmen
 		}
 	}
 	if len(studentIDs) == 0 {
-		return nil, nil
+		return guestReplan{}, nil
 	}
 	unplanned, err := h.care.UnplannedHolidayGuests(ctx, studentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("read the planned days of the holiday guests: %w", err)
+		return guestReplan{}, fmt.Errorf("read the planned days of the holiday guests: %w", err)
 	}
-	result := make(map[int64]bool, len(unplanned))
+	result := guestReplan{unplanned: make(map[int64]bool, len(unplanned))}
 	for _, studentID := range unplanned {
-		result[studentID] = true
+		result.unplanned[studentID] = true
 	}
 	return result, nil
 }
