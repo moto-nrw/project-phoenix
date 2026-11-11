@@ -64,6 +64,47 @@ beforeEach(() => {
 });
 
 describe("CareScheduleRequestModal", () => {
+  it("sperrt Abbrechen, während die Anfrage gespeichert wird", async () => {
+    let resolveSubmit: (() => void) | undefined;
+    const onSubmit = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSubmit = resolve;
+        }),
+    );
+    const onClose = vi.fn();
+    render(
+      <NextIntlClientProvider locale="de" messages={deMessages}>
+        <CareScheduleRequestModal
+          studentId="42"
+          weekdays={weekdays}
+          capabilities={{
+            arrival: false,
+            pickup: true,
+            departure_mode: false,
+          }}
+          onClose={onClose}
+          onSubmit={onSubmit}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: /^Abholzeit/ }), {
+      target: { value: "16:30" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
+    );
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    await waitFor(() => expect(cancel).toBeDisabled());
+    fireEvent.click(cancel);
+    expect(onClose).not.toHaveBeenCalled();
+
+    resolveSubmit?.();
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
   it("zeigt und sendet bei reiner Abholzeit-Freigabe keine Abholart", async () => {
     const onSubmit = renderModal({
       arrival: false,

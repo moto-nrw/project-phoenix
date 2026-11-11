@@ -9,6 +9,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Modal } from "~/components/ui/modal";
+import { ModalCancelButton } from "~/components/ui/modal-frame";
 import { TimeField } from "~/components/ui/time-field";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
@@ -173,9 +174,7 @@ function ModalFooter({
   const t = useCareTermTranslations("parentMasterData.careSchedule");
   return (
     <>
-      <Button type="button" variant="outline" size="md" onClick={onClose}>
-        {t("cancel")}
-      </Button>
+      <ModalCancelButton onClick={onClose}>{t("cancel")}</ModalCancelButton>
       <Button
         type="button"
         size="md"
