@@ -18,6 +18,7 @@ import { staffConcept } from "~/lib/concepts/staff";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
   staffQualificationService,
   type QualificationType,
@@ -187,6 +188,7 @@ function QualificationTypesPageContent() {
     swrError,
     "die Liste der Nachweisarten",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);
 

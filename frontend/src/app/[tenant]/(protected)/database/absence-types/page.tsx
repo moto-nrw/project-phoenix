@@ -19,6 +19,7 @@ import { CARRYOVER_OPTIONS, carryoverRuleLabel } from "~/lib/absence-helpers";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
@@ -166,6 +167,7 @@ function AbsenceTypesPageContent() {
     swrError,
     "die Liste der Abwesenheitsarten",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);

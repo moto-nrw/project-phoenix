@@ -16,6 +16,7 @@ import {
 } from "~/components/database/catalog/catalog-page";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { CatalogColorField } from "~/components/database/catalog-color-field";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
@@ -77,6 +78,7 @@ function PlanningTracksPageContent() {
     swrError,
     "die Liste der Planungsspuren",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);

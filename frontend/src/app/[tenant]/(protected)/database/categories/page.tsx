@@ -21,6 +21,7 @@ import { categoryService } from "~/lib/category-api";
 import { formatCount } from "~/lib/format-utils";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { activitiesConcept } from "~/lib/concepts/activities";
 
@@ -156,6 +157,7 @@ function CategoriesPageContent() {
     swrError,
     "die Liste der Terminkategorien",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);

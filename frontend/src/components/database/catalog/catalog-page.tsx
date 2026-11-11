@@ -36,7 +36,8 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Skeleton } from "~/components/ui/skeleton";
-import type { FormErrorDetail } from "~/components/ui/form-error";
+import type { FormErrorInput } from "~/components/ui/form-error";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -45,6 +46,7 @@ import {
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { configToFormSection, type SectionConfig } from "~/lib/database/types";
 import type { MotoConcept } from "~/lib/moto-concepts";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { foldForSearch } from "~/lib/search-fold";
 
@@ -140,7 +142,7 @@ interface CatalogPageProps<T extends CatalogItem> {
   readonly isLoading: boolean;
   /** Ladefehler der Liste, am besten aus `useSwrLoadError` (Wiederholen und
    *  Vorgangskennung kommen mit). Ein Fehler ist nie ein Leerzustand. */
-  readonly error: string | FormErrorDetail | null;
+  readonly error: FormErrorInput;
   /** Neu laden, nachdem geschrieben wurde. */
   readonly onChanged: () => Promise<unknown> | void;
   /** Ohne Recht bleibt die Fläche eine Liste zum Nachlesen. */
@@ -149,6 +151,8 @@ interface CatalogPageProps<T extends CatalogItem> {
   readonly selectedId: string | null;
   /** Zusätzliche Kopf-Aktion, z. B. „Beispiele hinzufügen". */
   readonly headAction?: React.ReactNode;
+  /** Hinweis über der Liste, z. B. der Ladefehler nach der Kopf-Aktion. */
+  readonly notice?: React.ReactNode;
 }
 
 /**
@@ -174,6 +178,7 @@ export function CatalogPage<T extends CatalogItem>({
   canManage,
   selectedId,
   headAction,
+  notice,
 }: CatalogPageProps<T>) {
   const toast = useToast();
   const { show: showWriteError } = useApiErrorDisplay();
@@ -246,21 +251,16 @@ export function CatalogPage<T extends CatalogItem>({
   /**
    * Das Nachladen folgt erst auf einen bereits erfolgreichen Schreibvorgang.
    * Ein Fehler dabei darf dem Formular nicht vorgaukeln, die Änderung sei
-   * fehlgeschlagen: Sie liegt bereits im Backend und kann nach einem Neuladen
-   * angezeigt werden.
+   * fehlgeschlagen: Er steht als Ladefehler über der Liste und sagt, dass
+   * die Änderung gespeichert ist; „Wiederholen“ lädt nur neu (#6652).
    */
-  const refreshAfterWrite = useCallback(async () => {
-    try {
+  const afterWrite = useRefreshAfterWrite(
+    `die Anzeige der ${config.title}`,
+    async () => {
       await onChanged();
-      return true;
-    } catch (err: unknown) {
-      logger.error("catalog_refresh_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toast.warning("Die Änderung wurde gespeichert. Laden Sie die Seite neu.");
-      return false;
-    }
-  }, [onChanged, toast]);
+    },
+  );
+  const refreshAfterWrite = afterWrite.refresh;
 
   /**
    * Ein Schreibvorgang mit gemeinsamem Busy-, Fehler- und Nachlade-Vertrag.
@@ -272,16 +272,16 @@ export function CatalogPage<T extends CatalogItem>({
       setBusy(true);
       try {
         await write();
-        return { saved: true, refreshed: await refreshAfterWrite() };
       } catch (err: unknown) {
         logger.error(event, {
           error: err instanceof Error ? err.message : String(err),
         });
         void showWriteError(err, { object: errorObject });
-        return { saved: false, refreshed: false };
-      } finally {
         setBusy(false);
+        return { saved: false, refreshed: false };
       }
+      setBusy(false);
+      return { saved: true, refreshed: await refreshAfterWrite() };
     },
     [refreshAfterWrite, showWriteError, errorObject],
   );
@@ -597,7 +597,9 @@ export function CatalogPage<T extends CatalogItem>({
     <DatabasePageLayout
       loading={isLoading}
       sessionLoading={false}
-      error={error}
+      // Bestätigte Daten bleiben bei einem Ladefehler stehen; der Fehler
+      // steht darüber (#6652).
+      error={items === undefined ? error : null}
       className="flex w-full flex-col"
       empty={
         hasNothing
@@ -722,6 +724,9 @@ export function CatalogPage<T extends CatalogItem>({
         </>
       }
     >
+      <LoadErrorAlert error={items === undefined ? null : error} />
+      <LoadErrorAlert error={afterWrite.error} />
+      {notice}
       <div className="min-h-0 flex-1 pb-4">
         <MasterDetailLayout
           list={
