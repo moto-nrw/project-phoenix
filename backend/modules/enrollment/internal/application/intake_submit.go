@@ -29,9 +29,11 @@ func (s *Intake) Submit(ctx context.Context, req enrollmentNative.SubmitRequest)
 }
 
 // submissionPlan is everything a submission resolves before its write
-// transaction.
+// transaction. phase is the pre-check read; the write replaces it with the
+// phase read under the recurrence gate (locked) before it uses any bound.
 type submissionPlan struct {
 	phase            *enrollmentNative.Phase
+	locked           enrollmentNative.LockedPhase
 	now              time.Time
 	capabilities     enrollmentNative.FormCapabilities
 	duplicatePolicy  string
@@ -225,6 +227,9 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 
 // writeSubmission is the write transaction of a submission.
 func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan, outcome *submitOutcome) error {
+	if err := s.lockSubmissionPhase(ctx, req, plan); err != nil {
+		return err
+	}
 	// Serialize concurrent submits of one (phase, guardian email), so two
 	// parallel requests cannot both pass the duplicate check.
 	emailLC := guardianEmailKey(req.GuardianEmail)
@@ -270,6 +275,26 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 		}
 	}
 	return s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0)
+}
+
+// lockSubmissionPhase reads the phase again with the phase bounds reader,
+// before any other lock of the write (#6657). A phase edit that committed
+// after the pre-check is the phase the submission writes; one that is still
+// open is waited for. The checks of the pre-check run again on that phase.
+func (s *Intake) lockSubmissionPhase(ctx context.Context, req *SubmitRequest, plan *submissionPlan) error {
+	locked, err := s.lockedPhaseForSubmission(ctx, req.PhaseID)
+	if err != nil {
+		return err
+	}
+	phase := locked.Phase()
+	if phase.TenantID != req.TenantID {
+		return fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, req.PhaseID)
+	}
+	if !req.AllowClosedPhase && !phase.EnrollmentWindowOpen(plan.now) {
+		return enrollmentNative.ErrEnrollmentWindowClosed
+	}
+	plan.phase, plan.locked = phase, locked
+	return nil
 }
 
 // submissionLateInvite resolves and locks the late invite of a submission
@@ -391,7 +416,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("submit: create request child %d: %w", i, err)
 		}
-		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.phase.ServiceStartDate, plan.phase.ServiceEndDate); err != nil {
+		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.locked); err != nil {
 			return nil, fmt.Errorf("submit: record child offerings: %w", err)
 		}
 		created = append(created, row)

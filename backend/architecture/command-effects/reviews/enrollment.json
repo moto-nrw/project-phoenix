@@ -709,6 +709,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Approve",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.ChangeRequests.Approve; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
       "classification": "platform",
@@ -826,6 +838,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Propose",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Propose",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.ChangeRequests.Propose; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0176",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
       "classification": "debt",
@@ -921,6 +945,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Reject",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.ChangeRequests.Reject; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
       "classification": "platform",
@@ -1003,12 +1039,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1085,12 +1121,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1167,12 +1203,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1249,12 +1285,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/internal/application.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/internal/application.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/internal/application.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/internal/application.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1331,12 +1367,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -2672,12 +2708,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -2768,6 +2804,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.ReplaceEditable",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.ReplaceEditable",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.ReplaceEditable; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.Submit",
       "classification": "query",
       "effect": "query",
@@ -2826,6 +2874,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.Submit",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.Submit",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.Submit; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -3012,12 +3072,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Phases.UpdatePhase",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseAdministration.UpdatePhase",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Phases.UpdatePhase. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Phases.UpdatePhase. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -3389,12 +3449,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Rollovers.RunDeadlineWorker",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Rollovers.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Rollovers.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -3803,6 +3863,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Approve",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.changeRequestService.Approve; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
       "classification": "platform",
@@ -3920,6 +3992,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Create",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Create",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.changeRequestService.Create; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
       "classification": "debt",
@@ -4015,6 +4099,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.changeRequestService.Reject; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
       "classification": "platform",
@@ -4097,12 +4193,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.decisionService.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.decisionService.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -4179,12 +4275,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/http.decisionService.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/http.decisionService.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/http.decisionService.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/http.decisionService.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -4449,12 +4545,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -4545,6 +4641,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.ReplaceEditable",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.ReplaceEditable",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.ReplaceEditable; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
       "classification": "query",
       "effect": "query",
@@ -4603,6 +4711,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.Submit",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.Submit; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -4733,12 +4853,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -4829,6 +4949,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.ReplaceEditable",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.ReplaceEditable",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.ReplaceEditable; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.Submit",
       "classification": "query",
       "effect": "query",
@@ -4887,6 +5019,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.Submit",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.Submit",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.Submit; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -4969,12 +5113,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.rolloverService.RunDeadlineWorker",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RolloverService.RunDeadlineWorker",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.rolloverService.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.rolloverService.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -5309,12 +5453,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -6502,12 +6646,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/compose.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/compose.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/compose.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/compose.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -6535,6 +6679,18 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.LockApprovalGates",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.LockApprovalGates",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Decisions.LockApprovalGates; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
@@ -7173,12 +7329,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"

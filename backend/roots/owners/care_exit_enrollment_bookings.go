@@ -23,16 +23,17 @@ type EnrollmentBookingProjection struct {
 // Care Plan's bookings that the projection forwards.
 type careExitBookingWrites interface {
 	CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, until enrollment.Date, sourceChildID *int64) ([]enrollment.CareExitOfferingSnapshot, error)
-	RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error)
+	RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore, today enrollment.Date) (int64, error)
 }
 
 // NewEnrollmentBookingProjection adds the care exit's booking snapshot and
 // restore to the projection the root binds, on the caller's tenant
-// transaction.
-func NewEnrollmentBookingProjection(projection *enrollment.BookingProjection) EnrollmentBookingProjection {
+// transaction. phases is Enrollment's phase bounds reader behind the
+// recurrence gate (#6657).
+func NewEnrollmentBookingProjection(projection *enrollment.BookingProjection, phases enrollment.PhaseBoundsReader) EnrollmentBookingProjection {
 	return EnrollmentBookingProjection{
 		BookingProjection: projection,
-		Bookings:          careexit.NewBookings(projection, carePlanCompose.NewOfferingBookings(), tenant.FromContext),
+		Bookings:          careexit.NewBookings(projection, carePlanCompose.NewOfferingBookings(), phases, tenant.FromContext),
 	}
 }
 
@@ -40,6 +41,6 @@ func (a EnrollmentBookingProjection) CareExitOfferingSnapshots(ctx context.Conte
 	return a.Bookings.CareExitOfferingSnapshots(ctx, studentIDs, until, sourceChildID)
 }
 
-func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error) {
-	return a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots)
+func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore, today enrollment.Date) (int64, error) {
+	return a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots, today)
 }

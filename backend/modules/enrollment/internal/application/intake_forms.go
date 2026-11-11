@@ -323,6 +323,38 @@ func (s *Intake) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*en
 	return phase, nil
 }
 
+// lockedPhaseForSubmission reads the phase with the phase bounds reader and
+// applies the checks of loadPhaseForSubmission. A gate failure stays an
+// error of its own.
+func (s *Intake) lockedPhaseForSubmission(ctx context.Context, phaseID int64) (enrollmentNative.LockedPhase, error) {
+	if s.deps.Catalog == nil {
+		return enrollmentNative.LockedPhase{}, fmt.Errorf("submit: phase repo not wired")
+	}
+	locked, err := s.phaseBounds().LockedPhase(ctx, phaseID)
+	if errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) {
+		return enrollmentNative.LockedPhase{}, err
+	}
+	if err != nil {
+		return enrollmentNative.LockedPhase{}, fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, phaseID)
+	}
+	if !locked.Phase().IsActive {
+		return enrollmentNative.LockedPhase{}, enrollmentNative.ErrEnrollmentDisabled
+	}
+	return locked, nil
+}
+
+// checkEditablePhase applies the checks of loadPhaseForEditableRequest to a
+// phase the caller already read: the enrollment switch and an active phase.
+func (s *Intake) checkEditablePhase(ctx context.Context, phase *enrollmentNative.Phase) error {
+	if !s.isEnrollmentEnabled(ctx) {
+		return enrollmentNative.ErrEnrollmentDisabled
+	}
+	if phase == nil || !phase.IsActive {
+		return enrollmentNative.ErrEnrollmentDisabled
+	}
+	return nil
+}
+
 func (s *Intake) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentNative.Phase, error) {
 	if !s.isEnrollmentEnabled(ctx) {
 		return nil, enrollmentNative.ErrEnrollmentDisabled
