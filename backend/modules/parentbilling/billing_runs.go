@@ -308,6 +308,17 @@ type HolidayBillingRegistrations interface {
 // names the person of the session and runs in the Träger transaction of its
 // Träger, which the caller opens. Every read of personal data and every
 // change of a run is recorded in the run's trail.
+// HolidayRunDiscard discards an open holiday run that has nothing to issue
+// (#6628): no invoice, no cancelled invoice to issue again and no confirmed
+// registration waiting for its contribution. It holds the run and the
+// invoices of its period like the release, refuses a run with content as
+// ErrBillingRunNotEmpty and records the discard in the run's trail; nothing
+// is deleted, and the period is free for a new run. It is a capability of
+// its own because BillingRuns stands at the facade width of 12.
+type HolidayRunDiscard interface {
+	DiscardBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
+}
+
 type BillingRuns interface {
 	ListBillingRuns(ctx context.Context, organizationID int64) ([]BillingRun, error)
 	// ListBillablePeriods lists the published holiday periods of the Träger
@@ -318,11 +329,6 @@ type BillingRuns interface {
 	BillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
 	CorrectBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, input BillingCorrectionInput) (BillingRunDetail, error)
 	ReleaseBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release BillingRelease) (BillingRunDetail, error)
-	// DiscardBillingRun discards an open run whose preview has no invoice
-	// and no registration waiting for its contribution, under the locks of
-	// the release (#6628); a run with content is ErrBillingRunNotEmpty. The
-	// period is free for a new run afterwards.
-	DiscardBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
 	// RemoveCarriedCorrection and ChangeCarriedCorrection decide a correction
 	// of a cancelled invoice the preview proposes (#5663). A position that is
 	// no proposal of the run is ErrCarriedCorrectionNotFound.

@@ -103,27 +103,27 @@ func TestHolidayRunWithContentIsNeverDiscarded(t *testing.T) {
 // holdPeriodBilling holds the invoices of the holiday period the way a
 // release, a cancellation of an invoice or a sibling change does
 // (LockPeriodBilling), so the test can change the period meanwhile.
-func holdPeriodBilling(t *testing.T, db *bun.DB, organizationID, periodID int64) bun.Tx {
+func holdPeriodBilling(t *testing.T, f reviewFixture) bun.Tx {
 	t.Helper()
-	tx, err := db.BeginTx(context.Background(), nil)
+	tx, err := f.db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback() })
 	_, err = tx.ExecContext(context.Background(), `SELECT pg_advisory_xact_lock(hashtextextended(
-		'parent_billing.period_billing:' || ?::text || ':holiday:' || ?::text, 0))`, organizationID, periodID)
+		'parent_billing.period_billing:' || ?::text || ':holiday:' || ?::text, 0))`, f.office.organization, f.period.ID)
 	require.NoError(t, err)
 	return tx
 }
 
-func waitForPeriodBilling(t *testing.T, db *bun.DB, organizationID, periodID int64, done <-chan struct{}) {
+func waitForPeriodBilling(t *testing.T, f reviewFixture, done <-chan struct{}) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		var waiting bool
-		require.NoError(t, db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_locks AS l
+		require.NoError(t, f.db.NewRaw(`SELECT EXISTS (SELECT 1 FROM pg_locks AS l
 			WHERE l.locktype = 'advisory' AND NOT l.granted
 				AND ((l.classid::bigint << 32) | l.objid::bigint) = hashtextextended(
 					'parent_billing.period_billing:' || ?::text || ':holiday:' || ?::text, 0))`,
-			organizationID, periodID).Scan(context.Background(), &waiting))
+			f.office.organization, f.period.ID).Scan(context.Background(), &waiting))
 		if waiting {
 			return
 		}
@@ -146,7 +146,7 @@ func TestHolidayRunDiscardWaitsForTheInvoicesOfItsPeriod(t *testing.T) {
 	run := startBillingRun(t, f, billing, f.period.ID)
 	require.Empty(t, billingRun(t, f, billing, run.ID).Documents)
 
-	change := holdPeriodBilling(t, f.db, f.office.organization, f.period.ID)
+	change := holdPeriodBilling(t, f)
 	_, err := change.ExecContext(context.Background(),
 		`UPDATE enrollment.holiday_registrations SET status = 'confirmed' WHERE id = ?`, f.again)
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestHolidayRunDiscardWaitsForTheInvoicesOfItsPeriod(t *testing.T) {
 		defer close(done)
 		code, body = discardHolidayRun(t, f, billing, run.ID)
 	}()
-	waitForPeriodBilling(t, f.db, f.office.organization, f.period.ID, done)
+	waitForPeriodBilling(t, f, done)
 	require.NoError(t, change.Commit())
 	<-done
 	assert.Equal(t, http.StatusConflict, code, body)

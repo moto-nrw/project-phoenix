@@ -20,7 +20,7 @@ import (
 // status with its schools and one invoice per school of invoices, billed
 // to a contract of that school. Each open run takes its own month, as a
 // school is in one open run per month.
-func careRunOf(t *testing.T, db *bun.DB, status string, month int, schools, invoices []int64) int64 {
+func careRunOf(t *testing.T, db bun.IDB, status string, month int, schools, invoices []int64) int64 {
 	t.Helper()
 	ctx := t.Context()
 	var id int64
@@ -53,7 +53,7 @@ func careRunOf(t *testing.T, db *bun.DB, status string, month int, schools, invo
 
 // noticeRunOf writes a Jahreslauf of the Träger of the first school in
 // status for year and schools, without a Jahresbescheid.
-func noticeRunOf(t *testing.T, db *bun.DB, status string, year int, schools []int64) int64 {
+func noticeRunOf(t *testing.T, db bun.IDB, status string, year int, schools []int64) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.care_notice_runs (organization_id, billing_year, period_from, period_until,
@@ -68,14 +68,14 @@ func noticeRunOf(t *testing.T, db *bun.DB, status string, year int, schools []in
 
 // runOfDocument is the holiday or monthly run of the invoice the visitor
 // fixture issued for the school.
-func runOfDocument(t *testing.T, db *bun.DB, table, number string) int64 {
+func runOfDocument(t *testing.T, db bun.IDB, table, number string) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`SELECT run_id FROM `+table+` WHERE number = ?`, number).Scan(t.Context(), &id))
 	return id
 }
 
-func runSchools(t *testing.T, db *bun.DB, runID int64) []int64 {
+func runSchools(t *testing.T, db bun.IDB, runID int64) []int64 {
 	t.Helper()
 	var schools []int64
 	require.NoError(t, db.NewRaw(`SELECT school_id FROM parent_billing.care_run_schools WHERE run_id = ? ORDER BY school_id`, runID).
@@ -83,7 +83,7 @@ func runSchools(t *testing.T, db *bun.DB, runID int64) []int64 {
 	return schools
 }
 
-func noticeRunSchools(t *testing.T, db *bun.DB, runID int64) []int64 {
+func noticeRunSchools(t *testing.T, db bun.IDB, runID int64) []int64 {
 	t.Helper()
 	var schools []int64
 	require.NoError(t, db.NewRaw(`SELECT unnest(school_ids) FROM parent_billing.care_notice_runs WHERE id = ?`, runID).
@@ -150,7 +150,7 @@ func TestDemoErasureTakesTheRunsItLeavesEmpty(t *testing.T) {
 
 // runsOfOrganization holds every run of the Träger with its schools, as
 // JSON, so a test sees any change.
-func runsOfOrganization(t *testing.T, db *bun.DB, organizationID int64) []string {
+func runsOfOrganization(t *testing.T, db bun.IDB, organizationID int64) []string {
 	t.Helper()
 	var rows []string
 	require.NoError(t, db.NewRaw(`

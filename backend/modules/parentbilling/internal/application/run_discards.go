@@ -146,6 +146,8 @@ func (n *CareFeeNotices) DiscardCareNoticeRun(ctx context.Context, reviewer pare
 	return n.detail(ctx, reviewer.OrganizationID, discarded)
 }
 
+var _ parentbilling.HolidayRunDiscard = (*BillingRuns)(nil)
+
 // emptyHolidayPreview tells whether a holiday run has nothing to issue and
 // nothing to settle (#6628): no invoice, no cancelled invoice to issue
 // again and no confirmed registration still waiting for its contribution.
