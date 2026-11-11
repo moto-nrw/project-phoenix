@@ -2062,6 +2062,8 @@ export const dutyRosterTopic = function dutyRosterTopic(): HelpTopic {
     notes: [
       "Jede Schicht kann eine Dienstart tragen. Die Farbe kommt von der Dienstart.",
       "Über `Dienstarten verwalten` pflegen Sie die Arten.",
+      // ADR 0116: die ausgerichtete Ferienwoche im Dienstplan.
+      "Richtet Ihre OGS eine Ferienwoche für den Träger aus, steht im Kopf jedes Tages `Ferienbetreuung`. Darunter stehen die Zahl der Kinder und die Betreuungszeit. Planen Sie dafür Schichten. In der Ansicht `Halbjahr` zeigt eine Sonne die Woche.",
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Dienstart und das Soll.",
       "Unter `Person` sehen Sie die Woche einer Person in Viertelstunden. Darunter stehen die Stunden je Tag und Dienstart.",
       "Ziehen Sie dort über die Viertelstunden, um eine Schicht anzulegen.",
@@ -2785,6 +2787,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab. Brauchen Sie mehr, legen Sie eine eigene Vorlage an.",
       "Eine Phase lässt sich mit einem Kalenderzeitraum verknüpfen. Dann passen die Daten automatisch.",
       "Ändern Sie später `Beginn` oder `Ende` der Phase, ziehen die Buchungen der Kinder mit. Ein Angebotswechsel ab einem bestimmten Tag behält diesen Tag.",
+      "Sie ziehen das `Ende` der Phase vor? Dann nennt moto nach dem Speichern die Kinder, die schon betreut werden. Ihre Betreuung bleibt eingetragen, bis Sie sie beenden. Wählen Sie dafür `Betreuung beenden`. moto schlägt das neue Ende der Phase als letzten Betreuungstag vor. Bei mehr als 500 Kindern bestätigen Sie mehrere Gruppen einzeln. Die übrigen Kinder bleiben bis dahin in der Liste.",
       "Bei `Betreuungsangebote` steht in der Spalte `Belegt`, wie viele Plätze gebucht sind. Bei Angeboten mit Kapazität steht auch, wie viele Plätze frei sind. Ein volles Angebot ist mit `Voll` markiert.",
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
       "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
@@ -2796,6 +2799,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Gilt die Phase nur für `Nur bereits angemeldete Kinder` oder `Nur Eltern mit Konto an der Schule`, fehlen `Formular ansehen`, `Elternansicht öffnen`, der Link zum Kopieren und der QR-Code. Diese Eltern melden sich im Elternportal an.",
     ],
     troubleshootingDetails: [
+      "Beim Beenden nennt moto Kinder, deren Betreuung nicht beendet werden kann? Wählen Sie unter diesen Kindern `Aus Auswahl nehmen`. Danach können Sie die Betreuung der übrigen Kinder erneut prüfen und beenden.",
       "Der Überblick sagt `Noch keine Anmeldephase`? Dann legen Sie zuerst eine Phase an.",
       "Auf `Betreuungsangebote` steht `Erst eine Anmeldephase anlegen`? Dann fehlt die Phase noch. Angebote gibt es nur innerhalb einer Phase.",
       "Oben steht `Anschlussphase fehlt`? Dann laufen die Buchungen aus. Wählen Sie `Anschlussphase erstellen`.",
@@ -2807,6 +2811,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       HELP_TOPICS.enrollments,
       HELP_TOPICS.leadEnrollmentExport,
       HELP_TOPICS.leadCalendarPeriods,
+      HELP_TOPICS.leadEndCare,
     ],
   };
 } satisfies typeof authored_enrollmentSetupTopic;
@@ -3244,6 +3249,7 @@ export const holidayGuestGroupTopic =
       notes: [
         "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
         "Vor der Woche sehen Sie die Feriengäste nur hier unter `Ferienwochen`.",
+        "Eine Gruppe nur für die Ferien steht vor der Woche nicht unter `Gruppen`. In der `Datenverwaltung` unter `Gruppendaten` steht bei ihr `Feriengruppe` mit der Woche. Dort legen Sie Raum und Gruppenleitung schon vorher fest.",
         "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
         "Jede Übernahme steht im Zugriffsprotokoll Ihrer OGS.",
       ],
@@ -3252,6 +3258,7 @@ export const holidayGuestGroupTopic =
       ],
       troubleshootingDetails: [
         "Nach dem letzten Tag der Woche stehen die Feriengäste nicht mehr in der Gruppe und nicht mehr im Check-in.",
+        "Fehlt die Feriengruppe unter `Gruppen`? Hat sie keine eigenen Kinder, steht sie dort erst ab dem ersten Tag der Woche.",
       ],
       related: [HELP_TOPICS.leadHolidayWeeks, HELP_TOPICS.holidayGuests],
     };
@@ -3306,6 +3313,7 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     troubleshootingDetails: [
       "Fehlt `Angaben aus der Ferienanmeldung`? Dann gibt der Träger keine Frage frei.",
       "Fehlt `Gesundheit`? Dann haben die Eltern nichts angegeben oder der Weitergabe nicht zugestimmt.",
+      "Fehlt die Feriengruppe unter `Gruppen`? Hat sie keine eigenen Kinder, steht sie dort erst ab dem ersten Tag der Woche.",
       "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
       "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
     ],
@@ -3349,6 +3357,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
     result:
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
     notes: [
+      "Die Woche steht auch im `Betreuungsplan` und im `Dienstplan`: im Kopf jedes Tages mit `Ferienbetreuung`, der Zahl der Kinder und der Betreuungszeit. Ein Klick darauf öffnet diese Seite.",
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
       "Bei Tagesbuchung nennt die Spalte `Tage` die gebuchten Tage. Das gilt auch für Excel und CSV.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
@@ -3905,6 +3914,8 @@ export const leadCarePlanTopic = function leadCarePlanTopic(): HelpTopic {
       // #4768: Raumfilter.
       "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
+      // ADR 0116: die ausgerichtete Ferienwoche im Plan.
+      "Richtet Ihre OGS eine Ferienwoche für den Träger aus, steht im Kopf jedes Tages `Ferienbetreuung` mit der Zahl der Kinder. Die Betreuungszeit ist in der Spalte orange hinterlegt. Planen Sie dafür Personal ein. An einem Schließtag gibt es keine Ferienbetreuung.",
       // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
       "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
@@ -12088,6 +12099,17 @@ export const traegerHolidayPeriodTopic =
           ],
         },
         {
+          title: "Annahme-Mail schreiben",
+          description:
+            "Bestätigen Sie eine Anmeldung, bekommen die Eltern eine E-Mail. Kinder, Wochen und Zeitmodell setzt moto selbst ein.",
+          steps: [
+            "Öffnen Sie den Ferienzeitraum in der Liste `Ferienbetreuung`.",
+            "Schreiben Sie unter `Text der Annahme-Mail`, was Eltern noch wissen müssen. Zum Beispiel: Mittagessen mitgeben, Wechselkleidung, Sportsachen, Regenkleidung.",
+            "Rechts unter `Vorschau` sehen Sie die E-Mail so, wie Eltern sie lesen.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
           title: "Veröffentlichen",
           steps: [
             "Öffnen Sie den Ferienzeitraum in der Liste `Ferienbetreuung`.",
@@ -12099,6 +12121,8 @@ export const traegerHolidayPeriodTopic =
       result:
         "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
       notes: [
+        "Der `Text der Annahme-Mail` ist freiwillig. Ohne Text bekommen Eltern die E-Mail ohne Hinweise. Sie können den Text bis zum Bestätigen jederzeit ändern. Schon verschickte E-Mails ändern sich nicht.",
+        "Eltern mit Elternkonto sehen in der Annahme-Mail den Knopf `In der Eltern-App ansehen`.",
         "Mit `Ferienwunsch aus der OGS-Anmeldung berücksichtigen` warten Kinder Ihrer Schulen ohne Ferienwunsch auf der Warteliste hinter den anderen.",
         "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
@@ -12326,7 +12350,8 @@ export const traegerHolidayRegistrationReviewTopic =
         "Unter `Verlauf` steht bei jeder Anmeldung, wann sie bestätigt, geändert, storniert, umgebucht, eingefroren oder wieder geöffnet wurde. Auch jede Debitorennummer steht dort, mit der Nummer vorher und nachher. Bei einer Änderung der Angaben steht dort, welche Angaben sich geändert haben, aber nicht die Werte. Auch jedes Zusammenführen und Trennen von Geschwistern steht dort. Storniert jemand eine Anmeldung der Geschwister, steht bei allen `Aus Geschwistergruppe gelöst (storniert)`.",
       notes: [
         "Berücksichtigt der Ferienzeitraum den Ferienwunsch, filtern Sie auch nach `Ferienwunsch`. Beim Kind steht dann `Mit Ferienwunsch`, `Ohne Ferienwunsch` oder `Ferienwunsch prüfen`.",
-        "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
+        "Beim Bestätigen bekommen die Eltern eine E-Mail mit den Kindern, Wochen und Zeitmodellen. Darin steht auch Ihr `Text der Annahme-Mail` aus dem Ferienzeitraum. Jede Anmeldung bekommt diese E-Mail nur einmal.",
+        "Beim Stornieren bekommen Eltern keine Nachricht von moto. Rückt ein Kind von der Warteliste nach, bekommen seine Eltern eine E-Mail.",
         "Vergibt der Ferienzeitraum die Plätze nach Kriterien? Dann steht bei einer Woche zuerst `Platz offen`. Bestätigen geht erst, wenn Ihr Büro im Reiter `Vergabe` entschieden hat. Unter `Angaben für die Vergabe` sehen Sie die Antworten der Eltern und prüfen sie mit `Prüfen`.",
         "Bei jeder Woche eines Kindes steht `Platz` oder `Warteliste`. Auf der Warteliste steht der Rang dabei, zum Beispiel `Warteliste, Platz 2`. Stornieren Sie eine Anmeldung, rückt das nächste Kind der Warteliste sofort nach.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",

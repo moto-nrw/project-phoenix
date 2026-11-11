@@ -60,23 +60,13 @@ func (s *service) sortGroups(groups []GroupRecord) {
 }
 
 func (s *service) resolveGroups(ctx context.Context, caller Caller, requestedGroupID int64, allowMissingRoomNames bool) ([]Group, *GroupRecord, error) {
-	myGroups, err := s.deps.Groups.SupervisedGroups(ctx)
+	visibleGroups, personalIDs, err := s.loadVisibleGroups(ctx, caller)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load supervised groups: %w", err)
+		return nil, nil, err
 	}
-	s.sortGroups(myGroups)
-	personalIDs := make(map[int64]bool, len(myGroups))
-	for _, group := range myGroups {
-		personalIDs[group.ID] = true
-	}
-
-	visibleGroups := myGroups
-	if caller.OperationalOverview && caller.CanReadGroups {
-		visibleGroups, err = s.deps.Groups.TenantGroups(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("load tenant groups: %w", err)
-		}
-		s.sortGroups(visibleGroups)
+	visibleGroups, err = s.withoutAwaitingHolidayGroups(ctx, visibleGroups, requestedGroupID)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	if len(visibleGroups) == 0 {
@@ -100,6 +90,34 @@ func (s *service) resolveGroups(ctx context.Context, caller Caller, requestedGro
 		return nil, nil, err
 	}
 	return groups, selected, nil
+}
+
+// loadVisibleGroups loads the groups the caller sees and marks its own. A
+// caller who sees every group needs only the IDs of its own groups, which
+// the identity chain already holds, and no second read of their rows.
+func (s *service) loadVisibleGroups(ctx context.Context, caller Caller) ([]GroupRecord, map[int64]bool, error) {
+	if caller.OperationalOverview && caller.CanReadGroups {
+		personalIDs, err := s.deps.Groups.SupervisedGroupIDs(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load supervised groups: %w", err)
+		}
+		groups, err := s.deps.Groups.TenantGroups(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load tenant groups: %w", err)
+		}
+		s.sortGroups(groups)
+		return groups, personalIDs, nil
+	}
+	myGroups, err := s.deps.Groups.SupervisedGroups(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load supervised groups: %w", err)
+	}
+	s.sortGroups(myGroups)
+	personalIDs := make(map[int64]bool, len(myGroups))
+	for _, group := range myGroups {
+		personalIDs[group.ID] = true
+	}
+	return myGroups, personalIDs, nil
 }
 
 // selectGroup picks the requested group from the directory order, or the
