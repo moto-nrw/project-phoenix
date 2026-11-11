@@ -65,7 +65,9 @@ func (s *Service) plans(ctx context.Context, organizationID int64, notices []sch
 	for _, notice := range notices {
 		if notice.OrganizationID == organizationID && notice.Status == schoolcalendar.HolidayClosureSuggested {
 			waiting = append(waiting, notice)
-			operations = append(operations, operation(notice.SchoolID, notice.OperationID, notice.SpanFrom, notice.SpanTo))
+			planned := operation(notice.SchoolID, notice.OperationID, notice.SpanFrom, notice.SpanTo)
+			planned.PreserveSpan = notice.ConfirmedAt != nil
+			operations = append(operations, planned)
 		}
 	}
 	result := make(map[int64]enrollment.HolidayClosureImpact, len(waiting))

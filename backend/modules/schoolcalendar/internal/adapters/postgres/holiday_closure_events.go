@@ -49,7 +49,8 @@ const (
 
 	holidayClosureNoticeColumns = `proposal.id AS proposal_id, proposal.tenant_id, proposal.organization_id, proposal.source_id,
 		proposal.reason, proposal.previous_start, proposal.previous_end, proposal.current_start, proposal.current_end,
-		proposal.span_from, proposal.span_to, proposal.revision, proposal.operation_id::text AS operation_id,
+		CASE WHEN event.id IS NULL THEN proposal.span_from ELSE event.span_from END AS span_from,
+		CASE WHEN event.id IS NULL THEN proposal.span_to ELSE event.span_to END AS span_to, proposal.revision, proposal.operation_id::text AS operation_id,
 		proposal.state AS proposal_state, proposal.supersedes_event_id, proposal.updated_at,
 		event.id AS event_id, event.state AS event_state, event.confirmed_at`
 	// A notice stays listed while it is open or not finished; a finished
@@ -82,7 +83,7 @@ const (
 			confirmed_channel, impact_token)
 		SELECT proposal.tenant_id, proposal.organization_id, proposal.id, proposal.operation_id, proposal.source_kind,
 			proposal.source_id, COALESCE((SELECT revision FROM calendar.holiday_closure_revisions WHERE tenant_id = proposal.tenant_id), 0),
-			GREATEST(proposal.span_from, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date), proposal.span_to, ?, ?
+			CASE WHEN ? THEN proposal.span_from ELSE GREATEST(proposal.span_from, (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin')::date) END, proposal.span_to, ?, ?
 		FROM calendar.holiday_closure_proposals AS proposal
 		WHERE proposal.tenant_id = ? AND proposal.id = ? AND proposal.state = 'open'
 		ON CONFLICT (proposal_id) DO NOTHING`
@@ -128,15 +129,16 @@ const (
 		FROM calendar.holiday_closure_events AS event
 		WHERE event.organization_id = ? AND event.state IN ('prepared', 'unknown')
 		ORDER BY event.id`
-	settleHolidayClosureEventSQL = `UPDATE calendar.holiday_closure_events
-		SET state = ?, completed_at = CASE WHEN ? = 'completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
-		WHERE organization_id = ? AND id = ? AND state IN ('prepared', 'unknown')`
+	settleHolidayClosureEventsSQL = `UPDATE calendar.holiday_closure_events AS event
+  SET state = changes.state, completed_at = CASE WHEN changes.state = 'completed' THEN CURRENT_TIMESTAMP ELSE event.completed_at END
+  FROM unnest(?::bigint[], ?::text[]) AS changes(id, state)
+  WHERE event.organization_id = ? AND event.id = changes.id AND event.state IN ('prepared', 'unknown')`
 	retireHolidayClosureEventsSQL = `DELETE FROM calendar.holiday_closure_proposals AS proposal
 		WHERE proposal.organization_id = ?
 			AND ((proposal.state = 'open' AND proposal.span_to < ?)
 				OR (proposal.state = 'confirmed' AND EXISTS (SELECT 1 FROM calendar.holiday_closure_events AS event
 					WHERE event.proposal_id = proposal.id AND event.organization_id = ?
-						AND event.state IN ('completed', 'no_mail', 'needs_confirmation')
+						AND event.state IN ('completed', 'no_mail')
 						AND COALESCE(event.completed_at, event.processed_at) < CURRENT_TIMESTAMP - interval '30 days')))`
 	dueHolidayClosureTraegerSQL = `SELECT id FROM calendar.holiday_closure_due_traeger_ids() AS id`
 )
@@ -388,6 +390,7 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Conte
 	if !holidayClosureActorMatchesOrganization(actor, row.OrganizationID) {
 		return schoolcalendar.HolidayClosureNotice{}, schoolcalendar.ErrHolidayClosureNoticeNotFound
 	}
+	preserveSpan := row.ConfirmedAt != nil
 	row, err = renewHolidayClosureProposal(ctx, db, schoolID, revision, row)
 	if err != nil {
 		return schoolcalendar.HolidayClosureNotice{}, err
@@ -397,7 +400,7 @@ func (s *HolidayClosureEventStore) ConfirmHolidayClosureNotice(ctx context.Conte
 		return schoolcalendar.HolidayClosureNotice{}, schoolcalendar.ErrHolidayClosureNoticeNotFound
 	}
 	proposalID = row.ProposalID
-	if err := confirmOrRetry(ctx, db, schoolID, proposalID, revision, actor, row); err != nil {
+	if err := confirmOrRetry(ctx, db, schoolID, proposalID, revision, actor, row, preserveSpan); err != nil {
 		if errors.Is(err, schoolcalendar.ErrHolidayClosureNoticeChanged) {
 			return row.notice(), err
 		}
@@ -430,8 +433,8 @@ func renewHolidayClosureProposal(ctx context.Context, db bun.IDB, schoolID, revi
 			(tenant_id, organization_id, source_kind, source_id, operation_id, reason, previous_start, previous_end,
 			current_start, current_end, span_from, span_to, revision)
 		SELECT tenant_id, organization_id, source_kind, source_id, gen_random_uuid(), reason, previous_start, previous_end,
-			current_start, current_end, span_from, span_to, revision
-		FROM calendar.holiday_closure_proposals WHERE tenant_id = ? AND id = ? RETURNING id`, schoolID, row.ProposalID).Scan(ctx, &replacementID); err != nil {
+			current_start, current_end, ?, ?, revision
+		FROM calendar.holiday_closure_proposals WHERE tenant_id = ? AND id = ? RETURNING id`, row.SpanFrom, row.SpanTo, schoolID, row.ProposalID).Scan(ctx, &replacementID); err != nil {
 		return holidayClosureNoticeRow{}, err
 	}
 	if _, err := db.NewRaw(`DELETE FROM calendar.holiday_closure_proposals WHERE tenant_id = ? AND id = ?`, schoolID, row.ProposalID).Exec(ctx); err != nil {
@@ -445,7 +448,7 @@ func renewHolidayClosureProposal(ctx context.Context, db bun.IDB, schoolID, revi
 
 // confirmOrRetry writes the command of an open proposal at its revision, or
 // takes the failed command of a confirmed one up again.
-func confirmOrRetry(ctx context.Context, db bun.IDB, schoolID, proposalID, revision int64, actor schoolcalendar.HolidayClosureActor, row holidayClosureNoticeRow) error {
+func confirmOrRetry(ctx context.Context, db bun.IDB, schoolID, proposalID, revision int64, actor schoolcalendar.HolidayClosureActor, row holidayClosureNoticeRow, preserveSpan bool) error {
 	if row.ProposalState != "open" {
 		if _, err := db.NewRaw(retryHolidayClosureEventSQL, actor.Channel, schoolID, proposalID).Exec(ctx); err != nil {
 			return fmt.Errorf("school calendar postgres: take the holiday closure event up again: %w", err)
@@ -455,7 +458,7 @@ func confirmOrRetry(ctx context.Context, db bun.IDB, schoolID, proposalID, revis
 	if row.Revision != revision {
 		return schoolcalendar.ErrHolidayClosureNoticeChanged
 	}
-	if _, err := db.NewRaw(insertHolidayClosureEventSQL, actor.Channel, actor.ImpactToken, schoolID, proposalID).Exec(ctx); err != nil {
+	if _, err := db.NewRaw(insertHolidayClosureEventSQL, preserveSpan, actor.Channel, actor.ImpactToken, schoolID, proposalID).Exec(ctx); err != nil {
 		return fmt.Errorf("school calendar postgres: write the holiday closure event: %w", err)
 	}
 	if _, err := db.NewRaw(confirmHolidayClosureProposalSQL, schoolID, proposalID).Exec(ctx); err != nil {
@@ -677,14 +680,27 @@ func (s *HolidayClosureEventStore) WaitingHolidayClosureEvents(ctx context.Conte
 	return events, nil
 }
 
-// SettleHolidayClosureEvent moves a prepared or unknown command on.
-func (s *HolidayClosureEventStore) SettleHolidayClosureEvent(ctx context.Context, organizationID, eventID int64, state string) error {
+// SettleHolidayClosureEvents moves waiting commands on in one write.
+func (s *HolidayClosureEventStore) SettleHolidayClosureEvents(ctx context.Context, organizationID int64, settlements []schoolcalendar.HolidayClosureSettlement) error {
+	if len(settlements) == 0 {
+		return nil
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	if _, err := db.NewRaw(settleHolidayClosureEventSQL, state, state, organizationID, eventID).Exec(ctx); err != nil {
-		return fmt.Errorf("school calendar postgres: settle the holiday closure event: %w", err)
+	ids, states := make([]int64, len(settlements)), make([]string, len(settlements))
+	for i, settlement := range settlements {
+		switch settlement.State {
+		case schoolcalendar.HolidayClosureEventPrepared, schoolcalendar.HolidayClosureEventFailed,
+			schoolcalendar.HolidayClosureEventUnknown, schoolcalendar.HolidayClosureEventCompleted:
+		default:
+			return errors.New("school calendar postgres: invalid holiday closure delivery state")
+		}
+		ids[i], states[i] = settlement.EventID, settlement.State
+	}
+	if _, err := db.NewRaw(settleHolidayClosureEventsSQL, pgdialect.Array(ids), pgdialect.Array(states), organizationID).Exec(ctx); err != nil {
+		return fmt.Errorf("school calendar postgres: settle holiday closure events: %w", err)
 	}
 	return nil
 }

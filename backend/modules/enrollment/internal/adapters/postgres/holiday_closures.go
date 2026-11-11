@@ -56,8 +56,8 @@ const (
 			(organization_id, operation_id, family_key, holiday_registration_id, idempotency_key)
 		SELECT ?, unnest(?::uuid[]), unnest(?::text[]), unnest(?::bigint[]), unnest(?::text[])
 		ON CONFLICT DO NOTHING`
-	holidayClosureSendKeysQuery = `SELECT DISTINCT idempotency_key FROM enrollment.holiday_closure_sends
-		WHERE organization_id = ? AND operation_id = ?::uuid ORDER BY idempotency_key`
+	holidayClosureSendKeysQuery = `SELECT DISTINCT operation_id::text AS operation_id, idempotency_key FROM enrollment.holiday_closure_sends
+		WHERE organization_id = ? AND operation_id = ANY(?::uuid[]) ORDER BY operation_id, idempotency_key`
 )
 
 // LockHolidayClosureNotices serializes the notice read/enqueue/write sequence
@@ -222,15 +222,22 @@ func (s *HolidayRegistrationStore) RecordHolidayClosureSends(ctx context.Context
 	return nil
 }
 
-// HolidayClosureSendKeys lists the idempotency keys of the operation's mails.
-func (s *HolidayRegistrationStore) HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationID string) ([]string, error) {
+// HolidayClosureSendKeys groups the operations' mail keys in one read.
+func (s *HolidayRegistrationStore) HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationIDs []string) (map[string][]string, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
-	var keys []string
-	if err := db.NewRaw(holidayClosureSendKeysQuery, organizationID, operationID).Scan(ctx, &keys); err != nil {
+	var rows []struct {
+		OperationID    string `bun:"operation_id"`
+		IdempotencyKey string `bun:"idempotency_key"`
+	}
+	if err := db.NewRaw(holidayClosureSendKeysQuery, organizationID, pgdialect.Array(operationIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: read holiday closure sends: %w", err)
+	}
+	keys := make(map[string][]string, len(operationIDs))
+	for _, row := range rows {
+		keys[row.OperationID] = append(keys[row.OperationID], row.IdempotencyKey)
 	}
 	return keys, nil
 }

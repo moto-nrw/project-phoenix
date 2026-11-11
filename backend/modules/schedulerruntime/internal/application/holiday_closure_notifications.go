@@ -20,7 +20,7 @@ const (
 // of changed school closing days (ADR 0196). A command it cannot process
 // turns blocked and is reported as an error, which reaches Sentry.
 func (s *Scheduler) scheduleHolidayClosureNotificationsTask() {
-	if s.holidayClosureNotifications == nil {
+	if s.holidayClosureNotifications.ProcessDue == nil {
 		s.getLogger().Info("holiday closure notifications not configured")
 		return
 	}
@@ -53,10 +53,35 @@ func (s *Scheduler) checkAndRunHolidayClosureNotifications(ctx context.Context, 
 	ctx, cancel := s.taskContext(ctx, holidayClosureNotificationsTimeout)
 	defer cancel()
 
-	if err := s.holidayClosureNotifications(ctx); err != nil {
+	if err := s.holidayClosureNotifications.ProcessDue(ctx); err != nil {
 		recordJobCommandFailure(ctx, err)
 		s.getLogger().Error("holiday closure notifications failed",
 			slog.String("error", err.Error()),
 		)
+	}
+}
+
+// The watchdog has its own task, context and timeout. A stuck processing task
+// cannot prevent it from inspecting the queue. Grafana also watches this
+// task's heartbeat, so a stopped worker is observable outside the process.
+func (s *Scheduler) scheduleHolidayClosureWatchdogTask() {
+	s.registerTask("holiday-closure-watchdog", "1m-poll", func(task *ScheduledTask) {
+		s.runIntervalPolling(task, "panic in holiday closure watchdog task", "holiday closure watchdog using interval polling",
+			holidayClosureNotificationsStartupDelay, func() time.Duration { return time.Minute }, s.checkHolidayClosureWatchdog)
+	})
+}
+
+func (s *Scheduler) checkHolidayClosureWatchdog(ctx context.Context, _ *ScheduledTask) {
+	ctx, cancel := s.taskContext(ctx, 30*time.Second)
+	defer cancel()
+	count, err := s.holidayClosureNotifications.Overdue(ctx, 15*time.Minute)
+	if err != nil {
+		recordJobCommandFailure(ctx, err)
+		s.getLogger().Error("holiday closure watchdog failed", "error", err.Error())
+		return
+	}
+	s.getLogger().Info("holiday closure watchdog checked", "overdue", count)
+	if count > 0 {
+		s.getLogger().Error("holiday closure commands overdue", "overdue", count)
 	}
 }

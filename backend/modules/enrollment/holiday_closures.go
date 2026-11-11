@@ -77,6 +77,8 @@ type HolidayClosureSpan struct {
 // closing day (ADR 0196): the operation of its proposal, the school and the
 // days it touches.
 type HolidayClosureOperation struct {
+	// PreserveSpan keeps previously confirmed dates during renewed approval.
+	PreserveSpan bool
 	// Revision is required for fresh confirmed mail; nil for previews.
 	Revision    *int64
 	Token       string
@@ -244,8 +246,9 @@ type HolidayClosures interface {
 	// family and makes the operation's mails with a known transport failure
 	// due again.
 	NotifyHolidayClosureOperation(ctx context.Context, organizationID int64, operation HolidayClosureOperation) (HolidayClosureOperationResult, error)
-	// HolidayClosureOperationDelivery sums the mails of the operation up.
-	HolidayClosureOperationDelivery(ctx context.Context, organizationID int64, operationID string) (HolidayClosureDelivery, error)
+	// HolidayClosureOperationsDelivery sums each operation's mails in two reads,
+	// independent of the number of operations.
+	HolidayClosureOperationsDelivery(ctx context.Context, organizationID int64, operationIDs []string) (map[string]HolidayClosureDelivery, error)
 }
 
 // HolidayClosureBookingRecord is a booking as the store reads it for a

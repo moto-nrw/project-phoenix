@@ -446,9 +446,9 @@ func TestHolidayClosureNoticesKeepTheirFiltersBeneathRLS(t *testing.T) {
 		retired, err := events.RetireHolidayClosureEvents(ctx, own.organization)
 		require.NoError(t, err)
 		assert.Zero(t, retired)
-		delivery, err := own.closures.HolidayClosureOperationDelivery(ctx, own.organization, foreignOperation)
+		delivery, err := own.closures.HolidayClosureOperationsDelivery(ctx, own.organization, []string{foreignOperation})
 		require.NoError(t, err)
-		assert.Zero(t, delivery, "A reads no send record of B")
+		assert.Zero(t, delivery[foreignOperation], "A reads no send record of B")
 		retried, err := own.mail.RetryFailedTraegerEmails(ctx, own.organization, foreignKeys)
 		require.NoError(t, err)
 		assert.Zero(t, retried, "A takes up no mail of B")
@@ -605,4 +605,139 @@ func TestBueroConfirmsAllWaitingNoticesOnce(t *testing.T) {
 	require.ErrorIs(t, err, notification.ErrNoticeChanged, "the same click again confirms nothing twice")
 	assert.Len(t, w.events(t), 3)
 	assert.Len(t, w.mails(t), sent, "and sends nothing twice")
+}
+
+// Following prepared mail must cost the same statements for one or many commands.
+func TestWaitingHolidayClosureDeliveryIsBatched(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorldIn(t, "Träger Zustellstand gesammelt", testpkg.SetupIsolatedTestDB(t))
+	counter := testpkg.CaptureQueries(t, w.db)
+	var counts []int
+	for _, date := range []string{"2030-07-08", "2030-07-09", "2030-07-10"} {
+		w.createClosingDay(t, date, date)
+		for _, notice := range w.schoolNotices(t) {
+			if notice.Status == "suggested" {
+				_, err := w.notices.NotifyFromSchool(w.ctx, w.school, 0, notice.ID, notice.Revision, notice.Token)
+				require.NoError(t, err)
+			}
+		}
+		counter.Reset()
+		require.NoError(t, w.notices.ProcessDue(w.ctx))
+		counts = append(counts, len(counter.Queries()))
+	}
+	assert.Equal(t, counts[0], counts[2], "waiting commands must share the send-key and transport reads")
+	querybudgets.AssertQueryBudget(t, "workflows.holidayclosurenotification.waiting_delivery", counter.Measurement(counter.Queries()))
+	_, err := w.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW() WHERE organization_id = ?`, w.organization)
+	require.NoError(t, err)
+	counter.Reset()
+	require.NoError(t, w.notices.ProcessDue(w.ctx))
+	assert.Equal(t, counts[0]+1, len(counter.Queries()), "changed delivery states add a single bulk update")
+	assert.Equal(t, []string{"completed", "completed", "completed"}, w.events(t))
+}
+
+func TestUnresolvedHolidayClosureSurvivesRetirement(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorld(t, "Träger offene Bestätigung behalten")
+	w.createClosingDay(t, "2030-07-10", "2030-07-10")
+	notice := w.schoolNotices(t)[0]
+	proposals := schoolCalendarCompose.NewHolidayClosureEvents()
+	require.NoError(t, tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+		_, err := proposals.ConfirmHolidayClosureNotice(ctx, notice.ID, notice.Revision,
+			schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool, ImpactToken: notice.Token})
+		return err
+	}))
+	_, err := w.db.ExecContext(context.Background(), `UPDATE calendar.holiday_closure_events SET state = 'needs_confirmation',
+  processed_at = NOW() - interval '31 days' WHERE organization_id = ?`, w.organization)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinTraeger(w.ctx, w.organization, func(ctx context.Context) error {
+		_, err := proposals.RetireHolidayClosureEvents(ctx, w.organization)
+		return err
+	}))
+	assert.Equal(t, []string{"needs_confirmation"}, w.events(t), "age does not resolve an outstanding confirmed notice")
+	require.Len(t, w.schoolNotices(t), 1)
+}
+
+// A renewed approval still previews and creates the original confirmed days,
+// even when the whole booked week has elapsed.
+func TestRenewedHolidayClosureConfirmationKeepsElapsedSpan(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorldIn(t, "Träger vergangene Bestätigung", testpkg.SetupIsolatedTestDB(t))
+	day := w.createClosingDay(t, "2030-07-10", "2030-07-10")
+	// Pin an elapsed, originally confirmed Wednesday without depending on midnight.
+	for _, query := range []string{
+		`UPDATE enrollment.holiday_period_weeks SET starts_on = '2020-07-06', ends_on = '2020-07-10' WHERE organization_id = ?`,
+		`UPDATE calendar.holiday_closure_proposals SET span_from = '2020-07-06', span_to = '2020-07-08',
+   current_start = '2020-07-08', current_end = '2020-07-08' WHERE organization_id = ?`,
+		`INSERT INTO calendar.holiday_closure_events (tenant_id, organization_id, proposal_id, operation_id, source_kind, source_id,
+   revision, span_from, span_to, confirmed_channel, state)
+   SELECT tenant_id, organization_id, id, operation_id, source_kind, source_id, revision, '2020-07-08', span_to, 'school', 'needs_confirmation'
+   FROM calendar.holiday_closure_proposals WHERE organization_id = ?`,
+		`UPDATE calendar.holiday_closure_proposals SET state = 'confirmed', confirmed_at = NOW() WHERE organization_id = ?`,
+	} {
+		_, err := w.db.ExecContext(context.Background(), query, w.organization)
+		require.NoError(t, err)
+	}
+	_, err := w.db.ExecContext(context.Background(), `UPDATE schedule.closing_days SET start_date = '2020-07-08', end_date = '2020-07-08' WHERE tenant_id = ? AND id = ?`, w.school, day.ID)
+	require.NoError(t, err)
+	school := w.schoolNotices(t)
+	require.Len(t, school, 1, "elapsed confirmed work remains reachable in school")
+	assert.Equal(t, 2, school[0].Families)
+	office, err := w.notices.PendingHolidayClosures(w.ctx, w.organization)
+	require.NoError(t, err)
+	require.Len(t, office.Notices, 1, "the office sees the same renewed approval")
+	assert.Equal(t, school[0].Families, office.Notices[0].Families)
+	_, err = w.notices.NotifyFromSchool(w.ctx, w.school, 0, school[0].ID, school[0].Revision, school[0].Token)
+	require.NoError(t, err)
+	require.Len(t, w.mails(t), 2)
+	assert.Equal(t, []string{"prepared"}, w.events(t))
+	var span calendar.Date
+	require.NoError(t, w.db.NewRaw(`SELECT span_from FROM calendar.holiday_closure_events WHERE organization_id = ?`, w.organization).Scan(context.Background(), &span))
+	assert.Equal(t, calendar.NewDate(2020, 7, 8), span)
+	var payload enrollment.HolidayClosureMail
+	require.NoError(t, json.Unmarshal(w.mails(t)[0].Payload, &payload))
+	assert.True(t, payload.ContainsPastDays)
+}
+
+// The read-only watchdog sees blocked work without leasing or processing it.
+func TestHolidayClosureWatchdogFindsStalledCommands(t *testing.T) {
+	t.Parallel()
+	w := newClosureWorldIn(t, "Träger unabhängige Überwachung", testpkg.SetupIsolatedTestDB(t))
+	events := schoolCalendarCompose.NewHolidayClosureEvents()
+	for _, date := range []string{"2030-07-08", "2030-07-09", "2030-07-10", "2030-07-11", "2030-07-12"} {
+		w.createClosingDay(t, date, date)
+	}
+	require.NoError(t, tenant.WithTenantTx(w.ctx, w.db, w.school, func(ctx context.Context, _ bun.Tx) error {
+		notices, err := events.SchoolHolidayClosureNotices(ctx)
+		require.NoError(t, err)
+		for _, notice := range notices {
+			_, err := events.ConfirmHolidayClosureNotice(ctx, notice.ProposalID, notice.Revision,
+				schoolcalendar.HolidayClosureActor{Channel: schoolcalendar.HolidayClosureChannelSchool})
+			require.NoError(t, err)
+		}
+		_, err = events.OverdueHolidayClosureEvents(ctx, 15*time.Minute)
+		require.Error(t, err, "a school must never read the global watchdog")
+		return nil
+	}))
+	_, err := w.db.ExecContext(context.Background(), `UPDATE calendar.holiday_closure_events SET
+  state = CASE source_id % 5 WHEN 0 THEN 'blocked' WHEN 1 THEN 'pending' WHEN 2 THEN 'leased' WHEN 3 THEN 'prepared' ELSE 'unknown' END,
+  next_attempt_at = NOW() - interval '16 minutes',
+  lease_until = CASE WHEN source_id % 5 = 2 THEN NOW() - interval '16 minutes' END,
+  lease_token = CASE WHEN source_id % 5 = 2 THEN gen_random_uuid() END,
+  processed_at = NOW() - interval '16 minutes' WHERE organization_id = ?`, w.organization)
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithAdminTx(w.ctx, w.db, func(ctx context.Context, _ bun.Tx) error {
+		count, err := events.OverdueHolidayClosureEvents(ctx, 15*time.Minute)
+		require.NoError(t, err)
+		assert.Equal(t, 5, count, "pending, expired leases, prepared, unknown and blocked are covered")
+		return nil
+	}))
+	assert.Empty(t, w.mails(t), "observation never processes or confirms work")
+	_, err = w.db.ExecContext(context.Background(), `UPDATE calendar.holiday_closure_events SET state = 'needs_confirmation', lease_token = NULL, lease_until = NULL WHERE organization_id = ?`, w.organization)
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithAdminTx(w.ctx, w.db, func(ctx context.Context, _ bun.Tx) error {
+		count, err := events.OverdueHolidayClosureEvents(ctx, 15*time.Minute)
+		require.NoError(t, err)
+		assert.Zero(t, count, "renewed human approval has no transport deadline")
+		return nil
+	}))
 }

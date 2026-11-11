@@ -21,7 +21,7 @@ type Queue = schoolcalendar.HolidayClosureEventQueue
 type Closures interface {
 	PlanHolidayClosureOperations(ctx context.Context, organizationID int64, operations []enrollment.HolidayClosureOperation) ([]enrollment.HolidayClosureImpact, error)
 	NotifyHolidayClosureOperation(ctx context.Context, organizationID int64, operation enrollment.HolidayClosureOperation) (enrollment.HolidayClosureOperationResult, error)
-	HolidayClosureOperationDelivery(ctx context.Context, organizationID int64, operationID string) (enrollment.HolidayClosureDelivery, error)
+	HolidayClosureOperationsDelivery(ctx context.Context, organizationID int64, operationIDs []string) (map[string]enrollment.HolidayClosureDelivery, error)
 }
 
 // Units opens the units of work. WithinSchool and WithinTraeger each open

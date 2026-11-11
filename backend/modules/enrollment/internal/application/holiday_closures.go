@@ -33,7 +33,7 @@ type HolidayClosureStore interface {
 	// candidate first when it has none.
 	HolidayClosureFamilyKey(ctx context.Context, organizationID int64, candidate []byte) ([]byte, error)
 	RecordHolidayClosureSends(ctx context.Context, organizationID int64, sends []enrollment.HolidayClosureSendRecord) error
-	HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationID string) ([]string, error)
+	HolidayClosureSendKeys(ctx context.Context, organizationID int64, operationIDs []string) (map[string][]string, error)
 }
 
 // errHolidayClosureMailRequired reports a notice without the outbox.
@@ -121,7 +121,9 @@ func (h *HolidayClosures) PlanHolidayClosureOperations(ctx context.Context, orga
 	today := h.today()
 	clipped := make([]enrollment.HolidayClosureOperation, len(operations))
 	for i, operation := range operations {
-		operation.From = max(operation.From, today)
+		if !operation.PreserveSpan {
+			operation.From = max(operation.From, today)
+		}
 		clipped[i] = operation
 	}
 	changes, err := h.operationsChanges(ctx, organizationID, clipped)
@@ -144,7 +146,8 @@ func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, org
 	if err := h.store.LockHolidayClosureNotices(ctx, organizationID); err != nil {
 		return enrollment.HolidayClosureOperationResult{}, err
 	}
-	keys, err := h.store.HolidayClosureSendKeys(ctx, organizationID, operation.OperationID)
+	byOperation, err := h.store.HolidayClosureSendKeys(ctx, organizationID, []string{operation.OperationID})
+	keys := byOperation[operation.OperationID]
 	if err != nil {
 		return enrollment.HolidayClosureOperationResult{}, err
 	}
@@ -172,39 +175,49 @@ func (h *HolidayClosures) NotifyHolidayClosureOperation(ctx context.Context, org
 	return result, nil
 }
 
-// HolidayClosureOperationDelivery sums the operation's mails up.
-func (h *HolidayClosures) HolidayClosureOperationDelivery(ctx context.Context, organizationID int64, operationID string) (enrollment.HolidayClosureDelivery, error) {
-	keys, err := h.store.HolidayClosureSendKeys(ctx, organizationID, operationID)
-	if err != nil || len(keys) == 0 {
-		return enrollment.HolidayClosureDelivery{}, err
+// HolidayClosureOperationsDelivery reads all send keys and transport states
+// together. A missing recorded mail is failed, never assumed accepted.
+func (h *HolidayClosures) HolidayClosureOperationsDelivery(ctx context.Context, organizationID int64, operationIDs []string) (map[string]enrollment.HolidayClosureDelivery, error) {
+	result := make(map[string]enrollment.HolidayClosureDelivery, len(operationIDs))
+	if len(operationIDs) == 0 {
+		return result, nil
+	}
+	byOperation, err := h.store.HolidayClosureSendKeys(ctx, organizationID, operationIDs)
+	if err != nil {
+		return nil, err
+	}
+	var keys []string
+	for _, operationKeys := range byOperation {
+		keys = append(keys, operationKeys...)
+	}
+	if len(keys) == 0 {
+		return result, nil
 	}
 	states, err := h.mail.TraegerMailStates(ctx, organizationID, keys)
 	if err != nil {
-		return enrollment.HolidayClosureDelivery{}, fmt.Errorf("enrollment: read the closure mails: %w", err)
+		return nil, fmt.Errorf("enrollment: read the closure mails: %w", err)
 	}
-	var delivery enrollment.HolidayClosureDelivery
-	seen := map[string]bool{}
+	outcomes := make(map[string]string, len(states))
 	for _, state := range states {
-		seen[state.IdempotencyKey] = true
-		switch state.Outcome {
-		case enrollment.TraegerMailSent:
-			delivery.Sent++
-		case enrollment.TraegerMailFailed:
-			delivery.Failed++
-		case enrollment.TraegerMailUnknown:
-			delivery.Unknown++
-		default:
-			delivery.Queued++
-		}
+		outcomes[state.IdempotencyKey] = state.Outcome
 	}
-	// A recorded mail the outbox no longer holds is a known failure: it can
-	// only have been deleted, never accepted.
-	for _, key := range keys {
-		if !seen[key] {
-			delivery.Failed++
+	for operationID, operationKeys := range byOperation {
+		var delivery enrollment.HolidayClosureDelivery
+		for _, key := range operationKeys {
+			switch outcome, found := outcomes[key]; {
+			case !found, outcome == enrollment.TraegerMailFailed:
+				delivery.Failed++
+			case outcome == enrollment.TraegerMailSent:
+				delivery.Sent++
+			case outcome == enrollment.TraegerMailUnknown:
+				delivery.Unknown++
+			default:
+				delivery.Queued++
+			}
 		}
+		result[operationID] = delivery
 	}
-	return delivery, nil
+	return result, nil
 }
 
 // traegerChanges are the changes a Träger closing day makes: its stored

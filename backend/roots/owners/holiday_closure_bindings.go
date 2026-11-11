@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
@@ -11,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -121,7 +123,15 @@ func HolidayClosureNotificationsJob(unit tenant.UnitOfWork, holidayCalendar enro
 ) schedulerPorts.HolidayClosureNotifications {
 	notices := NewHolidayClosureNotifications(NewHolidayClosures(holidayCalendar, holidays, NewHolidayOfficeTraeger(organizations), mail), organizations,
 		logger.With("workflow", "holiday-closure-notification"))
-	return func(ctx context.Context) error {
-		return notices.ProcessDue(tenant.WithUnitOfWork(ctx, unit))
+	watchdog := schoolCalendarCompose.NewHolidayClosureEvents()
+	return schedulerPorts.HolidayClosureNotifications{
+		ProcessDue: func(ctx context.Context) error { return notices.ProcessDue(tenant.WithUnitOfWork(ctx, unit)) },
+		Overdue: func(ctx context.Context, overdueFor time.Duration) (count int, err error) {
+			err = tenant.WithinAdmin(tenant.WithUnitOfWork(ctx, unit), func(ctx context.Context) error {
+				count, err = watchdog.OverdueHolidayClosureEvents(ctx, overdueFor)
+				return err
+			})
+			return count, err
+		},
 	}
 }

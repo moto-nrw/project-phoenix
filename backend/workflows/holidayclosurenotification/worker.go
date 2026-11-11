@@ -162,17 +162,24 @@ func (s *Service) settle(ctx context.Context, organizationID int64) error {
 		if err != nil {
 			return err
 		}
+		operationIDs := make([]string, len(events))
+		for i, event := range events {
+			operationIDs[i] = event.OperationID
+		}
+		deliveries, err := s.Closures.HolidayClosureOperationsDelivery(ctx, organizationID, operationIDs)
+		if err != nil {
+			return err
+		}
+		var settlements []schoolcalendar.HolidayClosureSettlement
 		for _, event := range events {
-			delivery, err := s.Closures.HolidayClosureOperationDelivery(ctx, organizationID, event.OperationID)
-			if err != nil {
-				return err
-			}
-			if state := settledState(delivery); state != "" && state != event.State {
-				if err := s.Queue.SettleHolidayClosureEvent(ctx, organizationID, event.ID, state); err != nil {
-					return err
-				}
+			if state := settledState(deliveries[event.OperationID]); state != "" && state != event.State {
+				settlements = append(settlements, schoolcalendar.HolidayClosureSettlement{EventID: event.ID, State: state})
 			}
 		}
+		if err := s.Queue.SettleHolidayClosureEvents(ctx, organizationID, settlements); err != nil {
+			return err
+		}
+
 		_, err = s.Queue.RetireHolidayClosureEvents(ctx, organizationID)
 		return err
 	})

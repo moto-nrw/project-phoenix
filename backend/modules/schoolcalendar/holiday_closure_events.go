@@ -172,6 +172,12 @@ type HolidayClosureOutcome struct {
 	RetryAt time.Time
 }
 
+// HolidayClosureSettlement moves a waiting command to its delivery state.
+type HolidayClosureSettlement struct {
+	EventID int64
+	State   string
+}
+
 // HolidayClosureEventQueue is the worker side of the commands. Every
 // operation but DueHolidayClosureTraeger runs in the caller's Träger
 // transaction of organizationID.
@@ -196,10 +202,16 @@ type HolidayClosureEventQueue interface {
 	// WaitingHolidayClosureEvents lists the prepared and unknown commands
 	// whose mails the worker still follows.
 	WaitingHolidayClosureEvents(ctx context.Context, organizationID int64) ([]HolidayClosureEvent, error)
-	// SettleHolidayClosureEvent moves a prepared or unknown command to the
-	// state its mails reached.
-	SettleHolidayClosureEvent(ctx context.Context, organizationID, eventID int64, state string) error
+	// SettleHolidayClosureEvents moves waiting commands to their delivery
+	// states in one statement.
+	SettleHolidayClosureEvents(ctx context.Context, organizationID int64, settlements []HolidayClosureSettlement) error
 	// RetireHolidayClosureEvents removes commands finished more than 30
 	// days ago with their proposals.
 	RetireHolidayClosureEvents(ctx context.Context, organizationID int64) (int64, error)
+}
+
+// HolidayClosureWatchdog observes confirmed work independently of processing.
+// It requires an administrative unit and exposes only an aggregate count.
+type HolidayClosureWatchdog interface {
+	OverdueHolidayClosureEvents(ctx context.Context, overdueFor time.Duration) (int, error)
 }

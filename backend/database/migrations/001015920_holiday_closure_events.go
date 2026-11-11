@@ -232,6 +232,8 @@ CREATE POLICY traeger_retire_holiday_closure_proposals ON calendar.holiday_closu
 GRANT SELECT, INSERT, UPDATE ON calendar.holiday_closure_revisions TO phoenix_tenant;
 GRANT SELECT, INSERT, UPDATE, DELETE ON calendar.holiday_closure_proposals TO phoenix_tenant;
 GRANT SELECT, INSERT, UPDATE ON calendar.holiday_closure_events TO phoenix_tenant;
+-- The independent administrative watchdog reads command metadata only.
+GRANT SELECT ON calendar.holiday_closure_events TO phoenix_admin;
 GRANT USAGE ON SEQUENCE calendar.holiday_closure_proposals_id_seq, calendar.holiday_closure_events_id_seq TO phoenix_tenant;
 
 -- The worker learns which Träger have work, nothing else (ADR 0196 section
@@ -249,7 +251,7 @@ CREATE FUNCTION calendar.holiday_closure_due_traeger_ids()
 		WHERE (event.state = 'pending' AND event.next_attempt_at <= clock_timestamp())
 			OR (event.state = 'leased' AND event.lease_until < clock_timestamp())
 			OR event.state IN ('prepared', 'unknown')
-			OR (event.state IN ('completed', 'no_mail', 'needs_confirmation')
+			OR (event.state IN ('completed', 'no_mail')
 				AND COALESCE(event.completed_at, event.processed_at) < clock_timestamp() - interval '30 days')
 		UNION
 		SELECT proposal.organization_id FROM calendar.holiday_closure_proposals AS proposal

@@ -93,6 +93,7 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// The notices of changed school closing days (ADR 0196) belong to the
 	// holiday care of the Träger; the job runs per Träger.
 	"holiday-closure-notifications": jobScopeBasis,
+	"holiday-closure-watchdog":      jobScopeBasis,
 	// The weekly protocol of a group (#4769) is the group's planning of
 	// moto Basis, like the timetable it records.
 	"week-protocols": jobScopeBasis,

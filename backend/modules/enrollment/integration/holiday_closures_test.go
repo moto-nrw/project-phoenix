@@ -671,6 +671,11 @@ func TestConfirmedHolidayClosureKeepsElapsedDates(t *testing.T) {
 		preview, err := planOne(ctx, closures, w.organization, operation)
 		require.NoError(t, err)
 		assert.Zero(t, preview.Families, "an unconfirmed preview excludes elapsed dates")
+		operation.PreserveSpan = true
+		preview, err = planOne(ctx, closures, w.organization, operation)
+		require.NoError(t, err)
+		assert.Positive(t, preview.Families, "renewed confirmation retains the original confirmed span")
+
 		result, err := closures.NotifyHolidayClosureOperation(ctx, w.organization, operation)
 		require.NoError(t, err)
 		assert.Positive(t, result.Mails, "recovery must not silently discard confirmed dates")
