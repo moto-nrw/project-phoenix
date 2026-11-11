@@ -81,6 +81,7 @@ Kiosk-Sitzungsspiegel, Aktivität anlegen und Betreuerrouten, Materialisierung.
 | `workflows/staffpersonmerge` Gate | StaffPersonMerge | Merge (exklusiv) |
 | Austritt `PreviewAccess` | Account | Austritt; geplante Austritte sperren Konten vor ihren Gates; Zugang schließen: Konto vor Person |
 | Personal-Import | StaffPersonMerge | Upsert nimmt das Merge-Gate vor der ersten Aktualisierung |
+| Personal-Import Aktualisieren/Upsert | StaffRows | jeder Chunk sperrt die Staff-Zeilen aller Treffer aufsteigend vor seiner ersten Zeile (`BatchWriteConfig`) |
 | Identitätskette | StaffPersonMerge | Merge-Gate vor Person und Staff-Zeile |
 
 Nächtliche Aufbewahrung: Die Jahrgangswechsel-Aufbewahrung (Jahrgangs-Gate)
@@ -91,8 +92,8 @@ läuft nach der Kinder- und vor der Personal-Löschung.
 - Geteilte Halter des Klassen-Schreibgates nehmen es an verschiedenen Stellen
   ihres Protokolls (nach Tag oder Aktivitätszeile, vor dem Wiederholungs-Gate)
   und stehen daher nicht im Sperrbuch. Ob ein Jahrgangswechsel unter dem
-  exklusiven Gate Tagessperren nimmt (dann Zyklus mit Wiedereröffnen), ist als
-  Folge-Issue offen.
+  exklusiven Gate Tagessperren nimmt (dann Zyklus mit Wiedereröffnen), ist
+  offen und als Issue-Kandidat gemeldet.
 
 - Zwei Root-Bindungen unter ADR-0067-Ausnahme (Personalakte `LockStaff`,
   Stammdaten `UpdatePerson`) sperren die Person ohne Zulassung. Beide halten
