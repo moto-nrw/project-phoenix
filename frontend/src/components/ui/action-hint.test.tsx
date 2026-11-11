@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { releaseFakeTimers } from "~/test/clock";
 import { ActionHint, ACTION_HINT_DELAY_MS } from "./action-hint";
 import { Button, ButtonLink } from "./button";
 
@@ -18,6 +19,8 @@ function hoverWithMouse(element: HTMLElement) {
 }
 
 describe("ActionHint on kit buttons", () => {
+  afterEach(releaseFakeTimers);
+
   it("describes the button without changing its name and adds no wrapper", () => {
     const { container } = render(
       <div data-testid="row">
@@ -164,6 +167,37 @@ describe("ActionHint on kit buttons", () => {
     });
     // Anker: die Blase stand beim Fokus (Prüfung oben).
     expect(bubble()).toBeNull();
+  });
+
+  it("cancels a pending hover hint when focus moves to another control", () => {
+    vi.useFakeTimers();
+    render(
+      <>
+        <Button type="button" tooltip={HINT}>
+          Speichern
+        </Button>
+        <Button type="button" tooltip="Öffnet die Hilfe.">
+          Hilfe
+        </Button>
+      </>,
+    );
+    const save = screen.getByRole("button", { name: "Speichern" });
+    const help = screen.getByRole("button", { name: "Hilfe" });
+
+    fireEvent.pointerEnter(save, { pointerType: "mouse" });
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => {
+      help.focus();
+    });
+    expect(bubble()).toHaveTextContent("Öffnet die Hilfe.");
+
+    act(() => {
+      vi.advanceTimersByTime(ACTION_HINT_DELAY_MS);
+    });
+    expect(document.body.querySelectorAll("[data-action-hint]")).toHaveLength(
+      1,
+    );
+    expect(bubble()).toHaveTextContent("Öffnet die Hilfe.");
   });
 
   it("stays hidden when a click put the focus on the button", () => {

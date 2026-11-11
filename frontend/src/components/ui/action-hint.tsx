@@ -28,6 +28,11 @@ const LEAVE_GRACE_MS = 120;
 // Aktion aus, eine Blase käme dann zu spät (#6643).
 let keyboardModality = false;
 let modalityTracking = false;
+const pendingHoverCancels = new Set<() => void>();
+
+function cancelPendingHoverHints() {
+  for (const cancel of [...pendingHoverCancels]) cancel();
+}
 
 function trackModality() {
   if (modalityTracking || typeof document === "undefined") return;
@@ -48,6 +53,7 @@ function trackModality() {
     },
     true,
   );
+  document.addEventListener("focusin", cancelPendingHoverHints, true);
 }
 
 interface HintTargetProps {
@@ -91,11 +97,12 @@ export function ActionHint({ text, children }: ActionHintProps) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const cancel = useCallback(() => {
+  const cancel = useCallback(function cancelPendingHover() {
     if (timer.current !== null) {
       clearTimeout(timer.current);
       timer.current = null;
     }
+    pendingHoverCancels.delete(cancelPendingHover);
   }, []);
   const hide = useCallback(() => {
     cancel();
@@ -156,7 +163,9 @@ export function ActionHint({ text, children }: ActionHintProps) {
           if (event.pointerType !== "mouse") return;
           const target = event.currentTarget;
           cancel();
+          pendingHoverCancels.add(cancel);
           timer.current = setTimeout(() => {
+            pendingHoverCancels.delete(cancel);
             timer.current = null;
             setAnchor(target);
           }, ACTION_HINT_DELAY_MS);
