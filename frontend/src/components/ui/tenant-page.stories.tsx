@@ -1,8 +1,10 @@
-import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/nextjs-vite";
 import { Plus } from "lucide-react";
 import { expect, screen, userEvent, within } from "storybook/test";
 
+import { withNotBookedSlots } from "~storybook/fixtures/not-booked-slots";
 import { Button, ButtonLink } from "./button";
+import { PagePathProvider } from "./page-path";
 import { SectionCard } from "./section-card";
 import { TenantPage } from "./tenant-page";
 
@@ -14,6 +16,12 @@ const meta = {
 export default meta;
 
 type Story = StoryObj<typeof meta>;
+
+const withTenantPagePath: Decorator = (Story) => (
+  <PagePathProvider resolve={(path) => `/storybook${path}`}>
+    <Story />
+  </PagePathProvider>
+);
 
 /**
  * Kopfkarte mit Link und Knopf nebeneinander: Die Kopfkarte setzt beide auf
@@ -67,4 +75,71 @@ export const InfoOpened: Story = {
       await screen.findByRole("dialog", { name: "Erklärung zu Kinder" }),
     ).toBeVisible();
   },
+};
+
+const pageContent = (
+  <SectionCard title="Liste">
+    <p className="text-sm text-gray-600">Inhalt der Seite</p>
+  </SectionCard>
+);
+
+/**
+ * Unterseite mit Rückweg über dem Titel. Im Tenant-Bereich führt der Link
+ * auf die Seite der Schule.
+ */
+export const WithBackLink: Story = {
+  args: {
+    title: "Raum 101",
+    back: true,
+    backHref: "/rooms",
+    backLabel: "Zurück zu den Räumen",
+    children: pageContent,
+  },
+  decorators: [withTenantPagePath],
+};
+
+/** Ohne eigenes Ziel führt der Rückweg zur Datenverwaltung. */
+export const WithDefaultBackLink: Story = {
+  args: {
+    title: "Räume",
+    back: true,
+    children: pageContent,
+  },
+  decorators: [withTenantPagePath],
+};
+
+/**
+ * Seite eines Moduls, das die Schule nicht gebucht hat (#4894): unter dem
+ * Titel steht die Erklärung statt des Inhalts; Statuszeile und Aktionen
+ * entfallen.
+ */
+export const ModuleNotBookedPage: Story = {
+  args: {
+    title: "Dienstplan",
+    stats: "12 Dienste diese Woche",
+    actions: (
+      <Button type="button" size="md">
+        Dienst anlegen
+      </Button>
+    ),
+    children: pageContent,
+  },
+  decorators: [withNotBookedSlots("dienstplan")],
+};
+
+/**
+ * Eine Anfrage der Seite wird mit `module.not_booked` abgelehnt: der Rumpf
+ * zeigt die Erklärung, der Kopf bleibt.
+ */
+export const ModuleNotBookedLoadError: Story = {
+  args: {
+    title: "Kinder",
+    stats: "116 Kinder · 107 zuhause · 9 krank",
+    error: {
+      message: "Das Modul ist nicht gebucht.",
+      notBookedModule: "zeiterfassung",
+    },
+    children: pageContent,
+  },
+  decorators: [withNotBookedSlots()],
 };
