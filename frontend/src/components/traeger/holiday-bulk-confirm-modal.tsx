@@ -403,8 +403,9 @@ export function HolidayBulkConfirmModal({
       >
         <div className="space-y-3">
           <p className="text-sm text-gray-500">
-            Die Familie bezahlt den Ferienbeitrag. Die Eltern bekommen eine
-            E-Mail mit den gebuchten Wochen.
+            Die Familie bezahlt den Ferienbeitrag. Die Eltern bekommen eine{" "}
+            <span className="whitespace-nowrap">E-Mail</span> mit den gebuchten
+            Wochen.
           </p>
           <RegistrationGroups
             periodId={periodId}

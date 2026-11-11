@@ -621,9 +621,13 @@ describe("TraegerHolidayRegistrationsPage bulk confirmation (#6674)", () => {
         name: "2 Anmeldungen bestätigen?",
       }),
     );
+    // "E-Mail" stays on one line, so the sentence spans two elements.
     expect(
       review.getByText(
-        "Die Familie bezahlt den Ferienbeitrag. Die Eltern bekommen eine E-Mail mit den gebuchten Wochen.",
+        (_, element) =>
+          element?.tagName === "P" &&
+          element.textContent ===
+            "Die Familie bezahlt den Ferienbeitrag. Die Eltern bekommen eine E-Mail mit den gebuchten Wochen.",
       ),
     ).toBeInTheDocument();
     expect(review.getByText("Wird bestätigt")).toBeInTheDocument();
