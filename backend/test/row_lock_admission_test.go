@@ -110,6 +110,50 @@ var rowLockPrimitives = []rowLockPrimitive{
 	},
 }
 
+// rowLockAdmitter names the function that admits a lock statement of a
+// persistence package the architecture policy keeps away from the tenant
+// runtime: it calls tenant.OrderLock (checked) before its last call of the
+// statement's function (calls; the statement's method name when empty).
+type rowLockAdmitter struct {
+	file     string
+	function string
+	calls    string
+}
+
+const (
+	membershipAdmission = "modules/schoolmembership/internal/application/lock_admission.go"
+	membershipStore     = "modules/schoolmembership/internal/adapters/postgres/"
+)
+
+// rowLockAdmitted maps "file#Function" of a lock statement to its admitters.
+var rowLockAdmitted = map[string][]rowLockAdmitter{
+	membershipStore + "store.go#Store.FindStaff":                           {{"modules/schoolmembership/internal/application/staff_row_lock.go", "findStaffRow", ""}},
+	membershipStore + "store.go#Store.CreateStaff":                         {{membershipAdmission, "CreateStaff", ""}},
+	membershipStore + "store.go#Store.FindTeacher":                         {{membershipAdmission, "FindTeacher", ""}},
+	membershipStore + "store.go#Store.FindExternalCaregiverRecord":         {{membershipAdmission, "FindExternalCaregiverRecord", ""}},
+	membershipStore + "class_list_entry.go#Store.FindClassListEntry":       {{membershipAdmission, "FindClassListEntry", ""}},
+	membershipStore + "list_filters.go#groupAssignmentListQuery":           {{membershipAdmission, "ListGroupAssignments", "ListGroupAssignments"}},
+	membershipStore + "teaching_assignment.go#Store.ListClassAssignments":  {{membershipAdmission, "ListClassAssignments", ""}},
+	membershipStore + "teaching_assignment.go#Store.LockGroupAssignments":  {{membershipAdmission, "LockGroupAssignments", ""}},
+	membershipStore + "retired_staff.go#Store.MarkNextRetiredStaffErased":  {{membershipAdmission, "MarkNextRetiredStaffErased", ""}},
+	membershipStore + "student_counts.go#Store.LockChildQuota":             {{membershipAdmission, "LockChildQuota", ""}},
+	membershipStore + "student_enrollment.go#Store.LockStudentClassWrites": {{membershipAdmission, "LockStudentClassWrites", ""}},
+	membershipStore + "student_enrollment.go#StudentClassWriteGateQuery": {
+		{membershipAdmission, "EnrollStudent", "EnrollStudent"},
+		{"modules/schoolmembership/compose/student_class_gate.go", "StudentClassWriteGateQuery", "ResolveStudentClassWriteGate"},
+	},
+	membershipStore + "student_membership.go#Store.LockStudentWindow":     {{membershipAdmission, "LockStudentWindow", ""}},
+	membershipStore + "staff_person_merge.go#Store.StaffMergeMemberships": {{"modules/schoolmembership/compose/staff_person_merge.go", "StaffMergeMemberships", ""}},
+	"modules/peopledirectory/internal/adapters/peoplepostgres/person.go#personRepository.FindByIDForUpdate": {
+		{"modules/peopledirectory/internal/application/staff_directory.go", "requireLivePersonLocked", ""},
+		{"roots/owners/staff_admin_composition.go", "LockStaff", ""},
+		{"roots/owners/master_data_decisions.go", "UpdatePerson", ""},
+	},
+	"modules/studentpresence/internal/adapters/postgres/offboarding.go#Store.LockStaffSupervision": {
+		{"modules/studentpresence/internal/application/offboarding.go", "LockStaffSupervision", ""},
+	},
+}
+
 func TestRowLocksAreAdmittedThroughTheLockOrder(t *testing.T) {
 	t.Parallel()
 	root, err := findBackendRoot()
@@ -125,6 +169,7 @@ func TestRowLocksAreAdmittedThroughTheLockOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	seenPrimitives := map[string]bool{}
+	seenAdmitted := map[string]bool{}
 	for _, rel := range files {
 		source, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -135,13 +180,24 @@ func TestRowLocksAreAdmittedThroughTheLockOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, site := range sites {
-			if _, ok := primitives[rel+"#"+site.function]; ok {
-				seenPrimitives[rel+"#"+site.function] = true
+			key := rel + "#" + site.function
+			if _, ok := primitives[key]; ok {
+				seenPrimitives[key] = true
+				continue
+			}
+			if admitters, ok := rowLockAdmitted[key]; ok {
+				seenAdmitted[key] = true
+				checkRowLockAdmitters(t, root, site, admitters)
 				continue
 			}
 			if !site.admitted {
 				t.Errorf("%s takes a lock without tenant.OrderLock before it: admit the lock in its class (tenant.LockClass) first", site)
 			}
+		}
+	}
+	for key := range rowLockAdmitted {
+		if !seenAdmitted[key] {
+			t.Errorf("rowLockAdmitted lists %s, which holds no lock statement any more: remove the entry", key)
 		}
 	}
 	for _, primitive := range rowLockPrimitives {
@@ -235,5 +291,32 @@ func checkRowLockPrimitiveCallers(t *testing.T, root string, primitive rowLockPr
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// checkRowLockAdmitters requires each admitter to admit before it calls the
+// statement's function.
+func checkRowLockAdmitters(t *testing.T, root string, site rowLockSite, admitters []rowLockAdmitter) {
+	t.Helper()
+	called := site.function
+	if dot := strings.LastIndex(called, "."); dot >= 0 {
+		called = called[dot+1:]
+	}
+	for _, admitter := range admitters {
+		called := called
+		if admitter.calls != "" {
+			called = admitter.calls
+		}
+		source, err := os.ReadFile(filepath.Join(root, admitter.file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok, err := admitsBeforeCall(admitter.file, source, admitter.function, called)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			t.Errorf("%s: %s does not call tenant.OrderLock before it calls %s (%s)", admitter.file, admitter.function, called, site)
+		}
 	}
 }

@@ -86,6 +86,14 @@ func scanRowLockSites(file string, source []byte) ([]rowLockSite, error) {
 		}
 	}
 
+	// A plain function of the same file that admits through a checked
+	// tenant.OrderLock admits for its callers too, when they check its error.
+	admitters := map[string]bool{}
+	for _, decl := range parsed.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Body != nil && len(checkedAdmissions(fn.Body, tenantName, nil)) > 0 {
+			admitters[fn.Name.Name] = true
+		}
+	}
 	var sites []rowLockSite
 	for _, decl := range parsed.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
@@ -96,7 +104,7 @@ func scanRowLockSites(file string, source []byte) ([]rowLockSite, error) {
 		if fn.Recv != nil && len(fn.Recv.List) > 0 {
 			name = receiverName(fn.Recv.List[0].Type) + "." + name
 		}
-		admissions := checkedAdmissions(fn.Body, tenantName)
+		admissions := checkedAdmissions(fn.Body, tenantName, admitters)
 		ast.Inspect(fn.Body, func(node ast.Node) bool {
 			what := ""
 			switch n := node.(type) {
@@ -137,45 +145,47 @@ func scanRowLockSites(file string, source []byte) ([]rowLockSite, error) {
 	return sites, nil
 }
 
-// checkedAdmissions lists the positions of tenant.OrderLock calls whose
-// error the code uses.
-func checkedAdmissions(body *ast.BlockStmt, tenantName string) []token.Pos {
+// checkedAdmissions lists the positions of the admitting calls whose error
+// the code uses: tenant.OrderLock, or a same-file admitter. A bare call
+// statement or an assignment to blanks only discards the refusal.
+func checkedAdmissions(body *ast.BlockStmt, tenantName string, admitters map[string]bool) []token.Pos {
 	if tenantName == "" {
 		return nil
 	}
+	admits := func(call *ast.CallExpr) bool {
+		if ident, ok := call.Fun.(*ast.Ident); ok && admitters[ident.Name] {
+			return true
+		}
+		return isTenantOrderLockCall(call, tenantName)
+	}
 	var positions []token.Pos
-	var visit func(node ast.Node, discarded bool)
-	visit = func(node ast.Node, discarded bool) {
-		ast.Inspect(node, func(child ast.Node) bool {
-			switch n := child.(type) {
-			case *ast.ExprStmt:
-				if call, ok := n.X.(*ast.CallExpr); ok && isOrderLockCall(call, tenantName) {
+	ast.Inspect(body, func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.ExprStmt:
+			if call, ok := n.X.(*ast.CallExpr); ok && admits(call) {
+				return false
+			}
+		case *ast.AssignStmt:
+			if len(n.Rhs) == 1 {
+				if call, ok := n.Rhs[0].(*ast.CallExpr); ok && admits(call) {
+					if !allBlank(n.Lhs) {
+						positions = append(positions, call.Pos())
+					}
 					return false
 				}
-			case *ast.AssignStmt:
-				if len(n.Rhs) == 1 {
-					if call, ok := n.Rhs[0].(*ast.CallExpr); ok && isOrderLockCall(call, tenantName) {
-						if allBlank(n.Lhs) {
-							return false
-						}
-						positions = append(positions, call.Pos())
-						return false
-					}
-				}
-			case *ast.CallExpr:
-				if isOrderLockCall(n, tenantName) && !discarded {
-					positions = append(positions, n.Pos())
-				}
 			}
-			return true
-		})
-	}
-	visit(body, false)
+		case *ast.CallExpr:
+			if admits(n) {
+				positions = append(positions, n.Pos())
+			}
+		}
+		return true
+	})
 	sort.Slice(positions, func(i, j int) bool { return positions[i] < positions[j] })
 	return positions
 }
 
-func isOrderLockCall(call *ast.CallExpr, tenantName string) bool {
+func isTenantOrderLockCall(call *ast.CallExpr, tenantName string) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != "OrderLock" {
 		return false
@@ -212,4 +222,64 @@ func lockClauseOf(text string) string {
 		return strings.Join(strings.Fields(match), " ")
 	}
 	return strings.Join(strings.Fields(rowLockClauseLower.FindString(text)), " ")
+}
+
+// admitsBeforeCall reports whether the named function of the file (a method
+// of any receiver or a plain function) calls a function or method named
+// called, and its last such call, the one that takes the lock, comes after a
+// checked admission.
+func admitsBeforeCall(file string, source []byte, function, called string) (bool, error) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, file, source, parser.SkipObjectResolution)
+	if err != nil {
+		return false, err
+	}
+	tenantName := ""
+	for _, spec := range parsed.Imports {
+		if path, _ := strconv.Unquote(spec.Path.Value); path == tenantImportPath {
+			tenantName = "tenant"
+			if spec.Name != nil {
+				tenantName = spec.Name.Name
+			}
+		}
+	}
+	admitters := map[string]bool{}
+	for _, decl := range parsed.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Body != nil && len(checkedAdmissions(fn.Body, tenantName, nil)) > 0 {
+			admitters[fn.Name.Name] = true
+		}
+	}
+	found := false
+	for _, decl := range parsed.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil || fn.Name.Name != function {
+			continue
+		}
+		admissions := checkedAdmissions(fn.Body, tenantName, admitters)
+		last := token.NoPos
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			if call, ok := node.(*ast.CallExpr); ok && calledName(call) == called && call.Pos() > last {
+				last = call.Pos()
+			}
+			return true
+		})
+		if last == token.NoPos {
+			continue
+		}
+		found = true
+		if len(admissions) == 0 || admissions[0] > last {
+			return false, nil
+		}
+	}
+	return found, nil
+}
+
+func calledName(call *ast.CallExpr) string {
+	switch fun := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		return fun.Sel.Name
+	case *ast.Ident:
+		return fun.Name
+	}
+	return ""
 }

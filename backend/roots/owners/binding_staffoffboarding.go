@@ -46,6 +46,11 @@ func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffof
 		Membership: deps.Retirement, Workforce: work, Timetable: deps.Timetable, People: deps.People,
 		LockSupervision: deps.LockSupervision,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {
+			// The preview locks the account, the first lock of a staff exit
+			// (Konto → Schule → Profil, tenant.LockAccount, #6702).
+			if err := tenant.OrderLock(ctx, tenant.LockAccount, tenant.LockIDKey(id)); err != nil {
+				return staffoffboarding.AccessPreview{}, err
+			}
 			p, err := deps.Access.PreviewStaffOffboarding(ctx, id)
 			return staffoffboarding.AccessPreview{Revision: p.Revision, Roles: int64(len(p.RoleIDs)), Tokens: p.Tokens, PreserveGuardian: p.PreserveGuardian, DeactivateAccount: p.DeactivateAccount}, err
 		},

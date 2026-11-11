@@ -7,6 +7,7 @@ import (
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -81,7 +82,13 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 		if err != nil {
 			return err
 		}
+		if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
+			return err
+		}
 		if err := s.runtime.AcquireLock(ctx, peopleValues.StaffPersonMergeLockKey(schoolID), true); err != nil {
+			return err
+		}
+		if err := s.lockLiveStaffOfPerson(ctx, input.PersonID); err != nil {
 			return err
 		}
 		if err := s.requireLivePersonLocked(ctx, input.PersonID); err != nil {
@@ -113,6 +120,12 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 // on the person row. A person deleted after an earlier request validation must
 // not receive a new active staff membership once this transaction resumes.
 func (s *staffMembershipDirectory) requireLivePersonLocked(ctx context.Context, personID int64) error {
+	// A person comes after the staff row that names it (Konto → Schule →
+	// Profil, #6702): offboarding holds the staff row while it locks the
+	// person, so the person is a leaf of the lock order.
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.persons"); err != nil {
+		return err
+	}
 	person, err := s.persons.FindByIDForUpdate(ctx, personID)
 	if err != nil {
 		if peoplePorts.IsRepositoryNoRows(err) {
@@ -128,6 +141,25 @@ func (s *staffMembershipDirectory) requireLivePersonLocked(ctx context.Context, 
 
 // adoptOrCreateStaff adopts the live staff record of the person or creates
 // one, inside the caller's transaction.
+// lockLiveStaffOfPerson locks the person's live staff row, the one an
+// adoption updates, before the person row (Konto → Schule → Profil, #6702):
+// offboarding, retention and staff admin hold the staff row while they lock
+// the person, so this write never holds the person while it waits for the
+// staff row. A second creation of the same person that commits a staff row
+// while this one waits for the person is refused by the lock order when it
+// adopts that row, instead of waiting for it.
+func (s *staffMembershipDirectory) lockLiveStaffOfPerson(ctx context.Context, personID int64) error {
+	existing, err := s.staff.FindByPersonID(ctx, personID)
+	if errors.Is(err, transactionruntime.ErrNoRows) || (err == nil && (existing == nil || existing.DeletedAt != nil)) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = s.staff.FindByIDForUpdate(ctx, existing.ID)
+	return err
+}
+
 func (s *staffMembershipDirectory) adoptOrCreateStaff(ctx context.Context, input peoplePorts.CreateStaffInput) (*peopleValues.Staff, error) {
 	existing, err := s.staff.FindByPersonID(ctx, input.PersonID)
 	if err != nil && !errors.Is(err, transactionruntime.ErrNoRows) {

@@ -110,12 +110,48 @@ func (d *DueExits) lockActedPlans(ctx context.Context, plans []schoolmembership.
 	}
 	slices.Sort(staffIDs)
 	staffIDs = slices.Compact(staffIDs)
+	if err := d.lockActedAccounts(ctx, staffIDs); err != nil {
+		return err
+	}
 	if err := d.planner.workflow.deps.Workforce.Lock(ctx, staffIDs...); err != nil {
 		return err
 	}
 	for _, staffID := range staffIDs {
 		_, err := d.planner.exits.FindPlannedExitForMutation(ctx, staffID)
 		if err != nil && !errors.Is(err, schoolmembership.ErrPlannedExitNotFound) && !errors.Is(err, schoolmembership.ErrStaffNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
+// lockActedAccounts locks the sign-in accounts of the acted exits, ascending,
+// before every gate (Konto → Schule → Profil, #6702). An exit's offboarding
+// and a closed sign-in lock the account; an immediate offboarding locks it
+// before its gates too, so a run holding gates and staff rows never waits
+// for an account that offboarding holds while it waits for those gates.
+func (d *DueExits) lockActedAccounts(ctx context.Context, staffIDs []int64) error {
+	deps := d.planner.workflow.deps
+	accounts := make([]int64, 0, len(staffIDs))
+	for _, staffID := range staffIDs {
+		staff, err := deps.FindStaff(ctx, staffID)
+		if errors.Is(err, schoolmembership.ErrStaffNotFound) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		person, err := deps.People.FindPerson(ctx, staff.PersonID)
+		if err != nil {
+			return err
+		}
+		if person.AccountID != nil {
+			accounts = append(accounts, *person.AccountID)
+		}
+	}
+	slices.Sort(accounts)
+	for _, accountID := range slices.Compact(accounts) {
+		if _, err := deps.PreviewAccess(ctx, accountID); err != nil {
 			return err
 		}
 	}

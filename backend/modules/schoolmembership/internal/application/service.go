@@ -42,7 +42,7 @@ func New(store ports.Store, employment ports.StaffEmployment, quota ports.ChildQ
 	if classList != nil && (classList.Students == nil || classList.Trail == nil) {
 		panic("school membership application: class list entry administration needs a student directory and an audit trail")
 	}
-	return &Service{store: store, employment: employment, quota: quota, today: today, tx: tx, observe: observe, classList: classList}
+	return &Service{store: admittingStore{Store: store}, employment: employment, quota: quota, today: today, tx: tx, observe: observe, classList: classList}
 }
 
 // --- staff ---

@@ -43,13 +43,13 @@ func TestOrderLockAdmitsTheCanonicalOrder(t *testing.T) {
 		}{
 			{tenant.LockAccount, tenant.LockIDKey(4)},
 			{tenant.LockAccount, tenant.LockIDKey(5)},
+			{tenant.LockStudentClassWrites, tenant.LockIDKey(7)},
 			{tenant.LockPayrollRules, tenant.LockIDKey(7)},
 			{tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, false)},
 			{tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(9, true)},
 			{tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(12, false)},
 			{tenant.LockStaffShifts, tenant.LockIDKey(9)},
 			{tenant.LockStaffShifts, tenant.LockIDKey(12)},
-			{tenant.LockStudentClassWrites, tenant.LockIDKey(7)},
 			{tenant.LockRecurrence, "7"},
 			{tenant.LockGradeTransitions, "7"},
 			{tenant.LockReference, "schedule.planning_tracks"},
@@ -99,7 +99,7 @@ func TestOrderLockRefusesALockAgainstTheOrder(t *testing.T) {
 		{name: "catalogue row after a day", first: tenant.LockScheduleDay, firstKey: "2026-08-31", later: tenant.LockReference, laterKey: "activities.categories"},
 		{name: "recurrence after a catalogue row", first: tenant.LockReference, firstKey: "activities.categories", later: tenant.LockRecurrence, laterKey: "7"},
 		{name: "account after a work-time gate", first: tenant.LockStaffWorkTime, firstKey: tenant.StaffWorkTimeKey(3, false), later: tenant.LockAccount, laterKey: tenant.LockIDKey(4)},
-		{name: "class-write gate after recurrence", first: tenant.LockRecurrence, firstKey: "7", later: tenant.LockStudentClassWrites, laterKey: tenant.LockIDKey(7)},
+		{name: "class-write gate after a work-time gate", first: tenant.LockStaffWorkTime, firstKey: tenant.StaffWorkTimeKey(3, false), later: tenant.LockStudentClassWrites, laterKey: tenant.LockIDKey(7)},
 		{name: "lower staff row after a higher staff row", first: tenant.LockStaffRows, firstKey: tenant.LockIDKey(12), later: tenant.LockStaffRows, laterKey: tenant.LockIDKey(9)},
 		{name: "staff row after a leaf", first: tenant.LockLeaf, firstKey: "schedule.activity_instances", later: tenant.LockStaffRows, laterKey: tenant.LockIDKey(3)},
 		{name: "day after a leaf", first: tenant.LockLeaf, firstKey: "workforce.staff_absences", later: tenant.LockScheduleDay, laterKey: "2026-08-31"},
@@ -196,4 +196,18 @@ func TestHoldsLockReportsTheLedger(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+// A row the transaction inserted is held without an order position: locking
+// it later never waits, so even a staff row after a leaf is admitted, while a
+// staff row the transaction did not insert still follows the order (#6702).
+func TestHoldInsertedAdmitsTheOwnRowOutOfOrder(t *testing.T) {
+	t.Parallel()
+	err := inLedgerTransaction(t, func(ctx context.Context) error {
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockLeaf, "users.persons"))
+		tenant.HoldInserted(ctx, tenant.LockStaffRows, tenant.LockIDKey(30))
+		require.NoError(t, tenant.OrderLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(30)))
+		return tenant.OrderLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(40))
+	})
+	require.ErrorIs(t, err, tenant.ErrLockOrder)
 }

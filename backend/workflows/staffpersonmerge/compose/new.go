@@ -19,7 +19,13 @@ func (runtime) RequireAdmin(ctx context.Context) error {
 	}
 	return tenant.RequireTransaction(ctx)
 }
+
+// Lock takes the school's merge gate exclusively, admitted in the unit of
+// work's lock order first (tenant.LockStaffPersonMerge, #6702).
 func (runtime) Lock(ctx context.Context, schoolID int64) error {
+	if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
+		return err
+	}
 	return tenant.AcquireLock(ctx, peopledirectory.StaffPersonMergeLockKey(schoolID), false)
 }
 func (runtime) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }

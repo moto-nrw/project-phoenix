@@ -12,6 +12,9 @@ import (
 // enrollment identity INSERT. The query is embedded, never executed here.
 // This keeps gate-before-row ordering without adding a round trip per child.
 func StudentClassWriteGateQuery(ctx context.Context, db *bun.DB) (*bun.SelectQuery, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockStudentClassWrites, tenant.LockIDKey(tenant.FromContext(ctx))); err != nil {
+		return nil, err
+	}
 	return postgres.ResolveStudentClassWriteGate(ctx, db, tenant.TransactionFromContext, tenant.FromContext)
 }
 

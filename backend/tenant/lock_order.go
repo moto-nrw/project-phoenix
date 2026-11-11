@@ -16,7 +16,8 @@ import (
 // so PostgreSQL never has to abort one of them with 40P01.
 //
 // The order spans owners: a staff exit's account row comes first (Konto →
-// Schule → Profil), then Workforce's payroll-rules gate and per-staff
+// Schule → Profil) and School Membership's class-write gate, then
+// Workforce's payroll-rules gate and per-staff
 // work-time gates come first (month close and offboarding hold them while
 // they take staff-shift gates), then the staff-shift gate before Timetable's
 // recurrence gate and day locks, because a sick report holds the gate while
@@ -35,6 +36,10 @@ const (
 	// before every gate (Konto → Schule → Profil); keys are account ids
 	// (LockIDKey), ascending.
 	LockAccount LockClass = iota + 1
+	// LockStudentClassWrites is School Membership's tenant-wide class-write
+	// gate (exclusive or shared). A grade transition takes it before the
+	// recurrence gate, an attendance write before a staff balance gate.
+	LockStudentClassWrites
 	// LockPayrollRules is Workforce's tenant-wide payroll-rules gate; month
 	// close freezes the rules before it locks the staff balances.
 	LockPayrollRules
@@ -46,10 +51,6 @@ const (
 	// LockStaffShifts is Workforce's per-staff shift gate; keys are staff
 	// ids (LockIDKey).
 	LockStaffShifts
-	// LockStudentClassWrites is School Membership's tenant-wide class-write
-	// gate (exclusive or shared); a grade transition takes it before the
-	// recurrence gate.
-	LockStudentClassWrites
 	// LockRecurrence is Timetable's tenant-wide recurrence gate.
 	LockRecurrence
 	// LockGradeTransitions is School Structure's tenant-wide transition
@@ -197,6 +198,21 @@ func OrderLock(ctx context.Context, class LockClass, key string) error {
 	ledger.held[request] = struct{}{}
 	ledger.last, ledger.started = request, true
 	return nil
+}
+
+// HoldInserted records a row the ambient transaction has just inserted as a
+// held lock of the class: no other transaction can lock an uncommitted row,
+// so locking it again never waits, whatever the order (#6702). It moves no
+// order position. Outside a transaction opened by this runtime it does
+// nothing.
+func HoldInserted(ctx context.Context, class LockClass, key string) {
+	ledger, ok := ctx.Value(lockLedgerKey{}).(*lockLedger)
+	if !ok || ledger == nil {
+		return
+	}
+	ledger.mu.Lock()
+	defer ledger.mu.Unlock()
+	ledger.held[heldLock{class: class, key: key}] = struct{}{}
 }
 
 // HoldsLock reports whether the ambient transaction already holds the

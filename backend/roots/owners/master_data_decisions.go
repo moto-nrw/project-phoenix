@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // NewMasterDataDecisions composes the Stammdaten decision. Nil effects are
@@ -225,6 +226,12 @@ func (r MasterDataRecords) UpdateStudent(ctx context.Context, id, actorAccountID
 }
 
 func (r MasterDataRecords) UpdatePerson(ctx context.Context, id int64, change carePlanCompose.MasterDataPersonChange) error {
+	// A person comes after the staff row that names it (Konto → Schule →
+	// Profil, #6702): offboarding holds the staff row while it locks the
+	// person, so the person is a leaf of the lock order.
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.persons"); err != nil {
+		return &carePlanCompose.MasterDataWriteError{Step: carePlanCompose.MasterDataWriteLoad, Err: err}
+	}
 	person, err := r.Persons.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return &carePlanCompose.MasterDataWriteError{Step: carePlanCompose.MasterDataWriteLoad, Err: err}
