@@ -79,14 +79,18 @@ function decode(layout: BrandedQrLayout): string | undefined {
 }
 
 const LINKS = [
+  // The shortest link moto hands out: the smallest code, the tightest plate.
+  "https://a.moto.nrw/anmeldung",
   "https://ogs-musterschule.moto-app.de/anmeldung",
   "https://ogs-musterschule.moto-app.de/anmeldung?phase=4821",
   "https://eltern.moto-app.de/ferienanmeldung/3f9c1b7e5a2d4c6f8a0b1c2d3e4f5a6b7c8d9e0f",
+  // 69 modules: the size that tolerated the smallest logo when measured.
+  `https://a.moto.nrw/${"k7Q2x9".repeat(25)}`,
   // A one-time display link carries a long key.
   `https://ogs-musterschule.moto-app.de/display/${"k7Q2x".repeat(24)}`,
 ];
 /** Wide word mark, square emblem, tall crest, and the clamped extremes. */
-const LOGO_ASPECTS = [undefined, 3, 1, 0.6, 12, 0.1];
+const LOGO_ASPECTS = [undefined, 6.5, 3, 1.45, 1, 0.6, 12, 0.1];
 
 describe("brandedQrLayout", () => {
   it.each(LINKS)("stays readable with every logo shape: %s", (link) => {
@@ -98,14 +102,14 @@ describe("brandedQrLayout", () => {
   });
 
   it("has no plate without a logo", () => {
-    const layout = brandedQrLayout(LINKS[0]!);
+    const layout = brandedQrLayout(LINKS[1]!);
 
     expect(layout.plate).toBeNull();
     expect(layout.logo).toBeNull();
   });
 
   it("centres the plate on the module grid and keeps dots out of it", () => {
-    const layout = brandedQrLayout(LINKS[0]!, 3);
+    const layout = brandedQrLayout(LINKS[1]!, 3);
     const plate = layout.plate!;
 
     expect(Number.isInteger(plate.x)).toBe(true);
@@ -125,7 +129,7 @@ describe("brandedQrLayout", () => {
   });
 
   it("fits the logo into the plate with its proportions", () => {
-    const layout = brandedQrLayout(LINKS[0]!, 2);
+    const layout = brandedQrLayout(LINKS[1]!, 2);
     const plate = layout.plate!;
     const logo = layout.logo!;
 
@@ -139,7 +143,7 @@ describe("brandedQrLayout", () => {
 
 describe("brandedQrSvg", () => {
   it("embeds the logo and escapes the label", () => {
-    const layout = brandedQrLayout(LINKS[0]!, 1);
+    const layout = brandedQrLayout(LINKS[1]!, 1);
     const svg = brandedQrSvg(layout, {
       label: 'QR-Code "Anmeldung" <Eltern> & Kinder',
       logoDataUrl: "data:image/png;base64,AAAA",
@@ -155,7 +159,7 @@ describe("brandedQrSvg", () => {
   });
 
   it("draws no image without a logo", () => {
-    const svg = brandedQrSvg(brandedQrLayout(LINKS[0]!), { label: "QR-Code" });
+    const svg = brandedQrSvg(brandedQrLayout(LINKS[1]!), { label: "QR-Code" });
 
     expect(svg).toContain("<path ");
     expect(svg.includes("<image")).toBe(false);

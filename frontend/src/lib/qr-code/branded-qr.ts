@@ -14,12 +14,21 @@ const QUIET_ZONE = 4;
 /** Side of a corner marker in modules. */
 const FINDER_SIZE = 7;
 /**
- * Share of the code's area the plate may hide. H recovers about 30 % of the
- * code words; 9 % leaves room for print damage (decoding test: branded-qr.test.ts).
+ * Share of the code's area the plate aims for and may at most hide, although
+ * H recovers about 30 % of the code words. Measured with a solid black logo
+ * and the jsQR reader: codes up to 57 modules (links up to about 120
+ * characters) first fail at 12 %, larger ones at 9 %. The limits keep a
+ * quarter below that for print damage (decoding test: branded-qr.test.ts).
  */
-const PLATE_AREA_SHARE = 0.09;
-const PLATE_MAX_WIDTH_SHARE = 0.44;
+const PLATE_SHARE = { target: 0.08, max: 0.09 };
+const DENSE_PLATE_SHARE = { target: 0.05, max: 0.06 };
+const DENSE_FROM_MODULES = 61;
+/** Wide enough for a word mark, and still clear of the corner markers. */
+const PLATE_MAX_WIDTH_SHARE = 0.52;
 const PLATE_MAX_HEIGHT_SHARE = 0.32;
+/** Flatter or taller logos are fitted into a plate of these proportions. */
+const MIN_ASPECT = 0.5;
+const MAX_ASPECT = 7;
 /** White rim between logo and plate edge, in modules. */
 const PLATE_PADDING = 0.6;
 
@@ -48,25 +57,35 @@ export interface BrandedQrLayout {
 }
 
 /** The largest odd number of modules that is at most `value`, at least 3. */
-function oddModules(value: number): number {
+function oddAtMost(value: number): number {
   const whole = Math.floor(value);
   return Math.max(3, whole % 2 === 0 ? whole - 1 : whole);
 }
 
 function plateFor(modules: number, aspect: number): QrRect {
-  // A very wide or very tall logo would otherwise claim a strip no reader forgives.
-  const ratio = Math.min(4, Math.max(0.5, aspect));
-  const idealWidth = Math.sqrt(PLATE_AREA_SHARE * ratio) * modules;
-  const width = Math.min(idealWidth, PLATE_MAX_WIDTH_SHARE * modules);
-  const height = Math.min(width / ratio, PLATE_MAX_HEIGHT_SHARE * modules);
-  const plateWidth = oddModules(width);
-  const plateHeight = oddModules(height);
+  const ratio = Math.min(MAX_ASPECT, Math.max(MIN_ASPECT, aspect));
+  const share = modules >= DENSE_FROM_MODULES ? DENSE_PLATE_SHARE : PLATE_SHARE;
   // The module count is odd, so an odd plate lands on the module grid.
+  const width = oddAtMost(
+    Math.min(
+      Math.sqrt(share.target * ratio) * modules,
+      PLATE_MAX_WIDTH_SHARE * modules,
+    ),
+  );
+  // The height that holds the logo at full plate width, rounded up to the
+  // grid while the plate stays inside its share; otherwise the logo shrinks.
+  const needed = (width - 2 * PLATE_PADDING) / ratio + 2 * PLATE_PADDING;
+  const snug = oddAtMost(needed);
+  const roomy = snug < needed ? snug + 2 : snug;
+  const fits =
+    roomy <= PLATE_MAX_HEIGHT_SHARE * modules &&
+    width * roomy <= share.max * modules * modules;
+  const height = fits ? roomy : snug;
   return {
-    x: QUIET_ZONE + (modules - plateWidth) / 2,
-    y: QUIET_ZONE + (modules - plateHeight) / 2,
-    width: plateWidth,
-    height: plateHeight,
+    x: QUIET_ZONE + (modules - width) / 2,
+    y: QUIET_ZONE + (modules - height) / 2,
+    width,
+    height,
   };
 }
 
@@ -124,7 +143,7 @@ export function brandedQrLayout(
     const maxWidth = plate.width - 2 * PLATE_PADDING;
     const maxHeight = plate.height - 2 * PLATE_PADDING;
     const width = Math.min(maxWidth, maxHeight * logoAspect);
-    const height = width / logoAspect;
+    const height = Math.min(maxHeight, width / logoAspect);
     logo = {
       x: plate.x + (plate.width - width) / 2,
       y: plate.y + (plate.height - height) / 2,
