@@ -397,7 +397,7 @@ export default function GuardianApprovalQueue({
                   size="md"
                   isLoading={actingId === req.id}
                   onClick={() => void handleApprove(req)}
-                  tooltip="Gibt der Person sofort Zugang zum Kind und schickt ihr eine E-Mail."
+                  tooltip="Gibt der Person Zugang zum Kind und schickt ihr sofort eine E-Mail."
                 >
                   <Check className="mr-1 h-4 w-4" />
                   Freigeben
@@ -408,7 +408,7 @@ export default function GuardianApprovalQueue({
                   size="md"
                   disabled={actingId === req.id}
                   onClick={() => setRejectTarget(req)}
-                  tooltip="Lehnt die Anfrage ab, ohne Zugang zu geben. moto fragt vorher nach."
+                  tooltip="Lehnt die Anfrage ab, ohne Zugang und ohne E-Mail. moto fragt vorher nach."
                 >
                   <X className="mr-1 h-4 w-4" />
                   Ablehnen

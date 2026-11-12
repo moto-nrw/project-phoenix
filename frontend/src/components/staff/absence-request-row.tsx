@@ -140,7 +140,7 @@ export function AbsenceRequestRow<
               size="compact"
               onClick={() => onApprove(row)}
               disabled={isBusy}
-              tooltip="Genehmigt den Antrag sofort, die Person sieht die Entscheidung."
+              tooltip="Genehmigt den Antrag sofort und informiert die Person."
             >
               {isBusy ? "…" : "Genehmigen"}
             </Button>

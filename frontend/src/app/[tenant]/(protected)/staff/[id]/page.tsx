@@ -659,7 +659,7 @@ export default function StaffDetailContent() {
           {
             label: "Zwei-Faktor-Authentifizierung verwalten",
             description:
-              "Schaltet den zweiten Anmeldeschritt der Person ein, aus oder zurück",
+              "Schaltet den zweiten Anmeldeschritt ein oder aus oder setzt ihn zurück",
             icon: <KeyRound className="size-4" aria-hidden />,
             onClick: () => setMfaModalOpen(true),
           },
@@ -681,7 +681,7 @@ export default function StaffDetailContent() {
           {
             label: "Austritt planen",
             description:
-              "Legt den letzten Arbeitstag fest, danach löscht moto die Person",
+              "Legt den letzten Arbeitstag fest, danach endet der Zugang",
             icon: <CalendarClock className="size-4" aria-hidden />,
             onClick: () => setShowPlannedExitModal(true),
           },
@@ -692,14 +692,14 @@ export default function StaffDetailContent() {
           {
             label: "Austritt ändern",
             description:
-              "Verschiebt den letzten Arbeitstag, danach löscht moto die Person",
+              "Verschiebt den letzten Arbeitstag, danach endet der Zugang",
             icon: <CalendarClock className="size-4" aria-hidden />,
             onClick: () => setShowPlannedExitModal(true),
           },
           {
             label: "Austritt zurücknehmen",
             description:
-              "Die Person bleibt im Team und behält den Zugang. moto fragt vorher nach",
+              "Behält die Person mit Zugang im Team. moto fragt vorher nach",
             icon: <CalendarX className="size-4" aria-hidden />,
             onClick: () => setShowWithdrawExitModal(true),
           },
@@ -710,7 +710,7 @@ export default function StaffDetailContent() {
           {
             label: "Löschen",
             description:
-              "Entzieht den Zugang und entfernt die Person aus allen Listen. moto fragt vorher nach",
+              "Entzieht den Zugang und entfernt die Person. moto fragt vorher nach",
             icon: <Trash2 className="size-4" aria-hidden />,
             destructive: true,
             onClick: () => setShowDeleteModal(true),

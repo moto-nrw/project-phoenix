@@ -411,7 +411,11 @@ export function RolePermissionsTab({
           size="md"
           disabled={saving || filteredPermissions.length === 0}
           disabledReason={
-            saving ? undefined : "Keine Berechtigung passt zu Ihrer Suche."
+            saving
+              ? undefined
+              : searchTerm.trim()
+                ? "Keine Berechtigung passt zu Ihrer Suche."
+                : "Es gibt keine Berechtigung zum Auswählen."
           }
           onClick={() => toggleMany(filteredPermissions)}
           tooltip={

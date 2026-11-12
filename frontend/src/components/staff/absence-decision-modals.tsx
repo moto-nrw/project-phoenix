@@ -167,7 +167,7 @@ export function DenyAbsenceModal({
       placeholder="Wird der Mitarbeiterin im Antrag angezeigt und bei aktivierten Benachrichtigungen zusätzlich per E-Mail mitgeteilt."
       submitLabel="Ablehnen"
       submitVariant="danger"
-      submitTooltip="Lehnt den Antrag sofort ab, die Person sieht Ihre Begründung."
+      submitTooltip="Lehnt den Antrag sofort ab und informiert die Person mit Begründung."
       onSubmitNote={(note) => staffAbsenceService.deny(absence.id, note)}
       successMessage="Der Antrag ist abgelehnt."
       logEvent="absence_deny_failed"

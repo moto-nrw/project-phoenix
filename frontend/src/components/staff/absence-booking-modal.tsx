@@ -704,10 +704,10 @@ export function AbsenceBookingModal({
           : quotaPending
             ? "moto rechnet die verfügbaren Tage noch aus."
             : quotaFailed
-              ? "Die verfügbaren Tage fehlen. Laden Sie sie oben neu."
+              ? "Laden Sie zuerst die verfügbaren Tage oben neu."
               : (selected.kind === "quota" && shortfall !== undefined) ||
                   (customTypeId !== null && customBlocked)
-                ? "Es reichen nicht genug Tage. Ändern Sie zuerst den Anspruch."
+                ? "Ändern Sie zuerst den Anspruch, die Tage reichen nicht."
                 : isOverdraft && !overdraftConfirmed
                   ? "Bestätigen Sie zuerst das Minus im Stundenkonto."
                   : undefined;

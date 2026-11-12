@@ -270,7 +270,7 @@ export function AbsenceRebookModal({
         : previewError
           ? "Laden Sie zuerst die Vorschau oben neu."
           : exceeded
-            ? "Es reichen nicht genug Tage. Erhöhen Sie zuerst den Anspruch."
+            ? "Ändern Sie zuerst den Anspruch, die Tage reichen nicht."
             : undefined;
   // Warum „Art ändern“ gesperrt ist: steht im Fehlerfeld oben im Formular.
   const allowanceBlocker =
