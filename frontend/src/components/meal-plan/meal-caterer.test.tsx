@@ -24,6 +24,10 @@ import { MealCaterer } from "./meal-caterer";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const invitation = {
   id: "5",
@@ -303,7 +307,8 @@ describe("reload after a write (#6652)", () => {
     );
   }
 
-  it("discards the caterer and open dialogs when a post-write reload refuses access", async () => {
+  it("loads the page anew when a post-write reload refuses access", async () => {
+    resetPageReloads();
     const reload = deferred<{
       supply: null;
       invitations: (typeof invitation)[];
@@ -316,16 +321,8 @@ describe("reload after a write (#6652)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Caterer einladen" }));
     expect(await screen.findByRole("dialog")).toBeVisible();
     await act(async () => reload.reject(new ApiError("refused", 403)));
-    expect(
-      await screen.findByText(
-        `${catalogText("general.permission", "die Anzeige des Caterers")} ${SAVED_BUT_STALE_SUFFIX}`,
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText("kueche@example.com")).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Caterer einladen" }),
-    ).not.toBeInTheDocument();
+    // #6801: the page loads anew; its first load shows the refusal.
+    await expectPageReloadedAfterRefusal();
   });
 
   it("ignores an older invitation reload after a newer one succeeded", async () => {

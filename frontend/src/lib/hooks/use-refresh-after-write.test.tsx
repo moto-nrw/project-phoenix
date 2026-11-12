@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
+import { reloadDocument } from "~/lib/reload-document";
 import { catalogText } from "~/test/error-catalog-text";
 
 import {
@@ -98,5 +99,56 @@ describe("useRefreshAfterWrite", () => {
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
     expect(reload).toHaveBeenNthCalledWith(1, "aktiv");
     expect(reload).toHaveBeenNthCalledWith(2, "aktiv");
+  });
+
+  // #6801: a refused reload leaves no data standing that the account may no
+  // longer see; the page loads anew, and its first load shows the refusal.
+  it.each([
+    [401, "general.permission"],
+    [403, "general.permission"],
+  ] as const)(
+    "loads the whole page again on a %i reload, without the saved text or a retry",
+    async (status, code) => {
+      vi.mocked(reloadDocument).mockClear();
+      const onResult = vi.fn();
+
+      render(
+        <Probe
+          reload={() => Promise.reject(new ApiError("no", status, { code }))}
+          onResult={onResult}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Nachladen" }));
+
+      await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
+      expect(reloadDocument).toHaveBeenCalledTimes(1);
+      expect(
+        screen.queryByText(SAVED_BUT_STALE_SUFFIX, { exact: false }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Wiederholen" }),
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Nachladen" })).toBeVisible();
+    },
+  );
+
+  it("keeps the page for a transient reload failure", async () => {
+    vi.mocked(reloadDocument).mockClear();
+    render(
+      <Probe
+        reload={() =>
+          Promise.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          )
+        }
+        onResult={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Nachladen" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Wiederholen" }),
+    ).toBeVisible();
+    expect(reloadDocument).not.toHaveBeenCalled();
   });
 });

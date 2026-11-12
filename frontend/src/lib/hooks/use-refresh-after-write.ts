@@ -4,6 +4,8 @@ import { useCallback, useLayoutEffect, useRef } from "react";
 
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { reloadDocument } from "~/lib/reload-document";
+import { isAccessRefusal, shownDataRefusalCount } from "~/lib/access-refusal";
 
 const logger = createLogger({ component: "RefreshAfterWrite" });
 
@@ -34,6 +36,18 @@ export type RefreshAfterWrite<A extends unknown[] = []> = (
  * throws; it resolves `false` when the reload failed, so a caller cannot
  * route the failure into its action's catch.
  *
+ * A refused reload (401/403, #6801) is no stale display: the account may no
+ * longer see the shown data. The hook then loads the whole page again
+ * (`reloadDocument`), so the data, its actions and open dialogs go and the
+ * page's first load shows the refusal; there is no "saved" text and no
+ * retry. It sees the refusal either way a reload can meet it: `reload`
+ * rejects with it, or an SWR revalidation it ran was refused while its key
+ * still held data (SWR keeps the data and never rejects; the middleware in
+ * `~/lib/swr/hooks` counts it). There is no option to turn this off, so no
+ * caller needs a 401/403 branch of its own for the reload after a write. A
+ * `reload` must let a refusal reject (or run through SWR) and await what it
+ * starts; one that catches a refusal hides it from the hook.
+ *
  * This is the one place that separates a write's error from its reload's
  * error; `error-path/no-reload-in-write-catch` rejects a reload in the
  * write's catch.
@@ -58,21 +72,38 @@ export function useRefreshAfterWrite<A extends unknown[] = []>(
   const refresh = useCallback<RefreshAfterWrite<A>>(
     async (...args: A) => {
       clear();
+      const refusalsBefore = shownDataRefusalCount();
+      let failure: unknown;
+      let failed = false;
       try {
         await reloadRef.current(...args);
-        return true;
       } catch (err) {
-        logger.warn("refresh_after_write_failed", {
+        failure = err;
+        failed = true;
+      }
+      if (
+        (failed && isAccessRefusal(failure)) ||
+        shownDataRefusalCount() !== refusalsBefore
+      ) {
+        logger.warn("refresh_after_write_refused", {
           object,
-          error: err instanceof Error ? err.message : String(err),
+          status: isAccessRefusal(failure) ? failure.status : undefined,
         });
-        void show(err, {
-          object,
-          messageSuffix: savedSuffix,
-          retry: () => void refreshRef.current(...args),
-        });
+        void logger.flush();
+        reloadDocument();
         return false;
       }
+      if (!failed) return true;
+      logger.warn("refresh_after_write_failed", {
+        object,
+        error: failure instanceof Error ? failure.message : String(failure),
+      });
+      void show(failure, {
+        object,
+        messageSuffix: savedSuffix,
+        retry: () => void refreshRef.current(...args),
+      });
+      return false;
     },
     [clear, object, savedSuffix, show],
   );
