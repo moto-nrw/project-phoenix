@@ -281,3 +281,152 @@ describe("ActionHint on kit buttons", () => {
     ).not.toHaveAttribute("aria-describedby");
   });
 });
+
+describe("disabledReason on kit buttons", () => {
+  afterEach(releaseFakeTimers);
+
+  const REASON = "Wählen Sie zuerst mindestens ein Kind aus.";
+
+  it("keeps a blocked button focusable and describes it with the reason", () => {
+    render(
+      <Button type="button" tooltip={HINT} disabled disabledReason={REASON}>
+        Speichern
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Speichern" });
+
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toHaveAttribute("disabled");
+    expect(button).toHaveAccessibleDescription(REASON);
+  });
+
+  it("shows the reason on mouse hover and on keyboard focus", () => {
+    vi.useFakeTimers();
+    render(
+      <Button type="button" tooltip={HINT} disabled disabledReason={REASON}>
+        Speichern
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Speichern" });
+
+    hoverWithMouse(button);
+    expect(bubble()).toHaveTextContent(REASON);
+    fireEvent.pointerLeave(button, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(ACTION_HINT_DELAY_MS);
+    });
+    // Anker: die Blase stand beim Hover (Prüfung oben).
+    expect(bubble()).toBeNull();
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    act(() => {
+      button.focus();
+    });
+    expect(bubble()).toHaveTextContent(REASON);
+  });
+
+  it("shows the reason on a tap and closes on a second tap or a tap elsewhere", () => {
+    render(
+      <>
+        <Button type="button" disabled disabledReason={REASON}>
+          Speichern
+        </Button>
+        <p>Daneben</p>
+      </>,
+    );
+    const button = screen.getByRole("button", { name: "Speichern" });
+
+    fireEvent.pointerDown(button, { pointerType: "touch" });
+    fireEvent.pointerLeave(button, { pointerType: "touch" });
+    expect(bubble()).toHaveTextContent(REASON);
+    fireEvent.pointerDown(button, { pointerType: "touch" });
+    // Anker: der erste Tipp hat die Blase geöffnet (Prüfung oben).
+    expect(bubble()).toBeNull();
+
+    fireEvent.pointerDown(button, { pointerType: "touch" });
+    expect(bubble()).toHaveTextContent(REASON);
+    fireEvent.pointerDown(screen.getByText("Daneben"), {
+      pointerType: "touch",
+    });
+    expect(bubble()).toBeNull();
+  });
+
+  it("runs neither onClick nor submit on click or Enter", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <input aria-label="Name" />
+        <Button onClick={onClick} disabled disabledReason={REASON}>
+          Speichern
+        </Button>
+      </form>,
+    );
+    const button = screen.getByRole("button", { name: "Speichern" });
+
+    await user.click(button);
+    button.focus();
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("textbox", { name: "Name" }));
+    await user.keyboard("{Enter}");
+
+    // Anker: der Knopf ist erreichbar und bleibt fokussierbar.
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate from a blocked ButtonLink", () => {
+    const onNavigate = vi.fn();
+    render(
+      <ButtonLink
+        href="/help"
+        onNavigate={onNavigate}
+        disabled
+        disabledReason={REASON}
+      >
+        Hilfe
+      </ButtonLink>,
+    );
+    const link = screen.getByRole("link", { name: "Hilfe" });
+
+    expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(link).toHaveAccessibleDescription(REASON);
+    expect(fireEvent.click(link)).toBe(false);
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the native lock while loading", () => {
+    render(
+      <Button
+        type="button"
+        tooltip={HINT}
+        isLoading
+        loadingText="Speichert …"
+        disabled
+        disabledReason={REASON}
+      >
+        Speichern
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Speichert …" });
+
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).toHaveAccessibleDescription(HINT);
+  });
+
+  it("stays natively disabled without a reason", () => {
+    render(
+      <Button type="button" disabled>
+        Speichern
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Speichern" });
+
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+  });
+});

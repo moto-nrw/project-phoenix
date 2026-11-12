@@ -58,6 +58,14 @@ type ButtonExplanation =
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   ButtonExplanation & {
     ref?: React.Ref<HTMLButtonElement>;
+    /**
+     * Why the button cannot be used while `disabled` is true: what is
+     * missing or has to happen first. The button then stays focusable
+     * (`aria-disabled`), swallows click and submit, and shows the reason on
+     * hover, keyboard focus and tap instead of `tooltip`. No effect while
+     * `isLoading`, which keeps the native lock (#5608).
+     */
+    disabledReason?: string;
     isLoading?: boolean;
     loadingText?: string;
     variant?: ButtonVariant;
@@ -65,11 +73,25 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
     touchTarget?: boolean;
   };
 
+/**
+ * A link has no native `disabled`: a blocked `ButtonLink` always names the
+ * reason, otherwise it would be a greyed-out control nobody can explain.
+ */
+type ButtonLinkBlock =
+  | { readonly disabled?: false; readonly disabledReason?: string }
+  | {
+      /** Blocks the navigation; the link stays focusable. */
+      readonly disabled: boolean;
+      /** Why the link cannot be used, see `Button`'s `disabledReason`. */
+      readonly disabledReason: string;
+    };
+
 type ButtonLinkProps = Omit<
   React.ComponentProps<typeof Link>,
   "className" | "href"
 > &
-  ButtonExplanation & {
+  ButtonExplanation &
+  ButtonLinkBlock & {
     readonly href: string;
     readonly resources?: readonly PrefetchResource[];
     readonly variant?: ButtonVariant;
@@ -89,24 +111,51 @@ export function Button({
   className = "",
   touchTarget = false,
   disabled,
+  disabledReason,
   tooltip,
   noTooltip: _noTooltip,
   ...props
 }: Readonly<ButtonProps>) {
+  // Natives `disabled` feuert keine Zeigerereignisse, eine Blase mit dem
+  // Grund wäre dann unerreichbar. Beim Laden bleibt es nativ (#5608).
+  const blocked = Boolean(disabled && disabledReason && !isLoading);
   const button = (
     <button
       type="submit"
       data-icon-only={size === "icon" ? "" : undefined}
       className={buttonClassName({ variant, size, className, touchTarget })}
       {...props}
+      {...(blocked && {
+        "aria-disabled": true,
+        // Verhindert auch das Absenden des Formulars, ebenso bei Enter im Feld.
+        onClick: preventActivation,
+      })}
       // Nach den Props: `disabled={false}` vom Aufrufer hebt die Ladesperre
       // nicht auf, sonst wäre ein zweites Absenden möglich (#5608).
-      disabled={Boolean(isLoading) || disabled}
+      disabled={Boolean(isLoading) || (disabled && !blocked)}
     >
       {isLoading ? (loadingText ?? "Wird geladen …") : children}
     </button>
   );
-  return tooltip ? <ActionHint text={tooltip}>{button}</ActionHint> : button;
+  return withHint(button, blocked ? disabledReason : tooltip, blocked);
+}
+
+function preventActivation(event: React.MouseEvent) {
+  event.preventDefault();
+}
+
+function withHint(
+  control: React.ReactElement,
+  text: string | undefined,
+  blocked: boolean,
+) {
+  return text ? (
+    <ActionHint text={text} showOnTap={blocked}>
+      {control}
+    </ActionHint>
+  ) : (
+    control
+  );
 }
 
 /** A navigation link styled by the same shared button variants as actions. */
@@ -117,9 +166,17 @@ export function ButtonLink({
   resources,
   tooltip,
   noTooltip: _noTooltip,
+  disabled,
+  disabledReason,
   ...props
 }: Readonly<ButtonLinkProps>) {
-  const intentProps = useLinkIntentPrefetch({ ...props, resources });
+  const blocked = Boolean(disabled);
+  const intentProps = useLinkIntentPrefetch({
+    ...props,
+    // Ein gesperrter Link lädt sein Ziel nicht vor und navigiert nicht.
+    ...(blocked && { prefetch: false, onClick: preventActivation }),
+    resources,
+  });
   const link = (
     <Link
       // Kennzeichen für die Bedienhöhe der Kopfkarte (`TenantPage`): sie
@@ -127,6 +184,11 @@ export function ButtonLink({
       // Attribut (#5531).
       className={buttonClassName({ variant, size, className })}
       {...props}
+      // Auch der Mittelklick öffnet das Ziel nicht in einem neuen Tab.
+      {...(blocked && {
+        "aria-disabled": true,
+        onAuxClick: preventActivation,
+      })}
       data-button-link=""
       data-icon-only={size === "icon" ? "" : undefined}
       {...intentProps}
@@ -142,5 +204,5 @@ export function ButtonLink({
       }}
     />
   );
-  return tooltip ? <ActionHint text={tooltip}>{link}</ActionHint> : link;
+  return withHint(link, blocked ? disabledReason : tooltip, blocked);
 }

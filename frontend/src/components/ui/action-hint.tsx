@@ -72,6 +72,12 @@ interface ActionHintProps {
   readonly text: string;
   /** Exactly one interactive element: button, link or a label styled as one. */
   readonly children: React.ReactElement;
+  /**
+   * Also open on a touch or pen tap; a second tap or a tap elsewhere closes
+   * it. Only for a blocked control (`disabledReason`), where a tap runs no
+   * action and the reason would otherwise stay unreachable.
+   */
+  readonly showOnTap?: boolean;
 }
 
 /**
@@ -83,7 +89,8 @@ interface ActionHintProps {
  * this one belongs to controls:
  *
  * - It appears on mouse hover (after a short delay) and on keyboard focus,
- *   never on touch, where a tap runs the action at once.
+ *   never on touch, where a tap runs the action at once. A blocked control
+ *   (`showOnTap`, set by `disabledReason`) also opens on a tap.
  * - It adds no wrapper element, so layout classes on the control keep working.
  * - The bubble is portaled and fixed to the viewport, so cards, tables and
  *   dialogs with `overflow` do not clip it. It flips above the control near
@@ -92,7 +99,11 @@ interface ActionHintProps {
  *   only visual. Escape closes it without closing a dialog behind it, and the
  *   pointer may move onto the bubble without closing it (WCAG 1.4.13).
  */
-export function ActionHint({ text, children }: ActionHintProps) {
+export function ActionHint({
+  text,
+  children,
+  showOnTap = false,
+}: ActionHintProps) {
   const id = useId();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,11 +141,26 @@ export function ActionHint({ text, children }: ActionHintProps) {
       event.stopPropagation();
       hide();
     };
+    // Ein Tipp neben Knopf und Blase schließt eine angetippte Blase.
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (anchor.contains(target)) return;
+      if (
+        target instanceof Element &&
+        target.closest("[data-action-hint]") !== null
+      ) {
+        return;
+      }
+      hide();
+    };
     window.addEventListener("keydown", closeOnEscape, true);
+    window.addEventListener("pointerdown", closeOnOutsidePointer, true);
     window.addEventListener("scroll", hide, true);
     window.addEventListener("resize", hide);
     return () => {
       window.removeEventListener("keydown", closeOnEscape, true);
+      window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
       window.removeEventListener("scroll", hide, true);
       window.removeEventListener("resize", hide);
     };
@@ -172,11 +198,20 @@ export function ActionHint({ text, children }: ActionHintProps) {
         },
         onPointerLeave: (event) => {
           props.onPointerLeave?.(event);
+          // Ein Finger „verlässt“ den Knopf beim Abheben; eine angetippte
+          // Blase bleibt dann stehen.
+          if (showOnTap && event.pointerType !== "mouse") return;
           if (anchor) hideSoon();
           else hide();
         },
         onPointerDown: (event) => {
           props.onPointerDown?.(event);
+          if (showOnTap && event.pointerType !== "mouse") {
+            const target = event.currentTarget;
+            cancel();
+            setAnchor((open) => (open ? null : target));
+            return;
+          }
           hide();
         },
         onFocus: (event) => {
