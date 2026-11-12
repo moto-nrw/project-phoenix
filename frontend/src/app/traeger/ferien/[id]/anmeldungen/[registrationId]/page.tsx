@@ -493,7 +493,7 @@ export default function TraegerHolidayRegistrationPage() {
                     type="button"
                     variant="outline"
                     size="md"
-                    tooltip="moto fragt vorher nach, dann berechnet moto den Ferienbeitrag neu."
+                    tooltip="moto fragt vorher nach, dann zählen die Kinder einzeln beim Ferienbeitrag."
                     onClick={() => setConfirmingSplit(true)}
                   >
                     Trennen

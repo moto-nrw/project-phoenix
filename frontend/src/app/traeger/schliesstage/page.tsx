@@ -254,7 +254,8 @@ export default function TraegerClosingDaysPage() {
                       {
                         label: "Ändern",
                         icon: <Pencil className="h-4 w-4" aria-hidden />,
-                        description: "Öffnet den Schließtag zum Bearbeiten.",
+                        description:
+                          "Öffnet den Schließtag, beim Speichern bekommen betroffene Familien eine E-Mail.",
                         onClick: () => beginEdit(day),
                       },
                       { kind: "separator" },
@@ -262,7 +263,7 @@ export default function TraegerClosingDaysPage() {
                         label: "Löschen",
                         icon: <Trash2 className="h-4 w-4" aria-hidden />,
                         description:
-                          "moto fragt vorher nach und nennt, wer eine E-Mail bekommt.",
+                          "moto fragt vorher nach, dann löscht es den Tag und informiert betroffene Familien.",
                         destructive: true,
                         onClick: () => setDeleting(day),
                       },
@@ -321,7 +322,7 @@ export default function TraegerClosingDaysPage() {
             size="md"
             onClick={beginCreate}
             disabled={schools.length === 0}
-            tooltip="Plant einen Schließtag für eine, mehrere oder alle Schulen."
+            tooltip="Plant einen Schließtag für eine oder alle Schulen und informiert betroffene Familien."
             disabledReason={
               data
                 ? "Ihrem Träger ist noch keine Schule zugeordnet. Das übernimmt das moto-Team."

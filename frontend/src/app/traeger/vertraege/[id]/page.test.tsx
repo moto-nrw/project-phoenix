@@ -371,9 +371,11 @@ describe("TraegerVertragPage", () => {
 
       expect(await screen.findByText(text)).toBeInTheDocument();
       expect(screen.queryByText(/Prüfen Sie die Adresse/)).toBeNull();
-      expect(
-        screen.getByRole("button", { name: "Erneut senden" }),
-      ).toHaveAttribute("aria-disabled", "true");
+      const resend = screen.getByRole("button", { name: "Erneut senden" });
+      expect(resend).toHaveAttribute("aria-disabled", "true");
+      expect(resend).toHaveAccessibleDescription(expect.stringMatching(/\S/));
+      fireEvent.click(resend);
+      expect(api.sendCareContracts).not.toHaveBeenCalled();
     },
   );
 

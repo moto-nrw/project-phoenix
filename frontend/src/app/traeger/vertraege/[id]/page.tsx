@@ -347,10 +347,7 @@ export default function TraegerVertragPage() {
                 variant={isDraft ? "success" : "outline"}
                 size="md"
                 disabled={
-                  sending ||
-                  refreshing ||
-                  lastMail?.state === "queued" ||
-                  (!isDraft && !!lastMail?.sendBlock)
+                  sending || refreshing || sendBlockedReason !== undefined
                 }
                 tooltip={
                   isDraft
@@ -678,7 +675,7 @@ function contractMailBadge(mailing: ContractMailing): {
 }
 
 // Why „Vertrag senden“ / „Erneut senden“ is blocked, short enough for the
-// bubble; the notice above the mailings names the next step (#6747).
+// bubble; the hold notice on the page gives the details (#6747).
 function contractSendBlockedReason(
   mailing: ContractMailing,
   isDraft: boolean,
@@ -688,14 +685,14 @@ function contractSendBlockedReason(
   if (isDraft) return undefined;
   switch (mailing.sendBlock) {
     case "stopped":
-      return "Die Schule hat Mails an diese Person gestoppt.";
+      return "Die Schule hat Mails an diese Person gestoppt, klären Sie das mit ihr.";
     case "address":
     case "provider":
-      return "Die Adresse ist gesperrt. Der Hinweis auf der Seite sagt, was Sie tun können.";
+      return "Die Adresse ist gesperrt, senden Sie unter „Versand“ an eine andere.";
     case "provider_unknown":
-      return "Ob die Adresse gesperrt ist, lässt sich gerade nicht prüfen.";
+      return "Die Sperre der Adresse lässt sich gerade nicht prüfen, bitte später versuchen.";
     case "delayed":
-      return "Die letzte Mail kommt später an. Neu gesendet käme sie doppelt.";
+      return "Die letzte Mail kommt verspätet noch an, neu gesendet käme sie doppelt.";
     default:
       return undefined;
   }

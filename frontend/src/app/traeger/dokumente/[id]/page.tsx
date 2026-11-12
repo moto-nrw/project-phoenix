@@ -205,7 +205,7 @@ export default function TraegerDocumentPage() {
                 variant="primary"
                 size="md"
                 className="gap-2"
-                tooltip="Gibt das Dokument für Eltern oder Schulen frei, Eltern bekommen eine Nachricht."
+                tooltip="Öffnet die Freigabe für Schulen oder Eltern, Eltern bekommen dann eine Nachricht."
                 onClick={() => setReleasing(true)}
               >
                 <ShareNetworkIcon className="h-4 w-4" aria-hidden="true" />

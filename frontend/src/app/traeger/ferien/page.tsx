@@ -10,7 +10,10 @@ import {
   formatWeeks,
   holidayStatusLabel,
 } from "~/components/traeger/holiday-period-format";
-import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
+import {
+  HOLIDAY_CRITERIA_HINT,
+  HolidayHeadFacts,
+} from "~/components/traeger/holiday-period-head";
 import { ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -94,7 +97,7 @@ export default function TraegerHolidayPeriodsPage() {
             href={traegerPath("/traeger/ferien/kriterien")}
             variant="outline"
             size="md"
-            tooltip="Öffnet die Kriterien für die Platzvergabe in allen Ferien."
+            tooltip={HOLIDAY_CRITERIA_HINT}
           >
             <ListChecks className="h-4 w-4" aria-hidden="true" />
             Kriterien der Platzvergabe

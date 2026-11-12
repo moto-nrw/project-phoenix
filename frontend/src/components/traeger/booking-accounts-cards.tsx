@@ -460,7 +460,6 @@ function CostCenterRow({
           aria-label={`Neue ${label} für ${title}`}
           disabled={adding}
           tooltip="Öffnet ein Formular für eine Kostenstelle ab einem gewählten Tag."
-          disabledReason="Das Formular für die neue Kostenstelle ist schon offen."
           onClick={() => setAdding(true)}
         >
           Neue Kostenstelle

@@ -527,7 +527,7 @@ export default function TraegerVertraegePage() {
             variant="primary"
             size="md"
             disabled={!data}
-            tooltip="Erstellt Entwürfe für angenommene Kinder, Eltern bekommen noch nichts."
+            tooltip="Öffnet die Auswahl angenommener Kinder, Entwürfe gehen noch nicht an Eltern."
             onClick={() => setCreating(true)}
           >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
