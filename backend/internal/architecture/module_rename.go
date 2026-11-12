@@ -110,19 +110,7 @@ func requirePureModuleRename(root, project, sha, from, to string) error {
 	fields := strings.Split(strings.TrimSuffix(listing, "\x00"), "\x00")
 	var problems []string
 	for index := 0; index+1 < len(fields); index += 2 {
-		status, name := fields[index], fields[index+1]
-		inProject := name
-		if relative != "." && relative != "" {
-			inProject = strings.TrimPrefix(name, relative+"/")
-		}
-		if path.Ext(name) != ".go" || strings.HasPrefix(inProject, moduleRenameTool) {
-			continue
-		}
-		if status != "M" {
-			problems = append(problems, fmt.Sprintf("%s %s", status, name))
-			continue
-		}
-		problem, err := moduleRenameFileProblem(root, sha, name, from, to)
+		problem, err := moduleRenameEntryProblem(root, sha, relative, fields[index], fields[index+1], from, to)
 		if err != nil {
 			return err
 		}
@@ -134,6 +122,22 @@ func requirePureModuleRename(root, project, sha, from, to string) error {
 		return fmt.Errorf("module rename must not change Go sources beyond the module path (%d):\n  %s", len(problems), strings.Join(problems, "\n  "))
 	}
 	return nil
+}
+
+// moduleRenameEntryProblem checks one changed path. Non-Go files and the
+// rename tool are out of scope; any other added or deleted Go file fails.
+func moduleRenameEntryProblem(root, sha, relative, status, name, from, to string) (string, error) {
+	inProject := name
+	if relative != "." && relative != "" {
+		inProject = strings.TrimPrefix(name, relative+"/")
+	}
+	if path.Ext(name) != ".go" || strings.HasPrefix(inProject, moduleRenameTool) {
+		return "", nil
+	}
+	if status != "M" {
+		return fmt.Sprintf("%s %s", status, name), nil
+	}
+	return moduleRenameFileProblem(root, sha, name, from, to)
 }
 
 func moduleRenameFileProblem(root, sha, name, from, to string) (string, error) {
