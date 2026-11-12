@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { NotebookPen } from "lucide-react";
 
 import { FieldLabel } from "~/components/ui/field-label";
@@ -481,10 +488,12 @@ function NoteForm({
 
 export function StudentNotizenTab({
   studentId,
+  active = true,
   educationGroupId = "",
   educationGroupName = "",
 }: {
   readonly studentId: string;
+  readonly active?: boolean;
   /** The child's OGS group, so a note can refer to it. */
   readonly educationGroupId?: string;
   readonly educationGroupName?: string;
@@ -521,41 +530,44 @@ export function StudentNotizenTab({
   const tenantMutate = useTenantMutate();
   const discardRefused = useDiscardRefusedEntity();
 
-  const revalidateNotes = async (permanentNotesChanged: boolean) => {
-    const failedRead = (error: unknown): never => {
-      // Each direct read rejects and keeps SWR's refusal boundary, even if
-      // another concurrent read has already failed.
-      discardRefused(error, {
-        codes:
-          error instanceof ApiError && error.status === 404 && error.code
-            ? [error.code]
-            : ["general.permission"],
-        matches: (key) =>
-          [
-            studentKeys.notes(studentId),
+  const revalidateNotes = useCallback(
+    async (permanentNotesChanged: boolean) => {
+      const failedRead = (error: unknown): never => {
+        // Each direct read rejects and keeps SWR's refusal boundary, even if
+        // another concurrent read has already failed.
+        discardRefused(error, {
+          codes:
+            error instanceof ApiError && error.status === 404 && error.code
+              ? [error.code]
+              : ["general.permission"],
+          matches: (key) =>
+            [
+              studentKeys.notes(studentId),
+              studentKeys.permanentNotes(studentId),
+              studentKeys.noteActivities(studentId),
+            ].includes(key),
+          refusedKey: studentKeys.notes(studentId),
+        });
+        throw error;
+      };
+      const revalidations: Promise<unknown>[] = [
+        mutate(studentNotesService.list(studentId), {
+          revalidate: false,
+        }).catch(failedRead),
+      ];
+      if (permanentNotesChanged) {
+        revalidations.push(
+          tenantMutate(
             studentKeys.permanentNotes(studentId),
-            studentKeys.noteActivities(studentId),
-          ].includes(key),
-        refusedKey: studentKeys.notes(studentId),
-      });
-      throw error;
-    };
-    const revalidations: Promise<unknown>[] = [
-      mutate(studentNotesService.list(studentId), { revalidate: false }).catch(
-        failedRead,
-      ),
-    ];
-    if (permanentNotesChanged) {
-      revalidations.push(
-        tenantMutate(
-          studentKeys.permanentNotes(studentId),
-          studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
-          { revalidate: false },
-        ).catch(failedRead),
-      );
-    }
-    await Promise.all(revalidations);
-  };
+            studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
+            { revalidate: false },
+          ).catch(failedRead),
+        );
+      }
+      await Promise.all(revalidations);
+    },
+    [discardRefused, mutate, studentId, tenantMutate],
+  );
   // Nachladen nach Speichern oder Löschen: ein Fehler dabei ist ein
   // Ladefehler über den Notizen, kein Fehler des Formulars (#6652).
   const notesAfterWrite = useRefreshAfterWrite(
@@ -593,17 +605,33 @@ export function StudentNotizenTab({
   );
   const notesShown = data !== undefined;
   useEffect(() => {
-    if (!notesShown || unreadHere.length === 0) return;
-    setSharedWithMe((previous) => new Set([...previous, ...unreadHere]));
-    markTeamNoticesRead(studentId).catch((caught: unknown) => {
-      // Bleibt still: Die Notizen sind gelesen und angezeigt. Scheitert nur
-      // das Abhaken, bleibt der Zähler im Header stehen und der nächste
-      // Besuch versucht es erneut.
-      logger.warn("student_note_team_notices_read_failed", {
-        error: caught instanceof Error ? caught.message : String(caught),
+    if (!active || !notesShown || unreadHere.length === 0) return;
+    let cancelled = false;
+    // The notice poll does not refresh the notes cache. Load the current
+    // content even for a repeat announcement before clearing its marker.
+    void revalidateNotes(false)
+      .then(async () => {
+        if (cancelled) return;
+        setSharedWithMe((previous) => new Set([...previous, ...unreadHere]));
+        await markTeamNoticesRead(studentId);
+      })
+      .catch((caught: unknown) => {
+        // A failed refresh or acknowledgement leaves the header counter intact.
+        logger.warn("student_note_team_notices_read_failed", {
+          error: caught instanceof Error ? caught.message : String(caught),
+        });
       });
-    });
-  }, [notesShown, unreadHere, markTeamNoticesRead, studentId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    active,
+    notesShown,
+    unreadHere,
+    revalidateNotes,
+    markTeamNoticesRead,
+    studentId,
+  ]);
   const load = useApiLoadError();
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
   const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);

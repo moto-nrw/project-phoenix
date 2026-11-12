@@ -253,3 +253,39 @@ func TestStudentNoteTeamMarkerFollowsNoteAndRecipient(t *testing.T) {
 	// Give the account back to the test's school, so it leaves no shared row.
 	testpkg.EnsureAccountTenant(t, db, leaver, testpkg.Tenant(t))
 }
+
+// Departed children must not consume the header's bounded result window.
+func TestStudentNoteTeamDepartedChildrenDoNotHideEnrolledNotices(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := noteTeamModule(t, db)
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mia", "Aktiv", "2b")
+	departed := testpkg.CreateTestStudent(t, db, "Noa", "Abgegangen", "4a")
+	author := noteAuthor(t, db, "Anja", "Autorin")
+	reader := noteAuthor(t, db, "Ben", "Leser")
+	note := teamNote(t, module, ctx, child.ID, author, peopledirectory.StudentNoteVisibilityAllStaff)
+	_, err := informTeam(t, db, module, ctx, peopledirectory.InformStudentNoteTeam{
+		NoteID: note.ID, StudentID: child.ID, ActorAccountID: author, RecipientAccountIDs: []int64{reader},
+	})
+	require.NoError(t, err)
+	departedNote := teamNote(t, module, ctx, departed.ID, author, peopledirectory.StudentNoteVisibilityAllStaff)
+	// Fill the entire newer window in bulk, without repeating the write flow.
+	_, err = db.NewRaw(`INSERT INTO users.student_notes
+		(tenant_id, student_id, author_account_id, origin, kind, visibility, body, subject_date)
+		SELECT tenant_id, student_id, author_account_id, origin, kind, visibility, body, subject_date
+		FROM users.student_notes CROSS JOIN generate_series(1, 49) WHERE id = ?`, departedNote.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO users.student_note_team_notices
+		(tenant_id, note_id, recipient_account_id, informed_at)
+		SELECT tenant_id, id, ?, clock_timestamp() FROM users.student_notes WHERE student_id = ?`, reader, departed.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("status = ?", peopledirectory.StudentStatusAlumnus).
+		Where("tenant_id = ?", testpkg.Tenant(t)).Where("student_profile_id = ?", departed.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	unread, err := unreadNotices(t, db, module, ctx, reader)
+	require.NoError(t, err)
+	require.Equal(t, []int64{note.ID}, noticeNotes(unread), "50 newer notices for a departed child cannot hide an enrolled child's notice")
+}

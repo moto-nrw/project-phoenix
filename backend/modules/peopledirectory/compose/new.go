@@ -104,7 +104,7 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 		companions = application.NewStudentCompanions(dependencies.StudentCompanions)
 	}
 	owners := application.NewStudentOwners(dependencies.StudentOwners)
-	noteStore := postgres.NewStudentNoteStore(database)
+	noteStore := postgres.NewStudentNoteStore(database, dependencies.StudentDirectory)
 	var noteDeletionAudit internalports.StudentNoteDeletionAudit
 	if dependencies.StudentNoteDeletionAudit != nil {
 		noteDeletionAudit = dependencies.StudentNoteDeletionAudit

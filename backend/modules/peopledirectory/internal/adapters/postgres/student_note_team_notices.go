@@ -53,7 +53,7 @@ func (s *StudentNoteStore) UpsertTeamNotices(ctx context.Context, noteID int64, 
 // ListUnreadTeamNotices reads the reader's unread markers. The note decides
 // whether a marker still points anywhere: a deleted note and one narrowed
 // below the whole team drop out here rather than through a second write on
-// every correction. The application drops a child that left.
+// every correction. Departed children are excluded before the result limit.
 func (s *StudentNoteStore) ListUnreadTeamNotices(ctx context.Context, readerAccountID int64, limit int) ([]domain.StudentNoteTeamNotice, domain.OperationStats, error) {
 	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
@@ -71,9 +71,12 @@ func (s *StudentNoteStore) ListUnreadTeamNotices(ctx context.Context, readerAcco
 			AND notice.read_at IS NULL
 			AND note.deleted_at IS NULL
 			AND note.visibility = ?
+			AND note.student_id IN (?)
 		ORDER BY notice.informed_at DESC, notice.note_id DESC
 		LIMIT ?`,
-		scope.TenantID, readerAccountID, domain.StudentNoteVisibilityAllStaff, limit).
+		scope.TenantID, readerAccountID, domain.StudentNoteVisibilityAllStaff,
+		s.students.StudentRows(db, scope.TenantID).ColumnExpr(`"student".id`).
+			Where(`"student".status <> ?`, domain.StudentStatusAlumnus), limit).
 		Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
