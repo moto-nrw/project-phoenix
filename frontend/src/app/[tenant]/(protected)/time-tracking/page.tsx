@@ -259,8 +259,9 @@ function formatTimeFromDate(date: Date): string {
 
 const DEFAULT_BREAK_MINUTES = 30;
 const BREAK_STEP_MINUTES = 15;
+const ABSENCE_RANGE_MISSING = "Wählen Sie zuerst Von und Bis.";
 const BREAK_START_TOOLTIP =
-  "Startet die Pause sofort. Sie endet nach der gewählten Zeit.";
+  "Startet sofort eine Pause mit der gewählten Dauer.";
 const MIN_BREAK_MINUTES = 15;
 const MAX_BREAK_MINUTES = 240;
 
@@ -793,6 +794,11 @@ function ClockInCard({
     }
   };
 
+  // Während Laden, Ladefehler oder Speichern bleibt der Knopf nativ gesperrt:
+  // dann gibt es keinen fachlichen Grund zu nennen.
+  const reasonOnceReady = (reason: string) =>
+    stampingDisabled || actionLoading ? undefined : reason;
+
   const handleBreakStepperChange = (direction: 1 | -1) => {
     setIndividualBreakMinutes((current) =>
       Math.min(
@@ -826,11 +832,9 @@ function ClockInCard({
           actionLoading ||
           individualBreakMinutes <= MIN_BREAK_MINUTES
         }
-        disabledReason={
-          stampingDisabled || actionLoading
-            ? undefined
-            : `Kürzer als ${MIN_BREAK_MINUTES} Minuten geht nicht.`
-        }
+        disabledReason={reasonOnceReady(
+          `Kürzer als ${MIN_BREAK_MINUTES} Minuten geht nicht.`,
+        )}
         tooltip={`Verkürzt die geplante Pause um ${BREAK_STEP_MINUTES} Minuten.`}
         onClick={() => handleBreakStepperChange(-1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
@@ -865,11 +869,9 @@ function ClockInCard({
           actionLoading ||
           individualBreakMinutes >= MAX_BREAK_MINUTES
         }
-        disabledReason={
-          stampingDisabled || actionLoading
-            ? undefined
-            : `Länger als ${MAX_BREAK_MINUTES} Minuten geht nicht.`
-        }
+        disabledReason={reasonOnceReady(
+          `Länger als ${MAX_BREAK_MINUTES} Minuten geht nicht.`,
+        )}
         tooltip={`Verlängert die geplante Pause um ${BREAK_STEP_MINUTES} Minuten.`}
         onClick={() => handleBreakStepperChange(1)}
         className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
@@ -992,14 +994,12 @@ function ClockInCard({
                 variant="ghost"
                 onClick={handleCheckIn}
                 disabled={stampingDisabled || actionLoading || mode === null}
-                disabledReason={
-                  stampingDisabled || actionLoading
-                    ? undefined
-                    : "Wählen Sie zuerst oben Ihren Status."
-                }
+                disabledReason={reasonOnceReady(
+                  "Wählen Sie zuerst oben Ihren Status.",
+                )}
                 className={getCheckInButtonClassName(mode)}
                 aria-label="Einstempeln"
-                tooltip="Startet sofort Ihre Arbeitszeit im gewählten Status."
+                tooltip="Startet Ihre Arbeitszeit im gewählten Status."
               >
                 {actionLoading ? (
                   <SpinnerIcon className="h-5 w-5" />
@@ -1040,7 +1040,7 @@ function ClockInCard({
                     disabled={stampingDisabled || actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
                     aria-label="Pause beenden"
-                    tooltip="Beendet die Pause sofort. Die Arbeitszeit läuft weiter."
+                    tooltip="Beendet die Pause sofort, Ihre Arbeitszeit läuft weiter."
                   >
                     <svg
                       className="h-5 w-5"
@@ -1158,12 +1158,10 @@ function ClockInCard({
                 variant="ghost"
                 onClick={handleCheckOut}
                 disabled={stampingDisabled || actionLoading || isOnBreak}
-                disabledReason={
-                  stampingDisabled || actionLoading
-                    ? undefined
-                    : "Beenden Sie zuerst die Pause."
-                }
-                tooltip="Stempelt Sie sofort aus und beendet die Arbeitszeit."
+                disabledReason={reasonOnceReady(
+                  "Beenden Sie zuerst die Pause.",
+                )}
+                tooltip="Stempelt Sie aus und beendet Ihre Arbeitszeit."
                 className={`${STAMP_BUTTON_BASE} hover:border-moto-red hover:text-moto-red h-12 w-12 border-gray-300 text-gray-500 disabled:opacity-50`}
                 aria-label="Ausstempeln"
               >
@@ -2526,7 +2524,7 @@ function EditSessionModal({
       onCancel={onClose}
       onConfirm={handleSave}
       confirmLabel={saving ? "Speichern…" : "Speichern"}
-      confirmTooltip="Speichert die Korrektur. Sie und die Leitung sehen sie im Verlauf."
+      confirmTooltip="Speichert die Korrektur im Verlauf, den Sie und die Leitung sehen."
       confirmDisabled={
         saving ||
         !startTime ||
@@ -2549,9 +2547,7 @@ function EditSessionModal({
       confirmLabel={absenceSaving ? "Speichern…" : "Speichern"}
       confirmTooltip="Übernimmt die Änderungen an dieser Abwesenheit."
       confirmDisabled={absenceSaving || !absDateStart || !absDateEnd}
-      confirmDisabledReason={
-        absenceSaving ? undefined : "Wählen Sie zuerst Von und Bis."
-      }
+      confirmDisabledReason={absenceSaving ? undefined : ABSENCE_RANGE_MISSING}
     />
   );
 
@@ -2889,7 +2885,7 @@ function EditSessionModal({
                       size="compact"
                       onClick={handleAbsenceDelete}
                       disabled={save.pending}
-                      tooltip="Löscht die Abwesenheit sofort aus Ihrer Zeiterfassung."
+                      tooltip="Löscht die Abwesenheit sofort, moto protokolliert die Löschung."
                     >
                       {absenceDeleting
                         ? "Abwesenheit wird gelöscht…"
@@ -3016,9 +3012,7 @@ function CreateAbsenceModal({
           confirmLabel={saving ? "Speichern…" : "Speichern"}
           confirmTooltip="Trägt die Abwesenheit sofort in Ihre Zeiterfassung ein."
           confirmDisabled={saving || !dateStart || !dateEnd}
-          confirmDisabledReason={
-            saving ? undefined : "Wählen Sie zuerst Von und Bis."
-          }
+          confirmDisabledReason={saving ? undefined : ABSENCE_RANGE_MISSING}
         />
       }
     >

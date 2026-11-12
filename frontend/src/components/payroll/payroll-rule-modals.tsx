@@ -294,7 +294,7 @@ export function CreateSurchargeRuleModal({
                   ? "Wählen Sie zuerst eine Lohnart aus."
                   : null
           }
-          tooltip="Legt die Regel an. Abgeschlossene Monate ändern sich nicht."
+          tooltip="Legt die Regel an, abgeschlossene Monate bleiben unverändert."
           onCancel={close}
         />
       }

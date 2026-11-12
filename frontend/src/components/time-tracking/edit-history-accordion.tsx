@@ -241,7 +241,7 @@ export function EditHistoryAccordion({
           size="compact"
           onClick={onEdit}
           className="mt-2 w-full"
-          tooltip="Öffnet den Tag zum Korrigieren. Jede Änderung steht danach in diesem Verlauf."
+          tooltip="Öffnet den Tag zum Korrigieren, jede Änderung erscheint in diesem Verlauf."
         >
           <SquarePen className="h-3.5 w-3.5" />
           Weitere Änderung vornehmen

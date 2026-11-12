@@ -423,7 +423,7 @@ function AbsenceRequestItem({
               variant="ghost_danger"
               size="compact"
               onClick={() => onCancel(absence)}
-              tooltip="Zieht den Antrag zurück. moto fragt vorher nach."
+              tooltip="Zieht den Antrag zurück, auch genehmigten Urlaub. moto fragt vorher nach."
             >
               Stornieren
             </Button>

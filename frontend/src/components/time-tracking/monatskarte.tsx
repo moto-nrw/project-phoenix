@@ -226,7 +226,7 @@ export function Monatskarte({
               size="md"
               variant="ghost"
               onClick={onReopen}
-              tooltip="Hebt den Abschluss nur für diese Person auf. moto fragt nach dem Grund."
+              tooltip="Hebt den Abschluss nur für diese Person auf. moto fragt vorher nach."
             >
               Monat wieder öffnen…
             </Button>

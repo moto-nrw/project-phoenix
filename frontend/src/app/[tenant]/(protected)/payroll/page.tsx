@@ -1360,7 +1360,7 @@ function SurchargeRulesCard({
             {
               label: "Archivieren",
               description:
-                "Die Regel zählt danach nicht mehr. moto fragt vorher nach.",
+                "Beendet die Regel ab jetzt. moto fragt vorher nach.",
               onClick: () => onArchive(rule),
             },
           ]}
