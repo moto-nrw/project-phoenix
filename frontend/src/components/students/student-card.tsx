@@ -858,7 +858,9 @@ export function PlannedActivityRows({
     <ul aria-label="Angebote heute">
       {activities.map((activity) => (
         <li key={`${activity.start_time}-${activity.title}`}>
-          <StudentInfoRow icon={<ActivityIcon />}>
+          {/* Ein langer Titel bricht um statt abgeschnitten zu werden:
+              Auf schmalen Karten bliebe sonst nur „14:00–15:00 Töpf…“. */}
+          <StudentInfoRow icon={<ActivityIcon />} wrap>
             <span className="tabular-nums">
               {activity.start_time}–{activity.end_time}
             </span>{" "}

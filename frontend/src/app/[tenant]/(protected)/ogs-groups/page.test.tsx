@@ -1034,6 +1034,44 @@ describe("OGSGroupPage", () => {
     ]);
   });
 
+  it("shows no offerings for a child who does not come today (#6487)", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Zuhause",
+            arrival_is_exception: true,
+            arrival_notes: "Arzttermin",
+            planned_activities: [
+              { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+            ],
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: false } },
+        pickupTimes: new Map([
+          ["1", { pickupTime: "16:30", isException: false, dayNotes: [] }],
+        ]),
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(await screen.findByTestId("arrival-time-row")).toHaveAttribute(
+      "data-is-absent",
+      "true",
+    );
+    expect(
+      screen.queryByTestId("planned-activity-rows"),
+    ).not.toBeInTheDocument();
+  });
+
   it("handles pickup times with day notes correctly", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({

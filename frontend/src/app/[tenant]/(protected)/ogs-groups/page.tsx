@@ -1300,6 +1300,16 @@ function OGSGroupPageContent() {
                             );
                           }
                           const day = getOgsStudentDay(student, pickupTimes);
+                          const arrivalAbsent =
+                            (student.arrival_is_exception ?? false) &&
+                            !student.arrival_time;
+                          // Wer heute nicht kommt oder ohne Zeit abgemeldet
+                          // ist, hat auch keine Angebote auf der Karte (#6487).
+                          const notHereToday =
+                            arrivalAbsent ||
+                            ((studentPickup?.isException ?? false) &&
+                              !studentPickup?.pickupTime &&
+                              !student.actual_pickup_time);
                           return (
                             <>
                               <ArrivalTimeRow
@@ -1308,19 +1318,18 @@ function OGSGroupPageContent() {
                                 isException={
                                   student.arrival_is_exception ?? false
                                 }
-                                isAbsent={
-                                  (student.arrival_is_exception ?? false) &&
-                                  !student.arrival_time
-                                }
+                                isAbsent={arrivalAbsent}
                                 notes={student.arrival_notes}
                                 now={now}
                                 day={day}
                                 prominent
                               />
                               {/* Tagesablauf (#6487): Kommen, Angebote, Gehen. */}
-                              <PlannedActivityRows
-                                activities={student.planned_activities}
-                              />
+                              {notHereToday ? null : (
+                                <PlannedActivityRows
+                                  activities={student.planned_activities}
+                                />
+                              )}
                               <PickupTimeRow
                                 pickupTime={studentPickup?.pickupTime}
                                 actualTime={student.actual_pickup_time}

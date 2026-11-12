@@ -26,14 +26,6 @@ type groupLiveBlockTypes interface {
 	ListBlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error)
 }
 
-// Offerings are the block types a child books (AG, Extern). Betreuung (care,
-// e.g. Mittagessen, Frühbetreuung) and Dienst (duty) are no offerings and
-// stay off the card (#6487).
-var groupLiveOfferingTypes = map[string]bool{
-	timetable.GroupTypeActivity: true,
-	timetable.GroupTypeExternal: true,
-}
-
 // PlannedActivities lists, per child, the day's offerings it is planned for,
 // without cancelled ones and without care or duty blocks, by start time.
 func (p groupLivePlanning) PlannedActivities(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64][]grouplive.PlannedActivity, error) {
@@ -89,7 +81,7 @@ func (p groupLivePlanning) offeringsOnly(ctx context.Context, instances []timeta
 		return nil, err
 	}
 	return slices.DeleteFunc(instances, func(instance timetable.ActivityInstance) bool {
-		return !groupLiveOfferingTypes[metadata[instance.ID].ActivityType]
+		return !timetable.IsOfferingType(metadata[instance.ID].ActivityType)
 	}), nil
 }
 

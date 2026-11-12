@@ -212,7 +212,7 @@ const (
 	KeyWebExceedParticipantLimit = "attendance.web_exceed_participant_limit_enabled"
 	KeyStudentPhotosEnabled      = "operations.student_photos_enabled"
 	// KeyStudentCardActivitiesEnabled shows today's planned offerings on the
-	// child cards of "Meine Gruppe" (#6487).
+	// child cards under "Gruppen" (#6487).
 	KeyStudentCardActivitiesEnabled    = "operations.student_card_activities_enabled"
 	KeyGroupMode                       = "operations.group_mode"
 	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"

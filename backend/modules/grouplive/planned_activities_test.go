@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func enabled(context.Context) (bool, error) { return true, nil }
+func activitiesOn(context.Context) (bool, error) { return true, nil }
 
 // plannedActivityFakes serves a group with two children and records which
 // children the timetable was asked for.
@@ -21,7 +21,7 @@ func plannedActivityFakes(caller func(context.Context) (Caller, error), restrict
 		members: func(context.Context, int64) ([]RosterStudent, error) {
 			return []RosterStudent{{ID: 11, FirstName: "Ada"}, {ID: 12, FirstName: "Bob"}}, nil
 		},
-		activitiesEnabled: enabled,
+		activitiesEnabled: activitiesOn,
 		activities: func(_ context.Context, ids []int64, date Date) (map[int64][]PlannedActivity, error) {
 			*asked = append(*asked, ids)
 			if date != today {

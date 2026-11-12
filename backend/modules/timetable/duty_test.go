@@ -87,3 +87,15 @@ func TestOnlyDutiesCarryNoChildren(t *testing.T) {
 		assert.True(t, timetable.GroupTypeHasChildren(kind), kind)
 	}
 }
+
+// TestOfferingTypes pins what counts as an offering a child books (#6487):
+// AG and Extern, never Betreuung or Dienst.
+func TestOfferingTypes(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{timetable.GroupTypeActivity, timetable.GroupTypeExternal} {
+		assert.True(t, timetable.IsOfferingType(kind), kind)
+	}
+	for _, kind := range []string{timetable.GroupTypeCare, timetable.GroupTypeDuty, ""} {
+		assert.False(t, timetable.IsOfferingType(kind), kind)
+	}
+}

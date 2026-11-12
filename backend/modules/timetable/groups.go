@@ -231,6 +231,13 @@ func IsValidGroupType(value string) bool {
 // is a staff task without children.
 func GroupTypeHasChildren(value string) bool { return value != GroupTypeDuty }
 
+// IsOfferingType reports whether blocks of the type are offerings a child
+// books, AG or Extern (#6487). Betreuung (Mittagessen, Frühbetreuung) and
+// Dienst are no offerings.
+func IsOfferingType(value string) bool {
+	return value == GroupTypeActivity || value == GroupTypeExternal
+}
+
 // TemplateShape is what the duty rule (#3822) looks at on a template write.
 // RoomID 0 means no room; the bool fields summarize the roster parts a
 // caller sent, whatever their wire shape.
