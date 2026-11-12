@@ -4601,6 +4601,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (n carePlanPickupChanges) NotifyPickupChangeApproved(ctx context.Context, notice careplan.PickupChangeNotice) error {\n\treturn n.notifier.NotifyPickupChanged(ctx, deliveryContract.PickupChangeReport{TenantID: notice.TenantID, StudentID: notice.StudentID, Date: notice.Date, PickupTime: notice.PickupTime, Withdrawn: notice.Withdrawn, ActorAccountID: notice.ReviewerAccountID, Revision: notice.RequestID})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/carePlanPickupChanges.NotifyPickupChangeApproved",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r carePlanRecords) CreateArrivalException(ctx context.Context, value timetablePorts.CareArrivalException) (timetablePorts.CareArrivalException, error) {\n\tcreated, err := r.capability.CreateArrivalException(ctx, CareArrivalExceptionFromRows(value))\n\treturn CareArrivalExceptionToRows(created), carePlanScheduleError(err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/carePlanRecords.CreateArrivalException",

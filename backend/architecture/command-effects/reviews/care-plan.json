@@ -12580,6 +12580,17 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.carePlanPickupChanges.NotifyPickupChangeApproved",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupChangeNotifier.NotifyPickupChangeApproved",
+      "reason": "Platform protocol participation (durable): care-plan reaches modules/delivery/contract.PickupChangeNotifier.NotifyPickupChanged (delivery-platform) through roots/owners.carePlanPickupChanges.NotifyPickupChangeApproved. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.PickupChangeNotifier.NotifyPickupChanged",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.PickupReviewBlocks.PreviewPickupBlocks",
       "classification": "query",
       "effect": "query",

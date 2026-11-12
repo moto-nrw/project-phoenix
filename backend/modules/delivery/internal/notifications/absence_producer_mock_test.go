@@ -167,6 +167,12 @@ func (s *stubConsent) FilterOptedIn(_ context.Context, _ string, accountIDs []in
 	return out, nil
 }
 
+// FilterDeliverable answers like FilterOptedIn: the stub models consent, not
+// the default-on rule, which TestFilterDeliverable* cover.
+func (s *stubConsent) FilterDeliverable(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	return s.FilterOptedIn(ctx, notificationType, accountIDs)
+}
+
 type absenceWorld struct {
 	notifier *captureNotifier
 	consent  *stubConsent

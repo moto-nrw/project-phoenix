@@ -134,6 +134,31 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	studentAudit peoplePorts.StudentChangeRecorder,
 	options ...CareRequestOption,
 ) carerequests.Service {
+	return buildCareScheduleRequestService(nil, requestRecords, people, arrival, pickup, attendance, pickupAutoExcusal, dayLocker,
+		userContext, emitter, broadcaster, reviewPolicy, permissions, events, logger, studentAudit, options...)
+}
+
+// buildCareScheduleRequestService is the constructor with the staff notice
+// about an approved one-day pickup time (#6855); nil sends none.
+func buildCareScheduleRequestService(
+	pickupChanges careplan.PickupChangeNotifier,
+	requestRecords RequestRecords,
+	people RequestPeople,
+	arrival RequestArrivalPlans,
+	pickup RequestPickupPlans,
+	attendance PickupChangePresence,
+	pickupAutoExcusal careplan.PickupAutoExcusal,
+	dayLocker careplan.CareDayLocker,
+	userContext CareRequestStaff,
+	emitter eventContract.Emitter,
+	broadcaster realtime.Broadcaster,
+	reviewPolicy RequestReviewPolicy,
+	permissions func(context.Context) []string,
+	events peopleValues.ParentRequestEvents,
+	logger *slog.Logger,
+	studentAudit peoplePorts.StudentChangeRecorder,
+	options ...CareRequestOption,
+) carerequests.Service {
 	if reviewPolicy == nil || permissions == nil {
 		panic("care schedule request review policy and request permissions are required")
 	}
@@ -157,7 +182,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		apply(svc)
 	}
 	ledger := NewParentRequestLedger(events)
-	messenger, effects, err := newCareRequestEffects(svc, emitter, broadcaster, ledger, config.shares)
+	messenger, effects, err := newCareRequestEffects(svc, emitter, broadcaster, ledger, config.shares, pickupChanges)
 	if err != nil {
 		panic(fmt.Errorf("care request effects: %w", err))
 	}
@@ -230,8 +255,9 @@ func newCareRequestEffects(
 	broadcaster realtime.Broadcaster,
 	ledger *ParentRequestLedger,
 	shares eventContract.ShareVisibilityResolver,
+	pickupChanges careplan.PickupChangeNotifier,
 ) (compose.RequestMessenger, compose.CareRequestEffects, error) {
-	ports := compose.CareRequestEffectPorts{Records: s.RequestRecords, Students: requestSubmissionAdapter{s}, Shares: shares, Logger: s.Logger}
+	ports := compose.CareRequestEffectPorts{Records: s.RequestRecords, Students: requestSubmissionAdapter{s}, Shares: shares, PickupChanges: pickupChanges, Logger: s.Logger}
 	var messenger compose.RequestMessenger
 	if emitter != nil {
 		messenger = NewExcusedRequestMessenger(emitter)

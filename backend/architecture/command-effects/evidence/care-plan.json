@@ -9193,6 +9193,14 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.carePlanPickupChanges.NotifyPickupChangeApproved",
+      "binding_digest": "6ead813d313dd5c76d641b54c275675a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupChangeNotifier.NotifyPickupChangeApproved",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/contract.PickupChangeNotifier.NotifyPickupChanged",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.PickupReviewBlocks.PreviewPickupBlocks",
       "binding_digest": "856fd4a7a2320af93e7bb86a5321f572",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupReviewBlocks.PreviewPickupBlocks",

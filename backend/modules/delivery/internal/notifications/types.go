@@ -53,6 +53,11 @@ const permissionUsersDelete = "users:delete"
 // TestStaffQualificationNoticeFollowsTheRight pins it to the registry.
 const permissionStaffStammdaten = "staff:stammdaten"
 
+// permissionUsersRead restates the right that opens a child's pickup times:
+// the notice about a changed pickup time goes only to whoever may read them
+// (#6855). TestStudentPickupChangedNoticeFollowsTheRight pins it.
+const permissionUsersRead = "users:read"
+
 // Groups the profile page renders as headings, in this order.
 const (
 	GroupPickup       = "abholung"
@@ -87,6 +92,9 @@ const (
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeStaffParentMessage     = "staff_parent_message"
+	// TypeStudentPickupChanged tells the staff responsible for a child that
+	// its family set, changed or withdrew the pickup time of one day (#6855).
+	TypeStudentPickupChanged = "student_pickup_changed"
 	// TypeStaffMessage is a message from a colleague in the OGS-internal chat
 	// (#2598) — staff to staff, no parent involved.
 	TypeStaffMessage = "staff_message"
@@ -298,6 +306,19 @@ func registerPickupTypes() {
 		Portal:      PortalStaff,
 		TenantGate:  settingRemindersPickupOverdueEnabled,
 		SortOrder:   2,
+	})
+	// A family's change of one day's pickup time is part of the day's work,
+	// not a reminder: it is on until the person switches it off, and only
+	// for whoever may read the child's pickup times (#6855).
+	RegisterType(TypeDefinition{
+		Key:         TypeStudentPickupChanged,
+		Label:       "Geänderte Abholzeit",
+		Description: "Wenn Eltern die Abholzeit eines Kindes aus Ihren Gruppen für einen Tag ändern oder zurücknehmen.",
+		Group:       GroupPickup,
+		Portal:      PortalStaff,
+		Permission:  permissionUsersRead,
+		DefaultOn:   true,
+		SortOrder:   3,
 	})
 }
 

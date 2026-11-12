@@ -13,6 +13,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -54,7 +55,7 @@ func BuildCarePlanRequests(
 	persons peopledirectory.Capability, people PeopleRows, schedules CarePlanSchedules, offerings CarePlanOfferings,
 	enrollment EnrollmentRows, timetableOwner timetable.Capability, settings settingsCompose.BatchSettingsService,
 	audit AuditOwner, services PeopleServices, emitter eventContract.Emitter, caller *CallerRows,
-	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier, documentPermissions carePlanCompose.StudentDocumentPermissions,
+	reviews *ParentRequestReviewPolicy, permissions func(context.Context) []string, absences deliveryCompose.AbsenceNotifier, pickupChanges deliveryContract.PickupChangeNotifier, documentPermissions carePlanCompose.StudentDocumentPermissions,
 ) (CarePlanRequests, error) {
 	shares, err := NewRequestShareVisibility(db)
 	if err != nil {
@@ -71,8 +72,8 @@ func BuildCarePlanRequests(
 		NewParentGuardianPolicy(), pickupPermissions,
 	)
 	requests := CarePlanRequests{
-		CareRequests: NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-			carePlan, persons, schedules.Arrivals, schedules.Pickups, NewLoggedStudentPresence(db, env.Logger),
+		CareRequests: buildCareScheduleRequestService(
+			bindCarePlanPickupChanges(pickupChanges), carePlan, persons, schedules.Arrivals, schedules.Pickups, NewLoggedStudentPresence(db, env.Logger),
 			schedules.AutoExcusal, carePlan, caller, emitter, hub,
 			reviews, permissions, events, env.Logger.With("service", "care-requests"), services.StudentAudit,
 			WithRequestShareVisibility(shares), WithCareRequestToday(env.Today), WithPickupPermissions(pickupPermissions), WithPickupPermissionApprovals(pickupPermissionApprovals),

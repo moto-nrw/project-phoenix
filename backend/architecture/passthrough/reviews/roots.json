@@ -3287,6 +3287,11 @@
     },
     {
       "decision": "0090",
+      "id": "roots/owners/carePlanPickupChanges.NotifyPickupChangeApproved",
+      "reason": "ADR 0075 owner-edge translation: maps Care Plan's one-day pickup notice onto Delivery's pickup change contract (#6855); no decision or SQL."
+    },
+    {
+      "decision": "0090",
       "id": "roots/owners/carePlanRecords.CreateArrivalException",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

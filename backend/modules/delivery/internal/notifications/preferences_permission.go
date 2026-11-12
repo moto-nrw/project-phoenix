@@ -86,3 +86,38 @@ func (s *preferenceService) declineDefaultOnTypes(ctx context.Context, accountID
 	}
 	return nil
 }
+
+func (s *preferenceService) FilterDeliverable(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	def, known := GetType(notificationType)
+	if !known {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+	}
+	if !def.DefaultOn {
+		return s.FilterOptedIn(ctx, notificationType, accountIDs)
+	}
+	remaining, err := s.FilterNotOptedOut(ctx, notificationType, accountIDs)
+	if err != nil || len(remaining) == 0 {
+		return nil, err
+	}
+	return s.filterPermitted(ctx, def.Permission, remaining)
+}
+
+// filterPermitted keeps the accounts that hold the permission in the current
+// school, in one read. Without a reader or a school nobody holds it.
+func (s *preferenceService) filterPermitted(ctx context.Context, permission string, accountIDs []int64) ([]int64, error) {
+	tenantID := tenant.FromContext(ctx)
+	if s.accountPermissions == nil || tenantID <= 0 {
+		return nil, nil
+	}
+	names, err := s.accountPermissions.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, accountIDs, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("load notification permissions: %w", err)
+	}
+	permitted := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if s.permissions.permits(permission, names[accountID]) {
+			permitted = append(permitted, accountID)
+		}
+	}
+	return permitted, nil
+}

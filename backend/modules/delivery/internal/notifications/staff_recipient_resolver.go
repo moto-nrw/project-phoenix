@@ -10,7 +10,8 @@ import (
 
 // StaffRecipientRequest describes a child-related staff notification. The
 // resolver builds recipients from responsibility first, then applies personal
-// consent and the tenant's on-duty rule.
+// consent (FilterDeliverable: opt-in, or default-on with the type's
+// permission) and the tenant's on-duty rule.
 type StaffRecipientRequest struct {
 	StudentIDs         []int64
 	NotificationType   string
@@ -129,7 +130,7 @@ func (r *staffRecipientResolver) Resolve(ctx context.Context, request StaffRecip
 		return nil, nil
 	}
 
-	optedIn, err := r.preferences.FilterOptedIn(ctx, request.NotificationType, sortedAccountIDs(visibleByAccount))
+	optedIn, err := r.preferences.FilterDeliverable(ctx, request.NotificationType, sortedAccountIDs(visibleByAccount))
 	if err != nil {
 		return nil, err
 	}
