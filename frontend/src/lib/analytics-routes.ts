@@ -260,6 +260,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/ferien/kriterien",
   "/ferien/neu",
   "/invite",
+  "/konto",
   "/login",
   "/reset-password",
   "/schliesstage",

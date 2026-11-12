@@ -73,8 +73,12 @@ function LastFile({
           {exportedAtLabel(entry.exportedAt)}
         </span>
       </span>
-      <span className="block text-sm text-gray-500">
-        {byLabel(entry.exportedByYou, entry.exportedByAccount)}
+      <span className="block text-sm wrap-anywhere text-gray-500">
+        {byLabel(
+          entry.exportedByYou,
+          entry.exportedByAccount,
+          entry.exportedByName,
+        )}
       </span>
     </span>
   );
@@ -200,7 +204,7 @@ interface RunTableActions {
   readonly datev: DatevRunStates & { readonly settingsReady: boolean };
   readonly onDownload: (format: RunFileFormat, run: ExportRun) => void;
   readonly onRepeat: (run: ExportRun) => void;
-  /** Further actions of a run, such as its handover (ADR 0217). */
+  /** Further actions of a run, such as its handover (ADR 0218). */
   readonly renderRunActions?: (run: ExportRun) => ReactNode;
 }
 
@@ -495,8 +499,12 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
         <span className="block whitespace-nowrap tabular-nums">
           {exportedAtLabel(entry.exportedAt)}
         </span>
-        <span className="block text-sm text-gray-500">
-          {byLabel(entry.exportedByYou, entry.exportedByAccount)}
+        <span className="block text-sm wrap-anywhere text-gray-500">
+          {byLabel(
+            entry.exportedByYou,
+            entry.exportedByAccount,
+            entry.exportedByName,
+          )}
         </span>
       </span>
     ),

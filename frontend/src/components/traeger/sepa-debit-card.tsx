@@ -186,7 +186,7 @@ export function SepaDebitCard({
     runId,
     label: title === "Lastschrift" ? "diesem Lauf" : title,
   };
-  // Handover of the file to the recipient of the Träger (ADR 0217): a file
+  // Handover of the file to the recipient of the Träger (ADR 0218): a file
   // that arrived counts like a download for the confirmation below.
   const handover = useFinanceHandover((arrived) => {
     if (arrived) {
@@ -291,7 +291,7 @@ export function SepaDebitCard({
         }
         actions={
           pending ? (
-            <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row">
+            <div className="flex w-full max-w-full flex-col flex-wrap gap-2 min-[480px]:w-auto min-[480px]:flex-row">
               <Button
                 type="button"
                 variant="outline"

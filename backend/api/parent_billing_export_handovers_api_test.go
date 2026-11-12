@@ -1,5 +1,5 @@
 // Router-level tests of the handover of finance exports to the recipient of
-// the Träger (#6824, ADR 0217): the recipient without its password, the
+// the Träger (#6824, ADR 0218): the recipient without its password, the
 // rights, a handover that the production address policy refuses for a
 // loopback recipient (a result, not an error), the protocol entry with its
 // handover, the repeat guard and a flat query budget of the recipient page.

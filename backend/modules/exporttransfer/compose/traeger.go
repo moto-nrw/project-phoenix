@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// NewTraegerTransfers builds the Träger scope (ADR 0217) with the production
+// NewTraegerTransfers builds the Träger scope (ADR 0218) with the production
 // transport, public destinations only; tests append the loopback policy.
 func NewTraegerTransfers(cipher exporttransfer.BankDataCipher, logger *slog.Logger, transport ...sftp.Option) (exporttransfer.TraegerTransfers, error) {
 	if cipher == nil {

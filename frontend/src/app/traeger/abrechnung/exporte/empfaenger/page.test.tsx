@@ -4,7 +4,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import type { ExportRecipient } from "~/lib/traeger-export-handovers-api";
 import TraegerExportRecipientPage from "./page";
 
-// The recipient of the finance exports (#6824, ADR 0217): the password is
+// The recipient of the finance exports (#6824, ADR 0218): the password is
 // never shown and only sent when typed, it never follows a changed
 // destination, the removal asks first, and every handover is listed.
 

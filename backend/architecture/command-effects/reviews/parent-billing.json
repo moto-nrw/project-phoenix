@@ -577,6 +577,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingActorNames.TraegerActorNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ExportActorNames.TraegerActorNames",
+      "reason": "Read-only: the export protocol, the runs and the invoice history name the colleagues of the session's Träger (#4693) through Organisation \u0026 Tenancy's names of the Träger memberships, in one statement in the caller's Träger transaction (platform.traeger_member_names answers only for app.current_org_id). No persistent, lock or scope effect.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMemberNames.ListTraegerMemberNames",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.FamiliesWithContracts",
       "classification": "query",
       "effect": "query",
@@ -592,7 +602,7 @@
       "classification": "platform",
       "effect": "durable",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.Handover",
-      "reason": "Platform protocol participation (durable): parent-billing reaches modules/exporttransfer.TraegerTransfers.Transfer (export-transfer) through roots/owners.FinanceExportTransfer.Handover. Export Transfer opens its own Träger transactions for intent, fence and completion and runs the producer and settlement callbacks of parent-billing inside them; transaction, fence and ordering correctness stay with the platform behavior tests (ADR 0098, ADR 0217 section 5).",
+      "reason": "Platform protocol participation (durable): parent-billing reaches modules/exporttransfer.TraegerTransfers.Transfer (export-transfer) through roots/owners.FinanceExportTransfer.Handover. Export Transfer opens its own Träger transactions for intent, fence and completion and runs the producer and settlement callbacks of parent-billing inside them; transaction, fence and ordering correctness stay with the platform behavior tests (ADR 0098, ADR 0218 section 5).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.Transfer",
       "target_owner": "export-transfer"

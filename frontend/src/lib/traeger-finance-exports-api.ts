@@ -130,9 +130,11 @@ export interface ExportProtocolEntry {
   readonly costCenterFallbacks: readonly CostCenterFallback[];
   readonly exportedByYou: boolean;
   readonly exportedByAccount: boolean;
+  /** Name of the exporting account; empty without one (#4693). */
+  readonly exportedByName: string;
   readonly exportedAt: string;
   readonly submittedAt: string | null;
-  /** The handover to the recipient of the Träger (ADR 0217), null for a download. */
+  /** The handover to the recipient of the Träger (ADR 0218), null for a download. */
   readonly handover?: ProtocolHandover | null;
 }
 
@@ -180,6 +182,8 @@ export interface InvoiceStep {
   readonly at: string;
   readonly byYou: boolean;
   readonly byAccount: boolean;
+  /** Name of the account of the step; empty without one (#4693). */
+  readonly accountName: string;
   readonly positions: number;
   readonly note: string;
   readonly file: ExportProtocolEntry | null;
@@ -237,6 +241,7 @@ interface BackendEntry {
   cost_center_fallbacks?: BackendCostCenterFallback[] | null;
   exported_by_account_id: number | null;
   exported_by_you: boolean;
+  exported_by_name?: string | null;
   exported_at: string;
   submitted_at: string | null;
   handover?: {
@@ -274,6 +279,7 @@ interface BackendHistory {
         kind: InvoiceStepKind;
         at: string;
         account_id: number | null;
+        account_name?: string | null;
         by_you: boolean;
         positions?: number;
         note?: string;
@@ -363,6 +369,7 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
     ),
     exportedByYou: entry.exported_by_you,
     exportedByAccount: entry.exported_by_account_id !== null,
+    exportedByName: entry.exported_by_name ?? "",
     exportedAt: entry.exported_at,
     submittedAt: entry.submitted_at,
     handover: entry.handover
@@ -666,6 +673,7 @@ export async function fetchInvoiceHistory(
       at: entry.at,
       byYou: entry.by_you,
       byAccount: entry.account_id !== null,
+      accountName: entry.account_name ?? "",
       positions: entry.positions ?? 0,
       note: entry.note ?? "",
       file: entry.file ? entryFromBackend(entry.file) : null,

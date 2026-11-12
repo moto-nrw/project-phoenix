@@ -13,7 +13,7 @@ import (
 )
 
 // ExportHandoverResource serves the handover of finance exports to the
-// recipient of the Träger (#6824, ADR 0217) at /traeger/finance-handovers:
+// recipient of the Träger (#6824, ADR 0218) at /traeger/finance-handovers:
 // the Sollstellung and the DATEV booking batch behind "Finanz-Export" and
 // the PAIN.008 file behind "Abrechnung", like their downloads. A handover
 // runs outside the request's Träger transaction: the transport commits each

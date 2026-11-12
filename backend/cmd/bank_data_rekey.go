@@ -58,7 +58,7 @@ func runBankDataRekey(cmd *cobra.Command, _ []string) error {
 type bankDataBatch func(ctx context.Context, cursor int64) (scanned, changed int, lastID int64, err error)
 
 // The production CLI and its integration test use the same complete source traversal.
-// The recipient password of Export Transfer's Träger scope (ADR 0217) is a
+// The recipient password of Export Transfer's Träger scope (ADR 0218) is a
 // source of the same Träger, so the per-Träger run of ADR 0183 covers it.
 func runBankDataRekeyJob(ctx context.Context, job parentbilling.BankDataRekey, recipients exporttransfer.RecipientRekey,
 	organizationID int64, batchSize int, output io.Writer,

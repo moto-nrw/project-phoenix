@@ -13,7 +13,7 @@ const { api } = vi.hoisted(() => ({
     fetchCareLetters: vi.fn(),
   },
 }));
-// The recipient of the handover (ADR 0217) is tested on its own.
+// The recipient of the handover (ADR 0218) is tested on its own.
 vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   fetchExportRecipient: () => new Promise(() => undefined),

@@ -81,6 +81,7 @@ type UnitOfWork struct {
 	retryable             func(error) bool
 	acquireLock           func(context.Context, string, bool) error
 	boundStatements       func(context.Context, time.Duration, func(context.Context) error) error
+	boundLocks            func(context.Context, time.Duration, func(context.Context) error) error
 	withoutTx             func(context.Context) context.Context
 	withTenant            func(context.Context, int64) context.Context
 	withTransaction       func(context.Context, any) context.Context
@@ -377,6 +378,11 @@ func observeTransaction(ctx context.Context, result UnitOfWorkResult, err error,
 		Retries:  retries,
 	})
 }
+
+// TransactionResult classifies the error of a finished unit of work: a unit
+// that never started, one whose commit outcome is unknown, or one that rolled
+// back. Only a rollback leaves the database as it was before the unit.
+func TransactionResult(err error) UnitOfWorkResult { return transactionResult(err) }
 
 func transactionResult(err error) UnitOfWorkResult {
 	var notStarted interface{ TransactionNotStarted() }

@@ -579,8 +579,9 @@ export function TraegerShellProvider({
       ),
       mode: "traeger" as const,
       homeUrl: traegerPath("/traeger"),
-      // Kein eigenes Profil: Passwort und Code gehören zum moto-Konto.
-      profileUrl: null,
+      // Die Konto-Seite mit dem eigenen Namen (#4693). Passwort und Code
+      // gehören zum moto-Konto und haben dort keine Karte.
+      profileUrl: traegerPath("/traeger/konto"),
       ...(organizationName ? { brandLabel: organizationName } : {}),
     };
   }, [organizationName, session, sessionStatus, showLogoutError]);

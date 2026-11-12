@@ -479,12 +479,36 @@ func (w guardedWrite) composeWith(t *testing.T, db *bun.DB) []func(*portalCompos
 	return []func(*portalCompose.Dependencies){func(deps *portalCompose.Dependencies) { w.compose(t, db, deps) }}
 }
 
-func (w guardedWrite) withdrawals() []withdrawal {
-	out := make([]withdrawal, 0, len(w.permissions)+3)
+// fullGuardCross says whether write i runs every withdrawal. Portal access,
+// relationship and membership are checked by the shared guard, which every
+// parent write runs behind (TestParentChildWritesRunBehindTheGuard), so their
+// outcome does not depend on the route: every sixth write and each write with
+// a gate of its own run all of them, the others one each in rotation. The
+// full cross of 36 writes held three guard slots for 327 cases (#6784).
+func (w guardedWrite) fullGuardCross(i int) bool { return i%6 == 0 || w.gateAtGuard }
+
+// withdrawals are the changes write i must be refused after: each of its own
+// permissions, which only its route names, and the guard's shared checks.
+func (w guardedWrite) withdrawals(i int) []withdrawal {
+	out := make([]withdrawal, 0, len(w.permissions)+4)
 	for _, permission := range w.permissions {
 		out = append(out, withdrawPermission(permission))
 	}
-	return append(out, withdrawPermission(guardPortalAccess), removeRelationship, withdrawMembership, deleteMembership)
+	shared := []withdrawal{withdrawPermission(guardPortalAccess), removeRelationship, withdrawMembership, deleteMembership}
+	if w.fullGuardCross(i) {
+		return append(out, shared...)
+	}
+	return append(out, shared[i%len(shared)])
+}
+
+// heldWithdrawals are the changes that must wait for write i while it holds
+// the guard.
+func (w guardedWrite) heldWithdrawals(i int) []withdrawal {
+	all := []withdrawal{withdrawPermission(firstOr(w.permissions, guardPortalAccess)), removeRelationship, withdrawMembership, deleteMembership}
+	if w.fullGuardCross(i) {
+		return all
+	}
+	return all[i%len(all) : i%len(all)+1]
 }
 
 func guardRelationshipID(t *testing.T, db *bun.DB, chain testpkg.ParentChain) int64 {
@@ -600,8 +624,8 @@ func awaitAnswer(t *testing.T, done <-chan *httptest.ResponseRecorder, what stri
 	}
 }
 
-func (w guardedWrite) run(t *testing.T, db *bun.DB) {
-	for _, change := range w.withdrawals() {
+func (w guardedWrite) run(t *testing.T, db *bun.DB, i int) {
+	for _, change := range w.withdrawals(i) {
 		change := change
 		t.Run(w.name+"/"+change.name, func(t *testing.T) {
 			// Subtests share the test's school; each has its own family and
@@ -636,7 +660,7 @@ func (w guardedWrite) run(t *testing.T, db *bun.DB) {
 			require.Empty(t, changedTables(before, rig.fingerprint(t, f)), "a refused write changes nothing of the family")
 		})
 	}
-	for _, change := range []withdrawal{withdrawPermission(firstOr(w.permissions, guardPortalAccess)), removeRelationship, withdrawMembership, deleteMembership} {
+	for _, change := range w.heldWithdrawals(i) {
 		t.Run(w.name+"/gesichert vor "+change.name, func(t *testing.T) {
 			// Subtests share the test's school; each has its own family and
 			// sets only switches every route here wants on.
@@ -1059,8 +1083,8 @@ func guardedWrites() []guardedWrite {
 func TestParentChildWritesHoldTheGuardUntilCommit(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	for _, w := range guardedWrites() {
-		w.run(t, db)
+	for i, w := range guardedWrites() {
+		w.run(t, db, i)
 	}
 }
 

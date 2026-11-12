@@ -21,7 +21,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// The Träger scope of Export Transfer (ADR 0217) against PostgreSQL and a
+// The Träger scope of Export Transfer (ADR 0218) against PostgreSQL and a
 // real SFTP counterpart. Each test names the protection it proves; removing
 // that protection turns it red.
 

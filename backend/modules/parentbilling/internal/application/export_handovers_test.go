@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
-// The handover of a finance export (ADR 0217 section 6): the same producer
+// The handover of a finance export (ADR 0218 section 6): the same producer
 // as the download, a repeated content refused before a number is taken, and
 // the outcome settled on the protocol entry the producer wrote.
 

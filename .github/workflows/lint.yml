@@ -151,6 +151,13 @@ jobs:
       # build.yml's binary build, so lint started cold. Keep a source-keyed
       # layer with the last source build as a warm fallback, as test.yml does.
       # The golangci-lint action's own cache key is also immutable per week.
+      # Pull requests only restore. Each pull request run saved about 240 MB
+      # that only its own later runs could read, and those saves pushed
+      # development's entry out of the cache within hours: after the nightly
+      # save at 02:13 every first run of a pull request from 06:49 on linted
+      # cold, 200-310 s against 35 s (#6784, 12.11.2026).
+      # backend-build-cache.yml saves the entry pull requests restore, on each
+      # push to development; its key must stay identical to this one.
       - name: Compute backend lint cache key
         id: lint-cache-key
         env:
@@ -161,7 +168,8 @@ jobs:
           echo "prefix=$LINT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$LINT_CACHE_PREFIX$LINT_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore backend lint cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: lint-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/go-build
@@ -187,6 +195,14 @@ jobs:
           working-directory: backend
           # The step above owns the lint cache.
           skip-cache: true
+      - name: Save backend lint cache
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.lint-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.lint-cache-key.outputs.key }}
 
   frontend-quality:
     name: Frontend quality

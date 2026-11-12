@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
 )
 
-// Transfer hands one finance export of a Träger to its recipient (ADR 0217
+// Transfer hands one finance export of a Träger to its recipient (ADR 0218
 // section 5). Each step commits in its own Träger transaction, apart from
 // any request transaction:
 //
@@ -128,7 +128,7 @@ func (s *TraegerService) send(ctx context.Context, request exporttransfer.Traege
 }
 
 // RecipientRekey re-seals the recipient password of one Träger on the
-// active bank key (ADR 0183 and ADR 0217 section 3). It runs in the
+// active bank key (ADR 0183 and ADR 0218 section 3). It runs in the
 // Träger transaction the maintenance command opens.
 type RecipientRekey struct {
 	Recipients ports.RecipientStore

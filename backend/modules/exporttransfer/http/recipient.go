@@ -1,5 +1,5 @@
 // Package exporttransferhttp serves the recipient of a Träger of Export
-// Transfer's Träger scope (#6824, ADR 0217) in the Träger portal.
+// Transfer's Träger scope (#6824, ADR 0218) in the Träger portal.
 package exporttransferhttp
 
 import (

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/rowstest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// The Träger scope of Export Transfer (#6824, ADR 0217): one recipient per
+// The Träger scope of Export Transfer (#6824, ADR 0218): one recipient per
 // Träger with its own sealed credentials, its own journal and its own Träger
 // transactions. It is a separate capability, so the school scope above keeps
 // its exact behaviour and neither scope can reach the other's target.
@@ -153,7 +153,7 @@ type RecipientRekey interface {
 }
 
 // BankDataCipher seals and opens the recipient password with the bank ring
-// (ADR 0183, ADR 0217 section 3). The marker keeps a health-only cipher
+// (ADR 0183, ADR 0218 section 3). The marker keeps a health-only cipher
 // from satisfying it; the root binds Security Runtime's bank cipher.
 type BankDataCipher interface {
 	BankDataRing()

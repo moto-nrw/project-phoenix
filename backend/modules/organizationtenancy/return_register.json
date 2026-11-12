@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "9b792587c39d086d133425a15c814d52e627ed6cff909d1208869d88604fdb26",
+  "catalogSHA256": "755873e3776bf6cf5a0540686e285dc04caffc40ffb9030ea9d94b9237d5942a",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -6107,6 +6107,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "target_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": [
@@ -17534,7 +17540,7 @@
         "organization"
       ],
       "excludedColumns": {
-        "password_sealed": "Recipient password sealed with the bank key of the deployment; a credential, never opened and never part of any export (ADR 0217 section 3)."
+        "password_sealed": "Recipient password sealed with the bank key of the deployment; a credential, never opened and never part of any export (ADR 0218 section 3)."
       }
     },
     {
@@ -26358,6 +26364,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "display_name",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": [

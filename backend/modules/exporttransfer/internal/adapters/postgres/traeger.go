@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
-// The Träger scope (ADR 0217): config.traeger_export_recipients and
+// The Träger scope (ADR 0218): config.traeger_export_recipients and
 // audit.traeger_export_transfers. Every statement runs in the Träger
 // transaction of the organization it names and filters by that Träger
 // itself: below row level security the filter alone keeps a Träger to its

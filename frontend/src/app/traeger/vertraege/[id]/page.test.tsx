@@ -47,6 +47,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 import TraegerVertragPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const DRAFT: CareContractDetail = {
   id: "7",
@@ -758,28 +762,25 @@ describe("TraegerVertragPage", () => {
         .mockRejectedValueOnce(new ApiError("failed", status));
       api.sendCareContracts.mockResolvedValue({ sent: 1, skipped: [] });
       renderPage();
-      fireEvent.click(
-        await screen.findByRole("button", { name: "Vertrag senden" }),
-      );
-      const code =
-        status === 403 ? "general.permission" : "general.unavailable";
+      const send = await screen.findByRole("button", {
+        name: "Vertrag senden",
+      });
+      resetPageReloads();
+      fireEvent.click(send);
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
+        return;
+      }
       // Anker: der Nachladefehler bestätigt den bereits erfolgten Versand.
       expect(
         await screen.findByText(
-          `${catalogText(code, "die Anzeige des Vertrags")} ${SAVED_BUT_STALE_SUFFIX}`,
+          `${catalogText("general.unavailable", "die Anzeige des Vertrags")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
-      if (status === 403) {
-        expect(screen.queryByText("Vertragsangaben")).not.toBeInTheDocument();
-        expect(screen.queryAllByText("erika@example.org")).toHaveLength(0);
-        expect(screen.queryByTestId("pdf-preview")).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "PDF herunterladen" }),
-        ).not.toBeInTheDocument();
-      } else {
-        expect(screen.getByText("Vertragsangaben")).toBeVisible();
-        expect(screen.getByTestId("pdf-preview")).toBeVisible();
-      }
+      expect(screen.getByText("Vertragsangaben")).toBeVisible();
+      expect(screen.getByTestId("pdf-preview")).toBeVisible();
       expect(api.sendCareContracts).toHaveBeenCalledTimes(1);
     },
   );

@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
-// The ports of the Träger scope (ADR 0217). Every store method runs in the
+// The ports of the Träger scope (ADR 0218). Every store method runs in the
 // Träger transaction of the organization it names and filters by it itself.
 
 // PasswordCipher seals and opens the recipient password with the bank ring

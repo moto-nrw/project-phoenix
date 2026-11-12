@@ -13,6 +13,8 @@ import (
 type TraegerMembership struct {
 	AccountID   int64
 	ActivatedAt *time.Time
+	// DisplayName is the name at the Träger (#4693), empty until set.
+	DisplayName string
 }
 
 // TraegerBueroMemberships are the Organisation & Tenancy membership facts
@@ -32,6 +34,9 @@ type TraegerBueroMemberships interface {
 	// DeactivateTraegerMembership ends an active membership; an inactive
 	// one stays as it is.
 	DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) error
+	// NameTraegerMember sets the name of an active membership (#4693); an
+	// account without one is identityaccess.ErrTraegerMemberNotFound.
+	NameTraegerMember(ctx context.Context, organizationID, accountID int64, name string) error
 }
 
 // TraegerInvitationDelivery queues the mails of the Träger-Büro in the

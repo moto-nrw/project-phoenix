@@ -12,7 +12,7 @@ const traegerExportTransferVersion = "1.15.953"
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerExportTransferVersion,
-		Description: "Export Transfer mit Träger-Scope: Empfänger, Journal und Übergaben im Exportprotokoll (#6824, ADR 0217)",
+		Description: "Export Transfer mit Träger-Scope: Empfänger, Journal und Übergaben im Exportprotokoll (#6824, ADR 0218)",
 		DependsOn: []string{
 			demoVisitorErasureFamilyDebtorNumbersVersion, // the newest migration on development (1.15.951)
 			exportTransferDispatchVersion,                // the school journal and fence this one mirrors
@@ -23,7 +23,7 @@ func init() {
 }
 
 // traegerExportTransferUpSQL adds the Träger scope of Export Transfer
-// (ADR 0217). All three tables follow ADR 0105: organization_id, no
+// (ADR 0218). All three tables follow ADR 0105: organization_id, no
 // tenant_id, FORCE RLS on app.current_org_id, gone with the Träger.
 //
 //   - config.traeger_export_recipients (Export Transfer): the one recipient
@@ -57,7 +57,7 @@ CREATE TABLE config.traeger_export_recipients (
 	CONSTRAINT chk_traeger_export_recipients_password CHECK (password_sealed IS NULL OR octet_length(password_sealed) > 0)
 );
 COMMENT ON TABLE config.traeger_export_recipients IS
-	'The recipient of the finance exports of a Träger (#6824, ADR 0217): SFTP address, user, sealed password, directory and host key fingerprint.';
+	'The recipient of the finance exports of a Träger (#6824, ADR 0218): SFTP address, user, sealed password, directory and host key fingerprint.';
 COMMENT ON COLUMN config.traeger_export_recipients.password_sealed IS
 	'Password sealed with the bank ring, bound to the column and the Träger; never answered, never logged.';
 
@@ -90,7 +90,7 @@ CREATE INDEX idx_traeger_export_transfers_organization ON audit.traeger_export_t
 CREATE INDEX idx_traeger_export_transfers_expiry ON audit.traeger_export_transfers (dispatch_expires_at, id)
 	WHERE dispatch_state IN ('pending', 'dispatching');
 COMMENT ON TABLE audit.traeger_export_transfers IS
-	'Journal of the handovers of finance exports to the recipient of a Träger (#6824, ADR 0217): who, which file, where, outcome; no credentials, no content.';
+	'Journal of the handovers of finance exports to the recipient of a Träger (#6824, ADR 0218): who, which file, where, outcome; no credentials, no content.';
 
 -- The only changes of a committed attempt, as in 1.15.463: claim the fence
 -- once, then settle it once. Both check the Träger of the transaction.
@@ -145,7 +145,7 @@ CREATE TABLE parent_billing.export_file_transfers (
 		(state = 'failed' AND failure_reason <> '' AND settled_at IS NOT NULL))
 );
 COMMENT ON TABLE parent_billing.export_file_transfers IS
-	'Handover of a file of the export protocol to the recipient of the Träger (#6824, ADR 0217): where to, pending until the transfer settles, then transferred or failed with its reason.';
+	'Handover of a file of the export protocol to the recipient of the Träger (#6824, ADR 0218): where to, pending until the transfer settles, then transferred or failed with its reason.';
 
 -- A handover settles once; its file, target and start never change.
 CREATE FUNCTION parent_billing.refuse_export_file_transfer_rewrite() RETURNS trigger
@@ -165,6 +165,27 @@ REVOKE ALL ON FUNCTION parent_billing.refuse_export_file_transfer_rewrite() FROM
 CREATE TRIGGER refuse_parent_billing_export_file_transfer_rewrite
 	BEFORE UPDATE ON parent_billing.export_file_transfers
 	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_export_file_transfer_rewrite();
+
+-- A handover that failed did not arrive: the bookings its DATEV file took
+-- become new again, so the next handover of the run sends them (ADR 0218
+-- section 6). Only a failure releases them; an unknown outcome stays pending
+-- and keeps them, a transferred file keeps them for good. The function runs
+-- as the table owner because the tenant role may not delete bookings itself,
+-- and it deletes only the rows of this file of this Träger.
+CREATE FUNCTION parent_billing.release_failed_handover_bookings() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, parent_billing AS $$
+BEGIN
+	IF NEW.state = 'failed' AND OLD.state = 'pending' THEN
+		DELETE FROM parent_billing.datev_booked_documents
+		WHERE organization_id = NEW.organization_id AND export_file_id = NEW.export_file_id;
+	END IF;
+	RETURN NULL;
+END;
+$$;
+REVOKE ALL ON FUNCTION parent_billing.release_failed_handover_bookings() FROM PUBLIC;
+CREATE TRIGGER release_parent_billing_failed_handover_bookings
+	AFTER UPDATE OF state ON parent_billing.export_file_transfers
+	FOR EACH ROW EXECUTE FUNCTION parent_billing.release_failed_handover_bookings();
 
 ALTER TABLE config.traeger_export_recipients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE config.traeger_export_recipients FORCE ROW LEVEL SECURITY;
@@ -199,6 +220,7 @@ GRANT ALL ON SEQUENCE audit.traeger_export_transfers_id_seq TO phoenix_admin;
 
 const traegerExportTransferDownSQL = `
 DROP TABLE IF EXISTS parent_billing.export_file_transfers;
+DROP FUNCTION IF EXISTS parent_billing.release_failed_handover_bookings();
 DROP FUNCTION IF EXISTS parent_billing.refuse_export_file_transfer_rewrite();
 DROP FUNCTION IF EXISTS audit.complete_traeger_export_transfer(BIGINT, BIGINT, TEXT, BOOLEAN, TEXT);
 DROP FUNCTION IF EXISTS audit.claim_traeger_export_transfer(BIGINT, BIGINT);

@@ -3,12 +3,14 @@ export const codes = [
   "presence.activity_participant_limit_reached",
   "presence.room_capacity_exceeded",
   "presence.statistics_range_invalid",
+  "presence.visit_overlap",
 ] as const;
 
 export const classes = {
   "presence.activity_participant_limit_reached": "business_rejection",
   "presence.room_capacity_exceeded": "business_rejection",
   "presence.statistics_range_invalid": "input",
+  "presence.visit_overlap": "business_rejection",
 } as const;
 
 export const parameters = {
@@ -29,4 +31,9 @@ export const parameters = {
     "free_slots",
   ],
   "presence.statistics_range_invalid": [],
+  "presence.visit_overlap": [
+    "conflicting_visit_id",
+    "conflicting_from",
+    "conflicting_until",
+  ],
 } as const;

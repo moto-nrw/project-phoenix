@@ -102,9 +102,11 @@ func (d traegerInvitationDelivery) DispatchTraegerAccountChange(ctx context.Cont
 
 // TraegerBueroDirectory serves the account management's membership port over
 // Organisation & Tenancy. The membership commands join the account
-// management's administrative transaction.
+// management's administrative transaction; Names sets the name of a
+// membership (#4693).
 type TraegerBueroDirectory struct {
 	Organizations organizationtenancy.Capability
+	Names         organizationtenancy.TraegerMemberNames
 }
 
 var errTraegerBueroDirectoryUnavailable = errors.New("the Träger membership directory is not composed")
@@ -139,7 +141,9 @@ func (d TraegerBueroDirectory) ListActiveTraegerMemberships(ctx context.Context,
 	result := make([]identityBindingPorts.TraegerMembership, 0, len(memberships))
 	for _, membership := range memberships {
 		if membership.Status == organizationtenancy.TraegerMembershipActive {
-			result = append(result, identityBindingPorts.TraegerMembership{AccountID: membership.AccountID, ActivatedAt: membership.ActivatedAt})
+			result = append(result, identityBindingPorts.TraegerMembership{
+				AccountID: membership.AccountID, ActivatedAt: membership.ActivatedAt, DisplayName: membership.DisplayName,
+			})
 		}
 	}
 	return result, nil
@@ -161,6 +165,22 @@ func (d TraegerBueroDirectory) DeactivateTraegerMembership(ctx context.Context, 
 	}
 	_, err := d.Organizations.DeactivateTraegerMembership(ctx, organizationID, accountID)
 	return err
+}
+
+// NameTraegerMember sets the name of an active membership; an account
+// without one is no member of the Träger-Büro.
+func (d TraegerBueroDirectory) NameTraegerMember(ctx context.Context, organizationID, accountID int64, name string) error {
+	if d.Names == nil {
+		return errTraegerBueroDirectoryUnavailable
+	}
+	set, err := d.Names.SetTraegerMemberName(ctx, organizationID, accountID, name)
+	if err != nil {
+		return err
+	}
+	if !set {
+		return identityaccess.ErrTraegerMemberNotFound
+	}
+	return nil
 }
 
 // TraegerAccountLedger appends the account management's entries to the
@@ -187,7 +207,7 @@ func (l TraegerAccountLedger) ListTraegerAccountChanges(ctx context.Context, org
 			ID: change.ID, OccurredAt: change.OccurredAt,
 			TraegerAccountChange: identityaccess.TraegerAccountChange{
 				OrganizationID: organizationID, ActorAccountID: change.ActorAccountID, Action: change.Action,
-				TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail,
+				TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail, TargetName: change.TargetName,
 				RolesBefore: change.RolesBefore, RolesAfter: change.RolesAfter,
 			},
 		})
@@ -202,7 +222,7 @@ func (l TraegerAccountLedger) RecordTraegerAccountChange(ctx context.Context, ch
 	}
 	return l.Command.Append(ctx, &auditModels.TraegerAccountChange{
 		OrganizationID: change.OrganizationID, ActorAccountID: change.ActorAccountID, Action: change.Action,
-		TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail,
+		TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail, TargetName: change.TargetName,
 		RolesBefore: change.RolesBefore, RolesAfter: change.RolesAfter,
 	})
 }

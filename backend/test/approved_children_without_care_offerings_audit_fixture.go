@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/rowstest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

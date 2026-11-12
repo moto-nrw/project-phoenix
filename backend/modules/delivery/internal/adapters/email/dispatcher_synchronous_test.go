@@ -217,6 +217,22 @@ func TestDispatcherDeliverFailsWhenTransportIsUnavailable(t *testing.T) {
 	require.ErrorIs(t, err, mailcontract.ErrDeliveryUnavailable)
 }
 
+// A mailer without a transport answers the first attempt for good: the
+// retries only made the caller wait out the backoff.
+func TestDispatcherDeliverDoesNotRetryAMissingTransport(t *testing.T) {
+	t.Parallel()
+
+	mailer := &synchronousTestMailer{errors: []error{mailcontract.ErrDeliveryUnavailable, mailcontract.ErrDeliveryUnavailable}}
+	req := synchronousTestRequest()
+	req.MaxAttempts = 3
+	req.BackoffPolicy = []time.Duration{time.Hour}
+
+	err := NewDispatcher(mailer, slog.Default()).Deliver(context.Background(), req)
+
+	require.ErrorIs(t, err, mailcontract.ErrDeliveryUnavailable)
+	assert.Equal(t, 1, mailer.Attempts())
+}
+
 func TestDispatcherDeliverConvertsTransportPanicToFailure(t *testing.T) {
 	t.Parallel()
 

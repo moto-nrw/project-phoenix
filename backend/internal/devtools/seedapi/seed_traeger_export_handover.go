@@ -6,7 +6,7 @@ import (
 )
 
 // seedExportHandover enters the recipient of the finance exports of the
-// Träger (#6824, ADR 0217) and hands the Sollstellung of the released
+// Träger (#6824, ADR 0218) and hands the Sollstellung of the released
 // holiday run over once. The recipient is in the documentation range
 // 192.0.2.0/24, which the address policy refuses before any connection: the
 // seed never dials out, and the export page, the protocol and the journal

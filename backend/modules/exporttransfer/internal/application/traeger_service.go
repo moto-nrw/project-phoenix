@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
 )
 
-// TraegerService is the Träger scope of Export Transfer (ADR 0217). It
+// TraegerService is the Träger scope of Export Transfer (ADR 0218). It
 // shares the transport and the fence protocol of the school scope but reads
 // only the recipient of the Träger and writes only the Träger journal.
 type TraegerService struct {

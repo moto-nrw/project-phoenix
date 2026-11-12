@@ -1,6 +1,6 @@
 "use client";
 
-// Empfänger der Finanz-Exporte (#6824, ADR 0217): Wohin moto Sollstellung,
+// Empfänger der Finanz-Exporte (#6824, ADR 0218): Wohin moto Sollstellung,
 // DATEV-Datei und Lastschriftdatei übergibt, mit eigenem Zugang des Trägers.
 // Das Passwort bleibt verschlüsselt und kommt nie zurück. Darunter jeder
 // Versuch einer Übergabe mit seinem Ergebnis. Nur das Recht „Finanz-Export“

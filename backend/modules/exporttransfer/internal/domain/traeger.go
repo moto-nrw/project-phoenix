@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// The Träger scope (ADR 0217): the stored recipient of a Träger and the
+// The Träger scope (ADR 0218): the stored recipient of a Träger and the
 // rules a recipient must meet before anything is saved.
 
 // Recipient field names in form order; the contract publishes the same.

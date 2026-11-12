@@ -65,7 +65,7 @@ func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *Organizatio
 		// suspended, so they go first and by their Träger.
 		// The pushes of the Träger (ADR 0126) are among them.
 		// The recipient and the handover journal of Export Transfer's Träger
-		// scope (ADR 0217) are among them too.
+		// scope (ADR 0218) are among them too.
 		for _, table := range []string{"config.traeger_setting_audit", "config.traeger_setting_values", "platform.push_outbox",
 			"config.traeger_export_recipients", "audit.traeger_export_transfers"} {
 			_, cleanupErr = db.NewDelete().TableExpr(table).Where("organization_id = ?", organization.ID).Exec(ctx)

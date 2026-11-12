@@ -122,6 +122,7 @@ jobs:
               - 'backend/architecture/passthrough/**'
               - 'backend/test/query-budgets/**'
               - 'backend/**/testdata/**'
+              - 'backend/database/audits/*.sql'
               # Shrink-only ratchet registers, read by ./test.
               - 'backend/test/*.json'
               # Read by path from tests in ./test, ./cmd and identityaccess.

@@ -457,6 +457,30 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "binding_digest": "ae88570b9ddd42f6d8d2ff5345ebce2c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.InClassUntilCareDayEnd",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "binding_digest": "262d03851ed6d8bde2b5d7af22cb8856",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "binding_digest": "e8ddb389d3cc155588a78ba95025de58",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.educationRoomDirectory.ListRoomsByID",
       "binding_digest": "adc96c6f4571f296a4707318fa2d57c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.RoomDirectory.ListRoomsByID",

@@ -16,7 +16,7 @@ import (
 
 func TestIsolatedDatabaseSlotsBoundWaitAndRelease(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, 1, maxConcurrentIsolatedTestDatabases, "the production clone cap stays one")
+	require.Equal(t, 2, maxConcurrentIsolatedTestDatabases, "the production clone cap stays two (#6784)")
 	t.Run("free_slot_ignores_expired_context", func(t *testing.T) {
 		ctx, cancel := context.WithDeadline(context.Background(), time.Unix(1, 0))
 		defer cancel()

@@ -169,7 +169,7 @@ func (s *Store) SettleExpired(ctx context.Context, limit int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	// The school journal and the Träger journal (ADR 0217) share the fence
+	// The school journal and the Träger journal (ADR 0218) share the fence
 	// protocol, so one recovery tick settles both.
 	school, err := db.NewRaw(settleExpiredSchoolTransfers, limit).Exec(ctx)
 	if err != nil {

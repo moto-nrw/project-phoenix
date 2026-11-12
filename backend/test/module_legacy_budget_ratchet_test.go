@@ -292,7 +292,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
 // (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
 // comments); modules/careplan/compose stays.
-// ADR 0217: the Träger scope of modules/exporttransfer/compose with its
+// ADR 0218: the Träger scope of modules/exporttransfer/compose with its
 // recipient rekey (+33) and the handovers of modules/parentbilling/compose (+5).
 const moduleComposeBudgetTotal = 13416
 
@@ -356,7 +356,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
 	// less shortened comments and a merged file (-6).
 	"modules/enrollment/compose": 635,
-	// ADR 0217: the Träger scope and the recipient rekey (+33).
+	// ADR 0218: the Träger scope and the recipient rekey (+33).
 	"modules/exporttransfer/compose":               182,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -407,7 +407,7 @@ var moduleComposeBudgets = map[string]int{
 	// the unsubmitted PAIN.008 downloads (+5).
 	// ADR 0191: the constructor of the stored originals of the
 	// Jahresbescheide (+5).
-	// ADR 0217: the handovers of the finance exports (+5).
+	// ADR 0218: the handovers of the finance exports (+5).
 	"modules/parentbilling/compose":               129,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.

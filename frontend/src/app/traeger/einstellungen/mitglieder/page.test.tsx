@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   fetchTraegerBuero: vi.fn(),
   inviteTraegerAccount: vi.fn(),
   changeTraegerRoles: vi.fn(),
+  changeTraegerMemberName: vi.fn(),
   removeTraegerMember: vi.fn(),
   revokeTraegerInvitation: vi.fn(),
   fetchTraegerAccountHistory: vi.fn(),
@@ -32,15 +33,25 @@ vi.mock("next-auth/react", () => ({
 }));
 
 import TraegerAccountsPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const BUERO = {
   members: [
     {
       accountId: "1",
       email: "leitung@traeger.example",
+      name: "Lea Leitung",
       roles: ["leadership", "administration"],
     },
-    { accountId: "2", email: "kasse@traeger.example", roles: ["billing"] },
+    {
+      accountId: "2",
+      email: "kasse@traeger.example",
+      name: "",
+      roles: ["billing"],
+    },
   ],
   invitations: [
     {
@@ -60,6 +71,7 @@ const HISTORY = {
       action: "roles_changed",
       actorEmail: "leitung@traeger.example",
       targetEmail: "kasse@traeger.example",
+      targetName: "",
       rolesBefore: ["read_only"],
       rolesAfter: ["billing"],
     },
@@ -185,6 +197,7 @@ describe("TraegerAccountsPage", () => {
         ...BUERO.members,
         {
           accountId: "3",
+          name: "",
           email: "verwaltung@traeger.example",
           roles: ["administration", "documents"],
         },
@@ -257,6 +270,7 @@ describe("TraegerAccountsPage", () => {
         ...BUERO.members,
         {
           accountId: "3",
+          name: "",
           email: "zweite@traeger.example",
           roles: ["leadership"],
         },
@@ -358,6 +372,92 @@ describe("TraegerAccountsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  // #4693: the name of each person, and a clear hint for one without.
+  it("shows the name of each person and marks a missing one", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("Lea Leitung"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Kein Name")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("kasse@traeger.example")[0]).toBeInTheDocument();
+  });
+
+  it("enters the name of a person and shows it in the row", async () => {
+    const named = { ...BUERO.members[1]!, name: "Karl Kasse" };
+    api.changeTraegerMemberName.mockResolvedValue(named);
+    api.fetchTraegerBuero
+      .mockResolvedValueOnce(BUERO)
+      .mockResolvedValue({ ...BUERO, members: [BUERO.members[0], named] });
+    renderPage();
+
+    await openMenu("kasse@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Namen eintragen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+    expect(
+      await within(dialog).findAllByText("Bitte geben Sie einen Namen ein."),
+    ).not.toHaveLength(0);
+    expect(api.changeTraegerMemberName).not.toHaveBeenCalled();
+
+    fireEvent.change(within(dialog).getByLabelText(/Name/), {
+      target: { value: " Karl Kasse " },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.changeTraegerMemberName).toHaveBeenCalledWith(
+        "2",
+        "Karl Kasse",
+      ),
+    );
+    expect((await screen.findAllByText("Karl Kasse"))[0]).toBeInTheDocument();
+    expect(
+      await screen.findByText("Der Name ist gespeichert."),
+    ).toBeInTheDocument();
+    // The list and the history are read again.
+    await waitFor(() =>
+      expect(api.fetchTraegerAccountHistory).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("offers to change an existing name", async () => {
+    renderPage();
+
+    await openMenu("leitung@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Namen ändern" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Name/)).toHaveValue("Lea Leitung");
+  });
+
+  it("names a changed name in the history", async () => {
+    api.fetchTraegerAccountHistory.mockResolvedValue({
+      entries: [
+        {
+          id: "13",
+          occurredAt: "2026-09-08T15:00:00Z",
+          action: "name_changed",
+          actorEmail: "leitung@traeger.example",
+          targetEmail: "kasse@traeger.example",
+          targetName: "Karl Kasse",
+          rolesBefore: [],
+          rolesAfter: [],
+        },
+      ],
+      hasMore: false,
+    });
+    renderPage();
+
+    expect(
+      (await screen.findAllByText("Name geändert"))[0],
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Neuer Name: Karl Kasse.")[0],
+    ).toBeInTheDocument();
+  });
+
   it("shows no history without the right to manage the accounts", async () => {
     api.fetchTraegerBuero.mockRejectedValue(
       new ApiError("forbidden", 403, { code: "traeger.no_membership" }),
@@ -432,28 +532,23 @@ describe("TraegerAccountsPage", () => {
         await screen.findByRole("menuitem", { name: "Rollen ändern" }),
       );
       expect(await screen.findByRole("dialog")).toBeVisible();
+      resetPageReloads();
       await act(async () => read.reject(new ApiError("failed", status)));
-      const code =
-        status === 403 ? "general.permission" : "general.unavailable";
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        return;
+      }
       // Anker: der Nachladefehler bestätigt den abgeschlossenen Widerruf.
       expect(
         await screen.findByText(
-          `${catalogText(code, "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`,
+          `${catalogText("general.unavailable", "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
-      if (status === 403) {
-        expect(screen.queryAllByText("kasse@traeger.example")).toHaveLength(0);
-        expect(screen.queryAllByText("neu@traeger.example")).toHaveLength(0);
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "Person einladen" }),
-        ).not.toBeInTheDocument();
-      } else {
-        expect(
-          screen.getAllByText("kasse@traeger.example").length,
-        ).toBeGreaterThan(0);
-        expect(screen.getByRole("dialog")).toBeVisible();
-      }
+      expect(
+        screen.getAllByText("kasse@traeger.example").length,
+      ).toBeGreaterThan(0);
+      expect(screen.getByRole("dialog")).toBeVisible();
     },
   );
 

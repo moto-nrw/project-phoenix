@@ -157,7 +157,7 @@ type exportFileListRow struct {
 	NoticeMonth *calendar.Date `bun:"notice_month,type:date,scanonly"`
 	PeriodName  *string        `bun:"period_name,scanonly"`
 	RepeatOf    *int64         `bun:"repeat_of,scanonly"`
-	// The handover of the file (ADR 0217), all nil for a download.
+	// The handover of the file (ADR 0218), all nil for a download.
 	exportFileHandoverColumns
 }
 

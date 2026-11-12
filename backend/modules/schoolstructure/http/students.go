@@ -141,6 +141,10 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 			responses = append(responses, *response)
 		}
 	}
+	if err := rs.endInClassAfterCareDay(r.Context(), responses); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Found %d students in group", len(responses)))
 }

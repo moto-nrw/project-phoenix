@@ -1,6 +1,6 @@
 /**
  * Texts of the handover of finance exports to the recipient of the Träger
- * (#6824, ADR 0217): what each state and each reason code means for the
+ * (#6824, ADR 0218): what each state and each reason code means for the
  * person in the office. The codes are a contract with the backend; the
  * transport's own error never reaches the screen.
  */

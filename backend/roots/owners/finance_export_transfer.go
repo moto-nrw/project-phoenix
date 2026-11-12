@@ -9,7 +9,7 @@ import (
 )
 
 // FinanceExportTransfer binds the Elternabrechnung's handover port to the
-// Träger scope of Export Transfer (#6824, ADR 0217). It translates the two
+// Träger scope of Export Transfer (#6824, ADR 0218). It translates the two
 // vocabularies and decides nothing.
 type FinanceExportTransfer struct {
 	Transfers exporttransfer.TraegerTransfers

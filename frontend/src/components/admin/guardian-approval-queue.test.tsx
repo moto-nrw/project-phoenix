@@ -12,6 +12,10 @@ import type { PendingApproval } from "@/lib/guardian-api";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const { mockToastSuccess, mockToastError, mockShowActionError } = vi.hoisted(
   () => ({
@@ -399,7 +403,8 @@ describe("reload after a write (#6652)", () => {
     expect(write).toHaveBeenCalledTimes(1);
   }
 
-  it("discards remaining approval requests after a refused decision reload", async () => {
+  it("loads the page anew after a refused decision reload", async () => {
+    resetPageReloads();
     mockList
       .mockReset()
       .mockResolvedValueOnce([
@@ -411,18 +416,8 @@ describe("reload after a write (#6652)", () => {
     fireEvent.click(
       (await screen.findAllByRole("button", { name: /Freigeben/ }))[0]!,
     );
-    expect(
-      await screen.findByText(
-        `${catalogText("general.permission", "die Anzeige der Anfragen")} ${SAVED_BUT_STALE_SUFFIX}`,
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText("Petra Lindner")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Freigeben/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/Keine offenen Anfragen/),
-    ).not.toBeInTheDocument();
+    // #6801: the page loads anew; its first load shows the refusal.
+    await expectPageReloadedAfterRefusal();
   });
 
   it("keeps an approved request approved when the reload fails", async () => {

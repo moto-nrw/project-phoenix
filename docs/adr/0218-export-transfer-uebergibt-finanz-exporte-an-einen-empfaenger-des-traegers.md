@@ -156,6 +156,12 @@ Träger-Transaktionen, getrennt von der Anfrage:
 - **Fehlgeschlagen** (Adresse, Fingerabdruck, Anmeldung, Verbindung, Upload,
   Größe, intern): Journal und Protokoll nennen den stabilen Grund. Eine neue
   Übergabe ist ohne `repeat` möglich, weil die Datei nicht angekommen ist.
+  Beim DATEV-Buchungsstapel gibt der Fehlschlag die Buchungen dieser Datei
+  wieder frei: Ein Trigger auf `parent_billing.export_file_transfers` löscht
+  beim Wechsel von `pending` auf `failed` ihre Zeilen in
+  `parent_billing.datev_booked_documents`. Die nächste Übergabe enthält sie
+  wieder, statt mit „keine neuen Buchungen“ zu enden; das Steuerbüro bucht
+  nichts doppelt, weil die fehlgeschlagene Datei nie ankam.
 - **Ungeklärt:** Scheitert der Abschluss nach dem Senden, bleibt die
   Übergabe `pending`. Nach Ablauf des Zauns zeigt das Protokoll „Ergebnis
   unklar“; die Wiederherstellung im Worker setzt das Journal wie im
@@ -209,6 +215,7 @@ Träger-Transaktionen, getrennt von der Anfrage:
 5. Keine Verbindung vor dem Commit von Datei, Protokoll und Vorhaben.
 6. Eine Übergabe gleichen Inhalts wird ohne `repeat` nicht erneut gesendet.
 7. Journal und Protokoll werden in derselben Transaktion abgeschlossen.
+8. Eine fehlgeschlagene DATEV-Übergabe verbraucht keine Buchungen.
 
 Jede Invariante hat einen Test, der ohne den Schutz rot wird; die Belege
 stehen im PR.

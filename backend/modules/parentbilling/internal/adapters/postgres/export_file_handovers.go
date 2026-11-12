@@ -10,7 +10,7 @@ import (
 )
 
 // The handovers of protocol entries to the recipient of the Träger (#6824,
-// ADR 0217). Every statement names the Träger in its own filter, also in
+// ADR 0218). Every statement names the Träger in its own filter, also in
 // its joins: below row level security the filter alone keeps the Träger to
 // its rows.
 

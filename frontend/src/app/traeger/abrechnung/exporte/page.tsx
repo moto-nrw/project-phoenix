@@ -226,7 +226,7 @@ export default function TraegerFinanceExportsPage() {
     void load();
   }, [load]);
 
-  // Handover to the recipient of the Träger (ADR 0217); a handover reloads
+  // Handover to the recipient of the Träger (ADR 0218); a handover reloads
   // the runs and the protocol like a download.
   const handover = useFinanceHandover(
     () => void load(data?.runs.items.length, data?.protocol.items.length),

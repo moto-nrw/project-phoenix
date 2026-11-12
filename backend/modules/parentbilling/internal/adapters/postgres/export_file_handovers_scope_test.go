@@ -13,7 +13,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// The handovers of protocol entries (ADR 0217) keep a Träger to its rows
+// The handovers of protocol entries (ADR 0218) keep a Träger to its rows
 // below row level security: the Träger transaction drops its request role,
 // so each assertion holds only because the adapter names the Träger in its
 // own statement. The other Träger holds a handed over file of the same run
@@ -94,6 +94,58 @@ func TestExportHandoversKeepTheTraegerBelowRLS(t *testing.T) {
 		_, err = tx.ExecContext(ctx, `UPDATE parent_billing.export_file_transfers SET state = 'transferred', failure_reason = ''
 			WHERE organization_id = ? AND export_file_id = ?`, own, ownFirst)
 		require.Error(t, err, "the database keeps a settled handover")
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
+
+// A DATEV file whose handover failed did not arrive: its bookings become new
+// again, so the next handover sends them (ADR 0218 section 6). A file that
+// arrived keeps its bookings, and so does another Träger's file.
+func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	unique := testpkg.UniqueTestTenantID(t)
+	own := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Träger DATEV A", Slug: fmt.Sprintf("handover-datev-a-%d", unique)}).ID
+	store := NewStore()
+	rollback := errors.New("roll the bookings back")
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, own, func(ctx context.Context) error {
+		tx, err := traegerDB(ctx, own)
+		require.NoError(t, err)
+		file := func(number int64) int64 {
+			var id int64
+			require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id,
+				file_name, content_sha256, booking_sha256, invoice_count, total_cents) VALUES (?, ?, 'datev', 'care', 77, ?, repeat('d', 64), repeat('e', 64), 1, 7800)
+				RETURNING id`, own, number, fmt.Sprintf("EXTF_Buchungsstapel_%d.csv", number)).Scan(ctx, &id))
+			return id
+		}
+		failed, arrived := file(5), file(6)
+		// Bookings of invoices this test does not create: written as the table
+		// owner with the keys off; the handover runs as the request role again.
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_invoice_id)
+			VALUES (?, ?, ?), (?, ?, ?)`, own, failed, unique, own, arrived, unique+1)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_tenant`)
+		require.NoError(t, err)
+		for _, id := range []int64{failed, arrived} {
+			require.NoError(t, store.InsertExportFileHandover(ctx, own, id, "kaemmerei.example.org", "/eingang"))
+		}
+		require.NoError(t, store.SettleExportFileHandover(ctx, own, failed, parentbilling.HandoverFailed, "connection_failed"))
+		require.NoError(t, store.SettleExportFileHandover(ctx, own, arrived, parentbilling.HandoverTransferred, ""))
+		booked := func(id int64) int {
+			var n int
+			require.NoError(t, tx.NewRaw(`SELECT COUNT(*) FROM parent_billing.datev_booked_documents WHERE organization_id = ? AND export_file_id = ?`,
+				own, id).Scan(ctx, &n))
+			return n
+		}
+		assert.Zero(t, booked(failed), "a failed handover releases the bookings of its file")
+		assert.Equal(t, 1, booked(arrived), "a file that arrived keeps its bookings")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)

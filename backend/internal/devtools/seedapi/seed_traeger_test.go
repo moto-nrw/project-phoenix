@@ -30,7 +30,11 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	requests := map[string]seedTraegerRequest{}
 	var invitations, assignments, operatorInvitations []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
-		assert.Equal(t, http.MethodPost, r.Method)
+		if r.URL.Path == "/traeger/profile/name" {
+			assert.Equal(t, http.MethodPut, r.Method)
+		} else {
+			assert.Equal(t, http.MethodPost, r.Method)
+		}
 		raw, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		var body map[string]any
@@ -82,6 +86,9 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	login := requests["/traeger/auth/login"]
 	assert.Empty(t, login.authorization, "the Träger sign-in carries no session")
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
+	name := requests["/traeger/profile/name"]
+	assert.Equal(t, "Bearer traeger-token", name.authorization, "the admin names themselves with the Träger session")
+	assert.Equal(t, map[string]any{"name": "Sabine Hartmann"}, name.body)
 	invite := requests["/traeger/accounts/invitations"]
 	assert.Equal(t, "Bearer traeger-token", invite.authorization, "the invitation uses the Träger session")
 	assert.Equal(t, []map[string]any{
@@ -266,7 +273,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		// The Abrechnung maps and downloads the Sollstellung (#4693).
 		"PUT /traeger/finance-exports/settings/sollstellung Bearer traeger-token",
 		"GET /traeger/finance-exports/runs/holiday-runs/9/sollstellung Bearer traeger-token",
-		// It enters the recipient and hands the Sollstellung over (ADR 0217).
+		// It enters the recipient and hands the Sollstellung over (ADR 0218).
 		"PUT /traeger/export-recipient/ Bearer traeger-token",
 		"POST /traeger/finance-handovers/runs/holiday-runs/9/sollstellung Bearer traeger-token",
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
