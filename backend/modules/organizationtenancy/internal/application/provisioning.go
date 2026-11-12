@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports"
 )
 
 // ProvisioningDependencies are the owners operator provisioning (#3253)

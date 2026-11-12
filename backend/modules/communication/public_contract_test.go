@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	compose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	compose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

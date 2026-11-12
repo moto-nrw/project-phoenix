@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

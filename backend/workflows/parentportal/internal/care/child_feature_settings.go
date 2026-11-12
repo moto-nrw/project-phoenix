@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // childFeatureSettings holds the tenant settings behind ChildFeatureFlags,

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 // StaffAppointmentICS renders an appointment the current staff member can see

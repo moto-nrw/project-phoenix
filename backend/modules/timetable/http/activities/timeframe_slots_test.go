@@ -3,7 +3,7 @@ package httpadapter
 import (
 	"testing"
 
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

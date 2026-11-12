@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	sharedcalendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	sharedcalendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrForbiddenGroup indicates that the requested active group is outside the

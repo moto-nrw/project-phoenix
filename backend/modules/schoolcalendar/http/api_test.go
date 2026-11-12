@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

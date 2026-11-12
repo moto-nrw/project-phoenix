@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // Broadcast source labels for the live refresh of a photo change.

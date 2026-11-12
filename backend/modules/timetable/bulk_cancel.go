@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // MaxBulkCancelDays bounds one bulk cancellation (#3594) to a school year,

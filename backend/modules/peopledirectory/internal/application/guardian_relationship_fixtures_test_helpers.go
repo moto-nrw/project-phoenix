@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/parentfixture"
 )
 
 // Preserve the concrete fixture facet while arranging the same application

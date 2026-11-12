@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -5,15 +5,15 @@ import (
 	"errors"
 	"log/slog"
 
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	fileStorage "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	enrollmentModule "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	fileStorage "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	fileStorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // workerFileCleanup adds managed-upload namespaces to the existing bounded,

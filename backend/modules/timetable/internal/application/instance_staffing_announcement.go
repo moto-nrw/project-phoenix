@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+import "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
 // AnnounceStaffingChanged sends one tenant-wide staffing_deviation_changed
 // event through the lifecycle's broadcaster; source names the emitting flow

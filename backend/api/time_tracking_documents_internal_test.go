@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

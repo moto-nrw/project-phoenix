@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // AnnouncementsResource handles user-facing announcements endpoints

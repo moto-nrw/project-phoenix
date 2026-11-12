@@ -3,12 +3,12 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	schoolStructure "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type attendanceEducationGroups struct {

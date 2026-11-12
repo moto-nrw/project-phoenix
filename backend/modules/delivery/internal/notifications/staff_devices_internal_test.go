@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/require"
 )
 

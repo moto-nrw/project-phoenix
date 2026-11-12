@@ -3,7 +3,7 @@ package care
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CareExceptions is the Care Plan read and lock surface of the day

@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/supervisiondashboard"
 )
 
 // OpenRoomDirectory binds the shared-room projection to the public Facilities

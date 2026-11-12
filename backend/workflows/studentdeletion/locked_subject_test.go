@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/require"
 )
 

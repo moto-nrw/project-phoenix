@@ -1,6 +1,6 @@
 # Anwesenheitsrechte und Elternmeldungen einrichten
 
-Gilt für die Umsetzung von [#3180](https://github.com/moto-nrw/project-phoenix/issues/3180).
+Gilt für die Umsetzung von [#3180](https://github.com/moto-ogs/project-phoenix/issues/3180).
 Diese Anleitung schaltet keine Schule um. Alle Beispiele sind synthetisch.
 
 ## Am Berg nach der Auslieferung

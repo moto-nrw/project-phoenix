@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentCapability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 

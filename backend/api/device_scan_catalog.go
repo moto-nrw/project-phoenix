@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 )
 
 func DeviceActivityCatalog(service activityContract.ActivityService) deviceActivityCatalogPort {

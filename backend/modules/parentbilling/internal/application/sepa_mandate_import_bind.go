@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hash/fnv"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // What binds an import to the stored mandates and to the preview the office

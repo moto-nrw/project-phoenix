@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	owner1 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	owner1 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // StudentEnrollmentStatus is the School Membership half of the child's

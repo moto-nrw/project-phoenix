@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 type personRows interface {

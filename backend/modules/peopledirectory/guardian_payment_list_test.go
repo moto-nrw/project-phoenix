@@ -3,7 +3,7 @@ package peopledirectory_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // Every child keeps a line; a missing payer or IBAN is named, and the

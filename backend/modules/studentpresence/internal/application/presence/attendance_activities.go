@@ -3,7 +3,7 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // AttendanceActivityGroups supplies activity templates and dashboard categories.

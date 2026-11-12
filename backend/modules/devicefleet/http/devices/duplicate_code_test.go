@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 // TestRenderErrorNamesTakenDeviceID pins the code and field the device form

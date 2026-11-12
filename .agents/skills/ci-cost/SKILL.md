@@ -2,7 +2,7 @@
 name: ci-cost
 description: Use when changing CI workflows, runners, job splits or shards, CI caches or checkouts, or when the CI bill or a slow pull request run needs investigating. Measures billed vCPU-minutes before and after and applies the cost patterns proven in moto's and t3code's CI.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 
@@ -102,7 +102,7 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
 ## Commands
 
 ```bash
-R=moto-nrw/project-phoenix
+R=moto-ogs/project-phoenix
 # Runs of one workflow in a window
 gh api "repos/$R/actions/workflows/main.yml/runs?created=2026-11-01..2026-11-05&per_page=100" \
   --paginate -q '.workflow_runs[]|select(.conclusion=="success")|.id'

@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/application"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/application"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewDispatchRecovery settles expired one-shot transfer fences on each worker

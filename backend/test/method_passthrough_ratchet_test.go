@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 // TestMethodPassthroughRatchet supplements, not replaces, the ADR 0075 owner

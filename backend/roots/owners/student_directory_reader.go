@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	studentDirectoryView "github.com/moto-ogs/project-phoenix/modules/studentdirectoryview/compose"
 )
 
 // StudentDirectoryReader is the student directory projection the roots bind

@@ -1,6 +1,6 @@
 package postgres
 
-import "github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+import "github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
 
 // The series row mapping between the stored schedule.staff_shift_series
 // columns and the domain rule (#1889, #3820).

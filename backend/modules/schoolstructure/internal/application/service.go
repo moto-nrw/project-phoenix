@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Service is the School Structure capability. It answers structure reads

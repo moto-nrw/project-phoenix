@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	usersRepo "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 	"github.com/uptrace/bun"
 )
 

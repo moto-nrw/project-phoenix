@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // TraegerPhaseCopyStore reads and links the copy of a Träger phase in the

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
 )
 
 type audienceIdentity struct {

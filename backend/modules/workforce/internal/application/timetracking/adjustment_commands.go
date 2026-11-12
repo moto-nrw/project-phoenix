@@ -3,7 +3,7 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *adjustmentCommands) ListAdjustments(ctx context.Context, staffID int64, from, to calendar.Date) (value0 []*StaffBalanceAdjustment, err error) {

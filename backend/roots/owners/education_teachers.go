@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 // EducationTeachers serves the teacher directory of the retained School

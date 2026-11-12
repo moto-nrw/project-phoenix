@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // Pickup permissions (#4780): a signed request that lets a contact person

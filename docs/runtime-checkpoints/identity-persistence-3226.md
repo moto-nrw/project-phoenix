@@ -1,6 +1,6 @@
 # Identity & Access native persistence and token adapter evidence (#3226)
 
-Issue: [#3226](https://github.com/moto-nrw/project-phoenix/issues/3226).
+Issue: [#3226](https://github.com/moto-ogs/project-phoenix/issues/3226).
 Measured locally on 2026-09-21, Go 1.27.0, macOS arm64, PostgreSQL 17.11,
 hermetic test database, sequential concurrency 1, five warmups and 30 measured
 calls per operation. The accepted checkpoint remains #3020; this document does

@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func BindParentRequestShareRecords(source directory.ParentRequestShares) parentportal.RequestShareRecords {

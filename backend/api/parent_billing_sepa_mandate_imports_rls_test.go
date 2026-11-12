@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The payers of a mandate import are the contracts of the Träger only, also

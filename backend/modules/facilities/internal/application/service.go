@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/ports"
 )
 
 // Service answers room reads inside the caller's ambient transaction:

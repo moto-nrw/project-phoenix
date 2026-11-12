@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // This file holds the poll (Umfrage, #1371) half of the staff announcement

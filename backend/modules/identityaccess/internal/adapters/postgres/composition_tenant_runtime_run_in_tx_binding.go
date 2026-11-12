@@ -3,8 +3,8 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func TenantRuntimeRunInTxBinding(ctx context.Context, fn func(context.Context) error, execute0 func(context.Context) context.Context, execute1 func(ctx context.Context, fn func(context.Context) error) error, execute2 func(ctx context.Context, fn func(context.Context) error) error) error {

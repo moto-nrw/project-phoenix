@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,14 +19,14 @@ import (
 	// repositories so the inbox projection, the aggregate badge and the student
 	// card are checked together with the write path.
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
 
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
 
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // assertTeamUnread checks every staff-facing unread surface for one account:

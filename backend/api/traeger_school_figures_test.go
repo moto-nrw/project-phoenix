@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	studentPresenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	studentPresenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // figuresDay is a fixed Berlin day; the owners' reads take the instant.

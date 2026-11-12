@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // MessageThreadView is the parent-facing chat payload: the conversation header

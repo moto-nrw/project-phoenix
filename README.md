@@ -8,9 +8,9 @@
 
 NFC-based student attendance and room management for schools.
 
-[![GitHub Stars](https://img.shields.io/github/stars/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/stargazers)
-[![GitHub Issues](https://img.shields.io/github/issues/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/issues)
-[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/moto-nrw/project-phoenix?style=flat-square)](https://github.com/moto-nrw/project-phoenix/pulls)
+[![GitHub Stars](https://img.shields.io/github/stars/moto-ogs/project-phoenix?style=flat-square)](https://github.com/moto-ogs/project-phoenix/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/moto-ogs/project-phoenix?style=flat-square)](https://github.com/moto-ogs/project-phoenix/issues)
+[![GitHub Pull Requests](https://img.shields.io/github/issues-pr/moto-ogs/project-phoenix?style=flat-square)](https://github.com/moto-ogs/project-phoenix/pulls)
 [![License](https://img.shields.io/badge/License-Source--Available-blue?style=flat-square)](LICENSE)
 [Privacy implementation and operational limits](SECURITY.md#gdpr-compliance)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](CONTRIBUTING.md)
@@ -58,14 +58,14 @@ Project Phoenix is the software behind [**moto**](https://moto-ogs.de), the digi
 
 ## Hardware
 
-The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-nrw/PyrePortal) (Tauri + React). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
+The NFC scanning happens on Raspberry Pi kiosks running [**PyrePortal**](https://github.com/moto-ogs/PyrePortal) (Tauri + React). The kiosks talk to this backend through the device-authenticated `/api/iot/*` API.
 
 ## Quick Start
 
 **Prerequisites:** [Docker](https://docs.docker.com/get-docker/), [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/), and [direnv](https://direnv.net/docs/installation.html). Devbox pins every tool version, so the whole team gets an identical environment.
 
 ```bash
-git clone https://github.com/moto-nrw/project-phoenix.git
+git clone https://github.com/moto-ogs/project-phoenix.git
 cd project-phoenix
 
 direnv allow              # one-time: activates the devbox environment
@@ -129,7 +129,7 @@ This project handles sensitive student data and treats that responsibility as a 
 - [ ] Träger dashboard with cross-school analytics
 - [ ] Push notifications
 
-See the [open issues](https://github.com/moto-nrw/project-phoenix/issues) for everything in flight.
+See the [open issues](https://github.com/moto-ogs/project-phoenix/issues) for everything in flight.
 
 ## Contributing
 
@@ -150,7 +150,7 @@ Distributed under a Source-Available License. See [LICENSE](LICENSE) for more in
 ## Contact
 
 - **Website:** [moto-ogs.de](https://moto-ogs.de)
-- **Issues:** [Report a bug or request a feature](https://github.com/moto-nrw/project-phoenix/issues)
+- **Issues:** [Report a bug or request a feature](https://github.com/moto-ogs/project-phoenix/issues)
 
 ---
 

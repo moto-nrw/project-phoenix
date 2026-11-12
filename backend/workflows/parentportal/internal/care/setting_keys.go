@@ -1,6 +1,6 @@
 package care
 
-import "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+import "github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 
 // These keys and policy values are the guardian workflow's settings protocol.
 // The root binds the port to the tenant registry; no defaults are supplied here.

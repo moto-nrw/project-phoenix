@@ -3,9 +3,9 @@ package studentdeletionhttp
 import (
 	context "context"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // CallerContext is the slice of the Identity & Access caller context the

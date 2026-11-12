@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // areaWithoutShiftType labels shifts that carry no Schichtart, so they still

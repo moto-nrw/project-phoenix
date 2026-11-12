@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
 )
 
 // The leftover gate (#2419 goal 2, "Start = Ende") runs HERE, in the test

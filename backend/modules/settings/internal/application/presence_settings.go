@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // PresenceSettingsSource is the tenant-settings surface the presence adapters read

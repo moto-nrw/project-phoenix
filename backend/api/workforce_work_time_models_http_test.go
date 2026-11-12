@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	worktimemodelsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/worktimemodels"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	worktimemodelsHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/worktimemodels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

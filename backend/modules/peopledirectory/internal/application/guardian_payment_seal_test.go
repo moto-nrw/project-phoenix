@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // contextCipher binds a value to its context like the bank cipher.

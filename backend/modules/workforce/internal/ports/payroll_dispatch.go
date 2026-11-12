@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
 )
 
 // PayrollDispatchStore persists active.payroll_dispatches (#4805) in the

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	staffmessaging "github.com/moto-ogs/project-phoenix/modules/communication/http/staffmessages"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

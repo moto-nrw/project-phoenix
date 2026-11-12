@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 // EducationRooms serves the group service's room directory from the

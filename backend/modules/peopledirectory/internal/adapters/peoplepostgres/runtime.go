@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Runtime is the tenant transaction runtime the retained People Directory

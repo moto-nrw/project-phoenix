@@ -4,8 +4,8 @@ status: accepted
 
 # Betreuungsvertrag und Elternabrechnung sind eigene Owner beim Träger
 
-Entscheidung vom 23.10.2026 zu [#4647](https://github.com/moto-nrw/project-phoenix/issues/4647),
-Etappe 0 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 23.10.2026 zu [#4647](https://github.com/moto-ogs/project-phoenix/issues/4647),
+Etappe 0 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 46 bis 90. Sie baut auf
 [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 und [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md) auf.
@@ -314,7 +314,7 @@ Projektion:      traeger-view       + care-contract, student-presence
 ## Nachtrag 2026-11-08: Kinder in der Familie (E2 Option A, #5918)
 
 Entscheidung des Product Owners vom 06.11.2026 (SJR-Abgleich Zeile 6, E2,
-Kommentar in [#4685](https://github.com/moto-nrw/project-phoenix/issues/4685)).
+Kommentar in [#4685](https://github.com/moto-ogs/project-phoenix/issues/4685)).
 Sie ändert die Geschwisterdefinition aus §4 und ergänzt
 [ADR 0164](0164-ermaessigungen-des-monatsbeitrags-sind-beitragsregeln-des-traegers-mit-nachweis-je-vertrag.md)
 Punkt 4.

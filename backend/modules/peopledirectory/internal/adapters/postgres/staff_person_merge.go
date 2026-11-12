@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *Store) StaffMergePeople(ctx context.Context, schoolID int64, lock bool) ([]peopledirectory.StaffMergePerson, error) {

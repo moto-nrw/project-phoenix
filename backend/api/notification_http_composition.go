@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	notificationsHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/notifications"
 )
 
 // NewNotificationHTTP binds native Delivery capabilities and HTTP runtime.

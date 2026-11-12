@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
 
 // catererRefusals are the refusals only the caterer portal has. They come

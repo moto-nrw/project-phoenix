@@ -45,7 +45,7 @@ test('complete snapshot restores all components and the saved deployment state',
 test('demo deploy pins its backend and frontend images and can restore its own snapshot', t => {
   const f = fixture(t, 'demo');
   writeFileSync(join(f.cwd, 'docker-compose.yml.new'),
-    'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n');
+    'services:\n  server:\n    image: ghcr.io/moto-ogs/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-ogs/phoenix-frontend:demo\n');
   const result = f.run('deploy-remote.sh');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const compose = readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8');
@@ -64,7 +64,7 @@ for (const target of ['staging', 'production']) {
   test(`${target} deploy keeps unprefixed SHA tags for backend and frontend`, t => {
     const f = fixture(t, target);
     writeFileSync(join(f.cwd, 'docker-compose.yml.new'),
-      `services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:${target}\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:${target}\n`);
+      `services:\n  server:\n    image: ghcr.io/moto-ogs/phoenix-server:${target}\n  frontend:\n    image: ghcr.io/moto-ogs/phoenix-frontend:${target}\n`);
     const result = f.run('deploy-remote.sh');
     assert.equal(result.status, 0, result.stdout + result.stderr);
     const compose = readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8');
@@ -73,8 +73,8 @@ for (const target of ['staging', 'production']) {
   });
 }
 
-const demoStack = 'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n' +
-  '  demo-runtime:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n';
+const demoStack = 'services:\n  server:\n    image: ghcr.io/moto-ogs/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-ogs/phoenix-frontend:demo\n' +
+  '  demo-runtime:\n    image: ghcr.io/moto-ogs/phoenix-server:demo\n';
 // server and frontend gate the release; the sidecar follows, recreated because
 // it lives in the network namespace of the server container just replaced.
 const sidecarStart = /^compose up -d --wait --remove-orphans server frontend\ncompose up -d --no-deps --force-recreate demo-runtime$/m;
@@ -88,7 +88,7 @@ test('first demo deploy with the sidecar starts it although the old stack never 
   assert.match(f.calls(), sidecarStart);
   // Same immutable backend revision as the server.
   assert.match(readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8'),
-    /demo-runtime:\n    image: ghcr.io\/moto-nrw\/phoenix-server:demo-bbbbbbb/);
+    /demo-runtime:\n    image: ghcr.io\/moto-ogs\/phoenix-server:demo-bbbbbbb/);
 });
 test('repeated demo deploy stops the sidecar before the snapshot and restarts it', t => {
   const f = fixture(t, 'demo');
@@ -114,8 +114,8 @@ test('repeated demo deploy stops the sidecar before the snapshot and restarts it
 // never has a container; the snapshot pins it to the serving backend image.
 test('deploy snapshots a never-run maintenance job with the server image', t => {
   const f = fixture(t);
-  const stack = 'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:staging\n' +
-    '  bank-data-rekey:\n    image: ghcr.io/moto-nrw/phoenix-server:staging\n';
+  const stack = 'services:\n  server:\n    image: ghcr.io/moto-ogs/phoenix-server:staging\n' +
+    '  bank-data-rekey:\n    image: ghcr.io/moto-ogs/phoenix-server:staging\n';
   writeFileSync(join(f.cwd, 'docker-compose.yml'), stack);
   writeFileSync(join(f.cwd, 'docker-compose.yml.new'), stack);
   const result = f.run('deploy-remote.sh');
@@ -135,8 +135,8 @@ test('deploy keeps the running images under a local tag before pulling', t => {
   const calls = f.calls().trim().split('\n');
   const pull = calls.findIndex(line => line.endsWith(' pull'));
   const image = `sha256:${'1'.repeat(64)}`;
-  for (const tag of ['postgres:moto-release-postgres', 'ghcr.io/moto-nrw/phoenix-server:moto-release-server',
-    'ghcr.io/moto-nrw/phoenix-frontend:moto-release-frontend', 'ghcr.io/moto-nrw/phoenix-server:moto-release-demo-runtime']) {
+  for (const tag of ['postgres:moto-release-postgres', 'ghcr.io/moto-ogs/phoenix-server:moto-release-server',
+    'ghcr.io/moto-ogs/phoenix-frontend:moto-release-frontend', 'ghcr.io/moto-ogs/phoenix-server:moto-release-demo-runtime']) {
     const index = calls.indexOf(`tag ${image} ${tag}`);
     assert.ok(index >= 0 && index < pull, f.calls());
   }

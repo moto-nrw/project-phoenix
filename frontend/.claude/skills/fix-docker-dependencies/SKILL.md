@@ -2,7 +2,7 @@
 name: fix-docker-dependencies
 description: Diagnose and fix "Module not found" errors caused by stale Docker dependency caches. Use when a dependency was added/removed/swapped but the Docker container still has old node_modules.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 

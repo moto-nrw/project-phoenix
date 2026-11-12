@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 )
 
 // newPartialAbsencePreview binds the Timetable partial-absence preview to the

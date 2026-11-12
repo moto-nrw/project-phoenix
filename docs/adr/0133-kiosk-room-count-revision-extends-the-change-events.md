@@ -5,8 +5,8 @@ status: accepted
 # Kiosk room count revision extends the change events
 
 Decision of 2026-10-28 for
-[#5205](https://github.com/moto-nrw/project-phoenix/issues/5205), option A of
-the [decision comment](https://github.com/moto-nrw/project-phoenix/issues/5205):
+[#5205](https://github.com/moto-ogs/project-phoenix/issues/5205), option A of
+the [decision comment](https://github.com/moto-ogs/project-phoenix/issues/5205):
 one revision per room. It extends the append-only change events of
 [ADR 0131](0131-kiosk-count-revision-comes-from-append-only-change-events.md)
 by a room scope that the read resolves, approves two new command-effect diagnostics and one

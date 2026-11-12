@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

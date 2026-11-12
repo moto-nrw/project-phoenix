@@ -12,13 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // A stale offering id (deleted in another tab, #4599) is a refusal the admin

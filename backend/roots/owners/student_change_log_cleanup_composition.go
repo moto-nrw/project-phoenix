@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // NewStudentChangeLogCleanup binds People Directory's change-history retention

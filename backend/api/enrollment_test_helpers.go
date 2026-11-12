@@ -3,9 +3,9 @@
 package api
 
 import (
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // ApprovedOfferingTestProjection exposes the composed read view to API test roots.

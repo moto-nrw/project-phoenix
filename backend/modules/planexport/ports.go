@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 // Consumer-owned ports. Every port reads the tenant from the context and

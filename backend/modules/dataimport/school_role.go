@@ -1,6 +1,6 @@
 package dataimport
 
-import "github.com/moto-nrw/project-phoenix/modules/identityaccess"
+import "github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
 // SchoolRole and SchoolRoleQuery name the owner's public role facts and reads.
 type SchoolRole = identityaccess.SchoolRole

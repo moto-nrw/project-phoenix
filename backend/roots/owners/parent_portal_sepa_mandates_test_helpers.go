@@ -6,8 +6,8 @@ import (
 	"context"
 	"sync"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // ParentMandateTestSettings is the Träger level of the settings as a test

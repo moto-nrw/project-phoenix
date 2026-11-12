@@ -3,8 +3,8 @@ package settingstest
 import (
 	"context"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The settings package still carries the contractual work-schedule rows and

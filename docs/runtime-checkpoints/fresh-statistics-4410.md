@@ -7,7 +7,7 @@ production, workload versions, fixture builders, budgets and comparator
 tolerances stay unchanged.
 
 This is a measurement-series break, not a new checkpoint acceptance. The
-[register](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/runtime-checkpoints.json) retains the
+[register](https://github.com/moto-ogs/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/runtime-checkpoints.json) retains the
 accepted #3019, #3020 and #3021 records and documents the boundary. Their
 original evidence remains valid for its original condition, without an explicit
 fixture `ANALYZE`. Cross-boundary latency claims need a paired bridge or an
@@ -78,7 +78,7 @@ The original six measurements contain no plan probes.
 | B, fresh statistics | 3 | 0, branch never executed | 5.012 | 0.266 |
 
 A reproduces the two-plan pattern from
-[#4401](https://github.com/moto-nrw/project-phoenix/issues/4401#issuecomment-6277821151):
+[#4401](https://github.com/moto-ogs/project-phoenix/issues/4401#issuecomment-6277821151):
 50 memberships × 62 persons, 3,100 profile probes, then a different plan in the
 third run. B keeps the same early-empty plan in all three probes. Its empty
 thread scan ends the join before scanning profiles or persons. This supports

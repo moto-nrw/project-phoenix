@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

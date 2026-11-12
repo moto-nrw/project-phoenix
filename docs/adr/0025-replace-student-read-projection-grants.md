@@ -7,7 +7,7 @@ status: historical
 > Historical record of a completed cutover. The rules that still hold
 > are in [ADR 0066](0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md).
 
-For [#3432](https://github.com/moto-nrw/project-phoenix/issues/3432), permit
+For [#3432](https://github.com/moto-ogs/project-phoenix/issues/3432), permit
 one bounded replacement of the three existing `users.students` read-projection
 grants. Encode the exact replacements in the checker, require a reviewed epoch
 increase, and preserve the compatibility view's row-selection semantics by
@@ -119,12 +119,12 @@ and forbidden-write coverage. Query tests must prove parity with distinct
 profile/membership IDs, missing care rows, missing or deleted memberships,
 parent permissions, cross-tenant access, lock scope and unchanged query budgets.
 
-Coordinate with [#3427](https://github.com/moto-nrw/project-phoenix/issues/3427):
+Coordinate with [#3427](https://github.com/moto-ogs/project-phoenix/issues/3427):
 if it actually removes `care-exit-view` first, migrate only the two remaining
 projections and prove the old care-exit grant is gone. Otherwise migrate the
 existing care-exit package without dissolving it. Do not assume that closing
 #3427 alone proves removal. This work blocks
-[#2760](https://github.com/moto-nrw/project-phoenix/issues/2760), but does not
+[#2760](https://github.com/moto-ogs/project-phoenix/issues/2760), but does not
 perform its DDL or #2759's caller migration.
 
 No `legacy.jsonl` changes, composition growth, write-owner changes, persistent

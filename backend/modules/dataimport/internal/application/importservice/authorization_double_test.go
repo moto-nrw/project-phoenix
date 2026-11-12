@@ -3,7 +3,7 @@ package importpkg
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // importAuthorizationDouble supplies the grant outcomes used by the import

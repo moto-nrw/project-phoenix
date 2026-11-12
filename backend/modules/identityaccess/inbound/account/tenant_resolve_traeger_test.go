@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type traegerSchool struct {

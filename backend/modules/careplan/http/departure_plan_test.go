@@ -3,8 +3,8 @@ package careplanhttp
 import (
 	"testing"
 
-	peopleState "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	dep "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	peopleState "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	dep "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
 )
 

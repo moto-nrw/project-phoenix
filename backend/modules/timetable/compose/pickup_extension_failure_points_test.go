@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Failure points of a weekday pickup extension resolution (#5816). The

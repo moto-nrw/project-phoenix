@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 // NewMembershipTestRepositories composes the People Directory and School

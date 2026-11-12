@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 // Exercise the reported bypass with an actually rebuilt scanner, not a forged
@@ -42,7 +42,7 @@ func TestPassthroughRejectsAPIFilterBypass(t *testing.T) {
 		runGit(t, repo, args...)
 	}
 	tool := filepath.Join(repo, "tool")
-	put("tool/go.mod", "module github.com/moto-nrw/project-phoenix\n\ngo 1.24\n")
+	put("tool/go.mod", "module github.com/moto-ogs/project-phoenix\n\ngo 1.24\n")
 	files, err := filepath.Glob(filepath.Join(packageDir(t), "..", "passthrough", "*.go"))
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestPassthroughRejectsAPIFilterBypass(t *testing.T) {
 		put("tool/architecture/artifacts/"+filepath.Base(file), string(data))
 	}
 	put("tool/main.go", `package main
-import ("os"; "fmt"; "github.com/moto-nrw/project-phoenix/internal/passthrough")
+import ("os"; "fmt"; "github.com/moto-ogs/project-phoenix/internal/passthrough")
 func main() {
  root := os.Args[1]
  f, err := os.Create(root+"/architecture/passthrough.json")

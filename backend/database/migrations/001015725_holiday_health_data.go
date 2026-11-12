@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
 )
 
 const holidayHealthDataVersion = "1.15.725"

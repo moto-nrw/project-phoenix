@@ -3,8 +3,8 @@ package api
 import (
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/objects"
 )
 
 func saveImageUpload(file io.Reader, targetDir, prefix, contentType string) (string, error) {

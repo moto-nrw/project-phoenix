@@ -5,10 +5,10 @@ import (
 
 	chi "github.com/go-chi/chi/v5"
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	collation "github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	collation "github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 type ResourceConfig struct {

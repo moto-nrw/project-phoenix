@@ -7,8 +7,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	users "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // MessageableStaffRepository answers who is a colleague at the current school

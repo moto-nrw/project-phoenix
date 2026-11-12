@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
 )
 
 // NewCorrectionLog serves the direct correction history from the Audit

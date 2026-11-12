@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 
 	"github.com/stretchr/testify/require"
 )
@@ -170,18 +170,18 @@ func TestModuleContractInventoryRejectsStaleOrPrivateEvidence(t *testing.T) {
 	t.Parallel()
 	entry := moduleContractEntry{ContractPackage: "modules/example", TestFile: "modules/example/contract_test.go", Test: "TestContract"}
 	for name, source := range map[string]string{
-		"empty test":        `package example_test; import "github.com/moto-nrw/project-phoenix/modules/example";func TestContract(t *testing.T){}`,
-		"success only":      `package example_test; import "github.com/moto-nrw/project-phoenix/modules/example";func TestContract(t *testing.T){require.NoError(t, call())}`,
-		"method value only": `package example_test; import "github.com/moto-nrw/project-phoenix/modules/example";func TestContract(t *testing.T){require.NotNil(t, module.Read)}`,
+		"empty test":        `package example_test; import "github.com/moto-ogs/project-phoenix/modules/example";func TestContract(t *testing.T){}`,
+		"success only":      `package example_test; import "github.com/moto-ogs/project-phoenix/modules/example";func TestContract(t *testing.T){require.NoError(t, call())}`,
+		"method value only": `package example_test; import "github.com/moto-ogs/project-phoenix/modules/example";func TestContract(t *testing.T){require.NotNil(t, module.Read)}`,
 
-		"private package": `package example_internal; import "github.com/moto-nrw/project-phoenix/modules/example";func TestContract(t *testing.T){}`,
-		"wrong contract":  `package example_test; import "github.com/moto-nrw/project-phoenix/modules/other";func TestContract(t *testing.T){}`,
-		"renamed test":    `package example_test; import "github.com/moto-nrw/project-phoenix/modules/example";func TestRenamed(t *testing.T){}`,
-		"not a Go test":   `package example_test; import "github.com/moto-nrw/project-phoenix/modules/example";func TestContract(){}`,
+		"private package": `package example_internal; import "github.com/moto-ogs/project-phoenix/modules/example";func TestContract(t *testing.T){}`,
+		"wrong contract":  `package example_test; import "github.com/moto-ogs/project-phoenix/modules/other";func TestContract(t *testing.T){}`,
+		"renamed test":    `package example_test; import "github.com/moto-ogs/project-phoenix/modules/example";func TestRenamed(t *testing.T){}`,
+		"not a Go test":   `package example_test; import "github.com/moto-ogs/project-phoenix/modules/example";func TestContract(){}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Error(t, verifyModuleContractTest([]byte(source), entry, "github.com/moto-nrw/project-phoenix"))
+			require.Error(t, verifyModuleContractTest([]byte(source), entry, "github.com/moto-ogs/project-phoenix"))
 		})
 	}
 }
@@ -189,6 +189,6 @@ func TestModuleContractInventoryRejectsStaleOrPrivateEvidence(t *testing.T) {
 func TestModuleContractInventoryAcceptsObservablePublicEvidence(t *testing.T) {
 	t.Parallel()
 	entry := moduleContractEntry{ContractPackage: "modules/example", TestFile: "modules/example/contract_test.go", Test: "TestContract"}
-	source := `package example_test; import "github.com/moto-nrw/project-phoenix/modules/example";func TestContract(t *testing.T){result,err:=module.Read();require.NoError(t,err);require.Equal(t,"expected",result)}`
-	require.NoError(t, verifyModuleContractTest([]byte(source), entry, "github.com/moto-nrw/project-phoenix"))
+	source := `package example_test; import "github.com/moto-ogs/project-phoenix/modules/example";func TestContract(t *testing.T){result,err:=module.Read();require.NoError(t,err);require.Equal(t,"expected",result)}`
+	require.NoError(t, verifyModuleContractTest([]byte(source), entry, "github.com/moto-ogs/project-phoenix"))
 }

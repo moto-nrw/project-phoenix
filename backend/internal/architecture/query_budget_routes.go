@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
+	"github.com/moto-ogs/project-phoenix/architecture/querybudget"
 )
 
 const queryBudgetNonHTTPPath = "architecture/query-budget-non-http.json"

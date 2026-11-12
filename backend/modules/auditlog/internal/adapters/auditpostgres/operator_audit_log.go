@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 // OperatorAuditLogRepository appends and reads the platform-operator action

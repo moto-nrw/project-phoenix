@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // recordingScope records which binding the gate chose; BindTenant refuses a

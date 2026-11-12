@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func newRoomFilterTestTenant(t *testing.T, db *bun.DB) int64 {

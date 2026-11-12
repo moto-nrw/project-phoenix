@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func TestMandatoryReasonPickupChangeAlwaysRequiresAReason(t *testing.T) {

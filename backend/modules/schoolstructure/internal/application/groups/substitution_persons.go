@@ -3,7 +3,7 @@ package groups
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // Person is the display projection of a staff member's person row.

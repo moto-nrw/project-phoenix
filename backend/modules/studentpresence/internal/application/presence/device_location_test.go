@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	activeSvc "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func buildDeviceLocationService(t *testing.T, db *testpkg.DB) activeSvc.Service {
