@@ -47,6 +47,30 @@ func (e *accountIsolationEnv) traegerMember(t *testing.T, prefix string) (int64,
 	return id, address
 }
 
+// traegerParent is active at the test's school and has parents-portal
+// access at its Träger (ADR 0216).
+func (e *accountIsolationEnv) traegerParent(t *testing.T, prefix string) (int64, string) {
+	t.Helper()
+	id, address := e.localAccount(t, prefix)
+	_, err := e.tc.db.NewRaw(`INSERT INTO auth.traeger_parent_access (account_id, organization_id)
+		SELECT ?, organization_id FROM platform.schools WHERE id = ?`, id, e.tenantID).Exec(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := e.tc.db.NewRaw(`DELETE FROM auth.traeger_parent_access WHERE account_id = ?`, id).Exec(context.Background())
+		require.NoError(t, err)
+	})
+	return id, address
+}
+
+// secondFactorGeneration moves with every reset of the account's second factor.
+func (e *accountIsolationEnv) secondFactorGeneration(t *testing.T, accountID int64) int64 {
+	t.Helper()
+	var generation int64
+	require.NoError(t, testpkg.SetupTestDB(t).NewSelect().Column("mfa_reset_generation").TableExpr("auth.accounts").
+		Where("id = ?", accountID).Scan(context.Background(), &generation))
+	return generation
+}
+
 func (e *accountIsolationEnv) storedAddress(t *testing.T, accountID int64) string {
 	t.Helper()
 	var address string
@@ -82,8 +106,9 @@ func TestSchoolAdminCannotChangeLoginAddressOfSharedAccount(t *testing.T) {
 	e := newAccountIsolationEnv(t)
 
 	for name, shared := range map[string]func(*testing.T, string) (int64, string){
-		"another school": e.accountAtBothSchools,
-		"Träger-Büro":    e.traegerMember,
+		"another school":       e.accountAtBothSchools,
+		"Träger-Büro":          e.traegerMember,
+		"Träger parent access": e.traegerParent,
 	} {
 		t.Run(name, func(t *testing.T) {
 			id, address := shared(t, "shared-login-address")
@@ -123,16 +148,19 @@ func TestSchoolAdminCannotResetSecondFactorOfSharedAccount(t *testing.T) {
 	e.tc.resource.MFAService = setupAuthModuleOn(t, e.tc.db).MFA
 
 	for name, shared := range map[string]func(*testing.T, string) (int64, string){
-		"another school": e.accountAtBothSchools,
-		"Träger-Büro":    e.traegerMember,
+		"another school":       e.accountAtBothSchools,
+		"Träger-Büro":          e.traegerMember,
+		"Träger parent access": e.traegerParent,
 	} {
 		t.Run(name, func(t *testing.T) {
 			id, _ := shared(t, "shared-second-factor")
+			before := e.secondFactorGeneration(t, id)
 			rr := e.execute(t, e.claims, http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/mfa", id),
 				map[string]string{"reason": "lost mailbox"})
 
 			requireSharedAccountRefusal(t, rr)
 			assert.Empty(t, e.noticeRecipients(t, "account_mfa_reset", id))
+			assert.Equal(t, before, e.secondFactorGeneration(t, id), "the refused reset leaves the second factor")
 
 			// The override of the administrator's own school stays open.
 			assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d/mfa/override", id),
@@ -147,9 +175,11 @@ func TestSchoolAdminResetsSecondFactorOfOwnAccountAndHolderLearnsOfIt(t *testing
 	// The second-factor routes are served by the composed flows.
 	e.tc.resource.MFAService = setupAuthModuleOn(t, e.tc.db).MFA
 	id, address := e.localAccount(t, "own-second-factor")
+	before := e.secondFactorGeneration(t, id)
 
 	assertAccountActionStatus(t, e, e.claims, http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/mfa", id),
 		map[string]string{"reason": "lost mailbox"}, http.StatusNoContent)
 
 	assert.Equal(t, []string{address}, e.noticeRecipients(t, "account_mfa_reset", id))
+	assert.Greater(t, e.secondFactorGeneration(t, id), before, "the reset reached the account")
 }

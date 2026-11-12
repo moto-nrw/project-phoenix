@@ -23,6 +23,9 @@ type AccountMFARecords interface {
 	// ListActiveTenantIDs returns the schools the account is actively mapped
 	// to (#6862: whether one school alone holds it).
 	ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// HoldsTraegerParentAccess reports parents-portal access at any Träger
+	// (#6862: a further holder of the account).
+	HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error)
 	// AccountBelongsToTenant reports an active school mapping.
 	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	// LockAccountForOverrideWrite takes the account row FOR UPDATE. A

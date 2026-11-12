@@ -212,6 +212,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r *AccountMFARecords) HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn holdsTraegerParentAccess(ctx, db, accountID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.HoldsTraegerParentAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
       "evidence": "func (r *AccountMFARecords) IncrementMFAAttempts(ctx context.Context, accountID int64, threshold int, duration time.Duration) (domain.AccountLockout, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountLockout{}, err\n\t}\n\tvar lockout domain.AccountLockout\n\terr = db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = mfa_attempts + 1,\n mfa_locked_until = CASE WHEN mfa_attempts + 1 \u003e= ? THEN ? ELSE mfa_locked_until END\n WHERE id = ? AND personal_data_erased_at IS NULL\n RETURNING mfa_attempts AS attempts, mfa_locked_until AS locked_until`, threshold, time.Now().Add(duration), accountID).Scan(ctx, \u0026lockout)\n\treturn lockout, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.IncrementMFAAttempts",

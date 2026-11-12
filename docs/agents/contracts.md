@@ -915,9 +915,9 @@ The login address, the name and the second factor belong to the account, not
 to one school. A school administrator (`users:manage`) changes the address
 (`PUT /auth/accounts/{id}`) and resets the second factor
 (`DELETE /auth/accounts/{id}/mfa`) only while their school alone holds the
-account: it is the account's only active school and the account has no
-retained Träger-Büro membership, the rule staff offboarding applies before it
-disables an account (`AccountOwnership` in
+account: it is the account's only active school and the account has neither
+a retained Träger-Büro membership nor parents-portal access at a Träger
+(ADR 0216) (`AccountOwnership` in
 `modules/identityaccess/internal/application/account_ownership.go`). Otherwise
 both answer 403 `identity.account_shared_across_schools`; the school-scoped
 override (`PUT …/mfa/override`) stays open, and the operator changes the rest.

@@ -7,17 +7,18 @@ import (
 	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
-// activeSchools lists the schools an account is actively mapped to.
+// activeSchools lists the schools an account is actively mapped to and
+// reports its parents-portal access at a Träger.
 type activeSchools interface {
 	ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error)
 }
 
 // AccountOwnership decides whether one school alone holds an account
 // (#6862). A school administrator may rewrite what holds for the whole
 // account, its login address and its second factor, only then: an account
-// that is also active at another school or belongs to a Träger-Büro signs
-// in there with the same identity. It is the rule staff offboarding applies
-// before it disables an account.
+// that is also active at another school, belongs to a Träger-Büro or has
+// parents-portal access at a Träger signs in there with the same identity.
 type AccountOwnership struct {
 	schools activeSchools
 	traeger identityPorts.TraegerMemberships
@@ -33,7 +34,8 @@ func NewAccountOwnership(schools activeSchools, traeger identityPorts.TraegerMem
 }
 
 // HeldBySchoolAlone reports whether tenantID is the account's only active
-// school and no Träger membership is retained. An unreadable fact refuses:
+// school, no Träger membership is retained and no Träger gave it
+// parents-portal access. An unreadable fact refuses:
 // without the Träger memberships the rule cannot tell, and says so.
 func (o *AccountOwnership) HeldBySchoolAlone(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	if o == nil || o.traeger == nil {
@@ -50,5 +52,12 @@ func (o *AccountOwnership) HeldBySchoolAlone(ctx context.Context, accountID, ten
 	if err != nil {
 		return false, err
 	}
-	return !retained, nil
+	if retained {
+		return false, nil
+	}
+	parentAccess, err := o.schools.HoldsTraegerParentAccess(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	return !parentAccess, nil
 }
