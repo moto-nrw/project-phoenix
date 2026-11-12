@@ -116,18 +116,26 @@ type TraegerTransferEntry struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// TraegerRecipientPage is the recipient of a Träger with its newest
+// handovers, read in one Träger transaction.
+type TraegerRecipientPage struct {
+	Recipient TraegerRecipient       `json:"recipient"`
+	Handovers []TraegerTransferEntry `json:"handovers"`
+}
+
 // TraegerTransfers is the Träger scope of Export Transfer. Every method
-// opens its own Träger transaction of organizationID and refuses to run
-// inside a school or administrative one.
+// opens its own Träger transaction of organizationID, or joins the one of
+// the same Träger, and refuses to run inside a school or administrative one.
 type TraegerTransfers interface {
-	Recipient(ctx context.Context, organizationID int64) (TraegerRecipient, error)
+	// Recipient answers the recipient and at most journalLimit handovers.
+	Recipient(ctx context.Context, organizationID int64, journalLimit int) (TraegerRecipientPage, error)
 	SaveRecipient(ctx context.Context, organizationID, actorAccountID int64, input TraegerRecipientInput) (TraegerRecipient, error)
-	DeleteRecipient(ctx context.Context, organizationID int64) error
+	// DeleteRecipient removes the recipient and its sealed password and
+	// answers the view without one.
+	DeleteRecipient(ctx context.Context, organizationID int64) (TraegerRecipient, error)
 	// Transfer hands one file over. A recipient that is not ready answers
 	// ReasonNotConfigured without preparing a file.
 	Transfer(ctx context.Context, request TraegerTransferRequest) (Outcome, error)
-	// Journal answers the newest attempts, at most limit.
-	Journal(ctx context.Context, organizationID int64, limit int) ([]TraegerTransferEntry, error)
 }
 
 // RekeyResult counts one batch of the bank-data rekey (ADR 0183).

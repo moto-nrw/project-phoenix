@@ -82,15 +82,23 @@ func (s *TraegerService) view(recipient domain.StoredRecipient, found bool) expo
 	}
 }
 
-// Recipient answers the credential-free view of the recipient.
-func (s *TraegerService) Recipient(ctx context.Context, organizationID int64) (exporttransfer.TraegerRecipient, error) {
-	var view exporttransfer.TraegerRecipient
+// Recipient answers the credential-free view of the recipient and its
+// newest handovers in one Träger transaction.
+func (s *TraegerService) Recipient(ctx context.Context, organizationID int64, journalLimit int) (exporttransfer.TraegerRecipientPage, error) {
+	if journalLimit <= 0 || journalLimit > maxJournalEntries {
+		journalLimit = maxJournalEntries
+	}
+	var page exporttransfer.TraegerRecipientPage
 	err := s.within(ctx, organizationID, func(txCtx context.Context) error {
 		recipient, found, err := s.recipients.Recipient(txCtx, organizationID)
-		view = s.view(recipient, found)
+		if err != nil {
+			return err
+		}
+		rows, err := s.journal.List(txCtx, organizationID, journalLimit)
+		page = exporttransfer.TraegerRecipientPage{Recipient: s.view(recipient, found), Handovers: journalEntries(rows)}
 		return err
 	})
-	return view, err
+	return page, err
 }
 
 // SaveRecipient checks and stores the recipient. The password is sealed
@@ -145,29 +153,27 @@ func (s *TraegerService) sealedPassword(existing domain.StoredRecipient, found b
 }
 
 // DeleteRecipient removes the recipient and its sealed password.
-func (s *TraegerService) DeleteRecipient(ctx context.Context, organizationID int64) error {
-	return s.within(ctx, organizationID, func(txCtx context.Context) error {
-		return s.recipients.DeleteRecipient(txCtx, organizationID)
-	})
-}
-
-// Journal answers the newest handovers of the Träger.
-func (s *TraegerService) Journal(ctx context.Context, organizationID int64, limit int) ([]exporttransfer.TraegerTransferEntry, error) {
-	if limit <= 0 || limit > maxJournalEntries {
-		limit = maxJournalEntries
-	}
-	var entries []exporttransfer.TraegerTransferEntry
+func (s *TraegerService) DeleteRecipient(ctx context.Context, organizationID int64) (exporttransfer.TraegerRecipient, error) {
+	var view exporttransfer.TraegerRecipient
 	err := s.within(ctx, organizationID, func(txCtx context.Context) error {
-		rows, err := s.journal.List(txCtx, organizationID, limit)
-		entries = make([]exporttransfer.TraegerTransferEntry, 0, len(rows))
-		for _, row := range rows {
-			entries = append(entries, exporttransfer.TraegerTransferEntry{ID: row.ID, CreatedAt: row.CreatedAt, Format: row.Format,
-				Filename: row.Filename, ByteSize: row.ByteSize, TargetHost: row.TargetHost, TargetDirectory: row.TargetDirectory,
-				State: journalState(row), Reason: row.Reason})
+		if err := s.recipients.DeleteRecipient(txCtx, organizationID); err != nil {
+			return err
 		}
+		recipient, found, err := s.recipients.Recipient(txCtx, organizationID)
+		view = s.view(recipient, found)
 		return err
 	})
-	return entries, err
+	return view, err
+}
+
+func journalEntries(rows []domain.TraegerJournalRow) []exporttransfer.TraegerTransferEntry {
+	entries := make([]exporttransfer.TraegerTransferEntry, 0, len(rows))
+	for _, row := range rows {
+		entries = append(entries, exporttransfer.TraegerTransferEntry{ID: row.ID, CreatedAt: row.CreatedAt, Format: row.Format,
+			Filename: row.Filename, ByteSize: row.ByteSize, TargetHost: row.TargetHost, TargetDirectory: row.TargetDirectory,
+			State: journalState(row), Reason: row.Reason})
+	}
+	return entries
 }
 
 // journalState names a row: settled, still within its fence, or unknown.

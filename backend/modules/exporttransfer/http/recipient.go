@@ -47,12 +47,6 @@ func (rs *RecipientResource) Router(protectedTraegerRoutes func(chi.Router, func
 	return r
 }
 
-// RecipientPage is the recipient with its newest handovers.
-type RecipientPage struct {
-	Recipient exporttransfer.TraegerRecipient       `json:"recipient"`
-	Handovers []exporttransfer.TraegerTransferEntry `json:"handovers"`
-}
-
 // RecipientRequest is the body of PUT. A missing password keeps the stored
 // one, as long as address, port, user and fingerprint stay.
 type RecipientRequest struct {
@@ -84,17 +78,12 @@ func (rs *RecipientResource) recipient(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	recipient, err := rs.transfers.Recipient(r.Context(), organizationID)
+	page, err := rs.transfers.Recipient(r.Context(), organizationID, journalLimit)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	handovers, err := rs.transfers.Journal(r.Context(), organizationID, journalLimit)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, RecipientPage{Recipient: recipient, Handovers: handovers}, "Export recipient retrieved successfully")
+	common.Respond(w, r, http.StatusOK, page, "Export recipient retrieved successfully")
 }
 
 func (rs *RecipientResource) save(w http.ResponseWriter, r *http.Request) {
@@ -129,9 +118,10 @@ func (rs *RecipientResource) remove(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := rs.transfers.DeleteRecipient(r.Context(), organizationID); err != nil {
+	recipient, err := rs.transfers.DeleteRecipient(r.Context(), organizationID)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, nil, "Export recipient removed successfully")
+	common.Respond(w, r, http.StatusOK, recipient, "Export recipient removed successfully")
 }
