@@ -577,6 +577,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.FamiliesWithContracts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FamilyContracts.FamiliesWithContracts",
+      "reason": "Read of existing contract membership for supplied family addresses through Care Contract in the caller's Träger transaction. It filters by organization, stores nothing and takes no locks; the billing list records its own reads.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.FamiliesWithContracts",
+      "target_owner": "care-contract"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "classification": "leaf",

@@ -113,12 +113,13 @@ func (h *HolidayContributions) HolidayFamilyDebtorNumber(ctx context.Context, re
 // office's choice: FamilyDebtorNumberKeep leaves the family's number,
 // FamilyDebtorNumberReplace takes the new one, no choice is a
 // FamilyDebtorNumberConflict. Only a family that has its number from the
-// registration the office confirms or changes, the first one, takes a
-// correction without a choice (#6692.3); one that has it from another
+// registration the office confirms or changes (correctingID), takes a
+// correction without a choice (#6692.3). A merge passes zero and never
+// corrects an existing number; one that has it from another
 // registration, a sibling's too, or from the list of families does not. The rows are held first, so two
 // confirmations of a family decide one after the other.
 func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer, registrations []parentbilling.HolidayRegistration,
-	number *string, choice string,
+	number *string, choice string, correctingID int64,
 ) error {
 	if number == nil || *number == "" {
 		return nil
@@ -131,16 +132,17 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 	if err != nil {
 		return err
 	}
-	origin := registrations[0].ID
 	var conflicts []parentbilling.FamilyDebtorNumber
 	for _, family := range held {
-		if family.DebtorNumber == "" || family.DebtorNumber == *number || family.DebtorNumberRegistrationID == origin {
+		if family.DebtorNumber == "" || family.DebtorNumber == *number || (correctingID > 0 && family.DebtorNumberRegistrationID == correctingID) {
 			continue
 		}
 		switch choice {
 		case parentbilling.FamilyDebtorNumberReplace:
 		case parentbilling.FamilyDebtorNumberKeep:
-			memories = slices.DeleteFunc(memories, func(memory parentbilling.FamilyMemory) bool { return memory.FamilyEmail == family.FamilyEmail })
+			at := slices.IndexFunc(memories, func(memory parentbilling.FamilyMemory) bool { return memory.FamilyEmail == family.FamilyEmail })
+			// LockFamilies returns only the requested family keys.
+			memories[at].DebtorNumber = nil
 		default:
 			conflicts = append(conflicts, parentbilling.FamilyDebtorNumber{FamilyEmail: family.FamilyEmail, DebtorNumber: family.DebtorNumber})
 		}

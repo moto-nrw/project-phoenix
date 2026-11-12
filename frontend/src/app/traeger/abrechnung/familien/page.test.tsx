@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { DESKTOP_WIDTH, setViewportWidth } from "~/test/helpers/viewport";
 import type { BillingFamily } from "~/lib/traeger-billing-families-api";
 
 const { api, mockPush } = vi.hoisted(() => ({
@@ -189,6 +190,26 @@ describe("TraegerBillingFamiliesPage", () => {
     expect(row).not.toHaveClass("cursor-pointer");
   });
 
+  it.each([320, 1440])(
+    "offers number entry through the row menu at %s px without opening the family",
+    async (width) => {
+      setViewportWidth(width);
+      onTestFinished(() => setViewportWidth(DESKTOP_WIDTH));
+      api.fetchBillingFamilies.mockResolvedValue([BERGER]);
+      renderPage();
+      await screen.findAllByText("Tom Berger");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Aktionen für Tom Berger" }),
+      );
+      expect(mockPush).not.toHaveBeenCalled();
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Debitorennummer eintragen" }),
+      );
+      expect(await screen.findByLabelText("Debitorennummer")).toHaveValue("");
+      expect(mockPush).not.toHaveBeenCalled();
+    },
+  );
+
   it("changes the debtor number of a family in its cell", async () => {
     api.fetchBillingFamilies.mockResolvedValue([MAIER]);
     api.setFamilyDebtorNumber.mockResolvedValue("20 816");
@@ -197,8 +218,11 @@ describe("TraegerBillingFamiliesPage", () => {
     await screen.findAllByText("Petra Maier");
     fireEvent.click(
       screen.getAllByRole("button", {
-        name: "Debitorennummer von Petra Maier ändern",
+        name: "Aktionen für Petra Maier",
       })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Debitorennummer ändern" }),
     );
     const field = await screen.findByLabelText("Debitorennummer");
     expect(field).toHaveValue("20 815");
@@ -222,9 +246,16 @@ describe("TraegerBillingFamiliesPage", () => {
     await screen.findAllByText("Tom Berger");
     expect(
       screen.getAllByRole("button", {
-        name: "Debitorennummer für Tom Berger eintragen",
+        name: "Aktionen für Tom Berger",
       })[0],
-    ).toHaveTextContent("Eintragen");
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Tom Berger" }),
+    );
+    expect(
+      screen.getByRole("menuitem", { name: "Debitorennummer eintragen" }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(
       screen.getByRole("button", {
         name: "Familien ohne Debitorennummer zeigen",
@@ -250,8 +281,11 @@ describe("TraegerBillingFamiliesPage", () => {
     await waitFor(() => expect(api.fetchDebtorNumberFormat).toHaveBeenCalled());
     fireEvent.click(
       screen.getAllByRole("button", {
-        name: "Debitorennummer von Petra Maier ändern",
+        name: "Aktionen für Petra Maier",
       })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Debitorennummer ändern" }),
     );
     const field = await screen.findByLabelText("Debitorennummer");
     await waitFor(() => expect(field).toHaveAttribute("inputmode", "numeric"));

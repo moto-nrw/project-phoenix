@@ -19,12 +19,9 @@ type FamilyStore interface {
 	// InsertRunEvents appends one entry to the trail of each holiday run and
 	// of each monthly run, in one statement.
 	InsertRunEvents(ctx context.Context, organizationID, accountID int64, action string, holiday, care map[int64]map[string]any) error
-	// ReadListedFamilies records the read of the list in one statement: an
-	// entry in the trail of each run (holiday, care) and in the trail of each
-	// family row the list shows, which it answers: a row of a family with a
-	// document (documentKeys), a row without a contract and a row with a
-	// number (#6692).
-	ReadListedFamilies(ctx context.Context, organizationID, accountID int64, holiday, care map[int64]map[string]any, documentKeys []string) ([]parentbilling.FamilyBilling, error)
+	// ReadListedFamilies reads documents and family rows, recording their
+	// reads together in one statement.
+	ReadListedFamilies(ctx context.Context, organizationID, accountID int64) ([]parentbilling.BillingFamilyDocument, []parentbilling.FamilyBilling, error)
 	FamilyBillingOf(ctx context.Context, organizationID int64, familyEmail string) (*parentbilling.FamilyBilling, error)
 	// FamilyHasDocuments reports whether a document of the Träger belongs
 	// to the family.
@@ -37,8 +34,9 @@ type FamilyStore interface {
 
 // BillingFamilies serves parentbilling.BillingFamilies (#4691).
 type BillingFamilies struct {
-	store   FamilyStore
-	formats parentbilling.DebtorNumberFormats
+	store     FamilyStore
+	contracts parentbilling.FamilyContracts
+	formats   parentbilling.DebtorNumberFormats
 	// today is the Berlin day a number set in the list is needed from.
 	today func() calendar.Date
 }
@@ -47,14 +45,14 @@ var _ parentbilling.BillingFamilies = (*BillingFamilies)(nil)
 
 // NewBillingFamilies builds the view of the families over the format of the
 // Träger's debtor numbers (#6675); a nil today uses the Berlin day.
-func NewBillingFamilies(store FamilyStore, formats parentbilling.DebtorNumberFormats, today func() calendar.Date) *BillingFamilies {
-	if store == nil || formats == nil {
-		panic("parent billing: the store and the debtor number format are required")
+func NewBillingFamilies(store FamilyStore, contracts parentbilling.FamilyContracts, formats parentbilling.DebtorNumberFormats, today func() calendar.Date) *BillingFamilies {
+	if store == nil || contracts == nil || formats == nil {
+		panic("parent billing: the store, the family contracts and the debtor number format are required")
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &BillingFamilies{store: store, formats: formats, today: today}
+	return &BillingFamilies{store: store, contracts: contracts, formats: formats, today: today}
 }
 
 // ListBillingFamilies lists the families of the Träger by name and records
@@ -63,21 +61,27 @@ func (f *BillingFamilies) ListBillingFamilies(ctx context.Context, reviewer pare
 	if err := validReviewer(reviewer); err != nil {
 		return nil, err
 	}
-	documents, err := f.store.FamilyDocuments(ctx, reviewer.OrganizationID, 0)
+	documents, rows, err := f.store.ReadListedFamilies(ctx, reviewer.OrganizationID, reviewer.AccountID)
 	if err != nil {
-		return nil, fmt.Errorf("parent billing: read family documents: %w", err)
+		return nil, fmt.Errorf("parent billing: read families and record their reads: %w", err)
 	}
 	details := familiesOf(documents)
-	keys := make([]string, len(details))
-	for i, detail := range details {
-		keys[i] = detail.FamilyEmail
+	keys := make([]string, 0, len(details)+len(rows))
+	for _, detail := range details {
+		keys = append(keys, detail.FamilyEmail)
 	}
-	holiday, care := readEvents(documents, map[string]any{"view": "families"})
-	rows, err := f.store.ReadListedFamilies(ctx, reviewer.OrganizationID, reviewer.AccountID, holiday, care, keys)
+	for _, row := range rows {
+		keys = append(keys, row.FamilyEmail)
+	}
+	contracted, err := f.contracts.FamiliesWithContracts(ctx, reviewer.OrganizationID, keys)
 	if err != nil {
-		return nil, fmt.Errorf("parent billing: read the families and record the read: %w", err)
+		return nil, fmt.Errorf("parent billing: read family contracts: %w", err)
 	}
-	families := withFamilyRows(details, rows)
+	contracts := make(map[string]bool, len(contracted))
+	for _, key := range contracted {
+		contracts[key] = true
+	}
+	families := withFamilyRows(details, rows, contracts)
 	slices.SortStableFunc(families, func(a, b parentbilling.BillingFamily) int {
 		for _, order := range []int{
 			strings.Compare(strings.ToLower(a.RecipientLastName), strings.ToLower(b.RecipientLastName)),
@@ -123,7 +127,11 @@ func (f *BillingFamilies) BillingFamily(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.BillingFamilyDetail{}, fmt.Errorf("parent billing: read the family's number: %w", err)
 	}
-	family.BillingFamily = withFamilyRow(family.BillingFamily, family.Documents, row)
+	contracted, err := f.contracts.FamiliesWithContracts(ctx, reviewer.OrganizationID, []string{family.FamilyEmail})
+	if err != nil {
+		return parentbilling.BillingFamilyDetail{}, fmt.Errorf("parent billing: read family contracts: %w", err)
+	}
+	family.BillingFamily = withFamilyRow(family.BillingFamily, family.Documents, row, slices.Contains(contracted, family.FamilyEmail))
 	if row != nil {
 		if err := f.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead,
 			[]parentbilling.FamilyBilling{*row}); err != nil {
@@ -335,7 +343,7 @@ func paymentOrder(kind string) string {
 // whether they are known to the holiday care only (#6692), and lists the
 // families without a document: one the holiday care knows, or one with a
 // number of its own.
-func withFamilyRows(details []parentbilling.BillingFamilyDetail, rows []parentbilling.FamilyBilling) []parentbilling.BillingFamily {
+func withFamilyRows(details []parentbilling.BillingFamilyDetail, rows []parentbilling.FamilyBilling, contracts map[string]bool) []parentbilling.BillingFamily {
 	byKey := make(map[string]*parentbilling.FamilyBilling, len(rows))
 	for i := range rows {
 		byKey[rows[i].FamilyEmail] = &rows[i]
@@ -343,7 +351,7 @@ func withFamilyRows(details []parentbilling.BillingFamilyDetail, rows []parentbi
 	families := make([]parentbilling.BillingFamily, 0, len(details)+len(rows))
 	listed := make(map[string]bool, len(details))
 	for _, detail := range details {
-		families = append(families, withFamilyRow(detail.BillingFamily, detail.Documents, byKey[detail.FamilyEmail]))
+		families = append(families, withFamilyRow(detail.BillingFamily, detail.Documents, byKey[detail.FamilyEmail], contracts[detail.FamilyEmail]))
 		listed[detail.FamilyEmail] = true
 	}
 	for _, row := range rows {
@@ -357,7 +365,7 @@ func withFamilyRows(details []parentbilling.BillingFamilyDetail, rows []parentbi
 		families = append(families, parentbilling.BillingFamily{
 			RecipientFirstName: first, RecipientLastName: last, RecipientEmail: row.FamilyEmail,
 			DebtorNumbers: []string{}, Payments: []parentbilling.BillingPayment{}, PaymentMethods: []string{},
-			FamilyEmail: row.FamilyEmail, FamilyDebtorNumber: row.DebtorNumber, HolidayOnly: row.ContractID == 0,
+			FamilyEmail: row.FamilyEmail, FamilyDebtorNumber: row.DebtorNumber, HolidayOnly: !contracts[row.FamilyEmail],
 		})
 	}
 	return families
@@ -365,11 +373,11 @@ func withFamilyRows(details []parentbilling.BillingFamilyDetail, rows []parentbi
 
 // withFamilyRow sets the family's own number and whether no care contract
 // and no monthly invoice name it.
-func withFamilyRow(family parentbilling.BillingFamily, documents []parentbilling.BillingFamilyDocument, row *parentbilling.FamilyBilling) parentbilling.BillingFamily {
+func withFamilyRow(family parentbilling.BillingFamily, documents []parentbilling.BillingFamilyDocument, row *parentbilling.FamilyBilling, hasContract bool) parentbilling.BillingFamily {
 	care := slices.ContainsFunc(documents, func(document parentbilling.BillingFamilyDocument) bool {
 		return document.Service == parentbilling.ServiceCare
 	})
-	family.HolidayOnly = !care && (row == nil || row.ContractID == 0)
+	family.HolidayOnly = !care && !hasContract
 	if row != nil {
 		family.FamilyDebtorNumber = row.DebtorNumber
 	}

@@ -20,6 +20,12 @@ import (
 // change. The payer choice of #4689 replaces the address as the key in one
 // place, the store's grouping.
 
+// FamilyContracts resolves existing care contracts for a set of family
+// addresses in the caller's Träger transaction. The root binds the port.
+type FamilyContracts interface {
+	FamiliesWithContracts(ctx context.Context, organizationID int64, emails []string) ([]string, error)
+}
+
 // Who pays an invoice, from its positions.
 const (
 	// PaymentFamily is an invoice the family pays itself.

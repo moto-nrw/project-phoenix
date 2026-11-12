@@ -9,7 +9,7 @@
 // mit dem Recht „Abrechnung“ sieht die Seite. Ein Klick öffnet die Familie.
 // Seit #6692 stehen hier auch Familien, die nur zur Ferienbetreuung
 // angemeldet sind, schon vor der ersten Rechnung. Jede Familie hat ihre
-// Debitorennummer; das Büro ändert sie mit dem Stift in ihrer Zelle. Die
+// Debitorennummer; das Büro ändert sie über das Menü in ihrer Zelle. Die
 // Nummer prüft das Format des Trägers (#6675).
 
 import { Pencil, Plus } from "lucide-react";
@@ -35,6 +35,7 @@ import { useDebtorNumberFormat } from "~/components/traeger/use-debtor-number-fo
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import NavigationLink from "~/components/ui/navigation-link";
 import type {
   ActiveFilter,
@@ -91,11 +92,8 @@ function otherInvoiceNumbers(family: BillingFamily): string[] {
 }
 
 /**
- * The family's own number with its change button in place (#6692); numbers
- * that only older invoices carry stand below it. The button sits at the
- * same place in every row, whatever the length of the number; a family
- * without a number shows „–“ and „Eintragen“. The button keeps the
- * row click from opening the family.
+ * The family's number and its row menu (#6692). Historical invoice numbers
+ * stand below it; an absent family number shows „–“.
  */
 function DebtorCell({
   family,
@@ -119,41 +117,33 @@ function DebtorCell({
         ) : (
           <span className="block text-sm text-gray-400">–</span>
         )}
-        <span data-row-control className="shrink-0">
-          {number ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={`Debitorennummer von ${name} ändern`}
-              tooltip="Debitorennummer ändern"
-              onClick={(event) => {
-                event.stopPropagation();
-                onChange(family);
-              }}
-            >
-              <Pencil aria-hidden="true" className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              aria-label={`Debitorennummer für ${name} eintragen`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onChange(family);
-              }}
-            >
-              <Plus aria-hidden="true" className="h-4 w-4" />
-              Eintragen
-            </Button>
-          )}
+        <span
+          data-row-control
+          role="presentation"
+          className="shrink-0"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <OverflowMenu
+            ariaLabel={`Aktionen für ${name}`}
+            items={[
+              {
+                label: number
+                  ? "Debitorennummer ändern"
+                  : "Debitorennummer eintragen",
+                icon: number ? (
+                  <Pencil aria-hidden="true" className="h-4 w-4" />
+                ) : (
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                ),
+                onClick: () => onChange(family),
+              },
+            ]}
+          />
         </span>
       </span>
       {others.length > 0 ? (
-        // On a phone the line wraps below the number instead of widening
-        // the cell, so the pencil stays next to the number in every row.
+        // Historical numbers wrap within the available width on phones.
         <span className="block text-xs wrap-anywhere text-gray-500 max-sm:w-0 max-sm:min-w-full">
           Auf Rechnungen:{" "}
           <span className="font-medium text-gray-700 tabular-nums">
@@ -212,6 +202,15 @@ function familyColumns(
     {
       key: "debtor",
       header: "Debitorennummer",
+      stackedLabel: false,
+      stackedRender: (family) => (
+        <span className="block min-w-0">
+          <span className="block text-xs wrap-anywhere text-gray-500">
+            Debitorennummer
+          </span>
+          <DebtorCell family={family} onChange={onChangeNumber} />
+        </span>
+      ),
       sortValue: (family) => family.familyDebtorNumber || null,
       render: (family) => (
         <DebtorCell family={family} onChange={onChangeNumber} />

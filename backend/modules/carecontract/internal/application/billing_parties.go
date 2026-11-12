@@ -3,12 +3,14 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 )
 
 // PartyStore reads the parties of contracts in the caller's Träger unit.
 type PartyStore interface {
+	ContractFamilyEmails(ctx context.Context, organizationID int64, emails []string) ([]string, error)
 	PartiesOf(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64][]carecontract.Party, error)
 }
 
@@ -64,4 +66,29 @@ func billingRecipient(parties []carecontract.Party) carecontract.Party {
 		}
 	}
 	return parties[0]
+}
+
+// FamiliesWithContracts normalizes family addresses and checks their contract
+// membership in one read in the caller's Träger transaction.
+func (b *BillingReads) FamiliesWithContracts(ctx context.Context, organizationID int64, emails []string) ([]string, error) {
+	if organizationID <= 0 {
+		return nil, &carecontract.ValidationError{Fields: map[string]string{"organization": "required"}}
+	}
+	keys := make([]string, 0, len(emails))
+	seen := make(map[string]bool, len(emails))
+	for _, email := range emails {
+		key := strings.ToLower(strings.TrimSpace(email))
+		if key != "" && !seen[key] {
+			keys = append(keys, key)
+			seen[key] = true
+		}
+	}
+	if len(keys) == 0 {
+		return []string{}, nil
+	}
+	families, err := b.parties.ContractFamilyEmails(ctx, organizationID, keys)
+	if err != nil {
+		return nil, fmt.Errorf("care contract: read families with contracts: %w", err)
+	}
+	return families, nil
 }

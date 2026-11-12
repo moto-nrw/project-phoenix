@@ -88,7 +88,7 @@ func (h *HolidayContributions) ChangeHolidayDebtorNumber(ctx context.Context, re
 	// registration leaves the family's.
 	if registration.DebtorNumber != "" {
 		number := registration.DebtorNumber
-		if err := h.rememberFamilies(ctx, reviewer, holders, &number, familyChoice); err != nil {
+		if err := h.rememberFamilies(ctx, reviewer, holders, &number, familyChoice, registration.ID); err != nil {
 			return parentbilling.HolidayDebtorNumber{}, err
 		}
 	}

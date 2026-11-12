@@ -457,6 +457,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.FamiliesWithContracts",
+      "binding_digest": "50b3ccc5788d79259fb217c9776516ee",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FamilyContracts.FamiliesWithContracts",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.FamiliesWithContracts",
+      "target_owner": "care-contract"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "binding_digest": "e4e8a4e182c95b65aee0af7bee7b381f",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",
