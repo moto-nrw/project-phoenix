@@ -70,7 +70,7 @@ function OverviewTab({
           hint="Kinder, die gerade in der Schule sind."
           icon={<MotoConceptIcon concept={presentConcept} />}
           loading={loading}
-          tone="green"
+          tone={(figures?.childrenPresent ?? 0) > 0 ? "green" : "neutral"}
         />
       </div>
       <div className="lg:col-span-2">
@@ -80,7 +80,7 @@ function OverviewTab({
           hint="Kinder mit Krankmeldung für heute."
           icon={<MotoConceptIcon concept={sickConcept} />}
           loading={loading}
-          tone="orange"
+          tone={(figures?.childrenSick ?? 0) > 0 ? "orange" : "neutral"}
         />
       </div>
       <div className="lg:col-span-3">
