@@ -376,6 +376,7 @@ function StudentsPageContent() {
           `„${displayName}“ ist angelegt. Die Angaben unter Datenschutz wurden aber nicht gespeichert. Bitte öffnen Sie das Kind und tragen Sie sie dort nach.`,
           {
             duration: 0,
+            // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Knopf in einer Hinweismeldung, kein Menüeintrag; die Meldung selbst erklärt ihn.
             action: {
               label: "Öffnen",
               onClick: () => router.push(objectHref(newStudent)),
@@ -530,6 +531,7 @@ function StudentsPageContent() {
                     ? [
                         {
                           label: "Importieren",
+                          description: "Legt viele Kinder aus einer Datei an.",
                           icon: <Upload className="h-4 w-4" aria-hidden />,
                           href: tenantPath("/database/students/import"),
                           tourTarget: "student-import",
@@ -544,6 +546,9 @@ function StudentsPageContent() {
                           label: selectionMode
                             ? "Auswahl beenden"
                             : "Auswählen",
+                          description: selectionMode
+                            ? "Blendet die Kästchen zum Auswählen wieder aus."
+                            : "Blendet Kästchen ein, um mehrere Kinder gemeinsam zu ändern.",
                           icon: <ListChecks className="h-4 w-4" aria-hidden />,
                           onClick: () => {
                             if (selectionMode) {
@@ -559,6 +564,7 @@ function StudentsPageContent() {
                     ? [
                         {
                           label: "Schuljahreswechsel",
+                          description: "Setzt Kinder ins nächste Schuljahr.",
                           icon: (
                             <GraduationCap className="h-4 w-4" aria-hidden />
                           ),
@@ -570,6 +576,7 @@ function StudentsPageContent() {
                     : []),
                   {
                     label: "Klassenliste",
+                    description: "Zeigt alle Kinder je Klasse, auch ohne OGS.",
                     icon: <ClipboardList className="h-4 w-4" aria-hidden />,
                     href: tenantPath("/database/students/class-list"),
                     onClick: () => undefined,
@@ -578,6 +585,8 @@ function StudentsPageContent() {
                     ? [
                         {
                           label: "Beendete Betreuungen",
+                          description:
+                            "Zeigt Kinder, deren Betreuung beendet ist.",
                           icon: <UserMinus className="h-4 w-4" aria-hidden />,
                           href: tenantPath("/database/students/ended-care"),
                           onClick: () => undefined,

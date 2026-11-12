@@ -501,6 +501,7 @@ export default function StaffImportPage() {
             type="button"
             variant="primary"
             size="field"
+            tooltip="Speichert eine leere Vorlage im gewählten Format auf Ihrem Gerät."
             onClick={() => void handleDownloadTemplate()}
             className="gap-2"
           >
@@ -593,6 +594,7 @@ export default function StaffImportPage() {
               variant="outline"
               size="md"
               className="flex-1"
+              tooltip="Verwirft die hochgeladene Datei, ohne etwas zu importieren."
               onClick={resetForm}
             >
               Abbrechen
@@ -606,6 +608,18 @@ export default function StaffImportPage() {
                 isImporting ||
                 isLoading ||
                 (!importInterrupted && (stats.errors > 0 || importable === 0))
+              }
+              disabledReason={
+                isImporting || isLoading
+                  ? undefined
+                  : stats.errors > 0
+                    ? "Korrigieren Sie zuerst die fehlerhaften Zeilen in der Datei."
+                    : "Die Datei enthält keine Zeile, die sich übernehmen lässt."
+              }
+              tooltip={
+                mode === "update"
+                  ? "Ändert die vorhandenen Mitarbeitenden nach der Datei."
+                  : "Übernimmt die Zeilen und schickt neuen Personen mit E-Mail eine Einladung."
               }
               onClick={() => void handleImport()}
             >

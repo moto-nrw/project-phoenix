@@ -318,6 +318,7 @@ function ActivitiesPageContent() {
             variant="primary"
             size="md"
             className="hidden gap-2 md:flex"
+            tooltip="Öffnet ein Fenster für eine neue Aktivität."
             onClick={() => setIsQuickCreateOpen(true)}
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -424,6 +425,7 @@ function ActivitiesPageContent() {
         type="button"
         variant="fab"
         size="icon"
+        tooltip="Öffnet ein Fenster für eine neue Aktivität."
         onClick={() => setIsQuickCreateOpen(true)}
         className="fixed right-4 bottom-24 z-40 md:hidden"
         aria-label="Aktivität erstellen"

@@ -570,6 +570,7 @@ export default function StudentImportPage() {
             type="button"
             variant="primary"
             size="field"
+            tooltip="Speichert eine leere Vorlage im gewählten Format auf Ihrem Gerät."
             onClick={() => void handleDownloadTemplate()}
             className="gap-2"
           >
@@ -659,6 +660,7 @@ export default function StudentImportPage() {
               variant="outline"
               size="md"
               className="flex-1"
+              tooltip="Verwirft die hochgeladene Datei, ohne etwas zu importieren."
               onClick={resetForm}
             >
               Abbrechen
@@ -676,6 +678,20 @@ export default function StudentImportPage() {
                   (stats.errors > 0 ||
                     importable === 0 ||
                     quotaNotice?.type === "error"))
+              }
+              disabledReason={
+                isImporting || isLoading
+                  ? undefined
+                  : stats.errors > 0
+                    ? "Korrigieren Sie zuerst die fehlerhaften Zeilen in der Datei."
+                    : quotaNotice?.type === "error"
+                      ? "Die Datei hat mehr Kinder, als noch Plätze frei sind."
+                      : "Die Datei enthält keine Zeile, die sich übernehmen lässt."
+              }
+              tooltip={
+                mode === "update"
+                  ? "Ändert die vorhandenen Kinder nach der Datei."
+                  : "Übernimmt die Kinder aus der Datei in moto."
               }
               onClick={() => void handleImport()}
             >

@@ -406,6 +406,7 @@ export default function ClassListImportPage() {
             type="button"
             variant="primary"
             size="field"
+            tooltip="Speichert eine leere Vorlage im gewählten Format auf Ihrem Gerät."
             onClick={() => void handleDownloadTemplate()}
             className="gap-2"
           >
@@ -464,6 +465,7 @@ export default function ClassListImportPage() {
               variant="outline"
               size="md"
               className="flex-1"
+              tooltip="Verwirft die hochgeladene Datei, ohne etwas zu importieren."
               onClick={resetForm}
             >
               Abbrechen
@@ -475,6 +477,12 @@ export default function ClassListImportPage() {
               className="flex-1"
               onClick={() => void handleImport()}
               disabled={(!importInterrupted && stats.new === 0) || isImporting}
+              disabledReason={
+                isImporting
+                  ? undefined
+                  : "Die Datei enthält keine neuen Einträge."
+              }
+              tooltip="Setzt die neuen Kinder ohne OGS-Betreuung auf die Klassenlisten."
             >
               {isImporting
                 ? "Wird importiert…"
