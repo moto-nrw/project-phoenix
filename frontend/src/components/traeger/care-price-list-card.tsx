@@ -237,7 +237,13 @@ export function CarePriceListCard({
       }
       actions={
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onEdit}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            tooltip="Öffnet ein Fenster für neue Preise dieser Schule ab einem Monat."
+            onClick={onEdit}
+          >
             Neue Preise
           </Button>
           {stands.length > 0 ? (
@@ -248,6 +254,7 @@ export function CarePriceListCard({
                   label: shownMonth
                     ? `Preise ab ${formatMonth(shownMonth)} löschen`
                     : "Preise löschen",
+                  description: "Nur für diese Schule, moto fragt vorher nach",
                   destructive: true,
                   disabled: !deletable,
                   onClick: () => onDelete(shownMonth),
@@ -306,6 +313,7 @@ export function CarePriceListCard({
                   size="compact"
                   onClick={onEdit}
                   aria-label={`Preise ergänzen: ${school.name}`}
+                  tooltip="Öffnet ein Fenster, um die fehlenden Preise einzutragen."
                 >
                   Preise ergänzen
                 </Button>

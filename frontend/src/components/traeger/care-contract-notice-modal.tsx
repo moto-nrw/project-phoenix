@@ -175,6 +175,16 @@ export function RecordNoticeModal({
   };
 
   const verb = kind === "widerruf" ? "Widerruf" : "Kündigung";
+  // Nur eine fehlende Angabe sperrt fachlich; solange die Termine laden,
+  // bleibt der Knopf ohne Grund gesperrt.
+  const missingText =
+    !choices || optionsError
+      ? undefined
+      : kind === "widerruf" && !dispatchedOn
+        ? "Tragen Sie zuerst ein, wann die Eltern den Widerruf abgesendet haben."
+        : extraordinary && !reason.trim()
+          ? "Tragen Sie zuerst den Grund der Eltern ein."
+          : undefined;
 
   return (
     <FormModal
@@ -193,6 +203,7 @@ export function RecordNoticeModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt nur das Fenster, ohne etwas einzutragen."
           >
             Abbrechen
           </Button>
@@ -208,6 +219,8 @@ export function RecordNoticeModal({
               (kind === "widerruf" && !dispatchedOn) ||
               (extraordinary && !reason.trim())
             }
+            disabledReason={missingText}
+            tooltip={`Trägt ${kind === "widerruf" ? "den Widerruf" : "die Kündigung"} ein und schickt den Eltern sofort eine Bestätigung.`}
             isLoading={saving}
             loadingText="Wird eingetragen …"
           >
@@ -468,6 +481,7 @@ export function SetNoticeEndModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt nur das Fenster, ohne etwas einzutragen."
           >
             Abbrechen
           </Button>
@@ -477,6 +491,8 @@ export function SetNoticeEndModal({
             variant="primary"
             size="md"
             disabled={saving || !endsOn}
+            disabledReason="Wählen Sie zuerst den letzten Tag des Vertrags."
+            tooltip="Legt das Vertragsende fest und benachrichtigt die Eltern sofort."
             isLoading={saving}
             loadingText="Wird eingetragen …"
           >

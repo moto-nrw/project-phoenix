@@ -120,9 +120,15 @@ export function DecideChangeModal({
     onConflict,
   ]);
   const needsReason = !approve || reasonRequired;
-  const ready =
-    (!needsReason || reason.trim() !== "") &&
-    (!approve || (effectiveFrom && preview?.date === effectiveFrom));
+  const previewReady =
+    !approve || (effectiveFrom && preview?.date === effectiveFrom);
+  const ready = (!needsReason || reason.trim() !== "") && previewReady;
+  // Nur ein fehlender Text sperrt fachlich; solange die Vorschau lädt, bleibt
+  // der Knopf ohne Grund gesperrt.
+  const reasonMissingText =
+    previewReady && needsReason && reason.trim() === ""
+      ? "Schreiben Sie zuerst eine Begründung für die Eltern."
+      : undefined;
 
   const submit = async () => {
     // Ein zweiter Klick während des Speicherns ändert nichts: run läuft nur
@@ -171,6 +177,7 @@ export function DecideChangeModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu entscheiden."
           >
             Abbrechen
           </Button>
@@ -180,6 +187,12 @@ export function DecideChangeModal({
             variant={approve ? "success" : "danger"}
             size="md"
             disabled={saving || !ready}
+            disabledReason={reasonMissingText}
+            tooltip={
+              approve
+                ? "Ändert die Betreuung ab dem Tag und benachrichtigt die Eltern."
+                : "Lehnt den Wunsch ab und schickt den Eltern Ihre Begründung."
+            }
             isLoading={saving}
             loadingText={approve ? "Wird freigegeben …" : "Wird abgelehnt …"}
           >

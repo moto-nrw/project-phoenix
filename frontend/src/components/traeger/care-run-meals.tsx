@@ -118,6 +118,11 @@ function UnbilledGroup({
           className="mt-1 self-start"
           aria-expanded={expanded}
           aria-controls={listId}
+          tooltip={
+            expanded
+              ? "Zeigt wieder nur die ersten Kinder der Liste."
+              : "Zeigt alle Kinder dieser Liste."
+          }
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? (

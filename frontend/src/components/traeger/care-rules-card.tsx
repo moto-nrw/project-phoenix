@@ -129,7 +129,13 @@ export function CareRulesCard({
         ) : null
       }
       action={
-        <Button type="button" variant="outline" size="md" onClick={onCreate}>
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          tooltip="Öffnet ein Fenster für eine neue Regel mit Monaten und Schulen."
+          onClick={onCreate}
+        >
           {CREATE_LABELS[kind]}
         </Button>
       }
@@ -161,9 +167,15 @@ export function CareRulesCard({
                   <OverflowMenu
                     ariaLabel={`Aktionen: ${rule.name}`}
                     items={[
-                      { label: "Ändern", onClick: () => onEdit(rule) },
+                      {
+                        label: "Ändern",
+                        description: "Monate, Schulen und Wirkung der Regel",
+                        onClick: () => onEdit(rule),
+                      },
                       {
                         label: "Löschen",
+                        description:
+                          "Gilt ab dem nächsten Lauf nicht mehr, moto fragt vorher nach",
                         destructive: true,
                         onClick: () => onDelete(rule),
                       },

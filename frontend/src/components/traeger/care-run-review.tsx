@@ -192,6 +192,7 @@ export function CareExcludedCard({
                 loadingText="Wird aufgenommen …"
                 disabled={returning !== null}
                 aria-label={`Wieder aufnehmen: ${invoiceKindLabel(invoice)} von ${childName(invoice)}`}
+                tooltip="Nimmt die Rechnung sofort wieder in diesen Lauf auf."
                 onClick={() => onInclude(invoice)}
               >
                 Wieder aufnehmen
@@ -338,6 +339,7 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
             href={traegerPath("/traeger/einstellungen/abrechnung")}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Einstellungen zur Abrechnung des Trägers."
           >
             Gläubiger-ID eintragen
           </ButtonLink>
@@ -368,6 +370,7 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
                 variant="surface"
                 size="compact"
                 aria-label={`Mandat prüfen: ${item.family}`}
+                tooltip="Öffnet das Lastschrift-Mandat dieser Familie."
               >
                 Mandat prüfen
               </ButtonLink>
@@ -382,6 +385,11 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
           size="compact"
           className="mt-3"
           aria-expanded={expanded}
+          tooltip={
+            expanded
+              ? "Zeigt wieder nur die ersten Familien der Liste."
+              : "Zeigt alle Familien mit Hinweis zur Lastschrift."
+          }
           onClick={() => setExpanded((value) => !value)}
         >
           {expanded

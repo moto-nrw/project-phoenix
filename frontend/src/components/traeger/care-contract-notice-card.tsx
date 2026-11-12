@@ -130,6 +130,7 @@ export function CareContractNoticeCard({
               variant="outline"
               size="md"
               className="w-full"
+              tooltip="Öffnet ein Fenster für eine Kündigung per Mail oder Brief."
               onClick={() => setOpen(true)}
             >
               Kündigung eintragen
@@ -218,6 +219,7 @@ function EndDecisionActions({
           variant="primary"
           size="md"
           className="w-full"
+          tooltip="Öffnet ein Fenster, um den letzten Tag des Vertrags zu wählen."
           onClick={onSetEnd}
         >
           Vertragsende festlegen
@@ -234,6 +236,8 @@ function EndDecisionActions({
           className="w-full"
           onClick={onReject}
           disabled={!reinterpretedEndsOn}
+          disabledReason="moto kann das Vertragsende gerade nicht berechnen. Bitte laden Sie die Seite neu."
+          tooltip="Wertet die Kündigung als ordentliche Kündigung, moto fragt vorher nach."
         >
           Grund nicht anerkennen
         </Button>

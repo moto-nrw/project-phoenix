@@ -87,6 +87,7 @@ export function PaperSignatureModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu speichern."
           >
             Abbrechen
           </Button>
@@ -95,6 +96,16 @@ export function PaperSignatureModal({
             variant="success"
             size="md"
             disabled={saving || !file || !signedOn || !signerName.trim()}
+            disabledReason={
+              saving
+                ? undefined
+                : !signerName.trim()
+                  ? "Tragen Sie zuerst ein, wer unterschrieben hat."
+                  : !signedOn
+                    ? "Wählen Sie zuerst den Tag der Unterschrift."
+                    : "Wählen Sie zuerst das PDF des Vertrags."
+            }
+            tooltip="Speichert das PDF und schließt den Vertrag sofort ab."
             onClick={() => void save()}
           >
             {saving ? "Wird erfasst …" : "Vertrag abschließen"}

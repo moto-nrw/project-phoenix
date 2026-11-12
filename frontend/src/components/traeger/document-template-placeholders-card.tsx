@@ -63,6 +63,7 @@ export function DocumentTemplatePlaceholdersCard({
                 size="compact"
                 disabled={disabled}
                 aria-label={`Platzhalter „${labelOf(placeholder)}“ einfügen`}
+                tooltip="Setzt den Platzhalter an der Schreibmarke in den Brieftext."
                 onClick={() => onInsert(placeholder)}
                 className="w-full min-w-0 justify-between gap-3"
               >

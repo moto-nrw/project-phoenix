@@ -127,7 +127,13 @@ export function CareMealSchoolCard({
       }
       actions={
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onEdit}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            tooltip="Öffnet ein Fenster für einen neuen Mensa-Preis dieser Schule."
+            onClick={onEdit}
+          >
             Preis festlegen
           </Button>
           {deletable.length > 0 ? (
@@ -135,6 +141,7 @@ export function CareMealSchoolCard({
               ariaLabel={`Weitere Aktionen: ${school.name}`}
               items={deletable.map((tariff) => ({
                 label: `Preis ab ${formatMonth(tariff.validFrom)} löschen`,
+                description: "Nur für diese Schule, moto fragt vorher nach",
                 destructive: true,
                 onClick: () => onDelete(tariff),
               }))}

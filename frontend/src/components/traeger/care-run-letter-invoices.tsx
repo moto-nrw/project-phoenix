@@ -75,6 +75,7 @@ function rowMenuItems(
   if (actions.created && letter.hasLetter) {
     items.push({
       label: "Schreiben ansehen",
+      description: "So, wie die Familie es bekommt",
       onClick: () => actions.onShowLetter(letter),
     });
     if (live && canSendMail(letter) && actions.sendingKey === null) {
@@ -93,6 +94,7 @@ function rowMenuItems(
   if (!row.storno && !letter.cancelled) {
     items.push({
       label: "Stornieren",
+      description: "Hebt die Rechnung auf, moto fragt vorher nach",
       destructive: true,
       onClick: () => actions.onCancel(letter),
     });

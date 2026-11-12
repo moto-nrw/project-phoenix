@@ -514,6 +514,7 @@ export function CareUnpricedCard({
                   variant="surface"
                   size="compact"
                   aria-label={`Preis eintragen: ${first.schoolName}`}
+                  tooltip="Öffnet die Preisliste dieser Schule."
                 >
                   Preis eintragen
                 </ButtonLink>
@@ -652,6 +653,7 @@ export function CareDuplicatesCard({
                       variant="surface"
                       size="compact"
                       aria-label={`${label} von ${child} öffnen: ${contract.schoolName}`}
+                      tooltip="Öffnet diesen Vertrag des Kindes."
                     >
                       {label} · {contract.schoolName}
                     </ButtonLink>

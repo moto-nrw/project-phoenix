@@ -441,6 +441,7 @@ export function FamilyBillingForm({
         <Button
           type="button"
           variant="link"
+          tooltip="Leert alle Abweichungen im Formular, gespeichert wird erst mit „Speichern“."
           onClick={() => setDraft(EMPTY_FAMILY_BILLING)}
         >
           Wieder wie im Vertrag

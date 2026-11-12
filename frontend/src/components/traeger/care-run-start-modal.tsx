@@ -209,6 +209,11 @@ export function CareRunStartModal({
                   type="button"
                   variant="link"
                   size="md"
+                  tooltip={
+                    allSelected
+                      ? "Nimmt bei allen Schulen den Haken weg."
+                      : "Setzt den Haken bei allen Schulen ohne offenen Lauf."
+                  }
                   onClick={() => setSelected(allSelected ? [] : free)}
                 >
                   {allSelected ? "Keine wählen" : "Alle wählen"}
