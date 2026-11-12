@@ -376,6 +376,7 @@ export function PushNotificationSection({
   if (state === "subscribed" && portal !== "parent") {
     secondaryActions.push({
       label: t("sendTest"),
+      description: t("sendTestDescription"),
       icon: <Send className="size-4" aria-hidden />,
       disabled: busy,
       onClick: () => void sendTest(),
@@ -396,6 +397,7 @@ export function PushNotificationSection({
   if (accountId !== undefined && state !== "unsupported") {
     secondaryActions.push({
       label: t("restart"),
+      description: t("restartDescription"),
       icon: <RotateCcw className="size-4" aria-hidden />,
       disabled: busy,
       onClick: () => setRestartToken((token) => token + 1),

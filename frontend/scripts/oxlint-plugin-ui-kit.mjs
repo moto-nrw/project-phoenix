@@ -6198,6 +6198,96 @@ const buttonNeedsTooltip = {
   },
 };
 
+// ui-kit/menu-item-needs-description (#6745, Epic #6643)
+//
+// Jeder Eintrag eines Kebab- oder Überlaufmenüs sagt in einer sichtbaren
+// Zeile, was er tut. Im Menü gibt es kein Hover, die Zeile `description` ist
+// also auch auf Handy und Tablet lesbar. Ein Menüeintrag ist wie bei
+// `bauart/no-disabled-menu-item` ein Objektliteral mit `label` und `onClick`
+// oder `href`. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
+// Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
+// `selected`, etwa die „Mehr“-Leiste der Navigation. Verlangt wird
+// `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
+// oder `undefined` gesetzter Wert ist ein Fehler. Ein unbekannter Spread im
+// Objekt gilt als erfüllt, wie bei `ui-kit/button-needs-tooltip`. Die Regel
+// gilt in TOOLTIP_SCOPE.
+
+function staticObjectProperty(node, name) {
+  return node.properties.find(
+    (property) => !property.computed && propertyName(property) === name,
+  );
+}
+
+const menuItemNeedsDescription = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Every menu entry says in a visible line what it does: description, or noDescription with a reason.",
+    },
+    messages: {
+      missing:
+        'Menüeintrag ohne Erklärung: `description` mit einer kurzen Zeile zur Folge setzen oder `noDescription: "<Grund>"`, wenn das Wort schon alles sagt (#6643, Schreibregel in .claude/rules/frontend-ui-kit.md).',
+      emptyDescription:
+        'Leere `description`: eine kurze Zeile zur Folge schreiben oder `noDescription: "<Grund>"` setzen (#6643).',
+      emptyReason:
+        "`noDescription` braucht einen Grund, warum das Wort im Menü reicht (#6643).",
+      conflictingExplanation:
+        "`description` und `noDescription` dürfen nicht zusammen gesetzt sein (#6643).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (!inTooltipScope(fileKey(context))) return {};
+    return {
+      ObjectExpression(node) {
+        if (!staticObjectProperty(node, "label")) return;
+        if (
+          !staticObjectProperty(node, "onClick") &&
+          !staticObjectProperty(node, "href")
+        ) {
+          return;
+        }
+        if (
+          staticObjectProperty(node, "kind") ||
+          staticObjectProperty(node, "selected")
+        ) {
+          return;
+        }
+        const description = staticObjectProperty(node, "description");
+        const noDescription = staticObjectProperty(node, "noDescription");
+        if (description && noDescription) {
+          context.report({
+            node: noDescription,
+            messageId: "conflictingExplanation",
+          });
+          return;
+        }
+        if (description) {
+          if (isBlankExpression(description.value)) {
+            context.report({
+              node: description,
+              messageId: "emptyDescription",
+            });
+          }
+          return;
+        }
+        if (noDescription) {
+          if (isBlankExpression(noDescription.value)) {
+            context.report({ node: noDescription, messageId: "emptyReason" });
+          }
+          return;
+        }
+        const unknownSpread = node.properties.some(
+          (property) => property.type === "SpreadElement" || property.computed,
+        );
+        if (unknownSpread) return;
+        context.report({ node, messageId: "missing" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -6207,6 +6297,7 @@ export default {
     "confirmation-dismiss-lock": confirmationDismissLock,
     "confirmation-loading-text": confirmationLoadingText,
     "green-fill-white-text": greenFillWhiteText,
+    "menu-item-needs-description": menuItemNeedsDescription,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,
     "no-dynamic-color-class": noDynamicColorClass,

@@ -4816,3 +4816,84 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     expect(story.output).not.toContain(RULE);
   });
 });
+
+describe.concurrent("ui-kit/menu-item-needs-description", () => {
+  const RULE = "ui-kit(menu-item-needs-description)";
+  const IN_SCOPE = "src/components/settings/probe.tsx";
+  const probe = (items: string) =>
+    `declare const go: () => void;
+    declare const props: { hint: string };
+    declare const extra: Record<string, unknown>;
+    void props; void extra;
+    export const items = [${items}];`;
+
+  // Alle gültigen Fälle in einem Lauf: jeder Lauf startet oxlint neu.
+  it("accepts a description, a reason, toggles and selected navigation", async () => {
+    const { output } = await lintSource(
+      probe(
+        [
+          `{ label: "Entfernen", description: "moto fragt vorher nach.", onClick: go }`,
+          `{ label: "Öffnen", description: props.hint, href: "/x", onClick: go }`,
+          `{ label: "Hilfe", noDescription: "Das Wort sagt schon alles.", onClick: go }`,
+          `{ label: "Schule A", selected: true, href: "/a", onClick: go }`,
+          `{ kind: "radio", label: "Woche", checked: true, onClick: go }`,
+          `{ kind: "checkbox", label: "Klasse", checked: false, onClick: go }`,
+          `{ label: "Mehr", ...extra, onClick: go }`,
+          `{ label: "Nur Text" }`,
+        ].join(",\n"),
+      ),
+      IN_SCOPE,
+    );
+    expect(output).not.toContain(RULE);
+    expect(output).not.toMatch(/error|Parse/i);
+  });
+
+  it.each([
+    [
+      "an entry without description",
+      `{ label: "Entfernen", onClick: go }`,
+      "Menüeintrag ohne Erklärung",
+    ],
+    [
+      "a link entry without description",
+      `{ label: "Öffnen", href: "/x", onClick: go }`,
+      "Menüeintrag ohne Erklärung",
+    ],
+    [
+      "an empty description",
+      `{ label: "Entfernen", description: " ", onClick: go }`,
+      "Leere `description`",
+    ],
+    [
+      "an empty noDescription reason",
+      `{ label: "Hilfe", noDescription: "", onClick: go }`,
+      "braucht einen Grund",
+    ],
+    [
+      "a noDescription set to undefined",
+      `{ label: "Hilfe", noDescription: undefined, onClick: go }`,
+      "braucht einen Grund",
+    ],
+    [
+      "description and noDescription together",
+      `{ label: "Hilfe", description: "Öffnet die Hilfe.", noDescription: "Reicht.", onClick: go }`,
+      "dürfen nicht zusammen",
+    ],
+  ])("rejects %s", async (_name, item, message) => {
+    const { output } = await lintSource(probe(item), IN_SCOPE);
+    expect(output).toContain(RULE);
+    expect(output).toContain(message);
+  });
+
+  it("uses the tooltip scope list", async () => {
+    const source = probe(`{ label: "Entfernen", onClick: go }`);
+    const [traeger, outside, test] = await Promise.all([
+      lintSource(source, "src/app/traeger/einstellungen/probe/page.tsx"),
+      lintSource(source, "src/components/students/probe.tsx"),
+      lintSource(source, "src/components/settings/probe.test.tsx"),
+    ]);
+    expect(traeger.output).toContain(RULE);
+    expect(outside.output).not.toContain(RULE);
+    expect(test.output).not.toContain(RULE);
+  });
+});

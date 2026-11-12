@@ -47,5 +47,7 @@
   "enableTooltip": "Cihazınız izninizi sorduktan sonra bildirimleri burada açar.",
   "disableTooltip": "Bildirimleri hemen kapatır, yalnızca bu cihazda.",
   "installTooltip": "moto'yu bu cihaza uygulama olarak kurmaya başlar.",
-  "checkAgainTooltip": "moto'nun bu cihazda size bildirim gönderip gönderemeyeceğini yeniden kontrol eder."
+  "checkAgainTooltip": "moto'nun bu cihazda size bildirim gönderip gönderemeyeceğini yeniden kontrol eder.",
+  "sendTestDescription": "Size hemen deneme amaçlı bir bildirim gönderir.",
+  "restartDescription": "Açma adımlarında sizi yeniden yönlendirir."
 }

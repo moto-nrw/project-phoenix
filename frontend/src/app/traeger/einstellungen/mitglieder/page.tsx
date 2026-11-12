@@ -203,9 +203,15 @@ export default function TraegerAccountsPage() {
           ariaLabel={`Aktionen für ${member.email}`}
           triggerSize="sm"
           items={[
-            { label: "Rollen ändern", onClick: () => setEditing(member) },
+            {
+              label: "Rollen ändern",
+              description: "Öffnet die Rollen der Person zum Bearbeiten.",
+              onClick: () => setEditing(member),
+            },
             {
               label: "Aus dem Träger-Büro entfernen",
+              description:
+                "moto fragt vorher nach, dann endet der Zugang zum Träger-Portal.",
               destructive: true,
               onClick: () => setPending({ kind: "remove", member }),
             },
@@ -252,6 +258,8 @@ export default function TraegerAccountsPage() {
           items={[
             {
               label: "Einladung zurücknehmen",
+              description:
+                "moto fragt vorher nach, dann funktioniert der Einladungslink nicht mehr.",
               destructive: true,
               onClick: () => setPending({ kind: "revoke", invitation }),
             },
