@@ -61,7 +61,7 @@ export function handoverReasonText(reason: string): string {
 export const HANDOVER_UNKNOWN_TEXT =
   "Ob die Datei angekommen ist, ist unklar. Fragen Sie beim Empfänger nach, bevor Sie sie noch einmal übergeben.";
 
-export const RECIPIENT_FIELD_LABELS: Record<RecipientField, string> = {
+const RECIPIENT_FIELD_LABELS: Record<RecipientField, string> = {
   host: "Adresse",
   port: "Port",
   username: "Benutzername",

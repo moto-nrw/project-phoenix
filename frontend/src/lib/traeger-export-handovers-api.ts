@@ -130,9 +130,7 @@ interface BackendResult {
   target_directory: string;
 }
 
-export function recipientFromBackend(
-  recipient: BackendRecipient,
-): ExportRecipient {
+function recipientFromBackend(recipient: BackendRecipient): ExportRecipient {
   return {
     configured: recipient.configured,
     enabled: recipient.enabled,
