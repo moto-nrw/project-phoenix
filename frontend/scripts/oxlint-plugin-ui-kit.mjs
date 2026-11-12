@@ -6206,8 +6206,9 @@ const buttonNeedsTooltip = {
 // `bauart/no-disabled-menu-item` ein Objektliteral mit `label` und `onClick`
 // oder `href`. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
 // Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
-// `selected`, etwa die „Mehr“-Leiste der Navigation; `selected: false` als
-// Literal ist keine Navigation und befreit nicht. Verlangt wird
+// `selected`, etwa die „Mehr“-Leiste der Navigation; ein statisch falscher
+// Wert wie `false` oder `undefined` ist keine Navigation und befreit nicht.
+// Ein unbekannter Wert bleibt als Navigation ausgenommen. Verlangt wird
 // `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
 // oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
 // `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
@@ -6223,8 +6224,12 @@ function staticObjectProperty(node, name) {
   );
 }
 
-function isLiteralFalse(expression) {
-  return expression?.type === "Literal" && expression.value === false;
+function isStaticallyFalsy(expression) {
+  if (expression?.type === "Literal") return !expression.value;
+  return (
+    (expression?.type === "Identifier" && expression.name === "undefined") ||
+    (expression?.type === "UnaryExpression" && expression.operator === "void")
+  );
 }
 
 const menuItemNeedsDescription = {
@@ -6262,7 +6267,7 @@ const menuItemNeedsDescription = {
         const selected = staticObjectProperty(node, "selected");
         if (
           staticObjectProperty(node, "kind") ||
-          (selected && !isLiteralFalse(selected.value))
+          (selected && !isStaticallyFalsy(selected.value))
         ) {
           return;
         }

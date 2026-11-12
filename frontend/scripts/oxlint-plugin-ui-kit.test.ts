@@ -4862,6 +4862,18 @@ describe.concurrent("ui-kit/menu-item-needs-description", () => {
         "Menüeintrag ohne Erklärung",
       ],
       [
+        `{ label: "Löschen", selected: undefined, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Löschen", selected: null, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Löschen", selected: void 0, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
         `{ label: "Entfernen", description: " ", onClick: go }`,
         "Leere `description`",
       ],
