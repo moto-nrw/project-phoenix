@@ -479,7 +479,7 @@ export default function TraegerCareRunPage() {
             title="Monatslauf"
             description={
               preview
-                ? "Stimmt eine Rechnung nicht, ändern Sie sie im Menü ihrer Zeile oder schließen sie dort aus. Neue Verträge und Preise kommen bis zur Freigabe dazu."
+                ? "Rechnungen ändern oder ausschließen: im Menü der Zeile. Bis zur Freigabe kommen neue Verträge und Preise dazu."
                 : run.previewCount === 0
                   ? "Der Lauf ist ohne Rechnungen abgeschlossen. Die Schulen sind wieder frei."
                   : "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern. Eine falsche Rechnung stornieren Sie auf der Seite „Schreiben“."

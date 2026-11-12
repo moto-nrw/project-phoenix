@@ -314,7 +314,7 @@ export default function TraegerBillingFamilyPage() {
               />
             }
             title="Dokumente"
-            description="Rechnungen, Stornos und Gutschriften, das neueste zuerst. Jede Zeile öffnet ihren Abrechnungslauf."
+            description="Neueste Dokumente zuerst. Jede Zeile öffnet den Abrechnungslauf."
           >
             <DataTable
               columns={COLUMNS}
