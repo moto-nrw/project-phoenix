@@ -187,6 +187,11 @@ CREATE FUNCTION parent_billing.release_failed_handover_bookings() RETURNS trigge
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, parent_billing AS $$
 BEGIN
 	IF NEW.state = 'failed' AND OLD.state = 'pending' THEN
+		-- The export file counter of the Träger: an export holds it until it
+		-- commits, so this waits for a running export and sees its bookings,
+		-- and two settlements run one after the other.
+		PERFORM 1 FROM parent_billing.number_range_counters
+		WHERE organization_id = NEW.organization_id AND service = 'export' AND year = 0 FOR UPDATE;
 		WITH moved AS (
 			SELECT booked.id, (
 				SELECT min(later.id) FROM parent_billing.export_files AS later

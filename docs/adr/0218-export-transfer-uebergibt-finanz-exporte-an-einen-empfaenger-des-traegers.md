@@ -172,6 +172,10 @@ Träger-Transaktionen, getrennt von der Anfrage:
   Datei: Die Buchung ging dort hinaus. Dafür hält jede DATEV-Datei ihre
   Buchungen genau (`export_files.datev_booking_keys`: Rechnung, Storno oder
   Beleg mit ID); eine Rechnung und ihr Storno sind verschiedene Buchungen.
+  Die Freigabe nimmt zuerst die Sperre des Dateinummern-Zählers des
+  Trägers, die jeder Export bis zum Commit hält: Sie wartet auf einen
+  laufenden Export und sieht seine Buchungen, und zwei Fehlschläge laufen
+  nacheinander.
 - **Gleicher Inhalt einer Sollstellung:** Schreibt die Feldzuordnung die
   Dateinummer in jede Zeile, vergleicht die Wiederholungsprüfung die
   Zeilen ohne Nummer (`booking_sha256`, wie bei DATEV); ältere Dateien ohne
@@ -250,6 +254,8 @@ Träger-Transaktionen, getrennt von der Anfrage:
     bleibt nach dem Fehlschlag gebucht, auf dieser Datei.
 13. Eine nummerierte Sollstellung gleichen Inhalts geht ohne `repeat` nicht
     erneut hinaus.
+14. Die Freigabe wartet auf einen laufenden Export und auf eine andere
+    Freigabe desselben Trägers.
 
 Jede Invariante hat einen Test, der ohne den Schutz rot wird; die Belege
 stehen im PR.
