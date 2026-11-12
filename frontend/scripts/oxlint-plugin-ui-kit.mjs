@@ -5922,6 +5922,17 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Planung: Kalender, Vertretungen, Betreuungsplan, Schließzeiten (#6751).
+  "src/app/[tenant]/(protected)/calendar/page.tsx",
+  "src/app/[tenant]/(protected)/substitutions/page.tsx",
+  "src/components/calendar/calendar-subscribe-panel.tsx",
+  "src/components/calendar/personal-calendar.tsx",
+  "src/components/planning/calendar-periods-editor.tsx",
+  "src/components/planning/closing-day-modal.tsx",
+  "src/components/planning/closing-days-editor.tsx",
+  "src/components/timetable/betreuungsplan-view.tsx",
+  "src/components/timetable/booking-leftover-hints.tsx",
+  "src/components/timetable/bulk-substitution-modal.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

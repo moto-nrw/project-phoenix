@@ -45,6 +45,8 @@ export function ClosingDayModal({
   consequences,
   saveLabel = "Speichern",
   saveBlocked = false,
+  saveBlockedReason = "Warten Sie, bis die Auswirkungen unten fertig geladen sind.",
+  saveTooltip,
 }: ClosingDayModalProps) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -160,7 +162,13 @@ export function ClosingDayModal({
       error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            noTooltip="Schließt nur das Fenster, ohne etwas zu speichern."
+          >
             Abbrechen
           </Button>
           <Button
@@ -169,6 +177,10 @@ export function ClosingDayModal({
             size="md"
             onClick={() => void handleSave()}
             disabled={saving || saveBlocked}
+            disabledReason={
+              saveBlocked && !saving ? saveBlockedReason : undefined
+            }
+            tooltip={saveTooltip ?? defaultSaveTooltip(onOfferCancel, schools)}
           >
             {saving ? "Speichern..." : saveLabel}
           </Button>
@@ -302,11 +314,27 @@ interface ClosingDayModalProps {
   readonly saveLabel?: string;
   /** Holds the save while the consequences are still loading. */
   readonly saveBlocked?: boolean;
+  /** Why `saveBlocked` holds the save, shown on the blocked button (#6751). */
+  readonly saveBlockedReason?: string;
+  /** What saving does, e.g. when it also tells parents (#6751). */
+  readonly saveTooltip?: string;
   /** Opens „Termine absagen“ for the saved range when appointments remain. */
   readonly onOfferCancel?: (range: {
     startDate: string;
     endDate: string;
   }) => void;
+}
+
+/** Was „Speichern“ auslöst, wenn der Aufrufer keinen eigenen Satz setzt. */
+function defaultSaveTooltip(
+  onOfferCancel: ClosingDayModalProps["onOfferCancel"],
+  schools: ClosingDayModalProps["schools"],
+): string {
+  if (onOfferCancel) {
+    return "Speichert den Schließtag und bietet an, Termine darin abzusagen.";
+  }
+  if (schools) return "Speichert den Schließtag für die gewählten Schulen.";
+  return "Speichert den Schließtag.";
 }
 
 // #3594: Stehen im gespeicherten Zeitraum noch geplante Termine, bietet moto
