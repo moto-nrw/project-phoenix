@@ -6,8 +6,8 @@ import (
 
 	"github.com/getsentry/sentry-go"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // SentrySessionContext tags every Sentry event of a request with the session

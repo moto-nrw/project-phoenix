@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 func (s *Service) DeleteRetiredStaffAssignments(ctx context.Context, staffID int64) (timetable.RetiredStaffAssignments, error) {

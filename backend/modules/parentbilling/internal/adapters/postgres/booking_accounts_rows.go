@@ -1,6 +1,6 @@
 package postgres
 
-import "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+import "github.com/moto-ogs/project-phoenix/modules/parentbilling"
 
 // positionAccountsColumns are where an issued position books (#4821): the
 // release writes them once; the trigger refuse_issued_change keeps them.

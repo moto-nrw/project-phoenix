@@ -6,12 +6,12 @@ import (
 	strings "strings"
 	time "time"
 
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	excusedrequests "github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const (

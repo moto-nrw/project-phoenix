@@ -8,10 +8,10 @@ import (
 	http "net/http"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	settingsFacts "github.com/moto-ogs/project-phoenix/modules/settings"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, error) {

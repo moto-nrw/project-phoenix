@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	stats "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
+	stats "github.com/moto-ogs/project-phoenix/modules/transactionruntime/stats"
 )
 
 // databaseService implements the stats.Service interface

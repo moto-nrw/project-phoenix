@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 type dataAccessAudit struct {

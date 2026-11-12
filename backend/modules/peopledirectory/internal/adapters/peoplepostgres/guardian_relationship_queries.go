@@ -8,12 +8,12 @@ import (
 	"slices"
 	"strings"
 
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 	"github.com/uptrace/bun"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	users "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // --- queries ------------------------------------------------------------------

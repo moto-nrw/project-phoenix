@@ -5,9 +5,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 func legacyTeacher(value *schoolstructure.Teacher) *groups.Teacher {

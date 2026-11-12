@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // TestDecodeFailureNamesWhatToFix pins the code and values per parser error

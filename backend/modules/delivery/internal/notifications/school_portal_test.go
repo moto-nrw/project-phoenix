@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // A decision made in the school portal (#2208) lands on the shared

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/feedback"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/feedback"
+	"github.com/moto-ogs/project-phoenix/modules/feedback/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

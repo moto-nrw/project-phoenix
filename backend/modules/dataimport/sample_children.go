@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Sample children of a test Träger (#4658, spec #4611 user story 125): the

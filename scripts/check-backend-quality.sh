@@ -48,7 +48,7 @@ case "${1:-quality}" in
     ;;
   # Dependency scans run nightly, not per pull request (nightly.yml).
   dependencies)
-    quality_step go-licenses go tool go-licenses check ./... --ignore github.com/moto-nrw/project-phoenix --disallowed_types=restricted,reciprocal
+    quality_step go-licenses go tool go-licenses check ./... --ignore github.com/moto-ogs/project-phoenix --disallowed_types=restricted,reciprocal
     quality_step vulnerabilities vulnerabilities
     ;;
   lint)

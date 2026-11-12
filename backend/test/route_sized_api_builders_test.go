@@ -15,7 +15,7 @@ import (
 const (
 	chiImport         = "github.com/go-chi/chi/v5"
 	httpImport        = "net/http"
-	projectImportRoot = "github.com/moto-nrw/project-phoenix"
+	projectImportRoot = "github.com/moto-ogs/project-phoenix"
 )
 
 type routeBuilderKind uint8

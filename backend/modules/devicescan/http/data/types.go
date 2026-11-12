@@ -1,6 +1,6 @@
 package data
 
-import "github.com/moto-nrw/project-phoenix/modules/devicescan"
+import "github.com/moto-ogs/project-phoenix/modules/devicescan"
 
 // Preserve the established kiosk response names at the HTTP seam.
 type DeviceTeacherResponse = devicescan.Teacher

@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/observability"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/observability"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 )

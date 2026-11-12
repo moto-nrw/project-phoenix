@@ -1,6 +1,6 @@
 package workforce
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // PlanStaff is a staff member as the Dienstplan and the substitution overview
 // read them from People Directory: the staff row, the work-time model and the

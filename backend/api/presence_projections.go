@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 )
 
 // PickupReviewBlocks previews the blocks a pickup change under review would

@@ -5,7 +5,7 @@ status: proposed
 # Kindernotiz informiert das Team
 
 Entscheidung zu
-[#6854](https://github.com/moto-nrw/project-phoenix/issues/6854). Die
+[#6854](https://github.com/moto-ogs/project-phoenix/issues/6854). Die
 Vorgaben hat Yannick Wenger am 12.11.2026 festgelegt; die Freigabe erteilt er
 mit dem Merge des Pull Requests, der diese ADR einführt. Sie führt keinen
 neuen Owner ein.

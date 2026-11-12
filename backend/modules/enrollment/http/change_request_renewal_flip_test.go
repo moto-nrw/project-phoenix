@@ -3,15 +3,15 @@ package enrollmenthttp_test
 import (
 	"testing"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // setChildStatus forces one request_children row into the given status —

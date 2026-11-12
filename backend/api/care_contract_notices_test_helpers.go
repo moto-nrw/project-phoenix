@@ -5,12 +5,12 @@ package api
 import (
 	"context"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // fixedNoticeTemplates answers a fixed confirmation template per kind.

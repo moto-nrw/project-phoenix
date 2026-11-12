@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // ErrGuardianProfileNotFound is returned by repositories when no guardian

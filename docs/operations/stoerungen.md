@@ -32,7 +32,7 @@ Kanäle in der geschützten Betriebsablage, nicht im Repository:
 ### Reaktions- und Eskalationszeiten
 
 Die jeweils vereinbarten Vertragsfristen dürfen durch interne Eskalationszeiten
-nicht überschritten werden. Der aktuelle [AGB-Entwurf, Anhang B](https://github.com/moto-nrw/legal/blob/main/vertragspaket/02-agb.md#anhang-b-service-level-und-support)
+nicht überschritten werden. Der aktuelle [AGB-Entwurf, Anhang B](https://github.com/moto-ogs/legal/blob/main/vertragspaket/02-agb.md#anhang-b-service-level-und-support)
 verlangt die erste qualifizierte Rückmeldung in der Supportzeit (Montag bis
 Freitag 08:00–16:00 Uhr):
 
@@ -147,7 +147,7 @@ Produktions-/Staging-Requests und keinen Serverzugriff aus.
 ## Betriebs- und Ausfallzeiten für das SLA erfassen
 
 Keine automatische SLA-Berechnung in diesem Slice. Maßstab ist die jeweils
-vereinbarte Vertragsfassung. Aktueller [AGB-Entwurf, Anhang B](https://github.com/moto-nrw/legal/blob/main/vertragspaket/02-agb.md#anhang-b-service-level-und-support):
+vereinbarte Vertragsfassung. Aktueller [AGB-Entwurf, Anhang B](https://github.com/moto-ogs/legal/blob/main/vertragspaket/02-agb.md#anhang-b-service-level-und-support):
 99 % im Jahresmittel innerhalb der Kernzeit, Montag bis Freitag 06:30–18:00,
 ohne gesetzliche Feiertage am Standort, Schulferien eingeschlossen. Für die
 Auswertung Zeitzone `Europe/Berlin` und den vertraglich relevanten Standort

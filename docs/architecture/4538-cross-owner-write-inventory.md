@@ -199,7 +199,7 @@ preserve IoT statuses/codes; they do not add a new device permission.
 Scenario: child is still in running session A. The caller is planned for
 running block B but supervises neither A nor B. The attendance scope is `own`.
 Timetable currently permits check-in to B; ordinary Presence refuses it.
-[#2386](https://github.com/moto-nrw/project-phoenix/issues/2386) requires the
+[#2386](https://github.com/moto-ogs/project-phoenix/issues/2386) requires the
 automatic move when checking into another block, but does not decide whether
 planned assignment suffices for this case. ADR 0083 explicitly leaves that
 permission contract undecided. CONTEXT.md supplies no stricter move rule.
@@ -466,12 +466,12 @@ after-commit durability. No such checker is implemented by #4538.
 
 ## Historical corrections and measurement limits
 
-- [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) and comments
-  describe an import-debt carrier. [PR #4338](https://github.com/moto-nrw/project-phoenix/pull/4338)
+- [#4076](https://github.com/moto-ogs/project-phoenix/issues/4076) and comments
+  describe an import-debt carrier. [PR #4338](https://github.com/moto-ogs/project-phoenix/pull/4338)
   (`b033bd74ff7f0c0c9d3377800818ecf49818f1ee`) removed its last four keys and
   closed it. That is not evidence of a complete care-exit workflow cut.
-- [#4531](https://github.com/moto-nrw/project-phoenix/issues/4531) has no comments.
-  [PR #4619](https://github.com/moto-nrw/project-phoenix/pull/4619)
+- [#4531](https://github.com/moto-ogs/project-phoenix/issues/4531) has no comments.
+  [PR #4619](https://github.com/moto-ogs/project-phoenix/pull/4619)
   (`c206d2d91ef826e74b0cc96ea2b2761de46be1db`) implements ADR 0075 option A:
   own source-booking lock/end no longer make the Enrollment/root/workflow
   round trip. Snapshot/restore still live in `workflows/careexit/bookings.go`.

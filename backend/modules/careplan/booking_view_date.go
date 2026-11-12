@@ -1,6 +1,6 @@
 package careplan
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // BookingViewDate is the reference date for SHOWING a child's booked care
 // offerings to a human — today, falling back to the end of the care period

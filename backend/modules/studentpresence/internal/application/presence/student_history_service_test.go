@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

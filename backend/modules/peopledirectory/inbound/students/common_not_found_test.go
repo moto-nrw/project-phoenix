@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // TestCommonIsNotFoundMatchesRepositorySentinel pins api/common.IsNotFound

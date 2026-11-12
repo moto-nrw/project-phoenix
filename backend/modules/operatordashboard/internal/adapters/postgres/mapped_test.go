@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
+	"github.com/moto-ogs/project-phoenix/modules/operatordashboard/contract"
 
-	operatordashboard "github.com/moto-nrw/project-phoenix/modules/operatordashboard/internal/adapters/postgres"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	operatordashboard "github.com/moto-ogs/project-phoenix/modules/operatordashboard/internal/adapters/postgres"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

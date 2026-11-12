@@ -3,8 +3,8 @@ package presenceprojectionhttp
 import (
 	context "context"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // redactCompanionNames is the shared redaction core behind

@@ -6,7 +6,7 @@ import (
 
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // PartiesOf reads the parties of the given contracts of the Träger in one

@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

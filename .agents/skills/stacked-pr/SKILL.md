@@ -2,7 +2,7 @@
 name: stacked-pr
 description: Use when a change builds on an open, unmerged PR, or when work is split into PRs that must merge in order. Triggers on stacked PRs, basing a branch or PR on another branch instead of development, GitHub's stack object, or pre-push checks failing on a branch whose base is not development.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 

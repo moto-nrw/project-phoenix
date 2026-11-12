@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 )
 

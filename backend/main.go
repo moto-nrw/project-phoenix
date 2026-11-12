@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/moto-nrw/project-phoenix/cmd"
+	"github.com/moto-ogs/project-phoenix/cmd"
 )
 
 func main() {

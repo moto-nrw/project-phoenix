@@ -6,21 +6,21 @@ import (
 	"context"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importPorts "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // ImportTestModule is the Data Import a suite drives; the owners it imports

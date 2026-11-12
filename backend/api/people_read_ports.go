@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
 )
 
 // The People Directory read ports of the room snapshot export and the live

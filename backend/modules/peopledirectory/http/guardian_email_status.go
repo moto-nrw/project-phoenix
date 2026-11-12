@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // ErrGuardianHasNoEmail refuses to lift a block for a guardian without an address.

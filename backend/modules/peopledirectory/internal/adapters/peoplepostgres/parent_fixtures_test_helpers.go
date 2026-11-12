@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/parentfixture"
 
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
+	usersModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // The fixture facets delegate to the same concrete store, including its

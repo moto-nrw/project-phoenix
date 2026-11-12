@@ -58,7 +58,7 @@ services:
       - production
 
   server:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     restart: unless-stopped
     depends_on:
       postgres:
@@ -151,7 +151,7 @@ services:
       - production
 
   frontend:
-    image: ghcr.io/moto-nrw/phoenix-frontend:main
+    image: ghcr.io/moto-ogs/phoenix-frontend:main
     restart: unless-stopped
     depends_on:
       - server
@@ -199,7 +199,7 @@ services:
 
   # Explicit one-shot job, excluded from normal service startup.
   migrate:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     profiles: ["maintenance"]
     depends_on:
       postgres:
@@ -226,7 +226,7 @@ services:
 
   # Explicit maintenance only: privileged DSN, bank rings, no health/HTTP secrets.
   bank-data-rekey:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     profiles: ["maintenance"]
     command: ["./main", "bank-data-rekey"]
     environment:

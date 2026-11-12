@@ -1,10 +1,10 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingHTTP "github.com/moto-ogs/project-phoenix/modules/parentbilling/http"
 )
 
 // NewFinanceExportHTTP binds the finance exports of the Elternabrechnung

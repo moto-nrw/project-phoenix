@@ -1,8 +1,8 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // NewSlotListSettings binds the lists to the Settings-owned read protocol.

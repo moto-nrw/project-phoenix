@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
 )
 
 type recordingEngine struct {

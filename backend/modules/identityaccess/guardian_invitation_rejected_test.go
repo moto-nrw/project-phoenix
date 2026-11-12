@@ -3,7 +3,7 @@ package identityaccess_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 func TestGuardianInvitationIsRejected(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PersonDirectoryDependencies contains all dependencies required by the

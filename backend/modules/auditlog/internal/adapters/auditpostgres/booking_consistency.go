@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	auditModel "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 

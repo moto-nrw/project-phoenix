@@ -2,7 +2,7 @@
 name: env-docker-sync
 description: Use when adding, removing, or renaming environment variables, modifying docker-compose files, or when lefthook flags env sync warnings. Triggers on .env changes, docker-compose edits, or "missing keys" errors.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 

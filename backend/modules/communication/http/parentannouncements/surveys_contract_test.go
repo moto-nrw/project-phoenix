@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	announcement "github.com/moto-ogs/project-phoenix/modules/communication/http/parentannouncements"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Only the survey capability is replaced (#4781); the routes, the

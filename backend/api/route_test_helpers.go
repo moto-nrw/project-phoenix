@@ -5,20 +5,20 @@ package api
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/go-chi/chi/v5"
 
-	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	careStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/http"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	staffHTTP "github.com/moto-ogs/project-phoenix/modules/schoolmembership/http"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // These test-support builders share the root's adapter wiring without invoking

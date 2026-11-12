@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 func (s *Service) ReadEnrollmentStudent(ctx context.Context, id int64, lock string) (peopledirectory.EnrollmentRecord, error) {

@@ -5,7 +5,7 @@ package fixturetest
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 func careScheduleListFilter(options *QueryOptions) (ports.CareScheduleFilter, error) {

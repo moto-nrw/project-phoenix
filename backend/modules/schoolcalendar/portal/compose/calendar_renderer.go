@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/application"
 )
 
 func NewCalendarRenderer(renderer schoolcalendar.CalendarRenderer) portal.CalendarRenderer {

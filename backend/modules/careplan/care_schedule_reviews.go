@@ -3,7 +3,7 @@ package careplan
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // CareScheduleRequestQuery is the bounded storage read used by staff review.

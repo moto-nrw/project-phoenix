@@ -1,10 +1,10 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 func NewOpeningReferences(membership schoolmembership.Capability, people peopledirectory.Capability, ledger workforce.Capability) dataimport.OpeningReferences {

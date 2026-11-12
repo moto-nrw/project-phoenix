@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/ports"
 )
 
 // These decision tests pin the workflow's own choices (release gate, which

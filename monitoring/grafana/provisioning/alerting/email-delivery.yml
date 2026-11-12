@@ -65,7 +65,7 @@ groups:
         annotations:
           summary: Der Abgleich meldet einen deaktivierten Webhook oder fehlende Zustellereignisse.
           description: Webhook bei Lettermint prüfen und das Feld error der Logzeile lesen.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
         labels:
           env: prod
           issue: "5933"
@@ -128,7 +128,7 @@ groups:
         annotations:
           summary: Sicherheitsmails laufen über den Notweg.
           description: Status von Lettermint und Blocklisten prüfen. Das Postfach ist nur für wenige Mails gedacht.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
         labels:
           env: prod
           issue: "5933"
@@ -191,7 +191,7 @@ groups:
         annotations:
           summary: Eine Sicherheitsmail wartete auf den Notweg, der nicht mehr eingerichtet ist.
           description: Die Mail ist endgültig fehlgeschlagen. EMAIL_FALLBACK_* prüfen. Die Person muss den Vorgang neu starten.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
         labels:
           env: prod
           issue: "5957"

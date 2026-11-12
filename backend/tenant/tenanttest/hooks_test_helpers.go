@@ -10,7 +10,7 @@ package tenanttest
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant/internal/testseam"
+	"github.com/moto-ogs/project-phoenix/tenant/internal/testseam"
 )
 
 // WithTransaction installs an adapter transaction for tests that need to

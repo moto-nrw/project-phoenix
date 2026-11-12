@@ -3,8 +3,8 @@ package application
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // recordMissing marks a failure that carries the driver's no-rows error with

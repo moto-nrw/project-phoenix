@@ -3,7 +3,7 @@ package planning
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // The read-only slices of the Dienstplan that consumers bind on their own,

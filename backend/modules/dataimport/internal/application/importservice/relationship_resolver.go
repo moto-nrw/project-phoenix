@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/agnivade/levenshtein"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 type Reference = importModels.Reference

@@ -3,10 +3,10 @@ package owners
 import (
 	"fmt"
 
-	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	schedulerRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // newWorkerLease binds the Worker's leadership (#2726) to

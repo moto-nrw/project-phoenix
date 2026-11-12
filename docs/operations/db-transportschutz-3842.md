@@ -1,6 +1,6 @@
 # DB-Transportschutz: Bewertung und Betriebsnachweis
 
-Slice **3842-d**, AK3 von [#3842](https://github.com/moto-nrw/project-phoenix/issues/3842),
+Slice **3842-d**, AK3 von [#3842](https://github.com/moto-ogs/project-phoenix/issues/3842),
 Epic #3846. Repo-Abgleich vom 24.10.2026 gegen `origin/development`,
 Commit `755ccc706520fde78a5946581e9207a8b5660eaa`.
 
@@ -240,9 +240,9 @@ Freigabe; erforderliche Schutzmaßnahmen dadurch nicht aufschieben:
 
 ## Vorschlag AVV/TOM und Abschluss
 
-Gelesene Grundlage: [rechtliche Einordnung](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
-[AVV Anhang 1 Ziff. 5](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md)
-und [interne Checkliste](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md).
+Gelesene Grundlage: [rechtliche Einordnung](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
+[AVV Anhang 1 Ziff. 5](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md)
+und [interne Checkliste](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md).
 Der AVV-Entwurf sagt derzeit, interne DB-Verbindungen seien verschlüsselt.
 Das ist für die App-Pfade von Staging/Demo im Repo nicht belegt und beschreibt
 lokale Socketpfade nicht treffend. Eine Risikoentscheidung ändert keine Zusage.

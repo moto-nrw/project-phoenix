@@ -66,7 +66,7 @@ groups:
         annotations:
           summary: Buchungs-Audit meldet einen technischen Fehler in Production.
           description: Prüfe den Fehler und den betroffenen Mandanten. Keine Daten ohne fachliche Prüfung reparieren.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
         labels:
           env: prod
           issue: "2498"
@@ -137,7 +137,7 @@ groups:
         annotations:
           summary: Seit rund 26 Stunden fehlt ein erfolgreicher Buchungs-Audit-Lauf in Production.
           description: Prüfe Scheduler, Production-Server und Loki. Danach je aktivem Mandanten genau einen Ergebnis-Logeintrag erwarten.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
         labels:
           env: prod
           issue: "2498"
@@ -214,7 +214,7 @@ groups:
         annotations:
           summary: Mandant {{ $labels.tenant_id }} hat neue handlungsfähige Abweichungen im Buchungs-Audit.
           description: Kategorie {{ $labels.category }} liegt um {{ $values.B.Value }} über dem bekannten Wert. Nicht buchungsgeführte Mandanten lösen keinen Drift-Alarm aus.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/booking-consistency.md
         labels:
           env: prod
           issue: "2498"

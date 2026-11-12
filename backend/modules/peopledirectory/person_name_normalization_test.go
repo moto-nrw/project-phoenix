@@ -3,7 +3,7 @@ package peopledirectory_test
 import (
 	"testing"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // A name pasted in decomposed form (macOS) is stored composed, so search and

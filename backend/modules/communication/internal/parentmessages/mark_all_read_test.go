@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // unreadView is what one account sees across every staff unread surface.

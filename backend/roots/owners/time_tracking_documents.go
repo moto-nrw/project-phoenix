@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 // RenderTimeTrackingPDF binds the time-tracking document to the shared PDF design.

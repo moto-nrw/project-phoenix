@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 func (s *StudentStore) ListByIDs(ctx context.Context, ids []int64) ([]directory.Student, domain.OperationStats, error) {

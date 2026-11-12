@@ -3,9 +3,9 @@ package compose_test
 import (
 	"testing"
 
-	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	substitution "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	internalports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // NewStudentCompanions adapts Care Plan's companion seam to the module's

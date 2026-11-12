@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	projection "github.com/moto-nrw/project-phoenix/modules/presenceprojection/compose"
-	presenceContract "github.com/moto-nrw/project-phoenix/modules/presenceprojection/presencecontract"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	projection "github.com/moto-ogs/project-phoenix/modules/presenceprojection/compose"
+	presenceContract "github.com/moto-ogs/project-phoenix/modules/presenceprojection/presencecontract"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func NewTimetablePresenceProjection(db transactionruntime.Database) ports.PresenceReader {

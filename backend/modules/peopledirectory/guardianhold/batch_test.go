@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/guardianhold"
 	"github.com/stretchr/testify/require"
 )
 

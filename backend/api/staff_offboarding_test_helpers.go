@@ -5,13 +5,13 @@ package api
 import (
 	"context"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
-	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
+	offboardingcompose "github.com/moto-ogs/project-phoenix/workflows/staffoffboarding/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The Timetable planning writes the People Directory offboarding suite races

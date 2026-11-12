@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	portalCompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // Issue #6638: a poll answer takes the account before the school mapping,

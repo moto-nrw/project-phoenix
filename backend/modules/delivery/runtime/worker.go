@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 type workerEngine interface {

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *Service) CreateRoom(ctx context.Context, input facilities.CreateRoom) (result facilities.Room, err error) {

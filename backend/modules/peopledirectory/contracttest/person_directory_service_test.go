@@ -10,14 +10,14 @@ import (
 	"fmt"
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/api"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

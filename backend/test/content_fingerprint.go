@@ -3,7 +3,7 @@ package test
 import (
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // ContentFingerprint verifies SHA-256 artifact identities in behavior tests

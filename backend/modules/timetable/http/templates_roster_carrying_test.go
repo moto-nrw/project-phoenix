@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // withPickup sets the offering's pickup time on every weekday it books.

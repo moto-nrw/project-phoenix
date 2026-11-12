@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 )
 
 type announcementSchoolDirectory struct {

@@ -8,7 +8,7 @@ status: accepted
 2026-11-02 freigegeben. Ergänzt
 [ADR 0062](0062-demo-visitor-erasure-is-a-database-workflow.md) und
 [ADR 0092](0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md);
-Entscheidung für [#5544](https://github.com/moto-nrw/project-phoenix/issues/5544).
+Entscheidung für [#5544](https://github.com/moto-ogs/project-phoenix/issues/5544).
 
 ## Kontext
 

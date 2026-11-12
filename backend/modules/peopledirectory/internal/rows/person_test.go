@@ -3,8 +3,8 @@ package users
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/internal/ptrtest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestPerson_Validate(t *testing.T) {

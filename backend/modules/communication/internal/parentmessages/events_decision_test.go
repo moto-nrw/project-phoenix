@@ -10,19 +10,19 @@ import (
 	"log/slog"
 	"testing"
 
-	parentmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
+	parentmessaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

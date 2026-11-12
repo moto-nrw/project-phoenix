@@ -9,12 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	parent "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // stubParentAuthService supplies the login runtime the composition root

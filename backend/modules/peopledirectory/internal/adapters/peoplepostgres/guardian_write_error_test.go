@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 type fakePostgresError struct{ fields map[byte]string }

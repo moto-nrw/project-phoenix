@@ -1,12 +1,12 @@
 package owners
 
 import (
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // bindMembershipAdapters binds the staff, teacher and external caregiver record adapters over

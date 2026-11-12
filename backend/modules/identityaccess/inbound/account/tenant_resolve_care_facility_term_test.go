@@ -10,16 +10,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 func careFacilityTermResource(route *authAPI.Resource) *authAPI.Resource {

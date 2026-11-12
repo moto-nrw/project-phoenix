@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	schoolHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	schoolHTTP "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

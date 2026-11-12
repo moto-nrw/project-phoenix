@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // callerEntry memoizes the identity chain of one (tenant, account) pair for

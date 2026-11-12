@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // PreviewConfig builds a read-only batch view through the existing directory

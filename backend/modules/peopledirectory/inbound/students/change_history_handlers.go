@@ -6,8 +6,8 @@ import (
 	strconv "strconv"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // changeHistoryEntry is the per-child change-history row returned to the

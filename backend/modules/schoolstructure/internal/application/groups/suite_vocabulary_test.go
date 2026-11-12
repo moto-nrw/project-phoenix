@@ -1,7 +1,7 @@
 package groups_test
 
 import (
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 // The suites of the retained School Structure services name the service's

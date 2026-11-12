@@ -3,9 +3,9 @@
 package api
 
 import (
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // MustNewWorkflowAuditCommand is newWorkflowAuditCommand for test

@@ -1,8 +1,8 @@
 package repositoryadapter
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	implementation "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/repositoryadapter"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	implementation "github.com/moto-ogs/project-phoenix/modules/facilities/internal/application/repositoryadapter"
 )
 
 func New(rooms facilities.Capability) *implementation.Repository { return implementation.New(rooms) }

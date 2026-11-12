@@ -8,12 +8,12 @@ status: accepted
 > [ADR 0054](0054-the-session-token-adapter-leaves-legacy-now.md). Its
 > substance stands.
 
-[#3226](https://github.com/moto-nrw/project-phoenix/issues/3226) rewrote the
+[#3226](https://github.com/moto-ogs/project-phoenix/issues/3226) rewrote the
 Identity & Access persistence and token layer natively, but could not delete
 `modules/identityaccess/legacy/jwt`.
-[#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) asked where
+[#3487](https://github.com/moto-ogs/project-phoenix/issues/3487) asked where
 the session middleware and the signer should live instead. We decide under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580): the package
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580): the package
 is the permanent session token adapter of `identity-access`. It gets no
 replacement. It leaves the `legacy/` path once, at the end, when the carrier
 tickets have removed their debt on it.
@@ -29,11 +29,11 @@ Measured on `cf45b8dcf6`, policy epoch 18:
   reads authenticated permission claims." Already migrated module packages
   read claims through these rules today. A rule names an owner and a role,
   never a path, so the rules keep applying after a rename.
-- Since [PR #3488](https://github.com/moto-nrw/project-phoenix/pull/3488) the
+- Since [PR #3488](https://github.com/moto-ogs/project-phoenix/pull/3488) the
   package reads no process configuration, does not know the tenant runtime
   (`jwt.TenantScope` port), and neither generates nor persists a signing key.
   All 17 tuples of
-  [#2725](https://github.com/moto-nrw/project-phoenix/issues/2725) are gone.
+  [#2725](https://github.com/moto-ogs/project-phoenix/issues/2725) are gone.
 
 What remains "legacy" is the path, plus 31 exact baseline tuples that name the
 package (13 production, 8 internal-test, 10 external-test). Those tuples belong
@@ -51,8 +51,8 @@ to the importing side: #2736 (6), #2748 (5), #2731, #2734 and #2742 (3 each),
    and it buys only a path. The middleware would be the same code.
 2. **Wait without deciding.** Rejected. #3226 would stay open until the last
    carrier closes and keep #2725,
-   [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230) and
-   [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231) blocked,
+   [#3230](https://github.com/moto-ogs/project-phoenix/issues/3230) and
+   [#3231](https://github.com/moto-ogs/project-phoenix/issues/3231) blocked,
    although their work does not depend on the path. It would also leave open
    what those tickets should build against.
 

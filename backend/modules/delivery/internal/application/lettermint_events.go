@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 )
 
 const lettermintHeaderOutbox = "X-Moto-Outbox-Id"

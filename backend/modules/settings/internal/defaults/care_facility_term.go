@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The term for the school's care in fixed parent texts (#6042). Schools in

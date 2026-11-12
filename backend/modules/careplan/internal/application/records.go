@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 func runValue[T any](ctx context.Context, s *Service, operation string, call func(context.Context) (T, domain.OperationStats, error)) (result T, err error) {

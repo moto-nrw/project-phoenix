@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-ogs/project-phoenix/modules/timetable/fixturetest"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

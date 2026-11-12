@@ -7,15 +7,15 @@ import (
 	"net/http"
 	"strings"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
-	"github.com/moto-nrw/project-phoenix/observability"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	usersAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/http"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 // The guardian surface under /api/guardians (#2663) is the People Directory

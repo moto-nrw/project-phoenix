@@ -3,8 +3,8 @@ package notifications
 import (
 	"context"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
 )
 
 // PushSubscriptionAuthorizer reads the currently eligible subscriptions.
