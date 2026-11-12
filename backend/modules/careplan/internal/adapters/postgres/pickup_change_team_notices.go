@@ -46,6 +46,37 @@ func NewPickupChangeTeamStore(store *Store, directory StudentDirectory) *PickupC
 	return &PickupChangeTeamStore{Store: store, directory: directory}
 }
 
+// ClearPickupChangeNotice removes the deciding person's earlier marker in
+// the same tenant transaction as their correction.
+func (s *PickupChangeTeamStore) ClearPickupChangeNotice(ctx context.Context, requestID, reviewerAccountID int64) (domain.OperationStats, error) {
+	if reviewerAccountID <= 0 {
+		return domain.OperationStats{}, nil
+	}
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	if tenantID <= 0 {
+		return domain.OperationStats{}, errors.New("care plan postgres: clear pickup change notice: tenant is required")
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewDelete().
+		Model((*pickupChangeTeamNoticeRow)(nil)).
+		Where("tenant_id = ?", tenantID).
+		Where("request_id = ?", requestID).
+		Where("recipient_account_id = ?", reviewerAccountID).
+		Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("care plan postgres: clear pickup change notice: %w", err)
+	}
+	if affected, rowsErr := result.RowsAffected(); rowsErr == nil {
+		stats.Rows = affected
+	}
+	return stats, nil
+}
+
 // UpsertPickupChangeNotices writes all markers in one statement. Telling the
 // team again about the same request (a corrected decision) sets them unread.
 func (s *PickupChangeTeamStore) UpsertPickupChangeNotices(ctx context.Context, requestID int64, date calendar.Date, recipientAccountIDs []int64) (domain.OperationStats, error) {

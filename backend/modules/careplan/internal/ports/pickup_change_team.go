@@ -33,6 +33,9 @@ type PickupChangeNoticeRow struct {
 // PickupChangeTeamStore keeps the unread markers of the changed pickup times
 // in the caller's tenant transaction.
 type PickupChangeTeamStore interface {
+	// ClearPickupChangeNotice removes a reviewer's marker of the request
+	// they just decided, including a marker from an earlier decision.
+	ClearPickupChangeNotice(ctx context.Context, requestID, reviewerAccountID int64) (domain.OperationStats, error)
 	// UpsertPickupChangeNotices stores one unread marker per recipient for
 	// the request; a recipient who read an earlier one gets it unread again.
 	UpsertPickupChangeNotices(ctx context.Context, requestID int64, date calendar.Date, recipientAccountIDs []int64) (domain.OperationStats, error)

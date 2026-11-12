@@ -88,6 +88,11 @@ func (s *PickupChangeTeamService) NotifyPickupChangeApproved(ctx context.Context
 			return fmt.Errorf("pickup change team: responsible staff: %w", err)
 		}
 		recipients = withoutAccount(recipients, notice.ReviewerAccountID)
+		clearStats, err := s.store.ClearPickupChangeNotice(txCtx, notice.RequestID, notice.ReviewerAccountID)
+		stats.Add(clearStats)
+		if err != nil {
+			return err
+		}
 		if len(recipients) == 0 {
 			return nil
 		}
@@ -96,7 +101,7 @@ func (s *PickupChangeTeamService) NotifyPickupChangeApproved(ctx context.Context
 		if err != nil {
 			return err
 		}
-		title, body := pickupChangeCopy(notice, today)
+		title, body := pickupChangeCopy(notice)
 		return s.reach.NotifyPickupChanged(txCtx, careplan.PickupChangePush{
 			StudentID: notice.StudentID, RequestID: notice.RequestID, Withdrawn: notice.Withdrawn,
 			RecipientAccountIDs: recipients, Title: title, Body: body,
@@ -187,22 +192,12 @@ func withoutAccount(accountIDs []int64, excluded int64) []int64 {
 	return out
 }
 
-// pickupChangeCopy names the day as "heute", "morgen" or "am Fr. 13.11." and
-// the new time, or that the regular time applies again.
-func pickupChangeCopy(notice careplan.PickupChangeNotice, today calendar.Date) (string, string) {
-	day := pickupChangeDay(notice.Date, today)
+// pickupChangeCopy uses an absolute date so delayed delivery cannot change
+// which day the new or regular time applies to.
+func pickupChangeCopy(notice careplan.PickupChangeNotice) (string, string) {
+	day := "am " + germanWeekdayShort[notice.Date.Weekday()] + " " + notice.Date.Format("02.01.2006")
 	if notice.Withdrawn {
 		return pickupWithdrawnTitle, fmt.Sprintf(pickupWithdrawnBody, day)
 	}
 	return pickupChangedTitle, fmt.Sprintf(pickupChangedBody, day, notice.PickupTime)
-}
-
-func pickupChangeDay(date, today calendar.Date) string {
-	switch date {
-	case today:
-		return "heute"
-	case today.AddDays(1):
-		return "morgen"
-	}
-	return "am " + germanWeekdayShort[date.Weekday()] + " " + date.Format("02.01.")
 }

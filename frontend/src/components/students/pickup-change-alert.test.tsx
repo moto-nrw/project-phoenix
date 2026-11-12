@@ -245,6 +245,46 @@ describe("StudentPickupChanges", () => {
     expect(notices.markRead).not.toHaveBeenCalled();
   });
 
+  it("does not show a seen withdrawal after a newer approval fails to refresh", async () => {
+    const withdrawn = notice({ withdrawn: true, pickupTime: "" });
+    notices.list = [withdrawn];
+    const { container, rerender } = render(
+      <StudentPickupChanges studentId="7" exceptions={[]} today={TODAY} />,
+    );
+    await waitFor(() =>
+      expect(notices.markRead).toHaveBeenCalledWith("7", [withdrawn]),
+    );
+    notices.list = [];
+    rerender(
+      <StudentPickupChanges studentId="7" exceptions={[]} today={TODAY} />,
+    );
+    expect(
+      screen.getByText("Morgen: wieder normale Abholzeit"),
+    ).toBeInTheDocument();
+
+    notices.list = [notice({ informedAt: "2026-09-09T12:00:00Z" })];
+    fetchPickup.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      rerender(
+        <StudentPickupChanges studentId="7" exceptions={[]} today={TODAY} />,
+      );
+    });
+    // No pickup data confirms the new time yet, but the withdrawal is stale.
+    expect(container).toBeEmptyDOMElement();
+    expect(fetchPickup).toHaveBeenCalledTimes(2);
+    expect(notices.markRead).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <StudentPickupChanges
+        studentId="7"
+        exceptions={[exception({ exceptionDate: "2026-09-10" })]}
+        today={TODAY}
+      />,
+    );
+    expect(screen.getByText("Morgen: 14:30 Uhr")).toBeInTheDocument();
+    expect(screen.getByText("Neu")).toBeInTheDocument();
+  });
+
   it("confirms nothing before the pickup times are there", () => {
     notices.list = [notice()];
     render(

@@ -199,13 +199,15 @@ export function StudentPickupChanges({
         });
       });
   }, [loaded, unreadHere, tenantMutate, markRead, studentId]);
-  // Until the confirmation is back, the unread changes count as new too.
+  // Unread revisions replace this visit's seen state, even if their pickup
+  // refresh fails. A previous withdrawal must not hide a newer approval.
   const fresh = useMemo(
     () => [
-      ...seen,
-      ...unreadHere.filter(
-        (notice) => !seen.some((old) => old.requestId === notice.requestId),
+      ...seen.filter(
+        (old) =>
+          !unreadHere.some((notice) => notice.requestId === old.requestId),
       ),
+      ...unreadHere,
     ],
     [seen, unreadHere],
   );

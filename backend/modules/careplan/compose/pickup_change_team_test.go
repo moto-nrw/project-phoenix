@@ -172,6 +172,49 @@ func revisions(notices []careplan.PickupChangeTeamNotice) []careplan.PickupChang
 	return out
 }
 
+func TestPickupChangeTeamClearsTheCorrectingReviewersUnreadNotice(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	for _, keepOtherRecipients := range []bool{true, false} {
+		t.Run(fmt.Sprintf("other recipients %t", keepOtherRecipients), func(t *testing.T) {
+			child := testpkg.CreateTestStudent(t, db, "Mia", "Korrektur", "2a")
+			parent := testpkg.CreateTestAccount(t, db, "pickup-correction-parent")
+			firstReviewer := testpkg.CreateTestAccount(t, db, "pickup-correction-first")
+			correctingReviewer := testpkg.CreateTestAccount(t, db, "pickup-correction-second")
+			date := pickupTeamToday.AddDays(1)
+			request := pickupRequest(t, db, ctx, child.ID, parent.ID, date, "approved")
+			reach := &fixedPickupReach{responsible: []int64{firstReviewer.ID, correctingReviewer.ID}}
+			team := pickupTeam(reach)
+			approvePickup(t, db, ctx, team, careplan.PickupChangeNotice{
+				StudentID: child.ID, Date: date, PickupTime: "15:00", ReviewerAccountID: firstReviewer.ID, RequestID: request,
+			})
+			require.Len(t, unreadPickups(t, db, ctx, team, correctingReviewer.ID), 1)
+
+			_, err := db.NewRaw(`DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ? AND exception_date = ?`, child.ID, string(date)).Exec(ctx)
+			require.NoError(t, err)
+			_, err = db.NewRaw(`UPDATE schedule.care_schedule_change_requests SET status = 'rejected' WHERE id = ?`, request).Exec(ctx)
+			require.NoError(t, err)
+			if !keepOtherRecipients {
+				reach.responsible = []int64{correctingReviewer.ID}
+			}
+			approvePickup(t, db, ctx, team, careplan.PickupChangeNotice{
+				StudentID: child.ID, Date: date, Withdrawn: true, ReviewerAccountID: correctingReviewer.ID, RequestID: request,
+			})
+			assert.Empty(t, unreadPickups(t, db, ctx, team, correctingReviewer.ID), "correcting a decision clears one's earlier unread notice")
+			if keepOtherRecipients {
+				unread := unreadPickups(t, db, ctx, team, firstReviewer.ID)
+				require.Len(t, unread, 1)
+				assert.True(t, unread[0].Withdrawn)
+				require.Len(t, reach.pushes, 2)
+				assert.Equal(t, []int64{firstReviewer.ID}, reach.pushes[1].RecipientAccountIDs)
+			} else {
+				assert.Len(t, reach.pushes, 1, "no push when nobody else is responsible")
+			}
+		})
+	}
+}
+
 func TestPickupChangeTeamSkipsPastDays(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

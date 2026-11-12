@@ -25,6 +25,11 @@ type pickupTeamStoreDouble struct {
 	marked    [2]int64
 	observed  []ports.PickupChangeRevision
 	err       error
+	clearErr  error
+}
+
+func (s *pickupTeamStoreDouble) ClearPickupChangeNotice(context.Context, int64, int64) (domain.OperationStats, error) {
+	return domain.OperationStats{Queries: 1}, s.clearErr
 }
 
 func (s *pickupTeamStoreDouble) UpsertPickupChangeNotices(_ context.Context, requestID int64, date calendar.Date, recipients []int64) (domain.OperationStats, error) {
@@ -86,7 +91,7 @@ func TestPickupChangeTeamMarksAndTellsTheResponsibleStaff(t *testing.T) {
 	push := reach.pushes[0]
 	assert.Equal(t, []int64{11, 12}, push.RecipientAccountIDs)
 	assert.Equal(t, "Abholzeit geändert", push.Title)
-	assert.Equal(t, "Neue Abholzeit für ein Kind: morgen um 15:00 Uhr.", push.Body)
+	assert.Equal(t, "Neue Abholzeit für ein Kind: am Fr. 13.11.2026 um 15:00 Uhr.", push.Body)
 	assert.Equal(t, "/students/77", push.DeepLink)
 	assert.Equal(t, int64(501), push.RequestID)
 }
@@ -96,9 +101,9 @@ func TestPickupChangeTeamMarksAndTellsTheResponsibleStaff(t *testing.T) {
 func TestPickupChangeTeamNamesTheDayNotTheChild(t *testing.T) {
 	t.Parallel()
 	cases := map[calendar.Date]string{
-		pickupTeamToday:                "Neue Abholzeit für ein Kind: heute um 15:00 Uhr.",
-		pickupTeamToday.AddDays(1):     "Neue Abholzeit für ein Kind: morgen um 15:00 Uhr.",
-		calendar.NewDate(2026, 11, 20): "Neue Abholzeit für ein Kind: am Fr. 20.11. um 15:00 Uhr.",
+		pickupTeamToday:                "Neue Abholzeit für ein Kind: am Do. 12.11.2026 um 15:00 Uhr.",
+		pickupTeamToday.AddDays(1):     "Neue Abholzeit für ein Kind: am Fr. 13.11.2026 um 15:00 Uhr.",
+		calendar.NewDate(2026, 11, 20): "Neue Abholzeit für ein Kind: am Fr. 20.11.2026 um 15:00 Uhr.",
 	}
 	for date, want := range cases {
 		reach := &pickupTeamReachDouble{responsible: []int64{11}}
@@ -118,7 +123,7 @@ func TestPickupChangeTeamAnnouncesWithdrawal(t *testing.T) {
 
 	require.Len(t, reach.pushes, 1)
 	assert.Equal(t, "Abholzeit zurückgenommen", reach.pushes[0].Title)
-	assert.Equal(t, "Für ein Kind gilt am Fr. 20.11. wieder die normale Abholzeit.", reach.pushes[0].Body)
+	assert.Equal(t, "Für ein Kind gilt am Fr. 20.11.2026 wieder die normale Abholzeit.", reach.pushes[0].Body)
 	assert.True(t, reach.pushes[0].Withdrawn)
 }
 
@@ -152,6 +157,10 @@ func TestPickupChangeTeamFailureFailsTheDecision(t *testing.T) {
 	err = newPickupTeam(&pickupTeamStoreDouble{}, &pickupTeamReachDouble{responsible: []int64{11}, pushErr: boom}).
 		NotifyPickupChangeApproved(t.Context(), pickupNotice(pickupTeamToday))
 	require.ErrorIs(t, err, boom)
+
+	err = newPickupTeam(&pickupTeamStoreDouble{clearErr: boom}, &pickupTeamReachDouble{responsible: []int64{9}}).
+		NotifyPickupChangeApproved(t.Context(), pickupNotice(pickupTeamToday))
+	require.ErrorIs(t, err, boom, "clearing the reviewer's marker must succeed even with no other recipients")
 }
 
 func TestPickupChangeTeamListsTheRequestsCurrentState(t *testing.T) {
