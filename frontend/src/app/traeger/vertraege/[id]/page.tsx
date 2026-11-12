@@ -322,7 +322,7 @@ export default function TraegerVertragPage() {
               type="button"
               variant="outline"
               size="md"
-              tooltip="Lädt den Vertrag als PDF auf Ihr Gerät."
+              tooltip="Speichert den Vertrag als PDF auf Ihrem Gerät."
               onClick={() => void download()}
             >
               <Download className="mr-2 h-4 w-4" aria-hidden="true" />

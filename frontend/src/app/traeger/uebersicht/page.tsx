@@ -551,7 +551,7 @@ export default function TraegerDashboardPage() {
               type="button"
               variant="ghost_tone"
               size="compact"
-              tooltip="Lädt die Zahlen aller Schulen noch einmal."
+              tooltip="Holt die Zahlen aller Schulen noch einmal."
               onClick={reload}
             >
               Erneut laden

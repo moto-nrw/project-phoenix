@@ -191,7 +191,7 @@ export default function TraegerDocumentPage() {
               variant="outline"
               size="md"
               className="gap-2"
-              tooltip="Lädt das Dokument auf Ihr Gerät."
+              tooltip="Speichert das Dokument als Datei auf Ihrem Gerät."
               onClick={() => void download()}
               isLoading={downloading}
               loadingText="Wird geladen …"
