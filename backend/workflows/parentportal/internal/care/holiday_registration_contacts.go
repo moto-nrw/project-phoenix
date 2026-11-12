@@ -59,19 +59,7 @@ func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, account
 	if len(profileIDs) == 0 {
 		return nil
 	}
-	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
-	if err != nil {
-		return err
-	}
-	phones, err := s.GuardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
-	if err != nil {
-		return err
-	}
-	callerStudents, editableStudents, err := s.callerStudentSets(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	shared, _, err := s.profilesEscapingFamily(ctx, profileIDs, callerStudents, editableStudents)
+	sources, err := s.loadHolidayContactSources(ctx, accountID, profileIDs)
 	if err != nil {
 		return err
 	}
@@ -84,15 +72,45 @@ func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, account
 		if child == nil {
 			continue
 		}
-		profile, ok := profiles[link.GuardianProfileID]
+		profile, ok := sources.profiles[link.GuardianProfileID]
 		if !ok {
 			return fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
 		}
-		if contact, ok := s.holidayRegistrationContact(profile, link, phones[profile.ID], accountID, shared[profile.ID]); ok {
+		if contact, ok := s.holidayRegistrationContact(profile, link, sources.phones[profile.ID], accountID, sources.shared[profile.ID]); ok {
 			child.Contacts = append(child.Contacts, contact)
 		}
 	}
 	return nil
+}
+
+// holidayContactSources are the batch reads behind the contacts of one school.
+type holidayContactSources struct {
+	profiles map[int64]*GuardianProfile
+	phones   map[int64][]*GuardianPhoneNumber
+	shared   map[int64]bool
+}
+
+// loadHolidayContactSources reads profiles, phones and the cross-family reach
+// of the guardians in three statements plus the caller's own links, as the
+// child's guardian list does.
+func (s *Service) loadHolidayContactSources(ctx context.Context, accountID int64, profileIDs []int64) (*holidayContactSources, error) {
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+	phones, err := s.GuardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+	callerStudents, editableStudents, err := s.callerStudentSets(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	shared, _, err := s.profilesEscapingFamily(ctx, profileIDs, callerStudents, editableStudents)
+	if err != nil {
+		return nil, err
+	}
+	return &holidayContactSources{profiles: profiles, phones: phones, shared: shared}, nil
 }
 
 // holidayRegistrationContact projects one guardian of a child for the
