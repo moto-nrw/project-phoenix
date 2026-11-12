@@ -287,3 +287,47 @@ func TestUpdateSchedule_RejectsFutureValidFromForEmptyCustomSchedule(t *testing.
 		})
 	}
 }
+
+// An archived template is no longer offered for new assignments (#6891). A
+// person already bound to it keeps it and can save that choice again.
+func TestUpdateSchedule_ArchivedTemplateOnlyKeepsExistingAssignees(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupStaffRoute(t)
+	capability := newWorkforceCapability(t, ctx.db)
+	catalog, ok := capability.(workforce.WorkTimeModelCatalog)
+	require.True(t, ok, "the composed capability serves the template catalog")
+	model, err := capability.CreateWorkTimeModel(testpkg.Ctx(t), workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
+		Name: "Archivierte Vorlage", RotationLength: 1, RotationAnchorDate: "2026-06-01",
+		Entries: []workforce.WorkTimeModelEntry{{WeekIndex: 0, DayOfWeek: dayMonday, TargetMinutes: 300}},
+	}})
+	require.NoError(t, err)
+	testpkg.OwnTestWorkTimeModel(t, ctx.db, model.ID)
+
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = []string{"time_tracking:manage"}
+	token := testutil.MintTestJWT(t, claims)
+	assign := func(staffID int64) *http.Response {
+		body := map[string]any{"mode": "template", "model_id": model.ID}
+		req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/staff/%d/schedule", staffID), body, testutil.WithJWTBearer(token))
+		return testutil.ExecuteRequest(ctx.router, req).Result()
+	}
+
+	bound := testpkg.CreateTestStaff(t, ctx.db, "ArchivedTemplate", "Bound")
+	newcomer := testpkg.CreateTestStaff(t, ctx.db, "ArchivedTemplate", "Newcomer")
+	require.Equal(t, http.StatusOK, assign(bound.ID).StatusCode)
+
+	_, err = catalog.ArchiveWorkTimeModel(testpkg.Ctx(t), model.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusBadRequest, assign(newcomer.ID).StatusCode, "an archived template is not assigned anew")
+	rows, err := capability.CurrentStaffSchedule(testpkg.Ctx(t), newcomer.ID)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "the refused assignment writes no schedule")
+
+	assert.Equal(t, http.StatusOK, assign(bound.ID).StatusCode, "an existing assignee keeps the template")
+
+	_, err = catalog.RestoreWorkTimeModel(testpkg.Ctx(t), model.ID)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, assign(newcomer.ID).StatusCode, "a restored template is offered again")
+}

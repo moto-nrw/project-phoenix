@@ -39,6 +39,8 @@ type ScheduleTemplate struct {
 	RotationLength     int
 	RotationAnchorDate calendar.Date
 	Entries            []*ScheduleTemplateEntry
+	// Archived templates are not offered for new assignments (#6891).
+	Archived bool
 }
 
 // ScheduleTemplateEntry carries the target minutes of one (week index, day of

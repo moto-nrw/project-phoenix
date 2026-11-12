@@ -16,6 +16,12 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	if err != nil {
 		return fmt.Errorf("template not found: %w", err)
 	}
+	// An archived template is no longer offered (#6891). A staff member
+	// already bound to it may keep it, so saving the unchanged choice works.
+	alreadyBound := staff.WorkTimeModelID != nil && *staff.WorkTimeModelID == model.ID
+	if model.Archived && !alreadyBound {
+		return scheduleValidationErrorf("work time model %d is archived and cannot be newly assigned", model.ID)
+	}
 
 	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
 	anchor := model.RotationAnchorDate

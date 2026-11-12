@@ -240,6 +240,7 @@ func workTimeTemplate(row *config.WorkTimeModel) *workforceCompose.WorkTimeTempl
 		RotationLength:     row.RotationLength,
 		RotationAnchorDate: timezone.Date(row.RotationAnchorDate),
 		Entries:            workTimeTemplateEntries(row.Entries),
+		Archived:           row.ArchivedAt != nil,
 	}
 }
 
