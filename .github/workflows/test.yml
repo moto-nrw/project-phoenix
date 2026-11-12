@@ -77,12 +77,11 @@ jobs:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
-      - name: Test backend test scripts
-        run: |
-          scripts/backend-affected-packages_test.sh
-          scripts/backend-test-matrix_test.sh
-          scripts/test-changed_test.sh
-          scripts/go-test-link-cache_test.sh
+      # No script self-tests here: this job runs before the backend tests on
+      # the critical path, and those suites took 109 s of its 153 s (#6784).
+      # A change to a selection script or its test sets full-backend-suite
+      # (backend-test-infra in main.yml), which skips this job and runs the
+      # suites in test-backend instead.
       - name: Select and partition backend packages
         id: packages
         working-directory: backend
@@ -128,6 +127,11 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           TZ: Europe/Berlin
+          # As the local test server (docker-compose.example.yml). Six package
+          # binaries hold a pool of twelve each, and every isolated clone adds
+          # its own: with two clones per package the default of 100 answered
+          # "too many clients already" (#6784).
+          POSTGRES_INITDB_ARGS: --set max_connections=300
         ports:
           - 5432:5432
         # Package database drops force checkpoints. These disposable databases
