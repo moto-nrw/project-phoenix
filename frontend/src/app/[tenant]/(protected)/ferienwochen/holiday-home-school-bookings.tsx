@@ -43,12 +43,11 @@ function columns(
           <span className="font-medium text-gray-900">
             {child.lastName}, {child.firstName}
           </span>
-          <span className="text-gray-500">
+          <span className="text-sm text-gray-500">
             geboren am {formatDate(child.birthDate)}
           </span>
         </span>
       ),
-      stackedRender: (child) => `${child.lastName}, ${child.firstName}`,
       sortValue: (child) => `${child.lastName} ${child.firstName}`,
     },
     {
