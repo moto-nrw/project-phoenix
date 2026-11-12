@@ -7,6 +7,7 @@ import { usePickupChangeNotices } from "~/lib/hooks/use-pickup-change-notices";
 import { createLogger } from "~/lib/logger";
 import { pickupDayLabel } from "~/lib/pickup-day-label";
 import type { PickupChangeNotice } from "~/lib/pickup-change-notices-api";
+import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import type { PickupException } from "~/lib/pickup-schedule-helpers";
 import { formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { useTenantMutate } from "~/lib/swr";
@@ -172,8 +173,16 @@ export function StudentPickupChanges({
     }
     // A started confirmation finishes even if the list or the page changes
     // meanwhile: it names its child and its revisions itself.
-    void tenantMutate(studentKeys.pickupData(studentId))
-      .then(async () => {
+    // A revalidation can resolve cached data after a failed fetch. Mutate
+    // with an explicit fetch so only a successful refresh is acknowledged.
+    void tenantMutate(
+      studentKeys.pickupData(studentId),
+      () => fetchStudentPickupData(studentId),
+      { revalidate: false },
+    )
+      .then(async (refreshed) => {
+        // A scope or data-generation change discards the refresh.
+        if (refreshed === undefined) return;
         setSeen((previous) => [
           ...previous.filter(
             (old) =>

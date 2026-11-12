@@ -430,17 +430,36 @@ func TestApprovedPickupTimeTellsTheTeam(t *testing.T) {
 // that approves it after all announces the new time.
 func TestCorrectedPickupDecisionTellsTheTeam(t *testing.T) {
 	t.Parallel()
-	for _, approve := range []bool{false, true} {
-		notices := &recordedPickupChanges{}
-		effects, err := NewCareRequestEffects(CareRequestEffectPorts{
-			Records: careRequestRows{}, Students: careRequestNames{}, Messenger: &careRequestMessenger{}, PickupChanges: notices,
-		}, newFakeHooks())
-		require.NoError(t, err)
+	for _, tc := range []struct {
+		name       string
+		previous   string
+		approve    bool
+		wantNotice bool
+	}{
+		{"withdraw approval", carerequests.StatusApproved, false, true},
+		{"approve rejection", carerequests.StatusRejected, true, true},
+		{"reapply approval", carerequests.StatusApproved, true, true},
+		{"correct rejection reason", carerequests.StatusRejected, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			notices := &recordedPickupChanges{}
+			effects, err := NewCareRequestEffects(CareRequestEffectPorts{
+				Records: careRequestRows{}, Students: careRequestNames{}, Messenger: &careRequestMessenger{}, PickupChanges: notices,
+			}, newFakeHooks())
+			require.NoError(t, err)
+			request := pickupCareRequest(pickupTimeAndModePayload)
+			request.Status = tc.previous
 
-		require.NoError(t, effects.NotifyCorrection(context.Background(), pickupCareRequest(pickupTimeAndModePayload), fakeReviewer, approve, "Versehen"))
-		assert.Equal(t, []ports.PickupChangeNotice{{
-			TenantID: fakeTenantID, StudentID: fakeStudentID, Date: calendar.NewDate(2026, 9, 21), PickupTime: "14:30",
-			Withdrawn: !approve, ReviewerAccountID: fakeReviewer, RequestID: fakeCareRequestID,
-		}}, notices.notices, "approve=%t", approve)
+			require.NoError(t, effects.NotifyCorrection(context.Background(), request, fakeReviewer, tc.approve, "Versehen"))
+			if !tc.wantNotice {
+				assert.Empty(t, notices.notices, "no approved time was withdrawn")
+				return
+			}
+			assert.Equal(t, []ports.PickupChangeNotice{{
+				TenantID: fakeTenantID, StudentID: fakeStudentID, Date: calendar.NewDate(2026, 9, 21), PickupTime: "14:30",
+				Withdrawn: !tc.approve, ReviewerAccountID: fakeReviewer, RequestID: fakeCareRequestID,
+			}}, notices.notices)
+		})
 	}
 }

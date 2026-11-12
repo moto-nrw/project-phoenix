@@ -96,7 +96,8 @@ type pickupChangeNoticeReadRow struct {
 
 // ListUnreadPickupChangeNotices joins the marker to its request and the
 // child's directory row: a child whose person row is gone has nothing to
-// link to and drops out.
+// link to and drops out. Superseded times and withdrawals no longer matching
+// the day's schedule drop out too; the request payload is historical.
 func (s *PickupChangeTeamStore) ListUnreadPickupChangeNotices(ctx context.Context, readerAccountID int64, from calendar.Date, limit int) ([]ports.PickupChangeNoticeRow, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -106,11 +107,12 @@ func (s *PickupChangeTeamStore) ListUnreadPickupChangeNotices(ctx context.Contex
 	query := withTenant(db.NewSelect().TableExpr(tableExprPickupChangeTeamNotices), "pickup_notice", tenantID).
 		ColumnExpr(`"pickup_notice".request_id, "request".student_id, "student".first_name, "request".status, "request".payload, "pickup_notice".informed_at`).
 		Join(`JOIN schedule.care_schedule_change_requests AS "request" ON "request".tenant_id = "pickup_notice".tenant_id AND "request".id = "pickup_notice".request_id`).
+		Join(`LEFT JOIN schedule.student_pickup_exceptions AS "exception" ON "exception".tenant_id = "request".tenant_id AND "exception".student_id = "request".student_id AND "exception".exception_date = "pickup_notice".pickup_date`).
 		Join(`JOIN (?) AS "student" ON "student".tenant_id = "request".tenant_id AND "student".id = "request".student_id AND "student".first_name IS NOT NULL`, s.directory.StudentDisplayRows(db, tenantID)).
 		Where(`"pickup_notice".recipient_account_id = ?`, readerAccountID).
 		Where(`"pickup_notice".read_at IS NULL`).
 		Where(`"pickup_notice".pickup_date >= ?`, string(from)).
-		Where(`"request".status IN (?, ?)`, requestApproved, requestRejected).
+		Where(`(("request".status = ? AND to_char("exception".pickup_time, 'HH24:MI') = "request".payload->>'pickup_time') OR ("request".status = ? AND "exception".id IS NULL))`, requestApproved, requestRejected).
 		OrderExpr(`"pickup_notice".informed_at DESC, "pickup_notice".request_id DESC`).
 		Limit(int64(limit))
 	stats := domain.OperationStats{Queries: 1}

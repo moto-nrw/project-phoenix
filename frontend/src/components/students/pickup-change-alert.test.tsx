@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PickupChangeNotice } from "~/lib/pickup-change-notices-api";
@@ -16,9 +16,17 @@ vi.mock("~/lib/hooks/use-pickup-change-notices", () => ({
   }),
 }));
 const refreshes = vi.hoisted(() => [] as string[]);
-const tenantMutate = vi.hoisted(() => async (key: string) => {
-  refreshes.push(key);
-});
+const fetchPickup = vi.hoisted(() => vi.fn());
+vi.mock("~/lib/pickup-schedule-api", () => ({
+  fetchStudentPickupData: fetchPickup,
+}));
+const tenantMutate = vi.hoisted(() =>
+  vi.fn(async (key: string, data?: () => Promise<unknown>) => {
+    refreshes.push(key);
+    // Revalidation alone may resolve cached data even when its fetch failed.
+    return data ? await data() : { exceptions: [] };
+  }),
+);
 vi.mock("~/lib/swr", () => ({ useTenantMutate: () => tenantMutate }));
 
 import {
@@ -178,6 +186,8 @@ describe("StudentPickupChanges", () => {
     notices.list = [];
     notices.markRead.mockClear();
     refreshes.length = 0;
+    tenantMutate.mockClear();
+    fetchPickup.mockReset().mockResolvedValue({ exceptions: [] });
   });
 
   it("reloads the pickup times, then confirms only this child's loaded changes", async () => {
@@ -196,6 +206,43 @@ describe("StudentPickupChanges", () => {
     );
     expect(refreshes).toEqual([expect.stringContaining("7")]);
     expect(screen.getByText("Neu")).toBeInTheDocument();
+  });
+
+  it("keeps notices unread when fetching fresh pickup times fails", async () => {
+    notices.list = [notice()];
+    fetchPickup.mockRejectedValue(new Error("offline"));
+    await act(async () => {
+      render(
+        <StudentPickupChanges
+          studentId="7"
+          exceptions={[exception({ exceptionDate: "2026-09-10" })]}
+          today={TODAY}
+        />,
+      );
+    });
+    // Anker: the cached pickup time remains visible after the refresh attempt.
+    expect(screen.getByText("Morgen: 14:30 Uhr")).toBeInTheDocument();
+    expect(refreshes).toHaveLength(1);
+    expect(notices.markRead).not.toHaveBeenCalled();
+  });
+
+  it("does not acknowledge a refresh discarded by the cache scope", async () => {
+    notices.list = [notice()];
+    tenantMutate.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      render(
+        <StudentPickupChanges
+          studentId="7"
+          exceptions={[exception({ exceptionDate: "2026-09-10" })]}
+          today={TODAY}
+        />,
+      );
+    });
+    // Anker: the loaded record still displays the unseen change.
+    expect(screen.getByText("Morgen: 14:30 Uhr")).toBeInTheDocument();
+    expect(screen.getByText("Neu")).toBeInTheDocument();
+    expect(tenantMutate).toHaveBeenCalledOnce();
+    expect(notices.markRead).not.toHaveBeenCalled();
   });
 
   it("confirms nothing before the pickup times are there", () => {

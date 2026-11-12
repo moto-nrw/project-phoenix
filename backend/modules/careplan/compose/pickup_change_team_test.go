@@ -49,6 +49,10 @@ func pickupRequest(t *testing.T, db *testpkg.DB, ctx context.Context, studentID,
 		VALUES (?, ?, ?, 'pickup_change', ?::jsonb, ?) RETURNING id`,
 		tenant.FromContext(ctx), studentID, submitter, fmt.Sprintf(`{"date":%q,"pickup_time":"15:00"}`, date.String()), status,
 	).Scan(ctx, &id))
+	if status == "approved" {
+		staff := testpkg.CreateTestStaff(t, db, "OGS", "Freigabe")
+		testpkg.CreateTestPickupException(t, db, studentID, date, staff.ID, "15:00", "")
+	}
 	return id
 }
 
@@ -130,6 +134,8 @@ func TestPickupChangeTeamMarksTheTeamAndClearsOnOpen(t *testing.T) {
 	// A correction that takes the time back marks it unread again, as taken
 	// back; a read of the revision the colleague loaded before leaves it.
 	loaded := revisions(unreadPickups(t, db, ctx, team, colleague.ID))
+	_, err = db.NewRaw(`DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ? AND exception_date = ?`, child.ID, string(date)).Exec(ctx)
+	require.NoError(t, err)
 	_, err = db.NewRaw(`UPDATE schedule.care_schedule_change_requests SET status = 'rejected' WHERE id = ?`, request).Exec(ctx)
 	require.NoError(t, err)
 	approvePickup(t, db, ctx, team, careplan.PickupChangeNotice{
@@ -224,4 +230,40 @@ func TestPickupChangeTeamListQueryBudget(t *testing.T) {
 	small := measure(1)
 	add(3)
 	assert.Equal(t, small, measure(4), "the statement count must not grow with the markers")
+}
+
+func TestPickupChangeTeamHidesSupersededTimes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	child := testpkg.CreateTestStudent(t, db, "Mia", "Aktuell", "2a")
+	parent := testpkg.CreateTestAccount(t, db, "pickup-current-parent")
+	reader := testpkg.CreateTestAccount(t, db, "pickup-current-reader")
+	staff := testpkg.CreateTestStaff(t, db, "OGS", "Abholung")
+	date := pickupTeamToday.AddDays(1)
+	request := pickupRequest(t, db, ctx, child.ID, parent.ID, date, "approved")
+	var currentID int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM schedule.student_pickup_exceptions WHERE student_id = ? AND exception_date = ?`, child.ID, string(date)).Scan(ctx, &currentID))
+	team := pickupTeam(&fixedPickupReach{responsible: []int64{reader.ID}})
+	approvePickup(t, db, ctx, team, careplan.PickupChangeNotice{
+		StudentID: child.ID, Date: date, PickupTime: "15:00", RequestID: request,
+	})
+	require.Len(t, unreadPickups(t, db, ctx, team, reader.ID), 1)
+
+	_, err := db.NewRaw(`UPDATE schedule.student_pickup_exceptions SET pickup_time = '14:00' WHERE id = ?`, currentID).Exec(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, unreadPickups(t, db, ctx, team, reader.ID), "the request's original time no longer applies")
+
+	_, err = db.NewRaw(`DELETE FROM schedule.student_pickup_exceptions WHERE id = ?`, currentID).Exec(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, unreadPickups(t, db, ctx, team, reader.ID), "a deleted exception must not advertise its old time")
+
+	_, err = db.NewRaw(`UPDATE schedule.care_schedule_change_requests SET status = 'rejected' WHERE id = ?`, request).Exec(ctx)
+	require.NoError(t, err)
+	approvePickup(t, db, ctx, team, careplan.PickupChangeNotice{
+		StudentID: child.ID, Date: date, Withdrawn: true, RequestID: request,
+	})
+	require.Len(t, unreadPickups(t, db, ctx, team, reader.ID), 1)
+	testpkg.CreateTestPickupException(t, db, child.ID, date, staff.ID, "16:00", "")
+	assert.Empty(t, unreadPickups(t, db, ctx, team, reader.ID), "a newer exception means the regular time does not apply")
 }

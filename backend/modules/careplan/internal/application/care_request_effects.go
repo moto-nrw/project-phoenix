@@ -204,8 +204,10 @@ func (e *CareRequestEffects) RecordCorrection(ctx context.Context, req *carerequ
 // child's team when the correction makes a one-day pickup time current or
 // takes it back (#6855).
 func (e *CareRequestEffects) NotifyCorrection(ctx context.Context, req *carerequests.Request, actorID int64, approve bool, reason string) error {
-	if err := e.notifyPickupChange(ctx, req, actorID, !approve); err != nil {
-		return err
+	if approve || req.Status == carerequests.StatusApproved {
+		if err := e.notifyPickupChange(ctx, req, actorID, !approve); err != nil {
+			return err
+		}
 	}
 	status, body := correctedCarePill(req, approve)
 	return e.emitPill(ctx, req, ports.RequestEvent{
