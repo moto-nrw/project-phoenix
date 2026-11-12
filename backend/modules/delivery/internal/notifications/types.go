@@ -92,8 +92,9 @@ const (
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeStaffParentMessage     = "staff_parent_message"
-	// TypeStudentPickupChanged tells the staff responsible for a child that
-	// its family set, changed or withdrew the pickup time of one day (#6855).
+	// TypeStudentPickupChanged tells the staff responsible for a child that a
+	// one-day pickup time its family asked for became current on approval,
+	// or that a corrected decision took it back (#6855).
 	TypeStudentPickupChanged = "student_pickup_changed"
 	// TypeStaffMessage is a message from a colleague in the OGS-internal chat
 	// (#2598) — staff to staff, no parent involved.
@@ -307,13 +308,13 @@ func registerPickupTypes() {
 		TenantGate:  settingRemindersPickupOverdueEnabled,
 		SortOrder:   2,
 	})
-	// A family's change of one day's pickup time is part of the day's work,
+	// An approved one-day pickup time of a family is part of the day's work,
 	// not a reminder: it is on until the person switches it off, and only
 	// for whoever may read the child's pickup times (#6855).
 	RegisterType(TypeDefinition{
 		Key:         TypeStudentPickupChanged,
 		Label:       "Geänderte Abholzeit",
-		Description: "Wenn Eltern die Abholzeit eines Kindes aus Ihren Gruppen für einen Tag ändern oder zurücknehmen.",
+		Description: "Wenn die OGS eine neue Abholzeit der Eltern für einen Tag bestätigt oder zurücknimmt.",
 		Group:       GroupPickup,
 		Portal:      PortalStaff,
 		Permission:  permissionUsersRead,
