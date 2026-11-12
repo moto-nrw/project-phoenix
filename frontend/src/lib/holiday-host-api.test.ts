@@ -5,6 +5,7 @@ import {
   downloadHolidayParticipants,
   fetchHolidayGuestBadges,
   fetchHolidayGuestSheet,
+  fetchHolidayHomeSchoolBookings,
   fetchHolidayStudentHealth,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
@@ -368,6 +369,50 @@ describe("holiday host api", () => {
       readOnly: false,
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/91");
+  });
+
+  it("maps the school's children at other OGS with string IDs (#6679)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: [
+          {
+            child_id: 901,
+            first_name: "Tom",
+            last_name: "Beispiel",
+            birth_date: "2017-05-20",
+            week_id: 71,
+            period_name: "Weihnachtsferien 2026",
+            starts_on: "2027-01-04",
+            ends_on: "2027-01-08",
+            host_school_id: 3,
+            host_school_name: "GS Bissendorf",
+            time_model_name: "bis 15 Uhr",
+            time_model_starts_at: "08:00",
+            time_model_ends_at: "15:00",
+            days: null,
+            assignment: "matched",
+            student_id: 42,
+          },
+        ],
+      }),
+    );
+
+    const [child] = await fetchHolidayHomeSchoolBookings();
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/holiday-weeks/home-school-children",
+    );
+    expect(child).toMatchObject({
+      childId: "901",
+      weekId: "71",
+      hostSchoolId: "3",
+      hostSchoolName: "GS Bissendorf",
+      timeModelStartsAt: "08:00",
+      days: [],
+      assignment: "matched",
+      studentId: "42",
+    });
   });
 
   it("names the school of a holiday guest or says Feriengast (#5630)", () => {

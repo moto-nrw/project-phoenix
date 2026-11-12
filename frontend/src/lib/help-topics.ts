@@ -167,6 +167,7 @@ export const HELP_TOPICS = {
   careTimeComparison: "soll-und-ist",
   leadHolidayWeeks: "ferienwochen-teilnehmer-ansehen",
   leadHolidayGuestGroup: "feriengruppe-waehlen",
+  leadHolidayHomeSchoolChildren: "ferienkinder-bei-anderen-ogs",
   leadExports: "liste-exportieren",
   leadPayroll: "abrechnung-vorbereiten",
   leadParentVisibility: "festlegen-was-eltern-sehen",
