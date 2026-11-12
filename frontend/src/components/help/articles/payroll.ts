@@ -81,6 +81,8 @@ export function payrollTopic(): HelpTopic {
       "Öffnen Sie einen Monat wieder und schließen ihn erneut ab, geht die Datei noch einmal raus. Ihr Name enthält dann „korrektur“.",
     ],
     differences: [
+      "Den Knopf `Personen ohne Soll` sieht nur, wer die Zeiterfassung des Teams verwaltet. Alle anderen sehen nur die Zahl. Das Soll trägt dann die Leitung ein.",
+      "`Soll (Arbeitszeit)` prüft den Vormonat, bis er abgeschlossen ist. Danach prüft es den laufenden Monat.",
       "Eine Kategorie oder eigene Lohnart ohne Lohnartnummer wird nicht exportiert. `Vollständigkeit` nennt sie.",
       "Dieselbe Nummer bei mehreren Kategorien ist erlaubt, führt aber meist zu doppelten Stunden. moto warnt davor.",
     ],

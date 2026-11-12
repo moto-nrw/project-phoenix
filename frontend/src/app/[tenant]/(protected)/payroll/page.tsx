@@ -380,12 +380,12 @@ export default function PayrollPage() {
           <ReadinessCard
             status={status}
             rules={rules}
-            targetCoverage={targetCoverage}
-            targetCoverageError={{
-              raw: targetCoverageError,
-              shown: targetCoverageLoadError,
+            target={{
+              coverage: targetCoverage,
+              error: targetCoverageError,
+              loadError: targetCoverageLoadError,
+              canOpenTimeAccounts,
             }}
-            canOpenTimeAccounts={canOpenTimeAccounts}
           />
 
           <FormErrorAlert message={saveError} />
@@ -418,42 +418,69 @@ export default function PayrollPage() {
   );
 }
 
-/** Zeitkonten mit dem Filter „ohne Soll“ (#6890). */
-const STAFF_WITHOUT_TARGET_HREF = "/staff?view=accounts&filter=ohne-soll";
+/** Zeitkonten des Monats mit dem Filter „ohne Soll“ (#6890). */
+function staffWithoutTargetHref(year: number, month: number): string {
+  return `/staff?view=accounts&filter=ohne-soll&month=${year}-${String(month).padStart(2, "0")}`;
+}
+
+type ReadinessState = "done" | "open" | "checking";
+
+/** Symbol, Farbe und vorgelesener Zustand je Zeile. */
+const READINESS_STATE = {
+  done: {
+    icon: CircleCheck,
+    className: "text-moto-green-strong",
+    sr: "erledigt",
+  },
+  open: {
+    icon: TriangleAlert,
+    className: "text-moto-orange-strong",
+    sr: "fehlt",
+  },
+  checking: {
+    icon: CircleDashed,
+    className: "text-gray-400",
+    sr: "wird geprüft",
+  },
+} as const;
 
 interface ReadinessItem {
   readonly key: string;
   readonly label: string;
-  /** `null` solange die Prüfung lädt. */
-  readonly ok: boolean | null;
+  readonly state: ReadinessState;
   readonly detail: string;
   readonly action?: ReactNode;
+}
+
+/** Die Soll-Prüfung (#6890), wie die Karte sie braucht. */
+interface TargetCheck {
+  /** `undefined` solange die Prüfung lädt. */
+  readonly coverage: PayrollTargetCoverage | undefined;
+  readonly error: unknown;
+  readonly loadError: ReturnType<typeof useSwrLoadError>;
+  /** Darf die Zeitkonten mit den Namen öffnen (time_tracking:manage). */
+  readonly canOpenTimeAccounts: boolean;
+}
+
+function doneOrOpen(ok: boolean): ReadinessState {
+  return ok ? "done" : "open";
 }
 
 function ReadinessCard({
   status,
   rules,
-  targetCoverage,
-  targetCoverageError,
-  canOpenTimeAccounts,
+  target,
 }: {
   readonly status: PayrollStatus;
   readonly rules: PayrollRules | undefined;
-  /** `undefined` solange die Soll-Prüfung lädt. */
-  readonly targetCoverage: PayrollTargetCoverage | undefined;
-  readonly targetCoverageError: {
-    readonly raw: unknown;
-    readonly shown: ReturnType<typeof useSwrLoadError>;
-  };
-  /** Darf die Zeitkonten mit den Namen öffnen (time_tracking:manage). */
-  readonly canOpenTimeAccounts: boolean;
+  readonly target: TargetCheck;
 }) {
   const unnumbered = (rules?.wageTypes ?? []).filter((w) => w.number === "");
   const items: ReadinessItem[] = [
     {
       key: "lohnarten",
       label: "Feste Lohnarten",
-      ok: status.configuredCategories > 0,
+      state: doneOrOpen(status.configuredCategories > 0),
       detail: `${status.configuredCategories} von ${status.totalCategories} Kategorien konfiguriert`,
     },
   ];
@@ -461,7 +488,7 @@ function ReadinessCard({
     items.push({
       key: "eigene-lohnarten",
       label: "Eigene Lohnarten",
-      ok: unnumbered.length === 0,
+      state: doneOrOpen(unnumbered.length === 0),
       detail:
         unnumbered.length === 0
           ? `Alle ${rules.wageTypes.length} haben eine Lohnartnummer`
@@ -472,7 +499,7 @@ function ReadinessCard({
     {
       key: "datev",
       label: "DATEV-Mandant (nur LODAS)",
-      ok: status.lodasHeaderComplete,
+      state: doneOrOpen(status.lodasHeaderComplete),
       detail: status.lodasHeaderComplete
         ? "Berater- und Mandantennummer gesetzt"
         : "Berater- oder Mandantennummer fehlt",
@@ -480,7 +507,7 @@ function ReadinessCard({
     {
       key: "personalnummern",
       label: "Personalnummern",
-      ok: status.staffWithoutPersonnelNumber === 0,
+      state: doneOrOpen(status.staffWithoutPersonnelNumber === 0),
       detail:
         status.staffWithoutPersonnelNumber === 0
           ? `Alle ${status.staffTotal} Beschäftigten haben eine Personalnummer`
@@ -489,23 +516,22 @@ function ReadinessCard({
   );
   // Ohne gebuchte Zeiterfassung gibt es kein Soll zu prüfen: dann entfällt
   // die Zeile, statt einen Fehler zu zeigen.
-  const targetCheckBooked = notBookedModuleOf(targetCoverageError.raw) === null;
-  if (targetCheckBooked && !targetCoverageError.raw) {
-    items.push(targetItem(targetCoverage, canOpenTimeAccounts));
+  const targetCheckBooked = notBookedModuleOf(target.error) === null;
+  if (targetCheckBooked) {
+    items.push(targetItem(target));
   }
 
-  const checked = items.filter((item) => item.ok !== null);
-  const done = checked.filter((item) => item.ok).length;
-  const open = checked.length - done;
-  const loading = checked.length < items.length;
+  const done = items.filter((item) => item.state === "done").length;
+  const open = items.filter((item) => item.state === "open").length;
+  const checking = items.some((item) => item.state === "checking");
 
   return (
     <SectionCard
       title="Vollständigkeit"
       titleBadge={
-        loading ? null : open > 0 ? (
+        open > 0 ? (
           <StatusBadge tone="warning" label={`${open} offen`} />
-        ) : (
+        ) : checking ? null : (
           <StatusBadge tone="green" label="Alles erledigt" />
         )
       }
@@ -524,12 +550,9 @@ function ReadinessCard({
           <ReadinessRow key={item.key} item={item} />
         ))}
       </ResponsiveActionList>
-      {targetCheckBooked && targetCoverageError.shown ? (
+      {targetCheckBooked && target.loadError ? (
         <div className="mt-3">
-          <LoadErrorAlert
-            error={targetCoverageError.shown}
-            actionLayout="responsive"
-          />
+          <LoadErrorAlert error={target.loadError} actionLayout="responsive" />
         </div>
       ) : null}
     </SectionCard>
@@ -537,24 +560,30 @@ function ReadinessCard({
 }
 
 /**
- * Ob alle Beschäftigten im laufenden Monat ein Soll haben (#6890). Dieselbe
- * Zahl wie der Hinweis über den Zeitkonten; der Link führt zu genau diesen
- * Personen.
+ * Ob alle Personen mit Zeitkonto im Abrechnungsmonat ein Soll haben (#6890):
+ * der Vormonat, solange er nicht abgeschlossen ist, sonst der laufende.
+ * Dieselbe Zahl wie der Hinweis über den Zeitkonten; der Link führt zu genau
+ * diesen Personen. Eine gescheiterte Prüfung zählt als offen, nie als
+ * erledigt.
  */
-function targetItem(
-  coverage: PayrollTargetCoverage | undefined,
-  canOpenTimeAccounts: boolean,
-): ReadinessItem {
+function targetItem({
+  coverage,
+  error,
+  canOpenTimeAccounts,
+}: TargetCheck): ReadinessItem {
   const base = { key: "soll", label: "Soll (Arbeitszeit)" };
+  if (error) {
+    return { ...base, state: "open", detail: "Konnte nicht geprüft werden." };
+  }
   if (!coverage) {
-    return { ...base, ok: null, detail: "Wird geprüft …" };
+    return { ...base, state: "checking", detail: "Wird geprüft …" };
   }
   const month = payrollMonthLabel(coverage.year, coverage.month);
   const missing = coverage.staffWithoutTarget;
   if (missing === 0) {
     return {
       ...base,
-      ok: true,
+      state: "done",
       detail:
         coverage.staffTotal === 1
           ? `Die eine Person mit Zeitkonto hat im ${month} ein Soll`
@@ -563,13 +592,13 @@ function targetItem(
   }
   return {
     ...base,
-    ok: false,
+    state: "open",
     detail: `${missing} von ${coverage.staffTotal} Personen mit Zeitkonto haben im ${month} kein Soll. Krankheit, Urlaub und Fortbildung zählen bei ihnen 0 Stunden.${
       canOpenTimeAccounts ? "" : ` ${MISSING_TARGET_OWNER}`
     }`,
     action: canOpenTimeAccounts ? (
       <ButtonLink
-        href={STAFF_WITHOUT_TARGET_HREF}
+        href={staffWithoutTargetHref(coverage.year, coverage.month)}
         variant="surface"
         size="compact"
         tooltip="Öffnet die Zeitkonten mit allen Personen ohne Soll."
@@ -582,31 +611,18 @@ function targetItem(
 
 /** Eine Zeile der Vollständigkeit: Zustand als Symbol, Text, Aktion. */
 function ReadinessRow({ item }: { readonly item: ReadinessItem }) {
-  const Icon =
-    item.ok === null ? CircleDashed : item.ok ? CircleCheck : TriangleAlert;
-  const iconClass =
-    item.ok === null
-      ? "text-gray-400"
-      : item.ok
-        ? "text-moto-green-strong"
-        : "text-moto-orange-strong";
+  const { icon: Icon, className, sr } = READINESS_STATE[item.state];
   return (
     <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
       <div className="flex min-w-0 items-start gap-3">
         <Icon
-          className={`mt-0.5 size-5 shrink-0 ${iconClass}`}
+          className={`mt-0.5 size-5 shrink-0 ${className}`}
           aria-hidden="true"
         />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900">
             {item.label}
-            <span className="sr-only">
-              {item.ok === null
-                ? ": wird geprüft"
-                : item.ok
-                  ? ": erledigt"
-                  : ": fehlt"}
-            </span>
+            <span className="sr-only">: {sr}</span>
           </p>
           <p className="mt-0.5 text-sm break-words text-gray-600">
             {item.detail}

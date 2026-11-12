@@ -924,7 +924,10 @@ describe("PayrollPage Soll in der Vollständigkeit (#6890)", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Personen ohne Soll" }),
-    ).toHaveAttribute("href", "/staff?view=accounts&filter=ohne-soll");
+    ).toHaveAttribute(
+      "href",
+      "/staff?view=accounts&filter=ohne-soll&month=2026-09",
+    );
   });
 
   it("nennt ohne Zugriff auf die Zeitkonten, wer das Soll einträgt", () => {
@@ -955,6 +958,31 @@ describe("PayrollPage Soll in der Vollständigkeit (#6890)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Soll (Arbeitszeit)")).toBeInTheDocument();
+  });
+
+  it("meldet nie „Alles erledigt“, wenn die Soll-Prüfung scheitert", () => {
+    const status = payrollStatus();
+    swrData["payroll-status"] = {
+      data: {
+        ...status,
+        beraternummer: "1234567",
+        mandantennummer: "12345",
+        lodasHeaderComplete: true,
+        configuredCategories: 1,
+        staffWithoutPersonnelNumber: 0,
+      },
+    };
+    swrData["payroll-target-coverage"] = {
+      error: new ApiError("boom", 500, { code: "general.internal_error" }),
+    };
+
+    render(<PayrollPage />);
+
+    expect(
+      screen.getByText("Konnte nicht geprüft werden."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 offen")).toBeInTheDocument();
+    expect(screen.queryByText("Alles erledigt")).not.toBeInTheDocument();
   });
 
   it("lässt die Zeile weg, wenn die Schule die Zeiterfassung nicht gebucht hat", () => {
