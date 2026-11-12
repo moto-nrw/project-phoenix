@@ -17,10 +17,12 @@ var feedPathMarkers = []string{"/public/calendar/", "/public/request-feed/"}
 // invitation token (ADR 0077): the token alone accepts the invitation.
 var invitationPathMarkers = []string{"/caterer/invitations/", "/einladung/"}
 
-// Signing links carry a replayable contract credential. Match escaped path
+// Signing and account setup links carry replayable credentials. Match escaped path
 // prefixes too: referrers and error texts can retain their URL encoding.
-var signingTokenPattern = regexp.MustCompile(`(?i)(` + encodedPathMarker("/public/care-contract-signing/") + `|` +
-	encodedPathMarker("/vertrag-unterschreiben/") + `)[^/?#\s"']+`)
+var credentialPathPattern = regexp.MustCompile(`(?i)(` + encodedPathMarker("/public/care-contract-signing/") + `|` +
+	encodedPathMarker("/vertrag-unterschreiben/") + `|` +
+	encodedPathMarker("/auth/holiday-parent-setups/") + `|` +
+	encodedPathMarker("/ferienkonto/") + `)[^/?#\s"']+`)
 
 // tokenPathPattern matches the segment after a route prefix whose token is the
 // only credential of an unauthenticated request: enrollment status links,
@@ -183,7 +185,7 @@ func RedactFeedToken(s string) string {
 		s = redactAfter(s, marker, 1)
 	}
 	s = redactTokenPaths(s)
-	return signingTokenPattern.ReplaceAllString(s, "${1}[REDACTED]")
+	return credentialPathPattern.ReplaceAllString(s, "${1}[REDACTED]")
 }
 
 // redactAfter replaces the path segment that follows marker and skip more

@@ -577,3 +577,64 @@ func guardStudents(t testing.TB, db *bun.DB) parentService.StudentReads {
 	t.Helper()
 	return owners.NewParentStudentReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student)
 }
+
+// A parent without a school or guardian profile saves the UI language on
+// the account. The preference survives a new portal instance and grants no
+// school membership or child relationship.
+func TestService_SchoollessPortalLocalePersists(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	database := testpkg.NewDatabase(t, db)
+	identity, err := api.NewIdentityAccessForTests(database)
+	require.NoError(t, err)
+	account := testpkg.CreateTestAccount(t, db, "schoolless-locale")
+	other := testpkg.CreateTestAccount(t, db, "other-schoolless-locale")
+	testpkg.UnclaimTestAccount(t, db, account.ID)
+	testpkg.OwnTestAccount(t, db, account.ID)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	build := func() *parentService.Portal {
+		return parentportalcompose.New(parentportalcompose.Dependencies{
+			GuardianPolicy: owners.NewParentGuardianPolicy(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
+			Declarations: owners.ParentDeclarationPolicy(), Fingerprints: owners.SecurityFingerprints{}, Logger: slog.Default(),
+			Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{},
+			ParentAccounts: owners.NewParentAccounts(identity), GuardianProfileRepo: guardProfiles(t, db),
+			People: portalLocalePeople{repo: &stubGuardianProfileRepo{}},
+		})
+	}
+	portal := build()
+	initial, err := portal.GetProfile(ctx, account.ID)
+	require.NoError(t, err)
+	require.False(t, initial.Explicit)
+	saved, err := portal.UpdatePortalLocale(ctx, account.ID, "en")
+	require.NoError(t, err)
+	require.True(t, saved.Explicit)
+	require.Equal(t, "en", saved.Locale)
+	restored, err := build().GetProfile(ctx, account.ID)
+	require.NoError(t, err)
+	require.True(t, restored.Explicit)
+	require.Equal(t, "en", restored.Locale)
+	untouched, err := build().GetProfile(ctx, other.ID)
+	require.NoError(t, err)
+	require.False(t, untouched.Explicit)
+	_, err = portal.UpdatePortalLocale(ctx, account.ID, "unsupported")
+	require.Error(t, err)
+	restored, err = build().GetProfile(ctx, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, "en", restored.Locale)
+	for _, query := range []string{
+		`SELECT count(*) FROM users.guardian_profiles WHERE account_id = ?`,
+		`SELECT count(*) FROM auth.account_tenants WHERE account_id = ?`,
+	} {
+		var count int
+		require.NoError(t, db.NewRaw(query, account.ID).Scan(ctx, &count))
+		require.Zero(t, count)
+	}
+	t.Cleanup(func() {
+		_, cleanupErr := db.ExecContext(context.Background(), `UPDATE auth.accounts SET personal_data_erased_at = NULL WHERE id = ?`, account.ID)
+		assert.NoError(t, cleanupErr)
+	})
+	_, err = db.ExecContext(ctx, `UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID)
+	require.NoError(t, err)
+	_, err = portal.UpdatePortalLocale(ctx, account.ID, "de")
+	require.Error(t, err)
+}

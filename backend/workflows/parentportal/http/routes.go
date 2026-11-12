@@ -122,6 +122,9 @@ func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {
 	// The holiday periods of the Träger of the account's children a parent
 	// can register for or soon will (#6671): the entry on the start page.
 	r.Get("/me/holiday-registrations", rs.listHolidayRegistrationOffers)
+	// The holiday registrations linked to the account (ADR 0216): what
+	// became of them, without health information, address or contacts.
+	r.Get("/me/holiday-registration-entries", rs.listHolidayRegistrationEntries)
 }
 
 func (rs *Resource) mountChildStatusRoutes(r chi.Router) {

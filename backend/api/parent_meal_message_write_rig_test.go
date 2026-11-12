@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/gitfixture"

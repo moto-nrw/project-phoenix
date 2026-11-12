@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -54,10 +55,13 @@ type HolidayRegistrationChildResponse struct {
 }
 
 // HolidayRegistrationFamilyResponse is the body of GET
-// /parent/holiday-registrations/{token}/family.
+// /parent/holiday-registrations/{token}/family. account_proof is the sealed
+// proof of the signed-in account the form sends back (ADR 0216); children
+// may be empty, the proof is there for every account.
 type HolidayRegistrationFamilyResponse struct {
-	Guardian HolidayRegistrationGuardianResponse `json:"guardian"`
-	Children []HolidayRegistrationChildResponse  `json:"children"`
+	Guardian     HolidayRegistrationGuardianResponse `json:"guardian"`
+	Children     []HolidayRegistrationChildResponse  `json:"children"`
+	AccountProof string                              `json:"account_proof"`
 }
 
 // getHolidayRegistrationFamily serves the prefill of the holiday registration
@@ -125,7 +129,7 @@ func holidayRegistrationFamilyResponse(claims sessiontoken.AppClaims, family *pa
 			HolidayWish: child.HolidayWish, HolidayWishProof: child.HolidayWishProof,
 		})
 	}
-	return HolidayRegistrationFamilyResponse{Guardian: guardian, Children: children}
+	return HolidayRegistrationFamilyResponse{Guardian: guardian, Children: children, AccountProof: family.AccountProof}
 }
 
 func firstNonEmpty(value, fallback string) string {
@@ -201,4 +205,84 @@ func holidayRegistrationOfferResponses(offers []parentService.HolidayRegistratio
 		responses = append(responses, response)
 	}
 	return responses
+}
+
+// HolidayRegistrationEntryWeekResponse is a booked week of a child.
+type HolidayRegistrationEntryWeekResponse struct {
+	FirstDay      timezone.Date `json:"first_day"`
+	LastDay       timezone.Date `json:"last_day"`
+	TimeModelName string        `json:"time_model_name"`
+	Placement     string        `json:"placement"`
+}
+
+// HolidayRegistrationEntryChildResponse is a child of a registration by its
+// first name.
+type HolidayRegistrationEntryChildResponse struct {
+	FirstName string                                 `json:"first_name"`
+	Weeks     []HolidayRegistrationEntryWeekResponse `json:"weeks"`
+}
+
+// HolidayRegistrationEntryResponse is a holiday registration linked to the
+// account. first_day and last_day span the care weeks and are null while
+// the period has none.
+type HolidayRegistrationEntryResponse struct {
+	ID          int64                                   `json:"id"`
+	TraegerName string                                  `json:"traeger_name"`
+	PeriodName  string                                  `json:"period_name"`
+	FirstDay    *timezone.Date                          `json:"first_day"`
+	LastDay     *timezone.Date                          `json:"last_day"`
+	SubmittedAt time.Time                               `json:"submitted_at"`
+	Status      string                                  `json:"status"`
+	Children    []HolidayRegistrationEntryChildResponse `json:"children"`
+}
+
+// HolidayRegistrationEntriesResponse is the body of GET
+// /parent/me/holiday-registration-entries.
+type HolidayRegistrationEntriesResponse struct {
+	Registrations []HolidayRegistrationEntryResponse `json:"registrations"`
+}
+
+// listHolidayRegistrationEntries serves GET
+// /parent/me/holiday-registration-entries (ADR 0216 point 9): the holiday
+// registrations linked to the account, newest first. The account comes
+// from the claims only.
+func (rs *Resource) listHolidayRegistrationEntries(w http.ResponseWriter, r *http.Request) {
+	if rs.ParentService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("parent holiday registration entries not configured")))
+		return
+	}
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
+		return
+	}
+	entries, err := rs.ParentService.HolidayRegistrationEntries(r.Context(), int64(claims.ID))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, holidayRegistrationEntriesResponse(entries), "Holiday registration entries retrieved")
+}
+
+func holidayRegistrationEntriesResponse(entries []parentService.HolidayRegistrationEntry) HolidayRegistrationEntriesResponse {
+	registrations := make([]HolidayRegistrationEntryResponse, 0, len(entries))
+	for _, entry := range entries {
+		response := HolidayRegistrationEntryResponse{
+			ID: entry.ID, TraegerName: entry.TraegerName, PeriodName: entry.PeriodName, SubmittedAt: entry.SubmittedAt,
+			Status: entry.Status, Children: make([]HolidayRegistrationEntryChildResponse, 0, len(entry.Children)),
+		}
+		if !entry.FirstDay.IsZero() && !entry.LastDay.IsZero() {
+			first, last := entry.FirstDay, entry.LastDay
+			response.FirstDay, response.LastDay = &first, &last
+		}
+		for _, child := range entry.Children {
+			weeks := make([]HolidayRegistrationEntryWeekResponse, 0, len(child.Weeks))
+			for _, week := range child.Weeks {
+				weeks = append(weeks, HolidayRegistrationEntryWeekResponse(week))
+			}
+			response.Children = append(response.Children, HolidayRegistrationEntryChildResponse{FirstName: child.FirstName, Weeks: weeks})
+		}
+		registrations = append(registrations, response)
+	}
+	return HolidayRegistrationEntriesResponse{Registrations: registrations}
 }

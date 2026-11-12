@@ -22,6 +22,12 @@ func init() {
 }
 
 func unusedAccountErasureWithoutWaitUp(ctx context.Context, db *bun.DB) error {
+	return installUnusedAccountErasureWithoutWait(ctx, db)
+}
+
+// installUnusedAccountErasureWithoutWait installs auth.erase_unused_accounts
+// of 1.15.736; the rollback of 1.15.944 writes it back.
+func installUnusedAccountErasureWithoutWait(ctx context.Context, db bun.IDB) error {
 	if _, err := db.ExecContext(ctx, unusedAccountErasureWithoutWaitUpSQL); err != nil {
 		return fmt.Errorf("erase unused accounts without waiting for a lock: %w", err)
 	}

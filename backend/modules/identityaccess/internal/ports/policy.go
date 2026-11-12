@@ -28,6 +28,10 @@ type TokenCodec interface {
 	// challenge, enrollment and preview tokens.
 	ParseRefreshToken(token string) (domain.RefreshClaims, error)
 	RefreshExpiry() time.Duration
+	// IssueHolidayParentSetupToken and ParseHolidayParentSetupToken sign and
+	// read the setup link of a parent account at a Träger (ADR 0216).
+	IssueHolidayParentSetupToken(claims identityaccess.HolidayParentSetupClaims, ttl time.Duration) (string, error)
+	ParseHolidayParentSetupToken(token string) (identityaccess.HolidayParentSetupClaims, error)
 }
 
 // MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.

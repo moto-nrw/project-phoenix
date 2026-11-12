@@ -192,6 +192,9 @@ type MailRenderers struct {
 	// HolidayRegistrationAccepted renders the acceptance mail of a confirmed
 	// holiday registration (#6672), a mail of the Träger.
 	HolidayRegistrationAccepted MailRenderer
+	// HolidayParentAccountOffer renders the offer of a parent account a
+	// holiday registration mails (ADR 0216), a mail of the Träger.
+	HolidayParentAccountOffer MailRenderer
 }
 
 // CaptchaVerifier verifies a parent-submitted captcha token against the

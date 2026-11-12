@@ -140,7 +140,7 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err := seedContributionRules(rt.Client, auth, calendar.TodayDate()); err != nil {
 		return err
 	}
-	token, err := seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
+	token, err := seedHolidayRegistrations(ctx, rt, auth, periodID, published, schools[0])
 	if errors.Is(err, errSeedHolidayRegistrationRefused) {
 		fmt.Printf("  WARNING: %v; the holiday period stays without registrations\n", err)
 		rt.Values[seedHolidayRegistrationsSkippedKey] = true
@@ -274,7 +274,7 @@ func seedHolidayAddressForm(client *Client, auth AuthRef, periodID int64) error 
 // contribution (#4664); it confirms the duplicate with the cost takeover by
 // a cost bearer (#5627). The form shows the siblings' contribution before
 // it is sent.
-func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
+func seedHolidayRegistrations(ctx context.Context, rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
 	if err := seedHolidayAddressForm(rt.Client, auth, periodID); err != nil {
 		return "", err
 	}
@@ -286,7 +286,7 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.PostPublic("/traeger/holiday-quotes/"+token, seedHolidayQuote(registration)); err != nil {
 		return "", fmt.Errorf("show the holiday contribution: %w", err)
 	}
-	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration)
+	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayWithParentProof(ctx, rt, token, registration))
 	var refused *APIError
 	if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
 		return "", fmt.Errorf("%w: %s", errSeedHolidayRegistrationRefused, refused.Code)

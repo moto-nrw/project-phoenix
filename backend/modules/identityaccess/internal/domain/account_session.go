@@ -18,7 +18,9 @@ type AccountSession struct {
 	ID       int64
 	TenantID int64
 	// OrganizationID is the Träger of a Träger-Portal session (portal scope
-	// org); such a session has no school. Zero for every other portal.
+	// org) and of a parent session at a Träger; neither has a school. A
+	// Träger school session names the Träger beside its school. Zero for
+	// every other session.
 	OrganizationID int64
 	AccountID      int64
 	Token          string
@@ -62,7 +64,7 @@ func (s *AccountSession) Validate() error {
 		return errors.New("invalid portal scope")
 	}
 	if !s.traegerShapeHolds() {
-		return errors.New("a Träger session names its Träger and no school; an OGS session of the Träger names both; no other session names a Träger")
+		return errors.New("a Träger session and a parent session at a Träger name the Träger and no school; an OGS session of the Träger names both; no other session names a Träger")
 	}
 	switch {
 	case (s.RotatedAt == nil) != (s.ReplacementTokenHash == nil):
@@ -73,16 +75,21 @@ func (s *AccountSession) Validate() error {
 	return nil
 }
 
-// traegerShapeHolds: only a Träger session and an OGS session the Träger
-// opened through the Absprung name a Träger (ADR 0084 section 5).
+// traegerShapeHolds: only a Träger session, an OGS session the Träger
+// opened through the Absprung (ADR 0084 section 5) and a parent session at a
+// Träger (ADR 0216) name a Träger.
 func (s *AccountSession) traegerShapeHolds() bool {
 	switch {
 	case s.PortalScope == PortalOrg.Name:
 		return PortalOrg.Holds(s.TenantID, s.OrganizationID)
-	case s.OrganizationID > 0:
-		return s.SessionKind() == SessionKindTraegerSchool && s.TenantID > 0
-	default:
+	case s.OrganizationID <= 0:
 		return true
+	case s.SessionKind() == SessionKindTraegerSchool:
+		return s.TenantID > 0
+	case s.SessionKind() == SessionKindTraegerParent:
+		return s.TenantID == 0
+	default:
+		return false
 	}
 }
 
@@ -123,8 +130,8 @@ func (s AccountSession) SessionKind() SessionKind {
 }
 
 // KeptAtSchool reports whether the session belongs to a school; a legacy
-// row without a portal does.
+// row without a portal does, a parent session at a Träger does not.
 func (s AccountSession) KeptAtSchool() bool {
 	portal, ok := PortalOfPersisted(s.PortalScope)
-	return !ok || portal.KeptAtSchool()
+	return !ok || (portal.KeptAtSchool() && s.SessionKind() != SessionKindTraegerParent)
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const familyDebtorNumberVersion = "1.15.943"
+const familyDebtorNumberVersion = "1.15.948"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

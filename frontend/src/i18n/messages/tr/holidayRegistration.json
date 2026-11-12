@@ -172,5 +172,16 @@
   "summaryDays": "Günler: {days}",
   "contributionDays": "{count} gün",
   "dayWithoutCare": "{date} tarihinde bakım yok ({name}).",
-  "noCareDayAria": "{day}, bakım yok"
+  "noCareDayAria": "{day}, bakım yok",
+  "account": {
+    "question": "Bir veli hesabı oluşturmak ister misiniz?",
+    "benefit": "Hesapla veli uygulamasında kaydın durumunu, onayı ve belgeleri görürsünüz.",
+    "yes": "Evet",
+    "no": "Hayır",
+    "mailNote": "{email} adresine bir e-posta alacaksınız. İçindeki bağlantıyla şifrenizi belirlersiniz.",
+    "required": "Lütfen Evet veya Hayır seçin."
+  },
+  "doneAccountTitle": "Sonraki adım: veli hesabınız",
+  "doneAccountText": "{email} adresine ikinci bir e-posta gönderdik. İçindeki bağlantıyı açın. Orada şifrenizi belirler veya giriş yaparsınız.",
+  "doneToRegistrations": "Tatil kayıtlarınıza git"
 }

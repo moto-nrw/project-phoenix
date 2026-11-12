@@ -1,0 +1,26 @@
+{
+  "title": "Tatil kayıtları",
+  "description": "Tatil bakımı için kayıtlarınız ve durumları.",
+  "status": {
+    "received": "Alındı",
+    "confirmed": "Onaylandı",
+    "cancelled": "İptal edildi"
+  },
+  "statusNote": {
+    "received": "Kurum kaydınızı inceliyor ve size yazacak.",
+    "confirmed": "Kurum kaydınızı onayladı.",
+    "cancelled": "Bu kayıt artık geçerli değil. Sorularınız için kuruma başvurun."
+  },
+  "documentsHint": "Onayı ve faturayı Belgeler bölümünde bulursunuz.",
+  "toDocuments": "Belgelere git",
+  "submittedOn": "Alınma tarihi: {date}",
+  "emptyTitle": "Henüz tatil kaydı yok",
+  "emptyDescription": "Çocuğunuzu bu hesabın e-posta adresiyle kaydedin. O zaman kayıt burada görünür.",
+  "errorObject": "tatil kayıtlarınız",
+  "card": {
+    "title": "Tatil kayıtlarınız",
+    "showAll": "Tümünü göster",
+    "showAllLabel": "Tüm tatil kayıtlarını göster",
+    "more": "{count, plural, one {# kayıt daha} other {# kayıt daha}}"
+  }
+}

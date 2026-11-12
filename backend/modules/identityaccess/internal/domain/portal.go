@@ -122,21 +122,34 @@ func (p Portal) Schoolless() bool { return p.Tenant != ShapeRequired }
 func (p Portal) KeptAtSchool() bool { return p.Tenant != ShapeForbidden }
 
 // SessionKind names the rules a session follows: its portal's, or those of
-// the Träger school, the tenant portal's sub-portal for an OGS session the
-// Träger-Büro opened through the Absprung (ADR 0084 section 5).
+// a sub-portal that names a Träger: the Träger school, the tenant portal's
+// sub-portal for an OGS session the Träger-Büro opened through the Absprung
+// (ADR 0084 section 5), and the Träger parent, the parents portal's
+// sub-portal for an account set up through a holiday registration (ADR 0216).
 type SessionKind string
 
-// SessionKindTraegerSchool is the Träger school sub-portal.
-const SessionKindTraegerSchool SessionKind = "traeger_school"
+const (
+	// SessionKindTraegerSchool is the Träger school sub-portal.
+	SessionKindTraegerSchool SessionKind = "traeger_school"
+	// SessionKindTraegerParent is a parent session that names a Träger and
+	// no school: the account holds no guardian role at a school that books
+	// Eltern-App, but parents-portal access at the Träger.
+	SessionKindTraegerParent SessionKind = "traeger_parent"
+)
 
-// SessionKindOf is the one recognition rule of the Träger school: a session
-// of the tenant portal that names the Träger it came through. Each token
+// SessionKindOf is the one recognition rule of the sub-portals: a session of
+// the tenant or the parents portal that names a Träger. Each token
 // representation says so in its own way: the refresh claims and the stored
-// row by their Träger, the access token by via_traeger, because every staff
-// access token names its school's Träger.
+// row by their Träger; the access token of the tenant portal by via_traeger,
+// because every staff access token names its school's Träger, and the access
+// token of the parents portal by its Träger, which no other parent token
+// names.
 func SessionKindOf(portal Portal, namesTraeger bool) SessionKind {
-	if portal.Name == PortalTenant.Name && namesTraeger {
+	switch {
+	case portal.Name == PortalTenant.Name && namesTraeger:
 		return SessionKindTraegerSchool
+	case portal.Name == PortalParent.Name && namesTraeger:
+		return SessionKindTraegerParent
 	}
 	return SessionKind(portal.Name)
 }

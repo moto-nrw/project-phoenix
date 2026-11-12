@@ -352,6 +352,9 @@ func decodePendingMFA(wire map[string]any, spec pendingSpec, now time.Time) (int
 	if flag(wire, spec.foreign) {
 		return 0, "", errors.New(spec.foreignErr)
 	}
+	if flag(wire, holidayParentSetupFlag) {
+		return 0, "", errors.New("token is a holiday parent setup token, not a pending-MFA token")
+	}
 	accountID := number(wire, "account_id")
 	if accountID == 0 {
 		return 0, "", errors.New("missing required claim: account_id")
@@ -370,6 +373,9 @@ func decodePendingMFA(wire map[string]any, spec pendingSpec, now time.Time) (int
 }
 
 func rejectPending(wire map[string]any, kind string) error {
+	if flag(wire, holidayParentSetupFlag) {
+		return fmt.Errorf("token is a holiday parent setup token, not a %s token", kind)
+	}
 	if flag(wire, pendingChallengeFlag) {
 		return fmt.Errorf("token is a pending-MFA challenge, not a %s token", kind)
 	}

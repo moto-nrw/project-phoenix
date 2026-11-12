@@ -1819,9 +1819,22 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"token":"link-key","open":true,"children":[{"student_id":"9"}]}]}`)
 			return
 		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/traeger/holiday-registrations/link-key" && r.Header.Get(seedTokenHeader) == "true" {
+			// The guest family asking for a parent account gets the setup
+			// link only the local seeder receives (ADR 0216).
+			w.WriteHeader(seedHTTPStatusCreated)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":10,"parent_account_setup_url":"http://parents.localhost:3000/ferienkonto/setup-token"}}`)
+			return
+		}
 		if r.URL.Path == "/parent/holiday-registrations/link-key/family" {
-			// The first seeded parent's prefill of the same link (#4662).
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian":{},"children":[{"student_id":"9","school_id":"1"}]}}`)
+			// The first seeded parent's prefill of the same link (#4662) with
+			// the proof of the account (ADR 0216).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian":{},"children":[{"student_id":"9","school_id":"1"}],"account_proof":"account-proof"}}`)
+			return
+		}
+		if r.URL.Path == "/parent/me/holiday-registration-entries" {
+			// The parent's linked holiday registrations (ADR 0216).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"registrations":[{"id":1},{"id":2}]}}`)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/parent-announcements/") && strings.HasSuffix(r.URL.Path, "/publish") {
