@@ -106,7 +106,10 @@ func (s *TraegerService) send(ctx context.Context, request exporttransfer.Traege
 	if err == nil {
 		// The file was replaced atomically; commit only drops the rollback copy.
 		if commitErr := commit(); commitErr != nil {
-			s.log().Error("failed to finalize Träger export transfer", "organization_id", request.OrganizationID, "error", commitErr.Error())
+			s.log().Error("failed to finalize Träger export transfer",
+				"organization_id", request.OrganizationID,
+				"error", commitErr.Error(),
+			)
 		}
 	}
 	outcome := exporttransfer.Outcome{Transferred: err == nil, Filename: intent.filename, ByteSize: int64(len(intent.data)),
