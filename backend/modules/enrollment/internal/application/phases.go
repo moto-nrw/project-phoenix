@@ -340,20 +340,26 @@ func (s *Phases) resyncPhaseSourcedTemplates(ctx context.Context, phaseID int64)
 	if err != nil {
 		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
 	}
-	today := s.todayDate()
-	for _, offeringID := range offeringIDs {
-		if err := s.deps.Resyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, today); err != nil {
-			if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
-				// The tenant transaction commits ordinary 4xx responses.
-				// Mark the ambient transaction so the already-written phase
-				// update is discarded together with the rejection.
-				if s.deps.Runtime.MarkRollback != nil {
-					s.deps.Runtime.MarkRollback(ctx)
-				}
-				return fmt.Errorf("%w: %w", enrollment.ErrPhaseCareOfferingConflict, err)
+	if len(offeringIDs) == 0 {
+		return nil
+	}
+	resyncer, ok := s.deps.Resyncer.(interface {
+		ResyncTemplatesSourcedFromOfferings(context.Context, []int64, calendar.Date) error
+	})
+	if !ok {
+		return errors.New("phase update: batch sourced-template resync is required")
+	}
+	if err := resyncer.ResyncTemplatesSourcedFromOfferings(ctx, offeringIDs, s.todayDate()); err != nil {
+		if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
+			// The tenant transaction commits ordinary 4xx responses.
+			// Mark the ambient transaction so the already-written phase
+			// update is discarded together with the rejection.
+			if s.deps.Runtime.MarkRollback != nil {
+				s.deps.Runtime.MarkRollback(ctx)
 			}
-			return fmt.Errorf("phase update: resync templates sourcing offering %d: %w", offeringID, err)
+			return fmt.Errorf("%w: %w", enrollment.ErrPhaseCareOfferingConflict, err)
 		}
+		return fmt.Errorf("phase update: resync templates sourcing offerings %v: %w", offeringIDs, err)
 	}
 	return nil
 }

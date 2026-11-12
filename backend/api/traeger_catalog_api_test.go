@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -23,7 +24,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -47,16 +47,6 @@ func (o catalogPhaseOfferings) CountOfferingsForPhase(ctx context.Context, phase
 
 func (o catalogPhaseOfferings) CareOfferingBookingsForPhase(context.Context, int64) ([]enrollment.OfferingBooking, error) {
 	return nil, nil
-}
-
-type catalogNoResync struct{}
-
-func (catalogNoResync) ResyncTemplatesSourcedFromOffering(context.Context, int64, calendar.Date) error {
-	return nil
-}
-
-func (catalogNoResync) DetachTemplatesSourcedFromOffering(context.Context, int64, calendar.Date) error {
-	return nil
 }
 
 // traegerCatalogRouter mounts /traeger/catalog as the serving root does,
@@ -93,7 +83,7 @@ func traegerCatalogRouter(t *testing.T, db *bun.DB, tariffOverride ...parentbill
 	phases, err := enrollmentCompose.NewResyncingPhases(enrollmentCompose.PhaseDependencies{
 		Records:                NewEnrollmentSuiteRepositories(database).Enrollment(),
 		Offerings:              catalogPhaseOfferings{carePlan: NewRepositoryTestFactory(database).CarePlan()},
-		LockTemplateRecurrence: noLock, Resyncer: catalogNoResync{},
+		LockTemplateRecurrence: noLock, Resyncer: bookings.Bookings,
 	})
 	require.NoError(t, err)
 	router := chi.NewRouter()
@@ -401,7 +391,7 @@ func TestTraegerCatalogStatementCountDoesNotGrowWithOfferings(t *testing.T) {
 	counted := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		router.ServeHTTP(w, r.WithContext(counter.Context(r.Context())))
 	})
-	var previews, rollouts, updates, withdrawals []int
+	var previews, rollouts, updates, phasePreviews, phaseUpdates, withdrawals []int
 	for _, size := range []int{1, 5} {
 		rec := traegerJSON(t, router, office.token, http.MethodPost, "/traeger/catalog/phases", map[string]any{
 			"name": fmt.Sprintf("Stapel %d", size), "kind": "school_year", "service_start_date": "2027-08-01", "service_end_date": "2028-07-31", "all_schools": true,
@@ -426,16 +416,22 @@ func TestTraegerCatalogStatementCountDoesNotGrowWithOfferings(t *testing.T) {
 		for _, school := range result.Schools {
 			require.Equal(t, "applied", school.Outcome, school.ErrorCode)
 		}
-		// Every offering feeds a distinct live template in each school.
-		// Counting only empty catalogs misses per-template reads and source writes.
+		// Shared templates source every offering in each school. Counting only
+		// empty catalogs misses repeated template reads and source writes.
 		for _, schoolID := range office.schools {
 			var copies []struct{ ID int64 }
 			err := db.NewSelect().Table("enrollment.care_offerings").Column("id").Where("tenant_id = ?", schoolID).Where("traeger_source_id IN (?)", bun.List(ids)).Order("id").Scan(t.Context(), &copies)
 			require.NoError(t, err)
 			require.Len(t, copies, size)
+			sourceIDs := make([]int64, 0, len(copies))
+			for _, copy := range copies {
+				sourceIDs = append(sourceIDs, copy.ID)
+			}
+			sources, err := json.Marshal(sourceIDs)
+			require.NoError(t, err)
 			for _, copy := range copies {
 				group := testpkg.CreateTestActivityGroupForTenant(t, db, schoolID, fmt.Sprintf("Quelle %d", copy.ID))
-				_, err := db.NewUpdate().Table("activities.groups").Set("is_template = TRUE").Set("target_group_type = ?", "angebot").Set("source_care_offering_ids = ?::jsonb", fmt.Sprintf("[%d]", copy.ID)).Where("tenant_id = ?", schoolID).Where("id = ?", group.ID).Exec(t.Context())
+				_, err := db.NewUpdate().Table("activities.groups").Set("is_template = TRUE").Set("target_group_type = ?", "angebot").Set("source_care_offering_ids = ?::jsonb", string(sources)).Where("tenant_id = ?", schoolID).Where("id = ?", group.ID).Exec(t.Context())
 				require.NoError(t, err)
 			}
 		}
@@ -453,6 +449,22 @@ func TestTraegerCatalogStatementCountDoesNotGrowWithOfferings(t *testing.T) {
 		for _, school := range result.Schools {
 			require.Equal(t, "applied", school.Outcome, school.ErrorCode)
 		}
+		rec = traegerJSON(t, router, office.token, http.MethodPut, path, map[string]any{
+			"name": fmt.Sprintf("Stapel %d", size), "kind": "school_year", "service_start_date": "2027-08-01", "service_end_date": "2028-08-31", "all_schools": true,
+		})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		counter.Reset()
+		preview = catalogPreview(t, counted, office.token, path)
+		phasePreviews = append(phasePreviews, counter.Total())
+		for _, school := range preview.Schools {
+			require.Equal(t, "ready", school.Outcome, school.ErrorCode)
+		}
+		counter.Reset()
+		result = catalogRollout(t, counted, office.token, path, preview.Fingerprint)
+		phaseUpdates = append(phaseUpdates, counter.Total())
+		for _, school := range result.Schools {
+			require.Equal(t, "applied", school.Outcome, school.ErrorCode)
+		}
 		rec = traegerJSON(t, router, office.token, http.MethodPost, path+"/withdraw", nil)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		preview = catalogPreview(t, router, office.token, path)
@@ -466,8 +478,10 @@ func TestTraegerCatalogStatementCountDoesNotGrowWithOfferings(t *testing.T) {
 	assert.Equal(t, previews[0], previews[1], "preview statement count")
 	assert.Equal(t, rollouts[0], rollouts[1], "creation includes tariffs and templates")
 	assert.Equal(t, updates[0], updates[1], "updates include tariffs and templates")
+	assert.Equal(t, phasePreviews[0], phasePreviews[1], "phase-window preview statement count")
+	assert.Equal(t, phaseUpdates[0], phaseUpdates[1], "phase-window update statement count")
 	assert.Equal(t, withdrawals[0], withdrawals[1], "withdrawal statement count")
-	t.Logf("1/5 offerings: preview %v, create %v, update %v, withdraw %v", previews, rollouts, updates, withdrawals)
+	t.Logf("1/5 offerings: preview %v, create %v, update %v, phase preview %v, phase update %v, withdraw %v", previews, rollouts, updates, phasePreviews, phaseUpdates, withdrawals)
 }
 
 func TestTraegerCatalogFinancialWritesAreAtomic(t *testing.T) {
