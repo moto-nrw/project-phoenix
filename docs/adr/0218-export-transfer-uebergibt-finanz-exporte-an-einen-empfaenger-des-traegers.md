@@ -1,10 +1,12 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Export Transfer übergibt Finanz-Exporte an einen Empfänger des Trägers
 
-**Status: Vorgeschlagen.** Vorschlag vom 12.11.2026 zu
+**Status: Akzeptiert.** Freigegeben von Yannick Wenger am 12.11.2026.
+
+Entscheidung vom 12.11.2026 zu
 [#6824](https://github.com/moto-ogs/project-phoenix/issues/6824), Teil von
 [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611). Entscheidung
 Yannick vom 12.11.2026 in
@@ -262,7 +264,7 @@ stehen im PR.
 
 ## Register
 
-Gemessen auf dem Stand dieses Vorschlags; jede spätere Abweichung bekommt
+Gemessen auf dem Stand dieser Entscheidung; jede spätere Abweichung bekommt
 Wert alt → neu und Grund.
 
 | Register | alt → neu | Grund |
